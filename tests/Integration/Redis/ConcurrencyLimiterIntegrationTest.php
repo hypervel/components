@@ -159,8 +159,6 @@ class ConcurrencyLimiterIntegrationTest extends TestCase
 
     public function testAcquireReturnsReleasableLease(): void
     {
-        $this->deleteSlots('lease-release', 1);
-
         $lease = (new ConcurrencyLimiter($this->redis(), 'lease-release', 1, 5))->acquire(0);
 
         try {
@@ -173,14 +171,11 @@ class ConcurrencyLimiterIntegrationTest extends TestCase
             $this->assertSame('released', $result);
         } finally {
             $lease->release();
-            $this->deleteSlots('lease-release', 1);
         }
     }
 
     public function testLeakedLeaseIsReclaimedAfterReleaseAfter(): void
     {
-        $this->deleteSlots('lease-reclaim', 1);
-
         (new ConcurrencyLimiter($this->redis(), 'lease-reclaim', 1, 1))->acquire(0);
 
         $this->expectException(LimiterTimeoutException::class);
@@ -192,14 +187,11 @@ class ConcurrencyLimiterIntegrationTest extends TestCase
 
             $lease = (new ConcurrencyLimiter($this->redis(), 'lease-reclaim', 1, 1))->acquire(0);
             $this->assertTrue($lease->release());
-            $this->deleteSlots('lease-reclaim', 1);
         }
     }
 
     public function testLeaseRefreshExtendsLifetime(): void
     {
-        $this->deleteSlots('lease-refresh', 1);
-
         $lease = (new ConcurrencyLimiter($this->redis(), 'lease-refresh', 1, 3))->acquire(0);
 
         try {
@@ -215,26 +207,25 @@ class ConcurrencyLimiterIntegrationTest extends TestCase
             $this->assertGreaterThan($decayedLifetime, $refreshedLifetime);
         } finally {
             $lease->release();
-            $this->deleteSlots('lease-refresh', 1);
         }
     }
 
     public function testPermanentLeaseRefreshChecksOwnershipAndHasNoLifetime(): void
     {
-        $this->deleteSlots('lease-permanent', 1);
+        $this->deleteSlots('{lease-permanent}', 1);
 
-        $lease = (new ConcurrencyLimiter($this->redis(), 'lease-permanent', 1, 0))->acquire(0);
+        $lease = (new ConcurrencyLimiter($this->redis(), '{lease-permanent}', 1, 0))->acquire(0);
 
         try {
             $this->assertTrue($lease->refresh());
             $this->assertNull($lease->getRemainingLifetime());
 
-            $this->redis()->del('lease-permanent1');
+            $this->redis()->del('{lease-permanent}1');
 
             $this->assertFalse($lease->refresh());
         } finally {
             $lease->release();
-            $this->deleteSlots('lease-permanent', 1);
+            $this->deleteSlots('{lease-permanent}', 1);
         }
     }
 
@@ -247,22 +238,20 @@ class ConcurrencyLimiterIntegrationTest extends TestCase
 
         $redis = Redis::connection($connectionName);
 
-        $redis->del('lease-permanent-serializer1');
+        $redis->del('{lease-permanent-serializer}1');
 
-        $lease = (new ConcurrencyLimiter($redis, 'lease-permanent-serializer', 1, 0))->acquire(0);
+        $lease = (new ConcurrencyLimiter($redis, '{lease-permanent-serializer}', 1, 0))->acquire(0);
 
         try {
             $this->assertTrue($lease->refresh());
         } finally {
             $lease->release();
-            $redis->del('lease-permanent-serializer1');
+            $redis->del('{lease-permanent-serializer}1');
         }
     }
 
     public function testTwoLeasesDoNotInterfereWithEachOther(): void
     {
-        $this->deleteSlots('lease-pair', 2);
-
         $limiter = new ConcurrencyLimiter($this->redis(), 'lease-pair', 2, 5);
         $first = $limiter->acquire(0);
         $second = $limiter->acquire(0);
@@ -283,16 +272,15 @@ class ConcurrencyLimiterIntegrationTest extends TestCase
         } finally {
             $first->release();
             $second->release();
-            $this->deleteSlots('lease-pair', 2);
         }
     }
 
     public function testWrongOwnerCannotReleaseOrRefreshHeldSlot(): void
     {
-        $this->deleteSlots('lease-owner', 1);
+        $this->deleteSlots('{lease-owner}', 1);
 
-        $lease = (new ConcurrencyLimiter($this->redis(), 'lease-owner', 1, 5))->acquire(0);
-        $wrongOwner = new ConcurrencyLease($this->redis(), 'lease-owner1', 'wrong-owner', 5);
+        $lease = (new ConcurrencyLimiter($this->redis(), '{lease-owner}', 1, 5))->acquire(0);
+        $wrongOwner = new ConcurrencyLease($this->redis(), '{lease-owner}1', 'wrong-owner', 5);
 
         try {
             $this->assertFalse($wrongOwner->release());
@@ -300,10 +288,10 @@ class ConcurrencyLimiterIntegrationTest extends TestCase
 
             $this->expectException(LimiterTimeoutException::class);
 
-            (new ConcurrencyLimiter($this->redis(), 'lease-owner', 1, 5))->acquire(0);
+            (new ConcurrencyLimiter($this->redis(), '{lease-owner}', 1, 5))->acquire(0);
         } finally {
             $lease->release();
-            $this->deleteSlots('lease-owner', 1);
+            $this->deleteSlots('{lease-owner}', 1);
         }
     }
 
@@ -318,18 +306,18 @@ class ConcurrencyLimiterIntegrationTest extends TestCase
             ['prefix' => ''],
         ));
 
-        $plain->del('concurrency-limiter:selected-connection1', 'selected-connection1');
+        $plain->del('concurrency-limiter:{selected-connection}1', '{selected-connection}1');
 
-        $lease = (new ConcurrencyLimiter($prefixed, 'selected-connection', 1, 60))->acquire(0);
+        $lease = (new ConcurrencyLimiter($prefixed, '{selected-connection}', 1, 60))->acquire(0);
 
         try {
-            $this->assertSame(1, $plain->exists('concurrency-limiter:selected-connection1'));
-            $this->assertSame(0, $plain->exists('selected-connection1'));
+            $this->assertSame(1, $plain->exists('concurrency-limiter:{selected-connection}1'));
+            $this->assertSame(0, $plain->exists('{selected-connection}1'));
             $this->assertTrue($lease->release());
-            $this->assertSame(0, $plain->exists('concurrency-limiter:selected-connection1'));
+            $this->assertSame(0, $plain->exists('concurrency-limiter:{selected-connection}1'));
         } finally {
             $lease->release();
-            $plain->del('concurrency-limiter:selected-connection1', 'selected-connection1');
+            $plain->del('concurrency-limiter:{selected-connection}1', '{selected-connection}1');
         }
     }
 
