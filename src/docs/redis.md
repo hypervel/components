@@ -224,20 +224,28 @@ If your application is utilizing Redis Cluster, you should define a `cluster` ar
     'username' => env('REDIS_USERNAME'),
     'password' => env('REDIS_PASSWORD'),
     'timeout' => 5.0,
+    'read_timeout' => 5.0,
+    'context' => [],
     'cluster' => [
-        'enable' => true,
-        'name' => env('REDIS_CLUSTER_NAME', 'mycluster'),
+        'enabled' => true,
         'seeds' => explode(',', env('REDIS_CLUSTER_SEEDS', '127.0.0.1:6379')),
-        'read_timeout' => 5.0,
-        'persistent' => false,
-        'context' => [],
     ],
 ],
 ```
 
 The `seeds` option should contain one or more `host:port` entries for nodes in the cluster. Redis Cluster does not support selecting logical databases, so the `database` option is ignored for clustered connections.
 
-Cluster context accepts stream options directly or nested under an `ssl` or `stream` key. You may configure `failover` in the connection's `options` array using one of PhpRedis' `RedisCluster::FAILOVER_*` constants.
+All nodes in a cluster connection must use the same transport. You may select TLS using the top-level `scheme` option, a `tls://` or `ssl://` seed, or a non-empty top-level `context` array. Bare seeds inherit the selected transport. Hypervel rejects conflicting schemes because PhpRedis applies one stream context to every node it discovers.
+
+This restriction only applies to Redis Cluster. Standalone connections may use `scheme => 'tcp'` with non-TLS stream context options such as `bindto`.
+
+The top-level `context` option accepts TLS stream options directly or nested under an `ssl` or `stream` key. You may configure `failover` in the connection's `options` array using one of PhpRedis' `RedisCluster::FAILOVER_*` constants.
+
+PhpRedis can cache the Redis Cluster slot map between pooled connections. You may enable this feature in your `php.ini` file:
+
+```ini
+redis.clusters.cache_slots = 1
+```
 
 Hypervel automatically hash-tags Redis queue storage keys and Redis funnel slot keys when a clustered connection is used and the configured queue or funnel name does not already contain a valid Redis Cluster hash tag. This keeps all keys used by Hypervel's multi-key Lua scripts on the same hash slot. You may still provide your own hash tag, such as `{orders}:high`, when you need to control key placement.
 
@@ -253,13 +261,15 @@ Redis Sentinel provides high availability for Redis by monitoring your Redis mas
     'database' => (int) env('REDIS_DB', 0),
     'timeout' => 5.0,
     'retry_interval' => 0,
+    'read_timeout' => 5.0,
     'sentinel' => [
-        'enable' => true,
+        'enabled' => true,
         'master_name' => env('REDIS_SENTINEL_MASTER', 'mymaster'),
         'nodes' => explode(',', env('REDIS_SENTINEL_NODES', '127.0.0.1:26379')),
-        'persistent' => '',
+        'username' => env('REDIS_SENTINEL_USERNAME'),
+        'password' => env('REDIS_SENTINEL_PASSWORD'),
+        'timeout' => 5.0,
         'read_timeout' => 5.0,
-        'auth' => env('REDIS_SENTINEL_PASSWORD'),
         'context' => [
             // 'ssl' => ['verify_peer' => false],
         ],
@@ -267,13 +277,13 @@ Redis Sentinel provides high availability for Redis by monitoring your Redis mas
 ],
 ```
 
-When Sentinel is enabled, Hypervel asks Sentinel for the current master address and then connects to that Redis master. The `auth` value in the `sentinel` array is used to authenticate with Sentinel itself; Redis authentication still uses the connection's top-level `username` and `password` values.
+When Sentinel is enabled, Hypervel asks Sentinel for the current master address and then connects to that Redis master. The `username` and `password` values in the `sentinel` array authenticate with Sentinel itself. Redis authentication still uses the connection's top-level `username` and `password` values. The nested `timeout`, `read_timeout`, and `context` values configure Sentinel discovery, while their top-level counterparts configure the resolved Redis connection. The top-level `retry_interval` value applies only to the resolved Redis connection.
 
 Sentinel nodes may use `tcp://` or `tls://` schemes. IPv6 addresses must use brackets, including when TLS is enabled:
 
 ```php
 'sentinel' => [
-    'enable' => true,
+    'enabled' => true,
     'master_name' => 'mymaster',
     'nodes' => ['tls://[::1]:26379'],
     'context' => [
@@ -396,7 +406,16 @@ Macros should be registered during application boot. A macro call is recorded as
 <a name="redis-command-events"></a>
 #### Redis Command Events
 
-Redis command events may be enabled or disabled during application boot:
+Redis command events may be enabled for an individual connection using the `events` option:
+
+```php
+'default' => [
+    // ...
+    'events' => true,
+],
+```
+
+You may also enable or disable Redis command events for every connection during application boot:
 
 ```php
 Redis::enableEvents();
