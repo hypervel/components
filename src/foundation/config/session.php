@@ -93,6 +93,7 @@ return [
     |
     | When using the Redis session driver, this option maintains the metadata
     | required to list and invalidate all sessions belonging to a user.
+    | It requires PhpRedis 6.3.0+ with Redis 8.0+ or Valkey 9.0+.
     |
     */
 
