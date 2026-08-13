@@ -28,7 +28,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-    # Any-mode coverage requires phpredis 6.3.0+ for HSETEX support.
+    # Hash field expiration coverage requires phpredis 6.3.0+ for HSETEX support.
     container:
       image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
 
@@ -231,6 +231,7 @@ jobs:
           QUEUE_CONNECTION=redis vendor/bin/phpunit --no-progress tests/Integration/Queue/JobChainingTest.php
           QUEUE_CONNECTION=redis vendor/bin/phpunit --no-progress tests/Integration/Queue/JobDispatchingTest.php
           vendor/bin/phpunit --no-progress tests/Integration/RateLimiter/Redis
+          vendor/bin/phpunit --no-progress tests/Integration/Session/Redis
           # This explicit list contains the topology-neutral Redis tests; the remaining files require standalone-only behavior.
           vendor/bin/phpunit --no-progress \
             tests/Integration/Redis/ConcurrencyLimiterIntegrationTest.php \
@@ -261,7 +262,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-    # Any-mode coverage requires phpredis 6.3.0+ for HSETEX support.
+    # Hash field expiration coverage requires phpredis 6.3.0+ for HSETEX support.
     container:
       image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
 
