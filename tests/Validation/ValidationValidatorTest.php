@@ -5333,16 +5333,12 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($property->getValue());
     }
 
-    public function testValidateImage()
+    public function testValidateImage(): void
     {
         $trans = $this->getArrayTranslator();
         $file = $this->uploadedFile(__FILE__, '', guessedExtension: 'php', clientOriginalExtension: 'php');
         $v = new Validator($trans, ['x' => $file], ['x' => 'image']);
         $this->assertFalse($v->passes());
-
-        $file2 = $this->uploadedFile(__FILE__, '', guessedExtension: 'jpeg', clientOriginalExtension: 'jpeg');
-        $v = new Validator($trans, ['x' => $file2], ['x' => 'image']);
-        $this->assertTrue($v->passes());
 
         $file2 = $this->uploadedFile(__FILE__, '', guessedExtension: 'jpeg', clientOriginalExtension: 'jpeg');
         $v = new Validator($trans, ['x' => $file2], ['x' => 'image']);
@@ -5374,6 +5370,18 @@ class ValidationValidatorTest extends TestCase
 
         $file7 = $this->uploadedFile(__FILE__, '', guessedExtension: 'webp', clientOriginalExtension: 'webp');
         $v = new Validator($trans, ['x' => $file7], ['x' => 'Image']);
+        $this->assertTrue($v->passes());
+
+        $file8 = $this->uploadedFile(__FILE__, '', guessedExtension: 'avif', clientOriginalExtension: 'avif');
+        $v = new Validator($trans, ['x' => $file8], ['x' => 'image']);
+        $this->assertTrue($v->passes());
+
+        $file9 = $this->uploadedFile(__FILE__, '', guessedExtension: 'heic', clientOriginalExtension: 'heic');
+        $v = new Validator($trans, ['x' => $file9], ['x' => 'image']);
+        $this->assertTrue($v->passes());
+
+        $file10 = $this->uploadedFile(__FILE__, '', guessedExtension: 'heif', clientOriginalExtension: 'heif');
+        $v = new Validator($trans, ['x' => $file10], ['x' => 'image']);
         $this->assertTrue($v->passes());
 
         $file2 = $this->uploadedFile(__FILE__, '', guessedExtension: 'jpg', clientOriginalExtension: 'jpg');

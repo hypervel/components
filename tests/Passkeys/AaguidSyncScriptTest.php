@@ -78,7 +78,10 @@ class AaguidSyncScriptTest extends TestCase
         $this->assertArrayHasKey('schedule', $workflow['on']);
         $this->assertArrayHasKey('workflow_dispatch', $workflow['on']);
         $this->assertSame(['contents' => 'write', 'pull-requests' => 'write'], $workflow['permissions']);
-        $this->assertStringContainsString('apt-get install -y -qq git', $steps['Install Git']['run']);
+        $this->assertSame(
+            'ghcr.io/hypervel/components-ci:php8.4-swoole6.2.2',
+            $workflow['jobs']['synchronize']['container']['image'],
+        );
         $this->assertSame($defaultBranch, $steps['Checkout default branch']['with']['ref']);
         $this->assertFalse($steps['Checkout default branch']['with']['persist-credentials']);
         $this->assertSame('git config --global --add safe.directory "$GITHUB_WORKSPACE"', $steps['Trust checkout directory']['run']);

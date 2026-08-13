@@ -50,6 +50,7 @@
     - [File Storage](/docs/{{version}}/filesystem)
     - [Helpers](/docs/{{version}}/helpers)
     - [HTTP Client](/docs/{{version}}/http-client)
+    - [Images](/docs/{{version}}/images)
     - [JSON Schema](/docs/{{version}}/json-schema)
     - [Localization](/docs/{{version}}/localization)
     - [Mail](/docs/{{version}}/mail)

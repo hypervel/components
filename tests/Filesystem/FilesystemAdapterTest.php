@@ -17,6 +17,8 @@ use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Image\Image;
+use Hypervel\Image\ImageException;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Json;
 use Hypervel\Testbench\TestCase;
@@ -352,6 +354,30 @@ class FilesystemAdapterTest extends TestCase
 
             $this->assertSame($expected, $filesystemAdapter->json($path));
         }
+    }
+
+    public function testImage(): void
+    {
+        $file = UploadedFile::fake()->image('photo.jpg', 100, 100);
+        $this->filesystem->write('photo.jpg', file_get_contents($file->getRealPath()));
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+
+        $image = $filesystemAdapter->image('photo.jpg');
+
+        $this->assertInstanceOf(Image::class, $image);
+        $this->assertSame([100, 100], $image->dimensions());
+    }
+
+    public function testMissingImageFailsLazilyWithCallerPath(): void
+    {
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+
+        $image = $filesystemAdapter->image('missing.jpg');
+
+        $this->expectException(ImageException::class);
+        $this->expectExceptionMessage('Unable to read image from path [missing.jpg].');
+
+        $image->toBytes();
     }
 
     public function testMimeTypeNotDetected()

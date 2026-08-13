@@ -38,7 +38,7 @@ class SaloonClientTest extends TestCase
 
         $this->assertSame(200, $response->status());
         $this->assertSame('Hello World.', $response->body());
-        $this->assertSame($this->serverUrl(), (string) $response->toPsrRequest()->getUri());
+        $this->assertSame(rtrim($this->serverUrl(), '/'), (string) $response->toPsrRequest()->getUri());
         $this->assertFalse($response->isMocked());
         $this->assertFalse($response->isCached());
         $this->assertNotEmpty($response->handlerStats());

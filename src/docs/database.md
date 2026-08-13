@@ -2,6 +2,7 @@
 
 - [Introduction](#introduction)
     - [Configuration](#configuration)
+        - [Lock Timeouts](#lock-timeouts)
     - [Read and Write Connections](#read-and-write-connections)
     - [Connection Pooling](#connection-pooling)
     - [Configuring Database Session State](#configuring-database-session-state)
@@ -50,6 +51,29 @@ By default, foreign key constraints are enabled for SQLite connections. If you w
 ```ini
 DB_FOREIGN_KEYS=false
 ```
+
+<a name="lock-timeouts"></a>
+#### Lock Timeouts
+
+A lock timeout limits how long a database statement may wait to acquire a lock. It does not limit the total duration of a transaction. Hypervel does not change your database's lock timeout unless you configure one.
+
+For MariaDB, MySQL, and PostgreSQL connections, you may specify a positive timeout in seconds using the `lock_timeout` option:
+
+```php
+'lock_timeout' => (int) env('DB_LOCK_TIMEOUT', 5),
+```
+
+On MariaDB and MySQL, Hypervel applies this value to both InnoDB row locks and metadata locks. As a result, DDL statements issued through the connection will also stop waiting after this interval.
+
+SQLite uses its existing `busy_timeout` option, expressed in milliseconds:
+
+```php
+'busy_timeout' => (int) env('DB_BUSY_TIMEOUT', 5_000),
+```
+
+The `busy_timeout` option applies only to SQLite connections and is ignored by other database drivers.
+
+The timeout is applied whenever Hypervel creates or reconnects a physical database connection. An expired timeout is treated as a concurrency error, so a [transaction configured with multiple attempts](#handling-concurrency-errors) may retry it. If different parts of your application need different timeout policies, define separate database connections for them.
 
 <a name="configuration-using-urls"></a>
 #### Configuration Using URLs
@@ -510,10 +534,10 @@ DB::transaction(function () {
 });
 ```
 
-<a name="handling-deadlocks"></a>
-#### Handling Deadlocks
+<a name="handling-concurrency-errors"></a>
+#### Handling Concurrency Errors
 
-The `transaction` method accepts an optional second argument which defines the number of times a transaction should be retried when a deadlock occurs. Once these attempts have been exhausted, an exception will be thrown:
+The `transaction` method accepts an optional second argument which defines the number of times a transaction should be attempted. After a complete rollback, Hypervel retries detected deadlocks, serialization failures, and database lock errors. Unique constraint violations are not retried. Once the configured attempts have been exhausted, the exception will be thrown:
 
 ```php
 use Hypervel\Support\Facades\DB;
@@ -524,6 +548,8 @@ DB::transaction(function () {
     DB::delete('delete from posts');
 }, attempts: 5);
 ```
+
+PostgreSQL and MariaDB report both an expired lock timeout and a `NOWAIT` lock failure as the same retryable error. Therefore, when a transaction allows multiple attempts, Hypervel may retry either condition on those databases. MySQL reports `NOWAIT` failures separately, and Hypervel does not retry them. Use a single attempt when a `NOWAIT` query must fail immediately without retrying.
 
 <a name="manually-using-transactions"></a>
 #### Manually Using Transactions

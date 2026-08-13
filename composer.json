@@ -52,6 +52,7 @@
             "Hypervel\\Hashing\\": "src/hashing/src/",
             "Hypervel\\Horizon\\": "src/horizon/src/",
             "Hypervel\\Http\\": "src/http/src/",
+            "Hypervel\\Image\\": "src/image/src/",
             "Hypervel\\Inertia\\": "src/inertia/src/",
             "Hypervel\\JsonSchema\\": "src/json-schema/src/",
             "Hypervel\\Jwt\\": "src/jwt/src/",
@@ -149,7 +150,7 @@
         "ext-session": "*",
         "ext-simplexml": "*",
         "ext-sockets": "*",
-        "ext-swoole": "^6.2",
+        "ext-swoole": "^6.2.2",
         "ext-tokenizer": "*",
         "ext-zlib": "*",
         "composer-runtime-api": "^2.2",
@@ -250,6 +251,7 @@
         "hypervel/hashing": "self.version",
         "hypervel/horizon": "self.version",
         "hypervel/http": "self.version",
+        "hypervel/image": "self.version",
         "hypervel/inertia": "self.version",
         "hypervel/json-schema": "self.version",
         "hypervel/jwt": "self.version",
@@ -300,6 +302,7 @@
         "composer/semver": "^3.4",
         "fakerphp/faker": "^1.24",
         "friendsofphp/php-cs-fixer": "^3.57.2",
+        "intervention/image": "^4.2",
         "league/flysystem-google-cloud-storage": "^3.0",
         "meilisearch/meilisearch-php": "^1.16",
         "mockery/mockery": "1.6.x-dev",
@@ -317,6 +320,9 @@
         "symfony/postmark-mailer": "^8.1",
         "symfony/yaml": "^8.1",
         "typesense/typesense-php": "^5.2"
+    },
+    "conflict": {
+        "intervention/image": "<4.0 || >=5.0"
     },
     "config": {
         "sort-packages": true,
@@ -343,6 +349,7 @@
                 "Hypervel\\Hashing\\HashingServiceProvider",
                 "Hypervel\\Horizon\\HorizonServiceProvider",
                 "Hypervel\\Http\\HttpServiceProvider",
+                "Hypervel\\Image\\ImageServiceProvider",
                 "Hypervel\\Inertia\\InertiaServiceProvider",
                 "Hypervel\\Jwt\\JwtServiceProvider",
                 "Hypervel\\Log\\Context\\ContextServiceProvider",
@@ -408,6 +415,7 @@
         "lint:fix": "php-cs-fixer fix",
         "facade": "php -f src/facade-documenter/facade.php --",
         "generate:grpc-health": "bash bin/generate-grpc-health.sh",
+        "sync:grpc-health": "php src/grpc/resources/proto/sync-health-protocol.php",
         "check": [
             "@test",
             "@test:testbench",
