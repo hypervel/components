@@ -48,7 +48,7 @@ use Hypervel\Http\Client\ResponseSequence;
  * @method static void flushMacros()
  * @method static mixed macroCall(string $method, array $parameters)
  * @method static \Hypervel\Http\Client\PendingRequest baseUrl(string $url)
- * @method static \Hypervel\Http\Client\PendingRequest withBody(null|resource|\Psr\Http\Message\StreamInterface|string|\Hypervel\Support\Stringable $content, string $contentType = 'application/json')
+ * @method static \Hypervel\Http\Client\PendingRequest withBody(null|resource|\Psr\Http\Message\StreamInterface|string|\Hypervel\Support\Stringable $content, string|null $contentType = 'application/json')
  * @method static \Hypervel\Http\Client\PendingRequest asJson()
  * @method static \Hypervel\Http\Client\PendingRequest asForm()
  * @method static \Hypervel\Http\Client\PendingRequest attach(array|string $name, resource|string $contents = '', string|null $filename = null, array $headers = [])
