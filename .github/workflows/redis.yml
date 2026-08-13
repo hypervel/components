@@ -6,6 +6,9 @@ on:
       - 0.4
   pull_request:
 
+permissions:
+  contents: read
+
 env:
   RUN_BLOCKING_TESTS: true
 
