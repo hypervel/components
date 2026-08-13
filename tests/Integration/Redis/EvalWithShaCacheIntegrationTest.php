@@ -4,20 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Redis;
 
+use ErrorException;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
 use RedisException;
 
-/**
- * Integration tests for RedisConnection::evalWithShaCache().
- *
- * These tests verify the actual Redis interaction including:
- * - Script SHA caching (evalSha success on subsequent calls)
- * - NOSCRIPT fallback (eval on first call when script not cached)
- * - Error handling for invalid scripts
- */
 class EvalWithShaCacheIntegrationTest extends TestCase
 {
     use InteractsWithRedis;
@@ -49,6 +42,36 @@ class EvalWithShaCacheIntegrationTest extends TestCase
         });
 
         $this->assertEquals('testvalue', $result);
+    }
+
+    public function testClusterRejectsCrossSlotScriptWithoutPoisoningConnection(): void
+    {
+        if (! $this->usingRedisCluster()) {
+            $this->markTestSkipped('This behavior is specific to Redis Cluster.');
+        }
+
+        $connectionName = $this->createRedisConnectionWithOptions(
+            'test_cross_slot_script',
+            [],
+            maxConnections: 1,
+        );
+        $redis = Redis::connection($connectionName);
+
+        try {
+            $redis->evalWithShaCache(
+                'return {KEYS[1], KEYS[2]}',
+                ['{a}:first', '{b}:second'],
+            );
+            $this->fail('Expected PhpRedis to reject keys from different hash slots.');
+        } catch (ErrorException $exception) {
+            $this->assertStringContainsString(
+                'All keys do not map to the same slot',
+                $exception->getMessage(),
+            );
+        }
+
+        $this->assertTrue($redis->set('{eval-cache}:healthy', 'value'));
+        $this->assertSame('value', $redis->get('{eval-cache}:healthy'));
     }
 
     public function testEvalWithShaCacheHandlesMultipleKeysAndArgs(): void

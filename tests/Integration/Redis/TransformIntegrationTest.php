@@ -387,6 +387,16 @@ class TransformIntegrationTest extends TestCase
         $this->assertTrue($redis->ping());
     }
 
+    public function testInfoHonorsTheServerSectionFilter(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+        $info = $redis->info('server');
+
+        $this->assertIsArray($info);
+        $this->assertArrayHasKey('redis_version', $info);
+        $this->assertArrayNotHasKey('used_memory', $info);
+    }
+
     public function testExecuteRawDelegatesToRawCommand()
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));

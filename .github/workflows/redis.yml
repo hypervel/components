@@ -65,10 +65,13 @@ jobs:
         # REDIS_TEST_SECONDARY_DB, leaving 15 worker databases in the 0-15 range.
         run: |
           vendor/bin/paratest --max-processes=15 tests/Integration/Auth/Redis
+          vendor/bin/paratest --max-processes=15 tests/Integration/Broadcasting/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Cache/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Horizon
           vendor/bin/paratest --max-processes=15 tests/Integration/Http/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Queue/Redis
+          QUEUE_CONNECTION=redis vendor/bin/phpunit --no-progress tests/Integration/Queue/JobChainingTest.php
+          QUEUE_CONNECTION=redis vendor/bin/phpunit --no-progress tests/Integration/Queue/JobDispatchingTest.php
           vendor/bin/paratest --max-processes=15 tests/Integration/RateLimiter/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Redis
 
@@ -216,15 +219,21 @@ jobs:
       - name: Execute Redis Cluster integration tests
         run: |
           vendor/bin/phpunit --no-progress tests/Integration/Auth/Redis
+          vendor/bin/phpunit --no-progress tests/Integration/Broadcasting/Redis
           vendor/bin/phpunit --no-progress tests/Integration/Cache/Redis
           vendor/bin/phpunit --no-progress tests/Integration/Horizon
           vendor/bin/phpunit --no-progress tests/Integration/Http/Redis
           vendor/bin/phpunit --no-progress tests/Integration/Queue/Redis
+          QUEUE_CONNECTION=redis vendor/bin/phpunit --no-progress tests/Integration/Queue/JobChainingTest.php
+          QUEUE_CONNECTION=redis vendor/bin/phpunit --no-progress tests/Integration/Queue/JobDispatchingTest.php
           vendor/bin/phpunit --no-progress tests/Integration/RateLimiter/Redis
+          # This explicit list contains the topology-neutral Redis tests; the remaining files require standalone-only behavior.
           vendor/bin/phpunit --no-progress \
             tests/Integration/Redis/ConcurrencyLimiterIntegrationTest.php \
             tests/Integration/Redis/DurationLimiterIntegrationTest.php \
             tests/Integration/Redis/EvalWithShaCacheIntegrationTest.php \
+            tests/Integration/Redis/RedisClusterIntegrationTest.php \
+            tests/Integration/Redis/RedisPoolHeartbeatIntegrationTest.php \
             tests/Integration/Redis/RedisPoolTeardownLifecycleTest.php \
             tests/Integration/Redis/RedisSubscribeIntegrationTest.php \
             tests/Integration/Redis/SafeScanIntegrationTest.php \
@@ -288,9 +297,12 @@ jobs:
         # REDIS_TEST_SECONDARY_DB, leaving 15 worker databases in the 0-15 range.
         run: |
           vendor/bin/paratest --max-processes=15 tests/Integration/Auth/Redis
+          vendor/bin/paratest --max-processes=15 tests/Integration/Broadcasting/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Cache/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Horizon
           vendor/bin/paratest --max-processes=15 tests/Integration/Http/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Queue/Redis
+          QUEUE_CONNECTION=redis vendor/bin/phpunit --no-progress tests/Integration/Queue/JobChainingTest.php
+          QUEUE_CONNECTION=redis vendor/bin/phpunit --no-progress tests/Integration/Queue/JobDispatchingTest.php
           vendor/bin/paratest --max-processes=15 tests/Integration/RateLimiter/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Redis

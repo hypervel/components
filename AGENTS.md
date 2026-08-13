@@ -681,7 +681,7 @@ Each integration group has its own workflow file in `.github/workflows/`:
 |----------|------|-----------|
 | `engine.yml` | HTTP test servers | `tests/Integration/Engine`, `tests/Integration/HttpServer` |
 | `databases.yml` | MySQL, MariaDB, PostgreSQL, SQLite | `tests/Integration/Database`, `tests/Integration/*/Database/*` |
-| `redis.yml` | Redis, Redis Cluster, Valkey | `tests/Integration/Auth/Redis`, `tests/Integration/Cache/Redis`, `tests/Integration/Horizon`, `tests/Integration/Http/Redis`, `tests/Integration/Queue/Redis`, `tests/Integration/RateLimiter/Redis`, `tests/Integration/Redis`; the Cluster job runs the topology-neutral Redis files and Redis-backed Reverb state tests listed in the workflow |
+| `redis.yml` | Redis, Redis Cluster, Valkey | `tests/Integration/Auth/Redis`, `tests/Integration/Broadcasting/Redis`, `tests/Integration/Cache/Redis`, `tests/Integration/Horizon`, `tests/Integration/Http/Redis`, `tests/Integration/Queue/Redis`, `tests/Integration/RateLimiter/Redis`, `tests/Integration/Redis`; it also reruns the driver-neutral queue chaining and dispatching tests with Redis, while the Cluster job runs the topology-neutral Redis files and Redis-backed Reverb state tests listed in the workflow |
 | `scout.yml` | Meilisearch, Typesense | `tests/Integration/Scout/*` |
 
 When adding integration tests that need a new service, either add them to an existing workflow or create a new one. The workflow must start the service and set the appropriate env vars.
