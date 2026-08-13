@@ -41,12 +41,13 @@ use SortDirection;
  *
  * @method $this whereCan(\UnitEnum|string $ability, mixed $user = null)
  * @method $this withCan(\UnitEnum|string|list<\UnitEnum|string> $abilities, mixed $user = null)
+ * @method $this fetchUsing(mixed ...$fetchUsing)
  *
  * @mixin \Hypervel\Database\Query\Builder
  */
 class Builder implements BuilderContract
 {
-    /** @use \Hypervel\Database\Concerns\BuildsQueries<TModel> */
+    /** @use \Hypervel\Database\Concerns\BuildsQueries<int, TModel> */
     use BuildsQueries, ForwardsCalls, QueriesRelationships {
         BuildsQueries::sole as baseSole;
     }

@@ -11,6 +11,7 @@ use GuzzleHttp\Cookie\CookieJar;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
+use GuzzleHttp\Multiplexing;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response as Psr7Response;
@@ -603,8 +604,19 @@ class Factory
     {
         $this->ensureConnectionIsRegistered($name);
 
-        return $this->connectionHandlers[$name] ??= $this->createConnectionHandler(
-            Arr::only($this->connectionConfigs[$name], ['transport_sharing'])
+        if (isset($this->connectionHandlers[$name])) {
+            return $this->connectionHandlers[$name];
+        }
+
+        $config = $this->connectionConfigs[$name];
+        $handlerOptions = Arr::only($config, ['transport_sharing']);
+
+        if (($config['multiplex'] ?? null) === Multiplexing::NONE) {
+            $handlerOptions['multiplex'] = Multiplexing::NONE;
+        }
+
+        return $this->connectionHandlers[$name] = $this->createConnectionHandler(
+            $handlerOptions,
         );
     }
 

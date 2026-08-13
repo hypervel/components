@@ -15,6 +15,7 @@ use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testing\Assert as PHPUnit;
 use PDO;
 use PDOException;
+use RuntimeException;
 
 class QueryBuilderTest extends DatabaseTestCase
 {
@@ -680,6 +681,13 @@ class QueryBuilderTest extends DatabaseTestCase
             'Bar Post',
         ], DB::table('posts')->select(['title'])->fetchUsing(PDO::FETCH_COLUMN)->cursor()->collect()->toArray());
 
+        $cursorPaginator = DB::table('posts')
+            ->orderBy('id')
+            ->fetchUsing(PDO::FETCH_ASSOC)
+            ->cursorPaginate(1, ['id', 'title']);
+        $this->assertSame([['id' => 1, 'title' => 'Foo Post']], $cursorPaginator->items());
+        $this->assertSame(1, (int) $cursorPaginator->nextCursor()?->parameter('id'));
+
         // Test the default 'object' fetch mode.
         $result = DB::table('posts')->select(['title'])->fetchUsing(PDO::FETCH_OBJ)->get()->toArray();
         $result2 = DB::table('posts')->select(['title'])->fetchUsing()->get()->toArray();
@@ -687,6 +695,146 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertSame('Bar Post', $result[1]->title);
         $this->assertSame('Foo Post', $result2[0]->title);
         $this->assertSame('Bar Post', $result2[1]->title);
+    }
+
+    public function testFetchUsingPreservesFalseyRowsAcrossGetAndCursor(): void
+    {
+        Schema::create('fetch_values', function (Blueprint $table) {
+            $table->increments('id');
+            $table->string('value')->nullable();
+        });
+
+        DB::table('fetch_values')->insert([
+            ['value' => null],
+            ['value' => ''],
+            ['value' => '0'],
+            ['value' => 'later'],
+        ]);
+
+        $query = DB::table('fetch_values')
+            ->select(['id', 'value'])
+            ->orderBy('id')
+            ->fetchUsing(PDO::FETCH_COLUMN, 1);
+
+        $this->assertSame([null, '', '0', 'later'], $query->get()->all());
+        $this->assertSame([null, '', '0', 'later'], $query->cursor()->all());
+        $this->assertSame('later', DB::table('fetch_values')->select('value')->fetchUsing(PDO::FETCH_COLUMN)->find(4));
+
+        $fallbackCalled = false;
+        $nullQuery = DB::table('fetch_values')->select('value')->fetchUsing(PDO::FETCH_COLUMN);
+
+        $this->assertNull($nullQuery->clone()->where('id', 1)->firstOrFail());
+        $this->assertNull($nullQuery->clone()->findOr(1, function () use (&$fallbackCalled) {
+            $fallbackCalled = true;
+
+            return 'fallback';
+        }));
+        $this->assertFalse($fallbackCalled);
+    }
+
+    public function testShapeOwningTerminalsIgnoreCustomFetchModes(): void
+    {
+        $this->assertTrue(DB::table('posts')->fetchUsing(PDO::FETCH_COLUMN)->exists());
+        $this->assertSame(2, DB::table('posts')->fetchUsing(PDO::FETCH_COLUMN)->count());
+        $this->assertSame(['Foo Post', 'Bar Post'], DB::table('posts')->fetchUsing(PDO::FETCH_COLUMN)->pluck('title')->all());
+        $this->assertSame('Foo Post,Bar Post', DB::table('posts')->fetchUsing(PDO::FETCH_COLUMN)->implode('title', ','));
+        $this->assertSame('Foo Post', DB::table('posts')->orderBy('id')->fetchUsing(PDO::FETCH_COLUMN)->value('title'));
+        $this->assertSame(2, (int) DB::table('posts')->fetchUsing(PDO::FETCH_COLUMN)->rawValue('count(*)'));
+        $this->assertSame('Foo Post', DB::table('posts')->where('id', 1)->fetchUsing(PDO::FETCH_COLUMN)->soleValue('title'));
+
+        $paginator = DB::table('posts')->orderBy('id')->fetchUsing(PDO::FETCH_COLUMN)->paginate(1, ['title']);
+        $this->assertSame(2, $paginator->total());
+        $this->assertSame(['Foo Post'], $paginator->items());
+
+        $groupedPaginator = DB::table('posts')
+            ->select('content')
+            ->groupBy('content')
+            ->orderBy('content')
+            ->fetchUsing(PDO::FETCH_COLUMN)
+            ->paginate(1, ['content']);
+        $this->assertSame(1, $groupedPaginator->total());
+
+        $query = DB::table('posts')->select('title')->orderBy('id')->fetchUsing(PDO::FETCH_COLUMN);
+        $this->assertTrue($query->exists());
+        $this->assertSame(['Foo Post', 'Bar Post'], $query->get()->all());
+    }
+
+    public function testShapeOwningTerminalPreservesBeforeQueryCallbackOwnership(): void
+    {
+        $callbackCalls = 0;
+        $query = DB::table('posts')->orderBy('id')->beforeQuery(function ($query) use (&$callbackCalls) {
+            ++$callbackCalls;
+            $query->fetchUsing(PDO::FETCH_COLUMN);
+        });
+
+        $this->assertSame(['Foo Post', 'Bar Post'], $query->pluck('title')->all());
+        $this->assertSame(1, $callbackCalls);
+        $this->assertSame(['Foo Post', 'Bar Post'], $query->select('title')->get()->all());
+        $this->assertSame(1, $callbackCalls);
+    }
+
+    public function testFetchUsingSupportsGroupLimitsAndIdIteration(): void
+    {
+        $groupLimited = DB::table('posts')
+            ->select(['id', 'title', 'content'])
+            ->orderBy('id')
+            ->groupLimit(1, 'content')
+            ->fetchUsing(PDO::FETCH_ASSOC)
+            ->first();
+
+        $this->assertIsArray($groupLimited);
+        $this->assertSame(
+            [],
+            array_values(array_filter(
+                array_keys($groupLimited),
+                fn (string $key) => str_contains($key, 'hypervel_')
+            ))
+        );
+
+        $this->assertSame(
+            [1, 2],
+            DB::table('posts')
+                ->select(['id', 'title'])
+                ->fetchUsing(PDO::FETCH_ASSOC)
+                ->lazyById(1)
+                ->pluck('id')
+                ->all()
+        );
+
+        $eachPositions = [];
+        DB::table('posts')
+            ->selectRaw('title as fetch_key, id, content')
+            ->orderBy('id')
+            ->fetchUsing(PDO::FETCH_UNIQUE)
+            ->each(function (mixed $post, int $position) use (&$eachPositions): void {
+                $eachPositions[] = $position;
+            }, 2);
+        $this->assertSame([0, 1], $eachPositions);
+
+        $eachByIdPositions = [];
+        DB::table('posts')
+            ->selectRaw('title as fetch_key, id, content')
+            ->fetchUsing(PDO::FETCH_UNIQUE)
+            ->eachById(function (mixed $post, int $position) use (&$eachByIdPositions): void {
+                $eachByIdPositions[] = $position;
+            }, 1);
+        $this->assertSame([0, 1], $eachByIdPositions);
+    }
+
+    public function testFailedSelectRestoresOriginalColumns(): void
+    {
+        $query = DB::table('posts')->beforeQuery(function (): never {
+            throw new RuntimeException('Query failed.');
+        });
+
+        try {
+            $query->pluck('title');
+            $this->fail('Expected the query callback to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Query failed.', $exception->getMessage());
+        }
+
+        $this->assertNull($query->columns);
     }
 
     protected function defineEnvironmentWouldThrowsPDOException($app): void

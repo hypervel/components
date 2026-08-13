@@ -438,15 +438,18 @@ class ContextTest extends TestCase
     public function testScopeRestoresOnException()
     {
         $this->context->add('existing', 'original');
+        $expectedException = new RuntimeException('test');
+        $caughtException = null;
 
         try {
-            $this->context->scope(function () {
-                throw new RuntimeException('test');
+            $this->context->scope(function () use ($expectedException): never {
+                throw $expectedException;
             }, ['temp' => 'scoped']);
-        } catch (RuntimeException) {
-            // expected
+        } catch (RuntimeException $exception) {
+            $caughtException = $exception;
         }
 
+        $this->assertSame($expectedException, $caughtException);
         $this->assertFalse($this->context->has('temp'));
         $this->assertSame('original', $this->context->get('existing'));
     }

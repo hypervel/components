@@ -375,6 +375,10 @@ These rules apply to all tests — new tests for framework work and ported tests
 
 Test supported public behavior, meaningful branches, verified regressions, and realistic coroutine or worker-lifetime failures. Do not add production APIs, branches, or defensive machinery solely to make speculative states testable. Do not require invariants to survive deliberate framework escape hatches unless the public contract promises that behavior.
 
+### Exceptions in tests
+
+PHPUnit assertion failures, skips, and incomplete markers all extend `AssertionFailedError`, which extends `RuntimeException`. A test's `try`/`catch` must not turn any of them into success. When testing behavior after an exception, the catch must not be reachable by a failure that skips the behavior under test. Satisfy that by pinning the escaped exception by identity or message, or by catching a type that excludes every other failure the code path can produce.
+
 ### Directory layout
 
 All tests live in `tests/{PackageName}/` (PascalCase). Tests that require external services go in `tests/Integration/{PackageName}/` — see Integration tests below. When only some integration tests for a package require one service, group them in `tests/Integration/{PackageName}/{ServiceName}/`. When every integration test for the package requires that service, keep them directly in the package directory.

@@ -115,6 +115,8 @@ Http::withUrlParameters([
 ])->get('{+endpoint}/{page}/{version}/{topic}');
 ```
 
+URI-template expansion is enabled only after calling `withUrlParameters`. Literal braces are otherwise treated as ordinary URL characters instead of template expressions.
+
 <a name="dumping-requests"></a>
 #### Dumping Requests
 
@@ -191,6 +193,13 @@ You may use the `withBody` method if you would like to provide a raw request bod
 $response = Http::withBody(
     base64_encode($photo), 'image/jpeg'
 )->post('http://example.com/photo');
+```
+
+If the request already provides the correct headers or should not include a content type, you may pass `null` as the second argument:
+
+```php
+$response = Http::withBody($stream, null)
+    ->post('http://example.com/import');
 ```
 
 <a name="multi-part-requests"></a>
@@ -833,7 +842,7 @@ defer(function () {
 <a name="connections"></a>
 ## Connections
 
-Hypervel's HTTP client supports named connection presets for services your application calls frequently. Each registered connection owns one low-level Guzzle transport handler, which retains reusable cURL handles and keep-alive connection state. Every pending request still receives a fresh Guzzle client and middleware stack, so request-specific middleware, callbacks, and options never become frozen onto the first request.
+Hypervel's HTTP client supports named connection presets for services your application calls frequently. Synchronous requests on a registered connection share one low-level Guzzle transport handler, which retains reusable cURL handles and keep-alive connection state. Every pending request still receives a fresh Guzzle client and middleware stack, so request-specific middleware, callbacks, and options never become frozen onto the first request. Asynchronous requests use isolated handlers because a worker-lived cURL multi-handler cannot be driven safely by concurrent coroutines.
 
 To register a connection, typically in the `boot` method of your application's `AppServiceProvider`, call the `registerConnection` method:
 
@@ -860,9 +869,11 @@ The second argument is a request-option preset. It accepts normal Guzzle request
 - `cookies` is rejected. Every pending request owns an isolated cookie jar; seed it with `withCookies()`.
 - `handler` is rejected. Use `setHandler()` for a request-specific handler.
 - `pool` is rejected. HTTP clients are not object-pooled.
+- `max_host_connections` and `max_total_connections` are rejected. Use bounded coroutine fan-out or the rate limiter instead.
 - `transport_sharing` is consumed only while registering the connection's low-level handler. It accepts Guzzle's `TransportSharing` modes and is never passed into request options.
+- `multiplex` remains a request option. The `Multiplexing::NONE` mode also configures the connection handler so its guarantee applies to every request using that handler.
 
-The same four keys are rejected from global options, per-call connection overrides, fluent `withOptions()` calls, and raw `send()` options. This keeps cookie and handler ownership consistent regardless of which option layer supplied a value.
+The dedicated connection-cap options are rejected at every option layer. `pool`, `handler`, `cookies`, and `transport_sharing` are also rejected from global options, per-call connection overrides, fluent `withOptions()` calls, and raw `send()` options. This keeps cookie and handler ownership consistent regardless of which option layer supplied a value.
 
 Once registered, select a connection for a request by chaining the `connection` method:
 

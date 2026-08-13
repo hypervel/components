@@ -443,13 +443,17 @@ class MakesHttpRequestsTest extends TestCase
         ]));
 
         $response = TestResponse::fromBaseResponse(new Response);
+        $caughtException = null;
 
         try {
             $response->assertSessionHasNoErrors();
-        } catch (AssertionFailedError $e) {
-            $this->assertStringContainsString('foo is required', $e->getMessage());
-            $this->assertStringContainsString('bar is required', $e->getMessage());
+        } catch (AssertionFailedError $exception) {
+            $caughtException = $exception;
         }
+
+        $this->assertInstanceOf(AssertionFailedError::class, $caughtException);
+        $this->assertStringContainsString('foo is required', $caughtException->getMessage());
+        $this->assertStringContainsString('bar is required', $caughtException->getMessage());
     }
 
     public function testAssertSessionHas()

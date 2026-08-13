@@ -7,6 +7,8 @@ namespace Hypervel\RateLimiter\Concerns;
 use Hypervel\RateLimiter\AdmissionPolicy;
 use Hypervel\RateLimiter\Backoff;
 use Hypervel\RateLimiter\BackoffResult;
+use Hypervel\RateLimiter\Cooldown;
+use Hypervel\RateLimiter\CooldownResult;
 use Hypervel\RateLimiter\Exceptions\InvalidRateLimitException;
 use Hypervel\RateLimiter\LeakyBucket;
 use Hypervel\RateLimiter\Limit;
@@ -64,15 +66,15 @@ trait CalculatesRateLimits
     /**
      * Calculate a non-mutating policy inspection.
      *
-     * @return ($policy is Backoff ? BackoffResult : LimitResult)
+     * @return ($policy is Backoff ? BackoffResult : ($policy is Cooldown ? CooldownResult : LimitResult))
      */
     protected function calculateInspection(
-        AdmissionPolicy|Backoff $policy,
+        AdmissionPolicy|Backoff|Cooldown $policy,
         int $now,
         int $value,
         int $secondaryValue,
         int $expiresAt,
-    ): LimitResult|BackoffResult {
+    ): LimitResult|BackoffResult|CooldownResult {
         return match (true) {
             $policy instanceof Limit => $this->calculateFixedWindow(
                 $policy,
@@ -104,11 +106,35 @@ trait CalculatesRateLimits
                 $secondaryValue,
                 $expiresAt,
             ),
+            $policy instanceof Cooldown => $this->calculateCooldownInspection(
+                $now,
+                $value,
+                $secondaryValue,
+                $expiresAt,
+            ),
             default => throw new InvalidRateLimitException(sprintf(
                 'Admission policy [%s] is not supported.',
                 $policy::class,
             )),
         };
+    }
+
+    /**
+     * Calculate a cooldown extension and update its expiry.
+     */
+    protected function calculateCooldownBlock(
+        int $durationMicroseconds,
+        int $now,
+        int &$value,
+        int &$secondaryValue,
+        int &$expiresAt,
+    ): CooldownResult {
+        $this->resetExpiredState($now, $value, $secondaryValue, $expiresAt);
+        $this->validateCooldownState($value, $secondaryValue, $expiresAt);
+
+        $expiresAt = max($expiresAt, $this->addExact($now, $durationMicroseconds));
+
+        return new CooldownResult(false, $expiresAt - $now);
     }
 
     /**
@@ -378,6 +404,23 @@ trait CalculatesRateLimits
     }
 
     /**
+     * Calculate a non-mutating cooldown inspection.
+     */
+    private function calculateCooldownInspection(
+        int $now,
+        int $value,
+        int $secondaryValue,
+        int $expiresAt,
+    ): CooldownResult {
+        $this->resetExpiredState($now, $value, $secondaryValue, $expiresAt);
+        $this->validateCooldownState($value, $secondaryValue, $expiresAt);
+
+        $retryAfter = max($expiresAt - $now, 0);
+
+        return new CooldownResult($retryAfter === 0, $retryAfter);
+    }
+
+    /**
      * Calculate the current whole-token capacity.
      */
     private function remainingCapacity(
@@ -529,6 +572,16 @@ trait CalculatesRateLimits
             || ($value !== 0 && $expiresAt === 0)
             || $secondaryValue > $expiresAt) {
             throw new UnexpectedValueException('The stored backoff rate limiter state is invalid.');
+        }
+    }
+
+    /**
+     * Validate cooldown state loaded from a store.
+     */
+    private function validateCooldownState(int $value, int $secondaryValue, int $expiresAt): void
+    {
+        if ($value !== 0 || $secondaryValue !== 0 || $expiresAt < 0) {
+            throw new UnexpectedValueException('The stored cooldown rate limiter state is invalid.');
         }
     }
 

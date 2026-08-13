@@ -15,7 +15,6 @@ use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\SimpleConnectionResolver;
 use Hypervel\Support\Traits\CapsuleManagerTrait;
-use PDO;
 
 /**
  * Standalone database manager for non-production use outside full application bootstrap.
@@ -60,8 +59,6 @@ class Manager
      */
     protected function setupDefaultConfiguration(): void
     {
-        $this->container['config']['database.fetch'] = PDO::FETCH_OBJ;
-
         $this->container['config']['database.default'] = 'default';
     }
 
@@ -144,15 +141,8 @@ class Manager
         }
     }
 
-    /**
-     * Set the fetch mode for the database connections.
-     */
-    public function setFetchMode(int $fetchMode): static
-    {
-        $this->container['config']['database.fetch'] = $fetchMode;
-
-        return $this;
-    }
+    // REMOVED: Capsule's setter writes unused configuration and cannot safely
+    // define a connection-wide row shape. Use Query\Builder::fetchUsing() per query.
 
     /**
      * Get the database manager instance.
