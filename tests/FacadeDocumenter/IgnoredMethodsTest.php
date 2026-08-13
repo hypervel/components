@@ -66,6 +66,82 @@ class IgnoredMethodsTest extends FacadeDocumenterTestCase
         $this->assertStringNotContainsString('@method static string hidden()', $contents);
     }
 
+    public function testFacadeMayExcludeOneMixinMethodWithoutHidingAProxyMethod(): void
+    {
+        $this->writeAppFile(
+            'IgnoredMethods/Connection.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\IgnoredMethods;
+
+                interface Connection
+                {
+                    public function transactionLevel(): int;
+                }
+                PHP
+        );
+
+        $this->writeAppFile(
+            'IgnoredMethods/Manager.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\IgnoredMethods;
+
+                class Manager
+                {
+                    public function disconnect(?string $name = null): void
+                    {
+                    }
+
+                    public function transactionLevel(): int
+                    {
+                        return 0;
+                    }
+                }
+                PHP
+        );
+
+        $this->writeAppFile(
+            'IgnoredMethods/MixinFacade.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\IgnoredMethods;
+
+                /**
+                 * @mixin \App\IgnoredMethods\Connection
+                 * @see \App\IgnoredMethods\Manager
+                 */
+                class MixinFacade
+                {
+                    /**
+                     * @return array<int, string>
+                     */
+                    protected static function ignoredFacadeDocumenterMethods(): array
+                    {
+                        return ['transactionLevel'];
+                    }
+                }
+                PHP
+        );
+
+        $process = $this->runDocumenter(['App\IgnoredMethods\MixinFacade']);
+        $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput() . $process->getOutput());
+
+        $contents = $this->appFileContents('App\IgnoredMethods\MixinFacade');
+
+        $this->assertStringContainsString('@method static void disconnect(string|null $name = null)', $contents);
+        $this->assertStringNotContainsString('@method static int transactionLevel()', $contents);
+    }
+
     public function testIgnoreHookMustBeStatic(): void
     {
         $this->writeAppFile(

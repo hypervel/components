@@ -10,6 +10,7 @@ use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\RateLimiter\AdmissionPolicy;
 use Hypervel\RateLimiter\Backoff;
+use Hypervel\RateLimiter\Cooldown;
 use Hypervel\RateLimiter\DatabaseStore;
 use Hypervel\RateLimiter\KeyResolver;
 use Hypervel\RateLimiter\LeakyBucket;
@@ -287,6 +288,30 @@ abstract class DatabaseStoreTestCase extends DatabaseTestCase
 
         $this->assertSame(4, count(array_filter($results)));
         $this->assertSame(5, (int) DB::table('rate_limits')->where('key', $key)->value('value'));
+    }
+
+    public function testConcurrentCooldownBlocksRetainTheLongestExpiry(): void
+    {
+        $limiter = new Limiter(
+            $this->store(),
+            new KeyResolver('database-cooldown', static fn (): ?string => null),
+        );
+        $cooldown = Cooldown::for('concurrent');
+
+        parallel([
+            static fn () => $limiter->block($cooldown, 1),
+            static fn () => $limiter->block($cooldown, 60),
+            static fn () => $limiter->block($cooldown, 2),
+            static fn () => $limiter->block($cooldown, 3),
+        ]);
+
+        $inspectionRetryAfter = $limiter->inspect($cooldown)->retryAfter();
+        $shorterRetryAfter = $limiter->block($cooldown, 1)->retryAfter();
+
+        $this->assertGreaterThan(30, $inspectionRetryAfter);
+        $this->assertLessThanOrEqual(60, $inspectionRetryAfter);
+        $this->assertGreaterThan(30, $shorterRetryAfter);
+        $this->assertLessThanOrEqual(60, $shorterRetryAfter);
     }
 
     #[DataProvider('invalidPruneChunkSizes')]

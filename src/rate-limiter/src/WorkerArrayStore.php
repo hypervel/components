@@ -51,12 +51,38 @@ class WorkerArrayStore implements Store
     }
 
     /**
+     * Atomically extend a cooldown block.
+     */
+    public function block(string $key, int $durationMicroseconds): CooldownResult
+    {
+        [$value, $secondaryValue, $expiresAt] = $this->state($key);
+
+        $result = $this->calculateCooldownBlock(
+            $durationMicroseconds,
+            $this->currentTimeInMicroseconds(),
+            $value,
+            $secondaryValue,
+            $expiresAt,
+        );
+
+        $this->states[$key] = [
+            'value' => $value,
+            'secondary_value' => $secondaryValue,
+            'expires_at' => $expiresAt,
+        ];
+
+        return $result;
+    }
+
+    /**
      * Inspect a policy without mutating its state.
      *
-     * @return ($policy is Backoff ? BackoffResult : LimitResult)
+     * @return ($policy is Backoff ? BackoffResult : ($policy is Cooldown ? CooldownResult : LimitResult))
      */
-    public function inspect(string $key, AdmissionPolicy|Backoff $policy): LimitResult|BackoffResult
-    {
+    public function inspect(
+        string $key,
+        AdmissionPolicy|Backoff|Cooldown $policy,
+    ): LimitResult|BackoffResult|CooldownResult {
         [$value, $secondaryValue, $expiresAt] = $this->state($key);
 
         return $this->calculateInspection(

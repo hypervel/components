@@ -33,6 +33,7 @@ use PDOException;
 use PDOStatement;
 use ReflectionClass;
 use RuntimeException;
+use stdClass;
 
 class DatabaseConnectionTest extends TestCase
 {
@@ -138,7 +139,7 @@ class DatabaseConnectionTest extends TestCase
         $statement->expects($this->once())->method('setFetchMode');
         $statement->expects($this->once())->method('bindValue')->with(1, 'foo', 2);
         $statement->expects($this->once())->method('execute');
-        $statement->expects($this->atLeastOnce())->method('fetchAll')->willReturn(['boom']);
+        $statement->expects($this->atLeastOnce())->method('fetchAll')->with(PDO::FETCH_COLUMN, 1)->willReturn(['boom']);
         $statement->expects($this->atLeastOnce())->method('nextRowset')->willReturnCallback(function () {
             static $i = 1;
 
@@ -148,7 +149,7 @@ class DatabaseConnectionTest extends TestCase
         $mock = $this->getMockConnection(['prepareBindings'], $writePdo);
         $mock->setReadPdo($pdo);
         $mock->expects($this->once())->method('prepareBindings')->with($this->equalTo(['foo']))->willReturn(['foo']);
-        $results = $mock->selectResultsets('CALL a_procedure(?)', ['foo']);
+        $results = $mock->selectResultsets('CALL a_procedure(?)', ['foo'], true, [PDO::FETCH_COLUMN, 1]);
         $this->assertEquals([['boom'], ['boom']], $results);
         $log = $mock->getQueryLog();
         $this->assertSame('CALL a_procedure(?)', $log[0]['query']);
@@ -202,16 +203,70 @@ class DatabaseConnectionTest extends TestCase
             ['name' => 'test', 'driver' => 'sqlite']
         );
 
-        $connection->pretend(static function (Connection $connection): void {
+        $cursorRows = null;
+        $queries = $connection->pretend(static function (Connection $connection) use (&$cursorRows): void {
             $connection->select('select 1');
+            $cursorRows = iterator_to_array($connection->cursor('select cursor_value'));
             $connection->statement('create table records (id integer)');
             $connection->affectingStatement('delete from records');
             $connection->unprepared('delete from records');
         });
 
+        $this->assertSame([], $cursorRows);
+        $this->assertSame('select cursor_value', $queries[1]['query']);
         $this->assertSame(0, $resolutions);
         $this->assertSame(0, $configurator->stateCalls);
         $this->assertSame(0, $configurator->applyCalls);
+    }
+
+    public function testCursorPreservesFalseyValuesWithCustomFetchMode(): void
+    {
+        $connection = $this->getSqliteTransactionConnection();
+        $connection->statement('create table records (id integer primary key, value text null)');
+        $connection->insert("insert into records (id, value) values (1, null), (2, ''), (3, '0'), (4, 'later')");
+
+        $this->assertSame(
+            [null, '', '0', 'later'],
+            iterator_to_array($connection->cursor(
+                'select id, value from records order by id',
+                fetchUsing: [PDO::FETCH_COLUMN, 1]
+            ))
+        );
+    }
+
+    public function testCursorPreservesModeOnlyFetchDefaults(): void
+    {
+        $connection = $this->getSqliteTransactionConnection();
+
+        $this->assertSame(
+            ['first', 'second'],
+            iterator_to_array($connection->cursor(
+                "select 'first' as value union all select 'second'",
+                fetchUsing: [PDO::FETCH_COLUMN]
+            ))
+        );
+
+        $classRows = iterator_to_array($connection->cursor(
+            "select 'class' as value",
+            fetchUsing: [PDO::FETCH_CLASS]
+        ));
+        $this->assertInstanceOf(stdClass::class, $classRows[0]);
+        $this->assertSame('class', $classRows[0]->value);
+
+        $this->assertSame(
+            [1, 2],
+            iterator_to_array($connection->cursor(
+                'select 1 as value union all select 2',
+                fetchUsing: [PDO::FETCH_GROUP | PDO::FETCH_COLUMN]
+            ))
+        );
+
+        $classTypeRows = iterator_to_array($connection->cursor(
+            "select 'stdClass' as class_name, 'typed' as value",
+            fetchUsing: [PDO::FETCH_CLASS | PDO::FETCH_CLASSTYPE]
+        ));
+        $this->assertInstanceOf(stdClass::class, $classTypeRows[0]);
+        $this->assertSame('typed', $classTypeRows[0]->value);
     }
 
     public function testMySqlInsertUsesOneSynchronizedPdoForExecutionAndInsertId(): void

@@ -39,15 +39,17 @@ class FailOnExceptionMiddlewareTest extends TestCase
         $fakeJob = new FakeJob;
         $job->setJob($fakeJob);
 
+        $caughtException = null;
+
         try {
             $instance->call($fakeJob, [
                 'command' => serialize($job),
             ]);
-
-            $this->fail('Did not throw exception');
-        } catch (Throwable $e) {
-            $this->assertInstanceOf($thrown, $e);
+        } catch (Throwable $exception) {
+            $caughtException = $exception;
         }
+
+        $this->assertInstanceOf($thrown, $caughtException);
 
         $expectedToFail ? $job->assertFailed() : $job->assertNotFailed();
     }
@@ -85,17 +87,17 @@ class FailOnExceptionMiddlewareTest extends TestCase
         $fakeJob = new FakeJob;
         $job->setJob($fakeJob);
 
-        $exception = null;
+        $caughtException = null;
 
         try {
             $instance->call($fakeJob, [
                 'command' => serialize($job),
             ]);
-        } catch (Throwable $throwable) {
-            $exception = $throwable;
+        } catch (InvalidArgumentException $exception) {
+            $caughtException = $exception;
         }
 
-        $this->assertNotNull($exception, 'Did not throw exception');
+        $this->assertInstanceOf(InvalidArgumentException::class, $caughtException, 'Did not throw expected exception');
 
         $expectedToFail ? $job->assertFailed() : $job->assertNotFailed();
     }

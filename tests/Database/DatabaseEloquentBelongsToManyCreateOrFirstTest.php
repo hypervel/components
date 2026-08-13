@@ -208,7 +208,6 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
                 'select exists(select * from "pivot_table" where "pivot_table"."source_id" = ? and "pivot_table"."related_id" in (?)) as "exists"',
                 [123, 456],
                 false,
-                [],
             )
             ->andReturn([['exists' => 1]]);
 
@@ -260,7 +259,6 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             'select exists(select * from "pivot_table" where "pivot_table"."source_id" = ? and "pivot_table"."related_id" in (?)) as "exists"',
             [123, 456],
             false,
-            [],
         )->andReturn([['exists' => 0]]);
 
         try {
@@ -369,7 +367,6 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             'select exists(select * from "pivot_table" where "pivot_table"."source_id" = ? and "pivot_table"."related_id" in (?)) as "exists"',
             [123, 456],
             false,
-            [],
         )->andReturn([['exists' => 1]]);
 
         $result = $source->related()->firstOrCreate(['attr' => 'foo'], ['val' => 'bar']);
@@ -416,7 +413,6 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             'select exists(select * from "pivot_table" where "pivot_table"."source_id" = ? and "pivot_table"."related_id" in (?)) as "exists"',
             [123, 456],
             false,
-            [],
         )->andReturn([['exists' => 0]]);
 
         try {
@@ -726,7 +722,6 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             'select exists(select * from "pivot_table" where ("status" = ? and "kind" in (?, ?) and "expired_at" is null and "score" between ? and ?) and "pivot_table"."source_id" = ? and "pivot_table"."related_id" in (?)) as "exists"',
             ['active', 'primary', 'secondary', 10, 20, 123, 456],
             false,
-            [],
         )->andReturn([['exists' => 1]]);
 
         $this->assertTrue($relation->hasAttached($related));
@@ -756,7 +751,6 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             'select exists(select * from "pivot_table" where "pivot_table"."source_id" = ? and "source_type" = ? and "pivot_table"."related_id" in (?)) as "exists"',
             [123, SourceModel::class, 456],
             false,
-            [],
         )->andReturn([['exists' => 1]]);
 
         $this->assertTrue($relation->hasAttached($related));

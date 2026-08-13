@@ -8,6 +8,7 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\RateLimiter\AdmissionPolicy;
 use Hypervel\RateLimiter\Backoff;
+use Hypervel\RateLimiter\Cooldown;
 use Hypervel\RateLimiter\KeyResolver;
 use Hypervel\RateLimiter\LeakyBucket;
 use Hypervel\RateLimiter\Limit;
@@ -369,6 +370,31 @@ class RedisStoreTest extends TestCase
         }
     }
 
+    public function testConcurrentCooldownBlocksRetainTheLongestExpiry(): void
+    {
+        $limiter = $this->limiter();
+        $cooldown = Cooldown::for('concurrent-cooldown');
+
+        parallel([
+            static fn () => $limiter->block($cooldown, 1),
+            static fn () => $limiter->block($cooldown, 60),
+            static fn () => $limiter->block($cooldown, 2),
+            static fn () => $limiter->block($cooldown, 3),
+        ]);
+
+        $physicalKey = $this->physicalKey($cooldown);
+        $ttl = $this->redisClient()->pttl($physicalKey);
+        $inspectionRetryAfter = $limiter->inspect($cooldown)->retryAfter();
+        $shorterRetryAfter = $limiter->block($cooldown, 1)->retryAfter();
+
+        $this->assertGreaterThan(30_000, $ttl);
+        $this->assertLessThanOrEqual(60_000, $ttl);
+        $this->assertGreaterThan(30, $inspectionRetryAfter);
+        $this->assertLessThanOrEqual(60, $inspectionRetryAfter);
+        $this->assertGreaterThan(30, $shorterRetryAfter);
+        $this->assertLessThanOrEqual(60, $shorterRetryAfter);
+    }
+
     public function testSerializerAndCompressionOptionsDoNotAffectLimiterState(): void
     {
         if (! defined('Redis::COMPRESSION_LZF')) {
@@ -431,7 +457,7 @@ class RedisStoreTest extends TestCase
         return $this->limiter();
     }
 
-    private function physicalKey(AdmissionPolicy|Backoff $policy): string
+    private function physicalKey(AdmissionPolicy|Backoff|Cooldown $policy): string
     {
         return (new KeyResolver('integration', static fn (): ?string => null))->resolve($policy);
     }

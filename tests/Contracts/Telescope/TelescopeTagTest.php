@@ -17,6 +17,7 @@ class TelescopeTagTest extends TestCase
         $this->assertSame('scout', TelescopeTag::Scout->value);
         $this->assertSame('algolia', TelescopeTag::Algolia->value);
         $this->assertSame('meilisearch', TelescopeTag::Meilisearch->value);
+        $this->assertSame('saloon', TelescopeTag::Saloon->value);
         $this->assertSame('typesense', TelescopeTag::Typesense->value);
     }
 

@@ -45,7 +45,9 @@ interface ConnectionInterface
     public function select(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): array;
 
     /**
-     * Run a select statement against the database and returns a generator.
+     * Run a select statement against the database and return a generator.
+     *
+     * @return Generator<int, mixed>
      */
     public function cursor(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): Generator;
 
@@ -113,6 +115,8 @@ interface ConnectionInterface
 
     /**
      * Get the number of active transactions.
+     *
+     * @phpstan-impure
      */
     public function transactionLevel(): int;
 
@@ -148,6 +152,11 @@ interface ConnectionInterface
 
     /**
      * Run a callback without the table prefix on the connection.
+     *
+     * @template TReturn
+     *
+     * @param Closure($this): TReturn $callback
+     * @return TReturn
      */
     public function withoutTablePrefix(Closure $callback): mixed;
 

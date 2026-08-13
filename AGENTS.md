@@ -375,6 +375,10 @@ These rules apply to all tests — new tests for framework work and ported tests
 
 Test supported public behavior, meaningful branches, verified regressions, and realistic coroutine or worker-lifetime failures. Do not add production APIs, branches, or defensive machinery solely to make speculative states testable. Do not require invariants to survive deliberate framework escape hatches unless the public contract promises that behavior.
 
+### Exceptions in tests
+
+In any test, PHPUnit assertion failures, skips, and incomplete markers extend `AssertionFailedError`, which extends `RuntimeException`; a catch must not swallow one and let the test pass. An exception test must fail unless its intended behavior and exception path occurred. Before rewriting an existing or ported exception test, demonstrate a concrete violation; a broad catch alone is not a defect. When writing a new test that controls the exception, prefer prebuilding it and asserting its identity after the catch.
+
 ### Directory layout
 
 All tests live in `tests/{PackageName}/` (PascalCase). Tests that require external services go in `tests/Integration/{PackageName}/` — see Integration tests below. When only some integration tests for a package require one service, group them in `tests/Integration/{PackageName}/{ServiceName}/`. When every integration test for the package requires that service, keep them directly in the package directory.
