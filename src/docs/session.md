@@ -82,7 +82,7 @@ For more information on configuring Redis, consult Hypervel's [Redis documentati
 
 Redis session keys use the `SESSION_PREFIX` environment variable and default to your application ID followed by `_session:`. The session prefix is separate from `SESSION_CONNECTION`: the connection selects where sessions are stored, while the prefix separates session keys from other data on that connection. Any prefix configured on the Redis connection will also be applied.
 
-Redis stores session payloads directly rather than routing them through a cache store. An ordinary session read, write, or deletion therefore uses one Redis command.
+Redis stores session payloads directly rather than routing them through a cache store. Reads always use one Redis command. With user-session tracking disabled, writes and deletions also use one command. Tracking-enabled standalone Redis coordinates the payload and user index in one atomic operation, while Redis Cluster uses separate cross-slot operations.
 
 To list and invalidate a user's Redis sessions, enable `SESSION_TRACK_USER_SESSIONS`. This feature requires phpredis 6.3.0 or later and Redis 8.0 or Valkey 9.0 or later. You may leave this option disabled if your application does not provide session-management controls.
 

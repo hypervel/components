@@ -161,10 +161,10 @@ class DatabaseSessionHandler implements CanManageUserSessions, ExistenceAwareInt
             'last_activity' => $this->currentTime(),
         ];
 
+        // Provider-qualified ownership replaces Laravel's scalar userId() and
+        // addUserInformation() hooks, so both fields are written or omitted together.
         $identity = UserSessionIdentity::resolve($this->container, $sessionId);
 
-        // The provider and user ID form one ownership value, so preserve or
-        // replace both fields together to avoid combining unrelated owners.
         if ($identity->isResolved()) {
             $payload['auth_provider'] = $identity->authProvider;
             $payload['user_id'] = $identity->userId;

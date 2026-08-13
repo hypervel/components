@@ -49,6 +49,14 @@ The generated sessions table now uses a nullable, indexed string for `user_id`, 
 
 Existing tables are not changed when you regenerate the migration. Compare your application's sessions migration with the current `make:session-table` output and create a new migration suitable for your database driver. Before managing user sessions, change `sessions.user_id` from an unsigned integer to a nullable, indexed string, add the nullable `sessions.auth_provider` column, and update `sessions.ip_address` to the type created by `ipAddress`. Existing rows with a null provider remain absent from managed session lists until active sessions rewrite them or idle sessions expire. PostgreSQL applications must convert any existing text values appropriately when changing the IP column to `inet`.
 
+The protected extension points on `DatabaseSessionHandler` have also changed. The `getDefaultPayload` method now receives the session identifier before the serialized data:
+
+```php
+protected function getDefaultPayload(string $sessionId, string $data): array
+```
+
+The `addUserInformation` and `userId` methods have been removed because session ownership is qualified by both the authentication provider and user identifier. If you customize database session payloads, override `getDefaultPayload` and update both `auth_provider` and `user_id` together.
+
 See the [session documentation](/docs/{{version}}/session) for native Redis configuration and the user-session management API.
 
 <a name="redis-configuration"></a>
