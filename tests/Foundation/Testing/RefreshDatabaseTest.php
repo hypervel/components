@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Foundation\Testing;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Database\Connection as DatabaseConnection;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Foundation\Application;
@@ -265,16 +266,39 @@ class RefreshDatabaseTest extends TestCase
             RefreshDatabaseState::$migrated,
             '$migrated must be true after beginDatabaseTransactionWork() runs',
         );
-        $this->assertCount(
-            1,
-            RefreshDatabaseState::$inMemoryConnections,
-            'in-memory PDO cache must be populated alongside $migrated',
-        );
         $this->assertSame(
-            $pdo,
-            reset(RefreshDatabaseState::$inMemoryConnections),
-            'cached PDO must match the one returned by the connection',
+            ['default' => $pdo],
+            RefreshDatabaseState::$inMemoryConnections,
+            'cached PDO must use the resolved default connection name',
         );
+    }
+
+    public function testRestoreInMemoryDatabaseUsesResolvedDefaultConnectionName(): void
+    {
+        $pdo = m::mock(PDO::class);
+        $eventDispatcher = m::mock(Dispatcher::class);
+        $connection = m::mock(DatabaseConnection::class);
+        $connection->shouldReceive('setPdo')->once()->with($pdo)->andReturnSelf();
+        $connection->shouldReceive('setEventDispatcher')->once()->with($eventDispatcher)->andReturnSelf();
+
+        $database = m::mock(DatabaseManager::class);
+        $database->shouldReceive('connection')->once()->with(null)->andReturn($connection);
+
+        RefreshDatabaseState::$inMemoryConnections = ['default' => $pdo];
+
+        $this->app = new Application;
+        $this->app->singleton('config', fn () => new Repository([
+            'database' => [
+                'default' => 'default',
+                'connections' => [
+                    'default' => ['database' => ':memory:'],
+                ],
+            ],
+        ]));
+        $this->app->singleton('db', fn () => $database);
+        $this->app->singleton('events', fn () => $eventDispatcher);
+
+        $this->restoreInMemoryDatabase();
     }
 
     public function testInMemoryClassificationUsesTheNamedConnectionAndLiveDefault(): void
