@@ -303,7 +303,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        // PutMany uses pipeline with Lua operations
         $connection->shouldReceive('pipeline')->andReturn($connection);
         $connection->shouldReceive('smembers')->andReturn($connection);
         $connection->shouldReceive('exec')->andReturn([[], []]);
@@ -311,8 +310,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $connection->shouldReceive('del')->andReturn($connection);
         $connection->shouldReceive('sadd')->andReturn($connection);
         $connection->shouldReceive('expire')->andReturn($connection);
-        $connection->shouldReceive('hSet')->andReturn($connection);
-        $connection->shouldReceive('hexpire')->andReturn($connection);
+        $connection->shouldReceive('hsetex')->andReturn($connection);
         $connection->shouldReceive('zadd')->andReturn($connection);
 
         $store = $this->createStore($connection);
@@ -328,7 +326,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        // PutMany uses pipeline
         $connection->shouldReceive('pipeline')->andReturn($connection);
         $connection->shouldReceive('smembers')->andReturn($connection);
         $connection->shouldReceive('exec')->andReturn([[], []]);
@@ -336,8 +333,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $connection->shouldReceive('del')->andReturn($connection);
         $connection->shouldReceive('sadd')->andReturn($connection);
         $connection->shouldReceive('expire')->andReturn($connection);
-        $connection->shouldReceive('hSet')->andReturn($connection);
-        $connection->shouldReceive('hexpire')->andReturn($connection);
+        $connection->shouldReceive('hsetex')->andReturn($connection);
         $connection->shouldReceive('zadd')->andReturn($connection);
 
         $store = $this->createStore($connection);
@@ -396,8 +392,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $connection->shouldReceive('del')->andReturn($connection);
         $connection->shouldReceive('sadd')->andReturn($connection);
         $connection->shouldReceive('expire')->andReturn($connection);
-        $connection->shouldReceive('hSet')->andReturn($connection);
-        $connection->shouldReceive('hexpire')->andReturn($connection);
+        $connection->shouldReceive('hsetex')->andReturn($connection);
         $connection->shouldReceive('zadd')->andReturn($connection);
 
         $store = $this->createStore($connection);
