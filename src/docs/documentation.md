@@ -104,6 +104,7 @@
     - [Precognition](/docs/{{version}}/precognition)
     - [Prompts](/docs/{{version}}/prompts)
     - [Reverb](/docs/{{version}}/reverb)
+    - [Saloon](/docs/{{version}}/saloon)
     - [Sanctum](/docs/{{version}}/sanctum)
     - [Scout](/docs/{{version}}/scout)
     - [Sentry](/docs/{{version}}/sentry)

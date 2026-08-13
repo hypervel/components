@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Http;
 
 use Closure;
+use ErrorException;
 use Exception;
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\ClientInterface;
@@ -14,6 +15,7 @@ use GuzzleHttp\Exception\RequestException as GuzzleRequestException;
 use GuzzleHttp\Exception\TooManyRedirectsException;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
+use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Request as GuzzleRequest;
 use GuzzleHttp\Psr7\Response as Psr7Response;
@@ -685,6 +687,23 @@ class HttpClientTest extends TestCase
         $this->assertSame('bar', $response->object()->result->foo);
     }
 
+    public function testResponseObjectAcceptsScalarJson(): void
+    {
+        foreach ([['5', 5], ['"value"', 'value'], ['true', true], ['null', null]] as [$body, $expected]) {
+            $response = new Response(Factory::psr7Response($body));
+
+            $this->assertSame($expected, $response->object());
+        }
+    }
+
+    public function testResponseObjectAcceptsScalarCustomDecoderValues(): void
+    {
+        $response = new Response(Factory::psr7Response('ignored'));
+        $response->decodeUsing(fn () => 'decoded');
+
+        $this->assertSame('decoded', $response->object());
+    }
+
     public function testResponseCanBeReturnedAsResource()
     {
         $this->factory->fake([
@@ -789,6 +808,18 @@ class HttpClientTest extends TestCase
             ->send('POST', 'https://example.test/raw-option', ['body' => '<name>Taylor</name>']);
 
         $this->assertSame([false, false], $hasStructuredDataOptions);
+    }
+
+    public function testRawRequestBodyMayOmitItsContentType(): void
+    {
+        $this->factory->fake();
+
+        $this->factory
+            ->withBody('raw body', null)
+            ->post('https://example.test/raw');
+
+        $this->factory->assertSent(fn (Request $request) => $request->body() === 'raw body'
+            && ! $request->hasHeader('Content-Type'));
     }
 
     public function testSendRequestBodyWithStringable(): void
@@ -1283,6 +1314,16 @@ class HttpClientTest extends TestCase
             'array with resource' => [['valid', fopen('php://temp', 'r')]],
             'array with nested array' => [['valid', ['nested']]],
         ];
+    }
+
+    public function testInvalidHeaderNamesAreRejected(): void
+    {
+        $this->factory->fake();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('HTTP header names must be strings.');
+
+        $this->factory->withHeaders(['Content-Type', 'application/json'])->post('http://foo.com/json');
     }
 
     public function testRequestHeadersAreCheckedCaseInsensitively(): void
@@ -2563,6 +2604,30 @@ class HttpClientTest extends TestCase
         $resp = new Response($response);
 
         $this->assertInstanceOf(RequestException::class, $resp->toException());
+    }
+
+    public function testResponseSubclassesMaySelectTheirRequestException(): void
+    {
+        $response = new CustomExceptionResponse(new Psr7Response(400));
+
+        $this->assertInstanceOf(CustomRequestException::class, $response->toException());
+
+        foreach (
+            [
+                fn () => $response->throw(),
+                fn () => $response->throwIfStatus(400),
+                fn () => $response->throwIfStatus(fn (int $status) => $status === 400),
+                fn () => $response->throwUnlessStatus(200),
+                fn () => $response->throwUnlessStatus(fn (int $status) => $status === 200),
+            ] as $throw
+        ) {
+            try {
+                $throw();
+                $this->fail('The custom request exception was not thrown.');
+            } catch (CustomRequestException) {
+                $this->addToAssertionCount(1);
+            }
+        }
     }
 
     public function testRequestExceptionSummary()
@@ -4088,6 +4153,20 @@ class HttpClientTest extends TestCase
             && $request->body() === '{"replaced":true}');
     }
 
+    public function testBeforeSendingBodyReplacementPreparesHeadersFromTheFinalBody(): void
+    {
+        $this->factory->fake();
+
+        $this->factory
+            ->beforeSending(fn (Request $request): RequestInterface => $request->toPsrRequest()->withBody(
+                Utils::streamFor('x')
+            ))
+            ->post('https://example.test', ['original' => true]);
+
+        $this->factory->assertSent(fn (Request $request) => $request->body() === 'x'
+            && $request->header('Content-Length') === ['1']);
+    }
+
     public function testPreparedBodyTrackingIsGatedAndHiddenFromBeforeSendingCallbacks(): void
     {
         $withoutMiddleware = new PreparedBodyTrackingPendingRequest($this->factory);
@@ -4177,6 +4256,61 @@ class HttpClientTest extends TestCase
         $this->assertSame($replacement, $stubData);
         $this->factory->assertSent(fn (Request $request) => $request->data() === $replacement
             && $request->body() === '{"middleware":true}');
+    }
+
+    public function testRequestMiddlewareBodyReplacementPreparesHeadersFromTheFinalBody(): void
+    {
+        $this->factory->fake();
+
+        $this->factory
+            ->withRequestMiddleware(fn (RequestInterface $request): RequestInterface => $request->withBody(
+                Utils::streamFor('x')
+            ))
+            ->post('https://example.test', ['original' => true]);
+
+        $this->factory->assertSent(fn (Request $request) => $request->body() === 'x'
+            && $request->header('Content-Length') === ['1']);
+    }
+
+    public function testBodyPreparationPreservesCallerSuppliedContentLength(): void
+    {
+        $this->factory->fake();
+
+        $this->factory
+            ->withHeader('Content-Length', '17')
+            ->beforeSending(fn (Request $request): RequestInterface => $request->toPsrRequest()->withBody(
+                Utils::streamFor('x')
+            ))
+            ->post('https://example.test', ['original' => true]);
+
+        $this->factory->assertSent(fn (Request $request) => $request->body() === 'x'
+            && $request->header('Content-Length') === ['17']);
+    }
+
+    public function testBodyPreparationRunsAgainForRedirectedRequests(): void
+    {
+        $requests = [];
+
+        $response = $this->factory
+            ->setHandler(function (RequestInterface $request) use (&$requests): PromiseInterface {
+                $requests[] = $request;
+
+                return Create::promiseFor(count($requests) === 1
+                    ? new Psr7Response(307, ['Location' => '/redirected'])
+                    : new Psr7Response(200));
+            })
+            ->withRequestMiddleware(fn (RequestInterface $request): RequestInterface => $request->withBody(
+                Utils::streamFor('x')
+            ))
+            ->post('https://example.test/original', ['original' => true]);
+
+        $this->assertTrue($response->successful());
+        $this->assertCount(2, $requests);
+
+        foreach ($requests as $request) {
+            $this->assertSame('x', (string) $request->getBody());
+            $this->assertSame('1', $request->getHeaderLine('Content-Length'));
+        }
     }
 
     public function testGlobalRequestMiddlewareBodyReplacementInvalidatesLogicalRequestData(): void
@@ -5155,7 +5289,7 @@ class HttpClientTest extends TestCase
     {
         $request = new PendingRequest($this->factory);
 
-        $request = $request->withOptions(['allow_redirects' => ['max' => 5]]);
+        $request = $request->withOptions(['allow_redirects' => ['max' => 5, 'strict' => true]]);
 
         $this->assertSame(
             [
@@ -5163,7 +5297,7 @@ class HttpClientTest extends TestCase
                 'crypto_method' => 33,
                 'http_errors' => false,
                 'timeout' => 30,
-                'allow_redirects' => ['max' => 5],
+                'allow_redirects' => ['max' => 5, 'strict' => true],
             ],
             $request->getOptions()
         );
@@ -5176,10 +5310,45 @@ class HttpClientTest extends TestCase
                 'crypto_method' => 33,
                 'http_errors' => false,
                 'timeout' => 30,
-                'allow_redirects' => ['max' => 10],
+                'allow_redirects' => ['max' => 10, 'strict' => true],
             ],
             $request->getOptions()
         );
+    }
+
+    public function testMaxRedirectsReenablesRedirectsWithoutDeprecation(): void
+    {
+        set_error_handler(static function (int $severity, string $message, string $file, int $line): never {
+            throw new ErrorException($message, 0, $severity, $file, $line);
+        }, E_DEPRECATED);
+
+        try {
+            $request = (new PendingRequest($this->factory))
+                ->withoutRedirecting()
+                ->maxRedirects(3);
+
+            $this->assertSame(['max' => 3], $request->getOptions()['allow_redirects']);
+        } finally {
+            restore_error_handler();
+        }
+    }
+
+    public function testWithoutRedirectingDisablesAConfiguredRedirectLimit(): void
+    {
+        $request = (new PendingRequest($this->factory))
+            ->maxRedirects(3)
+            ->withoutRedirecting();
+
+        $this->assertFalse($request->getOptions()['allow_redirects']);
+    }
+
+    public function testMaxRedirectsReplacesTheBooleanEnabledForm(): void
+    {
+        $request = (new PendingRequest($this->factory))
+            ->withOptions(['allow_redirects' => true])
+            ->maxRedirects(3);
+
+        $this->assertSame(['max' => 3], $request->getOptions()['allow_redirects']);
     }
 
     public function testPreventDuplicatedContentType(): void
@@ -5212,6 +5381,30 @@ class HttpClientTest extends TestCase
         $this->factory->assertSent(function (Request $request) {
             return $request->url() === 'https://laravel.com/docs/9.x/validation';
         });
+    }
+
+    public function testLiteralUrlBracesArePreservedWithoutUrlParameters(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->get('https://example.test/search?q={foo}');
+
+        $this->factory->assertSent(
+            fn (Request $request) => $request->url() === 'https://example.test/search?q=%7Bfoo%7D'
+        );
+    }
+
+    public function testEncodedLiteralBracesArePreservedAlongsideUrlParameters(): void
+    {
+        $this->factory->fake();
+
+        $this->factory
+            ->withUrlParameters(['resource' => 'users'])
+            ->get('https://example.test/{resource}?q=%7Bfoo%7D');
+
+        $this->factory->assertSent(
+            fn (Request $request) => $request->url() === 'https://example.test/users?q=%7Bfoo%7D'
+        );
     }
 
     public function testTheTransferStatsAreCustomizable(): void
@@ -5706,6 +5899,18 @@ class TestPendingRequest extends PendingRequest
 }
 
 class TestResponse extends Response
+{
+}
+
+class CustomExceptionResponse extends Response
+{
+    protected function newRequestException(): RequestException
+    {
+        return new CustomRequestException($this);
+    }
+}
+
+class CustomRequestException extends RequestException
 {
 }
 
