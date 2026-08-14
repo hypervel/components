@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Integration\Queue\WorkCommandTest;
 use Hypervel\Bus\Queueable;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\Repository;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Foundation\Bus\Dispatchable;
@@ -27,11 +28,11 @@ class WorkCommandTest extends QueueTestCase
 {
     use DatabaseMigrations;
 
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
 
-        $app['config']->set('queue.default', 'database');
+        $app->make('config')->set('queue.default', 'database');
     }
 
     protected function setUp(): void
@@ -87,9 +88,11 @@ class WorkCommandTest extends QueueTestCase
 
     public function testConnectionArgumentPreservesZero(): void
     {
-        $this->app['config']->set(
+        $config = $this->app->make('config');
+
+        $config->set(
             'queue.connections.0',
-            $this->app['config']->get('queue.connections.database'),
+            $config->get('queue.connections.database'),
         );
 
         Queue::connection('0')->push(new FirstJob);
@@ -150,7 +153,7 @@ class WorkCommandTest extends QueueTestCase
 
     public function testRunTimestampOutputWithDifferentLogTimezone(): void
     {
-        $this->app['config']->set('queue.output_timezone', 'Europe/Helsinki');
+        $this->app->make('config')->set('queue.output_timezone', 'Europe/Helsinki');
 
         $this->travelTo(CarbonImmutable::create(2023, 1, 18, 10, 10, 11));
         Queue::push(new FirstJob);
@@ -164,7 +167,7 @@ class WorkCommandTest extends QueueTestCase
 
     public function testRunTimestampOutputWithSameAppDefaultAndQueueLogDefault(): void
     {
-        $this->app['config']->set('queue.output_timezone', 'UTC');
+        $this->app->make('config')->set('queue.output_timezone', 'UTC');
 
         $this->travelTo(CarbonImmutable::create(2023, 1, 18, 10, 10, 11));
         Queue::push(new FirstJob);

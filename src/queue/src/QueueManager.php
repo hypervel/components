@@ -60,7 +60,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function before(mixed $callback): void
     {
-        $this->app['events']
+        $this->app->make('events')
             ->listen(Events\JobProcessing::class, $callback);
     }
 
@@ -72,7 +72,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function after(mixed $callback): void
     {
-        $this->app['events']
+        $this->app->make('events')
             ->listen(Events\JobProcessed::class, $callback);
     }
 
@@ -84,7 +84,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function exceptionOccurred(mixed $callback): void
     {
-        $this->app['events']
+        $this->app->make('events')
             ->listen(Events\JobExceptionOccurred::class, $callback);
     }
 
@@ -96,7 +96,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function looping(mixed $callback): void
     {
-        $this->app['events']
+        $this->app->make('events')
             ->listen(Events\Looping::class, $callback);
     }
 
@@ -108,7 +108,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function failing(mixed $callback): void
     {
-        $this->app['events']
+        $this->app->make('events')
             ->listen(Events\JobFailed::class, $callback);
     }
 
@@ -120,7 +120,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function starting(mixed $callback): void
     {
-        $this->app['events']
+        $this->app->make('events')
             ->listen(Events\WorkerStarting::class, $callback);
     }
 
@@ -132,7 +132,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function stopping(mixed $callback): void
     {
-        $this->app['events']
+        $this->app->make('events')
             ->listen(Events\WorkerStopping::class, $callback);
     }
 
@@ -155,11 +155,11 @@ class QueueManager implements FactoryContract, MonitorContract
     public function pause(string $connection, string $queue): void
     {
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
-        $this->app['cache']
+        $this->app->make('cache')
             ->store()
             ->forever("illuminate:queue:paused:{$connection}:{$queue}", true);
 
-        $this->app['events']->dispatch(
+        $this->app->make('events')->dispatch(
             new Events\QueuePaused($connection, $queue)
         );
     }
@@ -170,11 +170,11 @@ class QueueManager implements FactoryContract, MonitorContract
     public function pauseFor(string $connection, string $queue, DateInterval|DateTimeInterface|int $ttl): void
     {
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
-        $this->app['cache']
+        $this->app->make('cache')
             ->store()
             ->put("illuminate:queue:paused:{$connection}:{$queue}", true, $ttl);
 
-        $this->app['events']->dispatch(
+        $this->app->make('events')->dispatch(
             new Events\QueuePaused($connection, $queue, $ttl)
         );
     }
@@ -185,11 +185,11 @@ class QueueManager implements FactoryContract, MonitorContract
     public function resume(string $connection, string $queue): void
     {
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
-        $this->app['cache']
+        $this->app->make('cache')
             ->store()
             ->forget("illuminate:queue:paused:{$connection}:{$queue}");
 
-        $this->app['events']->dispatch(
+        $this->app->make('events')->dispatch(
             new Events\QueueResumed($connection, $queue)
         );
     }
@@ -200,7 +200,7 @@ class QueueManager implements FactoryContract, MonitorContract
     public function isPaused(string $connection, string $queue): bool
     {
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
-        return (bool) $this->app['cache']
+        return (bool) $this->app->make('cache')
             ->store()
             ->get("illuminate:queue:paused:{$connection}:{$queue}", false);
     }
