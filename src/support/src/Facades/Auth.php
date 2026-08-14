@@ -17,6 +17,7 @@ use Hypervel\Contracts\Auth\StatefulGuard;
  * @method static string getDefaultDriver()
  * @method static string|null getDefaultUserProvider()
  * @method static array getGuards()
+ * @method static string|null getUserProviderName(\UnitEnum|string|null $guard = null)
  * @method static \Hypervel\Contracts\Auth\Guard|\Hypervel\Contracts\Auth\StatefulGuard guard(\UnitEnum|string|null $name = null)
  * @method static bool hasResolvedGuards()
  * @method static \Hypervel\Auth\AuthManager provider(string $name, \Closure $callback)

@@ -7,11 +7,9 @@ namespace Hypervel\Foundation\Testing\Concerns;
 use Hypervel\Container\Container;
 use Hypervel\Foundation\Testing\RedisTestConfiguration;
 use Hypervel\Redis\Pool\PoolFactory;
-use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testing\ParallelTesting;
-use RuntimeException;
 use Throwable;
 
 /**
@@ -166,38 +164,31 @@ trait InteractsWithRedis
     }
 
     /**
-     * Get a raw phpredis client WITHOUT any OPT_PREFIX.
-     *
-     * Useful for verifying actual key names in Redis. Uses the per-worker
-     * DB number for parallel safety.
+     * Assert that two physical keys occupy different Redis Cluster slots.
      */
-    protected function rawRedisClientWithoutPrefix(string $connectionName = 'default'): \Redis
+    protected function assertRedisKeysUseDifferentClusterSlots(string $firstKey, string $secondKey): void
     {
-        if ($this->usingRedisCluster()) {
-            throw new RuntimeException('Raw standalone Redis clients are unavailable during Redis Cluster integration tests.');
+        if (! $this->usingRedisCluster()) {
+            return;
         }
 
-        $connectionConfig = $this->app->make(RedisConfig::class)->connectionConfig($connectionName);
-        $client = new \Redis;
-        $client->connect(
-            (string) $connectionConfig['host'],
-            (int) $connectionConfig['port']
+        $redis = $this->redisClientWithoutPrefix();
+        $firstSlot = $redis->executeRaw(['CLUSTER', 'KEYSLOT', $firstKey]);
+        $secondSlot = $redis->executeRaw(['CLUSTER', 'KEYSLOT', $secondKey]);
+
+        $this->assertIsInt($firstSlot);
+        $this->assertIsInt($secondSlot);
+        $this->assertNotSame(
+            $firstSlot,
+            $secondSlot,
+            sprintf(
+                'Redis keys must occupy different Cluster slots: "%s" uses %d and "%s" uses %d.',
+                $firstKey,
+                $firstSlot,
+                $secondKey,
+                $secondSlot,
+            ),
         );
-
-        $password = $connectionConfig['password'] ?? null;
-        $username = $connectionConfig['username'] ?? null;
-
-        if (is_string($password) && $password !== '') {
-            $client->auth(
-                is_string($username) && $username !== ''
-                    ? [$username, $password]
-                    : $password
-            );
-        }
-
-        $client->select((int) ($connectionConfig['database'] ?? 0));
-
-        return $client;
     }
 
     /**

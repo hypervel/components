@@ -9,28 +9,18 @@ use Hypervel\Cache\TagMode;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
-use Hypervel\Foundation\Testing\Concerns\RequiresAnyTagModeRedis;
+use Hypervel\Foundation\Testing\Concerns\RequiresHashFieldExpiration;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Testbench\TestCase;
 
 /**
- * Base test case for Redis Cache integration tests.
- *
- * Uses InteractsWithRedis trait which handles:
- * - Opt-in skip unless REDIS_HOST is set
- * - Database flushing in setUp/tearDown
- *
- * Provides helper methods for:
- * - Switching between tag modes (all/any) with auto-skip for unsupported environments
- * - Accessing raw Redis client for verification
- * - Computing tag hash keys for each mode
- * - Common assertions for tag structures
+ * Shared Redis cache integration setup and assertions.
  */
 abstract class RedisCacheIntegrationTestCase extends TestCase
 {
     use InteractsWithRedis;
-    use RequiresAnyTagModeRedis;
+    use RequiresHashFieldExpiration;
 
     protected function defineEnvironment(ApplicationContract $app): void
     {
@@ -75,7 +65,7 @@ abstract class RedisCacheIntegrationTestCase extends TestCase
         $mode = $mode instanceof TagMode ? $mode : TagMode::from($mode);
 
         if ($mode === TagMode::Any) {
-            $this->skipIfAnyTagModeUnsupported();
+            $this->skipIfHashFieldExpirationUnsupported();
         }
 
         $this->store()->setTagMode($mode);
@@ -259,26 +249,6 @@ abstract class RedisCacheIntegrationTestCase extends TestCase
     }
 
     /**
-     * Run a test callback for both tag modes.
-     *
-     * This is useful for tests that should verify behavior in both modes.
-     * The callback receives the current TagMode being tested.
-     *
-     * @param callable(TagMode): void $callback
-     */
-    protected function forBothModes(callable $callback): void
-    {
-        foreach ([TagMode::All, TagMode::Any] as $mode) {
-            $this->setTagMode($mode);
-
-            // Flush to clean state between modes
-            Redis::flushByPattern('*');
-
-            $callback($mode);
-        }
-    }
-
-    /**
      * Assert that a Redis key exists.
      */
     protected function assertRedisKeyExists(string $key, string $message = ''): void
@@ -298,23 +268,6 @@ abstract class RedisCacheIntegrationTestCase extends TestCase
             $this->redis()->exists($key) > 0,
             $message ?: "Redis key '{$key}' should not exist"
         );
-    }
-
-    /**
-     * Assert that two physical keys occupy different Redis Cluster slots.
-     */
-    protected function assertRedisKeysUseDifferentClusterSlots(string $first, string $second): void
-    {
-        if (! $this->usingRedisCluster()) {
-            return;
-        }
-
-        $firstSlot = $this->redis()->executeRaw(['CLUSTER', 'KEYSLOT', $first]);
-        $secondSlot = $this->redis()->executeRaw(['CLUSTER', 'KEYSLOT', $second]);
-
-        $this->assertIsInt($firstSlot);
-        $this->assertIsInt($secondSlot);
-        $this->assertNotSame($firstSlot, $secondSlot, 'The regression keys must occupy different Cluster slots.');
     }
 
     /**

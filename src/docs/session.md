@@ -9,6 +9,7 @@
     - [Flash Data](#flash-data)
     - [Deleting Data](#deleting-data)
     - [Regenerating the Session ID](#regenerating-the-session-id)
+- [Managing User Sessions](#managing-user-sessions)
 - [Session Cache](#session-cache)
 - [Session Blocking](#session-blocking)
 - [Configuring the Session Cookie](#configuring-the-session-cookie)
@@ -35,7 +36,7 @@ The session `driver` configuration option defines where session data will be sto
 - `file` - sessions are stored in `storage/framework/sessions`.
 - `cookie` - sessions are stored in secure, encrypted cookies.
 - `database` - sessions are stored in a relational database.
-- `redis` - sessions are stored in Redis, a fast, cache-based store.
+- `redis` - sessions are stored directly in Redis.
 - `array` - sessions are stored in a PHP array and will not be persisted.
 
 </div>
@@ -63,6 +64,8 @@ php artisan migrate
 
 The `session:table` command is also available as an alias for `make:session-table`.
 
+Hypervel's generated sessions table uses a nullable, indexed string for the `user_id` column so integer, UUID, ULID, and application-defined identifiers are supported. The nullable `auth_provider` column keeps sessions for authentication providers that use the same user identifiers separate. The `ip_address` column is created using the `ipAddress` column type, which uses the native `inet` type on PostgreSQL. Applications created with an older sessions migration should update these columns before managing user sessions.
+
 <a name="redis"></a>
 #### Redis
 
@@ -78,6 +81,10 @@ For more information on configuring Redis, consult Hypervel's [Redis documentati
 > The `SESSION_CONNECTION` environment variable, or the `connection` option in the `session.php` configuration file, may be used to specify which Redis connection is used for session storage.
 
 Redis session keys use the `SESSION_PREFIX` environment variable and default to your application ID followed by `_session:`. The session prefix is separate from `SESSION_CONNECTION`: the connection selects where sessions are stored, while the prefix separates session keys from other data on that connection. Any prefix configured on the Redis connection will also be applied.
+
+Redis stores session payloads directly rather than routing them through a cache store. Reads always use one Redis command. With user-session tracking disabled, writes and deletions also use one command. Tracking-enabled standalone Redis coordinates the payload and user index in one atomic operation, while Redis Cluster uses separate cross-slot operations.
+
+To list and invalidate a user's Redis sessions, enable `SESSION_TRACK_USER_SESSIONS`. This feature requires phpredis 6.3.0 or later and Redis 8.0 or Valkey 9.0 or later. You may leave this option disabled if your application does not provide session-management controls.
 
 <a name="interacting-with-the-session"></a>
 ## Interacting With the Session
@@ -292,6 +299,88 @@ If you need to regenerate the session ID and remove all data from the session in
 $request->session()->invalidate();
 ```
 
+<a name="managing-user-sessions"></a>
+## Managing User Sessions
+
+The database driver and Redis driver with user-session tracking enabled can list and invalidate the active sessions belonging to a user. Before displaying session-management controls, you may determine whether the configured driver supports this feature:
+
+```php
+use Hypervel\Support\Facades\Session;
+
+if (Session::supportsUserSessionManagement()) {
+    // ...
+}
+```
+
+The `forUser` method accepts an authenticatable user, integer identifier, or string identifier. By default, Hypervel uses the currently selected authentication guard. You may also pass a guard name as the second argument without changing the selected guard:
+
+```php
+$sessions = Session::forUser($request->user())->all();
+
+$adminSessions = Session::forUser($admin, 'admin')->all();
+```
+
+Sessions are returned newest first. Each `UserSession` contains the following values:
+
+```php
+$session->id;
+$session->ipAddress;
+$session->userAgent;
+$session->lastActivity;
+$session->expiresAt;
+```
+
+The dates are immutable `CarbonImmutable` instances. The expiration time is derived from the last activity and configured session lifetime. To determine whether a record represents the current browser session, compare its identifier with the active session identifier:
+
+```php
+$isCurrent = $session->id === $request->session()->getId();
+```
+
+You may invalidate one session, every session except a given identifier, or every session belonging to the user:
+
+```php
+$sessions = Session::forUser($request->user());
+
+$deleted = $sessions->invalidate($sessionId);
+
+$deletedCount = $sessions->invalidateOthers(
+    $request->session()->getId()
+);
+
+$deletedCount = $sessions->invalidateAll();
+```
+
+The `invalidate` method returns `true` when an active session belonging to the user was deleted. The bulk methods return the number of active sessions deleted. If the current session is deleted, Hypervel also flushes it and generates a new session ID.
+
+Session invalidation does not perform authentication logout. If you intend to end the current authenticated session everywhere, capture the user, log out, and then invalidate their stored sessions:
+
+```php
+$user = Auth::user();
+
+Auth::logout();
+
+Session::forUser($user)->invalidateAll();
+```
+
+For a Jetstream or Fortify-style “log out other browser sessions” flow, password confirmation and remember-token rotation remain authentication concerns:
+
+```php
+Auth::logoutOtherDevices($password);
+
+Session::forUser($request->user())
+    ->invalidateOthers($request->session()->getId());
+```
+
+The user associated with a session is taken from the currently selected authentication guard when the session is saved. Each session belongs to one authentication provider and user identifier. Guards that share a provider share the same user-session namespace, while different providers remain separate even when they use the same user identifiers. A custom guard without a provider may continue storing ordinary sessions, but its sessions cannot be managed through `forUser`.
+
+In multi-tenant applications, use globally unique user identifiers for tenant-owned users and ensure your tenancy middleware validates that the authenticated user belongs to the current tenant. User-session management is account-wide and does not add a separate tenant partition.
+
+Calling `Auth::logout()` alone does not delete the stored session. The session remains associated with its previous user until it is invalidated or expires. In addition, a remember-me cookie may authenticate the browser again during a later request and create a new tracked session.
+
+When using Redis Cluster, the session and its user index may be stored in different hash slots and cannot be changed atomically. Hypervel updates the current owner's index before refreshing the session payload. If the index cannot be updated, the session write fails without extending the payload. When sessions are listed, Hypervel verifies each valid indexed record against the small ownership header stored with its payload. This requires one additional Redis read per valid indexed record. A write in progress may be briefly omitted from a list, but stale index entries cannot expose a session owned by another user and expire automatically.
+
+Hypervel returns all active sessions belonging to the user and does not impose a session limit. This is intended for ordinary browser and device usage, generally tens of sessions and comfortably fewer than one thousand per user. Applications that allow automated session creation should rate-limit authentication and enforce an appropriate device or session limit.
+
 <a name="session-cache"></a>
 ## Session Cache
 
@@ -310,6 +399,8 @@ $request->session()->cache()->put(
 ```
 
 By default, session cache values are stored under the `_cache` key within the user's session data. You may change this key using the `SESSION_CACHE_KEY` environment variable or the `key` option of the `session` cache store.
+
+These values are part of the normal session payload, not separate entries in your application's cache backend. Reading or changing them does not add a storage request; they are loaded and persisted with the session itself.
 
 Session cache values use the session's configured serialization strategy. With the default `json` strategy, cached PHP objects do not retain their type or value across requests, so the session cache does not provide PSR-16's exact-value guarantee for objects. If you need to retrieve cached PHP objects in their original form, use PHP serialization as described in the [configuration section](#configuration).
 

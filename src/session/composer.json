@@ -45,11 +45,15 @@
         "hypervel/filesystem": "^0.4",
         "hypervel/http": "^0.4",
         "hypervel/macroable": "^0.4",
+        "hypervel/redis": "^0.4",
         "hypervel/routing": "^0.4",
         "hypervel/support": "^0.4",
         "symfony/console": "^8.1",
         "symfony/finder": "^8.1",
         "symfony/http-foundation": "^8.1"
+    },
+    "suggest": {
+        "ext-redis": "Required to use the Redis session driver (^6.1); user session tracking requires ^6.3."
     },
     "config": {
         "sort-packages": true

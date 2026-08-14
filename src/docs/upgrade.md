@@ -3,6 +3,7 @@
 - [Upgrading To 0.4 From 0.3](#upgrade-04)
 - [Recommended Upgrade Path](#recommended-upgrade-path)
 - [What Changed](#what-changed)
+- [Session Storage](#session-storage)
 - [Redis Configuration](#redis-configuration)
 - [Immutable Dates](#immutable-dates)
 - [Migration References](#migration-references)
@@ -38,6 +39,25 @@ The biggest areas to review are:
 - Testing uses Hypervel's new PHPUnit 13-based testing stack, including coroutine-aware feature tests and the new Testbench package.
 
 </div>
+
+<a name="session-storage"></a>
+## Session Storage
+
+Hypervel's Redis session driver now persists sessions directly instead of routing them through a cache store. Remove `SESSION_STORE` from your environment configuration. Redis sessions use `SESSION_CONNECTION` to select the Redis connection and `SESSION_PREFIX` to separate their keys.
+
+The generated sessions table now uses a nullable, indexed string for `user_id`, supporting integer, UUID, ULID, and application-defined identifiers. It also includes a nullable `auth_provider` column so authentication providers that use the same identifiers remain separate. The `ip_address` column is created using the `ipAddress` column type, which uses the native `inet` type on PostgreSQL.
+
+Existing tables are not changed when you regenerate the migration. Compare your application's sessions migration with the current `make:session-table` output and create a new migration suitable for your database driver. Before managing user sessions, change `sessions.user_id` from an unsigned integer to a nullable, indexed string, add the nullable `sessions.auth_provider` column, and update `sessions.ip_address` to the type created by `ipAddress`. Existing rows with a null provider remain absent from managed session lists until active sessions rewrite them or idle sessions expire. PostgreSQL applications must convert any existing text values appropriately when changing the IP column to `inet`.
+
+The protected extension points on `DatabaseSessionHandler` have also changed. The `getDefaultPayload` method now receives the session identifier before the serialized data:
+
+```php
+protected function getDefaultPayload(string $sessionId, string $data): array
+```
+
+The `addUserInformation` and `userId` methods have been removed because session ownership is qualified by both the authentication provider and user identifier. If you customize database session payloads, override `getDefaultPayload` and update both `auth_provider` and `user_id` together.
+
+See the [session documentation](/docs/{{version}}/session) for native Redis configuration and the user-session management API.
 
 <a name="redis-configuration"></a>
 ## Redis Configuration
@@ -92,6 +112,7 @@ The following documentation pages are the best starting points when moving an ex
 - [Testing](/docs/{{version}}/testing)
 - [Coroutines](/docs/{{version}}/coroutines)
 - [Coroutine Context](/docs/{{version}}/coroutine-context)
+- [Session](/docs/{{version}}/session)
 
 </div>
 

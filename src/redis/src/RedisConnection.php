@@ -998,6 +998,10 @@ abstract class RedisConnection extends BaseConnection
      */
     protected function callMget(array $keys): array
     {
+        if ($keys === []) {
+            return [];
+        }
+
         return array_map(function ($value) {
             return $value !== false ? $value : null;
         }, $this->connection->mGet($keys));

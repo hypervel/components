@@ -13,6 +13,7 @@ use Hypervel\Support\Traits\DateHelpers;
  *
  * @method static addMicroseconds(int|float $value = 1)
  * @method static addMinute()
+ * @method static addMinutes(int|float $value = 1)
  * @method static addSecond()
  * @method static addSeconds(int|float $value = 1)
  * @method static ceilSeconds(float $precision = 1)

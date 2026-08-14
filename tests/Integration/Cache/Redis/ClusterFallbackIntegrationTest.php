@@ -60,7 +60,7 @@ class ClusterFallbackIntegrationTest extends RedisCacheIntegrationTestCase
 
     protected function setUpInCoroutine(): void
     {
-        $this->skipIfAnyTagModeUnsupported();
+        $this->skipIfHashFieldExpirationUnsupported();
 
         // Create cluster-mode store using the same factory as the real store
         $factory = $this->app->make(RedisFactory::class);
