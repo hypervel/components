@@ -8,6 +8,7 @@ use Hypervel\Auth\AuthManager;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Auth\Authenticatable as UserContract;
 use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Auth\User;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -24,9 +25,9 @@ class InteractsWithAuthenticationTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app['config']->set('auth.guards.api', [
+        $app->make('config')->set('auth.guards.api', [
             'driver' => 'token',
             'provider' => 'users',
             'hash' => false,
