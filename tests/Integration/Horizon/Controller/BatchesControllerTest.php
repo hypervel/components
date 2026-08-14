@@ -10,7 +10,7 @@ use Hypervel\Tests\Integration\Horizon\ControllerTestCase;
 
 class BatchesControllerTest extends ControllerTestCase
 {
-    public function testBatchesCanBeSearchedByName()
+    public function testBatchesCanBeSearchedByName(): void
     {
         $this->setupBatchTable();
         $this->seedBatches();
@@ -26,7 +26,7 @@ class BatchesControllerTest extends ControllerTestCase
         $this->assertSame('Import Users', $batches[0]->name);
     }
 
-    public function testBatchesCanBeSearchedByNameCaseInsensitively()
+    public function testBatchesCanBeSearchedByNameCaseInsensitively(): void
     {
         $this->setupBatchTable();
         $this->seedBatches();
@@ -42,7 +42,7 @@ class BatchesControllerTest extends ControllerTestCase
         $this->assertSame('Import Users', $batches[0]->name);
     }
 
-    public function testBatchesCanBeSearchedById()
+    public function testBatchesCanBeSearchedById(): void
     {
         $this->setupBatchTable();
         $this->seedBatches();
@@ -58,7 +58,7 @@ class BatchesControllerTest extends ControllerTestCase
         $this->assertSame('Send Emails', $batches[0]->name);
     }
 
-    public function testSearchEscapesLikeWildcards()
+    public function testSearchEscapesLikeWildcards(): void
     {
         $this->setupBatchTable();
         $this->seedBatches();
@@ -88,7 +88,7 @@ class BatchesControllerTest extends ControllerTestCase
         $this->assertSame('batch_under_score', $batches[0]->id);
     }
 
-    public function testSearchSupportsCursorPagination()
+    public function testSearchSupportsCursorPagination(): void
     {
         $this->setupBatchTable();
 
@@ -122,9 +122,11 @@ class BatchesControllerTest extends ControllerTestCase
 
     private function setupBatchTable(): void
     {
-        $this->app['config']->set('queue.batching.database', 'testing');
-        $this->app['config']->set('queue.batching.table', 'job_batches');
-        $this->app['config']->set('database.connections.testing', [
+        $config = $this->app->make('config');
+
+        $config->set('queue.batching.database', 'testing');
+        $config->set('queue.batching.table', 'job_batches');
+        $config->set('database.connections.testing', [
             'driver' => 'sqlite',
             'database' => ':memory:',
         ]);
