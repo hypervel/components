@@ -64,7 +64,7 @@ class FeatureTestCase extends TestCase
 
         $this->app->make(CacheFactoryContract::class)
             ->forever('telescope:dump-watcher', true);
-        $this->app['env'] = 'production';
+        $this->app->instance('env', 'production');
 
         // Clear any entries recorded during bootstrap (e.g. migrations).
         Telescope::flushEntries();
