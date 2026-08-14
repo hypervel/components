@@ -249,7 +249,7 @@ The command and service will fail if the configured PID file cannot be read, doe
 
 Some changes belong to the server's master process and require a full restart. These include listening ports, Swoole settings, worker counts, routes, middleware, event listeners, package enablement, custom server-process definitions, the dump output format, and changed or preloaded PHP code. Cache and Rate Limiter Swoole table definitions also require a restart because shared tables can only be created before workers are forked. If a newly configured table is used after a reload, Hypervel will fail explicitly instead of creating a separate table inside one worker.
 
-The server reload does not restart queue workers, the scheduler, Horizon, or custom server processes. Use the `reload` command for queue workers and the scheduler. Restart Horizon and custom server processes through their own lifecycle controls.
+The server reload does not restart queue workers, the scheduler, Horizon, or custom server processes. Use the `reload` command for queue workers and the scheduler. Restart Horizon and custom server processes separately.
 
 If refreshed configuration is invalid, replacement workers will fail before they become ready and may continue restarting until the configuration is corrected. Fix the configuration, then run `server:reload` again. Hypervel does not hide the error or continue with partially refreshed worker state.
 
