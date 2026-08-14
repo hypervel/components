@@ -103,6 +103,13 @@ class TransformIntegrationTest extends TestCase
         $this->assertSame(['value1', null, 'value3'], $result);
     }
 
+    public function testMgetReturnsAnEmptyArrayForEmptyKeys(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+
+        $this->assertSame([], $redis->mget([]));
+    }
+
     public function testEvalReordersArguments(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
