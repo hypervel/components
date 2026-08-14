@@ -8,10 +8,12 @@ use Hyperf\Contract\ApplicationInterface;
 use Hyperf\ExceptionHandler\Listener\ErrorExceptionHandler;
 use Hyperf\Server\Listener\InitProcessTitleListener;
 use Hypervel\Console\ApplicationFactory;
+use Hypervel\Dispatcher\Pipeline as DispatcherPipeline;
 use Hypervel\Foundation\Console\Commands\AboutCommand;
 use Hypervel\Foundation\Console\Commands\ConfigShowCommand;
 use Hypervel\Foundation\Console\Commands\ServerReloadCommand;
 use Hypervel\Foundation\Console\Commands\VendorPublishCommand;
+use Hypervel\Foundation\Http\Pipeline as HttpPipeline;
 use Hypervel\Foundation\Listeners\ReloadDotenvAndConfig;
 use Hypervel\Foundation\Listeners\SetProcessTitle;
 
@@ -23,6 +25,10 @@ class ConfigProvider
             'dependencies' => [
                 ApplicationInterface::class => ApplicationFactory::class,
                 InitProcessTitleListener::class => SetProcessTitle::class,
+                // Converts throwables into responses inside the middleware
+                // pipeline, so middleware can observe the status the client
+                // actually receives.
+                DispatcherPipeline::class => HttpPipeline::class,
             ],
             'listeners' => [
                 ErrorExceptionHandler::class,

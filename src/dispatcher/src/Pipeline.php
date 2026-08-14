@@ -8,6 +8,7 @@ use Closure;
 use Hyperf\HttpServer\Contract\CoreMiddlewareInterface;
 use Hyperf\Pipeline\Pipeline as BasePipeline;
 use Psr\Http\Server\MiddlewareInterface;
+use Throwable;
 
 class Pipeline extends BasePipeline
 {
@@ -16,47 +17,79 @@ class Pipeline extends BasePipeline
     protected array $coreMiddleware = [];
 
     /**
+     * Get the final piece of the Closure onion.
+     */
+    protected function prepareDestination(Closure $destination): Closure
+    {
+        return function ($passable) use ($destination) {
+            try {
+                return $destination($passable);
+            } catch (Throwable $e) {
+                return $this->handleException($passable, $e);
+            }
+        };
+    }
+
+    /**
      * Get a Closure that represents a slice of the application onion.
      */
     protected function carry(): Closure
     {
         return function ($stack, $pipe) {
             return function ($passable) use ($stack, $pipe) {
-                if (is_callable($pipe)) {
-                    // If the pipe is an instance of a Closure, we will just call it directly, but
-                    // otherwise we'll resolve the pipes out of the container and call it with
-                    // the appropriate method and arguments, returning the results back out.
-                    return $pipe($passable, $stack);
-                }
-                if ($pipe instanceof ParsedMiddleware || is_string($pipe)) {
-                    if ($pipe instanceof ParsedMiddleware) {
-                        $name = $pipe->getName();
-                        $parameters = $pipe->getParameters();
+                try {
+                    if (is_callable($pipe)) {
+                        // If the pipe is an instance of a Closure, we will just call it directly, but
+                        // otherwise we'll resolve the pipes out of the container and call it with
+                        // the appropriate method and arguments, returning the results back out.
+                        return $pipe($passable, $stack);
+                    }
+                    if ($pipe instanceof ParsedMiddleware || is_string($pipe)) {
+                        if ($pipe instanceof ParsedMiddleware) {
+                            $name = $pipe->getName();
+                            $parameters = $pipe->getParameters();
+                        } else {
+                            [$name, $parameters] = $this->parsePipeString($pipe);
+                        }
+                        // If the pipe is a string we will parse the string and resolve the class out
+                        // of the dependency injection container. We can then build a callable and
+                        // execute the pipe function giving in the parameters that are required.
+                        $pipe = $this->getPipeInstance($name);
+
+                        $parameters = array_merge([$passable, $stack], $parameters);
                     } else {
-                        [$name, $parameters] = $this->parsePipeString($pipe);
+                        // Convert the core middleware to adapted core middleware
+                        if ($pipe instanceof CoreMiddlewareInterface) {
+                            $pipe = $this->getAdaptedCoreMiddleware($pipe);
+                        }
+                        // If the pipe is already an object we'll just make a callable and pass it to
+                        // the pipe as-is. There is no need to do any extra parsing and formatting
+                        // since the object we're given was already a fully instantiated object.
+                        $parameters = [$passable, $stack];
                     }
-                    // If the pipe is a string we will parse the string and resolve the class out
-                    // of the dependency injection container. We can then build a callable and
-                    // execute the pipe function giving in the parameters that are required.
-                    $pipe = $this->getPipeInstance($name);
 
-                    $parameters = array_merge([$passable, $stack], $parameters);
-                } else {
-                    // Convert the core middleware to adapted core middleware
-                    if ($pipe instanceof CoreMiddlewareInterface) {
-                        $pipe = $this->getAdaptedCoreMiddleware($pipe);
-                    }
-                    // If the pipe is already an object we'll just make a callable and pass it to
-                    // the pipe as-is. There is no need to do any extra parsing and formatting
-                    // since the object we're given was already a fully instantiated object.
-                    $parameters = [$passable, $stack];
+                    $carry = method_exists($pipe, $this->method) ? $pipe->{$this->method}(...$parameters) : $pipe(...$parameters);
+
+                    return $this->handleCarry($carry);
+                } catch (Throwable $e) {
+                    return $this->handleException($passable, $e);
                 }
-
-                $carry = method_exists($pipe, $this->method) ? $pipe->{$this->method}(...$parameters) : $pipe(...$parameters);
-
-                return $this->handleCarry($carry);
             };
         };
+    }
+
+    /**
+     * Handle the given exception.
+     *
+     * Subclasses may override this to convert a throwable into a value the
+     * remaining pipes can observe. The default is to rethrow, so the base
+     * pipeline behaves exactly as it did before this hook existed.
+     *
+     * @throws Throwable
+     */
+    protected function handleException(mixed $passable, Throwable $e): mixed
+    {
+        throw $e;
     }
 
     protected function getAdaptedCoreMiddleware(CoreMiddlewareInterface $coreMiddleware): Psr15AdapterMiddleware
