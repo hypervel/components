@@ -17,7 +17,7 @@ class ConsoleIntegrationTest extends SentryTestCase
             'sentry.breadcrumbs.command_info' => true,
         ]);
 
-        $this->assertTrue($this->app['config']->get('sentry.breadcrumbs.command_info'));
+        $this->assertTrue($this->app->make('config')->boolean('sentry.breadcrumbs.command_info'));
 
         $this->dispatchCommandStartEvent();
 
@@ -33,7 +33,7 @@ class ConsoleIntegrationTest extends SentryTestCase
             'sentry.breadcrumbs.command_info' => false,
         ]);
 
-        $this->assertFalse($this->app['config']->get('sentry.breadcrumbs.command_info'));
+        $this->assertFalse($this->app->make('config')->boolean('sentry.breadcrumbs.command_info'));
 
         $this->dispatchCommandStartEvent();
 

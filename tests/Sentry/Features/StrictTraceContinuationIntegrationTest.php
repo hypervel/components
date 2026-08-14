@@ -19,7 +19,7 @@ class StrictTraceContinuationIntegrationTest extends SentryTestCase
 
     private function registerRoutes(): void
     {
-        $this->app['router']->group(['prefix' => 'sentry'], function (Router $router) {
+        $this->app->make('router')->group(['prefix' => 'sentry'], function (Router $router) {
             $router->get('/strict-trace-continuation', function () {
                 return 'ok';
             });

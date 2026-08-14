@@ -18,7 +18,7 @@ class ServiceProviderWithoutDsnTest extends TestCase
 {
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app['config']->set('sentry.dsn', null);
+        $app->make('config')->set('sentry.dsn', null);
     }
 
     protected function getPackageProviders(ApplicationContract $app): array

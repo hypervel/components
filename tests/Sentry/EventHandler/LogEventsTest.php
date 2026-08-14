@@ -15,7 +15,7 @@ class LogEventsTest extends SentryTestCase
             'sentry.breadcrumbs.logs' => true,
         ]);
 
-        $this->assertTrue($this->app['config']->get('sentry.breadcrumbs.logs'));
+        $this->assertTrue($this->app->make('config')->boolean('sentry.breadcrumbs.logs'));
 
         $this->dispatchHypervelEvent(new MessageLogged(
             $level = 'debug',
@@ -36,7 +36,7 @@ class LogEventsTest extends SentryTestCase
             'sentry.breadcrumbs.logs' => false,
         ]);
 
-        $this->assertFalse($this->app['config']->get('sentry.breadcrumbs.logs'));
+        $this->assertFalse($this->app->make('config')->boolean('sentry.breadcrumbs.logs'));
 
         $this->dispatchHypervelEvent(new MessageLogged('debug', 'test message'));
 
