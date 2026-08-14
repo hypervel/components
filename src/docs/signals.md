@@ -9,6 +9,7 @@
     - [Worker Signals](#worker-signals)
     - [Server Process Signals](#server-process-signals)
 - [Native Signal Limitations](#native-signal-limitations)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -151,3 +152,8 @@ The `server:reload` command reloads event and task workers, but it does not relo
 ## Native Signal Limitations
 
 Swoole does not support waiting for `SIGCHLD` through the coroutine signal API used by Hypervel. In addition, you should not use `Swoole\Process::signal` in a process that uses Hypervel signal handlers. The two native signal mechanisms are mutually exclusive within a process.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Signal began as a port of [Hyperf Signal](https://github.com/hyperf/hyperf/tree/master/src/signal) and has been adapted for Hypervel's framework architecture and coroutine runtime.
