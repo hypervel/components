@@ -847,7 +847,7 @@ class FoundationViteTest extends TestCase
             ],
         ], $buildDir = Str::random());
         $vite = app(Vite::class)->useBuildDirectory($buildDir);
-        $this->app['config']->set('app.url', 'https://cdn.app.com');
+        $this->app->make('config')->set('app.url', 'https://cdn.app.com');
 
         // default behaviour...
         $this->assertSame("https://cdn.app.com/{$buildDir}/assets/profile.versioned.png", $vite->asset('resources/images/profile.png'));

@@ -173,10 +173,10 @@ class FoundationHelpersTest extends TestCase
         $this->assertSame(CarbonImmutable::class, $result::class);
     }
 
-    public function testCache()
+    public function testCache(): void
     {
         $cache = m::mock(CacheManager::class);
-        $this->app['cache'] = $cache;
+        $this->app->instance('cache', $cache);
 
         // cache() returns the CacheManager
         $this->assertInstanceOf(CacheManager::class, cache());

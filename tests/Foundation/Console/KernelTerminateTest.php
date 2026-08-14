@@ -237,7 +237,9 @@ class KernelTerminateTest extends TestCase
 
     public function testTerminateUsesConfiguredTimezone(): void
     {
-        $this->app['config']->set('app.timezone', 'UTC');
+        $config = $this->app->make('config');
+
+        $config->set('app.timezone', 'UTC');
 
         $startedAt = null;
         $kernel = $this->app->make(KernelContract::class);
@@ -248,7 +250,7 @@ class KernelTerminateTest extends TestCase
             $this->assertSame($started, $kernel->commandStartedAt());
         });
 
-        $this->app['config']->set('app.timezone', 'Australia/Melbourne');
+        $config->set('app.timezone', 'Australia/Melbourne');
 
         CarbonImmutable::setTestNow(CarbonImmutable::now());
         $input = new StringInput('foo');
