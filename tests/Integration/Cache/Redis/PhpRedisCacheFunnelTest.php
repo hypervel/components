@@ -148,14 +148,15 @@ class PhpRedisCacheFunnelTest extends TestCase
      */
     protected function configureLockConnection(array $options): void
     {
-        $baseConfig = $this->app['config']->get('database.redis.default');
+        $config = $this->app->make('config');
+        $baseConfig = $config->array('database.redis.default');
 
-        $this->app['config']->set('database.redis.lock-test', array_merge($baseConfig, [
+        $config->set('database.redis.lock-test', array_merge($baseConfig, [
             'options' => $options,
         ]));
 
-        $this->app['config']->set('cache.stores.redis.connection', 'default');
-        $this->app['config']->set('cache.stores.redis.lock_connection', 'lock-test');
+        $config->set('cache.stores.redis.connection', 'default');
+        $config->set('cache.stores.redis.lock_connection', 'lock-test');
 
         Cache::forgetDriver('redis');
     }
