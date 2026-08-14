@@ -665,7 +665,7 @@ class RedisSessionHandlerTest extends TestCase
         $this->handler(tracked: true)->destroy(self::SESSION_ID);
     }
 
-    public function testUserSessionsUsesOneHealthyReadAndReturnsSortedValues(): void
+    public function testUserSessionsUsesOneReadAndReturnsSortedValues(): void
     {
         $owner = $this->ownerDigest('users', 'user-1');
         $connection = $this->expectConnection();
@@ -685,6 +685,7 @@ class RedisSessionHandlerTest extends TestCase
                 ]),
             ]);
         $connection->shouldReceive('hdel')->never();
+        $connection->shouldReceive('getRange')->never();
 
         $sessions = $this->handler(tracked: true)->userSessions('users', 'user-1');
 
@@ -696,9 +697,8 @@ class RedisSessionHandlerTest extends TestCase
         $this->assertSame('First', $sessions[1]->userAgent);
     }
 
-    public function testUserSessionsPrunesMalformedMetadataAndInvalidIdentifiersOnce(): void
+    public function testUserSessionsIgnoresMalformedMetadataAndInvalidIdentifiers(): void
     {
-        $owner = $this->ownerDigest('users', '42');
         $connection = $this->expectConnection();
         $connection->shouldReceive('hGetAll')->once()->andReturn([
             self::SESSION_ID => '{',
@@ -713,10 +713,8 @@ class RedisSessionHandlerTest extends TestCase
                 'last_activity' => 100,
             ]),
         ]);
-        $connection->shouldReceive('hdel')
-            ->once()
-            ->with('sessions:_users:' . $owner . ':sessions', self::SESSION_ID, 'invalid')
-            ->andReturn(2);
+        $connection->shouldReceive('hdel')->never();
+        $connection->shouldReceive('getRange')->never();
 
         $sessions = $this->handler(tracked: true)->userSessions('users', 42);
 
@@ -724,21 +722,80 @@ class RedisSessionHandlerTest extends TestCase
         $this->assertSame(self::OTHER_SESSION_ID, $sessions->first()->id);
     }
 
-    public function testUserSessionsRejectsFailedInvalidMetadataPruning(): void
+    public function testClusterUserSessionsReturnsOnlyAuthoritativeOwnerMatches(): void
     {
-        $connection = $this->expectConnection();
+        $owner = $this->ownerDigest('users', 'user-1');
+        $otherOwner = $this->ownerDigest('users', 'user-2');
+        $missingSessionId = str_repeat('c', 40);
+        $rawSessionId = str_repeat('d', 40);
+        $corruptSessionId = str_repeat('e', 40);
+        $unknownVersionSessionId = str_repeat('f', 40);
+        $unreadableSessionId = str_repeat('g', 40);
+        $metadata = json_encode([
+            'ip_address' => null,
+            'user_agent' => null,
+            'last_activity' => 100,
+        ]);
+        $connection = $this->expectConnection(cluster: true);
+        $connection->shouldReceive('hGetAll')->once()->andReturn([
+            self::SESSION_ID => $metadata,
+            self::OTHER_SESSION_ID => $metadata,
+            $missingSessionId => $metadata,
+            $rawSessionId => $metadata,
+            $corruptSessionId => $metadata,
+            $unknownVersionSessionId => $metadata,
+            $unreadableSessionId => $metadata,
+        ]);
+        $connection->shouldReceive('getRange')
+            ->once()
+            ->with('sessions:' . self::SESSION_ID, 0, 36)
+            ->andReturn("\0HVS1" . $owner);
+        $connection->shouldReceive('getRange')
+            ->once()
+            ->with('sessions:' . self::OTHER_SESSION_ID, 0, 36)
+            ->andReturn("\0HVS1" . $otherOwner);
+        $connection->shouldReceive('getRange')
+            ->once()
+            ->with('sessions:' . $missingSessionId, 0, 36)
+            ->andReturn('');
+        $connection->shouldReceive('getRange')
+            ->once()
+            ->with('sessions:' . $rawSessionId, 0, 36)
+            ->andReturn('raw payload');
+        $connection->shouldReceive('getRange')
+            ->once()
+            ->with('sessions:' . $corruptSessionId, 0, 36)
+            ->andReturn("\0HVS1" . str_repeat('A', 32));
+        $connection->shouldReceive('getRange')
+            ->once()
+            ->with('sessions:' . $unknownVersionSessionId, 0, 36)
+            ->andReturn("\0HVS2" . $owner);
+        $connection->shouldReceive('getRange')
+            ->once()
+            ->with('sessions:' . $unreadableSessionId, 0, 36)
+            ->andReturnFalse();
+        $connection->shouldReceive('hdel')->never();
+
+        $sessions = $this->handler(tracked: true)->userSessions('users', 'user-1');
+
+        $this->assertSame([self::SESSION_ID], $sessions->pluck('id')->all());
+    }
+
+    public function testClusterUserSessionsDoesNotReadPayloadsWhenIndexHasNoValidCandidates(): void
+    {
+        $connection = $this->expectConnection(cluster: true);
         $connection->shouldReceive('hGetAll')->once()->andReturn([
             self::SESSION_ID => '{',
+            'invalid' => json_encode([
+                'ip_address' => null,
+                'user_agent' => null,
+                'last_activity' => 100,
+            ]),
         ]);
-        $connection->shouldReceive('hdel')->once()->with(
-            'sessions:_users:' . $this->ownerDigest('users', 'user-1') . ':sessions',
-            self::SESSION_ID,
-        )->andReturnFalse();
+        $connection->shouldReceive('getRange')->never();
+        $connection->shouldReceive('hdel')->never();
 
-        $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('Redis failed to prune invalid user session metadata.');
-
-        $this->handler(tracked: true)->userSessions('users', 'user-1');
+        $this->assertEmpty($this->handler(tracked: true)->userSessions('users', 'user-1'));
     }
 
     public function testUserSessionsRejectsInvalidIndexResponses(): void

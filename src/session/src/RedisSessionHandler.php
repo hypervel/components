@@ -572,7 +572,7 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
         $this->validateAuthProvider($authProvider);
         $owner = $this->ownerDigest($authProvider, UserSessionIdentity::normalize($userId));
 
-        return $this->withConnection(function (RedisConnection $connection) use ($owner): Collection {
+        return $this->withConnection(function (RedisConnection $connection, bool $cluster) use ($owner): Collection {
             $entries = $connection->hGetAll($this->userIndexKey($owner));
 
             if (! is_array($entries)) {
@@ -580,16 +580,28 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
             }
 
             $sessions = [];
-            $invalidSessionIds = [];
 
             foreach ($entries as $sessionId => $value) {
                 $sessionId = (string) $sessionId;
                 $metadata = is_string($value) ? $this->decodeMetadata($value) : null;
 
                 if (! SessionId::isValid($sessionId) || $metadata === null) {
-                    $invalidSessionIds[] = $sessionId;
-
                     continue;
+                }
+
+                if ($cluster) {
+                    // ownerFromStoredValue() reads only this fixed header, so the range
+                    // gives the full-value ownership verdict without transferring session data.
+                    // A non-string response cannot prove ownership and is omitted like a miss.
+                    $header = $connection->getRange(
+                        $this->payloadKey($sessionId),
+                        0,
+                        self::ENVELOPE_HEADER_LENGTH - 1,
+                    );
+
+                    if (! is_string($header) || $this->ownerFromStoredValue($header) !== $owner) {
+                        continue;
+                    }
                 }
 
                 $lastActivity = CarbonImmutable::createFromTimestampUTC($metadata['last_activity']);
@@ -600,14 +612,6 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
                     $lastActivity,
                     $lastActivity->addMinutes($this->minutes),
                 );
-            }
-
-            if ($invalidSessionIds !== []) {
-                $result = $connection->hdel($this->userIndexKey($owner), ...$invalidSessionIds);
-
-                if ($result === false) {
-                    throw new UnexpectedValueException('Redis failed to prune invalid user session metadata.');
-                }
             }
 
             usort($sessions, static function (UserSession $first, UserSession $second): int {

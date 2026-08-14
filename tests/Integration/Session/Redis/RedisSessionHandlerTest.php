@@ -354,12 +354,13 @@ class RedisSessionHandlerTest extends TestCase
         $this->assertSame([self::SESSION_ID], $redis->hKeys($this->physicalUserIndexKey($owner)));
     }
 
-    public function testListingPrunesMalformedMetadataWithoutHidingValidSessions(): void
+    public function testListingIgnoresMalformedMetadataWithoutMutatingTheIndex(): void
     {
         $this->skipIfHashFieldExpirationUnsupported();
         $owner = $this->ownerDigest('users', 'user-1');
         $redis = $this->redisClientWithoutPrefix();
 
+        $redis->set($this->physicalPayloadKey(self::SESSION_ID), "\0HVS1{$owner}payload", 'EX', 600);
         $redis->hsetex(
             $this->physicalUserIndexKey($owner),
             [
@@ -374,7 +375,53 @@ class RedisSessionHandlerTest extends TestCase
 
         $this->assertCount(1, $sessions);
         $this->assertSame(self::SESSION_ID, $sessions->first()->id);
-        $this->assertSame([self::SESSION_ID], $redis->hKeys($this->physicalUserIndexKey($owner)));
+        $sessionIds = $redis->hKeys($this->physicalUserIndexKey($owner));
+        $expectedSessionIds = ['invalid', self::SESSION_ID, self::OTHER_SESSION_ID];
+        sort($sessionIds);
+        sort($expectedSessionIds);
+        $this->assertSame($expectedSessionIds, $sessionIds);
+    }
+
+    public function testClusterListingReturnsOnlyAuthoritativelyOwnedSessionsWithoutMutatingDrift(): void
+    {
+        if (! $this->usingRedisCluster()) {
+            $this->markTestSkipped('This behavior is specific to Redis Cluster.');
+        }
+
+        $this->skipIfHashFieldExpirationUnsupported();
+        $owner = $this->ownerDigest('users', 'user-1');
+        $otherOwner = $this->ownerDigest('users', 'user-2');
+        $rawSessionId = str_repeat('d', 40);
+        $corruptSessionId = str_repeat('e', 40);
+        $unknownVersionSessionId = str_repeat('f', 40);
+        $sessionIds = [
+            self::SESSION_ID,
+            self::OTHER_SESSION_ID,
+            self::THIRD_SESSION_ID,
+            $rawSessionId,
+            $corruptSessionId,
+            $unknownVersionSessionId,
+        ];
+        $redis = $this->redisClientWithoutPrefix();
+
+        $redis->hsetex(
+            $this->physicalUserIndexKey($owner),
+            array_fill_keys($sessionIds, $this->metadata()),
+            ['EX' => 600],
+        );
+        $redis->set($this->physicalPayloadKey(self::SESSION_ID), "\0HVS1{$owner}matching", 'EX', 600);
+        $redis->set($this->physicalPayloadKey(self::OTHER_SESSION_ID), "\0HVS1{$otherOwner}wrong", 'EX', 600);
+        $redis->set($this->physicalPayloadKey($rawSessionId), 'raw', 'EX', 600);
+        $redis->set($this->physicalPayloadKey($corruptSessionId), "\0HVS1invalid", 'EX', 600);
+        $redis->set($this->physicalPayloadKey($unknownVersionSessionId), "\0HVS2{$owner}unknown", 'EX', 600);
+
+        $sessions = $this->handler(tracked: true)->userSessions('users', 'user-1');
+
+        $this->assertSame([self::SESSION_ID], $sessions->pluck('id')->all());
+        $indexedSessionIds = $redis->hKeys($this->physicalUserIndexKey($owner));
+        sort($indexedSessionIds);
+        sort($sessionIds);
+        $this->assertSame($sessionIds, $indexedSessionIds);
     }
 
     public function testTrackingCanBeEnabledAndDisabledWithoutLosingTheSession(): void
