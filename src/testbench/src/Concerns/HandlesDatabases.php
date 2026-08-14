@@ -33,7 +33,7 @@ trait HandlesDatabases
             attribute: fn () => $this->parseTestMethodAttributes($app, RequiresDatabase::class),
         );
 
-        $app['events']->listen(DatabaseRefreshed::class, function () {
+        $app->make('events')->listen(DatabaseRefreshed::class, function () {
             $this->defineDatabaseMigrationsAfterDatabaseRefreshed();
         });
 

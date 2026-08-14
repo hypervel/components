@@ -19,7 +19,7 @@ class LoadUsingFrameworkConfigurationTest extends TestCase
     #[ResolvesHypervel('overrideHypervelConfiguration')]
     public function itCanLoadUsingFrameworkConfigurations(): void
     {
-        $this->assertSame(LoadConfiguration::class, $this->app[LoadConfiguration::class]::class);
+        $this->assertSame(LoadConfiguration::class, $this->app->make(LoadConfiguration::class)::class);
 
         $environment = Env::has('TESTBENCH_PACKAGE_TESTER') ? 'testing' : 'production';
 

@@ -16,7 +16,7 @@ class ResolvesHypervelTest extends TestCase
     #[ResolvesHypervel('hypervelDefaultConfiguration')]
     public function itCanResolveDefinedConfiguration(): void
     {
-        $this->assertSame(LoadConfiguration::class, $this->app[LoadConfiguration::class]::class);
+        $this->assertSame(LoadConfiguration::class, $this->app->make(LoadConfiguration::class)::class);
     }
 
     /**

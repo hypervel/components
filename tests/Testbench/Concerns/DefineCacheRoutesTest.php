@@ -40,7 +40,7 @@ class DefineCacheRoutesTest extends TestCase
         );
         $this->assertInstanceOf(
             RouteCollection::class,
-            $this->app['router']->getRoutes()
+            $this->app->make(Router::class)->getRoutes()
         );
 
         $this->defineCacheRoutes(<<<'PHP'
@@ -51,7 +51,7 @@ PHP);
 
         $this->assertInstanceOf(
             CompiledRouteCollection::class,
-            $this->app['router']->getRoutes()
+            $this->app->make(Router::class)->getRoutes()
         );
     }
 
@@ -91,8 +91,7 @@ use Hypervel\Support\Facades\Route;
 Route::get('/named', fn () => 'named_response')->name('test.named');
 PHP);
 
-        /** @var Router $router */
-        $router = $this->app['router'];
+        $router = $this->app->make(Router::class);
         $routes = $router->getRoutes();
 
         $this->assertNotNull($routes->getByName('test.named'));
@@ -307,7 +306,7 @@ PHP);
         // routesAreCached() should return true
         $this->assertTrue($this->app->routesAreCached());
 
-        // Routes from defineRoutes() should NOT be registered since
+        // Routes from defineRoutes() should not be registered since
         // setUpApplicationRoutes returns early when routes are cached.
         // Only the cached /cached-only route should exist.
         $this->get('/cached-only')->assertOk();
