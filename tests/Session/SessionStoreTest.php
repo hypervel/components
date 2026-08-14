@@ -9,7 +9,9 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Http\Request;
 use Hypervel\Session\CookieSessionHandler;
+use Hypervel\Session\SessionId;
 use Hypervel\Session\Store;
+use Hypervel\Session\UserSessionIdentity;
 use Hypervel\Support\Json;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\Str;
@@ -66,7 +68,8 @@ class SessionStoreTest extends TestCase
         $oldId = $session->getId();
         $session->getHandler()->shouldReceive('destroy')->never();
         $this->assertTrue($session->regenerate());
-        $this->assertNotEquals($oldId, $session->getId());
+        $this->assertNotSame($oldId, $session->getId());
+        $this->assertFalse(UserSessionIdentity::resolve(null, $session->getId())->isUnowned());
     }
 
     public function testCantSetInvalidId(): void
@@ -171,8 +174,9 @@ class SessionStoreTest extends TestCase
         $this->assertTrue($session->invalidate());
 
         $this->assertFalse($session->has('name'));
-        $this->assertNotEquals($oldId, $session->getId());
+        $this->assertNotSame($oldId, $session->getId());
         $this->assertCount(0, $session->all());
+        $this->assertTrue(UserSessionIdentity::resolve(null, $session->getId())->isUnowned());
     }
 
     public function testBrandNewSessionIsProperlySaved(): void
@@ -567,6 +571,7 @@ class SessionStoreTest extends TestCase
         $token = $session->token();
         $session->regenerateToken();
         $this->assertNotEquals($token, $session->token());
+        $this->assertSame(40, strlen((string) $session->token()));
     }
 
     public function testName(): void
@@ -1195,14 +1200,21 @@ class SessionStoreTest extends TestCase
         $this->assertFalse(Store::hasMacro('foo'));
     }
 
-    public function testSessionIdLengthConstant(): void
+    public function testSessionIdentifiersUseTheSharedFormat(): void
     {
         $session = $this->getSession();
         $id = $session->getId();
-        $this->assertSame(40, strlen($id));
+        $this->assertSame(SessionId::LENGTH, strlen($id));
         $this->assertTrue($session->isValidId($id));
+        $this->assertTrue(SessionId::isValid($id));
         $this->assertFalse($session->isValidId(str_repeat('a', 39)));
         $this->assertFalse($session->isValidId(str_repeat('a', 41)));
+        $this->assertFalse($session->isValidId(str_repeat('-', SessionId::LENGTH)));
+
+        $generatedId = SessionId::generate();
+
+        $this->assertSame(SessionId::LENGTH, strlen($generatedId));
+        $this->assertTrue($session->isValidId($generatedId));
     }
 
     public function testPreviousUri(): void

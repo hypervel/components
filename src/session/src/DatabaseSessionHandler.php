@@ -6,20 +6,22 @@ namespace Hypervel\Session;
 
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
-use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
-use Hypervel\Database\QueryException;
-use Hypervel\Support\Arr;
+use Hypervel\Database\UniqueConstraintViolationException;
+use Hypervel\Session\Concerns\ValidatesUserSessionArguments;
+use Hypervel\Session\Contracts\CanManageUserSessions;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Collection;
 use Hypervel\Support\InteractsWithTime;
 use SessionHandlerInterface;
 
-class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerInterface
+class DatabaseSessionHandler implements CanManageUserSessions, ExistenceAwareInterface, SessionHandlerInterface
 {
     use InteractsWithTime;
+    use ValidatesUserSessionArguments;
 
     /**
      * Context key prefix for whether the session record exists in the database.
@@ -28,6 +30,14 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      * within the same coroutine maintain independent existence state.
      */
     protected const string DATABASE_EXISTS_CONTEXT_KEY_PREFIX = '__session.database.exists.';
+
+    /**
+     * Context key prefix for whether the session record is expired.
+     *
+     * Suffixed with the handler's object ID so multiple handler instances
+     * within the same coroutine maintain independent expiration state.
+     */
+    protected const string DATABASE_EXPIRED_CONTEXT_KEY_PREFIX = '__session.database.expired.';
 
     /**
      * Create a new database session handler instance.
@@ -44,7 +54,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
         protected int $minutes,
         protected ?Container $container = null
     ) {
-        $this->setExists(false);
+        $this->forgetRecordState();
     }
 
     public function open(string $savePath, string $sessionName): bool
@@ -63,15 +73,19 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
 
         if ($this->expired($session)) {
             $this->setExists(true);
+            $this->setExpired(true);
 
             return '';
         }
 
         if (isset($session->payload)) {
             $this->setExists(true);
+            $this->setExpired(false);
 
             return base64_decode($session->payload);
         }
+
+        $this->setExists(false);
 
         return '';
     }
@@ -82,19 +96,19 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
     protected function expired(object $session): bool
     {
         return isset($session->last_activity)
-            && $session->last_activity < CarbonImmutable::now()->subMinutes($this->minutes)->getTimestamp();
+            && $session->last_activity <= $this->activeAfter();
     }
 
     public function write(string $sessionId, string $data): bool
     {
-        $payload = $this->getDefaultPayload($data);
+        $exists = $this->existenceState();
 
-        $exists = $this->getExists();
-
-        if (! $exists) {
+        if ($exists === null) {
             $this->read($sessionId);
             $exists = $this->getExists();
         }
+
+        $payload = $this->getDefaultPayload($sessionId, $data);
 
         if ($exists) {
             $this->performUpdate($sessionId, $payload);
@@ -103,6 +117,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
         }
 
         $this->setExists(true);
+        $this->setExpired(false);
 
         return true;
     }
@@ -112,11 +127,14 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      *
      * @param array<string, mixed> $payload
      */
-    protected function performInsert(string $sessionId, array $payload): ?bool
+    protected function performInsert(string $sessionId, array $payload): bool
     {
+        $insertPayload = $payload;
+        $insertPayload['id'] = $sessionId;
+
         try {
-            return $this->getQuery()->insert(Arr::set($payload, 'id', $sessionId));
-        } catch (QueryException) {
+            return $this->getQuery()->insert($insertPayload);
+        } catch (UniqueConstraintViolationException) {
             $this->performUpdate($sessionId, $payload);
         }
 
@@ -136,41 +154,30 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
     /**
      * Get the default payload for the session.
      */
-    protected function getDefaultPayload(string $data): array
+    protected function getDefaultPayload(string $sessionId, string $data): array
     {
         $payload = [
             'payload' => base64_encode($data),
             'last_activity' => $this->currentTime(),
         ];
 
-        if (! $this->container) {
-            return $payload;
+        // Provider-qualified ownership replaces Laravel's scalar userId() and
+        // addUserInformation() hooks, so both fields are written or omitted together.
+        $identity = UserSessionIdentity::resolve($this->container, $sessionId);
+
+        if ($identity->isResolved()) {
+            $payload['auth_provider'] = $identity->authProvider;
+            $payload['user_id'] = $identity->userId;
+        } elseif ($identity->isUnowned() || ! $this->getExists() || $this->getExpired()) {
+            $payload['auth_provider'] = null;
+            $payload['user_id'] = null;
         }
 
-        return tap($payload, function (&$payload) {
-            $this->addUserInformation($payload)
-                ->addRequestInformation($payload);
-        });
-    }
-
-    /**
-     * Add the user information to the session payload.
-     */
-    protected function addUserInformation(array &$payload): static
-    {
-        if ($this->container->has(Guard::class)) {
-            $payload['user_id'] = $this->userId();
+        if ($this->container !== null) {
+            $this->addRequestInformation($payload);
         }
 
-        return $this;
-    }
-
-    /**
-     * Get the currently authenticated user's ID.
-     */
-    protected function userId(): mixed
-    {
-        return $this->container->make(Guard::class)->id();
+        return $payload;
     }
 
     /**
@@ -217,6 +224,99 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
     }
 
     /**
+     * Determine if the handler supports user session management.
+     */
+    public function supportsUserSessionManagement(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Get the active sessions for the given user.
+     *
+     * @return Collection<int, UserSession>
+     */
+    public function userSessions(string $authProvider, int|string $userId): Collection
+    {
+        $this->validateAuthProvider($authProvider);
+        $normalizedUserId = UserSessionIdentity::normalize($userId);
+        $activeAfter = $this->activeAfter();
+
+        return $this->getQuery()
+            ->select(['id', 'ip_address', 'user_agent', 'last_activity'])
+            ->where('auth_provider', $authProvider)
+            ->where('user_id', $normalizedUserId)
+            ->where('last_activity', '>', $activeAfter)
+            ->orderByDesc('last_activity')
+            ->orderBy('id')
+            ->get()
+            ->map(function (object $session): UserSession {
+                $lastActivity = CarbonImmutable::createFromTimestampUTC((int) $session->last_activity);
+
+                return new UserSession(
+                    (string) $session->id,
+                    $session->ip_address === null ? null : (string) $session->ip_address,
+                    $session->user_agent === null ? null : (string) $session->user_agent,
+                    $lastActivity,
+                    $lastActivity->addMinutes($this->minutes),
+                );
+            });
+    }
+
+    /**
+     * Destroy an active session belonging to the given user.
+     */
+    public function destroyUserSession(
+        string $authProvider,
+        int|string $userId,
+        string $sessionId,
+    ): bool {
+        $this->validateAuthProvider($authProvider);
+        $normalizedUserId = UserSessionIdentity::normalize($userId);
+        SessionId::validate($sessionId);
+
+        return $this->getQuery()
+            ->where('auth_provider', $authProvider)
+            ->where('user_id', $normalizedUserId)
+            ->where('id', $sessionId)
+            ->where('last_activity', '>', $this->activeAfter())
+            ->delete() > 0;
+    }
+
+    /**
+     * Destroy the active sessions belonging to the given user.
+     *
+     * @param list<string> $except
+     */
+    public function destroyUserSessions(
+        string $authProvider,
+        int|string $userId,
+        array $except = [],
+    ): int {
+        $this->validateAuthProvider($authProvider);
+        $normalizedUserId = UserSessionIdentity::normalize($userId);
+        $except = $this->normalizeSessionIds($except);
+        $query = $this->getQuery()
+            ->where('auth_provider', $authProvider)
+            ->where('user_id', $normalizedUserId)
+            ->where('last_activity', '>', $this->activeAfter());
+
+        if ($except !== []) {
+            $query->whereNotIn('id', $except);
+        }
+
+        return $query->delete();
+    }
+
+    /**
+     * Get the exclusive lower boundary for active sessions.
+     */
+    protected function activeAfter(): int
+    {
+        return $this->currentTime() - ($this->minutes * 60);
+    }
+
+    /**
      * Get a fresh query builder instance for the table.
      */
     protected function getQuery(): Builder
@@ -253,6 +353,10 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
     {
         CoroutineContext::set(self::DATABASE_EXISTS_CONTEXT_KEY_PREFIX . spl_object_id($this), $value);
 
+        if (! $value) {
+            $this->setExpired(false);
+        }
+
         return $this;
     }
 
@@ -261,7 +365,44 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      */
     public function getExists(): bool
     {
-        return CoroutineContext::get(self::DATABASE_EXISTS_CONTEXT_KEY_PREFIX . spl_object_id($this), false);
+        return $this->existenceState() ?? false;
+    }
+
+    /**
+     * Get the raw existence state for the current session record.
+     */
+    protected function existenceState(): ?bool
+    {
+        return CoroutineContext::get(self::DATABASE_EXISTS_CONTEXT_KEY_PREFIX . spl_object_id($this));
+    }
+
+    /**
+     * Set whether the current session record is expired.
+     */
+    protected function setExpired(bool $value): static
+    {
+        CoroutineContext::set(self::DATABASE_EXPIRED_CONTEXT_KEY_PREFIX . spl_object_id($this), $value);
+
+        return $this;
+    }
+
+    /**
+     * Determine if the current session record is expired.
+     */
+    protected function getExpired(): bool
+    {
+        return CoroutineContext::get(self::DATABASE_EXPIRED_CONTEXT_KEY_PREFIX . spl_object_id($this), false);
+    }
+
+    /**
+     * Forget the current session record state.
+     */
+    protected function forgetRecordState(): void
+    {
+        $objectId = spl_object_id($this);
+
+        CoroutineContext::forget(self::DATABASE_EXISTS_CONTEXT_KEY_PREFIX . $objectId);
+        CoroutineContext::forget(self::DATABASE_EXPIRED_CONTEXT_KEY_PREFIX . $objectId);
     }
 
     /**
@@ -272,6 +413,6 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      */
     public function __clone(): void
     {
-        $this->setExists(false);
+        $this->forgetRecordState();
     }
 }

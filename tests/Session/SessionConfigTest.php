@@ -17,6 +17,7 @@ class SessionConfigTest extends TestCase
             'SESSION_ENCRYPT' => '1',
             'SESSION_EXPIRE_ON_CLOSE' => '0',
             'SESSION_BLOCK' => '1',
+            'SESSION_TRACK_USER_SESSIONS' => '1',
             'SESSION_BLOCK_LOCK_SECONDS' => '45',
             'SESSION_BLOCK_WAIT_SECONDS' => '12',
         ]);
@@ -30,6 +31,7 @@ class SessionConfigTest extends TestCase
             $this->assertTrue($config['encrypt']);
             $this->assertFalse($config['expire_on_close']);
             $this->assertTrue($config['block']);
+            $this->assertTrue($config['track_user_sessions']);
             $this->assertSame(45, $config['block_lock_seconds']);
             $this->assertSame(12, $config['block_wait_seconds']);
         } finally {
@@ -44,6 +46,8 @@ class SessionConfigTest extends TestCase
         $originalValues = $this->setEnvironmentVariables([
             'APP_ID' => 'session_config_test',
             'SESSION_PREFIX' => null,
+            'SESSION_STORE' => 'obsolete',
+            'SESSION_TRACK_USER_SESSIONS' => null,
             'SESSION_BLOCK' => null,
             'SESSION_BLOCK_STORE' => null,
             'SESSION_BLOCK_LOCK_SECONDS' => null,
@@ -57,6 +61,8 @@ class SessionConfigTest extends TestCase
             $config = require dirname(__DIR__, 2) . '/src/foundation/config/session.php';
 
             $this->assertSame('session_config_test_session:', $config['prefix']);
+            $this->assertFalse($config['track_user_sessions']);
+            $this->assertArrayNotHasKey('store', $config);
             $this->assertFalse($config['block']);
             $this->assertNull($config['block_store']);
             $this->assertSame(10, $config['block_lock_seconds']);

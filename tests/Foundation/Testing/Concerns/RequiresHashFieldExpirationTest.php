@@ -4,19 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
-use Hypervel\Foundation\Testing\Concerns\RequiresAnyTagModeRedis;
+use Hypervel\Foundation\Testing\Concerns\RequiresHashFieldExpiration;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 
-/**
- * Unit tests for the RequiresAnyTagModeRedis trait's decision logic.
- *
- * Uses a local subject class that overrides the trait's two
- * environment-detection seams (detectedPhpredisVersion /
- * detectedServerInfo) so the version-comparison branches can be
- * exercised without hitting a real Redis server.
- */
-class RequiresAnyTagModeRedisTest extends TestCase
+class RequiresHashFieldExpirationTest extends TestCase
 {
     protected function setUp(): void
     {
@@ -24,12 +16,12 @@ class RequiresAnyTagModeRedisTest extends TestCase
 
         // Reset the trait's memoized static state on the subject class
         // so each test starts with a clean slate.
-        RequiresAnyTagModeRedisTestSubject::flushState();
+        RequiresHashFieldExpirationTestSubject::flushState();
     }
 
     public function testSkipsWhenPhpredisBelowMinimum(): void
     {
-        $subject = new RequiresAnyTagModeRedisTestSubject;
+        $subject = new RequiresHashFieldExpirationTestSubject;
         $subject->stubPhpredisVersion = '6.2.0';
 
         $this->expectException(RuntimeException::class);
@@ -40,7 +32,7 @@ class RequiresAnyTagModeRedisTest extends TestCase
 
     public function testSkipsWhenRedisVersionBelowMinimum(): void
     {
-        $subject = new RequiresAnyTagModeRedisTestSubject;
+        $subject = new RequiresHashFieldExpirationTestSubject;
         $subject->stubPhpredisVersion = '6.3.0';
         $subject->stubServerInfo = ['redis_version' => '7.9.0'];
 
@@ -52,7 +44,7 @@ class RequiresAnyTagModeRedisTest extends TestCase
 
     public function testSkipsWhenValkeyVersionBelowMinimum(): void
     {
-        $subject = new RequiresAnyTagModeRedisTestSubject;
+        $subject = new RequiresHashFieldExpirationTestSubject;
         $subject->stubPhpredisVersion = '6.3.0';
         $subject->stubServerInfo = ['valkey_version' => '8.0.0'];
 
@@ -64,12 +56,12 @@ class RequiresAnyTagModeRedisTest extends TestCase
 
     public function testValkeyVersionTakesPrecedenceOverRedisVersion(): void
     {
-        $subject = new RequiresAnyTagModeRedisTestSubject;
+        $subject = new RequiresHashFieldExpirationTestSubject;
         $subject->stubPhpredisVersion = '6.3.0';
 
         // Valkey 9.0.0 meets its minimum; redis_version is well below its
         // own minimum. Because valkey_version is checked first, this must
-        // NOT skip — the trait uses valkey_version when present.
+        // not skip — the trait uses valkey_version when present.
         $subject->stubServerInfo = [
             'valkey_version' => '9.0.0',
             'redis_version' => '7.0.0',
@@ -77,23 +69,23 @@ class RequiresAnyTagModeRedisTest extends TestCase
 
         $subject->runCheck();
 
-        $this->assertTrue(true, 'runCheck() must not throw when Valkey meets its minimum');
+        $this->assertSame(1, $subject->serverInfoCalls);
     }
 
     public function testDoesNotSkipWhenRequirementsMet(): void
     {
-        $subject = new RequiresAnyTagModeRedisTestSubject;
+        $subject = new RequiresHashFieldExpirationTestSubject;
         $subject->stubPhpredisVersion = '6.3.0';
         $subject->stubServerInfo = ['redis_version' => '8.0.0'];
 
         $subject->runCheck();
 
-        $this->assertTrue(true, 'runCheck() must not throw when requirements are met');
+        $this->assertSame(1, $subject->serverInfoCalls);
     }
 
     public function testMemoizesCheckAcrossCalls(): void
     {
-        $subject = new RequiresAnyTagModeRedisTestSubject;
+        $subject = new RequiresHashFieldExpirationTestSubject;
         $subject->stubPhpredisVersion = '6.3.0';
         $subject->stubServerInfo = ['redis_version' => '8.0.0'];
 
@@ -104,12 +96,9 @@ class RequiresAnyTagModeRedisTest extends TestCase
     }
 }
 
-/**
- * Test subject that uses the trait and exposes the necessary seams.
- */
-class RequiresAnyTagModeRedisTestSubject
+class RequiresHashFieldExpirationTestSubject
 {
-    use RequiresAnyTagModeRedis;
+    use RequiresHashFieldExpiration;
 
     public string $stubPhpredisVersion = '6.3.0';
 
@@ -120,7 +109,7 @@ class RequiresAnyTagModeRedisTestSubject
 
     public function runCheck(): void
     {
-        $this->skipIfAnyTagModeUnsupported();
+        $this->skipIfHashFieldExpirationUnsupported();
     }
 
     protected function detectedPhpredisVersion(): string
@@ -136,7 +125,7 @@ class RequiresAnyTagModeRedisTestSubject
     }
 
     /**
-     * Override markTestSkipped() so we can assert on the skip behaviour
+     * Override markTestSkipped() so we can assert on the skip behavior
      * without having PHPUnit actually mark this test as skipped.
      */
     protected function markTestSkipped(string $message = ''): never

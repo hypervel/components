@@ -1056,6 +1056,14 @@ class RedisConnectionTest extends TestCase
         $this->assertEquals(['value1', null, 'value3'], $result);
     }
 
+    public function testMgetReturnsAnEmptyArrayWithoutCallingRedisForEmptyKeys(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+        $connection->getConnection()->shouldReceive('mGet')->never();
+
+        $this->assertSame([], $connection->__call('mget', [[]]));
+    }
+
     public function testSet(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
