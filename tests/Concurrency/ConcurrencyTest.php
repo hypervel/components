@@ -321,6 +321,19 @@ class ConcurrencyTest extends TestCase
         $this->assertSame('coroutine', $manager->getDefaultInstance());
     }
 
+    public function testChangingDefaultDriverPreservesDriverConfiguration(): void
+    {
+        $manager = $this->app->make(ConcurrencyManager::class);
+        $config = $this->app->make('config');
+        $driverConfig = ['driver' => 'sync', 'option' => 'preserved'];
+        $config->set('concurrency.driver.sync', $driverConfig);
+
+        $manager->setDefaultInstance('sync');
+
+        $this->assertSame('sync', $manager->getDefaultInstance());
+        $this->assertSame($driverConfig, $manager->getInstanceConfig('sync'));
+    }
+
     public function testManagerResolvesCoroutineDriver()
     {
         $manager = $this->app->make(ConcurrencyManager::class);
