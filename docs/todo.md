@@ -41,7 +41,7 @@
 ## Documentation
 
 - Publish reproducible Hypervel 0.4 benchmarks on a dedicated documentation page before linking them from the introduction. Record the framework, PHP, Swoole, and dependency versions; use the same hardware and load-generation conditions for every runtime; publish the benchmark applications and configuration; and include the raw results, collection date, and limitations. Do not reuse the Hypervel 0.3 results as current data. Once the page is published, add it to `src/docs/documentation.md` and link to it from the introduction.
-- When the Hypervel 0.4 documentation is published, replace the README's versioned GitHub source links with the corresponding hypervel.org documentation URLs. The documentation's `{{version}}` cross-links only resolve on the published site, so readers who follow the current links land on pages whose internal navigation is broken.
+- When the Hypervel 0.4 documentation is published, replace the versioned GitHub source links in both the `hypervel/components` and `hypervel/hypervel` READMEs with the corresponding hypervel.org documentation URLs. The documentation's `{{version}}` cross-links only resolve on the published site, so readers who follow the current links land on pages whose internal navigation is broken.
 
 ## Redis
 
