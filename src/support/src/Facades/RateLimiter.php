@@ -8,6 +8,7 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\RateLimiter\RateLimiter extend(string $name, \Closure $callback)
  * @method static \Hypervel\RateLimiter\RateLimiter for(\UnitEnum|string $name, \Closure $callback, \UnitEnum|string|null $store = null)
  * @method static \Hypervel\RateLimiter\RateLimiter forgetInstance(array|string|null $name = null)
+ * @method static \Hypervel\RateLimiter\RateLimiter forgetInstances()
  * @method static string getDefaultInstance()
  * @method static array getInstanceConfig(string $name)
  * @method static mixed instance(string|null $name = null)

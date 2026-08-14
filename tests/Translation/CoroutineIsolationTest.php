@@ -40,6 +40,7 @@ class CoroutineIsolationTest extends TestCase
     public function testLocaleMutationIsIsolatedBetweenConcurrentCoroutines(): void
     {
         $translator = new Translator(new ArrayLoader, 'en');
+        $translator->setBaseLocale('es');
 
         [$firstLocale, $secondLocale] = parallel([
             function () use ($translator): string {
@@ -58,7 +59,7 @@ class CoroutineIsolationTest extends TestCase
 
         $this->assertSame('fr', $firstLocale);
         $this->assertSame('de', $secondLocale);
-        $this->assertSame('en', $translator->getLocale());
+        $this->assertSame('es', $translator->getLocale());
     }
 }
 

@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Filesystem;
 
 use Hypervel\Contracts\Foundation\CachesRoutes;
+use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Http\Request;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
 use InvalidArgumentException;
 
-class FilesystemServiceProvider extends ServiceProvider
+class FilesystemServiceProvider extends ServiceProvider implements ReloadsConfiguration
 {
     /**
      * Bootstrap the filesystem.
@@ -27,6 +28,21 @@ class FilesystemServiceProvider extends ServiceProvider
     {
         $this->registerNativeFilesystem();
         $this->registerFlysystem();
+    }
+
+    /**
+     * Reload configuration-derived worker state.
+     *
+     * Boot-only. Request-time use clears shared filesystem disks while
+     * concurrent coroutines may still be using them.
+     */
+    public function reloadConfiguration(): void
+    {
+        if ($this->app->resolved('filesystem')) {
+            $this->app->make('filesystem')->forgetDisks();
+        }
+
+        $this->app->forgetInstance('filesystem.disk');
     }
 
     /**

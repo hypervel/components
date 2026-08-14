@@ -42,6 +42,7 @@ namespace Hypervel\Support\Facades;
  * @method static string route(\BackedEnum|string $name, mixed $parameters = [], bool $absolute = true)
  * @method static string secure(string $path, mixed $parameters = [])
  * @method static string secureAsset(string $path)
+ * @method static void setAssetRoot(string|null $root)
  * @method static \Hypervel\Routing\UrlGenerator setKeyResolver(callable $keyResolver)
  * @method static void setRequest(\Hypervel\Http\Request $request)
  * @method static \Hypervel\Routing\UrlGenerator setRootControllerNamespace(string $rootNamespace)

@@ -735,6 +735,21 @@ class FilesystemManager implements FactoryContract
     }
 
     /**
+     * Forget all resolved disks.
+     *
+     * Boot or tests only. Mutates the singleton's disk cache; concurrent
+     * coroutines may already hold disks that next resolution will replace.
+     * Shared pools remain available until their idle TTL expires or purge()
+     * deliberately invalidates them.
+     */
+    public function forgetDisks(): static
+    {
+        $this->disks = [];
+
+        return $this;
+    }
+
+    /**
      * Disconnect the given disk, remove it from local cache, and close its pool.
      *
      * Boot or tests only, plus operational recovery of broken pooled resources.

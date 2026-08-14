@@ -12,19 +12,74 @@ use InvalidArgumentException;
 abstract class Compiler
 {
     /**
+     * The directory where compiled views are stored.
+     */
+    protected string $cachePath;
+
+    /**
+     * The application base path removed from compiled view hashes.
+     */
+    protected string $basePath;
+
+    /**
+     * Determine whether compiled views should be cached.
+     */
+    protected bool $shouldCache;
+
+    /**
+     * The compiled view file extension.
+     */
+    protected string $compiledExtension;
+
+    /**
+     * Determine whether compiled view timestamps should be checked.
+     */
+    protected bool $shouldCheckTimestamps;
+
+    /**
      * Create a new compiler instance.
      */
     public function __construct(
         protected Filesystem $files,
-        protected string $cachePath,
-        protected string $basePath = '',
-        protected bool $shouldCache = true,
-        protected string $compiledExtension = 'php',
-        protected bool $shouldCheckTimestamps = true,
+        string $cachePath,
+        string $basePath = '',
+        bool $shouldCache = true,
+        string $compiledExtension = 'php',
+        bool $shouldCheckTimestamps = true,
     ) {
+        $this->reloadConfiguration(
+            $cachePath,
+            $basePath,
+            $shouldCache,
+            $compiledExtension,
+            $shouldCheckTimestamps,
+        );
+    }
+
+    /**
+     * Reload configuration-derived compiler state.
+     *
+     * Boot-only. Mutates the worker-shared compiler while concurrent
+     * coroutines may still compile views using its previous configuration.
+     *
+     * @throws InvalidArgumentException
+     */
+    public function reloadConfiguration(
+        string $cachePath,
+        string $basePath,
+        bool $shouldCache,
+        string $compiledExtension,
+        bool $shouldCheckTimestamps,
+    ): void {
         if ($cachePath === '') {
             throw new InvalidArgumentException('Please provide a valid cache path.');
         }
+
+        $this->cachePath = $cachePath;
+        $this->basePath = $basePath;
+        $this->shouldCache = $shouldCache;
+        $this->compiledExtension = $compiledExtension;
+        $this->shouldCheckTimestamps = $shouldCheckTimestamps;
     }
 
     /**

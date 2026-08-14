@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth\Passwords;
 
+use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Support\ServiceProvider;
 
-class PasswordResetServiceProvider extends ServiceProvider
+class PasswordResetServiceProvider extends ServiceProvider implements ReloadsConfiguration
 {
     /**
      * Register the service provider.
@@ -15,6 +16,19 @@ class PasswordResetServiceProvider extends ServiceProvider
     {
         $this->registerPasswordBroker();
         $this->registerEventRebindHandler();
+    }
+
+    /**
+     * Reload configuration-derived worker state.
+     *
+     * Boot-only. Request-time use clears shared resolved brokers while
+     * concurrent coroutines may still be using them.
+     */
+    public function reloadConfiguration(): void
+    {
+        if ($this->app->resolved('auth.password')) {
+            $this->app->make('auth.password')->forgetBrokers();
+        }
     }
 
     /**

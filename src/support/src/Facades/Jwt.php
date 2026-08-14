@@ -17,6 +17,7 @@ namespace Hypervel\Support\Facades;
  * @method static bool hasBlacklistEnabled()
  * @method static bool invalidate(string $token, bool $forceForever = false)
  * @method static string refresh(string $token, bool $forceForever = false, bool $resetClaims = false, array $customClaims = [], int|false|null $ttl = false)
+ * @method static void reloadConfiguration()
  * @method static \Hypervel\Jwt\JwtManager setContainer(\Hypervel\Contracts\Container\Container $container)
  *
  * @see \Hypervel\Jwt\JwtManager

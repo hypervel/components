@@ -500,6 +500,27 @@ class CacheManagerTest extends TestCase
         $this->assertNull($cacheManager->store('forget')->get('foo'));
     }
 
+    public function testForgetDriversClearsEveryStoreAndPreservesCustomCreators(): void
+    {
+        $config = [
+            'cache' => [
+                'stores' => [
+                    'first' => ['driver' => 'custom'],
+                    'second' => ['driver' => 'custom'],
+                ],
+            ],
+        ];
+        $cacheManager = new CacheManager($this->getApp($config));
+        $cacheManager->extend('custom', fn () => m::mock(CacheRepository::class));
+        $first = $cacheManager->store('first');
+        $second = $cacheManager->store('second');
+
+        $this->assertSame($cacheManager, $cacheManager->forgetDrivers());
+
+        $this->assertNotSame($first, $cacheManager->store('first'));
+        $this->assertNotSame($second, $cacheManager->store('second'));
+    }
+
     public function testThrowExceptionWhenUnknownDriverIsUsed()
     {
         $this->expectException(InvalidArgumentException::class);

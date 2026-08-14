@@ -472,6 +472,19 @@ class CacheManager implements FactoryContract
     }
 
     /**
+     * Forget all resolved cache drivers.
+     *
+     * Boot or tests only. Mutates the singleton's store cache; concurrent
+     * coroutines may already hold stores that next resolution will replace.
+     */
+    public function forgetDrivers(): static
+    {
+        $this->stores = [];
+
+        return $this;
+    }
+
+    /**
      * Disconnect the given driver and remove from local cache.
      *
      * Boot or tests only. Mutates the singleton's store cache; concurrent

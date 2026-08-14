@@ -16,6 +16,7 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\Log\LogManager extend(string $driver, \Closure $callback)
  * @method static \Hypervel\Log\LogManager flushSharedContext()
  * @method static void forgetChannel(string|null $driver = null)
+ * @method static \Hypervel\Log\LogManager forgetChannels()
  * @method static array getChannels()
  * @method static string|null getDefaultDriver()
  * @method static void info(\Hypervel\Contracts\Support\Arrayable|\Hypervel\Contracts\Support\Jsonable|\Stringable|array|string $message, mixed[] $context = [])

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon;
 
+use Hypervel\Config\Repository;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
+use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Horizon\Connectors\RedisConnector;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Support\Facades\Route;
@@ -35,11 +37,17 @@ class HorizonServiceProvider extends ServiceProvider
      */
     protected function normalizeConfig(): void
     {
-        $config = $this->app->make('config');
+        $config = $this->app->make(Repository::class);
 
-        if (($name = $config->get('horizon.name')) === null || $name === '') {
-            $config->set('horizon.name', $config->string('app.name'));
-        }
+        // Derived config can depend on the worker environment, so replay the operation after config reload rather than its master result.
+        $this->app->make(ConfigMutationTracker::class)->applyAndRecord(
+            $config,
+            static function (Repository $config): void {
+                if (($name = $config->get('horizon.name')) === null || $name === '') {
+                    $config->set('horizon.name', $config->string('app.name'));
+                }
+            },
+        );
     }
 
     /**

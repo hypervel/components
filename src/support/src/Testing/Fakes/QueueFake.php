@@ -380,6 +380,24 @@ class QueueFake extends QueueManager implements Fake, Queue
     }
 
     /**
+     * Forget all resolved queue connections.
+     *
+     * Boot or tests only. Mutates the fake and wrapped manager connection caches;
+     * concurrent coroutines may already hold connections that will be replaced.
+     */
+    public function forgetConnections(): static
+    {
+        parent::forgetConnections();
+
+        // Jobs excluded from the fake pass through to this manager.
+        if ($this->queue instanceof QueueManager) {
+            $this->queue->forgetConnections();
+        }
+
+        return $this;
+    }
+
+    /**
      * Get the size of the queue.
      */
     public function size(UnitEnum|string|null $queue = null): int

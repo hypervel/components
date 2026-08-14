@@ -395,6 +395,19 @@ class QueueManager implements FactoryContract, MonitorContract
     }
 
     /**
+     * Forget all resolved queue connections.
+     *
+     * Boot or tests only. Mutates the singleton's connection cache; concurrent
+     * coroutines may already hold connections that next resolution will replace.
+     */
+    public function forgetConnections(): static
+    {
+        $this->connections = [];
+
+        return $this;
+    }
+
+    /**
      * Disconnect a queue connection and close its shared resource pool.
      *
      * Boot or tests only, plus operational recovery of broken pooled

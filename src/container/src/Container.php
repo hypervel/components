@@ -2268,7 +2268,7 @@ class Container implements ArrayAccess, ContainerContract
      */
     public function forgetInstance(string $abstract): void
     {
-        $this->forgetCachedInstances($abstract);
+        $this->forgetCachedInstances($this->getAlias($abstract));
     }
 
     /**

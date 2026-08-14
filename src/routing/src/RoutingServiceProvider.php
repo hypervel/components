@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Routing;
 
 use Hypervel\Contracts\Container\BindingResolutionException;
+use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Contracts\Routing\ResponseFactory as ResponseFactoryContract;
 use Hypervel\Contracts\View\Factory as ViewFactoryContract;
+use Hypervel\Http\Request;
 use Hypervel\Routing\Console\ControllerMakeCommand;
 use Hypervel\Routing\Console\MiddlewareMakeCommand;
 use Hypervel\Routing\Contracts\CallableDispatcher as CallableDispatcherContract;
@@ -17,7 +19,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Symfony\Bridge\PsrHttpMessage\Factory\PsrHttpFactory;
 use Symfony\Component\HttpFoundation\Response;
 
-class RoutingServiceProvider extends ServiceProvider
+class RoutingServiceProvider extends ServiceProvider implements ReloadsConfiguration
 {
     /**
      * Register the service provider.
@@ -38,6 +40,26 @@ class RoutingServiceProvider extends ServiceProvider
             ControllerMakeCommand::class,
             MiddlewareMakeCommand::class,
         ]);
+    }
+
+    /**
+     * Reload configuration-derived worker state.
+     *
+     * Boot-only. Request-time use changes shared URL generation state while
+     * concurrent coroutines may still be using the previous configuration.
+     */
+    public function reloadConfiguration(): void
+    {
+        if (! $this->app->resolved('url')) {
+            return;
+        }
+
+        $config = $this->app->make('config');
+        $url = $this->app->make('url');
+
+        $url->setRequest(Request::create($config->string('app.url')));
+        $url->setAssetRoot($config->get('app.asset_url'));
+        $url->forceHttps($config->boolean('app.force_https'));
     }
 
     /**

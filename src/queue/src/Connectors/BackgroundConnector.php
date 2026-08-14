@@ -4,16 +4,26 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Connectors;
 
+use Closure;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\BackgroundQueue;
 
 class BackgroundConnector implements ConnectorInterface
 {
     /**
+     * Create a new background connector instance.
+     */
+    public function __construct(
+        protected ?Closure $exceptionCallback = null
+    ) {
+    }
+
+    /**
      * Establish a queue connection.
      */
     public function connect(array $config): Queue
     {
-        return new BackgroundQueue($config['after_commit'] ?? false);
+        return (new BackgroundQueue($config['after_commit'] ?? false))
+            ->setExceptionCallback($this->exceptionCallback);
     }
 }

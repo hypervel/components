@@ -32,13 +32,25 @@ class ClaimFactory
     /**
      * Create a new claim factory.
      */
-    public function __construct(Repository $config)
+    public function __construct(
+        protected Repository $config
+    ) {
+        $this->reloadConfiguration();
+    }
+
+    /**
+     * Reload configuration-derived claim state.
+     *
+     * Boot-only. Mutates the worker-shared factory while concurrent coroutines
+     * may still issue or inspect claims using its previous configuration.
+     */
+    public function reloadConfiguration(): void
     {
         /** @var null|string $issuer */
-        $issuer = $config->get('jwt.issuer');
+        $issuer = $this->config->get('jwt.issuer');
 
         $this->issuer = ($issuer === null || $issuer === '') ? null : $issuer;
-        $this->lockSubject = $config->boolean('jwt.lock_subject');
+        $this->lockSubject = $this->config->boolean('jwt.lock_subject');
     }
 
     /**

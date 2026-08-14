@@ -148,6 +148,19 @@ abstract class MultipleInstanceManager
     }
 
     /**
+     * Forget all resolved instances.
+     *
+     * Boot or tests only. Mutates the singleton's instance cache; concurrent
+     * coroutines may already hold instances that next resolution will replace.
+     */
+    public function forgetInstances(): static
+    {
+        $this->instances = [];
+
+        return $this;
+    }
+
+    /**
      * Disconnect the given instance and remove from local cache.
      *
      * Boot or tests only. Mutates the singleton's instance cache; concurrent

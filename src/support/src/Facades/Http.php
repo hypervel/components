@@ -23,6 +23,7 @@ use Hypervel\Http\Client\ResponseSequence;
  * @method static \Hypervel\Http\Client\RequestException failedRequest(mixed $body = null, int $status = 200, array $headers = [])
  * @method static void flushMacros()
  * @method static void flushState()
+ * @method static \Hypervel\Http\Client\Factory forgetConnectionHandlers()
  * @method static array getConnectionConfig(string $name)
  * @method static array getConnectionConfigs()
  * @method static callable getConnectionHandler(string $name)

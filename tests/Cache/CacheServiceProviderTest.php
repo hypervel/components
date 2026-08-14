@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache;
 
 use Closure;
+use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\CacheServiceProvider;
+use Hypervel\Cache\NullStore;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Core\Events\BeforeServerStart;
+use Hypervel\Foundation\Application as FoundationApplication;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Tests\TestCase;
 use LogicException;
@@ -21,6 +24,36 @@ use Swoole\Server as SwooleServer;
 
 class CacheServiceProviderTest extends TestCase
 {
+    public function testReloadConfigurationRebuildsResolvedStoresFromCurrentConfiguration(): void
+    {
+        $application = new FoundationApplication;
+        $config = new ConfigRepository([
+            'cache' => [
+                'default' => 'array',
+                'serializable_classes' => false,
+                'stores' => [
+                    'array' => ['driver' => 'array'],
+                    'null' => ['driver' => 'null'],
+                ],
+            ],
+        ]);
+        $application->instance('config', $config);
+        $provider = new CacheServiceProvider($application);
+        $provider->register();
+
+        $manager = $application->make('cache');
+        $store = $application->make('cache.store');
+        $this->assertInstanceOf(ArrayStore::class, $store->getStore());
+
+        $config->set('cache.default', 'null');
+        $provider->reloadConfiguration();
+
+        $refreshedStore = $application->make('cache.store');
+        $this->assertSame($manager, $application->make('cache'));
+        $this->assertNotSame($store, $refreshedStore);
+        $this->assertInstanceOf(NullStore::class, $refreshedStore->getStore());
+    }
+
     public function testConsoleFinalizationRunsAfterEveryProviderCanContribute(): void
     {
         $manager = $this->manager();
