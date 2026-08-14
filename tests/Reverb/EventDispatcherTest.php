@@ -206,7 +206,7 @@ class EventDispatcherTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', [
             'url' => 'https://example.com/webhook',
             'events' => ['cache_miss'],
             'disconnect_smoothing_ms' => 0,

@@ -180,7 +180,7 @@ class PresenceChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', [
             'url' => 'https://example.com/webhook',
             'events' => ['member_added', 'member_removed'],
             'disconnect_smoothing_ms' => 0,
@@ -232,7 +232,7 @@ class PresenceChannelTest extends ReverbTestCase
         $channel->subscribe($connectionOne->connection(), static::validAuth($connectionOne->id(), 'presence-test-channel', $data = json_encode($connectionOne->data())), $data);
         $channel->subscribe($connectionTwo->connection(), static::validAuth($connectionTwo->id(), 'presence-test-channel', $data = json_encode($connectionTwo->data())), $data);
 
-        // Second subscribe for same user_id should NOT trigger member_added broadcast
+        // Second subscribe for same user_id should not trigger member_added broadcast
         $connectionOne->connection()->assertNothingReceived();
     }
 
@@ -265,7 +265,7 @@ class PresenceChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', [
             'url' => 'https://example.com/webhook',
             'events' => ['member_removed'],
             'disconnect_smoothing_ms' => 3000,
@@ -289,7 +289,7 @@ class PresenceChannelTest extends ReverbTestCase
         $this->connection->markDisconnecting();
         $channel->unsubscribe($this->connection);
 
-        // Webhook should NOT fire immediately — it's deferred
+        // Webhook should not fire immediately — it's deferred
         Queue::assertNotPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
             return $job->payload->events[0]['name'] === 'member_removed';
         });
@@ -299,7 +299,7 @@ class PresenceChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', [
             'url' => 'https://example.com/webhook',
             'events' => ['member_removed'],
             'disconnect_smoothing_ms' => 3000,
@@ -334,7 +334,7 @@ class PresenceChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', [
             'url' => 'https://example.com/webhook',
             'events' => ['member_added', 'member_removed'],
             'disconnect_smoothing_ms' => 3000,
@@ -349,7 +349,6 @@ class PresenceChannelTest extends ReverbTestCase
             $data
         );
 
-        // Set up mock for unsubscribe's find() call
         // Simulate disconnect
         $this->connection->markDisconnecting();
         $channel->unsubscribe($this->connection);
@@ -377,7 +376,7 @@ class PresenceChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', [
             'url' => 'https://example.com/webhook',
             'events' => ['member_added', 'member_removed'],
             'disconnect_smoothing_ms' => 3000,
@@ -426,7 +425,7 @@ class PresenceChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', [
             'url' => 'https://example.com/webhook',
             'events' => ['member_added'],
             'disconnect_smoothing_ms' => 3000,
@@ -455,7 +454,7 @@ class PresenceChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', [
             'url' => 'https://example.com/webhook',
             'events' => ['member_added', 'member_removed'],
             'disconnect_smoothing_ms' => 3000,

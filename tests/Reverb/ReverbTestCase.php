@@ -43,7 +43,9 @@ class ReverbTestCase extends TestCase
      */
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app['config']->set('reverb.apps.apps', [
+        $config = $app->make('config');
+
+        $config->set('reverb.apps.apps', [
             [
                 'key' => 'reverb-key',
                 'secret' => 'reverb-secret',
@@ -76,10 +78,10 @@ class ReverbTestCase extends TestCase
             ],
         ];
 
-        $app['config']->set('database.redis.options', []);
-        $app['config']->set('database.redis.default', $redisConnection);
-        $app['config']->set('database.redis.queue', $redisConnection);
-        $app['config']->set('database.redis.reverb', $redisConnection);
+        $config->set('database.redis.options', []);
+        $config->set('database.redis.default', $redisConnection);
+        $config->set('database.redis.queue', $redisConnection);
+        $config->set('database.redis.reverb', $redisConnection);
 
         $server = m::mock(Server::class);
         $server->shouldReceive('sendMessage')->zeroOrMoreTimes();
