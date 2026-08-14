@@ -40,7 +40,7 @@ class ContextServiceProvider extends ServiceProvider
         });
 
         // IMPORTANT: Uses Laravel's payload key for cross-framework queue interoperability.
-        $this->app['events']->listen(JobProcessing::class, function (JobProcessing $event): void {
+        $this->app->make('events')->listen(JobProcessing::class, function (JobProcessing $event): void {
             $context = $event->job->payload()['illuminate:log:context'] ?? null;
 
             if ($context !== null || Repository::hasInstance()) {

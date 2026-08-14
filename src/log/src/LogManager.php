@@ -103,7 +103,7 @@ class LogManager implements LoggerInterface
 
         return (new Logger(
             $monolog,
-            $this->app['events']
+            $this->app->make('events')
         ))->withContext($this->sharedContext());
     }
 
@@ -153,7 +153,7 @@ class LogManager implements LoggerInterface
 
             $logger = $this->tap(
                 $config,
-                new Logger($this->resolve($name, $config), $this->app['events'])
+                new Logger($this->resolve($name, $config), $this->app->make('events'))
             )->withContext($this->sharedContext());
 
             $underlyingLogger = $logger->getLogger();
@@ -212,7 +212,7 @@ class LogManager implements LoggerInterface
 
         return new Logger(
             new Monolog('hypervel', $this->prepareHandlers([$handler])),
-            $this->app['events']
+            $this->app->make('events')
         );
     }
 

@@ -15,7 +15,7 @@ use Monolog\LogRecord;
 
 class ContextLoggingIntegrationTest extends TestCase
 {
-    public function testContextIsNotUsedAsMessageParameters()
+    public function testContextIsNotUsedAsMessageParameters(): void
     {
         $path = $this->app->storagePath() . '/logs/hypervel.log';
         file_put_contents($path, '');
@@ -30,7 +30,7 @@ class ContextLoggingIntegrationTest extends TestCase
         file_put_contents($path, '');
     }
 
-    public function testUsesClosureForContextProcessor()
+    public function testUsesClosureForContextProcessor(): void
     {
         $path = $this->app->storagePath() . '/logs/hypervel.log';
         file_put_contents($path, '');
@@ -60,7 +60,7 @@ class ContextLoggingIntegrationTest extends TestCase
         file_put_contents($path, '');
     }
 
-    public function testCanRebindToSeparateClass()
+    public function testCanRebindToSeparateClass(): void
     {
         TestAddContextProcessor::$wasConstructed = false;
 
@@ -82,7 +82,7 @@ class ContextLoggingIntegrationTest extends TestCase
         file_put_contents($path, '');
     }
 
-    public function testItAddsContextToLoggedExceptions()
+    public function testItAddsContextToLoggedExceptions(): void
     {
         $path = $this->app->storagePath() . '/logs/hypervel.log';
         file_put_contents($path, '');
@@ -93,7 +93,7 @@ class ContextLoggingIntegrationTest extends TestCase
         Context::push('bar.baz', 456);
         Context::push('bar.baz', 789);
 
-        $this->app[ExceptionHandler::class]->report(new Exception('Whoops!'));
+        $this->app->make(ExceptionHandler::class)->report(new Exception('Whoops!'));
         $log = Str::after(file_get_contents($path), '] ');
 
         $this->assertStringEndsWith(' {"trace_id":"550e8400-e29b-41d4-a716-446655440000","foo.bar":123,"bar.baz":[456,789]}', Str::trim($log));
@@ -102,7 +102,7 @@ class ContextLoggingIntegrationTest extends TestCase
         Str::createUuidsNormally();
     }
 
-    public function testClosureBoundProcessorRunsOnceOnStackedLogger()
+    public function testClosureBoundProcessorRunsOnceOnStackedLogger(): void
     {
         $invocationCount = 0;
 
