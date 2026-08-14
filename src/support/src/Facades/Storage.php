@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\FilesystemAdapter;
 use UnitEnum;
@@ -116,9 +117,11 @@ class Storage extends Facade
         if ($disk instanceof UnitEnum) {
             $disk = (string) enum_value($disk);
         }
+        /** @var ContainerContract $app */
+        $app = static::$app;
 
         $disk = $disk === null || $disk === ''
-            ? static::$app['config']->get('filesystems.default')
+            ? $app->make('config')->string('filesystems.default')
             : $disk;
         $root = self::getRootPath($disk);
 
@@ -157,9 +160,11 @@ class Storage extends Facade
         if ($disk instanceof UnitEnum) {
             $disk = (string) enum_value($disk);
         }
+        /** @var ContainerContract $app */
+        $app = static::$app;
 
         $disk = $disk === null || $disk === ''
-            ? static::$app['config']->get('filesystems.default')
+            ? $app->make('config')->string('filesystems.default')
             : $disk;
 
         static::set($disk, $fake = static::createLocalDriver(
@@ -182,7 +187,9 @@ class Storage extends Facade
      */
     protected static function buildDiskConfiguration(string $disk, array $config, string $root): array
     {
-        $originalConfig = static::$app['config']["filesystems.disks.{$disk}"] ?? [];
+        /** @var ContainerContract $app */
+        $app = static::$app;
+        $originalConfig = $app->make('config')->get("filesystems.disks.{$disk}") ?? [];
 
         return array_merge(
             ['throw' => $originalConfig['throw'] ?? false],
