@@ -148,7 +148,7 @@ class FoundationServiceProvider extends ServiceProvider implements ReloadsConfig
     public function register(): void
     {
         $this->app->singleton('composer', fn ($app) => new Composer(
-            $app['files'],
+            $app->make('files'),
             $app->basePath()
         ));
 
@@ -275,13 +275,14 @@ class FoundationServiceProvider extends ServiceProvider implements ReloadsConfig
     protected function registerDeferHandler(): void
     {
         $this->app->scoped(DeferredCallbackCollection::class);
+        $events = $this->app->make('events');
 
-        $this->app['events']->listen(function (CommandFinished $event) {
+        $events->listen(function (CommandFinished $event) {
             $this->app->make(DeferredCallbackCollection::class)
                 ->invokeWhen(fn (DeferredCallback $callback) => $this->app->runningInConsole() && ($event->exitCode === 0 || $callback->always));
         });
 
-        $this->app['events']->listen(function (JobAttempted $event) {
+        $events->listen(function (JobAttempted $event) {
             if (in_array($event->connectionName, ['sync', 'deferred'], true)) {
                 return;
             }

@@ -280,7 +280,7 @@ class Kernel implements KernelContract
      */
     protected function scheduleTimezone(): ?string
     {
-        $config = $this->app['config'];
+        $config = $this->app->make('config');
 
         return $config->get('app.schedule_timezone', $config->get('app.timezone'));
     }
@@ -290,7 +290,7 @@ class Kernel implements KernelContract
      */
     protected function scheduleCache(): ?string
     {
-        return $this->app['config']->get('cache.schedule_store', Env::get('SCHEDULE_CACHE_DRIVER', function () {
+        return $this->app->make('config')->get('cache.schedule_store', Env::get('SCHEDULE_CACHE_DRIVER', function () {
             return Env::get('SCHEDULE_CACHE_STORE');
         }));
     }
