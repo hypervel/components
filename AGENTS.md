@@ -195,14 +195,14 @@ Build complete, long-term solutions, not MVPs or local workarounds. A broad chan
 - **Use `Sleep::usleep()` / `Sleep::sleep()` for delays in source code** — `Sleep` is fakeable in tests. Use raw `sleep()` / `usleep()` only where real time must pass, such as test harnesses and external-process polling.
 - **Use `xxh128` for internal non-cryptographic hashing** — cache and context keys, content checksums, and change detection. It is faster than `sha256`, which is reserved for trust boundaries: stored credential digests, signatures, and anything an attacker gains by forging. Seed it when the hashed value comes from user input, as `SwooleStore` does for its physical table keys.
 - **Use immutable dates by default** — Hypervel defaults to `Hypervel\Support\CarbonImmutable`, including where Laravel uses mutable Carbon. Create public or application-configurable dates through the `Date` facade or date helpers, and use exact `CarbonImmutable` for framework-owned internal or held values. Type configurable Carbon boundaries as `CarbonInterface` and native or third-party boundaries as `DateTimeInterface`. Capture the return value of every date modifier whose result must persist. Use `Hypervel\Support\Carbon` only for explicit mutable opt-out or conversion behavior.
-- **Use typed config getters and avoid duplicate defaults** — prefer `$config->string()`, `$config->integer()`, `$config->float()`, `$config->boolean()`, and `$config->array()` over `$config->get()` for values that cannot be null. Framework and package defaults are shallow-merged with application config. `mergeableOptions()` is only for named groups such as connections or stores: application entries replace matching defaults, while other default entries remain. Other nested arrays are replaced as a whole. Keep a fallback when a setting inside one of those replaced arrays is intentionally optional.
+- **Use typed config getters and avoid duplicate defaults** — prefer `$config->string()`, `$config->integer()`, `$config->float()`, `$config->boolean()`, and `$config->array()` over `$config->get()` for values that cannot be null. Do not pass a code-level fallback when the framework or package config defines the key; missing or misspelled keys should fail loudly instead of silently using a second default. Framework and package defaults are shallow-merged with application config. `mergeableOptions()` is only for named groups such as connections or stores: application entries replace matching defaults, while other default entries remain. Other nested arrays are replaced as a whole. Keep a fallback when a setting inside one of those replaced arrays is intentionally optional.
 - **Env var naming** — Ported config keeps upstream names. New Hypervel-specific settings should use the established prefix for the package or subsystem that owns the value (`SERVER_`, `CACHE_`, `REDIS_`, etc.). Determine ownership semantically, not from the config filename: aggregate files such as `app.php` contain multiple domains, and `APP_` is for genuinely application-wide settings. If a value mirrors another config key, reuse that key's environment variable instead of defining a duplicate.
 - **Use `resolve...Using` for Hypervel-owned config resolvers** — prefer this naming for callbacks that resolve config-derived values, unless an established Laravel domain convention already exists, such as `redirectUsing()`.
 - **Always use American English spelling** — E.g., "behavior" vs "behaviour", "utilize" vs "utilise".
 
 ## Container
 
-Hypervel's container keeps Laravel's API surface — `bind()`, `singleton()`, `scoped()`, `instance()`, aliases, contextual bindings — with resolution adapted for long-lived Swoole workers. `make()` and `get()` resolve identically; `get()` is just the PSR-compliant exception wrapper. Use `make()`, and use it instead of array access too: `offsetGet()` always returns `mixed`, while `make()` carries class-string generics phpstan can follow, `make()` can take parameters, and `$app[$key] = $value` is a hidden `bind()`. Converting `$app['...']` in ported code to `make()` is an approved modernization (see Policy under Porting Packages). `Container::getInstance()` auto-creates via `??= new static()`, so it always returns a container.
+Hypervel's container keeps Laravel's named API surface — `bind()`, `singleton()`, `scoped()`, `instance()`, aliases, contextual bindings — with resolution adapted for long-lived Swoole workers. Container ArrayAccess and dynamic service properties are intentionally unsupported. `make()` and `get()` resolve identically; `get()` is the PSR-compliant exception wrapper. `Container::getInstance()` auto-creates via `??= new static()`, so it always returns a container.
 
 ### Resolution semantics vs Laravel
 
@@ -727,7 +727,7 @@ Full PHPStan runs through `composer fix` at checkpoints. During implementation, 
 When porting Laravel packages, whether first-party or third-party, keep them as close to 1:1 with upstream as possible so future changes are easy to merge. The exceptions are:
 - Modernizing PHP types, including native parameter, return, property, and class-constant types, plus other appropriate PHP 8.4+ features, strict types, and strict comparisons
 - Converting mutable Laravel date construction to Hypervel's immutable date conventions, typing configurable factory output as `CarbonInterface`, and capturing date-modifier return values
-- Converting container array access (`$app['events']`) to `make()`, and untyped `$config->get()` calls to the typed getters where the key isn't nullable (see Container and the typed-getter rule under Development Conventions)
+- Converting container array access (`$app['events']`) and dynamic service-property access (`$app->events`) in ported code to named container methods, and untyped `$config->get()` calls to typed getters where the key isn't nullable (see Container and the typed-getter rule under Development Conventions)
 - Adding Laravel-style title docblocks to methods (not classes — see Development Conventions)
 - For ported Laravel packages: making them coroutine-safe, adding Swoole performance enhancements (e.g., static property caching), making them pass PHPStan
 - Not porting upstream framework-specific integrations that only make sense in the source framework (for example packages, drivers) unless Hypervel intentionally has an equivalent surface
@@ -880,6 +880,7 @@ Tests for these features should be **removed** (not commented out) without askin
 - **Databases:** SQL Server, MongoDB, DynamoDB — Hypervel only supports MySQL, MariaDB, PostgreSQL, and SQLite
 - **Cache drivers:** Memcached, DynamoDB, MongoDB
 - **Dynamic connections:** `DB::build()`, `DB::connectUsing()` — incompatible with Swoole connection pooling
+- **Container access:** ArrayAccess and dynamic service properties
 
 This list is exhaustive. Any other missing functionality requires investigation and reporting per When to Stop and Report.
 
@@ -894,5 +895,5 @@ This list is exhaustive. Any other missing functionality requires investigation 
 7. Fix mock types (PDO, QueryBuilder, Grammar, etc.)
 8. Add `->andReturnSelf()` to chained method mocks
 9. Use a test-specific namespace only when helper classes have generic, collision-prone names — already-specific helper names do not need extra namespace ceremony.
-10. Remove tests for unsupported features (SQL Server/MongoDB/DynamoDB databases, Memcached/DynamoDB/MongoDB cache, dynamic connections)
+10. Remove tests only for the approved unsupported features listed above
 11. Run tests and fix any remaining type errors
