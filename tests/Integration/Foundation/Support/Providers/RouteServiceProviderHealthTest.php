@@ -30,9 +30,9 @@ class RouteServiceProviderHealthTest extends TestCase
             )->create();
     }
 
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app['config']->set('app.key', Str::random(32));
+        $app->make('config')->set('app.key', Str::random(32));
     }
 
     public function testItCanLoadHealthPage(): void
