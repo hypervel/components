@@ -18,7 +18,7 @@ class TestWithoutDatabaseParallelTest extends TestCase
 
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app['config']->set('database.default', null);
+        $app->make('config')->set('database.default', null);
 
         $serverKeys = [
             'HYPERVEL_PARALLEL_TESTING',
@@ -47,6 +47,7 @@ class TestWithoutDatabaseParallelTest extends TestCase
     public function testRunningParallelTestWithoutDatabaseShouldNotCrashOnDefaultConnection(): void
     {
         ParallelTesting::callSetUpProcessCallbacks();
-        $this->assertTrue(true);
+
+        $this->assertNull(config('database.default'));
     }
 }
