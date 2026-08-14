@@ -1,7 +1,7 @@
 {
     "name": "hypervel/image",
     "type": "library",
-    "description": "The image package for Hypervel.",
+    "description": "The Hypervel Image package.",
     "license": "MIT",
     "keywords": [
         "php",

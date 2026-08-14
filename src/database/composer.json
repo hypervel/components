@@ -1,7 +1,7 @@
 {
     "name": "hypervel/database",
     "type": "library",
-    "description": "The database package for Hypervel.",
+    "description": "The Hypervel Database package.",
     "license": "MIT",
     "keywords": [
         "php",

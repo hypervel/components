@@ -1,6 +1,6 @@
 {
     "name": "hypervel/engine",
-    "description": "Coroutine engine for Hypervel powered by Swoole.",
+    "description": "A Swoole-powered coroutine engine for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",

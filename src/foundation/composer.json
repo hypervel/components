@@ -1,6 +1,6 @@
 {
     "name": "hypervel/foundation",
-    "description": "The Foundation package for Hypervel.",
+    "description": "The Hypervel Foundation package.",
     "license": "MIT",
     "keywords": [
         "php",

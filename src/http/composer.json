@@ -1,7 +1,7 @@
 {
     "name": "hypervel/http",
     "type": "library",
-    "description": "The http package for Hypervel.",
+    "description": "The Hypervel HTTP package.",
     "license": "MIT",
     "keywords": [
         "php",

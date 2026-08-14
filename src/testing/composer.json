@@ -1,7 +1,7 @@
 {
     "name": "hypervel/testing",
     "type": "library",
-    "description": "The testing package for Hypervel.",
+    "description": "The Hypervel Testing package.",
     "license": "MIT",
     "keywords": [
         "php",

@@ -1,6 +1,6 @@
 {
     "name": "hypervel/bus",
-    "description": "The bus package for Hypervel.",
+    "description": "The Hypervel Bus package.",
     "license": "MIT",
     "keywords": [
         "php",

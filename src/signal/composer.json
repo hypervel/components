@@ -1,7 +1,7 @@
 {
     "name": "hypervel/signal",
     "type": "library",
-    "description": "The Hypervel Signal package for OS signal handling.",
+    "description": "Operating system signal handling for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",

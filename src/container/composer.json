@@ -1,6 +1,6 @@
 {
     "name": "hypervel/container",
-    "description": "The Container package for Hypervel.",
+    "description": "The Hypervel Container package.",
     "license": "MIT",
     "keywords": [
         "php",

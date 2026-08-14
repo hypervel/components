@@ -1,6 +1,6 @@
 {
     "name": "hypervel/testbench",
-    "description": "The testbench package for Hypervel.",
+    "description": "Application testing tools for Hypervel packages.",
     "license": "MIT",
     "keywords": [
         "php",

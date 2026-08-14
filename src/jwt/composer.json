@@ -1,6 +1,6 @@
 {
     "name": "hypervel/jwt",
-    "description": "The jwt package for Hypervel.",
+    "description": "JWT authentication for Hypervel applications.",
     "license": "MIT",
     "keywords": [
         "php",

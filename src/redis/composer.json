@@ -1,7 +1,7 @@
 {
     "name": "hypervel/redis",
     "type": "library",
-    "description": "The redis package for Hypervel.",
+    "description": "The Hypervel Redis package.",
     "license": "MIT",
     "keywords": [
         "php",

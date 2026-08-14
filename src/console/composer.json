@@ -1,7 +1,7 @@
 {
     "name": "hypervel/console",
     "type": "library",
-    "description": "The console package for Hypervel.",
+    "description": "The Hypervel Console package.",
     "license": "MIT",
     "keywords": [
         "php",

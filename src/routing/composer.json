@@ -1,7 +1,7 @@
 {
     "name": "hypervel/routing",
     "type": "library",
-    "description": "The routing package for Hypervel.",
+    "description": "The Hypervel Routing package.",
     "license": "MIT",
     "keywords": [
         "php",

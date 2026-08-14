@@ -1,7 +1,7 @@
 {
     "name": "hypervel/cache",
     "type": "library",
-    "description": "The cache package for Hypervel.",
+    "description": "The Hypervel Cache package.",
     "license": "MIT",
     "keywords": [
         "php",

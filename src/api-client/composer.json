@@ -1,6 +1,6 @@
 {
     "name": "hypervel/api-client",
-    "description": "The api client package for Hypervel.",
+    "description": "Reusable API client integrations for Hypervel applications.",
     "license": "MIT",
     "keywords": [
         "php",

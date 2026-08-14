@@ -1,7 +1,7 @@
 {
     "name": "hypervel/session",
     "type": "library",
-    "description": "The session package for Hypervel.",
+    "description": "The Hypervel Session package.",
     "license": "MIT",
     "keywords": [
         "php",

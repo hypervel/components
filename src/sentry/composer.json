@@ -1,7 +1,7 @@
 {
     "name": "hypervel/sentry",
     "type": "library",
-    "description": "The sentry component for Hypervel framework.",
+    "description": "Sentry error tracking and performance monitoring for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",

@@ -1,7 +1,7 @@
 {
     "name": "hypervel/filesystem",
     "type": "library",
-    "description": "The filesystem package for Hypervel.",
+    "description": "The Hypervel Filesystem package.",
     "license": "MIT",
     "keywords": [
         "php",

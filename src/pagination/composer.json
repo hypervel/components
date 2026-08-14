@@ -1,7 +1,7 @@
 {
     "name": "hypervel/pagination",
     "type": "library",
-    "description": "The pagination package for Hypervel.",
+    "description": "The Hypervel Pagination package.",
     "license": "MIT",
     "keywords": [
         "php",

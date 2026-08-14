@@ -1,7 +1,7 @@
 {
     "name": "hypervel/components",
     "type": "library",
-    "description": "The components for Hypervel framework.",
+    "description": "The Hypervel Framework.",
     "license": "MIT",
     "keywords": [
         "php",

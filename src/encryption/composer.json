@@ -1,7 +1,7 @@
 {
     "name": "hypervel/encryption",
     "type": "library",
-    "description": "The encryption package for Hypervel.",
+    "description": "The Hypervel Encryption package.",
     "license": "MIT",
     "keywords": [
         "php",
