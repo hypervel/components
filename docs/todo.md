@@ -41,6 +41,7 @@
 ## Documentation
 
 - Re-run the introduction benchmarks against Hypervel 0.4 before publishing externally. The benchmark tables currently preserve the 0.3 results so the comparison is not lost during the docs port, but Hypervel 0.4's decoupled runtime should have fresh measurements before those numbers are treated as current.
+- When the Hypervel 0.4 documentation is published, replace the README's versioned GitHub source links with the corresponding hypervel.org documentation URLs. The documentation's `{{version}}` cross-links only resolve on the published site, so readers who follow the current links land on pages whose internal navigation is broken.
 
 ## Redis
 
