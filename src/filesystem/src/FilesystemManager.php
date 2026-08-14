@@ -332,7 +332,7 @@ class FilesystemManager implements FactoryContract
             $name
         )->shouldServeSignedUrls(
             $config['serve'] ?? false,
-            fn () => $this->app['url'],
+            fn () => $this->app->make('url'),
         );
     }
 
