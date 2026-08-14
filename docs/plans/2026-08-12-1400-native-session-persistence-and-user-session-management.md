@@ -2,7 +2,7 @@
 
 ## Plan status
 
-The complete design is implemented and reviewed. It is locally validated on Redis 8, a real three-master Cluster, and all four database drivers. `composer fix`, facade linting, Composer validation, targeted review-fix checks, and residue checks pass. Valkey 9 runs the same fixture in CI.
+The design is implemented and validated across Redis 8, Valkey 9, and a real three-master Redis Cluster. No implementation work remains.
 
 This plan supersedes the cache-backed Redis decisions in `docs/plans/2026-07-27-0530-session-lifecycle-persistence-and-current-laravel-parity.md`; that completed plan remains useful history, but the current tree and this plan are authoritative.
 
@@ -13,8 +13,8 @@ This plan supersedes the cache-backed Redis decisions in `docs/plans/2026-07-27-
 - Database and Redis expose one Laravel-style, capability-gated API for active user sessions.
 - Managed ownership is qualified by the selected guard's auth provider, so unrelated providers may safely reuse scalar user IDs.
 - Redis user-session tracking is opt-in so ordinary Redis sessions do not acquire a Redis 8 / Valkey 9 requirement.
-- Each tracking-enabled standalone Redis handler mutation is atomic and uses one client round trip once the script is cached on that Redis node; a bulk repository call uses a preliminary ownership-scoped current-session mutation when needed. Healthy listing uses one `HGETALL` and never performs per-session payload reads.
-- Redis Cluster keeps the session-ID-keyed payload layout and uses the minimum safe cross-slot operations. Session payloads remain authoritative; owner observations are coroutine-local, and partial failures may create only safe, TTL-bounded index drift.
+- Each tracking-enabled standalone Redis handler mutation is atomic and uses one client round trip once the script is cached on that Redis node; a bulk repository call uses a preliminary ownership-scoped current-session mutation when needed. Standalone listing always uses one `HGETALL`.
+- Redis Cluster keeps the session-ID-keyed payload layout and uses the minimum safe cross-slot operations. Session payloads remain authoritative; owner observations are coroutine-local, and listing verifies each indexed candidate through its 37-byte payload envelope header so TTL-bounded index drift cannot expose another owner's session.
 - Database listing and individual invalidation use one query. Bulk invalidation uses one query without a started current session and at most two when it must first prove whether the current record belongs to the scoped user.
 - Deleting the current session cannot be undone by response-end persistence and cannot create an indexed but unauthenticated replacement session.
 - Cache remains a required package for the first-class session blocking and `$session->cache()` APIs, but no persistence handler routes storage through cache.
@@ -554,7 +554,7 @@ Nullable metadata remains JSON `null`. Write each field with `HSETEX ... EXAT <e
 
 Capture IP address and user agent with the same semantics as the database handler: nullable IP, UTF-8-normalized user agent truncated to 500 characters, and one current timestamp per write. When no `RequestContext` exists, preserve valid existing IP/user-agent metadata while advancing `last_activity`. The standalone mutation already has local access to the index field; the cluster branch uses one index-local Lua update in place of its ordinary direct `HSETEX`, so neither path adds a payload read or another client call. If no valid prior metadata exists, use null IP/user-agent values. A normal request always supplies fresh values. A subsequent valid write repairs corrupt metadata rather than perpetuating it.
 
-Decode strictly: require a `SessionId::isValid()` hash field, an object/associative-array value with nullable strings for IP/user agent, and a non-negative integer timestamp. Skip malformed fields or values, collect their raw field names, and issue one `HDEL` after decoding to prune them from that user's index. Do not construct a DTO with an invalid ID, derive a payload key while listing, silently manufacture metadata, or fail the entire management page because one field is corrupt. Healthy listing remains exactly one `HGETALL`; corruption recovery adds at most one cleanup call and propagates a cleanup transport/command failure. Valid-metadata fields are not payload-verified during listing and may reflect TTL-bounded cluster drift until a scoped deletion or later write repairs them.
+Decode strictly: require a `SessionId::isValid()` hash field, an object/associative-array value with nullable strings for IP/user agent, and a non-negative integer timestamp. Skip malformed fields or values without mutating the index. Do not construct a DTO with an invalid ID, silently manufacture metadata, or fail the entire management page because one field is corrupt. Listing is a read operation: HFE expires handler-written fields, and explicit bulk invalidation removes stale fields, including malformed residue created through direct Redis access. Standalone listing always uses exactly one `HGETALL`; Cluster listing additionally verifies each valid candidate against the authoritative payload header as described below.
 
 ### Tracking-disabled performance
 
@@ -569,7 +569,7 @@ It does not invoke Lua, HFE commands, identity resolution, metadata encoding, or
 
 ### Standalone and Sentinel tracked algorithms
 
-Use SHA-cached Lua for every mutation. Reads remain one `GET`; listing remains one `HGETALL`.
+Use SHA-cached Lua for every mutation. Reads remain one `GET`; standalone listing remains one `HGETALL`.
 
 Tracked write is one atomic script:
 
@@ -601,13 +601,13 @@ Unscoped `destroy()` is one script: parse a valid owner, delete the payload rega
 
 The loop is server-local and remains one atomic client round trip after that node has cached the script. Do not add PHP pipelines or per-session commands.
 
-`userSessions()` performs one `HGETALL`, decodes all fields in PHP, prunes invalid-ID or malformed-value fields with at most one exceptional-path `HDEL`, maps DTOs, and sorts by `lastActivity` descending then session ID ascending, matching the database's deterministic tie-break. It deliberately does not verify payload existence per row because that would create N+1 calls.
+Standalone `userSessions()` performs one `HGETALL`, decodes all fields in PHP, skips invalid-ID or malformed-value fields, maps DTOs, and sorts by `lastActivity` descending then session ID ascending, matching the database's deterministic tie-break. Unlike Cluster, the standalone script has no ordinary concurrent cross-slot rejection window; drift there requires a partial script command failure, so adding per-session reads to standalone listing is not justified.
 
 ### Per-user cardinality trade-off
 
 The framework does not silently cap or evict a user's sessions: choosing a maximum device count and eviction policy is an authentication/product decision, and imposing one only on Redis would break driver-neutral semantics. The intended cardinality is ordinary human device/browser usage—normally tens and expected to remain comfortably below roughly one thousand active sessions per user. Listing and bulk invalidation are intentionally `O(n)` in that per-user count.
 
-Above that operational range, `HGETALL` allocates proportionally in Redis/PHP and the atomic standalone bulk script runs proportionally longer while Redis is blocked. The cache any-tag implementation can switch to `HSCAN` above 1000 because it exposes streaming work; this API promises an eager `Collection` and atomic standalone bulk invalidation, so adopting its scan threshold would either add round trips without bounding the final collection or discard the atomicity requirement. Do not add pretend chunking here. Document the bound and require applications exposed to automated session creation to rate-limit authentication and enforce their chosen device/session policy before pathological cardinality. No result is silently truncated above the expected range.
+Above that operational range, `HGETALL` allocates proportionally in Redis/PHP, the atomic standalone bulk script runs proportionally longer while Redis is blocked, and Cluster listing holds one pooled connection while it performs one header read per candidate. The cache any-tag implementation can switch to `HSCAN` above 1000 because it exposes streaming work; this API promises an eager `Collection` and atomic standalone bulk invalidation, so adopting its scan threshold would either add round trips without bounding the final collection or discard the atomicity requirement. Do not add pretend chunking here. Document the bound and require applications exposed to automated session creation to rate-limit authentication and enforce their chosen device/session policy before pathological cardinality. No result is silently truncated above the expected range.
 
 ### Redis Cluster branch
 
@@ -617,20 +617,21 @@ Cluster mutation ordering:
 
 - A session-local Lua script operates only on the declared payload key, parses/stores/deletes it atomically, and returns a validated status plus proven old/resulting ownership.
 - A resolved write knows its target owner before Redis access: update that owner's index first, mutate the payload, then remove a different old-owner field.
-- An unresolved write uses the owner observed by the normal session read. If no observation exists, issue one plain `GET`, parse it through the same strict PHP envelope parser as `read()`, and remember the result. Update a non-empty observed owner's index first, then let the payload-local script write only when its actual owner—including no owner—still exactly matches the observation. A mismatch performs no payload mutation, records the actual owner, and returns false so the existing Store retry can pre-index the correct owner. The pre-indexed expected-owner field deliberately remains: its field TTL bounds the drift, and an ownership-rechecked scoped operation prunes it without touching the reassigned payload. This prevents a concurrent reassignment from committing a payload whose actual owner was not indexed by that operation.
+- An unresolved write uses the owner observed by the normal session read. If no observation exists, issue one plain `GET`, parse it through the same strict PHP envelope parser as `read()`, and remember the result. Update a non-empty observed owner's index first, then let the payload-local script write only when its actual owner—including no owner—still exactly matches the observation. A mismatch performs no payload mutation, records the actual owner, and returns false so the existing Store retry can pre-index the correct owner. Do not delete the pre-indexed field on rejection: a concurrent write may already have made it valid again, and deleting it would hide a live session from bulk revocation. HFE bounds the drift, scoped deletion rechecks ownership, and listing filters it against the authoritative payload header.
 - An unowned write has no resulting index, so mutate the authoritative payload first and remove its proven old-owner field afterward.
 - Compute one absolute expiry from the write timestamp and configured lifetime. Every tracked field and payload mutation uses that deadline, so cross-slot call ordering cannot create relative-TTL skew.
 - After a successful payload mutation, update the coroutine observation before fallible old-index cleanup. If cleanup fails, a stale old field cannot delete the reassigned session because all scoped deletion rechecks the authoritative envelope.
 - On deletion, delete/verify the authoritative payload first, then clean its index field. Cleanup failure may leave a stale field but never a supposedly invalidated live payload. Put a short comment at this cluster call site explaining that separate cross-slot calls require payload-first ordering; do not make it match the standalone same-slot script.
 - HFE bounds every stale field, and a subsequent write repairs a missing/current field.
 - If a tracked Cluster session's current owner index cannot be updated, fail the write before refreshing its authoritative payload. The first save failure remains the request failure; an exception-rendering retry cannot replace that primary failure.
+- Cluster listing reads the requested index once, then issues `GETRANGE key 0 36` for each valid metadata candidate. The exact 37-byte prefix is the complete ownership envelope header, so it produces the same ownership verdict as reading the full payload without transferring or allocating session bodies. Return only candidates whose valid V1 header proves the requested owner; omit missing, raw, corrupt, unknown-version, unreadable, and differently owned payloads without deleting their index fields. A legitimate write may be omitted briefly between its pre-index and payload commit, but the next listing sees it. The result reflects authoritative ownership at each header read without risking persistent index loss.
 
 Operation counts:
 
 | Operation | Cluster calls |
 | --- | --- |
 | read | one `GET` |
-| list | one `HGETALL` |
+| list | one `HGETALL`, then one 37-byte `GETRANGE` per valid metadata candidate |
 | tracked write | one index-local command/script when owned, one payload Lua call, then at most one obsolete-index cleanup; an unobserved unresolved write first performs one `GET` |
 | unscoped delete | one payload Lua call, then at most one `HDEL` |
 | scoped single delete | one payload Lua call, then one requested-index `HDEL` |
@@ -639,6 +640,8 @@ Operation counts:
 Bulk deletion preserves every exception without touching it. It counts only payloads actually deleted. If a payload operation fails, propagate the error; never hide a possibly live session by preemptively deleting its index field. Attempt one final cleanup for already confirmed/stale fields before propagating a later payload failure. If that cleanup also throws, do not discard either diagnostic: throw a `RuntimeException` whose primary message retains the payload failure's class/message and whose `previous:` is the cleanup failure. If cleanup succeeds, rethrow the original payload failure unchanged. Unit tests must assert the dual-failure exception message and previous chain. Index cleanup failures after authoritative deletion propagate with drift remaining TTL-bounded.
 
 Do not attempt a cluster pipeline: phpredis Redis Cluster does not provide a portable atomic/pipelined cross-node equivalent for this layout.
+
+While updating Cluster listing, fix `RedisConnection::callMget()` to return an empty array immediately for an empty key list. PhpRedis returns `false` for `mget([])`, while Hypervel's Laravel-style connection API declares an array and otherwise passes that value to `array_map()`. Guard only the empty input; do not convert a non-empty command failure to an empty result.
 
 `RedisConnection::evalWithShaCache()` first sends `EVALSHA`; on `NOSCRIPT` it falls back to `EVAL` on the same pinned connection. The first use of each script on each node therefore takes two commands, while warmed steady-state mutations take one. Tests must cover the fallback and measure the advertised steady-state path only after warming it.
 
@@ -709,7 +712,7 @@ Keep this as the user-facing source of truth and add:
 - selected-guard, optional explicit-guard, one-identity-per-session, provider-qualified ownership, shared-provider, providerless-custom-guard, and overlapping-ID semantics;
 - the database `user_id` string / nullable `auth_provider` / semantic IP schema change;
 - active/newest-first and derived-expiry behavior;
-- Redis Cluster's authoritative payload and TTL-bounded index drift;
+- Redis Cluster's authoritative header verification, TTL-bounded index drift, and per-candidate listing cost;
 - the uncapped `O(n)` per-user cardinality contract, expected operational range, lack of silent truncation/eviction, and authentication-rate/device-policy guidance;
 - logout separation and remember-me behavior.
 
@@ -809,18 +812,20 @@ Mock `RedisFactory`, `RedisProxy`, and `RedisConnection`; assert behavior and no
 - raw/enveloped/malformed/unknown-version PHP parsing boundaries;
 - tracked standalone write transition matrix and atomic one-script calls;
 - unscoped, scoped single, and bulk invalidation ownership/counts, including index-only cleanup when scoped single ownership is missing/corrupt/wrong;
-- list decode, sort, derived expiry, invalid-ID/malformed-value skipping, and one-call exceptional-path index pruning;
+- list decode, sort, derived expiry, and read-only invalid-ID/malformed-value skipping; standalone listing remains one `HGETALL`, while Cluster listing performs one 37-byte header read per valid candidate and returns only matching authoritative owners;
 - logical versus physical prefix arguments with non-empty `OPT_PREFIX`;
 - deterministic injective provider/user digest, isolation for equal IDs under different providers, shared ownership for guards using one provider, and no framework-generated literal hash tags;
-- cluster authoritative ordering, owner observation/probing, minimum normal-lifecycle calls, stale cleanup, exception propagation, and bulk exception handling, including resolved and unresolved index failures before payload mutation, full equality for a proven-ownerless observation, concurrent owner mismatch and retry state, failed obsolete/requested-index cleanup, failed malformed-list pruning, invalid status/owner result shapes, observation isolation/reset, and retention of the cleanup failure as `previous` when payload and final cleanup both fail;
+- cluster authoritative ordering, owner observation/probing, minimum normal-lifecycle calls, stale cleanup, exception propagation, and bulk exception handling, including resolved and unresolved index failures before payload mutation, full equality for a proven-ownerless observation, concurrent owner mismatch and retry state, failed obsolete/requested-index cleanup, invalid status/owner result shapes, observation isolation/reset, and retention of the cleanup failure as `previous` when payload and final cleanup both fail;
 - raw wrapper restores serializer/compression after success and exception;
 - tracked write returns true only for the script's explicit success result, returns false for a false/nil result, and preserves Store live state for retry after failure;
-- transport-mock call counts prove one healthy `HGETALL`, one additional cleanup `HDEL` only for malformed listing metadata, and one `evalWithShaCache()` delegation per standalone handler mutation; transport mocks own these handler assertions because pinned raw `RedisConnection` calls deliberately bypass `RedisProxy` command events, while `UserSessionsTest` owns the repository's optional current-single-plus-bulk call sequence;
+- transport-mock call counts prove one standalone `HGETALL` with no cleanup mutation, Cluster's `HGETALL` plus one `GETRANGE` per valid candidate, zero header reads when no metadata candidate survives, and one `evalWithShaCache()` delegation per standalone handler mutation; transport mocks own these handler assertions because pinned raw `RedisConnection` calls deliberately bypass `RedisProxy` command events, while `UserSessionsTest` owns the repository's optional current-single-plus-bulk call sequence;
 - retain the Redis connection helper's existing direct tests proving cold-node `EVALSHA`/`EVAL` fallback and warmed one-command behavior.
 
 #### Existing tests to update
 
 - Delete `CacheBasedSessionHandlerTest` with its source.
+- Delete the Redis listing-prune failure test with the removed `HDEL` path; malformed entries are now covered as read-only omissions.
+- `RedisConnectionTest` and `TransformIntegrationTest`: `mget([])` returns an empty array without calling phpredis, including under Redis Cluster.
 - `StartSessionTest`: retain the required cache factory, constructor order, lock behavior, and persistence retry coverage; native persistence does not change middleware's cache-backed blocking feature.
 - `SessionConfigTest`: new flag/default and removed store.
 - `PackageMetadataTest`: Redis and cache are both required; cache remains for session cache/blocking rather than persistence, and the phpredis suggestion states the base and tracking-specific floors.
@@ -891,9 +896,10 @@ Cover against all three topologies:
 
 - raw JSON, PHP-serialized, binary-safe, enveloped, corrupt-family, malformed-V1, and unknown-version payloads plus tracking flag transitions;
 - tracked write/list/reassignment/preserve/unowned/destroy/bulk flows, synchronized absolute payload/field expiry, HFE empty-hash removal, and observable index cleanup;
-- selected/non-selected guard behavior, same-ID provider isolation, identity-less metadata/TTL refresh, stale-owner safety, and malformed-metadata pruning;
+- selected/non-selected guard behavior, same-ID provider isolation, identity-less metadata/TTL refresh, stale-owner safety, and read-only malformed-metadata omission;
 - both prefix layers exactly once, PHP serialization, optional LZF compression, and option restoration after failure; skip only the LZF case when compression is unavailable;
 - real payload/index keys in different Cluster slots.
+- Cluster-only authoritative listing with matching, wrong-owner, missing, raw, corrupt-family, and unknown-version payload candidates; only the matching envelope is returned, and valid drift remains untouched.
 
 Exercise real framework composition in the same fixture:
 
@@ -1071,7 +1077,7 @@ The last database path is removed only after its content is moved into the share
 - Provider and user ID jointly scope every managed owner. Equal IDs under unrelated providers cannot cross-list or cross-invalidate; guards sharing one provider deliberately share the namespace; providerless authenticated custom guards remain operational but explicitly unowned.
 - Unsupported/disabled drivers fail through the capability boundary, not driver-name conditionals.
 - Tracking-off Redis performs one native command per read/write/delete.
-- Each warmed standalone tracked handler mutation and healthy listing meet their one-round-trip contracts; malformed-list cleanup and repository-level current-plus-bulk invalidation have the explicitly documented extra call. Cold SHA-cache fallback is tested and documented. Database handler operations meet their one-query contracts, while repository bulk uses the documented ownership-proof statement when a started current record may be included.
+- Each warmed standalone tracked handler mutation and standalone listing meet their one-round-trip contracts; listing never mutates malformed index entries. Cluster listing performs only the documented 37-byte authoritative header reads and never returns a wrong-owner candidate. Cold SHA-cache fallback is tested and documented. Database handler operations meet their one-query contracts, while repository bulk uses the documented ownership-proof statement when a started current record may be included.
 - Redis serializer/compression and both prefix layers are correct.
 - Current-session invalidation cannot resurrect the deleted ID or track its unauthenticated replacement.
 - Existing `Store::invalidate()` and the new repository path both enforce that invariant without suppressing login-time regeneration.
