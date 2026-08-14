@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Database\ConcurrencyErrorDetector as ConcurrencyErrorDetectorContract;
+use Hypervel\Contracts\Database\LostConnectionDetector as LostConnectionDetectorContract;
 use Hypervel\Contracts\Queue\EntityResolver;
 use Hypervel\Core\Events\BeforeServerFork;
 use Hypervel\Core\Events\BeforeWorkerStart;
@@ -12,9 +14,14 @@ use Hypervel\Core\Events\TaskTerminated;
 use Hypervel\Database\ConcurrencyErrorDetector;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\DatabaseServiceProvider;
+use Hypervel\Database\DetectsConcurrencyErrors;
+use Hypervel\Database\DetectsLostConnections;
 use Hypervel\Database\Eloquent\QueueEntityResolver;
+use Hypervel\Database\LostConnectionDetector;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Testbench\TestCase;
+use PDOException;
+use RuntimeException;
 use Swoole\Constant;
 use Throwable;
 
@@ -55,16 +62,98 @@ class DatabaseServiceProviderTest extends TestCase
         $detector = new class implements ConcurrencyErrorDetectorContract {
             public function causedByConcurrencyError(Throwable $e): bool
             {
-                return false;
+                return $e->getMessage() === 'testing override';
             }
         };
 
         $this->app->instance(ConcurrencyErrorDetectorContract::class, $detector);
 
-        // Reproduce an application binding the contract before provider registration.
+        // The provider must not overwrite an existing application binding.
         (new DatabaseServiceProvider($this->app))->register();
 
         $this->assertSame($detector, $this->app->make(ConcurrencyErrorDetectorContract::class));
+
+        $subject = new class {
+            use DetectsConcurrencyErrors;
+
+            public function detects(Throwable $exception): bool
+            {
+                return $this->causedByConcurrencyError($exception);
+            }
+        };
+
+        $this->assertTrue($subject->detects(new RuntimeException('testing override')));
+    }
+
+    public function testLostConnectionDetectorIsRegistered(): void
+    {
+        $this->assertInstanceOf(
+            LostConnectionDetector::class,
+            $this->app->make(LostConnectionDetectorContract::class),
+        );
+    }
+
+    public function testLostConnectionDetectorCanBeOverridden(): void
+    {
+        $detector = new class implements LostConnectionDetectorContract {
+            public int $calls = 0;
+
+            public function causedByLostConnection(Throwable $e): bool
+            {
+                ++$this->calls;
+
+                return $e->getMessage() === 'testing override';
+            }
+        };
+
+        $this->app->instance(LostConnectionDetectorContract::class, $detector);
+
+        // The provider must not overwrite an existing application binding.
+        (new DatabaseServiceProvider($this->app))->register();
+
+        $this->assertSame($detector, $this->app->make(LostConnectionDetectorContract::class));
+
+        $subject = new class {
+            use DetectsLostConnections;
+
+            public function detects(Throwable $exception): bool
+            {
+                return $this->causedByLostConnection($exception);
+            }
+        };
+
+        $this->assertTrue($subject->detects(new RuntimeException('testing override')));
+        $this->assertSame(1, $detector->calls);
+    }
+
+    public function testDetectorTraitsRetainTheirBareContainerFallbacks(): void
+    {
+        $originalContainer = Container::getInstance();
+        Container::setInstance(new Container);
+
+        try {
+            $concurrencySubject = new class {
+                use DetectsConcurrencyErrors;
+
+                public function detects(Throwable $exception): bool
+                {
+                    return $this->causedByConcurrencyError($exception);
+                }
+            };
+            $lostConnectionSubject = new class {
+                use DetectsLostConnections;
+
+                public function detects(Throwable $exception): bool
+                {
+                    return $this->causedByLostConnection($exception);
+                }
+            };
+
+            $this->assertTrue($concurrencySubject->detects(new PDOException('database is locked')));
+            $this->assertTrue($lostConnectionSubject->detects(new RuntimeException('server has gone away')));
+        } finally {
+            Container::setInstance($originalContainer);
+        }
     }
 
     public function testQueueEntityResolverIsRegistered(): void
