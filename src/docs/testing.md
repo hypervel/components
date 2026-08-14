@@ -4,6 +4,7 @@
 - [Environment](#environment)
 - [Creating Tests](#creating-tests)
     - [Running Tests in Coroutines](#running-tests-in-coroutines)
+    - [Request Context](#request-context)
     - [Owning Asynchronous Test Resources](#owning-asynchronous-test-resources)
     - [Test State Cleanup](#test-state-cleanup)
     - [Macro State](#macro-state)
@@ -150,7 +151,7 @@ class AuthContextTest extends TestCase
 {
     protected function setUpInCoroutine(): void
     {
-        CoroutineContext::set('auth_context.users.foo', 'Taylor');
+        CoroutineContext::set('auth_context.users.foo', 'John');
     }
 
     protected function tearDownInCoroutine(): void
@@ -160,7 +161,7 @@ class AuthContextTest extends TestCase
 
     public function test_context_value_is_available(): void
     {
-        $this->assertSame('Taylor', CoroutineContext::get('auth_context.users.foo'));
+        $this->assertSame('John', CoroutineContext::get('auth_context.users.foo'));
     }
 }
 ```
@@ -170,6 +171,24 @@ By default, Hypervel copies coroutine context values prepared outside the test m
 ```php
 protected bool $copyNonCoroutineContext = false;
 ```
+
+<a name="request-context"></a>
+### Request Context
+
+Hypervel's HTTP testing methods automatically populate the request context for you. Tests that call the `request` helper without making an HTTP request are different: no request exists in the current context, so Hypervel builds a fresh fallback request from your application's configured URL every time the helper runs. Any change you make to one of those requests, such as calling `request()->merge(...)`, will not be visible to the next `request()` call.
+
+If a test needs a stable request, create one and store it in the request context:
+
+```php
+use Hypervel\Context\RequestContext;
+use Hypervel\Http\Request;
+
+RequestContext::set(Request::create('/?name=John'));
+
+$this->assertSame('John', request('name'));
+```
+
+The request is stored in the current coroutine's context, so it is discarded when the test finishes and will not leak into other tests. If several tests need the same request, you may set it in the `setUpInCoroutine` method.
 
 <a name="owning-asynchronous-test-resources"></a>
 ### Owning Asynchronous Test Resources
