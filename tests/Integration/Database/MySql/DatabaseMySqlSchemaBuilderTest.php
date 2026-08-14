@@ -15,7 +15,7 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 #[RequiresPhpExtension('pdo_mysql')]
 class DatabaseMySqlSchemaBuilderTest extends MySqlTestCase
 {
-    public function testAddCommentToTable()
+    public function testAddCommentToTable(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
@@ -23,7 +23,7 @@ class DatabaseMySqlSchemaBuilderTest extends MySqlTestCase
         });
 
         $tableInfo = DB::table('information_schema.tables')
-            ->where('table_schema', $this->app['config']->get('database.connections.mysql.database'))
+            ->where('table_schema', $this->app->make('config')->string('database.connections.mysql.database'))
             ->where('table_name', 'users')
             ->select('table_comment as table_comment')
             ->first();

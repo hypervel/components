@@ -59,7 +59,9 @@ class Manager
      */
     protected function setupDefaultConfiguration(): void
     {
-        $this->container['config']['database.default'] = 'default';
+        $configuration = $this->container->make('config');
+
+        $configuration['database.default'] = 'default';
     }
 
     /**
@@ -119,11 +121,12 @@ class Manager
      */
     public function addConnection(array $config, string $name = 'default'): void
     {
-        $connections = $this->container['config']['database.connections'];
+        $configuration = $this->container->make('config');
+        $connections = $configuration['database.connections'] ?? [];
 
         $connections[$name] = $config;
 
-        $this->container['config']['database.connections'] = $connections;
+        $configuration['database.connections'] = $connections;
     }
 
     /**
@@ -158,7 +161,7 @@ class Manager
     public function getEventDispatcher(): ?Dispatcher
     {
         if ($this->container->bound('events')) {
-            return $this->container['events'];
+            return $this->container->make('events');
         }
 
         return null;

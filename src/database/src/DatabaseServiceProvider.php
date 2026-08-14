@@ -57,28 +57,28 @@ class DatabaseServiceProvider extends ServiceProvider implements ReloadsConfigur
         $this->app->singleton('db.resolver', fn ($app) => $app->make(ConnectionResolver::class));
 
         $this->app->singleton('migration.repository', function ($app) {
-            $migrations = $app['config']['database.migrations'];
+            $migrations = $app->make('config')->get('database.migrations');
 
             $table = is_array($migrations)
                 ? ($migrations['table'] ?? 'migrations')
                 : $migrations;
 
             return new DatabaseMigrationRepository(
-                $app['db'],
+                $app->make('db'),
                 $table,
             );
         });
 
         $this->app->singleton('migrator', function ($app) {
             return new Migrator(
-                $app['migration.repository'],
-                $app['db'],
-                $app['files'],
+                $app->make('migration.repository'),
+                $app->make('db'),
+                $app->make('files'),
             );
         });
 
         $this->app->singleton('migration.creator', function ($app) {
-            return new MigrationCreator($app['files'], $app->basePath('stubs'));
+            return new MigrationCreator($app->make('files'), $app->basePath('stubs'));
         });
 
         $this->commands([
@@ -136,11 +136,11 @@ class DatabaseServiceProvider extends ServiceProvider implements ReloadsConfigur
         });
 
         $this->app->singleton('db', function ($app) {
-            return new DatabaseManager($app, $app['db.factory']);
+            return new DatabaseManager($app, $app->make('db.factory'));
         });
 
         $this->app->bind('db.connection', function ($app) {
-            return $app['db']->connection();
+            return $app->make('db')->connection();
         });
 
         $this->app->singleton('db.schema', function () {
@@ -174,7 +174,7 @@ class DatabaseServiceProvider extends ServiceProvider implements ReloadsConfigur
         }
 
         $this->app->scoped(FakerGenerator::class, function ($app, $parameters) {
-            $locale = $parameters['locale'] ?? $app['config']->get('app.faker_locale', 'en_US');
+            $locale = $parameters['locale'] ?? $app->make('config')->get('app.faker_locale', 'en_US');
 
             return FakerFactory::create($locale);
         });
