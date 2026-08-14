@@ -383,7 +383,19 @@ If a public method mutates static or singleton-held state, make sure that state 
 <a name="container-lifecycles"></a>
 ### Container Lifecycles
 
-Hypervel's container has the same public shape as Laravel's container, but its lifecycle is adapted for Swoole:
+Hypervel follows Laravel's named container APIs, but intentionally does not support container ArrayAccess or dynamic service properties. Convert those calls while porting:
+
+| Laravel | Hypervel |
+|---|---|
+| `$app['events']` or `$app->events` | `$app->make('events')` |
+| `isset($app['events'])` | `$app->bound('events')` |
+| `$app['service'] = fn ($app) => ...` or `$app->service = fn ($app) => ...` | `$app->bind('service', fn ($app) => ...)` |
+| `$app['service'] = $service` or `$app->service = $service` | `$app->instance('service', $service)` |
+| Remove a temporary instance override | `$app->forgetInstance('service')` |
+
+Use `get()` and `has()` instead when working through the PSR-11 container interface. Hypervel does not expose arbitrary binding removal; `forgetInstance()` clears a temporary instance so the original binding can resolve again.
+
+Container lifecycles are adapted for Swoole:
 
 | Need | Method |
 |---|---|
