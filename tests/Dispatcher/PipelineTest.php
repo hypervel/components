@@ -14,6 +14,8 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use RuntimeException;
+use Throwable;
 
 /**
  * @internal
@@ -105,6 +107,82 @@ class PipelineTest extends TestCase
             ])->thenReturn();
 
         $this->assertSame($mockedResponse, $response);
+    }
+
+    public function testExceptionsAreRethrownByDefault()
+    {
+        $request = m::mock(ServerRequestInterface::class);
+        $exception = new RuntimeException('boom');
+
+        $this->expectExceptionObject($exception);
+
+        (new Pipeline($this->getApplication()))
+            ->send($request)
+            ->through([fn () => throw $exception])
+            ->thenReturn();
+    }
+
+    public function testDestinationExceptionsAreRethrownByDefault()
+    {
+        $request = m::mock(ServerRequestInterface::class);
+        $exception = new RuntimeException('boom');
+
+        $this->expectExceptionObject($exception);
+
+        (new Pipeline($this->getApplication()))
+            ->send($request)
+            ->through([])
+            ->then(fn () => throw $exception);
+    }
+
+    public function testHandleExceptionHookCanConvertThrowablesToResponses()
+    {
+        $request = m::mock(ServerRequestInterface::class);
+        $mockedResponse = m::mock(ResponseInterface::class);
+
+        $response = (new HandlesExceptionPipeline($this->getApplication(), $mockedResponse))
+            ->send($request)
+            ->through([fn () => throw new RuntimeException('boom')])
+            ->thenReturn();
+
+        $this->assertSame($mockedResponse, $response);
+    }
+
+    public function testHandleExceptionHookSeesThrowablesFromOuterMiddleware()
+    {
+        $request = m::mock(ServerRequestInterface::class);
+        $mockedResponse = m::mock(ResponseInterface::class);
+        $mockedResponse->shouldReceive('getStatusCode')
+            ->once()
+            ->andReturn(404);
+
+        $observed = null;
+        $observer = function (ServerRequestInterface $request, Closure $next) use (&$observed) {
+            $response = $next($request);
+            $observed = $response->getStatusCode();
+
+            return $response;
+        };
+
+        (new HandlesExceptionPipeline($this->getApplication(), $mockedResponse))
+            ->send($request)
+            ->through([$observer, fn () => throw new RuntimeException('boom')])
+            ->thenReturn();
+
+        $this->assertSame(404, $observed);
+    }
+}
+
+class HandlesExceptionPipeline extends Pipeline
+{
+    public function __construct($container, protected ?ResponseInterface $rendered = null)
+    {
+        parent::__construct($container);
+    }
+
+    protected function handleException(mixed $passable, Throwable $e): mixed
+    {
+        return $this->handleCarry($this->rendered);
     }
 }
 
