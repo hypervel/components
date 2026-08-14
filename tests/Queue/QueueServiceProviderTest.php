@@ -15,6 +15,7 @@ use Hypervel\Queue\NullQueue;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\QueueServiceProvider;
 use Hypervel\Queue\SyncQueue;
+use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -24,7 +25,7 @@ use RuntimeException;
 
 class QueueServiceProviderTest extends TestCase
 {
-    public function testReloadConfigurationRebuildsConnectionsAndRestoresExceptionCallbacks(): void
+    public function testReloadConfigurationRebuildsConnectionsWithExceptionReporting(): void
     {
         $handler = m::mock(ExceptionHandler::class);
         $handler->shouldReceive('report')->twice()->with(m::type(RuntimeException::class));
@@ -34,6 +35,8 @@ class QueueServiceProviderTest extends TestCase
             'queue.failed.driver' => 'null',
         ]);
         $manager = $this->app->make('queue');
+        $this->assertFalse($manager->connected('background'));
+        $this->assertFalse($manager->connected('deferred'));
         $connection = $this->app->make('queue.connection');
         $failedJobs = $this->app->make('queue.failer');
         $background = $manager->connection('background');
@@ -64,6 +67,20 @@ class QueueServiceProviderTest extends TestCase
         $this->assertIsCallable($deferredCallback);
         $backgroundCallback(new RuntimeException('Background failed.'));
         $deferredCallback(new RuntimeException('Deferred failed.'));
+    }
+
+    public function testReloadConfigurationPreservesQueueFakeAndRefreshesItsWrappedManager(): void
+    {
+        $manager = $this->app->make('queue');
+        $background = $manager->connection('background');
+        $fake = Queue::fake(['queued-job']);
+        $fake->push('queued-job');
+
+        $this->app->getProvider(QueueServiceProvider::class)->reloadConfiguration();
+
+        $this->assertSame($fake, Queue::getFacadeRoot());
+        $this->assertSame(['queued-job'], $fake->pushed('queued-job')->all());
+        $this->assertNotSame($background, $manager->connection('background'));
     }
 
     #[DataProvider('failedJobProviders')]

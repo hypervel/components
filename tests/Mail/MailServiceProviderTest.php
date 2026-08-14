@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
+use Hypervel\Mail\Mailable;
 use Hypervel\Mail\MailManager;
 use Hypervel\Mail\MailServiceProvider;
 use Hypervel\Mail\Markdown;
+use Hypervel\Support\Facades\Mail;
 use Hypervel\Testbench\TestCase;
 use ReflectionProperty;
 
@@ -39,5 +41,24 @@ class MailServiceProviderTest extends TestCase
         $this->assertSame($refreshedMailer, $manager->mailer('second'));
         $this->assertNotSame($markdown, $refreshedMarkdown);
         $this->assertSame('new', (new ReflectionProperty(Markdown::class, 'theme'))->getValue($refreshedMarkdown));
+    }
+
+    public function testReloadConfigurationPreservesMailFakeAndRefreshesItsWrappedManager(): void
+    {
+        config([
+            'mail.default' => 'first',
+            'mail.mailers.first' => ['transport' => 'array'],
+        ]);
+        $manager = $this->app->make('mail.manager');
+        $mailer = $manager->mailer('first');
+        $fake = Mail::fake();
+        $mailable = new Mailable;
+        $fake->send($mailable);
+
+        $this->app->getProvider(MailServiceProvider::class)->reloadConfiguration();
+
+        $this->assertSame($fake, Mail::getFacadeRoot());
+        $this->assertSame([$mailable], $fake->sent(Mailable::class)->all());
+        $this->assertNotSame($mailer, $manager->mailer('first'));
     }
 }

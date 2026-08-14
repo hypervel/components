@@ -109,7 +109,9 @@ Each hook must apply these rules:
 - Preserve user-registered manager creators, extensions, callbacks, named definitions, and routes unless they are themselves built from refreshed config.
 - Guard the canonical bound abstract with `resolved()` before resolving an optional object. Do not guard only a concrete class used as a string binding target.
 - A string-concrete binding can make `resolved(Concrete::class)` true without caching a direct concrete instance. Resolving that concrete may create an unused auto-singleton. Never use that false-positive path.
-- Do not eagerly resolve services during refresh. Queue is the one intentional exception: a previously resolved Queue manager already eagerly established its configured `background` and `deferred` connections, so the hook restores those same connections after clearing them.
+- Do not eagerly resolve services during refresh.
+- Narrow before mutating only where the matrix specifies it: `StdoutLoggerInterface`, `HubInterface`, the Telescope repository contracts, and the `translator`, `view`, `blade.compiler`, and `jwt` keys, whose implementations an application may plausibly supply. Every other hook calls its canonical key directly, string or concrete, without a type check: both the `forget*` family on `cache`, `queue`, `auth`, `mail.manager`, and `filesystem`, and in-place mutation of framework plumbing such as `redirect` and `cookie`.
+- A first-party fake bound over a canonical manager key must satisfy the reset API invoked by worker refresh. When the fake wraps the real manager, its reset must delegate while preserving recorded fake state.
 - Public methods that clear worker-held registries or mutate worker configuration must use the exact `Boot-only.` or `Boot or tests only.` warning and name the shared-state race caused by request-time use.
 
 ## Programmatic Server Reload
@@ -252,10 +254,10 @@ Add `forgetLoadedGroups(): void` with a `Boot or tests only.` warning. It clears
 | Hashing | Clear drivers and forget `hash.driver`. |
 | HTTP | On `BeforeServerFork`, clear connection handlers on an already resolved HTTP factory. Preserve registered presets, middleware, fakes, and other factory state; workers rebuild process-local handlers lazily. |
 | Log | Clear channels and refresh the retained stdout logger in place. Guard and resolve `StdoutLoggerInterface`, then mutate only the framework `StdoutLogger`. Remove the hard-coded stdout refresh from `WorkerStartCallback`. |
-| Mail | Clear mailers and forget Markdown. |
-| Notifications | Clear ChannelManager drivers and forget MailChannel. |
+| Mail | Clear mailers and forget Markdown. `MailFake::forgetMailers()` also clears the wrapped real manager while preserving recorded fake state. |
+| Notifications | Clear ChannelManager drivers and forget MailChannel. `NotificationFake` satisfies the manager reset as a no-op because it resolves no drivers, preserving recorded fake state. |
 | Object Pool | On `BeforeServerFork`, flush an already resolved `PoolManager`; keep the existing recycler on `AfterWorkerStart`. Do not add a worker-start flush: the master manager is empty after the fork-time flush, and a second flush could close a pool created by an earlier worker-start listener. `ObjectPool::destroyObject()` already contains user cleanup failures, so do not add exception aggregation to `PoolManager::flush()`. |
-| Queue | Clear connections. For an already resolved manager, restore configured `background` and `deferred` exception callbacks through one protected provider method used by registration and reload. Keep the exception-handler guard, per-connector `InvalidArgumentException` handling, and eager restoration limited to those two already-eager connections. Forget `queue.connection` and `queue.failer`. |
+| Queue | Clear connections and forget `queue.connection` and `queue.failer`. `BackgroundConnector` and `DeferredConnector` install exception reporting when they construct their queue, so rebuilt connections need no eager restoration. `QueueFake::forgetConnections()` also clears its wrapped real manager while preserving recorded fake state. |
 | Translation | If canonical `translator` is resolved and is the framework Translator, set base locale and fallback from config, then call `forgetLoadedGroups()`. Preserve registered lines, loader paths/namespaces, extensions, callbacks, selector, and stringable handlers. |
 | View | Preserve Factory, FileViewFinder, Blade compiler, EngineResolver, and resolved engine identities. Update the retained finder paths and flush only its lookup cache. Update the retained framework compiler's config fields through `Compiler::reloadConfiguration()` while preserving directives, conditions, tags, echo format, precompilers, components, and other registrations. Clear `CompilerEngine`'s boot-reachable compile-check map so a view rendered during provider boot cannot bypass refreshed cache or timestamp policy. Do not forget the compiler or engine: normal engine eviction rebuilds around the same compiler singleton, while Sentry's resolver rebuilds a decorator around its captured old engine. |
 
@@ -339,6 +341,8 @@ Update `src/docs/deployment.md` in the same style:
 
 Update the HTTP client's Connections section with one short paragraph: connection presets registered only during `boot()` retain those options across worker reloads. Providers whose presets come from reloadable configuration must implement `ReloadsConfiguration` and re-register them. Link to the providers guide and state that application hooks run after package hooks, so applications remain the final authority for shared connection names when they re-register them.
 
+Update the Queue guide's existing `background` and `deferred` connection paragraph to state that uncaught exceptions are reported through the application's exception handler.
+
 Remove the completed service-provider reload item from `docs/todo.md`. Do not duplicate these explanations in package READMEs.
 
 ## Tests
@@ -377,7 +381,8 @@ Add or extend provider tests for every matrix row. Headline regressions must inc
 
 - cache resolved in the master then changed before worker start;
 - database resolver default changed after master resolution;
-- Queue callbacks restored on the refreshed background/deferred connections;
+- rebuilt background/deferred Queue connections carry exception reporting from their connectors;
+- Queue, Mail, and Notification fakes remain bound with their recorded state after refresh, while Queue and Mail also reset their wrapped real managers;
 - Object Pool flushes before fork and no worker-start flush is added;
 - Log refreshes the canonical stdout logger before later hooks can log;
 - Auth and Sanctum validation still run only after all configuration hooks;

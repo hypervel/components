@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
+use Closure;
 use Hypervel\Contracts\Database\ModelIdentifier;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
@@ -96,9 +97,7 @@ class QueueServiceProvider extends ServiceProvider implements ReloadsConfigurati
     public function reloadConfiguration(): void
     {
         if ($this->app->resolved('queue')) {
-            $manager = $this->app->make('queue');
-            $manager->forgetConnections();
-            $this->configureExceptionCallbacks($manager);
+            $this->app->make('queue')->forgetConnections();
         }
 
         $this->app->forgetInstance('queue.connection');
@@ -161,35 +160,10 @@ class QueueServiceProvider extends ServiceProvider implements ReloadsConfigurati
     protected function registerManager(): void
     {
         $this->app->singleton('queue', function ($app) {
-            $manager = tap(new QueueManager($app), function ($manager) {
+            return tap(new QueueManager($app), function ($manager) {
                 $this->registerConnectors($manager);
             });
-
-            $this->configureExceptionCallbacks($manager);
-
-            return $manager;
         });
-    }
-
-    /**
-     * Configure exception reporting for in-process queue connections.
-     */
-    protected function configureExceptionCallbacks(QueueManager $manager): void
-    {
-        if (! $this->app->has(ExceptionHandler::class)) {
-            return;
-        }
-
-        $reportHandler = fn (Throwable $exception) => $this->app->make(ExceptionHandler::class)->report($exception);
-
-        foreach (['background', 'deferred'] as $connector) {
-            try {
-                $manager->connection($connector)
-                    ->setExceptionCallback($reportHandler); // @phpstan-ignore method.notFound (setExceptionCallback is on concrete Queue, not contract)
-            } catch (InvalidArgumentException) {
-                // Ignore exception when the connector is not configured.
-            }
-        }
     }
 
     /**
@@ -208,6 +182,18 @@ class QueueServiceProvider extends ServiceProvider implements ReloadsConfigurati
         foreach (['Null', 'Sync', 'Deferred', 'Background', 'Failover', 'Database', 'Redis', 'Beanstalkd', 'Sqs'] as $connector) {
             $this->{"register{$connector}Connector"}($manager);
         }
+    }
+
+    /**
+     * Get the exception reporter for in-process queue connections.
+     */
+    protected function exceptionReporter(): ?Closure
+    {
+        if (! $this->app->has(ExceptionHandler::class)) {
+            return null;
+        }
+
+        return fn (Throwable $exception) => $this->app->make(ExceptionHandler::class)->report($exception);
     }
 
     /**
@@ -231,7 +217,7 @@ class QueueServiceProvider extends ServiceProvider implements ReloadsConfigurati
      */
     protected function registerDeferredConnector(QueueManager $manager): void
     {
-        $manager->addConnector('deferred', fn () => new DeferredConnector);
+        $manager->addConnector('deferred', fn () => new DeferredConnector($this->exceptionReporter()));
     }
 
     /**
@@ -239,7 +225,7 @@ class QueueServiceProvider extends ServiceProvider implements ReloadsConfigurati
      */
     protected function registerBackgroundConnector(QueueManager $manager): void
     {
-        $manager->addConnector('background', fn () => new BackgroundConnector);
+        $manager->addConnector('background', fn () => new BackgroundConnector($this->exceptionReporter()));
     }
 
     /**
