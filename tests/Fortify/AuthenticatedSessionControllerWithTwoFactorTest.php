@@ -135,7 +135,7 @@ class AuthenticatedSessionControllerWithTwoFactorTest extends TestCase
 
     public function testRehashUserPasswordWhenRedirectingToTwoFactorChallengeIfRehashingOnLoginIsEnabled(): void
     {
-        $this->app['config']->set('hashing.rehash_on_login', true);
+        $this->app->make('config')->set('hashing.rehash_on_login', true);
 
         $user = UserWithTwoFactor::forceCreate([
             'name' => 'Taylor Otwell',
@@ -157,7 +157,7 @@ class AuthenticatedSessionControllerWithTwoFactorTest extends TestCase
 
     public function testDoesNotRehashUserPasswordWhenRedirectingToTwoFactorChallengeIfRehashingOnLoginIsDisabled(): void
     {
-        $this->app['config']->set('hashing.rehash_on_login', false);
+        $this->app->make('config')->set('hashing.rehash_on_login', false);
 
         $user = UserWithTwoFactor::forceCreate([
             'name' => 'Taylor Otwell',
