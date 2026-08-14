@@ -18,11 +18,11 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 #[RequiresPhpExtension('pdo_pgsql')]
 class PostgresSchemaBuilderTest extends PostgresTestCase
 {
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(Application $app): void
     {
         parent::defineEnvironment($app);
 
-        $app['config']->set('database.connections.pgsql.search_path', 'public,private');
+        $app->make('config')->set('database.connections.pgsql.search_path', 'public,private');
     }
 
     /**

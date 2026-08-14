@@ -24,15 +24,15 @@ use ReflectionMethod;
 
 class MakesHttpRequestsTest extends TestCase
 {
-    public function testFromSetsHeaderAndSession()
+    public function testFromSetsHeaderAndSession(): void
     {
         $this->from('previous/url');
 
         $this->assertSame('previous/url', $this->defaultHeaders['referer']);
-        $this->assertSame('previous/url', $this->app['session']->previousUrl());
+        $this->assertSame('previous/url', $this->app->make('session')->previousUrl());
     }
 
-    public function testFromRouteSetsHeaderAndSession()
+    public function testFromRouteSetsHeaderAndSession(): void
     {
         $router = $this->app->make(Registrar::class);
 
@@ -41,7 +41,7 @@ class MakesHttpRequestsTest extends TestCase
         $this->fromRoute('previous-url');
 
         $this->assertSame('http://localhost/previous/url', $this->defaultHeaders['referer']);
-        $this->assertSame('http://localhost/previous/url', $this->app['session']->previousUrl());
+        $this->assertSame('http://localhost/previous/url', $this->app->make('session')->previousUrl());
     }
 
     public function testFromRemoveHeader()
@@ -145,6 +145,27 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertSame(
             'fooWithMiddleware',
             $this->app->make(MyMiddleware::class)->handle('foo', $next)
+        );
+    }
+
+    public function testWithMiddlewareRestoresExistingBinding(): void
+    {
+        $next = fn (string $request): string => $request;
+
+        $this->app->bind(
+            BoundMiddleware::class,
+            fn () => new BoundMiddleware('FromBinding')
+        );
+
+        $this->withoutMiddleware(BoundMiddleware::class);
+        $this->assertInstanceOf(FakeMiddleware::class, $this->app->make(BoundMiddleware::class));
+
+        $this->withMiddleware(BoundMiddleware::class);
+
+        $this->assertTrue($this->app->bound(BoundMiddleware::class));
+        $this->assertSame(
+            'fooFromBinding',
+            $this->app->make(BoundMiddleware::class)->handle('foo', $next)
         );
     }
 
@@ -611,6 +632,18 @@ class MyMiddleware
     public function handle($request, $next)
     {
         return $next($request . 'WithMiddleware');
+    }
+}
+
+class BoundMiddleware
+{
+    public function __construct(private readonly string $suffix)
+    {
+    }
+
+    public function handle(string $request, callable $next): mixed
+    {
+        return $next($request . $this->suffix);
     }
 }
 

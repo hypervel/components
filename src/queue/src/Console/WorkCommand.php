@@ -175,19 +175,21 @@ class WorkCommand extends Command
             return;
         }
 
-        $this->hypervel['events']->listen(JobProcessing::class, static function (JobProcessing $event): void {
+        $events = $this->hypervel->make('events');
+
+        $events->listen(JobProcessing::class, static function (JobProcessing $event): void {
             static::currentCommand()?->writeOutput($event->job, 'starting');
         });
 
-        $this->hypervel['events']->listen(JobProcessed::class, static function (JobProcessed $event): void {
+        $events->listen(JobProcessed::class, static function (JobProcessed $event): void {
             static::currentCommand()?->writeOutput($event->job, 'success');
         });
 
-        $this->hypervel['events']->listen(JobReleasedAfterException::class, static function (JobReleasedAfterException $event): void {
+        $events->listen(JobReleasedAfterException::class, static function (JobReleasedAfterException $event): void {
             static::currentCommand()?->writeOutput($event->job, 'released_after_exception');
         });
 
-        $this->hypervel['events']->listen(JobFailed::class, static function (JobFailed $event): void {
+        $events->listen(JobFailed::class, static function (JobFailed $event): void {
             $command = static::currentCommand();
 
             $command?->logFailedJob($event);

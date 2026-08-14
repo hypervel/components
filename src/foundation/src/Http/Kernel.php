@@ -133,7 +133,7 @@ class Kernel implements KernelContract
             $request->enableHttpMethodParameterOverride();
             $response = $this->sendRequestThroughRouter($request);
 
-            $events = $this->app['events'];
+            $events = $this->app->make('events');
 
             if ($events->hasListeners(RequestHandled::class)) {
                 $events->dispatch(
@@ -209,7 +209,7 @@ class Kernel implements KernelContract
     public function terminate(Request $request, Response $response): void
     {
         $exception = null;
-        $events = $this->app['events'];
+        $events = $this->app->make('events');
 
         try {
             if ($events->hasListeners(Terminating::class)) {

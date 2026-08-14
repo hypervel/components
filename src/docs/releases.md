@@ -65,7 +65,7 @@ Hypervel runs on Swoole using long-lived workers and coroutines. This architectu
 
 Many Hypervel 0.4 packages are fresh ports of Laravel packages. These ports aim to provide an API that is almost identical to Laravel where the feature makes sense for Hypervel.
 
-Some differences are intentional. Hypervel uses `Hypervel\` namespaces, adapts internals for coroutine safety, adds Swoole-specific performance optimizations, and removes drivers or integrations that Hypervel does not support.
+Some differences are intentional. Hypervel uses `Hypervel\` namespaces, adapts internals for coroutine safety, adds Swoole-specific performance optimizations, may omit Laravel public APIs whose semantics do not suit Hypervel, and removes drivers or integrations that Hypervel does not support.
 
 <a name="immutable-dates"></a>
 ### Immutable Dates

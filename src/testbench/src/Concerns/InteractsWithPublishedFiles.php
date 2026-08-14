@@ -64,7 +64,7 @@ trait InteractsWithPublishedFiles
     protected function cacheExistingMigrationsFiles(): void
     {
         $this->cachedExistingMigrationsFiles ??= (new Collection(
-            $this->app['files']->files($this->app->databasePath('migrations'))
+            $this->app->make('files')->files($this->app->databasePath('migrations'))
         ))->map($this->publishedFilePath(...))
             ->filter(static fn (string $file) => str_ends_with($file, '.php'))
             ->all();
@@ -79,7 +79,7 @@ trait InteractsWithPublishedFiles
     {
         $this->assertFilenameExists($file);
 
-        $haystack = $this->app['files']->get(
+        $haystack = $this->app->make('files')->get(
             $this->app->basePath($file)
         );
 
@@ -97,7 +97,7 @@ trait InteractsWithPublishedFiles
     {
         $this->assertFilenameExists($file);
 
-        $haystack = $this->app['files']->get(
+        $haystack = $this->app->make('files')->get(
             $this->app->basePath($file)
         );
 
@@ -127,7 +127,7 @@ trait InteractsWithPublishedFiles
 
         $this->assertTrue(! is_null($migrationFile), "Assert migration file {$file} does exist");
 
-        $haystack = $this->app['files']->get($migrationFile);
+        $haystack = $this->app->make('files')->get($migrationFile);
 
         foreach ($contains as $needle) {
             $this->assertStringContainsString($needle, $haystack, $message);
@@ -145,7 +145,7 @@ trait InteractsWithPublishedFiles
 
         $this->assertTrue(! is_null($migrationFile), "Assert migration file {$file} does exist");
 
-        $haystack = $this->app['files']->get($migrationFile);
+        $haystack = $this->app->make('files')->get($migrationFile);
 
         foreach ($contains as $needle) {
             $this->assertStringNotContainsString($needle, $haystack, $message);
@@ -169,7 +169,7 @@ trait InteractsWithPublishedFiles
     {
         $appFile = $this->app->basePath($file);
 
-        $this->assertTrue($this->app['files']->exists($appFile), "Assert file {$file} does exist");
+        $this->assertTrue($this->app->make('files')->exists($appFile), "Assert file {$file} does exist");
     }
 
     /**
@@ -179,7 +179,7 @@ trait InteractsWithPublishedFiles
     {
         $appFile = $this->app->basePath($file);
 
-        $this->assertTrue(! $this->app['files']->exists($appFile), "Assert file {$file} doesn't exist");
+        $this->assertTrue(! $this->app->make('files')->exists($appFile), "Assert file {$file} doesn't exist");
     }
 
     /**
@@ -256,7 +256,7 @@ trait InteractsWithPublishedFiles
             ? $this->app->basePath($directory)
             : $this->app->databasePath('migrations');
 
-        return $this->app['files']->glob(join_paths($migrationPath, "*{$filename}"))[0] ?? null;
+        return $this->app->make('files')->glob(join_paths($migrationPath, "*{$filename}"))[0] ?? null;
     }
 
     /**

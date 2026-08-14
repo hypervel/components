@@ -43,12 +43,12 @@ class KeyGenerateCommandTest extends TestCase
 
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app['config']->set('app.cipher', 'aes-128-cbc');
+        $app->make('config')->set('app.cipher', 'aes-128-cbc');
     }
 
-    public function testShowOptionDisplaysKeyWithoutModifyingFiles()
+    public function testShowOptionDisplaysKeyWithoutModifyingFiles(): void
     {
-        $this->app['config']->set('app.key', '');
+        $this->app->make('config')->set('app.key', '');
 
         file_put_contents($this->envDir . '/.env', 'APP_KEY=');
         $this->app->useEnvironmentPath($this->envDir);
@@ -61,9 +61,10 @@ class KeyGenerateCommandTest extends TestCase
         $this->assertSame('APP_KEY=', file_get_contents($this->envDir . '/.env'));
     }
 
-    public function testKeyIsWrittenToEnvFile()
+    public function testKeyIsWrittenToEnvFile(): void
     {
-        $this->app['config']->set('app.key', '');
+        $config = $this->app->make('config');
+        $config->set('app.key', '');
 
         file_put_contents($this->envDir . '/.env', 'APP_KEY=');
         $this->app->useEnvironmentPath($this->envDir);
@@ -76,12 +77,13 @@ class KeyGenerateCommandTest extends TestCase
         $this->assertStringStartsWith('APP_KEY=base64:', $envContents);
 
         // Config should also be updated
-        $this->assertStringStartsWith('base64:', $this->app['config']['app.key']);
+        $this->assertStringStartsWith('base64:', $config->get('app.key'));
     }
 
     public function testKeyIsWrittenToEnvFileWhenCurrentConfigKeyIsNull(): void
     {
-        $this->app['config']->set('app.key', null);
+        $config = $this->app->make('config');
+        $config->set('app.key', null);
 
         file_put_contents($this->envDir . '/.env', 'APP_KEY=');
         $this->app->useEnvironmentPath($this->envDir);
@@ -92,13 +94,13 @@ class KeyGenerateCommandTest extends TestCase
 
         $envContents = file_get_contents($this->envDir . '/.env');
         $this->assertStringStartsWith('APP_KEY=base64:', $envContents);
-        $this->assertStringStartsWith('base64:', $this->app['config']['app.key']);
+        $this->assertStringStartsWith('base64:', $config->get('app.key'));
     }
 
-    public function testForceOptionBypassesConfirmationInProduction()
+    public function testForceOptionBypassesConfirmationInProduction(): void
     {
-        $this->app['env'] = 'production';
-        $this->app['config']->set('app.key', 'base64:' . base64_encode(str_repeat('a', 16)));
+        $this->app->instance('env', 'production');
+        $this->app->make('config')->set('app.key', 'base64:' . base64_encode(str_repeat('a', 16)));
 
         file_put_contents($this->envDir . '/.env', 'APP_KEY=base64:' . base64_encode(str_repeat('a', 16)));
         $this->app->useEnvironmentPath($this->envDir);
@@ -113,9 +115,9 @@ class KeyGenerateCommandTest extends TestCase
         $this->assertStringNotContainsString(base64_encode(str_repeat('a', 16)), $envContents);
     }
 
-    public function testErrorWhenEnvFileHasNoAppKeyLine()
+    public function testErrorWhenEnvFileHasNoAppKeyLine(): void
     {
-        $this->app['config']->set('app.key', '');
+        $this->app->make('config')->set('app.key', '');
 
         file_put_contents($this->envDir . '/.env', 'APP_NAME=Hypervel');
         $this->app->useEnvironmentPath($this->envDir);
@@ -125,10 +127,11 @@ class KeyGenerateCommandTest extends TestCase
             ->assertSuccessful();
     }
 
-    public function testGeneratedKeyHasCorrectLengthForCipher()
+    public function testGeneratedKeyHasCorrectLengthForCipher(): void
     {
-        $this->app['config']->set('app.key', '');
-        $this->app['config']->set('app.cipher', 'aes-256-cbc');
+        $config = $this->app->make('config');
+        $config->set('app.key', '');
+        $config->set('app.cipher', 'aes-256-cbc');
 
         file_put_contents($this->envDir . '/.env', 'APP_KEY=');
         $this->app->useEnvironmentPath($this->envDir);
@@ -146,7 +149,8 @@ class KeyGenerateCommandTest extends TestCase
 
     public function testProhibitedCommandDoesNotGenerateOrPublishAKey(): void
     {
-        $this->app['config']->set('app.key', '');
+        $config = $this->app->make('config');
+        $config->set('app.key', '');
         $path = $this->envDir . '/.env';
         file_put_contents($path, 'APP_KEY=');
         KeyGenerateCommand::prohibit();
@@ -156,13 +160,14 @@ class KeyGenerateCommandTest extends TestCase
             ->assertSuccessful();
 
         $this->assertSame('APP_KEY=', file_get_contents($path));
-        $this->assertSame('', $this->app['config']->get('app.key'));
+        $this->assertSame('', $config->get('app.key'));
     }
 
     #[DataProvider('quotedKeyLines')]
     public function testExactQuotedKeyLinesAreReplaced(string $configuredKey, string $line, string $suffix): void
     {
-        $this->app['config']->set('app.key', $configuredKey);
+        $config = $this->app->make('config');
+        $config->set('app.key', $configuredKey);
         $path = $this->envDir . '/.env';
         file_put_contents($path, $line);
 
@@ -171,7 +176,7 @@ class KeyGenerateCommandTest extends TestCase
             ->assertSuccessful();
 
         $contents = file_get_contents($path);
-        $generatedKey = $this->app['config']->get('app.key');
+        $generatedKey = $config->get('app.key');
 
         $this->assertIsString($generatedKey);
         $this->assertStringStartsWith('base64:', $generatedKey);
@@ -196,7 +201,8 @@ class KeyGenerateCommandTest extends TestCase
     #[DataProvider('nonMatchingKeyLines')]
     public function testNonMatchingKeyLinesAreNotReplaced(string $line): void
     {
-        $this->app['config']->set('app.key', 'base64:current');
+        $config = $this->app->make('config');
+        $config->set('app.key', 'base64:current');
         $path = $this->envDir . '/.env';
         file_put_contents($path, $line);
 
@@ -204,7 +210,7 @@ class KeyGenerateCommandTest extends TestCase
             ->assertSuccessful();
 
         $this->assertSame($line, file_get_contents($path));
-        $this->assertSame('base64:current', $this->app['config']->get('app.key'));
+        $this->assertSame('base64:current', $config->get('app.key'));
     }
 
     /**
@@ -222,7 +228,7 @@ class KeyGenerateCommandTest extends TestCase
 
     public function testMissingEnvironmentFileThrowsTheFilesystemException(): void
     {
-        $this->app['config']->set('app.key', '');
+        $this->app->make('config')->set('app.key', '');
 
         $this->expectException(FileNotFoundException::class);
         $this->expectExceptionMessage('File does not exist at path');
@@ -232,7 +238,7 @@ class KeyGenerateCommandTest extends TestCase
 
     public function testEnvironmentReadFailureRemainsAFileNotFoundException(): void
     {
-        $this->app['config']->set('app.key', '');
+        $this->app->make('config')->set('app.key', '');
         $path = $this->envDir . '/.env';
         file_put_contents($path, 'APP_KEY=');
         $filesystem = new FaultingKeyEnvironmentFilesystem;
@@ -247,7 +253,8 @@ class KeyGenerateCommandTest extends TestCase
 
     public function testEnvironmentReplacementFailureDoesNotPublishPartialState(): void
     {
-        $this->app['config']->set('app.key', '');
+        $config = $this->app->make('config');
+        $config->set('app.key', '');
         $path = $this->envDir . '/.env';
         file_put_contents($path, 'APP_KEY=');
         $filesystem = new FaultingKeyEnvironmentFilesystem;
@@ -263,12 +270,12 @@ class KeyGenerateCommandTest extends TestCase
         }
 
         $this->assertSame('APP_KEY=', file_get_contents($path));
-        $this->assertSame('', $this->app['config']->get('app.key'));
+        $this->assertSame('', $config->get('app.key'));
     }
 
     public function testEnvironmentFileModeIsPreservedWhenTheKeyIsReplaced(): void
     {
-        $this->app['config']->set('app.key', '');
+        $this->app->make('config')->set('app.key', '');
         $path = $this->envDir . '/.env';
         file_put_contents($path, 'APP_KEY=');
         chmod($path, 0640);

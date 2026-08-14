@@ -55,7 +55,7 @@ class PreventRequestForgeryServerRuntimeTest extends TestCase
 
         $response = $this->get('/csrf-cookie')->assertOk();
 
-        $sessionCookie = $this->cookieFromResponse($response->headers->getCookies(), $this->app['config']->get('session.cookie'));
+        $sessionCookie = $this->cookieFromResponse($response->headers->getCookies(), $this->app->make('config')->string('session.cookie'));
 
         $this->withUnencryptedCookie($sessionCookie->getName(), $sessionCookie->getValue())
             ->post('/csrf-protected')
@@ -67,7 +67,7 @@ class PreventRequestForgeryServerRuntimeTest extends TestCase
         $response = $this->get('/csrf-cookie')->assertOk();
 
         $cookies = $response->headers->getCookies();
-        $sessionCookie = $this->cookieFromResponse($cookies, $this->app['config']->get('session.cookie'));
+        $sessionCookie = $this->cookieFromResponse($cookies, $this->app->make('config')->string('session.cookie'));
         $xsrfCookie = $this->cookieFromResponse($cookies, 'XSRF-TOKEN');
 
         $this->withUnencryptedCookie($sessionCookie->getName(), $sessionCookie->getValue())

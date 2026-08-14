@@ -9,6 +9,7 @@ use Exception;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\PendingBatch;
 use Hypervel\Bus\Queueable;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Foundation\Bus\PendingChain;
@@ -27,11 +28,11 @@ class JobChainingTest extends QueueTestCase
 
     public static bool $catchCallbackRan = false;
 
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
 
-        $app['config']->set([
+        $app->make('config')->set([
             'queue.connections.sync1' => ['driver' => 'sync'],
             'queue.connections.sync2' => ['driver' => 'sync'],
         ]);

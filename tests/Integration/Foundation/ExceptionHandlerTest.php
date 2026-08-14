@@ -47,11 +47,11 @@ class ExceptionHandlerTest extends TestCase
             ]);
     }
 
-    public function testItDoesntReportExceptionsWithShouldntReportInterface()
+    public function testItDoesntReportExceptionsWithShouldntReportInterface(): void
     {
         Config::set('app.debug', true);
         $reported = [];
-        $this->app[ExceptionHandler::class]->reportable(function (Throwable $e) use (&$reported) {
+        $this->app->make(ExceptionHandler::class)->reportable(function (Throwable $e) use (&$reported) {
             $reported[] = $e;
         });
 
@@ -168,12 +168,12 @@ class ExceptionHandlerTest extends TestCase
             ]);
     }
 
-    public function testItHandlesMalformedErrorViewsInProduction()
+    public function testItHandlesMalformedErrorViewsInProduction(): void
     {
         Config::set('view.paths', [__DIR__ . '/Fixtures/MalformedErrorViews']);
         Config::set('app.debug', false);
         $reported = [];
-        $this->app[ExceptionHandler::class]->reportable(function (Throwable $e) use (&$reported) {
+        $this->app->make(ExceptionHandler::class)->reportable(function (Throwable $e) use (&$reported) {
             $reported[] = $e;
         });
 
@@ -189,12 +189,12 @@ class ExceptionHandlerTest extends TestCase
         $response->assertStatus(404);
     }
 
-    public function testItHandlesMalformedErrorViewsInDevelopment()
+    public function testItHandlesMalformedErrorViewsInDevelopment(): void
     {
         Config::set('view.paths', [__DIR__ . '/Fixtures/MalformedErrorViews']);
         Config::set('app.debug', true);
         $reported = [];
-        $this->app[ExceptionHandler::class]->reportable(function (Throwable $e) use (&$reported) {
+        $this->app->make(ExceptionHandler::class)->reportable(function (Throwable $e) use (&$reported) {
             $reported[] = $e;
         });
 
@@ -210,10 +210,10 @@ class ExceptionHandlerTest extends TestCase
         $response->assertStatus(500);
     }
 
-    public function testItUseCustomJsonResponseFactoryInExceptionHandler()
+    public function testItUseCustomJsonResponseFactoryInExceptionHandler(): void
     {
         $this->app->singleton(ResponseFactoryContract::class, function ($app) {
-            return new class($app['view'], $app['redirect']) extends ResponseFactory {
+            return new class($app->make('view'), $app->make('redirect')) extends ResponseFactory {
                 public function json(mixed $data = [], int $status = 200, array $headers = [], int $options = 0): JsonResponse
                 {
                     $msg = $data['message'] ?? $data['msg'] ?? null;
@@ -315,7 +315,7 @@ class ExceptionHandlerTest extends TestCase
     }
 
     #[DataProvider('exitCodesProvider')]
-    public function testItReturnsNonZeroExitCodesForUncaughtExceptions($providers, $successful)
+    public function testItReturnsNonZeroExitCodesForUncaughtExceptions(array $providers, bool $successful): void
     {
         $basePath = static::applicationBasePath();
         $providers = json_encode($providers);
@@ -328,7 +328,7 @@ require 'vendor/autoload.php';
 \$app = Hypervel\\Testbench\\Foundation\\Application::create(basePath: '{$basePath}', options: ['extra' => ['providers' => {$providers}]]);
 \$app->singleton('Hypervel\\Contracts\\Debug\\ExceptionHandler', 'Hypervel\\Foundation\\Exceptions\\Handler');
 
-\$kernel = \$app[Hypervel\\Contracts\\Console\\Kernel::class];
+\$kernel = \$app->make(Hypervel\\Contracts\\Console\\Kernel::class);
 
 return \$kernel->call('throw-exception-command');
 EOF, __DIR__ . '/../../../', ['APP_RUNNING_IN_CONSOLE' => true]);

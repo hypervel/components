@@ -9,12 +9,16 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Core\Events\OnWorkerExit;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Reverb\Application;
+use Hypervel\Reverb\Connection as ReverbConnection;
+use Hypervel\Reverb\Contracts\ApplicationProvider;
 use Hypervel\Reverb\Protocols\Pusher\Server as PusherServer;
 use Hypervel\Reverb\ReverbServiceProvider;
 use Hypervel\Reverb\ServerProviderManager;
+use Hypervel\Reverb\Servers\Hypervel\Connection as WebSocketConnection;
 use Hypervel\Reverb\Servers\Hypervel\ConnectionLifecycle;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
+use Hypervel\Reverb\Servers\Hypervel\HypervelServerProvider;
 use Hypervel\Reverb\Servers\Hypervel\WebSocketHandler;
 use Hypervel\Reverb\Webhooks\DeferredWebhookManager;
 use Hypervel\Reverb\Webhooks\Jobs\FlushWebhookBatchJob;
@@ -202,7 +206,7 @@ class GracefulShutdownTest extends ReverbTestCase
     {
         Queue::fake([FlushWebhookBatchJob::class]);
 
-        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', [
             'url' => 'https://example.com/webhook',
             'events' => ['channel_occupied'],
             'batching' => ['enabled' => true],
@@ -224,7 +228,7 @@ class GracefulShutdownTest extends ReverbTestCase
     {
         Queue::fake([FlushWebhookBatchJob::class]);
 
-        // Default config has no batching
+        // Default config disables batching.
         $provider = $this->app->getProvider(ReverbServiceProvider::class);
         $method = new ReflectionMethod($provider, 'flushWebhookBuffers');
         $method->invoke($provider);
@@ -236,7 +240,7 @@ class GracefulShutdownTest extends ReverbTestCase
     {
         Queue::fake([FlushWebhookBatchJob::class]);
 
-        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', [
             'url' => 'https://example.com/webhook',
             'events' => ['channel_occupied'],
             'batching' => ['enabled' => true],
@@ -323,11 +327,11 @@ class GracefulShutdownTest extends ReverbTestCase
 
     public function testDisconnectScalingSubscriberCallsDisconnect(): void
     {
-        $this->app['config']->set('reverb.servers.reverb.scaling.enabled', true);
+        config()->set('reverb.servers.reverb.scaling.enabled', true);
 
-        $provider = new \Hypervel\Reverb\Servers\Hypervel\HypervelServerProvider(
+        $provider = new HypervelServerProvider(
             $this->app,
-            $this->app['config']->get('reverb.servers.reverb', [])
+            config()->array('reverb.servers.reverb')
         );
         $provider->register();
         $this->app->make(ServerProviderManager::class)->withPublishing();
@@ -359,7 +363,7 @@ class GracefulShutdownTest extends ReverbTestCase
         $sender = m::mock(Sender::class);
         $sender->shouldReceive('disconnect')->once()->with(99)->andReturn(true);
 
-        $wsConnection = new \Hypervel\Reverb\Servers\Hypervel\Connection($sender, 99);
+        $wsConnection = new WebSocketConnection($sender, 99);
         $wsConnection->close();
     }
 
@@ -368,13 +372,13 @@ class GracefulShutdownTest extends ReverbTestCase
         $sender = m::mock(Sender::class);
         $sender->shouldReceive('disconnect')->once()->with(99, 1001, 'Server restarting')->andReturn(true);
 
-        $wsConnection = new \Hypervel\Reverb\Servers\Hypervel\Connection($sender, 99);
+        $wsConnection = new WebSocketConnection($sender, 99);
         $wsConnection->close(code: 1001, reason: 'Server restarting');
     }
 
     // ── Helpers ───────────────────────────────────────────────────────
 
-    protected function createReverbConnection(?Sender $sender = null, ?int $fd = null): \Hypervel\Reverb\Connection
+    protected function createReverbConnection(?Sender $sender = null, ?int $fd = null): ReverbConnection
     {
         if ($sender === null) {
             $sender = m::mock(Sender::class);
@@ -382,13 +386,13 @@ class GracefulShutdownTest extends ReverbTestCase
             $sender->shouldReceive('disconnect')->zeroOrMoreTimes()->andReturn(true);
         }
 
-        $wsConnection = new \Hypervel\Reverb\Servers\Hypervel\Connection($sender, $fd ?? rand(1, 99999));
-        $app = $this->app->make(\Hypervel\Reverb\Contracts\ApplicationProvider::class)->all()->first();
+        $wsConnection = new WebSocketConnection($sender, $fd ?? rand(1, 99999));
+        $app = $this->app->make(ApplicationProvider::class)->all()->first();
 
-        return new \Hypervel\Reverb\Connection($wsConnection, $app, null);
+        return new ReverbConnection($wsConnection, $app, null);
     }
 
-    protected function addToWebSocketHandler(int $fd, \Hypervel\Reverb\Connection $connection): void
+    protected function addToWebSocketHandler(int $fd, ReverbConnection $connection): void
     {
         $connection->markEstablished();
         $lifecycle = new ConnectionLifecycle($fd);

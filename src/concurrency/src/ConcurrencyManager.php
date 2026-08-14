@@ -60,9 +60,7 @@ class ConcurrencyManager extends MultipleInstanceManager
      */
     public function getDefaultInstance(): string
     {
-        return $this->app['config']['concurrency.default']
-            ?? $this->app['config']['concurrency.driver']
-            ?? 'coroutine';
+        return $this->config->string('concurrency.default');
     }
 
     /**
@@ -72,8 +70,7 @@ class ConcurrencyManager extends MultipleInstanceManager
      */
     public function setDefaultInstance(string $name): void
     {
-        $this->app['config']['concurrency.default'] = $name;
-        $this->app['config']['concurrency.driver'] = $name;
+        $this->config->set('concurrency.default', $name);
     }
 
     /**
@@ -81,7 +78,7 @@ class ConcurrencyManager extends MultipleInstanceManager
      */
     public function getInstanceConfig(string $name): array
     {
-        return $this->app['config']->get(
+        return $this->config->array(
             'concurrency.driver.' . $name,
             ['driver' => $name],
         );

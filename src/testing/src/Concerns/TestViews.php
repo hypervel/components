@@ -38,7 +38,7 @@ trait TestViews
      */
     protected function parallelSafeCompiledViewPath(): ?string
     {
-        $path = $this->app->make('config')->string('view.compiled', '');
+        $path = $this->app->make('config')->string('view.compiled');
 
         if (! $path) {
             return null;
@@ -57,10 +57,10 @@ trait TestViews
      */
     protected function switchToCompiledViewPath(string $path): void
     {
-        $this->app['config']->set('view.compiled', $path);
+        $this->app->make('config')->set('view.compiled', $path);
 
         if ($this->app->resolved('blade.compiler')) {
-            $compiler = $this->app['blade.compiler'];
+            $compiler = $this->app->make('blade.compiler');
 
             (function () use ($path) {
                 $this->cachePath = $path; /* @phpstan-ignore property.notFound */

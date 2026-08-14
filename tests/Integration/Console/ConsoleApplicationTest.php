@@ -85,11 +85,11 @@ class ConsoleApplicationTest extends TestCase
         $mock->assertExitCode(0);
     }
 
-    public function testArtisanInstantiateScheduleWhenNeed()
+    public function testArtisanInstantiateScheduleWhenNeed(): void
     {
         $this->assertFalse($this->app->resolved(Schedule::class));
 
-        $this->app[Kernel::class]->registerCommand(new ScheduleCommand);
+        $this->app->make(Kernel::class)->registerCommand(new ScheduleCommand);
 
         $this->assertFalse($this->app->resolved(Schedule::class));
 
@@ -98,11 +98,11 @@ class ConsoleApplicationTest extends TestCase
         $this->assertTrue($this->app->resolved(Schedule::class));
     }
 
-    public function testArtisanQueue()
+    public function testArtisanQueue(): void
     {
         Queue::fake();
 
-        $this->app[Kernel::class]->queue('foo:bar', [
+        $this->app->make(Kernel::class)->queue('foo:bar', [
             'id' => 1,
         ]);
 

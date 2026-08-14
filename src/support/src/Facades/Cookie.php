@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -36,8 +37,10 @@ class Cookie extends Facade
     public static function has(UnitEnum|string $key): bool
     {
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
+        /** @var ContainerContract $app */
+        $app = static::$app;
 
-        return ! is_null(static::$app['request']->cookie($key));
+        return ! is_null($app->make('request')->cookie($key));
     }
 
     /**
@@ -48,8 +51,10 @@ class Cookie extends Facade
     public static function get(UnitEnum|string|null $key = null, mixed $default = null): mixed
     {
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
+        /** @var ContainerContract $app */
+        $app = static::$app;
 
-        return static::$app['request']->cookie($key) ?? $default;
+        return $app->make('request')->cookie($key) ?? $default;
     }
 
     /**

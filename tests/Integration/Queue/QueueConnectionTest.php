@@ -62,9 +62,9 @@ class QueueConnectionTest extends TestCase
         }
     }
 
-    public function testJobWontGetDispatchedInsideATransactionWhenExplicitlyIndicated()
+    public function testJobWontGetDispatchedInsideATransactionWhenExplicitlyIndicated(): void
     {
-        $this->app['config']->set('queue.connections.sqs.after_commit', false);
+        $this->app->make('config')->set('queue.connections.sqs.after_commit', false);
 
         $this->app->singleton('db.transactions', function () {
             $transactionManager = m::mock(DatabaseTransactionsManager::class);
@@ -117,9 +117,9 @@ class QueueConnectionTest extends TestCase
         }
     }
 
-    public function testUniqueJobWontGetDispatchedInsideATransactionWhenExplicitlyIndicated()
+    public function testUniqueJobWontGetDispatchedInsideATransactionWhenExplicitlyIndicated(): void
     {
-        $this->app['config']->set('queue.connections.sqs.after_commit', false);
+        $this->app->make('config')->set('queue.connections.sqs.after_commit', false);
 
         $this->app->singleton('db.transactions', function () {
             $transactionManager = m::mock(DatabaseTransactionsManager::class);

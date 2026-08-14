@@ -27,7 +27,7 @@ class LogLogsIntegrationTest extends SentryTestCase
     {
         parent::defineEnvironment($app);
 
-        tap($app['config'], static function (Repository $config) {
+        tap($app->make('config'), static function (Repository $config) {
             $config->set('sentry.enable_logs', true);
 
             $config->set('logging.channels.sentry_logs', [

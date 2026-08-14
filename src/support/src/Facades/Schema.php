@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
+use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Database\Schema\Builder;
+
 /**
  * @method static void blueprintResolver(\Closure $resolver)
  * @method static void create(string $table, \Closure $callback)
@@ -72,9 +75,12 @@ class Schema extends Facade
     /**
      * Get a schema builder instance for a connection.
      */
-    public static function connection(?string $name = null): \Hypervel\Database\Schema\Builder
+    public static function connection(?string $name = null): Builder
     {
-        return static::$app['db']->connection($name)->getSchemaBuilder();
+        /** @var ContainerContract $app */
+        $app = static::$app;
+
+        return $app->make('db')->connection($name)->getSchemaBuilder();
     }
 
     /**

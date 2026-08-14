@@ -332,7 +332,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertTrue($debugOn->hasDebugModeEnabled());
     }
 
-    public function testBeforeBootstrappingAddsClosure()
+    public function testBeforeBootstrappingAddsClosure(): void
     {
         $app = new Application;
         $eventDispatcher = new EventDispatcher($app);
@@ -340,10 +340,10 @@ class FoundationApplicationTest extends TestCase
 
         $closure = function () {};
         $app->beforeBootstrapping(RegisterFacades::class, $closure);
-        $this->assertArrayHasKey(0, $app['events']->getListeners('bootstrapping: Hypervel\Foundation\Bootstrap\RegisterFacades'));
+        $this->assertArrayHasKey(0, $app->make('events')->getListeners('bootstrapping: Hypervel\Foundation\Bootstrap\RegisterFacades'));
     }
 
-    public function testAfterBootstrappingAddsClosure()
+    public function testAfterBootstrappingAddsClosure(): void
     {
         $app = new Application;
         $eventDispatcher = new EventDispatcher($app);
@@ -351,7 +351,7 @@ class FoundationApplicationTest extends TestCase
 
         $closure = function () {};
         $app->afterBootstrapping(RegisterFacades::class, $closure);
-        $this->assertArrayHasKey(0, $app['events']->getListeners('bootstrapped: Hypervel\Foundation\Bootstrap\RegisterFacades'));
+        $this->assertArrayHasKey(0, $app->make('events')->getListeners('bootstrapped: Hypervel\Foundation\Bootstrap\RegisterFacades'));
     }
 
     public function testTerminationTests()
@@ -815,7 +815,7 @@ class FoundationApplicationTest extends TestCase
         }
     }
 
-    public function testMethodAfterLoadingEnvironmentAddsClosure()
+    public function testMethodAfterLoadingEnvironmentAddsClosure(): void
     {
         $app = new Application;
         $eventDispatcher = new EventDispatcher($app);
@@ -824,7 +824,7 @@ class FoundationApplicationTest extends TestCase
         $closure = function () {};
         $app->afterLoadingEnvironment($closure);
 
-        $listeners = $app['events']->getListeners('bootstrapped: ' . LoadEnvironmentVariables::class);
+        $listeners = $app->make('events')->getListeners('bootstrapped: ' . LoadEnvironmentVariables::class);
         $this->assertArrayHasKey(0, $listeners);
     }
 

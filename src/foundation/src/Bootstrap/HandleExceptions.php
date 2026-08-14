@@ -86,7 +86,7 @@ class HandleExceptions
 
         $this->ensureDeprecationLoggerIsConfigured();
 
-        $options = static::$app['config']->get('logging.deprecations') ?? [];
+        $options = static::$app->make('config')->get('logging.deprecations') ?? [];
 
         with($logger->channel('deprecations'), function ($log) use ($message, $file, $line, $level, $options) {
             if ($options['trace'] ?? false) {
@@ -118,7 +118,7 @@ class HandleExceptions
      */
     protected function ensureDeprecationLoggerIsConfigured(): void
     {
-        $config = static::$app['config'];
+        $config = static::$app->make('config');
 
         if ($config->get('logging.channels.deprecations')) {
             return;
@@ -140,7 +140,7 @@ class HandleExceptions
      */
     protected function ensureNullLogDriverIsConfigured(): void
     {
-        $config = static::$app['config'];
+        $config = static::$app->make('config');
 
         if ($config->get('logging.channels.null')) {
             return;

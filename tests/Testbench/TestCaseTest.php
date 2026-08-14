@@ -36,10 +36,10 @@ class TestCaseTest extends TestCase
 
         $this->assertInstanceOf(Application::class, $app);
         $this->assertEquals('UTC', date_default_timezone_get());
-        $this->assertEquals('testing', $app['env']);
+        $this->assertSame('testing', $app->make('env'));
         $this->assertSame('testing', $app->environment());
         $this->assertTrue($app->runningUnitTests());
-        $this->assertInstanceOf(ConfigRepository::class, $app['config']);
+        $this->assertInstanceOf(ConfigRepository::class, $app->make('config'));
 
         $this->assertInstanceOf(TestCaseContract::class, $testbench);
         $this->assertTrue($testbench->isRunningTestCase());
@@ -59,10 +59,10 @@ class TestCaseTest extends TestCase
 
         $this->assertInstanceOf(Application::class, $app);
         $this->assertEquals('UTC', date_default_timezone_get());
-        $this->assertEquals($environment, $app['env']);
+        $this->assertSame($environment, $app->make('env'));
         $this->assertSame($environment, $app->environment());
         $this->assertSame(Env::has('TESTBENCH_PACKAGE_TESTER'), $app->runningUnitTests());
-        $this->assertInstanceOf(ConfigRepository::class, $app['config']);
+        $this->assertInstanceOf(ConfigRepository::class, $app->make('config'));
 
         $this->assertFalse($container->isRunningTestCase());
         $this->assertFalse($container->isRunningTestCaseUsingPest());

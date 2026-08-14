@@ -69,7 +69,7 @@ class CreateVendorSymlinkTest extends TestCase
 
         (new CreateVendorSymlink($workingPath))->bootstrap($application);
 
-        $this->assertTrue($application['TESTBENCH_VENDOR_SYMLINK']);
+        $this->assertTrue($application->make('TESTBENCH_VENDOR_SYMLINK'));
         $this->assertSame($config, $application->make('config'));
 
         $application->terminate();
@@ -89,7 +89,7 @@ class CreateVendorSymlinkTest extends TestCase
 
         (new CreateVendorSymlink($workingPath))->bootstrap($application);
 
-        $this->assertFalse($application['TESTBENCH_VENDOR_SYMLINK']);
+        $this->assertFalse($application->make('TESTBENCH_VENDOR_SYMLINK'));
     }
 
     #[Test]

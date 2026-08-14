@@ -53,7 +53,7 @@ class RetryCommand extends Command
             if (is_null($job)) {
                 $this->components->error("Unable to find failed job with ID [{$id}].");
             } else {
-                $this->hypervel['events']->dispatch(new JobRetryRequested($job));
+                $this->hypervel->make('events')->dispatch(new JobRetryRequested($job));
 
                 $this->components->task($id, fn () => $this->retryJob($job));
 
@@ -127,7 +127,7 @@ class RetryCommand extends Command
      */
     protected function retryJob(stdClass $job): void
     {
-        $queue = $this->hypervel['queue']->connection($job->connection);
+        $queue = $this->hypervel->make('queue')->connection($job->connection);
 
         $queue->pushRaw(
             $this->refreshRetryUntil($this->resetAttempts($job->payload)),

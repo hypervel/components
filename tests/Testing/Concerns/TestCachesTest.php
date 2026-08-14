@@ -60,7 +60,7 @@ class TestCachesTest extends TestCase
     #[DataProvider('cachePrefixes')]
     public function testCachePrefixAppendsToken(string $prefix, string $token, string $expected): void
     {
-        Container::getInstance()['config']->set('cache.prefix', $prefix);
+        Container::getInstance()->make('config')->set('cache.prefix', $prefix);
         Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => $token);
 
         $this->assertSame($expected, $this->getParallelSafeCachePrefix());
@@ -87,11 +87,11 @@ class TestCachesTest extends TestCase
     {
         Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '1');
 
-        Container::getInstance()['config']->set('cache.prefix', 'custom_cache_');
+        Container::getInstance()->make('config')->set('cache.prefix', 'custom_cache_');
 
         $this->assertSame('custom_cache_test_1_', $this->getParallelSafeCachePrefix());
 
-        Container::getInstance()['config']->set('cache.prefix', 'myapp_cache_');
+        Container::getInstance()->make('config')->set('cache.prefix', 'myapp_cache_');
 
         $this->assertSame('myapp_cache_test_1_', $this->getParallelSafeCachePrefix());
     }
@@ -99,7 +99,7 @@ class TestCachesTest extends TestCase
     public function testCachePrefixDoesNotDoubleAppendToken(): void
     {
         Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '1');
-        Container::getInstance()['config']->set('cache.prefix', 'myapp_cache_test_1_');
+        Container::getInstance()->make('config')->set('cache.prefix', 'myapp_cache_test_1_');
 
         $this->assertSame('myapp_cache_test_1_', $this->getParallelSafeCachePrefix());
     }
@@ -108,7 +108,7 @@ class TestCachesTest extends TestCase
     {
         $this->switchToCachePrefix('new_prefix_');
 
-        $this->assertSame('new_prefix_', Container::getInstance()['config']->get('cache.prefix'));
+        $this->assertSame('new_prefix_', Container::getInstance()->make('config')->get('cache.prefix'));
     }
 
     public function testBootTestCacheRegistersSetUpTestCaseCallback(): void
@@ -142,7 +142,7 @@ class TestCachesTest extends TestCase
 
             Container::getInstance()->make(ParallelTesting::class)->callSetUpTestCaseCallbacks(new class {});
 
-            $this->assertSame('myapp_cache_', Container::getInstance()['config']->get('cache.prefix'));
+            $this->assertSame('myapp_cache_', Container::getInstance()->make('config')->get('cache.prefix'));
         } finally {
             if ($hadValue) {
                 $_SERVER['HYPERVEL_PARALLEL_TESTING_WITHOUT_CACHE'] = $original;
@@ -157,15 +157,17 @@ class TestCachesTest extends TestCase
         $container = Container::getInstance();
 
         $container->singleton('cache', fn ($app) => new CacheManager($app));
+        $config = $container->make('config');
 
-        $container['config']->set('cache.default', 'array');
-        $container['config']->set('cache.stores.array', ['driver' => 'array']);
+        $config->set('cache.default', 'array');
+        $config->set('cache.stores.array', ['driver' => 'array']);
 
-        $driver = $container['cache']->driver();
+        $cache = $container->make('cache');
+        $driver = $cache->driver();
 
         $this->switchToCachePrefix('new_prefix_');
 
-        $this->assertSame($driver, $container['cache']->driver());
+        $this->assertSame($driver, $cache->driver());
     }
 
     protected function getParallelSafeCachePrefix(): string
@@ -190,7 +192,7 @@ class TestCachesTest extends TestCase
         return new class {
             use TestCaches;
 
-            public $app;
+            public Container $app;
 
             public function __construct()
             {

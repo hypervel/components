@@ -68,7 +68,7 @@ class TestViewsTest extends TestCase
     {
         Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '3');
 
-        Container::getInstance()['config']->set('view.compiled', '/path/to/compiled/views/');
+        Container::getInstance()->make('config')->set('view.compiled', '/path/to/compiled/views/');
 
         $this->assertSame('/path/to/compiled/views/test_3', $this->getCompiledViewPath());
     }
@@ -77,7 +77,7 @@ class TestViewsTest extends TestCase
     {
         Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '42');
 
-        Container::getInstance()['config']->set('view.compiled', '/var/www/storage/views');
+        Container::getInstance()->make('config')->set('view.compiled', '/var/www/storage/views');
 
         $this->assertSame('/var/www/storage/views/test_42', $this->getCompiledViewPath());
     }
@@ -86,11 +86,11 @@ class TestViewsTest extends TestCase
     {
         Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '1');
 
-        Container::getInstance()['config']->set('view.compiled', '/custom/views');
+        Container::getInstance()->make('config')->set('view.compiled', '/custom/views');
 
         $this->assertSame('/custom/views/test_1', $this->getCompiledViewPath());
 
-        Container::getInstance()['config']->set('view.compiled', '/path/to/compiled/views');
+        Container::getInstance()->make('config')->set('view.compiled', '/path/to/compiled/views');
 
         $this->assertSame('/path/to/compiled/views/test_1', $this->getCompiledViewPath());
     }
@@ -98,14 +98,14 @@ class TestViewsTest extends TestCase
     public function testCompiledViewPathDoesNotDoubleAppendToken(): void
     {
         Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '1');
-        Container::getInstance()['config']->set('view.compiled', '/path/to/compiled/views/test_1');
+        Container::getInstance()->make('config')->set('view.compiled', '/path/to/compiled/views/test_1');
 
         $this->assertSame('/path/to/compiled/views/test_1', $this->getCompiledViewPath());
     }
 
     public function testCompiledViewPathReturnsNullWhenEmpty(): void
     {
-        Container::getInstance()['config']->set('view.compiled', '');
+        Container::getInstance()->make('config')->set('view.compiled', '');
 
         $this->assertNull($this->getCompiledViewPath());
     }
@@ -114,7 +114,7 @@ class TestViewsTest extends TestCase
     {
         $this->switchToCompiledViewPath('/new/compiled/path');
 
-        $this->assertSame('/new/compiled/path', Container::getInstance()['config']->get('view.compiled'));
+        $this->assertSame('/new/compiled/path', Container::getInstance()->make('config')->get('view.compiled'));
     }
 
     public function testSwitchToCompiledViewPathUpdatesCompilerCachePath(): void
@@ -126,7 +126,7 @@ class TestViewsTest extends TestCase
 
         $this->switchToCompiledViewPath('/new/compiled/path');
 
-        $this->assertSame('/new/compiled/path', $container['config']->get('view.compiled'));
+        $this->assertSame('/new/compiled/path', $container->make('config')->get('view.compiled'));
         $this->assertSame('/new/compiled/path', (new ReflectionProperty($compiler, 'cachePath'))->getValue($compiler));
     }
 
@@ -167,7 +167,7 @@ class TestViewsTest extends TestCase
         return new class {
             use TestViews;
 
-            public $app;
+            public Container $app;
 
             public function __construct()
             {

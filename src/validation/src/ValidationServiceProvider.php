@@ -30,13 +30,13 @@ class ValidationServiceProvider extends ServiceProvider
     protected function registerValidationFactory(): void
     {
         $this->app->singleton('validator', function ($app) {
-            $validator = new Factory($app['translator'], $app);
+            $validator = new Factory($app->make('translator'), $app);
 
             // The validation presence verifier is responsible for determining the existence of
             // values in a given data collection which is typically a relational database or
             // other persistent data stores. It is used to check for "uniqueness" as well.
-            if (isset($app['db'], $app['validation.presence'])) {
-                $validator->setPresenceVerifier($app['validation.presence']);
+            if ($app->bound('db') && $app->bound('validation.presence')) {
+                $validator->setPresenceVerifier($app->make('validation.presence'));
             }
 
             return $validator;
@@ -49,7 +49,7 @@ class ValidationServiceProvider extends ServiceProvider
     protected function registerPresenceVerifier(): void
     {
         $this->app->singleton('validation.presence', function ($app) {
-            return new DatabasePresenceVerifier($app['db']);
+            return new DatabasePresenceVerifier($app->make('db'));
         });
     }
 

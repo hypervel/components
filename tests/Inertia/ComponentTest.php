@@ -201,7 +201,7 @@ class ComponentTest extends TestCase
     {
         Config::set(['inertia.ssr.enabled' => true]);
 
-        $viewCachePath = $this->app['config']['view.compiled'];
+        $viewCachePath = $this->app->make('config')->string('view.compiled');
         $view = '<x-inertia::head><title>Fallback</title></x-inertia::head><x-inertia::app />';
 
         $this->renderView($view, ['page' => self::EXAMPLE_PAGE_OBJECT]);

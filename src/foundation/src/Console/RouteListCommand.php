@@ -413,7 +413,7 @@ class RouteListCommand extends Command
 
         $name = $name ? "{$name}   " : null;
 
-        $rootControllerNamespace = $this->hypervel[UrlGenerator::class]->getRootControllerNamespace()
+        $rootControllerNamespace = $this->hypervel->make(UrlGenerator::class)->getRootControllerNamespace()
             ?? ($this->hypervel->getNamespace() . 'Http\Controllers');
 
         if (str_starts_with($action, $rootControllerNamespace)) {

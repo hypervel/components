@@ -61,14 +61,14 @@ class StaticStateTest extends TestCase
         $app = new Application;
         (new LoadConfiguration)->bootstrap($app);
 
-        $this->assertSame('Static Test', $app['config']['app.name']);
+        $this->assertSame('Static Test', $app->make('config')->string('app.name'));
 
         LoadConfiguration::flushState();
 
         $app = new Application;
         (new LoadConfiguration)->bootstrap($app);
 
-        $this->assertSame('Hypervel', $app['config']['app.name']);
+        $this->assertSame('Hypervel', $app->make('config')->string('app.name'));
     }
 
     public function testCliDumperFlushStateClearsDumpSourceResolver(): void

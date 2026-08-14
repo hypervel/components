@@ -10,6 +10,6 @@ class ChildServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app['child.loaded'] = true;
+        $this->app->instance('child.loaded', true);
     }
 }

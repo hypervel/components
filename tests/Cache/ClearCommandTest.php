@@ -31,7 +31,7 @@ class ClearCommandTest extends TestCase
         parent::setUp();
 
         $app = new Application;
-        $app['path.storage'] = __DIR__;
+        $app->instance('path.storage', __DIR__);
 
         $this->cacheManager = m::mock(CacheManager::class);
         $this->files = m::mock(Filesystem::class);

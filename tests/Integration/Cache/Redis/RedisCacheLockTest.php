@@ -31,7 +31,7 @@ class RedisCacheLockTest extends TestCase
 
     public function testRedisLockCanHaveASeparateConnection(): void
     {
-        $this->app['config']->set('cache.stores.redis.lock_connection', 'default');
+        $this->app->make('config')->set('cache.stores.redis.lock_connection', 'default');
 
         $this->assertSame('default', Cache::store('redis')->lock('foo')->getConnectionName());
     }

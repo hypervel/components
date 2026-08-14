@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Integration\Generators;
 
 class EnumMakeCommandTest extends TestCase
 {
-    protected $files = [
+    protected array $files = [
         'app/IntEnum.php',
         'app/StatusEnum.php',
         'app/StringEnum.php',
@@ -46,12 +46,12 @@ class EnumMakeCommandTest extends TestCase
         ], 'app/IntEnum.php');
     }
 
-    public function testItCanGenerateEnumFileInEnumsFolder()
+    public function testItCanGenerateEnumFileInEnumsFolder(): void
     {
         $enumsFolderPath = app_path('Enums');
 
         /** @var \Hypervel\Filesystem\Filesystem $files */
-        $files = $this->app['files'];
+        $files = $this->app->make('files');
 
         $files->ensureDirectoryExists($enumsFolderPath);
 
@@ -66,12 +66,12 @@ class EnumMakeCommandTest extends TestCase
         $files->deleteDirectory($enumsFolderPath);
     }
 
-    public function testItCanGenerateEnumFileInEnumerationsFolder()
+    public function testItCanGenerateEnumFileInEnumerationsFolder(): void
     {
         $enumerationsFolderPath = app_path('Enumerations');
 
         /** @var \Hypervel\Filesystem\Filesystem $files */
-        $files = $this->app['files'];
+        $files = $this->app->make('files');
 
         $files->ensureDirectoryExists($enumerationsFolderPath);
 

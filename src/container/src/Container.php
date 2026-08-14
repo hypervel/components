@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Container;
 
-use ArrayAccess;
 use Closure;
 use Exception;
 use Hypervel\Container\Attributes\Bind;
@@ -30,7 +29,7 @@ use Swoole\Coroutine as SwooleCoroutine;
 use Throwable;
 use TypeError;
 
-class Container implements ArrayAccess, ContainerContract
+class Container implements ContainerContract
 {
     use ReflectsClosures;
 
@@ -711,9 +710,9 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * Register an existing instance as shared in the container.
      *
-     * Tests only. Replaces a worker-lifetime shared instance; runtime use races
-     * across coroutines and changes the object returned to every subsequent
-     * resolver.
+     * Boot or tests only. Replaces a worker-lifetime shared instance; runtime
+     * use races across coroutines and changes the object returned to every
+     * subsequent resolver.
      *
      * @template TInstance of mixed
      *
@@ -2379,62 +2378,6 @@ class Container implements ArrayAccess, ContainerContract
         static::$buildRecipes = [];
     }
 
-    /**
-     * Determine if a given offset exists.
-     *
-     * @param string $key
-     */
-    public function offsetExists($key): bool
-    {
-        return $this->bound($key);
-    }
-
-    /**
-     * Get the value at a given offset.
-     *
-     * @param string $key
-     */
-    public function offsetGet($key): mixed
-    {
-        return $this->make($key);
-    }
-
-    /**
-     * Set the value at a given offset.
-     *
-     * @param string $key
-     * @param mixed $value
-     */
-    public function offsetSet($key, $value): void
-    {
-        $this->bind($key, $value instanceof Closure ? $value : fn () => $value);
-    }
-
-    /**
-     * Unset the value at a given offset.
-     *
-     * @param string $key
-     */
-    public function offsetUnset($key): void
-    {
-        unset($this->bindings[$key], $this->resolved[$key], $this->scopedInstances[$key]);
-
-        $this->dropStaleInstances($key);
-    }
-
-    /**
-     * Dynamically access container services.
-     */
-    public function __get(string $key): mixed
-    {
-        return $this[$key];
-    }
-
-    /**
-     * Dynamically set container services.
-     */
-    public function __set(string $key, mixed $value): void
-    {
-        $this[$key] = $value;
-    }
+    // Hypervel intentionally omits container array and dynamic property access.
+    // Use named methods so resolution and binding lifecycles remain explicit.
 }

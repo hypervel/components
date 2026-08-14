@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\Console\ClearCommand;
@@ -18,11 +19,13 @@ use Symfony\Component\Console\Output\BufferedOutput;
 
 class QueueCommandIdentifierTest extends TestCase
 {
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app['config']->set('queue.default', 'redis');
-        $app['config']->set('queue.connections.redis.queue', 'default');
-        $app['config']->set('queue.connections.0.queue', 'zero-default');
+        $config = $app->make('config');
+
+        $config->set('queue.default', 'redis');
+        $config->set('queue.connections.redis.queue', 'default');
+        $config->set('queue.connections.0.queue', 'zero-default');
     }
 
     #[DataProvider('queueIdentifierProvider')]
@@ -59,7 +62,7 @@ class QueueCommandIdentifierTest extends TestCase
         string $expectedConnection,
         string $expectedQueue,
     ): void {
-        $this->app['config']->set("queue.connections.{$expectedConnection}.queue", $expectedQueue);
+        $this->app->make('config')->set("queue.connections.{$expectedConnection}.queue", $expectedQueue);
 
         $listener = m::mock(Listener::class);
         $listener->shouldReceive('setOutputHandler')->once();

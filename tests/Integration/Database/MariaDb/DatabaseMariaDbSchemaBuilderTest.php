@@ -14,7 +14,7 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 #[RequiresPhpExtension('pdo_mysql')]
 class DatabaseMariaDbSchemaBuilderTest extends MariaDbTestCase
 {
-    public function testAddCommentToTable()
+    public function testAddCommentToTable(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
@@ -22,7 +22,7 @@ class DatabaseMariaDbSchemaBuilderTest extends MariaDbTestCase
         });
 
         $tableInfo = DB::table('information_schema.tables')
-            ->where('table_schema', $this->app['config']->get('database.connections.mariadb.database'))
+            ->where('table_schema', $this->app->make('config')->string('database.connections.mariadb.database'))
             ->where('table_name', 'users')
             ->select('table_comment as table_comment')
             ->first();

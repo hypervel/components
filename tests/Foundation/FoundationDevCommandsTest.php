@@ -21,7 +21,7 @@ class FoundationDevCommandsTest extends TestCase
         DevCommands::flushState();
 
         $app = new Application(__DIR__);
-        $app['env'] = 'testing';
+        $app->instance('env', 'testing');
         $app->setRunningInConsole(true);
     }
 

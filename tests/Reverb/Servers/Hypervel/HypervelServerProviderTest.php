@@ -28,12 +28,12 @@ class HypervelServerProviderTest extends ReverbTestCase
 
     public function testBindsRedisSharedStateWhenScalingEnabled(): void
     {
-        $this->app['config']->set('reverb.servers.reverb.scaling.enabled', true);
+        config()->set('reverb.servers.reverb.scaling.enabled', true);
 
         // Re-register the provider with new config
         $provider = new HypervelServerProvider(
             $this->app,
-            $this->app['config']->get('reverb.servers.reverb', [])
+            config()->array('reverb.servers.reverb')
         );
         $provider->register();
 
@@ -52,11 +52,11 @@ class HypervelServerProviderTest extends ReverbTestCase
 
     public function testScalingSharedStateDefaultsToReverbRedisConnection(): void
     {
-        $this->app['config']->set('reverb.servers.reverb.scaling.enabled', true);
+        config()->set('reverb.servers.reverb.scaling.enabled', true);
 
         $provider = new HypervelServerProvider(
             $this->app,
-            $this->app['config']->get('reverb.servers.reverb', [])
+            config()->array('reverb.servers.reverb')
         );
         $provider->register();
 
@@ -68,12 +68,12 @@ class HypervelServerProviderTest extends ReverbTestCase
 
     public function testScalingSharedStateUsesConfiguredRedisConnection(): void
     {
-        $this->app['config']->set('reverb.servers.reverb.scaling.enabled', true);
-        $this->app['config']->set('reverb.servers.reverb.scaling.connection', 'queue');
+        config()->set('reverb.servers.reverb.scaling.enabled', true);
+        config()->set('reverb.servers.reverb.scaling.connection', 'queue');
 
         $provider = new HypervelServerProvider(
             $this->app,
-            $this->app['config']->get('reverb.servers.reverb', [])
+            config()->array('reverb.servers.reverb')
         );
         $provider->register();
 

@@ -108,7 +108,7 @@ class RedisIntegrationTest extends SentryTestCase
     {
         $this->setupMocks();
         $this->startSession();
-        $sessionId = $this->app['session']->getId();
+        $sessionId = $this->app->make('session')->getId();
         $transaction = $this->startTransaction();
 
         $dispatcher = $this->app->make(Dispatcher::class);
@@ -130,7 +130,7 @@ class RedisIntegrationTest extends SentryTestCase
         $this->app->make(RedisFeature::class)->detectSessionKeyOnConsole = true;
         $this->setupMocks();
         $this->startSession();
-        $sessionId = $this->app['session']->getId();
+        $sessionId = $this->app->make('session')->getId();
         $transaction = $this->startTransaction();
 
         $dispatcher = $this->app->make(Dispatcher::class);

@@ -14,7 +14,7 @@ use Mockery as m;
 
 class DashboardStatsControllerTest extends ControllerTestCase
 {
-    public function testAllStatsAreCorrectlyReturned()
+    public function testAllStatsAreCorrectlyReturned(): void
     {
         // Setup supervisor data...
         $supervisors = m::mock(SupervisorRepository::class);
@@ -53,8 +53,10 @@ class DashboardStatsControllerTest extends ControllerTestCase
         ]);
         $this->app->instance(WaitTimeCalculator::class, $wait);
 
-        $this->app['config']->set('horizon.trim.recent_failed', 10080);
-        $this->app['config']->set('horizon.trim.recent', 60);
+        $config = $this->app->make('config');
+
+        $config->set('horizon.trim.recent_failed', 10080);
+        $config->set('horizon.trim.recent', 60);
 
         $response = $this->actingAs(new Fakes\User)
             ->get('/horizon/api/stats');
@@ -75,7 +77,7 @@ class DashboardStatsControllerTest extends ControllerTestCase
         ]);
     }
 
-    public function testPausedStatusIsReflectedIfAllMasterSupervisorsArePaused()
+    public function testPausedStatusIsReflectedIfAllMasterSupervisorsArePaused(): void
     {
         $masters = m::mock(MasterSupervisorRepository::class);
         $masters->shouldReceive('all')->andReturn([
@@ -96,7 +98,7 @@ class DashboardStatsControllerTest extends ControllerTestCase
         ]);
     }
 
-    public function testPausedStatusIsntReflectedIfNotAllMasterSupervisorsArePaused()
+    public function testPausedStatusIsntReflectedIfNotAllMasterSupervisorsArePaused(): void
     {
         $masters = m::mock(MasterSupervisorRepository::class);
         $masters->shouldReceive('all')->andReturn([
