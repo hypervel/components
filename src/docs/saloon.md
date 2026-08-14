@@ -72,6 +72,7 @@
     - [Fixtures](#fixtures)
 - [Publishing Configuration and Stubs](#publishing-configuration-and-stubs)
 - [Differences From Saloon](#differences-from-saloon)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -2026,3 +2027,8 @@ Hypervel Saloon keeps the connector, request, middleware, authentication, respon
 - The optional `xmlReader` response extension is not included. Use the built-in `xml` or `dom` methods instead.
 
 These differences remove framework-neutral adapter layers while retaining the public concepts needed to build complete integrations and reusable SDKs for Hypervel.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Saloon began as a port of [Saloon](https://github.com/saloonphp/saloon) and has been adapted for Hypervel's framework architecture and coroutine runtime.

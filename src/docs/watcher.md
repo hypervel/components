@@ -12,6 +12,7 @@
 - [Watcher Drivers](#watcher-drivers)
     - [Custom Drivers](#custom-drivers)
 - [Custom Restart Strategies](#custom-restart-strategies)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -199,3 +200,8 @@ interface RestartStrategy
 ```
 
 The watcher calls `start` before it begins watching, `restart` after files change, and `stop` when the watcher exits. The `stop` method may be called more than once and should safely ignore repeated calls. You may omit the strategy when you only need to detect and report file changes.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Watcher began as a port of [Hyperf Watcher](https://github.com/hyperf/hyperf/tree/master/src/watcher) and has been adapted for Hypervel's framework architecture and coroutine runtime.

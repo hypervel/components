@@ -26,6 +26,7 @@
 - [Pub / Sub](#pubsub)
     - [Wildcard Subscriptions](#wildcard-subscriptions)
     - [Using the Subscriber](#using-the-subscriber)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -777,3 +778,8 @@ try {
 ```
 
 The subscriber supports `subscribe`, `unsubscribe`, `psubscribe`, `punsubscribe`, `ping`, `channel`, and `close` methods. It uses the selected connection's standalone, Sentinel, or Cluster topology and supports TCP, TLS, IPv4, IPv6, and Unix sockets. Message payloads are returned as the exact bytes sent by Redis, including embedded newlines and null bytes. Messages received from pattern subscriptions include the matched pattern on the message's `pattern` property.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Redis began as a port of [Hyperf Redis](https://github.com/hyperf/hyperf/tree/master/src/redis) and has been adapted for Hypervel's framework architecture and coroutine runtime.

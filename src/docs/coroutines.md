@@ -28,6 +28,7 @@
     - [Lockers](#lockers)
 - [Advanced Coroutine APIs](#advanced-coroutine-apis)
 - [Common Pitfalls](#common-pitfalls)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -824,3 +825,8 @@ Use `Coroutine::defer()` for cleanup that belongs to one coroutine. Use [`Hyperv
 Prefer the [Concurrency facade](/docs/{{version}}/concurrency) or the `parallel` helper when the parent coroutine needs results or exceptions from child coroutines. Use `go`, `co`, `Coroutine::create`, or `Concurrent` when a child may run independently and its exceptions may be reported instead of returned to the parent.
 
 Swoole can make most stream-based I/O operations yield to other coroutines while they wait. Some PHP extensions cannot be hooked and will block the entire worker process. For CPU-intensive work or extensions that cannot yield, you should run the work in a separate process.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Coroutine began as a port of [Hyperf Coroutine](https://github.com/hyperf/coroutine) and has been adapted for Hypervel's framework architecture and coroutine runtime.

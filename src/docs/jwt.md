@@ -24,11 +24,12 @@
 - [Guard Methods](#guard-methods)
 - [Exceptions](#exceptions)
 - [Differences From php-open-source-saver/jwt-auth](#differences-from-php-open-source-saver-jwt-auth)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
 
-Hypervel JWT provides stateless bearer token authentication using Hypervel's authentication guard system. It is based on the `php-open-source-saver/jwt-auth` package and adapted for Hypervel's long-lived Swoole workers and coroutine runtime.
+Hypervel JWT provides stateless bearer token authentication using Hypervel's authentication guard system.
 
 JWT authentication is useful when your application needs signed tokens that can be sent with API, mobile, or service-to-service requests. If you need first-party SPA session authentication or database-backed personal access tokens, consider [Sanctum](/docs/{{version}}/sanctum) instead.
 
@@ -593,7 +594,7 @@ Common exceptions include:
 <a name="differences-from-php-open-source-saver-jwt-auth"></a>
 ## Differences From php-open-source-saver/jwt-auth
 
-Hypervel JWT is based on `php-open-source-saver/jwt-auth`, but its internals are adapted for Hypervel:
+Hypervel JWT differs from `php-open-source-saver/jwt-auth` in several ways:
 
 <div class="content-list" markdown="1">
 
@@ -606,3 +607,8 @@ Hypervel JWT is based on `php-open-source-saver/jwt-auth`, but its internals are
 - The `show_black_list_exception` option is not included; JWT exceptions fail normally.
 
 </div>
+
+<a name="credits"></a>
+## Credits
+
+Hypervel JWT began as a port of [PHP Open Source Saver JWT Auth](https://github.com/PHP-Open-Source-Saver/jwt-auth) and has been adapted for Hypervel's framework architecture and coroutine runtime.

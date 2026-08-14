@@ -36,13 +36,14 @@
     - [Purging the Skeleton](#purging-the-skeleton)
 - [Testing Published Files](#testing-published-files)
 - [Helpers](#helpers)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
 
 Testbench provides a convenient way to write feature and integration tests for Hypervel packages. It creates a small Hypervel application around your package so your tests may register service providers, publish files, define routes, run migrations, dispatch jobs, and make HTTP requests as if the package were installed in a real application.
 
-Hypervel Testbench is a port of [Orchestra Testbench](https://github.com/orchestral/testbench) adapted for Hypervel's Swoole and coroutine runtime. It also includes several package-development helpers that are commonly useful when testing generated files, command-line behavior, and Workbench applications.
+It also includes several package-development helpers that are commonly useful when testing generated files, command-line behavior, and Workbench applications.
 
 If you are building a package for Hypervel applications, you should generally use Testbench for your package's feature tests. For general package development concepts, see the [package development documentation](/docs/{{version}}/packages).
 
@@ -1163,3 +1164,8 @@ $process->mustRun();
 ```
 
 The `remote` helper reuses the active Testbench runtime skeleton so subprocesses operate on the same disposable application copy as the parent test process.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Testbench began as a port of [Orchestra Testbench Core](https://github.com/orchestral/testbench-core) and has been adapted for Hypervel's framework architecture and coroutine runtime.
