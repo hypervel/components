@@ -39,6 +39,7 @@ class SearchableScope implements Scope
             /** @var Model&SearchableInterface $model */
             $model = $builder->getModel();
             $scoutKeyName = $model->getScoutKeyName();
+            /* @phpstan-ignore-next-line staticMethod.notFound (macro closure keeps this class' scope; the builder never rebinds it) */
             $chunkSize = $chunk ?? static::getScoutConfig('chunk.searchable', 500);
 
             $builder->chunkById($chunkSize, function (EloquentCollection $models) {
@@ -54,6 +55,7 @@ class SearchableScope implements Scope
             /** @var Model&SearchableInterface $model */
             $model = $builder->getModel();
             $scoutKeyName = $model->getScoutKeyName();
+            /* @phpstan-ignore-next-line staticMethod.notFound (macro closure keeps this class' scope; the builder never rebinds it) */
             $chunkSize = $chunk ?? static::getScoutConfig('chunk.unsearchable', 500);
 
             $builder->chunkById($chunkSize, function (EloquentCollection $models) {
