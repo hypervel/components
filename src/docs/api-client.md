@@ -175,7 +175,7 @@ use App\DataObjects\GitHubConfig;
 
 $this->app->singleton(GitHubClient::class, function () {
     return new GitHubClient(GitHubConfig::make(
-        config('services.github')
+        config()->array('services.github')
     ));
 });
 ```

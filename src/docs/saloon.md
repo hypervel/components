@@ -192,7 +192,7 @@ You may bind the configured connector in a service provider:
 use App\Http\Integrations\GitHub\GitHubConnector;
 
 $this->app->singleton(GitHubConnector::class, function () {
-    return new GitHubConnector(config('services.github.token'));
+    return new GitHubConnector(config()->string('services.github.token'));
 });
 ```
 
@@ -836,7 +836,7 @@ use Hypervel\Saloon\Http\PendingRequest;
 
 public function boot(): void
 {
-    $applicationName = (string) config('app.name');
+    $applicationName = config()->string('app.name');
 
     Saloon::middleware()->onRequest(
         function (PendingRequest $request) use ($applicationName): void {
@@ -1132,8 +1132,8 @@ class GitHubConnector extends Connector
     protected function defaultOAuthConfig(): OAuthConfig
     {
         return new OAuthConfig(
-            clientId: config('services.github.client_id'),
-            clientSecret: config('services.github.client_secret'),
+            clientId: config()->string('services.github.client_id'),
+            clientSecret: config()->string('services.github.client_secret'),
             redirectUri: route('github.callback'),
             authorizeEndpoint: 'https://github.com/login/oauth/authorize',
             tokenEndpoint: 'https://github.com/login/oauth/access_token',
