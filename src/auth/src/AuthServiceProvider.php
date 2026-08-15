@@ -234,9 +234,9 @@ class AuthServiceProvider extends ServiceProvider implements ReloadsConfiguratio
                 continue;
             }
 
-            $cache = $provider['cache'] ?? null;
+            $cache = $provider['cache'];
 
-            if (! is_array($cache) || empty($cache['enabled'])) {
+            if (! $cache['enabled']) {
                 continue;
             }
 
@@ -250,7 +250,7 @@ class AuthServiceProvider extends ServiceProvider implements ReloadsConfiguratio
                 );
             }
 
-            $store = $cache['store'] ?? null;
+            $store = $cache['store'];
 
             if (! is_string($store) && $store !== null) {
                 throw new InvalidArgumentException(
@@ -258,8 +258,7 @@ class AuthServiceProvider extends ServiceProvider implements ReloadsConfiguratio
                 );
             }
 
-            // Keep this fallback aligned with CreatesUserProviders::createEloquentProvider().
-            $ttl = $cache['ttl'] ?? 300;
+            $ttl = $cache['ttl'];
 
             if (! is_int($ttl) || $ttl <= 0) {
                 throw new InvalidArgumentException(
@@ -267,7 +266,7 @@ class AuthServiceProvider extends ServiceProvider implements ReloadsConfiguratio
                 );
             }
 
-            $tags = $cache['tags'] ?? null;
+            $tags = $cache['tags'];
 
             if ($tags !== null && (! is_array($tags)
                 || ! array_all($tags, static fn (mixed $tag): bool => is_string($tag)))) {

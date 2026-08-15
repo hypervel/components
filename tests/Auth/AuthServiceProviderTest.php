@@ -57,8 +57,8 @@ class AuthServiceProviderTest extends TestCase
                     'disabled' => $this->cachedProvider(AuthProviderUser::class, enabled: false),
                     'database' => [
                         'driver' => 'database',
-                        'model' => InvalidAuthProviderModel::class,
-                        'cache' => ['enabled' => true],
+                        'table' => 'users',
+                        'connection' => null,
                     ],
                     'malformed',
                 ],
@@ -150,7 +150,6 @@ class AuthServiceProviderTest extends TestCase
                     'users' => $this->cachedProvider(AuthProviderUser::class, enabled: false),
                     'custom' => [
                         'driver' => 'custom',
-                        'cache' => ['enabled' => true],
                     ],
                 ],
             ],
@@ -415,6 +414,9 @@ class AuthServiceProviderTest extends TestCase
             'cache' => [
                 'enabled' => $enabled,
                 'store' => $store,
+                'ttl' => 300,
+                'prefix' => 'auth_users',
+                'tags' => null,
             ],
         ];
     }

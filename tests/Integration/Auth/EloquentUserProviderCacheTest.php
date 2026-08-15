@@ -88,6 +88,9 @@ class EloquentUserProviderCacheTest extends TestCase
                 'cache' => [
                     'enabled' => true,
                     'store' => 'auth-file',
+                    'ttl' => 300,
+                    'prefix' => 'auth_users',
+                    'tags' => null,
                 ],
             ],
             'auth.providers.relationship_users' => [
@@ -96,6 +99,9 @@ class EloquentUserProviderCacheTest extends TestCase
                 'cache' => [
                     'enabled' => true,
                     'store' => 'auth-file',
+                    'ttl' => 300,
+                    'prefix' => 'auth_users',
+                    'tags' => null,
                 ],
             ],
             'database.connections.auth_secondary' => [

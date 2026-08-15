@@ -57,6 +57,9 @@ class EloquentUserProviderCacheTagsTest extends TestCase
                 'cache' => [
                     'enabled' => true,
                     'store' => self::STORE_NAME,
+                    'ttl' => 300,
+                    'prefix' => 'auth_users',
+                    'tags' => null,
                 ],
             ],
         ]);

@@ -30,10 +30,12 @@ final class PasswordConfirmation
 
         $key = "auth.guards.{$guard}.password_timeout";
 
-        if ($config->has($key)) {
-            return $config->integer($key);
+        // A declared null inherits the application-wide timeout. Missing members
+        // fall through so the typed getter names the incomplete guard record.
+        if ($config->has($key) && $config->get($key) === null) {
+            return $config->integer('auth.password_timeout');
         }
 
-        return $config->integer('auth.password_timeout');
+        return $config->integer($key);
     }
 }

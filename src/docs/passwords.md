@@ -38,7 +38,7 @@ Guards that send password reset links declare their password broker with the `pa
 
 `Password::setDefaultDriver()` may override the broker for the current coroutine. Otherwise, a bare `Password::sendResetLink()` or `Password::reset()` uses the current guard's `passwords` key. If the current guard does not declare a broker, Hypervel throws a configuration exception naming the guard and the key to add. To target a different broker, pass its name explicitly with `Password::broker('admins')`.
 
-The password reset driver defines where password reset data will be stored. If the `driver` configuration option is omitted, Hypervel will use the `database` driver. Hypervel includes two drivers:
+The password reset driver's complete record defines where password reset data will be stored. Hypervel includes two drivers:
 
 <div class="content-list" markdown="1">
 
@@ -46,6 +46,21 @@ The password reset driver defines where password reset data will be stored. If t
 - `cache` - password reset data is stored in one of your cache-based stores.
 
 </div>
+
+A database broker requires its driver, provider, table, nullable connection, expiry, and throttle settings. Set `connection` to null to use the default database connection:
+
+```php
+'passwords' => [
+    'users' => [
+        'driver' => 'database',
+        'provider' => 'users',
+        'table' => 'password_reset_tokens',
+        'connection' => null,
+        'expire' => 60,
+        'throttle' => 60,
+    ],
+],
+```
 
 <a name="driver-prerequisites"></a>
 ### Driver Prerequisites
@@ -65,14 +80,14 @@ There is also a cache driver available for handling password resets, which does 
     'users' => [
         'driver' => 'cache',
         'provider' => 'users',
-        'store' => 'passwords', // Optional...
+        'store' => null,
         'expire' => 60,
         'throttle' => 60,
     ],
 ],
 ```
 
-To prevent a call to `artisan cache:clear` from flushing your password reset data, you can optionally specify a separate cache store with the `store` configuration key. The value should correspond to a store configured in your `config/cache.php` configuration value.
+Set `store` to null to use the default cache store. To prevent a call to `artisan cache:clear` from flushing your password reset data, specify a separate cache store with the `store` configuration key. The value should correspond to a store configured in your `config/cache.php` configuration value.
 
 <a name="model-preparation"></a>
 ### Model Preparation

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Auth;
 
 use Closure;
+use ErrorException;
 use Hypervel\Auth\AuthenticationException;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Auth\DatabaseUserProvider;
@@ -12,6 +13,7 @@ use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Auth\Middleware\Authenticate;
 use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
 use Hypervel\Auth\RequestGuard;
+use Hypervel\Auth\SessionGuard;
 use Hypervel\Auth\TokenGuard;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\ModelCacheStoreValidator;
@@ -37,6 +39,7 @@ use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
+use ReflectionProperty;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -262,6 +265,68 @@ class AuthManagerTest extends TestCase
         $this->assertNull($manager->createUserProvider('foo'));
     }
 
+    #[DataProvider('guardCreatorProvider')]
+    public function testBuiltInGuardCreatorsRequireProvider(string $method): void
+    {
+        $this->expectException(ErrorException::class);
+        $this->expectExceptionMessage('Undefined array key "provider"');
+
+        (new AuthManager($this->app))->{$method}('api', []);
+    }
+
+    /**
+     * Provide built-in guard creator methods.
+     */
+    public static function guardCreatorProvider(): array
+    {
+        return [
+            'session' => ['createSessionDriver'],
+            'token' => ['createTokenDriver'],
+        ];
+    }
+
+    #[DataProvider('defaultRememberConfigurationProvider')]
+    public function testSessionCreatorKeepsBuiltInRememberDurationWhenNotConfigured(array $config): void
+    {
+        $guard = (new AuthManager($this->app))->createSessionDriver('web', $config);
+        $rememberDuration = new ReflectionProperty(SessionGuard::class, 'rememberDuration');
+
+        $this->assertSame(576000, $rememberDuration->getValue($guard));
+    }
+
+    /**
+     * Provide configurations that keep the built-in remember duration.
+     */
+    public static function defaultRememberConfigurationProvider(): array
+    {
+        return [
+            'omitted' => [['provider' => 'users']],
+            'explicit null' => [['provider' => 'users', 'remember' => null]],
+        ];
+    }
+
+    public function testSessionCreatorUsesConfiguredRememberDuration(): void
+    {
+        $guard = (new AuthManager($this->app))->createSessionDriver('web', [
+            'provider' => 'users',
+            'remember' => 120,
+        ]);
+        $rememberDuration = new ReflectionProperty(SessionGuard::class, 'rememberDuration');
+
+        $this->assertSame(120, $rememberDuration->getValue($guard));
+    }
+
+    public function testTokenCreatorKeepsConstructorOwnedDefaultsForPartialRecord(): void
+    {
+        $guard = (new AuthManager($this->app))->createTokenDriver('api', [
+            'provider' => 'users',
+        ]);
+
+        $this->assertSame('api_token', (new ReflectionProperty(TokenGuard::class, 'inputKey'))->getValue($guard));
+        $this->assertSame('api_token', (new ReflectionProperty(TokenGuard::class, 'storageKey'))->getValue($guard));
+        $this->assertFalse((new ReflectionProperty(TokenGuard::class, 'hash'))->getValue($guard));
+    }
+
     public function testCreateDatabaseUserProvider()
     {
         $manager = new AuthManager($container = $this->getContainer());
@@ -288,6 +353,24 @@ class AuthManagerTest extends TestCase
         );
     }
 
+    public function testDatabaseUserProviderRequiresDeclaredConnection(): void
+    {
+        $this->app->make('config')->set('auth.providers.incomplete', [
+            'driver' => 'database',
+            'table' => 'users',
+        ]);
+        $database = m::mock();
+        $database->shouldReceive('connection')
+            ->zeroOrMoreTimes()
+            ->andReturn(m::mock(ConnectionInterface::class));
+        $this->app->instance('db', $database);
+
+        $this->expectException(ErrorException::class);
+        $this->expectExceptionMessage('Undefined array key "connection"');
+
+        (new AuthManager($this->app))->createUserProvider('incomplete');
+    }
+
     public function testCreateCustomUserProvider()
     {
         $manager = new AuthManager($container = $this->getContainer());
@@ -303,6 +386,87 @@ class AuthManagerTest extends TestCase
         $this->assertSame($provider, $manager->createUserProvider('foo'));
     }
 
+    public function testMissingUserProviderDriverRetainsPurposeBuiltError(): void
+    {
+        $this->app->make('config')->set('auth.providers.undefined', []);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Authentication user provider [] is not defined.');
+
+        (new AuthManager($this->app))->createUserProvider('undefined');
+    }
+
+    public function testShippedEloquentUserProviderResolvesWithCacheDisabled(): void
+    {
+        $provider = (new AuthManager($this->app))->createUserProvider('users');
+
+        $this->assertInstanceOf(EloquentUserProvider::class, $provider);
+        $this->assertFalse($provider->isCacheEnabled());
+    }
+
+    public function testCompleteEloquentUserProviderCacheRecordEnablesCaching(): void
+    {
+        $this->app->make('config')->set('auth.providers.cached', [
+            'driver' => 'eloquent',
+            'model' => AuthManagerCacheUserStub::class,
+            'cache' => [
+                'enabled' => true,
+                'store' => null,
+                'ttl' => 300,
+                'prefix' => 'auth_users',
+                'tags' => null,
+            ],
+        ]);
+        $repository = m::mock(CacheRepository::class);
+        $cache = m::mock(CacheManager::class);
+        $cache->shouldReceive('store')->once()->with(null)->andReturn($repository);
+        $this->app->instance('cache', $cache);
+        $validator = m::mock(ModelCacheStoreValidator::class);
+        $validator->shouldReceive('validate')
+            ->once()
+            ->with($repository, 'Auth user cache for model [' . AuthManagerCacheUserStub::class . ']');
+        $this->app->instance(ModelCacheStoreValidator::class, $validator);
+
+        $provider = (new AuthManager($this->app))->createUserProvider('cached');
+
+        $this->assertInstanceOf(EloquentUserProvider::class, $provider);
+        $this->assertTrue($provider->isCacheEnabled());
+    }
+
+    #[DataProvider('incompleteEloquentProviderCacheProvider')]
+    public function testEloquentUserProviderRequiresCompleteCacheRecord(array $provider, string $member): void
+    {
+        $this->app->make('config')->set('auth.providers.incomplete', $provider);
+
+        $this->expectException(ErrorException::class);
+        $this->expectExceptionMessage("Undefined array key \"{$member}\"");
+
+        (new AuthManager($this->app))->createUserProvider('incomplete');
+    }
+
+    /**
+     * Provide incomplete Eloquent user provider cache records.
+     */
+    public static function incompleteEloquentProviderCacheProvider(): array
+    {
+        return [
+            'missing cache block' => [[
+                'driver' => 'eloquent',
+                'model' => AuthManagerCacheUserStub::class,
+            ], 'cache'],
+            'missing nullable store' => [[
+                'driver' => 'eloquent',
+                'model' => AuthManagerCacheUserStub::class,
+                'cache' => [
+                    'enabled' => true,
+                    'ttl' => 300,
+                    'prefix' => 'auth_users',
+                    'tags' => null,
+                ],
+            ], 'store'],
+        ];
+    }
+
     #[DataProvider('invalidCacheTtlProvider')]
     public function testCreateEloquentUserProviderRejectsInvalidCacheTtl(mixed $ttl, string $message): void
     {
@@ -313,7 +477,10 @@ class AuthManagerTest extends TestCase
                     'model' => AuthManagerCacheUserStub::class,
                     'cache' => [
                         'enabled' => true,
+                        'store' => null,
                         'ttl' => $ttl,
+                        'prefix' => 'auth_users',
+                        'tags' => null,
                     ],
                 ],
             ],
@@ -702,12 +869,24 @@ class AuthManagerTest extends TestCase
                 'users' => [
                     'driver' => 'eloquent',
                     'model' => AuthManagerCacheUserStub::class,
-                    'cache' => ['enabled' => true, 'store' => 'web-store'],
+                    'cache' => [
+                        'enabled' => true,
+                        'store' => 'web-store',
+                        'ttl' => 300,
+                        'prefix' => 'auth_users',
+                        'tags' => null,
+                    ],
                 ],
                 'admins' => [
                     'driver' => 'eloquent',
                     'model' => AuthManagerCacheAdminStub::class,
-                    'cache' => ['enabled' => true, 'store' => 'admin-store', 'prefix' => 'admin_users'],
+                    'cache' => [
+                        'enabled' => true,
+                        'store' => 'admin-store',
+                        'ttl' => 300,
+                        'prefix' => 'admin_users',
+                        'tags' => null,
+                    ],
                 ],
             ],
         ]));
@@ -757,7 +936,13 @@ class AuthManagerTest extends TestCase
                 'users' => [
                     'driver' => 'eloquent',
                     'model' => AuthManagerCacheUserStub::class,
-                    'cache' => ['enabled' => true, 'store' => 'web-store'],
+                    'cache' => [
+                        'enabled' => true,
+                        'store' => 'web-store',
+                        'ttl' => 300,
+                        'prefix' => 'auth_users',
+                        'tags' => null,
+                    ],
                 ],
             ],
         ]));
@@ -795,7 +980,13 @@ class AuthManagerTest extends TestCase
                 'users' => [
                     'driver' => 'eloquent',
                     'model' => AuthManagerCacheUserStub::class,
-                    'cache' => ['enabled' => true, 'store' => 'redis'],
+                    'cache' => [
+                        'enabled' => true,
+                        'store' => 'redis',
+                        'ttl' => 300,
+                        'prefix' => 'auth_users',
+                        'tags' => null,
+                    ],
                 ],
             ],
         ]));

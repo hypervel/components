@@ -8,6 +8,7 @@ use Hypervel\Auth\Notifications\VerifyEmail;
 use Hypervel\Routing\Router;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
+use InvalidArgumentException;
 use Override;
 
 class VerifyEmailNotificationTest extends TestCase
@@ -29,14 +30,17 @@ class VerifyEmailNotificationTest extends TestCase
         $this->assertSame(now()->addMinutes(90)->getTimestamp(), $this->expiresAt($url));
     }
 
-    public function testVerificationUrlUsesFallbackWhenNestedSettingIsOmitted(): void
+    public function testVerificationUrlFailsWhenExpirySettingIsOmitted(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::create(2026, 8, 5, 12));
         config(['auth.verification' => []]);
 
-        $url = (new VerifyEmailNotificationStub)->verificationUrlFor(new VerifyEmailNotifiableStub);
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Configuration value for key [auth.verification.expire] must be an integer, NULL given.'
+        );
 
-        $this->assertSame(now()->addMinutes(60)->getTimestamp(), $this->expiresAt($url));
+        (new VerifyEmailNotificationStub)->verificationUrlFor(new VerifyEmailNotifiableStub);
     }
 
     public function testMailMessageUsesTranslatedStringMetadata(): void

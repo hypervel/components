@@ -88,7 +88,7 @@ trait CreatesUserProviders
     protected function createDatabaseProvider(array $config): DatabaseUserProvider
     {
         return new DatabaseUserProvider(
-            $this->app->make('db')->connection($config['connection'] ?? null),
+            $this->app->make('db')->connection($config['connection']),
             $this->app->make('hash'),
             $config['table'],
         );
@@ -100,19 +100,20 @@ trait CreatesUserProviders
     protected function createEloquentProvider(array $config): EloquentUserProvider
     {
         $provider = new EloquentUserProvider($this->app->make('hash'), $config['model']);
+        $cache = $config['cache'];
 
-        if (! empty($config['cache']['enabled'])) {
-            $ttl = $config['cache']['ttl'] ?? 300;
+        if ($cache['enabled']) {
+            $ttl = $cache['ttl'];
 
             if (! is_int($ttl) || $ttl <= 0) {
                 throw new InvalidArgumentException('The auth user cache TTL must be a positive integer.');
             }
 
             $provider->enableCache(
-                $config['cache']['store'] ?? null,
+                $cache['store'],
                 $ttl,
-                $config['cache']['prefix'] ?? 'auth_users',
-                $config['cache']['tags'] ?? null,
+                $cache['prefix'],
+                $cache['tags'],
             );
         }
 

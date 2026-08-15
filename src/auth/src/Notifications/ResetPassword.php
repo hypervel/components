@@ -94,7 +94,7 @@ class ResetPassword extends Notification
             ?? Password::getDefaultDriver();
 
         return Container::getInstance()->make(ConfigContract::class)
-            ->integer("auth.passwords.{$broker}.expire", 60);
+            ->integer("auth.passwords.{$broker}.expire");
     }
 
     /**

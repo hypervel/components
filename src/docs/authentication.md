@@ -645,7 +645,7 @@ if (Auth::guard('admin')->attempt($credentials)) {
 
 Many web applications provide a "remember me" checkbox on their login form. If you would like to provide "remember me" functionality in your application, you may pass a boolean value as the second argument to the `attempt` method.
 
-When this value is `true`, Hypervel will keep the user authenticated indefinitely or until they manually logout. Your `users` table must include the string `remember_token` column, which will be used to store the "remember me" token. The `users` table migration included with new Hypervel applications already includes this column:
+When this value is `true`, Hypervel will keep the user authenticated until the "remember me" cookie expires or they manually log out. By default, the cookie is valid for 400 days. Your `users` table must include the string `remember_token` column, which will be used to store the "remember me" token. The `users` table migration included with new Hypervel applications already includes this column:
 
 ```php
 use Hypervel\Support\Facades\Auth;
@@ -653,6 +653,18 @@ use Hypervel\Support\Facades\Auth;
 if (Auth::attempt(['email' => $email, 'password' => $password], $remember)) {
     // The user is being remembered...
 }
+```
+
+You may customize the cookie lifetime for a session guard using the `remember` option in your application's `config/auth.php` configuration file. The value is expressed in minutes. When this option is `null`, Hypervel uses the built-in 400-day lifetime:
+
+```php
+'guards' => [
+    'web' => [
+        'driver' => 'session',
+        'provider' => 'users',
+        'remember' => null,
+    ],
+],
 ```
 
 If your application offers "remember me" functionality, you may use the `viaRemember`  method to determine if the currently authenticated user was authenticated using the "remember me" cookie:
@@ -679,7 +691,7 @@ use Hypervel\Support\Facades\Auth;
 Auth::login($user);
 ```
 
-You may pass a boolean value as the second argument to the `login` method. This value indicates if "remember me" functionality is desired for the authenticated session. Remember, this means that the session will be authenticated indefinitely or until the user manually logs out of the application:
+You may pass a boolean value as the second argument to the `login` method. This value indicates if "remember me" functionality is desired for the authenticated session. The user will remain authenticated until the "remember me" cookie expires or they manually log out of the application:
 
 ```php
 Auth::login($user, $remember = true);
@@ -700,7 +712,7 @@ To authenticate a user using their database record's primary key, you may use th
 Auth::loginUsingId(1);
 ```
 
-You may pass a boolean value to the `remember` argument of the `loginUsingId` method. This value indicates if "remember me" functionality is desired for the authenticated session. Remember, this means that the session will be authenticated indefinitely or until the user manually logs out of the application:
+You may pass a boolean value to the `remember` argument of the `loginUsingId` method. This value indicates if "remember me" functionality is desired for the authenticated session. The user will remain authenticated until the "remember me" cookie expires or they manually log out of the application:
 
 ```php
 Auth::loginUsingId(1, remember: true);
