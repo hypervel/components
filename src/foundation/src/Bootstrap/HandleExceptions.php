@@ -10,6 +10,7 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Log\LogManager;
 use Hypervel\Support\Env;
+use InvalidArgumentException;
 use Monolog\Handler\NullHandler;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Runner\ErrorHandler;
@@ -86,10 +87,10 @@ class HandleExceptions
 
         $this->ensureDeprecationLoggerIsConfigured();
 
-        $options = static::$app->make('config')->get('logging.deprecations') ?? [];
+        $trace = static::$app->make('config')->boolean('logging.deprecations.trace');
 
-        with($logger->channel('deprecations'), function ($log) use ($message, $file, $line, $level, $options) {
-            if ($options['trace'] ?? false) {
+        with($logger->channel('deprecations'), function ($log) use ($message, $file, $line, $level, $trace) {
+            if ($trace) {
                 $log->warning((string) new ErrorException($message, 0, $level, $file, $line));
             } else {
                 $log->warning(sprintf(
@@ -124,15 +125,20 @@ class HandleExceptions
             return;
         }
 
-        $this->ensureNullLogDriverIsConfigured();
+        $options = $config->array('logging.deprecations');
 
-        if (is_array($options = $config->get('logging.deprecations'))) {
-            $driver = $options['channel'] ?? 'null';
-        } else {
-            $driver = $options ?? 'null';
+        if (! array_key_exists('channel', $options)) {
+            throw new InvalidArgumentException(
+                'Configuration value for key [logging.deprecations.channel] is not defined.'
+            );
         }
 
-        $config->set('logging.channels.deprecations', $config->get("logging.channels.{$driver}"));
+        $this->ensureNullLogDriverIsConfigured();
+
+        // A declared null channel deliberately selects the null logger.
+        $driver = $options['channel'] ?? 'null';
+
+        $config->set('logging.channels.deprecations', $config->array("logging.channels.{$driver}"));
     }
 
     /**
