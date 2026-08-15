@@ -12,13 +12,15 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        $teams = (bool) config('permission.teams');
-        $tableNames = (array) config('permission.table_names');
-        $columnNames = (array) config('permission.column_names');
-        $pivotRole = $columnNames['role_pivot_key'] ?? 'role_id';
-        $pivotPermission = $columnNames['permission_pivot_key'] ?? 'permission_id';
-        $teamForeignKey = $columnNames['team_foreign_key'] ?? 'team_id';
-        $modelMorphKey = $columnNames['model_morph_key'] ?? 'model_id';
+        $teams = config()->boolean('permission.teams');
+        $tableNames = config()->array('permission.table_names');
+        $columnNames = config()->array('permission.column_names');
+        $pivotRole = $columnNames['role_pivot_key'];
+        $pivotRole ??= 'role_id';
+        $pivotPermission = $columnNames['permission_pivot_key'];
+        $pivotPermission ??= 'permission_id';
+        $teamForeignKey = $columnNames['team_foreign_key'];
+        $modelMorphKey = $columnNames['model_morph_key'];
 
         throw_if($tableNames === [], 'Error: config/permission.php not loaded. Run [php artisan config:clear] and try again.');
         throw_if($teams && $teamForeignKey === '', 'Error: team_foreign_key on config/permission.php not loaded. Run [php artisan config:clear] and try again.');
@@ -112,9 +114,11 @@ return new class extends Migration {
             $table->primary([$pivotPermission, $pivotRole], 'role_has_permissions_permission_id_role_id_primary');
         });
 
+        $cacheStore = config()->string('permission.cache.store');
+
         app('cache')
-            ->store(config('permission.cache.store') !== 'default' ? config('permission.cache.store') : null)
-            ->forget(config('permission.cache.keys.roles'));
+            ->store($cacheStore !== 'default' ? $cacheStore : null)
+            ->forget(config()->string('permission.cache.keys.roles'));
     }
 
     /**
@@ -122,7 +126,7 @@ return new class extends Migration {
      */
     public function down(): void
     {
-        $tableNames = (array) config('permission.table_names');
+        $tableNames = config()->array('permission.table_names');
 
         throw_if($tableNames === [], 'Error: config/permission.php not found and defaults could not be merged. Please publish the package configuration before proceeding, or drop the tables manually.');
 

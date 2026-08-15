@@ -13,13 +13,15 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        $teams = (bool) config('permission.teams');
-        $tableNames = (array) config('permission.table_names');
-        $columnNames = (array) config('permission.column_names');
-        $pivotRole = $columnNames['role_pivot_key'] ?? 'role_id';
-        $pivotPermission = $columnNames['permission_pivot_key'] ?? 'permission_id';
-        $teamForeignKey = $columnNames['team_foreign_key'] ?? 'team_id';
-        $modelMorphKey = $columnNames['model_morph_key'] ?? 'model_id';
+        $teams = config()->boolean('permission.teams');
+        $tableNames = config()->array('permission.table_names');
+        $columnNames = config()->array('permission.column_names');
+        $pivotRole = $columnNames['role_pivot_key'];
+        $pivotRole ??= 'role_id';
+        $pivotPermission = $columnNames['permission_pivot_key'];
+        $pivotPermission ??= 'permission_id';
+        $teamForeignKey = $columnNames['team_foreign_key'];
+        $modelMorphKey = $columnNames['model_morph_key'];
 
         if (! $teams) {
             return;
@@ -82,13 +84,17 @@ return new class extends Migration {
             });
         }
 
+        $cacheStore = config()->string('permission.cache.store');
+
         app('cache')
-            ->store(config('permission.cache.store') !== 'default' ? config('permission.cache.store') : null)
-            ->forget(config('permission.cache.keys.roles'));
+            ->store($cacheStore !== 'default' ? $cacheStore : null)
+            ->forget(config()->string('permission.cache.keys.roles'));
     }
 
     /**
      * Reverse the migrations.
      */
-    public function down(): void {}
+    public function down(): void
+    {
+    }
 };

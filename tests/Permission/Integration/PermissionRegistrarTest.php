@@ -259,6 +259,20 @@ class PermissionRegistrarTest extends TestCase
         $this->assertSame(HypervelPermission::class, $registrar->getPermissionClass());
     }
 
+    public function testNullPivotKeysUseConventionalColumnNames(): void
+    {
+        config([
+            'permission.column_names.role_pivot_key' => null,
+            'permission.column_names.permission_pivot_key' => null,
+        ]);
+
+        $registrar = $this->app->make(PermissionRegistrar::class);
+        $registrar->initializeCache();
+
+        $this->assertSame('role_id', $registrar->pivotRole);
+        $this->assertSame('permission_id', $registrar->pivotPermission);
+    }
+
     public function testInitializeCacheRejectsRequiredDefaultModelColumns(): void
     {
         $this->app->make('config')->set(

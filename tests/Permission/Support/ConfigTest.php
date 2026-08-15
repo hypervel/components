@@ -17,8 +17,20 @@ class ConfigTest extends TestCase
 
         $app->make('config')->set([
             'auth.defaults.guard' => 'web',
-            'auth.guards.web' => ['driver' => 'session', 'provider' => 'users'],
-            'auth.guards.admin' => ['driver' => 'session', 'provider' => 'admins'],
+            'auth.guards.web' => [
+                'driver' => 'session',
+                'provider' => 'users',
+                'passwords' => 'users',
+                'password_timeout' => null,
+                'remember' => null,
+            ],
+            'auth.guards.admin' => [
+                'driver' => 'session',
+                'provider' => 'admins',
+                'passwords' => null,
+                'password_timeout' => null,
+                'remember' => null,
+            ],
         ]);
     }
 

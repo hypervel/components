@@ -65,7 +65,13 @@ class GuardTest extends TestCase
         $this->assertSame('0', Guard::getDefaultName($user));
 
         $this->app->make('config')->set('auth.guards', [
-            '0' => ['driver' => 'session', 'provider' => 'users'],
+            '0' => [
+                'driver' => 'session',
+                'provider' => 'users',
+                'passwords' => null,
+                'password_timeout' => null,
+                'remember' => null,
+            ],
         ]);
         Guard::flushState();
 
@@ -104,7 +110,13 @@ class GuardTest extends TestCase
         $this->setUpPassport();
 
         $this->app->make('config')->set([
-            'auth.guards.api' => ['driver' => 'session', 'provider' => 'users'],
+            'auth.guards.api' => [
+                'driver' => 'session',
+                'provider' => 'users',
+                'passwords' => null,
+                'password_timeout' => null,
+                'remember' => null,
+            ],
             'auth.guards.0' => ['driver' => 'passport', 'provider' => 'users'],
         ]);
 

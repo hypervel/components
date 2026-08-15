@@ -20,12 +20,14 @@ return [
         'role' => Role::class,
 
         /*
-         * The app-owned team model used by the teams feature.
+         * The app-owned team model used by the teams feature. Set to null when
+         * teams are disabled or the application does not expose a team model.
          */
         'team' => null,
 
         /*
          * The model used when raw IDs are passed to reverse-assignment helpers.
+         * Set to null to use the authenticated guard's user model.
          */
         'default_model' => null,
     ],
@@ -39,6 +41,9 @@ return [
     ],
 
     'column_names' => [
+        /*
+         * Set these pivot keys to null to use role_id and permission_id.
+         */
         'role_pivot_key' => null,
         'permission_pivot_key' => null,
         'model_morph_key' => 'model_id',

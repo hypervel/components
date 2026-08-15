@@ -199,7 +199,7 @@ class PermissionServiceProvider extends ServiceProvider implements ReloadsConfig
         $this->callAfterResolving(GateContract::class, function (GateContract $gate): void {
             $config = $this->app->make('config');
 
-            if (! $config->boolean('permission.register_permission_check_method', true)) {
+            if (! $config->boolean('permission.register_permission_check_method')) {
                 return;
             }
 
@@ -225,7 +225,7 @@ class PermissionServiceProvider extends ServiceProvider implements ReloadsConfig
 
         AboutCommand::add('Hypervel Permissions', static function () use ($features, $config): array {
             $enabledFeatures = Collection::make($features)
-                ->filter(fn (?string $feature): bool => $feature === null || $config->boolean("permission.{$feature}", false))
+                ->filter(fn (?string $feature): bool => $feature === null || $config->boolean("permission.{$feature}"))
                 ->keys();
 
             if (PermissionRegistrar::partitioningEnabled()) {

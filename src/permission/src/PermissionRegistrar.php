@@ -235,34 +235,34 @@ class PermissionRegistrar
     public function initializeCache(): void
     {
         /** @var class-string<Permission> $permissionClass */
-        $permissionClass = $this->config->string('permission.models.permission', Permission::class);
+        $permissionClass = $this->config->string('permission.models.permission');
         /** @var class-string<Role> $roleClass */
-        $roleClass = $this->config->string('permission.models.role', Role::class);
+        $roleClass = $this->config->string('permission.models.role');
         /** @var null|class-string<Model> $teamClass */
         $teamClass = $this->config->get('permission.models.team');
         /** @var class-string<PermissionsTeamResolver> $teamResolverClass */
-        $teamResolverClass = $this->config->string('permission.team_resolver', DefaultTeamResolver::class);
+        $teamResolverClass = $this->config->string('permission.team_resolver');
 
         $this->permissionClass = $permissionClass;
         $this->roleClass = $roleClass;
         $this->teamClass = $teamClass;
         $this->teamResolver = $this->app->make($teamResolverClass);
 
-        $this->cacheExpirationTime = $this->config->integer('permission.cache.expiration_seconds', 86400);
-        $this->teams = $this->config->boolean('permission.teams', false);
-        $this->teamsKey = $this->config->string('permission.column_names.team_foreign_key', 'team_id');
+        $this->cacheExpirationTime = $this->config->integer('permission.cache.expiration_seconds');
+        $this->teams = $this->config->boolean('permission.teams');
+        $this->teamsKey = $this->config->string('permission.column_names.team_foreign_key');
 
-        $this->cacheKey = $this->config->string('permission.cache.keys.roles', 'hypervel.permission.cache.roles');
-        $this->modelRolesCacheKeyPrefix = $this->config->string('permission.cache.keys.model_roles', self::MODEL_ROLES_CACHE_KEY_PREFIX);
-        $this->modelPermissionsCacheKeyPrefix = $this->config->string('permission.cache.keys.model_permissions', self::MODEL_PERMISSIONS_CACHE_KEY_PREFIX);
-        $this->modelCacheTokenKey = $this->config->string('permission.cache.keys.model_token', self::MODEL_CACHE_TOKEN_KEY);
+        $this->cacheKey = $this->config->string('permission.cache.keys.roles');
+        $this->modelRolesCacheKeyPrefix = $this->config->string('permission.cache.keys.model_roles');
+        $this->modelPermissionsCacheKeyPrefix = $this->config->string('permission.cache.keys.model_permissions');
+        $this->modelCacheTokenKey = $this->config->string('permission.cache.keys.model_token');
 
         $pivotRole = $this->config->get('permission.column_names.role_pivot_key');
         $pivotPermission = $this->config->get('permission.column_names.permission_pivot_key');
         $this->pivotRole = is_string($pivotRole) && $pivotRole !== '' ? $pivotRole : 'role_id';
         $this->pivotPermission = is_string($pivotPermission) && $pivotPermission !== '' ? $pivotPermission : 'permission_id';
 
-        $cacheStore = $this->config->string('permission.cache.store', 'default');
+        $cacheStore = $this->config->string('permission.cache.store');
         $this->cacheStoreName = $cacheStore === 'default' ? null : $cacheStore;
 
         $this->assignmentPivotClasses = [];
@@ -285,7 +285,7 @@ class PermissionRegistrar
      */
     protected function validateCacheColumnExclusions(): void
     {
-        $except = $this->config->array('permission.cache.column_names_except', ['created_at', 'updated_at', 'deleted_at']);
+        $except = $this->config->array('permission.cache.column_names_except');
         $partitionColumn = static::partitionColumn();
         $roleColumns = [(new $this->roleClass)->getKeyName(), 'name', 'guard_name'];
         $permissionColumns = [(new $this->permissionClass)->getKeyName(), 'name', 'guard_name'];
@@ -1399,7 +1399,7 @@ class PermissionRegistrar
      */
     private function getSerializedPermissionsForCache(): array
     {
-        $except = $this->config->array('permission.cache.column_names_except', ['created_at', 'updated_at', 'deleted_at']);
+        $except = $this->config->array('permission.cache.column_names_except');
         $hasDeniedRolePermissions = false;
         $partition = $this->resolvePartition();
 
