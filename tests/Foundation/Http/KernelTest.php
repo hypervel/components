@@ -262,6 +262,59 @@ class KernelTest extends TestCase
         ], $called);
     }
 
+    public function testItTerminatesTerminableMiddlewareOnEveryRequest(): void
+    {
+        $app = new Application;
+        $events = new Dispatcher($app);
+        $app->instance('events', $events);
+        $kernel = new Kernel($app, new Router($events, $app));
+
+        $terminable = new class {
+            public int $terminated = 0;
+
+            public function handle($request, $next)
+            {
+                return $next($request);
+            }
+
+            public function terminate($request, $response): void
+            {
+                ++$this->terminated;
+            }
+        };
+
+        $nonTerminable = new class {
+            public int $resolved = 0;
+
+            public function handle($request, $next)
+            {
+                return $next($request);
+            }
+        };
+
+        $app->instance('terminable-middleware', $terminable);
+        $app->bind('non-terminable-middleware', function () use ($nonTerminable) {
+            ++$nonTerminable->resolved;
+
+            return $nonTerminable;
+        });
+
+        $kernel->setGlobalMiddleware([
+            'terminable-middleware',
+            'non-terminable-middleware',
+        ]);
+
+        $kernel->terminate(new Request, new Response);
+        $kernel->terminate(new Request, new Response);
+        $kernel->terminate(new Request, new Response);
+
+        $this->assertSame(3, $terminable->terminated);
+
+        // The terminability answer is memoized for the worker lifetime, so a
+        // middleware without terminate() is resolved once and skipped after.
+        $this->assertSame(1, $nonTerminable->resolved);
+    }
+
     public function testHandleReportsAndRendersRouterFailures(): void
     {
         $app = new Application;

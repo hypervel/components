@@ -82,6 +82,18 @@ class Kernel implements KernelContract
     protected array $requestLifecycleDurationHandlers = [];
 
     /**
+     * Whether each middleware name resolves to a terminable instance.
+     *
+     * Keyed by the middleware string as it appears in the stack, parameters
+     * included. Populated on first termination and reused for the worker
+     * lifetime, so repeat requests skip parsing and resolving middleware that
+     * turned out to have no terminate() method.
+     *
+     * @var array<string, bool>
+     */
+    protected array $terminableMiddleware = [];
+
+    /**
      * Context key for the current request's start time.
      *
      * Stored per-coroutine — a singleton Kernel handles concurrent requests
@@ -291,12 +303,24 @@ class Kernel implements KernelContract
                 continue;
             }
 
+            // Most middleware are not terminable, and resolving each one only to
+            // find it has no terminate() is the dominant cost of this method.
+            // Whether a name resolves to something terminable is fixed once
+            // bindings are registered — those are boot-only — so the answer is
+            // memoized and non-terminable middleware skip both the name parse
+            // and the resolution on later requests.
+            if (($this->terminableMiddleware[$middleware] ?? null) === false) {
+                continue;
+            }
+
             try {
                 [$name] = $this->parseMiddleware($middleware);
 
                 $instance = $this->app->make($name);
+                $terminable = method_exists($instance, 'terminate');
+                $this->terminableMiddleware[$middleware] = $terminable;
 
-                if (method_exists($instance, 'terminate')) {
+                if ($terminable) {
                     $instance->terminate($request, $response);
                 }
             } catch (Throwable $throwable) {
