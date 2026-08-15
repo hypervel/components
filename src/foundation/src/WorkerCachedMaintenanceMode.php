@@ -21,8 +21,13 @@ class WorkerCachedMaintenanceMode implements MaintenanceModeContract
 
     /**
      * The time when the cached snapshot was last refreshed.
+     *
+     * Stored as a Unix timestamp float rather than a Carbon instance: this is
+     * read on every request through the global middleware stack, and Carbon's
+     * interval arithmetic costs microseconds per comparison where a float
+     * subtraction costs nanoseconds.
      */
-    protected static ?CarbonImmutable $refreshedAt = null;
+    protected static ?float $refreshedAt = null;
 
     /**
      * Create a new worker-cached maintenance mode instance.
@@ -101,7 +106,7 @@ class WorkerCachedMaintenanceMode implements MaintenanceModeContract
             ];
 
             // Set after successful reads so failed refreshes retry on the next request.
-            static::$refreshedAt = CarbonImmutable::now();
+            static::$refreshedAt = static::now();
         }
 
         return static::$snapshot;
@@ -117,6 +122,22 @@ class WorkerCachedMaintenanceMode implements MaintenanceModeContract
         }
 
         return $this->refreshInterval > 0
-            && static::$refreshedAt->addSeconds($this->refreshInterval)->lte(CarbonImmutable::now());
+            && static::now() - static::$refreshedAt >= $this->refreshInterval;
+    }
+
+    /**
+     * Get the current time as a Unix timestamp in seconds.
+     *
+     * This runs on every request through the global middleware stack, so the
+     * common path uses microtime() rather than Carbon interval arithmetic —
+     * building two Carbon instances and an interval to compare them costs
+     * microseconds where a float subtraction costs nanoseconds. Carbon is only
+     * consulted when a test now is set, so time travel still drives refreshes.
+     */
+    protected static function now(): float
+    {
+        return CarbonImmutable::hasTestNow()
+            ? (float) CarbonImmutable::now()->getTimestamp()
+            : microtime(true);
     }
 }
