@@ -101,7 +101,7 @@ class SyncIndexSettingsCommandTest extends TestCase
                 'test_posts' => ['filterableAttributes' => ['status']],
             ]);
         $config->shouldReceive('string')
-            ->with('scout.prefix', '')
+            ->with('scout.prefix')
             ->andReturn('');
 
         $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();
@@ -142,7 +142,7 @@ class SyncIndexSettingsCommandTest extends TestCase
             ->andReturn([
                 SyncIndexSettingsSoftDeleteModel::class => ['searchableAttributes' => ['title']],
             ]);
-        $config->shouldReceive('boolean')->with('scout.soft_delete', false)->andReturn(true);
+        $config->shouldReceive('boolean')->with('scout.soft_delete')->andReturn(true);
 
         Scout::prepareIndexSettingsUsing(function (
             array $settings,
@@ -181,7 +181,7 @@ class SyncIndexSettingsCommandTest extends TestCase
             ->andReturn($engine);
 
         $config = m::mock(Repository::class);
-        // Note: scout.driver should NOT be called when driver option is provided
+        // Note: scout.driver should not be called when driver option is provided
         $config->shouldReceive('array')
             ->with('scout.typesense.index-settings', [])
             ->andReturn([]);
@@ -263,7 +263,7 @@ class SyncIndexSettingsCommandTest extends TestCase
 
         $config = m::mock(Repository::class);
         $config->shouldReceive('string')
-            ->with('scout.prefix', '')
+            ->with('scout.prefix')
             ->andReturn('prod_');
 
         // Test that prefix is prepended when not already present
@@ -280,10 +280,10 @@ class SyncIndexSettingsCommandTest extends TestCase
 
         $config = m::mock(Repository::class);
         $config->shouldReceive('string')
-            ->with('scout.prefix', '')
+            ->with('scout.prefix')
             ->andReturn('prod_');
 
-        // Test that prefix is NOT duplicated when already present
+        // Test that prefix is not duplicated when already present
         $result = $method->invoke($command, 'prod_posts', $config);
         $this->assertSame('prod_posts', $result);
     }

@@ -68,7 +68,7 @@ class SyncIndexSettingsCommand extends Command
             }
 
             if ($model !== null
-                && $config->boolean('scout.soft_delete', false)
+                && $config->boolean('scout.soft_delete')
                 && in_array(SoftDeletes::class, class_uses_recursive($model), true)) {
                 $settings = $engine->configureSoftDeleteFilter($settings);
             }
@@ -92,7 +92,7 @@ class SyncIndexSettingsCommand extends Command
             return (new $name)->indexableAs();
         }
 
-        $prefix = $config->string('scout.prefix', '');
+        $prefix = $config->string('scout.prefix');
 
         return ! Str::startsWith($name, $prefix) ? $prefix . $name : $name;
     }

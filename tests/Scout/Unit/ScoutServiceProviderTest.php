@@ -18,9 +18,11 @@ use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\ScoutServiceProvider;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Testbench\TestCase;
+use InvalidArgumentException;
 use Meilisearch\Client as MeilisearchClient;
 use Meilisearch\Http\Client as MeilisearchHttpClient;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Client\ClientInterface;
 use ReflectionProperty;
 use stdClass;
@@ -114,6 +116,39 @@ class ScoutServiceProviderTest extends TestCase
         $client = $this->app->make(AlgoliaSearchClient::class);
 
         $this->assertInstanceOf(AlgoliaSearchClient::class, $client);
+    }
+
+    public function testNullAlgoliaTimeoutsPreserveSdkDefaults(): void
+    {
+        $this->app->make('config')->set('scout.algolia.id', 'test-app-id');
+        $this->app->make('config')->set('scout.algolia.secret', 'test-secret');
+        $this->app->forgetInstance(AlgoliaSearchClient::class);
+
+        $client = $this->app->make(AlgoliaSearchClient::class);
+        $configuration = (new ClassInvoker($client))->config;
+
+        $this->assertSame(2, $configuration->getConnectTimeout());
+        $this->assertSame(5, $configuration->getReadTimeout());
+        $this->assertSame(30, $configuration->getWriteTimeout());
+    }
+
+    public function testAlgoliaTimeoutsOverrideSdkDefaults(): void
+    {
+        $this->app->make('config')->set([
+            'scout.algolia.id' => 'test-app-id',
+            'scout.algolia.secret' => 'test-secret',
+            'scout.algolia.connect_timeout' => 11,
+            'scout.algolia.read_timeout' => 12,
+            'scout.algolia.write_timeout' => 13,
+        ]);
+        $this->app->forgetInstance(AlgoliaSearchClient::class);
+
+        $client = $this->app->make(AlgoliaSearchClient::class);
+        $configuration = (new ClassInvoker($client))->config;
+
+        $this->assertSame(11, $configuration->getConnectTimeout());
+        $this->assertSame(12, $configuration->getReadTimeout());
+        $this->assertSame(13, $configuration->getWriteTimeout());
     }
 
     public function testAlgoliaSdkUsesExplicitGuzzleAfterProviderBoot(): void
@@ -248,6 +283,34 @@ class ScoutServiceProviderTest extends TestCase
 
         $this->assertNotNull($thrown);
         $this->assertSame(1, $mock->count(), 'only the first response should be consumed when retries are disabled');
+    }
+
+    #[DataProvider('requiredMeilisearchRetrySettings')]
+    public function testMeilisearchRetrySettingsAreRequired(string $member): void
+    {
+        $config = $this->app->make('config');
+        $meilisearch = $config->array('scout.meilisearch');
+        unset($meilisearch[$member]);
+        $config->set('scout.meilisearch', $meilisearch);
+        $this->app->forgetInstance(MeilisearchClient::class);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage("Configuration value for key [scout.meilisearch.{$member}] must be an integer");
+
+        $this->app->make(MeilisearchClient::class);
+    }
+
+    /**
+     * Provide required Meilisearch retry settings.
+     *
+     * @return array<string, array{string}>
+     */
+    public static function requiredMeilisearchRetrySettings(): array
+    {
+        return [
+            'retry count' => ['retries'],
+            'initial retry delay' => ['initial_retry_delay_ms'],
+        ];
     }
 
     public function testTypesenseClientHasScoutTelescopeTags(): void

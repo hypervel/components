@@ -48,7 +48,7 @@ return [
     */
 
     'queue' => [
-        'enabled' => env('SCOUT_QUEUE', false),
+        'enabled' => (bool) env('SCOUT_QUEUE', false),
         'connection' => env('SCOUT_QUEUE_CONNECTION'),
         'queue' => env('SCOUT_QUEUE_NAME'),
     ],
@@ -110,7 +110,7 @@ return [
     |
     */
 
-    'command_concurrency' => env('SCOUT_COMMAND_CONCURRENCY', 50),
+    'command_concurrency' => (int) env('SCOUT_COMMAND_CONCURRENCY', 50),
 
     /*
     |--------------------------------------------------------------------------
@@ -148,12 +148,17 @@ return [
     | Here you may configure your Algolia settings. Algolia is a cloud hosted
     | search engine which works great with Scout out of the box. Just plug
     | in your application ID and admin API key to get started searching.
+    | Timeout values are measured in seconds; null leaves the corresponding
+    | Algolia SDK default unchanged.
     |
     */
 
     'algolia' => [
         'id' => env('ALGOLIA_APP_ID', ''),
         'secret' => env('ALGOLIA_SECRET', ''),
+        'connect_timeout' => null,
+        'read_timeout' => null,
+        'write_timeout' => null,
         'index-settings' => [
             // Per-index settings can be defined here:
             // 'users' => [

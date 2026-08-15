@@ -32,6 +32,12 @@ class ConfigFileTest extends TestCase
         $this->assertIsArray($config['algolia']);
         $this->assertArrayHasKey('id', $config['algolia']);
         $this->assertArrayHasKey('secret', $config['algolia']);
+        $this->assertArrayHasKey('connect_timeout', $config['algolia']);
+        $this->assertNull($config['algolia']['connect_timeout']);
+        $this->assertArrayHasKey('read_timeout', $config['algolia']);
+        $this->assertNull($config['algolia']['read_timeout']);
+        $this->assertArrayHasKey('write_timeout', $config['algolia']);
+        $this->assertNull($config['algolia']['write_timeout']);
         $this->assertArrayHasKey('index-settings', $config['algolia']);
         $this->assertIsArray($config['algolia']['index-settings']);
     }
@@ -130,6 +136,44 @@ class ConfigFileTest extends TestCase
         }
     }
 
+    public function testCommandConcurrencyEnvironmentValueIsLoadedAsAnInteger(): void
+    {
+        $environmentKey = 'SCOUT_COMMAND_CONCURRENCY';
+        $originalPutenv = getenv($environmentKey);
+        $originalServerExists = array_key_exists($environmentKey, $_SERVER);
+        $originalServer = $_SERVER[$environmentKey] ?? null;
+        $originalEnvExists = array_key_exists($environmentKey, $_ENV);
+        $originalEnv = $_ENV[$environmentKey] ?? null;
+
+        try {
+            unset($_SERVER[$environmentKey], $_ENV[$environmentKey]);
+            putenv("{$environmentKey}=75");
+            Env::flushRepository();
+
+            $config = require dirname(__DIR__, 3) . '/src/scout/config/scout.php';
+
+            $this->assertSame(75, $config['command_concurrency']);
+        } finally {
+            $originalPutenv === false
+                ? putenv($environmentKey)
+                : putenv("{$environmentKey}={$originalPutenv}");
+
+            if ($originalServerExists) {
+                $_SERVER[$environmentKey] = $originalServer;
+            } else {
+                unset($_SERVER[$environmentKey]);
+            }
+
+            if ($originalEnvExists) {
+                $_ENV[$environmentKey] = $originalEnv;
+            } else {
+                unset($_ENV[$environmentKey]);
+            }
+
+            Env::flushRepository();
+        }
+    }
+
     #[DataProvider('booleanEnvironmentValues')]
     public function testBooleanEnvironmentValuesAreLoadedAsBooleans(string $environmentKey, string $configKey): void
     {
@@ -146,7 +190,7 @@ class ConfigFileTest extends TestCase
 
             $config = require dirname(__DIR__, 3) . '/src/scout/config/scout.php';
 
-            $this->assertTrue($config[$configKey]);
+            $this->assertTrue(data_get($config, $configKey));
         } finally {
             $originalPutenv === false
                 ? putenv($environmentKey)
@@ -176,6 +220,7 @@ class ConfigFileTest extends TestCase
     public static function booleanEnvironmentValues(): array
     {
         return [
+            'queue' => ['SCOUT_QUEUE', 'queue.enabled'],
             'soft deletes' => ['SCOUT_SOFT_DELETE', 'soft_delete'],
             'after commit' => ['SCOUT_AFTER_COMMIT', 'after_commit'],
         ];
