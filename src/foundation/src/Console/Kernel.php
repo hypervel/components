@@ -23,7 +23,6 @@ use Hypervel\Foundation\Events\Terminating;
 use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
-use Hypervel\Support\Env;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
 use ReflectionClass;
@@ -280,9 +279,7 @@ class Kernel implements KernelContract
      */
     protected function scheduleTimezone(): ?string
     {
-        $config = $this->app->make('config');
-
-        return $config->get('app.schedule_timezone', $config->get('app.timezone'));
+        return $this->app->make('config')->get('app.schedule_timezone');
     }
 
     /**
@@ -290,9 +287,7 @@ class Kernel implements KernelContract
      */
     protected function scheduleCache(): ?string
     {
-        return $this->app->make('config')->get('cache.schedule_store', Env::get('SCHEDULE_CACHE_DRIVER', function () {
-            return Env::get('SCHEDULE_CACHE_STORE');
-        }));
+        return $this->app->make('config')->get('cache.schedule_store');
     }
 
     /**

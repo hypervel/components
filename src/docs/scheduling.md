@@ -357,6 +357,12 @@ Schedule::command('emails:send')->withoutOverlapping(10);
 
 Behind the scenes, the `withoutOverlapping` method utilizes your application's [cache](/docs/{{version}}/cache) to obtain locks. If necessary, you can clear these cache locks using the `schedule:clear-cache` Artisan command. This is typically only necessary if a task becomes stuck due to an unexpected server problem.
 
+By default, scheduling locks use the cache store configured by the `cache.schedule_store` option. This option reads the `SCHEDULE_CACHE_STORE` environment variable and may be set to null to use your application's default cache store:
+
+```ini
+SCHEDULE_CACHE_STORE=database
+```
+
 <a name="running-tasks-on-one-server"></a>
 ### Running Tasks on One Server
 
@@ -376,7 +382,7 @@ Schedule::command('report:generate')
     ->onOneServer();
 ```
 
-You may use the `useCache` method to customize the cache store used by the scheduler to obtain the atomic locks necessary for single-server tasks:
+You may use the `useCache` method to override the configured cache store used by the scheduler to obtain the atomic locks necessary for single-server tasks:
 
 ```php
 Schedule::useCache('database');
