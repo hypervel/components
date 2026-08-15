@@ -167,14 +167,20 @@ class Pipeline implements PipelineContract
                         return $pipe($passable, $stack);
                     }
                     if (! is_object($pipe)) {
-                        [$name, $parameters] = $this->parsePipeString($pipe);
+                        // Only pipes written as 'name:arg,arg' carry parameters, so the
+                        // parse is skipped for the common parameterless case.
+                        if (str_contains($pipe, ':')) {
+                            [$name, $parameters] = $this->parsePipeString($pipe);
+                            $parameters = array_merge([$passable, $stack], $parameters);
+                        } else {
+                            $name = $pipe;
+                            $parameters = [$passable, $stack];
+                        }
 
                         // If the pipe is a string we will parse the string and resolve the class out
                         // of the dependency injection container. We can then build a callable and
                         // execute the pipe function giving in the parameters that are required.
                         $pipe = $this->getContainer()->make($name);
-
-                        $parameters = array_merge([$passable, $stack], $parameters);
                     } else {
                         // If the pipe is already an object we'll just make a callable and pass it to
                         // the pipe as-is. There is no need to do any extra parsing and formatting

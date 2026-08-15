@@ -248,6 +248,48 @@ class PipelineTest extends TestCase
         $this->assertSame('data', $result);
     }
 
+    public function testPipelineViaDispatchesPerMethodForTheSamePipeClass(): void
+    {
+        $container = new Container;
+
+        // The pipe defines handle() but not missingMethod(), so piping it
+        // through the latter has to fall back to __invoke rather than reuse
+        // whatever the previous pipeline resolved for the same class.
+        $handled = (new Pipeline($container))->send('data')
+            ->through(PipelineTestPartialMethodPipe::class)
+            ->then(fn ($piped) => $piped);
+
+        $invoked = (new Pipeline($container))->send('data')
+            ->through(PipelineTestPartialMethodPipe::class)
+            ->via('missingMethod')
+            ->then(fn ($piped) => $piped);
+
+        $handledAgain = (new Pipeline($container))->send('data')
+            ->through(PipelineTestPartialMethodPipe::class)
+            ->then(fn ($piped) => $piped);
+
+        $this->assertSame('data:handled', $handled);
+        $this->assertSame('data:invoked', $invoked, 'A missing pipe method did not fall back to __invoke.');
+        $this->assertSame('data:handled', $handledAgain);
+    }
+
+    public function testPipelineResolvesPipesOnlyWhenReached(): void
+    {
+        $container = new Container;
+        $container->bind(PipelineTestUnreachablePipe::class);
+
+        $result = (new Pipeline($container))->send('data')
+            ->through([PipelineTestShortCircuitPipe::class, PipelineTestUnreachablePipe::class])
+            ->then(fn ($piped) => $piped);
+
+        $this->assertSame('short-circuited', $result);
+        $this->assertArrayNotHasKey(
+            '__test.pipe.unreachable',
+            $_SERVER,
+            'A pipe was constructed even though an earlier pipe never called next().'
+        );
+    }
+
     public function testPipelineThrowsExceptionOnResolveWithoutContainer(): void
     {
         $this->expectException(RuntimeException::class);
@@ -561,6 +603,40 @@ class PipelineTestParameterPipe
     {
         $_SERVER['__test.pipe.parameters'] = [$parameter1, $parameter2];
 
+        return $next($piped);
+    }
+}
+
+class PipelineTestShortCircuitPipe
+{
+    public function handle($piped, $next)
+    {
+        return 'short-circuited';
+    }
+}
+
+class PipelineTestPartialMethodPipe
+{
+    public function handle($piped, $next)
+    {
+        return $next($piped . ':handled');
+    }
+
+    public function __invoke($piped, $next)
+    {
+        return $next($piped . ':invoked');
+    }
+}
+
+class PipelineTestUnreachablePipe
+{
+    public function __construct()
+    {
+        $_SERVER['__test.pipe.unreachable'] = true;
+    }
+
+    public function handle($piped, $next)
+    {
         return $next($piped);
     }
 }
