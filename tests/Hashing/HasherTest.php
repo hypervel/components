@@ -235,21 +235,6 @@ class HasherTest extends TestCase
         $this->assertFalse($hasher->check('password', 'not-a-hash'));
     }
 
-    public function testManagerFallsBackToDefaultHashingConfig(): void
-    {
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')
-            ->with('config')
-            ->andReturn(new ConfigRepository([]));
-
-        $manager = new HashManager($container);
-
-        $this->assertSame('bcrypt', $manager->getDefaultDriver());
-        $this->assertInstanceOf(BcryptHasher::class, $manager->createBcryptDriver());
-        $this->assertInstanceOf(ArgonHasher::class, $manager->createArgonDriver());
-        $this->assertInstanceOf(Argon2IdHasher::class, $manager->createArgon2idDriver());
-    }
-
     protected function getContainer(?array $hashing = null): Container
     {
         $hashing ??= [

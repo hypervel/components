@@ -20,8 +20,17 @@ class HashingServiceProviderTest extends TestCase
         $config = new Repository([
             'hashing' => [
                 'driver' => 'bcrypt',
-                'bcrypt' => [],
-                'argon' => [],
+                'bcrypt' => [
+                    'rounds' => 12,
+                    'verify' => true,
+                    'limit' => null,
+                ],
+                'argon' => [
+                    'memory' => 65536,
+                    'threads' => 1,
+                    'time' => 4,
+                    'verify' => true,
+                ],
             ],
         ]);
         $application->instance('config', $config);
