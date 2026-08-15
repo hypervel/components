@@ -65,6 +65,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Source Editor
+    |--------------------------------------------------------------------------
+    |
+    | This setting controls clickable source links on development exception
+    | pages. Set it to an editor name or an array of editor options. A null
+    | value disables source links.
+    |
+    */
+
+    'editor' => null,
+
+    /*
+    |--------------------------------------------------------------------------
     | Stdout Log Configuration
     |--------------------------------------------------------------------------
     |
@@ -122,9 +135,15 @@ return [
     | Application URL
     |--------------------------------------------------------------------------
     |
-    | This URL is used by the console to properly generate URLs when using
-    | the Artisan command line tool. You should set this to the root of
-    | the application so that it's available within Artisan commands.
+    | This URL is used whenever Hypervel needs to know the root of your
+    | application: generating URLs in console commands, queued jobs, and
+    | mail, and deriving trusted host patterns for incoming requests. You
+    | should set this to the root of your application.
+    |
+    | Set this to null only when the application has no canonical URL.
+    | Features that support a missing URL use their documented behavior,
+    | while features that require an absolute URL fail until a URL is
+    | configured.
     |
     */
 
@@ -144,10 +163,14 @@ return [
     | Here you may specify the default timezone for your application, which
     | will be used by the PHP date and date-time functions. The timezone
     | is set to "UTC" by default as it is suitable for most use cases.
+    | Set the schedule timezone to null to use the application timezone for
+    | scheduled tasks.
     |
     */
 
     'timezone' => env('APP_TIMEZONE', 'UTC'),
+
+    'schedule_timezone' => null,
 
     /*
     |--------------------------------------------------------------------------

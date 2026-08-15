@@ -26,6 +26,8 @@ return [
     | Here you may define all of the broadcast connections that will be used
     | to broadcast events to other systems or over WebSockets. Samples of
     | each available type of connection are provided inside this array.
+    | The Pusher-compatible "log" option controls SDK logging and is
+    | separate from the broadcast connection that uses the log driver.
     |
     */
 
@@ -45,6 +47,7 @@ return [
             'client_options' => [
                 // Guzzle client options: https://docs.guzzlephp.org/en/stable/request-options.html
             ],
+            'log' => false,
             'jsonp' => false,
         ],
 
@@ -64,6 +67,7 @@ return [
             'client_options' => [
                 // Guzzle client options: https://docs.guzzlephp.org/en/stable/request-options.html
             ],
+            'log' => false,
             'jsonp' => false,
         ],
 

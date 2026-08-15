@@ -27,12 +27,24 @@ return [
     |
     | Supported drivers: "local", "ftp", "sftp", "s3", "gcs"
     |
+    | Built-in disk records below declare their driver-specific settings.
+    | Any disk may also use Flysystem's shared visibility, URL, prefix, and
+    | read-only options. A null directory visibility inherits the file
+    | visibility. A null local links setting disallows symbolic links.
+    |
     */
 
     'disks' => [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
+            'permissions' => [],
+            'visibility' => 'private',
+            'directory_visibility' => null,
+            'lock' => LOCK_EX,
+            'links' => null,
+            'serve' => false,
+            'read-only' => false,
             'throw' => false,
         ],
 
@@ -40,7 +52,13 @@ return [
             'driver' => 'local',
             'root' => storage_path('app/public'),
             'url' => env('APP_URL') . '/storage',
+            'permissions' => [],
             'visibility' => 'public',
+            'directory_visibility' => null,
+            'lock' => LOCK_EX,
+            'links' => null,
+            'serve' => false,
+            'read-only' => false,
             'throw' => false,
         ],
 
@@ -48,11 +66,18 @@ return [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),
             'secret' => env('AWS_SECRET_ACCESS_KEY'),
+            'token' => null,
             'region' => env('AWS_DEFAULT_REGION'),
             'bucket' => env('AWS_BUCKET'),
+            'root' => '',
             'url' => env('AWS_URL'),
             'endpoint' => env('AWS_ENDPOINT'),
             'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+            'version' => 'latest',
+            'visibility' => 'public',
+            'options' => [],
+            'client' => [],
+            'read-only' => false,
             'throw' => false,
             'stream_reads' => true,
             'pool' => [
@@ -77,6 +102,8 @@ return [
             'visibility' => 'public', // optional: public|private
             'visibility_handler' => null, // optional: set to \League\Flysystem\GoogleCloudStorage\UniformBucketLevelAccessVisibility::class to enable uniform bucket level access
             'metadata' => ['cacheControl' => 'public,max-age=86400'], // optional: default metadata
+            'client' => [],
+            'read-only' => false,
             'throw' => false,
             'stream_reads' => true,
             'pool' => [

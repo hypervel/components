@@ -7,8 +7,9 @@ namespace Hypervel\Tests\Foundation;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Foundation\Application;
+use Hypervel\Redis\RedisConfig;
 use Hypervel\Support\Env;
-use Hypervel\Tests\TestCase;
+use Hypervel\Testbench\TestCase;
 use Swoole\Constant;
 
 class FoundationConfigTest extends TestCase
@@ -32,6 +33,91 @@ class FoundationConfigTest extends TestCase
         $config = $this->appConfigWithEnvironment('APP_PREVIOUS_KEYS', '(null)');
 
         $this->assertSame([], $config['previous_keys']);
+    }
+
+    public function testCacheConfigReadsTheScheduleCacheStoreEnvironmentVariable(): void
+    {
+        $config = $this->withEnvironmentValue(
+            'SCHEDULE_CACHE_STORE',
+            'scheduling',
+            fn (): array => $this->cacheConfig(),
+        );
+
+        $this->assertSame('scheduling', $config['schedule_store']);
+    }
+
+    public function testCacheConfigIgnoresTheLegacyScheduleCacheDriverEnvironmentVariable(): void
+    {
+        $config = $this->withEnvironmentValue(
+            'SCHEDULE_CACHE_DRIVER',
+            'legacy',
+            fn (): array => $this->withEnvironmentValue(
+                'SCHEDULE_CACHE_STORE',
+                null,
+                fn (): array => $this->cacheConfig(),
+            ),
+        );
+
+        $this->assertNull($config['schedule_store']);
+    }
+
+    public function testShippedCacheStoreEnablesRepositoryEvents(): void
+    {
+        $this->assertTrue(config()->boolean('cache.stores.array.events'));
+        $this->assertNotNull($this->app->make('cache')->store('array')->getEventDispatcher());
+    }
+
+    public function testShippedRedisConnectionsUseTheCompleteStandaloneSchema(): void
+    {
+        $requiredMembers = [
+            'url',
+            'scheme',
+            'host',
+            'username',
+            'password',
+            'port',
+            'database',
+            'name',
+            'timeout',
+            'retry_interval',
+            'read_timeout',
+            'context',
+            'options',
+            'prefix',
+            'events',
+            'max_retries',
+            'backoff_algorithm',
+            'backoff_base',
+            'backoff_cap',
+            'pool',
+        ];
+        $requiredPoolMembers = [
+            'min_connections',
+            'max_connections',
+            'connect_timeout',
+            'wait_timeout',
+            'heartbeat',
+            'heartbeat_timeout',
+            'max_idle_time',
+            'max_lifetime',
+        ];
+        $redisConfig = $this->app->make(RedisConfig::class);
+        $sharedPrefix = config()->string('database.redis.options.prefix');
+
+        foreach (['default', 'cache', 'session', 'queue', 'reverb'] as $name) {
+            $connection = config()->array("database.redis.{$name}");
+
+            $this->assertSame([], array_diff($requiredMembers, array_keys($connection)));
+            $this->assertSame([], array_diff($requiredPoolMembers, array_keys($connection['pool'])));
+            $this->assertNull($connection['name']);
+            $this->assertNull($connection['timeout']);
+            $this->assertNull($connection['prefix']);
+            $this->assertFalse($connection['events']);
+            $this->assertSame(
+                $sharedPrefix,
+                $redisConfig->connectionConfig($name)['options']['prefix'],
+            );
+        }
     }
 
     public function testServerConfigUsesSafeTaskDefaults(): void
@@ -79,7 +165,9 @@ class FoundationConfigTest extends TestCase
         $config = require dirname(__DIR__, 2) . '/src/foundation/config/broadcasting.php';
 
         $this->assertFalse($config['connections']['reverb']['jsonp']);
+        $this->assertFalse($config['connections']['reverb']['log']);
         $this->assertFalse($config['connections']['pusher']['jsonp']);
+        $this->assertFalse($config['connections']['pusher']['log']);
         $this->assertArrayNotHasKey('pool', $config['connections']['pusher']);
         $this->assertArrayNotHasKey('pool', $config['connections']['ably']);
     }
@@ -110,15 +198,7 @@ class FoundationConfigTest extends TestCase
 
     public function testViewConfigDefinesCompilerDefaults(): void
     {
-        $originalContainer = Container::getInstance();
-
-        try {
-            Container::setInstance(new Application(dirname(__DIR__, 2)));
-
-            $config = require dirname(__DIR__, 2) . '/src/foundation/config/view.php';
-        } finally {
-            Container::setInstance($originalContainer);
-        }
+        $config = require dirname(__DIR__, 2) . '/src/foundation/config/view.php';
 
         $this->assertFalse($config['relative_hash']);
         $this->assertTrue($config['cache']);
@@ -137,19 +217,19 @@ class FoundationConfigTest extends TestCase
     }
 
     /**
-     * Load the server configuration with an application instance.
+     * Load the cache configuration.
+     */
+    protected function cacheConfig(): array
+    {
+        return require dirname(__DIR__, 2) . '/src/foundation/config/cache.php';
+    }
+
+    /**
+     * Load the server configuration.
      */
     protected function serverConfig(): array
     {
-        $originalContainer = Container::getInstance();
-
-        try {
-            Container::setInstance(new Application(dirname(__DIR__, 2)));
-
-            return require dirname(__DIR__, 2) . '/src/foundation/config/server.php';
-        } finally {
-            Container::setInstance($originalContainer);
-        }
+        return require dirname(__DIR__, 2) . '/src/foundation/config/server.php';
     }
 
     /**

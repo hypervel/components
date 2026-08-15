@@ -68,6 +68,7 @@ return [
     | When using the "database" or "redis" session drivers, you may specify a
     | connection that should be used to manage these sessions. This should
     | correspond to a connection in the matching driver configuration.
+    | Set it to null to use that driver's default connection.
     |
     */
 
@@ -119,7 +120,8 @@ return [
     |
     | Session blocking prevents concurrent requests for the same session
     | from executing at the same time. You may configure the cache store
-    | and time limits used to acquire and maintain the session lock.
+    | and time limits used to acquire and maintain the session lock. Set the
+    | block store to null to use the default cache store.
     |
     */
 
@@ -176,8 +178,8 @@ return [
     |--------------------------------------------------------------------------
     |
     | This value determines the domain and subdomains the session cookie is
-    | available to. By default, the cookie will be available to the root
-    | domain and all subdomains. Typically, this shouldn't be changed.
+    | available to. A null value creates a host-only cookie. Set an explicit
+    | domain when the cookie should be shared with subdomains.
     |
     */
 

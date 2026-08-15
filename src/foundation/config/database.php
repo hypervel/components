@@ -36,6 +36,9 @@ return [
     | Below are all of the database connections defined for your application.
     | An example configuration is provided for each database system which
     | is supported by Hypervel. You're free to add / remove connections.
+    | A connection may set "migrations_connection" to route migrations
+    | through another named connection. When omitted, migrations use the
+    | selected connection itself.
     |
     */
 
@@ -195,7 +198,15 @@ return [
     |
     | Redis is an open source, fast, and advanced key-value store that also
     | provides a richer body of commands than a typical key-value system
-    | such as Memcached. You may define your connection settings here.
+    | such as Memcached. Each named connection must define one complete
+    | standalone, Sentinel, or Cluster record.
+    |
+    | A null scheme leaves transport selection to the URL, stream context,
+    | or Redis default. A null connection name disables CLIENT SETNAME, a
+    | null timeout inherits the pool connection timeout, and a null prefix
+    | inherits the shared prefix. Sentinel and Cluster records must define
+    | their complete topology blocks; Cluster records omit standalone-only
+    | URL, host, port, database, name, and retry interval settings.
     |
     */
 
@@ -206,11 +217,20 @@ return [
 
         'default' => [
             'url' => env('REDIS_URL'),
+            'scheme' => null,
             'host' => env('REDIS_HOST', 'localhost'),
             'username' => env('REDIS_USERNAME'),
             'password' => env('REDIS_PASSWORD'),
             'port' => (int) env('REDIS_PORT', 6379),
             'database' => (int) env('REDIS_DB', 0),
+            'name' => null,
+            'timeout' => null,
+            'retry_interval' => 0,
+            'read_timeout' => 0.0,
+            'context' => [],
+            'options' => [],
+            'prefix' => null,
+            'events' => false,
             'max_retries' => (int) env('REDIS_MAX_RETRIES', 3),
             'backoff_algorithm' => env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter'),
             'backoff_base' => (int) env('REDIS_BACKOFF_BASE', 100),
@@ -229,11 +249,20 @@ return [
 
         'cache' => [
             'url' => env('REDIS_CACHE_URL', env('REDIS_URL')),
+            'scheme' => null,
             'host' => env('REDIS_CACHE_HOST', env('REDIS_HOST', 'localhost')),
             'username' => env('REDIS_CACHE_USERNAME', env('REDIS_USERNAME')),
             'password' => env('REDIS_CACHE_PASSWORD', env('REDIS_PASSWORD')),
             'port' => (int) env('REDIS_CACHE_PORT', env('REDIS_PORT', 6379)),
             'database' => (int) env('REDIS_CACHE_DB', env('REDIS_DB', 0)),
+            'name' => null,
+            'timeout' => null,
+            'retry_interval' => 0,
+            'read_timeout' => 0.0,
+            'context' => [],
+            'options' => [],
+            'prefix' => null,
+            'events' => false,
             'max_retries' => (int) env('REDIS_CACHE_MAX_RETRIES', env('REDIS_MAX_RETRIES', 3)),
             'backoff_algorithm' => env('REDIS_CACHE_BACKOFF_ALGORITHM', env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter')),
             'backoff_base' => (int) env('REDIS_CACHE_BACKOFF_BASE', env('REDIS_BACKOFF_BASE', 100)),
@@ -252,11 +281,20 @@ return [
 
         'session' => [
             'url' => env('REDIS_SESSION_URL', env('REDIS_URL')),
+            'scheme' => null,
             'host' => env('REDIS_SESSION_HOST', env('REDIS_HOST', 'localhost')),
             'username' => env('REDIS_SESSION_USERNAME', env('REDIS_USERNAME')),
             'password' => env('REDIS_SESSION_PASSWORD', env('REDIS_PASSWORD')),
             'port' => (int) env('REDIS_SESSION_PORT', env('REDIS_PORT', 6379)),
             'database' => (int) env('REDIS_SESSION_DB', env('REDIS_DB', 0)),
+            'name' => null,
+            'timeout' => null,
+            'retry_interval' => 0,
+            'read_timeout' => 0.0,
+            'context' => [],
+            'options' => [],
+            'prefix' => null,
+            'events' => false,
             'max_retries' => (int) env('REDIS_SESSION_MAX_RETRIES', env('REDIS_MAX_RETRIES', 3)),
             'backoff_algorithm' => env('REDIS_SESSION_BACKOFF_ALGORITHM', env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter')),
             'backoff_base' => (int) env('REDIS_SESSION_BACKOFF_BASE', env('REDIS_BACKOFF_BASE', 100)),
@@ -275,11 +313,20 @@ return [
 
         'queue' => [
             'url' => env('REDIS_QUEUE_URL', env('REDIS_URL')),
+            'scheme' => null,
             'host' => env('REDIS_QUEUE_HOST', env('REDIS_HOST', 'localhost')),
             'username' => env('REDIS_QUEUE_USERNAME', env('REDIS_USERNAME')),
             'password' => env('REDIS_QUEUE_PASSWORD', env('REDIS_PASSWORD')),
             'port' => (int) env('REDIS_QUEUE_PORT', env('REDIS_PORT', 6379)),
             'database' => (int) env('REDIS_QUEUE_DB', env('REDIS_DB', 0)),
+            'name' => null,
+            'timeout' => null,
+            'retry_interval' => 0,
+            'read_timeout' => 0.0,
+            'context' => [],
+            'options' => [],
+            'prefix' => null,
+            'events' => false,
             'max_retries' => (int) env('REDIS_QUEUE_MAX_RETRIES', env('REDIS_MAX_RETRIES', 3)),
             'backoff_algorithm' => env('REDIS_QUEUE_BACKOFF_ALGORITHM', env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter')),
             'backoff_base' => (int) env('REDIS_QUEUE_BACKOFF_BASE', env('REDIS_BACKOFF_BASE', 100)),
@@ -298,11 +345,20 @@ return [
 
         'reverb' => [
             'url' => env('REDIS_REVERB_URL', env('REDIS_URL')),
+            'scheme' => null,
             'host' => env('REDIS_REVERB_HOST', env('REDIS_HOST', 'localhost')),
             'username' => env('REDIS_REVERB_USERNAME', env('REDIS_USERNAME')),
             'password' => env('REDIS_REVERB_PASSWORD', env('REDIS_PASSWORD')),
             'port' => (int) env('REDIS_REVERB_PORT', env('REDIS_PORT', 6379)),
             'database' => (int) env('REDIS_REVERB_DB', env('REDIS_DB', 0)),
+            'name' => null,
+            'timeout' => null,
+            'retry_interval' => 0,
+            'read_timeout' => 0.0,
+            'context' => [],
+            'options' => [],
+            'prefix' => null,
+            'events' => false,
             'max_retries' => (int) env('REDIS_REVERB_MAX_RETRIES', env('REDIS_MAX_RETRIES', 3)),
             'backoff_algorithm' => env('REDIS_REVERB_BACKOFF_ALGORITHM', env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter')),
             'backoff_base' => (int) env('REDIS_REVERB_BACKOFF_BASE', env('REDIS_BACKOFF_BASE', 100)),

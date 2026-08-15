@@ -34,6 +34,11 @@ return [
     |            "postmark", "resend", "cloudflare", "log",
     |            "array", "failover", "roundrobin"
     |
+    | A null SMTP scheme is inferred from its port, while a null timeout leaves
+    | the transport default unchanged. A null log channel uses the default log
+    | channel. Poolable named transports use the shared pool defaults; set
+    | "pool" to false to disable pooling or provide an array of pool options.
+    |
     */
 
     'mailers' => [
@@ -46,32 +51,39 @@ return [
             'username' => env('MAIL_USERNAME'),
             'password' => env('MAIL_PASSWORD'),
             'timeout' => null,
+            'source_ip' => null,
             'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
+            'pool' => [],
         ],
 
         'ses' => [
             'transport' => 'ses-v2',
+            'options' => [],
+            'pool' => [],
         ],
 
         'postmark' => [
             'transport' => 'postmark',
-            // 'message_stream_id' => env('POSTMARK_MESSAGE_STREAM_ID'),
-            // 'client' => [
-            //     'timeout' => 5,
-            // ],
+            'message_stream_id' => env('POSTMARK_MESSAGE_STREAM_ID'),
+            'client' => [],
+            'pool' => [],
         ],
 
         'resend' => [
             'transport' => 'resend',
+            'pool' => [],
         ],
 
         'cloudflare' => [
             'transport' => 'cloudflare',
+            'client' => [],
+            'pool' => [],
         ],
 
         'sendmail' => [
             'transport' => 'sendmail',
             'path' => env('MAIL_SENDMAIL_PATH', '/usr/sbin/sendmail -bs -i'),
+            'pool' => [],
         ],
 
         'log' => [
@@ -90,6 +102,7 @@ return [
                 'log',
             ],
             'retry_after' => 60,
+            'pool' => [],
         ],
 
         'roundrobin' => [
@@ -99,6 +112,7 @@ return [
                 'postmark',
             ],
             'retry_after' => 60,
+            'pool' => [],
         ],
     ],
 

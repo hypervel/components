@@ -20,6 +20,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Schedule Cache Store
+    |--------------------------------------------------------------------------
+    |
+    | This store coordinates scheduled tasks across processes and servers.
+    | Set it to null to use the default cache store.
+    |
+    */
+
+    'schedule_store' => env('SCHEDULE_CACHE_STORE'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Cache Stores
     |--------------------------------------------------------------------------
     |
@@ -31,44 +43,58 @@ return [
     |                    "storage", "redis", "swoole", "stack", "session",
     |                    "failover", "null"
     |
+    | A null store prefix inherits the global cache prefix. Nullable connection,
+    | lock connection, and disk values select their manager's default. A null
+    | file permission uses the operating system's default permissions. Any store
+    | may set "events" to false to disable cache events for that repository.
+    |
     */
 
     'stores' => [
         'array' => [
             'driver' => 'array',
             'serialize' => false,
+            'events' => true,
         ],
 
         'worker-array' => [
             'driver' => 'worker-array',
             'serialize' => false,
+            'events' => true,
         ],
 
         'session' => [
             'driver' => 'session',
             'key' => env('SESSION_CACHE_KEY', '_cache'),
+            'events' => true,
         ],
 
         'database' => [
             'driver' => 'database',
             'connection' => env('DB_CACHE_CONNECTION'),
             'table' => env('DB_CACHE_TABLE', 'cache'),
+            'prefix' => null,
             'lock_connection' => env('DB_CACHE_LOCK_CONNECTION'),
             'lock_table' => env('DB_CACHE_LOCK_TABLE', 'cache_locks'),
             'lock_lottery' => [2, 100],
             'lock_timeout' => 86400,
+            'events' => true,
         ],
 
         'file' => [
             'driver' => 'file',
             'path' => storage_path('framework/cache/data'),
+            'permission' => null,
             'lock_path' => storage_path('framework/cache/data'),
+            'events' => true,
         ],
 
         'storage' => [
             'driver' => 'storage',
             'disk' => env('CACHE_STORAGE_DISK'),
             'path' => env('CACHE_STORAGE_PATH', 'framework/cache/data'),
+            'prefix' => null,
+            'events' => true,
         ],
 
         'redis' => [
@@ -76,6 +102,8 @@ return [
             'connection' => env('REDIS_CACHE_CONNECTION', 'cache'),
             'tag_mode' => env('REDIS_CACHE_TAG_MODE', 'all'), // 'any' requires PhpRedis 6.3.0+ with Redis 8.0+ or Valkey 9.0+.
             'lock_connection' => env('REDIS_CACHE_LOCK_CONNECTION', 'cache'),
+            'prefix' => null,
+            'events' => true,
         ],
 
         'swoole' => [
@@ -86,6 +114,7 @@ return [
             'eviction_proportion' => 0.05,
             'eviction_interval' => 10000, // milliseconds
             'interval_refresh_interval' => 1000, // milliseconds
+            'events' => true,
         ],
 
         'stack' => [
@@ -96,6 +125,7 @@ return [
                 ],
                 'redis',
             ],
+            'events' => true,
         ],
 
         'failover' => [
@@ -104,6 +134,7 @@ return [
                 'database',
                 'array',
             ],
+            'events' => true,
         ],
     ],
 

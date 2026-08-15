@@ -31,12 +31,22 @@ return [
     | users are actually retrieved out of your database or other storage
     | system used by the application. Typically, Eloquent is utilized.
     |
-    | Guards that send password reset links declare their broker with
-    | the "passwords" key, referencing an entry in the passwords array.
+    | Guards that send password reset links declare their broker with the
+    | "passwords" key, referencing an entry in the passwords array. Set it
+    | to null when the guard does not select a default password broker.
     | Sanctum guards declare the session guards they trust for first-party
     | SPA requests with the "session_guards" key; set it to an empty array
-    | for bearer-token-only APIs. Guards may also override the password
-    | confirmation window with a "password_timeout" key.
+    | for bearer-token-only APIs. Set "password_timeout" to null to inherit
+    | the application-wide password confirmation window. Session guards may
+    | set "remember" to a lifetime in minutes; null keeps the built-in
+    | lifetime. JWT guards may set "ttl" to an integer number of minutes,
+    | null for non-expiring tokens, or "inherit" to use the global jwt.ttl.
+    | The "inherit" value is specific to JWT guard records because null has
+    | its own non-expiring meaning.
+    |
+    | Token guards require "provider", "input_key", "storage_key", and
+    | "hash" members. Request and custom guards may use a null provider when
+    | their implementation does not retrieve users through a provider.
     |
     | Supported by default: "session". Install hypervel/sanctum to use
     | the "sanctum" guard, and hypervel/jwt to use the "jwt" guard
@@ -48,15 +58,22 @@ return [
             'driver' => 'session',
             'provider' => 'users',
             'passwords' => 'users',
+            'password_timeout' => null,
+            'remember' => null,
         ],
         'sanctum' => [
             'driver' => 'sanctum',
             'provider' => 'users',
             'session_guards' => ['web'],
+            'passwords' => null,
+            'password_timeout' => null,
         ],
         'jwt' => [
             'driver' => 'jwt',
             'provider' => 'users',
+            'passwords' => null,
+            'password_timeout' => null,
+            'ttl' => 'inherit',
         ],
     ],
 
@@ -161,12 +178,19 @@ return [
     | generating more password reset tokens. This prevents the user from
     | quickly generating a very large amount of password reset tokens.
     |
+    | Database brokers require "driver", "provider", "table", "connection",
+    | "expire", and "throttle". Set "connection" to null to use the default
+    | database connection. Cache brokers replace "table" and "connection"
+    | with a nullable "store" member; null selects the default cache store.
+    |
     */
 
     'passwords' => [
         'users' => [
+            'driver' => 'database',
             'provider' => 'users',
             'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens'),
+            'connection' => null,
             'expire' => 60,
             'throttle' => 60,
         ],

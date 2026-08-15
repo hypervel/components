@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Monolog\Handler\ErrorLogHandler;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
@@ -34,7 +35,7 @@ return [
 
     'deprecations' => [
         'channel' => env('LOG_DEPRECATIONS_CHANNEL', 'null'),
-        'trace' => env('LOG_DEPRECATIONS_TRACE', false),
+        'trace' => (bool) env('LOG_DEPRECATIONS_TRACE', false),
     ],
 
     /*
@@ -49,6 +50,11 @@ return [
     | Available drivers: "single", "daily", "slack", "syslog",
     |                    "errorlog", "monolog", "custom", "stack"
     |
+    | Built-in channel records below declare their driver-specific settings.
+    | Any channel may also set a custom "name", a "tap" list, or optional
+    | formatter and action-level settings. A null file permission uses the
+    | operating system's default permissions.
+    |
     */
 
     'channels' => [
@@ -62,6 +68,9 @@ return [
             'driver' => 'single',
             'path' => storage_path('logs/hypervel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
+            'bubble' => true,
+            'permission' => null,
+            'locking' => false,
             'replace_placeholders' => true,
         ],
 
@@ -70,15 +79,24 @@ return [
             'path' => storage_path('logs/hypervel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
             'days' => env('LOG_DAILY_DAYS', 14),
+            'bubble' => true,
+            'permission' => null,
+            'locking' => false,
             'replace_placeholders' => true,
         ],
 
         'slack' => [
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),
+            'channel' => null,
             'username' => env('LOG_SLACK_USERNAME', env('APP_NAME', 'Hypervel')),
+            'attachment' => true,
             'emoji' => env('LOG_SLACK_EMOJI', ':boom:'),
+            'short' => false,
+            'context' => true,
             'level' => env('LOG_LEVEL', 'critical'),
+            'bubble' => true,
+            'exclude_fields' => [],
             'replace_placeholders' => true,
         ],
 
@@ -126,12 +144,16 @@ return [
         'errorlog' => [
             'driver' => 'errorlog',
             'level' => env('LOG_LEVEL', 'debug'),
+            'type' => ErrorLogHandler::OPERATING_SYSTEM,
             'replace_placeholders' => true,
         ],
 
         'null' => [
             'driver' => 'monolog',
+            'level' => 'debug',
             'handler' => NullHandler::class,
+            'handler_with' => [],
+            'processors' => [],
         ],
 
         'emergency' => [

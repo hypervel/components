@@ -38,19 +38,32 @@ return [
     |
     | Drivers: "sync", "background", "deferred", "database", "beanstalkd", "sqs", "redis", "null"
     |
+    | A null database connection selects the default database connection. A
+    | null Beanstalkd timeout disables the socket timeout. Connection records
+    | for drivers without named queues may omit the "queue" member.
+    |
+    | For SQS, a non-null credentials option takes precedence over the static
+    | key and secret. When all three are null, the AWS SDK uses its default
+    | credential chain. A null token means no temporary AWS session token.
+    | Callable or object credentials require an explicit pool fingerprint.
+    | The version and HTTP options configure the underlying AWS SDK client.
+    |
     */
 
     'connections' => [
         'sync' => [
             'driver' => 'sync',
+            'after_commit' => false,
         ],
 
         'background' => [
             'driver' => 'background',
+            'after_commit' => false,
         ],
 
         'deferred' => [
             'driver' => 'deferred',
+            'after_commit' => false,
         ],
 
         'database' => [
@@ -65,9 +78,11 @@ return [
         'beanstalkd' => [
             'driver' => 'beanstalkd',
             'host' => env('BEANSTALKD_QUEUE_HOST', 'localhost'),
+            'port' => 11300,
             'queue' => env('BEANSTALKD_QUEUE', 'default'),
             'retry_after' => (int) env('BEANSTALKD_QUEUE_RETRY_AFTER', 90),
             'block_for' => 0,
+            'timeout' => null,
             'after_commit' => false,
             'pool' => [
                 'min_retained_objects' => 1,
@@ -83,10 +98,17 @@ return [
             'driver' => 'sqs',
             'key' => env('AWS_ACCESS_KEY_ID'),
             'secret' => env('AWS_SECRET_ACCESS_KEY'),
+            'token' => null,
+            'credentials' => null,
             'prefix' => env('SQS_PREFIX', 'https://sqs.us-east-1.amazonaws.com/your-account-id'),
             'queue' => env('SQS_QUEUE', 'default'),
             'suffix' => env('SQS_SUFFIX'),
             'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
+            'version' => 'latest',
+            'http' => [
+                'timeout' => 60,
+                'connect_timeout' => 60,
+            ],
             'after_commit' => false,
             'overflow' => [
                 'enabled' => env('SQS_OVERFLOW_ENABLED', false),
@@ -112,6 +134,7 @@ return [
             'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
             'block_for' => null,
             'after_commit' => false,
+            'migration_batch_size' => -1,
         ],
     ],
 
@@ -141,6 +164,10 @@ return [
     | support for storing failed jobs in a simple file or in a database.
     |
     | Supported drivers: "database", "database-uuids", "file", "null"
+    |
+    | Database drivers require "database" and "table". The file driver uses
+    | a "path" and "limit" instead; omitting them stores up to 100 failures in
+    | storage/framework/cache/failed-jobs.json.
     |
     */
 
