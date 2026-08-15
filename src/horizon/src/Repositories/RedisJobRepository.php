@@ -64,12 +64,12 @@ class RedisJobRepository implements JobRepository
     public function __construct(
         public Redis $redis
     ) {
-        $this->recentJobExpires = (int) config('horizon.trim.recent', 60);
-        $this->pendingJobExpires = (int) config('horizon.trim.pending', 60);
-        $this->completedJobExpires = (int) config('horizon.trim.completed', 60);
-        $this->failedJobExpires = (int) config('horizon.trim.failed', 10080);
-        $this->recentFailedJobExpires = (int) config('horizon.trim.recent_failed', $this->failedJobExpires);
-        $this->monitoredJobExpires = (int) config('horizon.trim.monitored', 10080);
+        $this->recentJobExpires = config()->integer('horizon.trim.recent');
+        $this->pendingJobExpires = config()->integer('horizon.trim.pending');
+        $this->completedJobExpires = config()->integer('horizon.trim.completed');
+        $this->failedJobExpires = config()->integer('horizon.trim.failed');
+        $this->recentFailedJobExpires = config()->integer('horizon.trim.recent_failed');
+        $this->monitoredJobExpires = config()->integer('horizon.trim.monitored');
     }
 
     /**

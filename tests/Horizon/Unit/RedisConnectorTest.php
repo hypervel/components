@@ -12,13 +12,18 @@ use Mockery as m;
 
 class RedisConnectorTest extends UnitTestCase
 {
-    public function testConnectSucceedsWithoutAfterCommitConfig()
+    public function testConnectSucceedsWithCompleteConfiguration(): void
     {
         $redis = m::mock(Redis::class);
         $connector = new RedisConnector($redis);
 
         $queue = $connector->connect([
             'queue' => 'default',
+            'connection' => 'queue',
+            'retry_after' => 90,
+            'block_for' => null,
+            'after_commit' => false,
+            'migration_batch_size' => -1,
         ]);
 
         $this->assertInstanceOf(RedisQueue::class, $queue);

@@ -22,8 +22,8 @@ class DashboardStatsController extends Controller
             'jobsPerMinute' => app(MetricsRepository::class)->jobsProcessedPerMinute(),
             'pausedMasters' => $this->totalPausedMasters(),
             'periods' => [
-                'failedJobs' => config('horizon.trim.recent_failed', config('horizon.trim.failed')),
-                'recentJobs' => config('horizon.trim.recent'),
+                'failedJobs' => config()->integer('horizon.trim.recent_failed'),
+                'recentJobs' => config()->integer('horizon.trim.recent'),
             ],
             'processes' => $this->totalProcessCount(),
             'queueWithMaxRuntime' => app(MetricsRepository::class)->queueWithMaximumRuntime(),

@@ -10,6 +10,7 @@ use Hypervel\Horizon\Contracts\TagRepository;
 use Hypervel\Horizon\Events\JobFailed;
 use Hypervel\Queue\Jobs\Job;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
+use InvalidArgumentException;
 use Mockery as m;
 
 class StoreTagsForFailedTest extends IntegrationTestCase
@@ -34,14 +35,15 @@ class StoreTagsForFailedTest extends IntegrationTestCase
         $this->app->make(Dispatcher::class)->dispatch($event);
     }
 
-    public function testFailedJobTrimDefaultSurvivesReplaceWholeConfiguration(): void
+    public function testFailedJobTrimIsRequiredWhenTrimConfigurationIsReplaced(): void
     {
-        config()->set('horizon.trim', ['recent' => 60]);
-
-        $tagRepository = m::mock(TagRepository::class);
-        $tagRepository->shouldReceive('addTemporary')->once()->with(10080, '1', ['failed:foobar'])->andReturn([]);
-
-        $this->instance(TagRepository::class, $tagRepository);
+        config()->set('horizon.trim', [
+            'recent' => 60,
+            'pending' => 60,
+            'completed' => 60,
+            'recent_failed' => 10080,
+            'monitored' => 10080,
+        ]);
 
         $event = new JobFailed(
             new Exception('job failed'),
@@ -49,6 +51,9 @@ class StoreTagsForFailedTest extends IntegrationTestCase
             '{"id":"1","displayName":"displayName","tags":["foobar"]}'
         );
         $event->connection('redis')->queue('default');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('horizon.trim.failed');
 
         $this->app->make(Dispatcher::class)->dispatch($event);
     }

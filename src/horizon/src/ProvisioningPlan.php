@@ -42,7 +42,11 @@ class ProvisioningPlan
      */
     public static function get(string $master): static
     {
-        return new static($master, config('horizon.environments'), config('horizon.defaults', []));
+        return new static(
+            $master,
+            config()->array('horizon.environments'),
+            config()->array('horizon.defaults'),
+        );
     }
 
     /**

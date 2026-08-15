@@ -27,7 +27,7 @@ class TrimMonitoredJobs
     {
         if (! isset($this->lastTrimmed)) {
             $this->frequency = max(1, intdiv(
-                config('horizon.trim.monitored', 10080),
+                config()->integer('horizon.trim.monitored'),
                 12
             ));
 

@@ -6,7 +6,6 @@ namespace Hypervel\Horizon\Connectors;
 
 use Hypervel\Horizon\RedisQueue;
 use Hypervel\Queue\Connectors\RedisConnector as BaseConnector;
-use Hypervel\Support\Arr;
 
 class RedisConnector extends BaseConnector
 {
@@ -15,13 +14,16 @@ class RedisConnector extends BaseConnector
      */
     public function connect(array $config): RedisQueue
     {
+        $connection = $config['connection'];
+
         return new RedisQueue(
             $this->redis,
             $config['queue'],
-            Arr::get($config, 'connection', $this->connection),
-            Arr::get($config, 'retry_after', 60),
-            Arr::get($config, 'block_for', null),
-            Arr::get($config, 'after_commit', false)
+            $connection ?? $this->connection,
+            $config['retry_after'],
+            $config['block_for'],
+            $config['after_commit'],
+            $config['migration_batch_size'],
         );
     }
 }

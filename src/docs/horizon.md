@@ -134,6 +134,8 @@ You may also define a wildcard environment (`*`) which will be used when no othe
 
 When you start Horizon, it will use the worker process configuration options for the environment that your application is running on. Typically, the environment is determined by the value of the `APP_ENV` [environment variable](/docs/{{version}}/configuration#determining-the-current-environment). For example, the default `local` Horizon environment is configured to start three worker processes and automatically balance the number of worker processes assigned to each queue. The default `production` environment is configured to start a maximum of 10 worker processes and automatically balance the number of worker processes assigned to each queue.
 
+For advanced deployments, the top-level `env` option or `HORIZON_ENV` environment variable may select a Horizon provisioning environment independently of `app.env`. Set it to null to inherit the application environment. The `horizon` command's `--environment` option takes precedence over both values.
+
 > [!WARNING]
 > You should ensure that the `environments` portion of your `horizon` configuration file contains an entry for each [environment](/docs/{{version}}/configuration#environment-configuration) on which you plan to run Horizon.
 

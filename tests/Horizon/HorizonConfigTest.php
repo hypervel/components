@@ -26,6 +26,7 @@ class HorizonConfigTest extends TestCase
         $this->assertSame(['web'], $config['middleware']);
         $this->assertFalse($config['fast_termination']);
         $this->assertSame(64, $config['memory_limit']);
+        $this->assertNull($config['env']);
     }
 
     public function testApplicationMetricsConfigurationReplacesPackageDefaults(): void

@@ -95,7 +95,8 @@ return [
     |
     | This option allows you to configure when the LongWaitDetected event
     | will be fired. Every connection / queue combination may have its
-    | own, unique threshold (in seconds) before this event is fired.
+    | own threshold in seconds. Unlisted combinations use 60 seconds,
+    | while a threshold of zero disables the event for that queue.
     |
     */
 
@@ -189,6 +190,20 @@ return [
     */
 
     'memory_limit' => 64,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Horizon Environment
+    |--------------------------------------------------------------------------
+    |
+    | This advanced override selects which provisioning environment Horizon
+    | uses independently of the application environment. Set it to null to
+    | inherit app.env. The horizon command's --environment option takes
+    | precedence over both settings.
+    |
+    */
+
+    'env' => env('HORIZON_ENV'),
 
     /*
     |--------------------------------------------------------------------------
