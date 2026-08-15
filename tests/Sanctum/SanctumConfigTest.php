@@ -20,6 +20,17 @@ class SanctumConfigTest extends TestCase
         $this->assertSame(120, $config['cache']['last_used_at_update_interval']);
     }
 
+    public function testBooleanEnvironmentValuesAreLoadedAsBooleans(): void
+    {
+        $config = $this->loadConfigWithEnvironmentValues([
+            'SANCTUM_LAST_USED_AT' => '0',
+            'SANCTUM_CACHE_ENABLED' => '1',
+        ]);
+
+        $this->assertFalse($config['last_used_at']);
+        $this->assertTrue($config['cache']['enabled']);
+    }
+
     public function testInvalidLastUsedUpdateIntervalRemainsInvalid(): void
     {
         $config = $this->loadConfigWithEnvironmentValues([
@@ -36,6 +47,14 @@ class SanctumConfigTest extends TestCase
         ]);
 
         $this->assertSame([''], $config['stateful_domains']);
+    }
+
+    public function testRouteDefaultsAreDeclared(): void
+    {
+        $config = $this->loadConfigWithEnvironmentValues([]);
+
+        $this->assertTrue($config['routes']);
+        $this->assertSame('sanctum', $config['prefix']);
     }
 
     /**

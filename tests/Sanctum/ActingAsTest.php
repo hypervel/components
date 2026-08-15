@@ -27,15 +27,26 @@ class ActingAsTest extends TestCase
                 'driver' => 'sanctum',
                 'provider' => 'users',
                 'session_guards' => ['web'],
+                'passwords' => null,
+                'password_timeout' => null,
             ],
             'auth.guards.api' => [
                 'driver' => 'sanctum',
                 'provider' => 'users',
                 'session_guards' => ['web'],
+                'passwords' => null,
+                'password_timeout' => null,
             ],
             'auth.providers.users' => [
                 'driver' => 'eloquent',
                 'model' => User::class,
+                'cache' => [
+                    'enabled' => false,
+                    'store' => null,
+                    'ttl' => 300,
+                    'prefix' => 'auth_users',
+                    'tags' => null,
+                ],
             ],
         ]);
     }

@@ -58,6 +58,13 @@ class SanctumServiceProviderTest extends TestCase
                     'users' => [
                         'driver' => 'eloquent',
                         'model' => SanctumProviderUser::class,
+                        'cache' => [
+                            'enabled' => false,
+                            'store' => null,
+                            'ttl' => 300,
+                            'prefix' => 'auth_users',
+                            'tags' => null,
+                        ],
                     ],
                     'custom' => [
                         'driver' => 'custom',
@@ -257,6 +264,13 @@ class SanctumServiceProviderTest extends TestCase
                     'users' => [
                         'driver' => 'eloquent',
                         'model' => InvalidSanctumProviderModel::class,
+                        'cache' => [
+                            'enabled' => false,
+                            'store' => null,
+                            'ttl' => 300,
+                            'prefix' => 'auth_users',
+                            'tags' => null,
+                        ],
                     ],
                 ],
             ],
@@ -288,12 +302,20 @@ class SanctumServiceProviderTest extends TestCase
         mixed $value,
         string $message,
     ): void {
+        $config = new ConfigRepository([
+            'sanctum' => [
+                'routes' => true,
+                'prefix' => 'sanctum',
+            ],
+        ]);
+        $config->set($key, $value);
+
         $application = m::mock(Application::class);
         $application->shouldReceive('routesAreCached')->once()->andReturnFalse();
         $application->shouldReceive('make')
             ->once()
             ->with(ConfigRepositoryContract::class)
-            ->andReturn(new ConfigRepository([$key => $value]));
+            ->andReturn($config);
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage($message);

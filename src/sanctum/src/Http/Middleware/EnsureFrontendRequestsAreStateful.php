@@ -50,12 +50,14 @@ class EnsureFrontendRequestsAreStateful
      */
     protected function frontendMiddleware(): array
     {
+        $configuredMiddleware = config()->array('sanctum.middleware');
+
         $middleware = [
-            config('sanctum.middleware.encrypt_cookies', \Hypervel\Cookie\Middleware\EncryptCookies::class),
+            $configuredMiddleware['encrypt_cookies'],
             \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,
             \Hypervel\Session\Middleware\StartSession::class,
-            config('sanctum.middleware.validate_csrf_token', \Hypervel\Foundation\Http\Middleware\PreventRequestForgery::class),
-            config('sanctum.middleware.authenticate_session'),
+            $configuredMiddleware['validate_csrf_token'],
+            $configuredMiddleware['authenticate_session'],
         ];
 
         $filtered = [];
@@ -116,7 +118,7 @@ class EnsureFrontendRequestsAreStateful
             return self::filterDomainList((static::$statefulDomainsResolver)($request));
         }
 
-        return self::filterDomainList(config('sanctum.stateful_domains', []));
+        return self::filterDomainList(config()->array('sanctum.stateful_domains'));
     }
 
     /**

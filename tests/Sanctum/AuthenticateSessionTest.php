@@ -27,14 +27,27 @@ class AuthenticateSessionTest extends TestCase
             'auth.guards.web' => [
                 'driver' => 'session',
                 'provider' => 'users',
+                'passwords' => null,
+                'password_timeout' => null,
+                'remember' => null,
             ],
             'auth.guards.admin' => [
                 'driver' => 'session',
                 'provider' => 'users',
+                'passwords' => null,
+                'password_timeout' => null,
+                'remember' => null,
             ],
             'auth.providers.users' => [
                 'driver' => 'eloquent',
                 'model' => TestUser::class,
+                'cache' => [
+                    'enabled' => false,
+                    'store' => null,
+                    'ttl' => 300,
+                    'prefix' => 'auth_users',
+                    'tags' => null,
+                ],
             ],
         ]);
     }
@@ -46,11 +59,15 @@ class AuthenticateSessionTest extends TestCase
             'driver' => 'sanctum',
             'provider' => 'users',
             'session_guards' => ['web'],
+            'passwords' => null,
+            'password_timeout' => null,
         ]);
         $config->set('auth.guards.admin-api', [
             'driver' => 'sanctum',
             'provider' => 'users',
             'session_guards' => ['admin'],
+            'passwords' => null,
+            'password_timeout' => null,
         ]);
 
         $this->app->make('auth')->forgetGuards();
@@ -256,6 +273,8 @@ class AuthenticateSessionTest extends TestCase
         $this->app->make('config')->set('auth.guards.sanctum', [
             'driver' => 'sanctum',
             'provider' => 'users',
+            'passwords' => null,
+            'password_timeout' => null,
         ]);
         $this->app->make('auth')->forgetGuards();
 
@@ -273,11 +292,15 @@ class AuthenticateSessionTest extends TestCase
             'driver' => 'sanctum',
             'provider' => 'users',
             'session_guards' => 'web',
+            'passwords' => null,
+            'password_timeout' => null,
         ]);
         $config->set('auth.guards.sanctum', [
             'driver' => 'sanctum',
             'provider' => 'users',
             'session_guards' => [123, '', 'admin'],
+            'passwords' => null,
+            'password_timeout' => null,
         ]);
 
         $auth = $this->app->make('auth');
@@ -308,11 +331,15 @@ class AuthenticateSessionTest extends TestCase
             'driver' => 'sanctum',
             'provider' => 'users',
             'session_guards' => ['web'],
+            'passwords' => null,
+            'password_timeout' => null,
         ]);
         $config->set('auth.guards.admin-api', [
             'driver' => 'sanctum',
             'provider' => 'users',
             'session_guards' => ['admin'],
+            'passwords' => null,
+            'password_timeout' => null,
         ]);
     }
 

@@ -514,7 +514,7 @@ public function boot(): void
     EnsureFrontendRequestsAreStateful::resolveStatefulDomainsUsing(function (Request $request): array {
         $tenant = app(TenantResolver::class)->forRequest($request);
 
-        return $tenant ? [$tenant->domain] : config('sanctum.stateful_domains', []);
+        return $tenant ? [$tenant->domain] : config()->array('sanctum.stateful_domains');
     });
 }
 ```

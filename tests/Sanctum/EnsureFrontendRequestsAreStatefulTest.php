@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Closure;
+use ErrorException;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Hypervel\Http\Request;
@@ -12,6 +13,7 @@ use Hypervel\Http\Response;
 use Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use TypeError;
 
 class EnsureFrontendRequestsAreStatefulTest extends TestCase
@@ -216,6 +218,54 @@ class EnsureFrontendRequestsAreStatefulTest extends TestCase
             AddQueuedCookiesToResponse::class,
             false,
         ], array_slice($middleware, 1));
+    }
+
+    public function testNullCookieAndCsrfMiddlewareEntriesAreOmittedWithoutFallbacks(): void
+    {
+        config([
+            'sanctum.middleware' => [
+                'encrypt_cookies' => null,
+                'validate_csrf_token' => null,
+                'authenticate_session' => 'custom-authenticate-session',
+            ],
+        ]);
+
+        $middleware = (new EnsureFrontendRequestsAreStatefulFixture)->middleware();
+
+        $this->assertSame([
+            AddQueuedCookiesToResponse::class,
+            StartSession::class,
+            'custom-authenticate-session',
+        ], array_slice($middleware, 1));
+    }
+
+    #[DataProvider('middlewareMemberProvider')]
+    public function testMissingMiddlewareMembersFailInsteadOfSilentlyRemovingProtection(string $missingMember): void
+    {
+        $middleware = [
+            'encrypt_cookies' => 'encrypt-cookies',
+            'validate_csrf_token' => 'validate-csrf-token',
+            'authenticate_session' => 'authenticate-session',
+        ];
+        unset($middleware[$missingMember]);
+        config(['sanctum.middleware' => $middleware]);
+
+        $this->expectException(ErrorException::class);
+        $this->expectExceptionMessage('Undefined array key "' . $missingMember . '"');
+
+        (new EnsureFrontendRequestsAreStatefulFixture)->middleware();
+    }
+
+    /**
+     * Provide required Sanctum middleware members.
+     */
+    public static function middlewareMemberProvider(): array
+    {
+        return [
+            'cookie encryption' => ['encrypt_cookies'],
+            'CSRF validation' => ['validate_csrf_token'],
+            'session authentication' => ['authenticate_session'],
+        ];
     }
 }
 

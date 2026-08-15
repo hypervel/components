@@ -47,7 +47,7 @@ class PruneExpired extends Command
         $expiredCount = $model::where('expires_at', '<', now()->subHours($hours))->delete();
         $this->info("Pruned {$expiredCount} expired tokens.");
 
-        if ($expiration = config('sanctum.expiration')) {
+        if ($expiration = config()->get('sanctum.expiration')) {
             $this->info('Pruning tokens with expired expiration value based on configuration file...');
 
             $configExpiredCount = $model::where('created_at', '<', now()->subMinutes($expiration + ($hours * 60)))->delete();

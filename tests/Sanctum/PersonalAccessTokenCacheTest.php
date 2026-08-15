@@ -78,10 +78,19 @@ class PersonalAccessTokenCacheTest extends TestCase
                 'driver' => 'sanctum',
                 'provider' => 'users',
                 'session_guards' => [],
+                'passwords' => null,
+                'password_timeout' => null,
             ],
             'auth.providers.users' => [
                 'driver' => 'eloquent',
                 'model' => TestUser::class,
+                'cache' => [
+                    'enabled' => false,
+                    'store' => null,
+                    'ttl' => 300,
+                    'prefix' => 'auth_users',
+                    'tags' => null,
+                ],
             ],
             'database.connections.sanctum_secondary' => [
                 'driver' => 'sqlite',

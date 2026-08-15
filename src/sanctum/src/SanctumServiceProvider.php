@@ -160,11 +160,11 @@ class SanctumServiceProvider extends ServiceProvider
 
         $config = $this->app->make(ConfigRepository::class);
 
-        if (! $config->boolean('sanctum.routes', true)) {
+        if (! $config->boolean('sanctum.routes')) {
             return;
         }
 
-        Route::group(['prefix' => $config->string('sanctum.prefix', 'sanctum')], function (): void {
+        Route::group(['prefix' => $config->string('sanctum.prefix')], function (): void {
             Route::get('/csrf-cookie', [CsrfCookieController::class, 'show'])
                 ->middleware('web')
                 ->name('sanctum.csrf-cookie');
@@ -214,7 +214,7 @@ class SanctumServiceProvider extends ServiceProvider
 
         return new SanctumGuard(
             name: $name,
-            provider: $authManager->createUserProvider($config['provider'] ?? null),
+            provider: $authManager->createUserProvider($config['provider']),
             app: $app,
             sessionGuards: $sessionGuards,
             events: $app->bound('events') ? $app->make('events') : null,

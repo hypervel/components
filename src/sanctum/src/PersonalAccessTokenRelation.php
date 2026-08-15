@@ -19,7 +19,7 @@ class PersonalAccessTokenRelation extends MorphMany
      */
     public function delete(): mixed
     {
-        if (! config('sanctum.cache.enabled')) {
+        if (! config()->boolean('sanctum.cache.enabled')) {
             return $this->getQuery()->delete();
         }
 
