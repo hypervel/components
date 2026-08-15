@@ -926,7 +926,7 @@ View Order
 </x-mail::button>
 
 Thanks,<br>
-{{ config('app.name') }}
+{{ config()->string('app.name') }}
 </x-mail::message>
 ```
 
@@ -1683,7 +1683,7 @@ public function boot(): void
             new Dsn(
                 'brevo+api',
                 'default',
-                config('services.brevo.key')
+                config()->string('services.brevo.key')
             )
         );
     });

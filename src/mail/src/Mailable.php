@@ -396,8 +396,7 @@ class Mailable implements MailableContract, Renderable
     protected function markdownTheme(): string
     {
         return $this->theme ?: Container::getInstance()->make('config')->string(
-            'mail.markdown.theme',
-            'default'
+            'mail.markdown.theme'
         );
     }
 
