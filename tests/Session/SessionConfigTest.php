@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Session;
 
-use Hypervel\Container\Container;
-use Hypervel\Foundation\Application;
 use Hypervel\Support\Env;
-use Hypervel\Tests\TestCase;
+use Hypervel\Testbench\TestCase;
 
 class SessionConfigTest extends TestCase
 {
@@ -24,7 +22,6 @@ class SessionConfigTest extends TestCase
 
         try {
             Env::flushRepository();
-            new Application(dirname(__DIR__, 2));
 
             $config = require dirname(__DIR__, 2) . '/src/foundation/config/session.php';
 
@@ -37,7 +34,6 @@ class SessionConfigTest extends TestCase
         } finally {
             $this->restoreEnvironmentVariables($originalValues);
             Env::flushRepository();
-            Container::setInstance(null);
         }
     }
 
@@ -56,7 +52,6 @@ class SessionConfigTest extends TestCase
 
         try {
             Env::flushRepository();
-            new Application(dirname(__DIR__, 2));
 
             $config = require dirname(__DIR__, 2) . '/src/foundation/config/session.php';
 
@@ -71,7 +66,6 @@ class SessionConfigTest extends TestCase
         } finally {
             $this->restoreEnvironmentVariables($originalValues);
             Env::flushRepository();
-            Container::setInstance(null);
         }
     }
 

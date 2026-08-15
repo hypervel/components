@@ -36,10 +36,20 @@ class UserSessionLifecycleTest extends TestCase
             'auth.guards.admin' => [
                 'driver' => 'session',
                 'provider' => 'admins',
+                'passwords' => null,
+                'password_timeout' => null,
+                'remember' => null,
             ],
             'auth.providers.admins' => [
                 'driver' => 'eloquent',
                 'model' => User::class,
+                'cache' => [
+                    'enabled' => false,
+                    'store' => null,
+                    'ttl' => 300,
+                    'prefix' => 'auth_users',
+                    'tags' => null,
+                ],
             ],
             'auth.providers.users.model' => User::class,
             'hashing.bcrypt.rounds' => 4,

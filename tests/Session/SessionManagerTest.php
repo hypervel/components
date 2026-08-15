@@ -242,6 +242,13 @@ class SessionManagerTest extends TestCase
         Container::getInstance()->make('config')->set('auth.providers.users', [
             'driver' => 'eloquent',
             'model' => SessionManagerUserStub::class,
+            'cache' => [
+                'enabled' => false,
+                'store' => null,
+                'ttl' => 300,
+                'prefix' => 'auth_users',
+                'tags' => null,
+            ],
         ]);
 
         $this->expectException(InvalidArgumentException::class);
@@ -259,6 +266,13 @@ class SessionManagerTest extends TestCase
         Container::getInstance()->make('config')->set('auth.providers.users', [
             'driver' => 'eloquent',
             'model' => SessionManagerUserStub::class,
+            'cache' => [
+                'enabled' => false,
+                'store' => null,
+                'ttl' => 300,
+                'prefix' => 'auth_users',
+                'tags' => null,
+            ],
         ]);
         $user = new SessionManagerUserStub;
         $user->setAttribute('id', 42);
