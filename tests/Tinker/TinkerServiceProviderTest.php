@@ -16,20 +16,21 @@ class TinkerServiceProviderTest extends TestCase
         return [TinkerServiceProvider::class];
     }
 
-    public function testTinkerCommandIsRegistered()
+    public function testTinkerCommandIsRegistered(): void
     {
         $command = $this->app->make('command.tinker');
 
         $this->assertInstanceOf(TinkerCommand::class, $command);
     }
 
-    public function testTinkerConfigIsMerged()
+    public function testTinkerConfigIsMerged(): void
     {
         $config = $this->app->make('config');
 
         $this->assertIsArray($config->get('tinker.commands'));
         $this->assertIsArray($config->get('tinker.alias'));
         $this->assertIsArray($config->get('tinker.dont_alias'));
+        $this->assertSame([], $config->get('tinker.casters'));
         $this->assertNotNull($config->get('tinker.trust_project'));
     }
 }
