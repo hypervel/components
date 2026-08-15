@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Jwt;
 
+use ErrorException;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Cache\Repository as CacheRepository;
 use Hypervel\Cache\StackStore;
@@ -30,6 +31,7 @@ use Hypervel\Jwt\Storage\TaggedCache;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Testbench\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
 use ReflectionProperty;
 use RuntimeException;
@@ -66,6 +68,16 @@ class JwtServiceProviderTest extends TestCase
         $this->assertArrayNotHasKey('jwt.check', $middleware);
     }
 
+    public function testShippedJwtGuardInheritsGlobalTtl(): void
+    {
+        $this->app->make('config')->set('jwt.ttl', 45);
+
+        /** @var JwtGuard $guard */
+        $guard = $this->app->make(AuthManager::class)->guard('jwt');
+
+        $this->assertSame(45, $guard->getTTL());
+    }
+
     public function testGuardReceivesExplicitNullTtlAndDispatcher(): void
     {
         $config = $this->app->make('config');
@@ -73,6 +85,8 @@ class JwtServiceProviderTest extends TestCase
         $config->set('auth.guards.jwt', [
             'driver' => 'jwt',
             'provider' => 'users',
+            'passwords' => null,
+            'password_timeout' => null,
             'ttl' => null,
         ]);
         $config->set('auth.providers.users', [
@@ -99,6 +113,8 @@ class JwtServiceProviderTest extends TestCase
         $config->set('auth.guards.jwt', [
             'driver' => 'jwt',
             'provider' => 'users',
+            'passwords' => null,
+            'password_timeout' => null,
             'ttl' => 15,
         ]);
         $config->set('auth.providers.users', [
@@ -115,6 +131,39 @@ class JwtServiceProviderTest extends TestCase
         $guard = $authManager->guard('jwt');
 
         $this->assertSame(15, $guard->getTTL());
+    }
+
+    public function testGuardRequiresTtlMember(): void
+    {
+        $this->app->make('config')->set('auth.guards.jwt', [
+            'driver' => 'jwt',
+            'provider' => 'users',
+            'passwords' => null,
+            'password_timeout' => null,
+        ]);
+
+        $this->expectException(ErrorException::class);
+        $this->expectExceptionMessage('Undefined array key "ttl"');
+
+        $this->app->make(AuthManager::class)->guard('jwt');
+    }
+
+    public function testGuardRejectsUnsupportedTtlValue(): void
+    {
+        $this->app->make('config')->set('auth.guards.customers', [
+            'driver' => 'jwt',
+            'provider' => 'users',
+            'passwords' => null,
+            'password_timeout' => null,
+            'ttl' => 'forever',
+        ]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            "Auth guard [customers] declares an invalid jwt ttl. Use an integer, null, or 'inherit'."
+        );
+
+        $this->app->make(AuthManager::class)->guard('customers');
     }
 
     public function testTaggedCacheStorageUsesCacheStore(): void
@@ -323,23 +372,18 @@ class JwtServiceProviderTest extends TestCase
         $this->assertTrue($storage->foreverCalled);
     }
 
-    public function testOmittedStorageProviderUsesTheTaggedCacheDefault(): void
+    public function testStorageProviderIsRequired(): void
     {
         $config = $this->app->make('config');
         $config->set('jwt.providers', ['jwt' => Lcobucci::class]);
         $config->set('jwt.blacklist_enabled', true);
-
-        $repository = m::mock(CacheRepository::class);
-        $repository->shouldReceive('supportsTags')->once()->andReturnTrue();
-        $repository->shouldReceive('getStore')->once()->andReturn($this->taggableStore(TagMode::All));
-        $cache = m::mock();
-        $cache->shouldReceive('store')->once()->withNoArgs()->andReturn($repository);
-
-        $this->app->instance('cache', $cache);
         $this->app->forgetInstance(BlacklistContract::class);
         $this->app->forgetInstance('jwt');
 
-        $this->assertInstanceOf(JwtManager::class, $this->app->make('jwt'));
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Configuration value for key [jwt.providers.storage] must be a string');
+
+        $this->app->make('jwt');
     }
 
     public function testReloadConfigurationRefreshesResolvedJwtServices(): void

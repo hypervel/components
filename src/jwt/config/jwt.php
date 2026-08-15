@@ -233,7 +233,7 @@ return [
     |
     */
 
-    'blacklist_enabled' => env('JWT_BLACKLIST_ENABLED', false),
+    'blacklist_enabled' => (bool) env('JWT_BLACKLIST_ENABLED', false),
 
     /*
     |--------------------------------------------------------------------------
@@ -245,7 +245,7 @@ return [
     |
     */
 
-    'refresh_iat' => env('JWT_REFRESH_IAT', false),
+    'refresh_iat' => (bool) env('JWT_REFRESH_IAT', false),
 
     /*
     |--------------------------------------------------------------------------
@@ -257,7 +257,7 @@ return [
     |
     */
 
-    'lock_subject' => env('JWT_LOCK_SUBJECT', true),
+    'lock_subject' => (bool) env('JWT_LOCK_SUBJECT', true),
 
     /*
     |--------------------------------------------------------------------------

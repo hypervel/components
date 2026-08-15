@@ -60,7 +60,7 @@ class JwtManager extends Manager implements ManagerContract
      */
     public function createLcobucciDriver(): Lcobucci
     {
-        $class = $this->config->string('jwt.providers.jwt', Lcobucci::class);
+        $class = $this->config->string('jwt.providers.jwt');
 
         if (! is_a($class, Lcobucci::class, true)) {
             throw new RuntimeException('JWT provider must be an instance of ' . Lcobucci::class);

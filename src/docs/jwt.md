@@ -119,6 +119,9 @@ To use JWT authentication, configure an auth guard that uses the `jwt` driver:
     'api' => [
         'driver' => 'jwt',
         'provider' => 'users',
+        'passwords' => null,
+        'password_timeout' => null,
+        'ttl' => 'inherit',
     ],
 ],
 ```
@@ -233,23 +236,29 @@ Set this value to `null` to issue tokens without an `exp` claim:
 'ttl' => null,
 ```
 
-You may also configure a different TTL per guard:
+Every JWT guard declares its own `ttl` member. Set it to `inherit` to use the global `jwt.ttl` value, an integer to override that value in minutes, or `null` to issue non-expiring tokens from that guard:
 
 ```php
 'guards' => [
     'customers' => [
         'driver' => 'jwt',
         'provider' => 'customers',
+        'passwords' => null,
+        'password_timeout' => null,
         'ttl' => 15,
     ],
 
     'devices' => [
         'driver' => 'jwt',
         'provider' => 'devices',
+        'passwords' => null,
+        'password_timeout' => null,
         'ttl' => null,
     ],
 ],
 ```
+
+The `inherit` value is only supported by JWT guard records. The global `jwt.ttl` option accepts an integer or `null`.
 
 For one token-producing operation, use `setTTL`:
 

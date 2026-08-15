@@ -60,6 +60,7 @@ class JwtGuard implements Guard
         protected ClaimFactory $claimFactory,
         protected Parser $parser,
         protected Container $app,
+        // Keep the direct-construction default aligned with config/jwt.php.
         protected ?int $ttl = 120,
     ) {
         $this->provider = $provider;

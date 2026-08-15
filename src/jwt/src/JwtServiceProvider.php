@@ -17,6 +17,7 @@ use Hypervel\Jwt\Http\Parser\InputSource;
 use Hypervel\Jwt\Http\Parser\Parser;
 use Hypervel\Jwt\Storage\TaggedCache;
 use Hypervel\Support\ServiceProvider;
+use InvalidArgumentException;
 use RuntimeException;
 
 class JwtServiceProvider extends ServiceProvider implements ReloadsConfiguration
@@ -56,7 +57,7 @@ class JwtServiceProvider extends ServiceProvider implements ReloadsConfiguration
         $this->app->singleton(BlacklistContract::class, function ($app) {
             $config = $app->make('config');
 
-            $storageClass = $config->string('jwt.providers.storage', TaggedCache::class);
+            $storageClass = $config->string('jwt.providers.storage');
             $storage = match ($storageClass) {
                 TaggedCache::class => new TaggedCache($this->cacheStoreForJwtBlacklist(
                     $app,
@@ -131,14 +132,20 @@ class JwtServiceProvider extends ServiceProvider implements ReloadsConfiguration
     {
         $this->callAfterResolving(AuthManager::class, function (AuthManager $authManager) {
             $authManager->extend('jwt', function ($app, $name, $config) use ($authManager) {
-                /** @var null|int $ttl */
-                $ttl = array_key_exists('ttl', $config)
-                    ? $config['ttl']
-                    : $app->make('config')->get('jwt.ttl');
+                $ttl = $config['ttl'];
+
+                if ($ttl === 'inherit') {
+                    /** @var null|int $ttl */
+                    $ttl = $app->make('config')->get('jwt.ttl');
+                } elseif (! is_int($ttl) && $ttl !== null) {
+                    throw new InvalidArgumentException(
+                        "Auth guard [{$name}] declares an invalid jwt ttl. Use an integer, null, or 'inherit'."
+                    );
+                }
 
                 $guard = new JwtGuard(
                     name: $name,
-                    provider: $authManager->createUserProvider($config['provider'] ?? null),
+                    provider: $authManager->createUserProvider($config['provider']),
                     jwtManager: $app->make('jwt'),
                     claimFactory: $app->make(ClaimFactory::class),
                     parser: $app->make(Parser::class),
