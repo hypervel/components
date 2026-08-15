@@ -1149,7 +1149,7 @@ If you only need to override a few options, you may merge your changes with the 
 
 ```php
 HandleCors::resolveConfigUsing(function (Request $request) {
-    return array_merge(config('cors'), [
+    return array_merge(config()->array('cors'), [
         'allowed_origins' => ['https://' . $request->getHost()],
     ]);
 });

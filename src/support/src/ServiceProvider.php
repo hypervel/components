@@ -241,11 +241,9 @@ abstract class ServiceProvider
         $this->callAfterResolving(ViewFactoryContract::class, function ($view) use ($path, $namespace) {
             $config = $this->app->make('config');
 
-            if (is_array($viewPaths = $config->get('view.paths'))) {
-                foreach ($viewPaths as $viewPath) {
-                    if (is_dir($appPath = $viewPath . '/vendor/' . $namespace)) {
-                        $view->addNamespace($namespace, $appPath);
-                    }
+            foreach ($config->array('view.paths') as $viewPath) {
+                if (is_dir($appPath = $viewPath . '/vendor/' . $namespace)) {
+                    $view->addNamespace($namespace, $appPath);
                 }
             }
 
@@ -322,7 +320,7 @@ abstract class ServiceProvider
     {
         $this->publishes($paths, $groups);
 
-        if ($this->app->make('config')->boolean('database.migrations.update_date_on_publish', false)) {
+        if ($this->app->make('config')->boolean('database.migrations.update_date_on_publish')) {
             static::$publishableMigrationPaths = array_unique(
                 array_merge(
                     static::$publishableMigrationPaths,

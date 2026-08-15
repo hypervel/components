@@ -226,7 +226,6 @@ PHP);
                     'app.url' => "https://{$environment}.example.com",
                     'app.key' => "key-{$environment}",
                     'app.name' => "Application {$environment}",
-                    'fortify.passkeys.timeout' => $environment === 'default_value' ? 1000 : 2000,
                     'sentry.logs_channel_level' => "level-{$environment}",
                     'logging.channels.sentry' => [
                         'driver' => 'custom-sentry',

@@ -8,6 +8,8 @@
     - [Determining the Current Environment](#determining-the-current-environment)
     - [Encrypting Environment Files](#encrypting-environment-files)
 - [Accessing Configuration Values](#accessing-configuration-values)
+    - [Typed Configuration Values](#typed-configuration-values)
+    - [Merging Framework Defaults](#merging-framework-defaults)
 - [Configuration Caching](#configuration-caching)
 - [Configuration Publishing](#configuration-publishing)
 - [Debug Mode](#debug-mode)
@@ -20,7 +22,7 @@ All of the configuration files for the Hypervel framework are stored in the `con
 
 These configuration files allow you to configure things like your database connection information, your mail server information, as well as various other core configuration values such as your application URL and encryption key.
 
-Hypervel ships framework configuration defaults with the framework itself. Your application's `config` files override those defaults, while common nested options like authentication guards and providers, broadcasting connections, cache stores, database connections and Redis settings, filesystem disks, logging channels, mailers, and queue connections are merged so you may customize only the values you need.
+Hypervel ships framework configuration defaults with the framework itself. Your application's `config` files override those defaults. Ordinary nested arrays and lists replace the framework value completely. Named registries such as authentication guards, cache stores, database connections, filesystem disks, log channels, mailers, and queue connections merge by entry name, but an application entry replaces the complete framework entry with the same name.
 
 > [!NOTE]
 > Configuration files are loaded in alphabetical order during application bootstrap. Cross-references via the `config` function depend on file load order, so you should prefer `env` or local PHP values inside configuration files.
@@ -302,16 +304,43 @@ config(['app.timezone' => 'America/Chicago']);
 > [!WARNING]
 > In Hypervel's Swoole workers, runtime configuration mutations are process-global within the worker. Every concurrent coroutine in that worker may observe the changed value, so you should only mutate configuration during bootstrapping or tests. For request-specific state, use request data, middleware-managed state, or coroutine context instead.
 
-To assist with static analysis, the `Config` facade also provides typed configuration retrieval methods. If the retrieved configuration value does not match the expected type, an exception will be thrown:
+<a name="typed-configuration-values"></a>
+### Typed Configuration Values
+
+Typed configuration methods are useful when a value must contain one particular type. These methods are available through an injected configuration repository, the `Config` facade, and the `config()` helper:
 
 ```php
-Config::string('config-key');
-Config::integer('config-key');
-Config::float('config-key');
-Config::boolean('config-key');
-Config::array('config-key');
-Config::collection('config-key');
+use Hypervel\Contracts\Config\Repository;
+use Hypervel\Support\Facades\Config;
+
+function settings(Repository $config): array
+{
+    return [
+        'timezone' => $config->string('app.timezone'),
+        'debug' => Config::boolean('app.debug'),
+        'providers' => config()->array('app.providers'),
+    ];
+}
 ```
+
+The available methods are `string`, `integer`, `float`, `boolean`, `array`, and `collection`. When a key is missing or contains the wrong type, Hypervel will throw an `InvalidArgumentException` that names the full configuration key.
+
+Some configuration values intentionally allow null or more than one type. You should retrieve these values using `get()` or the direct `config('key')` form. For example, a null editor disables source links:
+
+```php
+$editor = config('app.editor');
+```
+
+Options that support null are still listed in their configuration file. The comments in that file explain whether null inherits another option, disables a feature, or is checked when the feature is used. Whenever an option has a default value, define it in the configuration file instead of repeating it each time the option is read. Otherwise, a missing or misspelled key could silently use the repeated default.
+
+<a name="merging-framework-defaults"></a>
+### Merging Framework Defaults
+
+When your application replaces a nested configuration array, the application array replaces the entire framework array. Hypervel does not recursively merge its individual options. Therefore, your array should contain every option from the current framework configuration. Lists are also replaced completely, so an empty application list may intentionally clear a framework list.
+
+For named groups such as database connections, cache stores, filesystem disks, log channels, mailers, and queue connections, Hypervel merges the names while replacing the contents of any matching name. For example, adding a new database connection preserves the other connections. However, replacing `database.connections.mysql` replaces the entire MySQL connection array. Start with Hypervel's provided configuration for the selected driver, then apply your changes. If a required option is missing, Hypervel will report the missing option instead of quietly supplying another default.
+
+This replacement behavior applies to named application configuration. Public methods such as `Cache::build()`, `Storage::build()`, `Log::build()`, and `Mail::build()` also accept arrays created directly in your application. These methods continue to supply their documented defaults when an optional value is omitted from such an array.
 
 <a name="configuration-caching"></a>
 ## Configuration Caching

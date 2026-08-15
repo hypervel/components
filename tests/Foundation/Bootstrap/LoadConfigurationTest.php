@@ -39,16 +39,6 @@ class LoadConfigurationTest extends TestCase
         );
     }
 
-    public function testDontLoadBaseConfiguration(): void
-    {
-        $app = new Application;
-        $app->dontMergeFrameworkConfiguration();
-
-        (new LoadConfiguration)->bootstrap($app);
-
-        $this->assertNull($app->make('config')->get('app.name'));
-    }
-
     public function testLoadsConfigurationInIsolation(): void
     {
         $app = new Application(__DIR__ . '/../Fixtures');
@@ -117,17 +107,21 @@ class LoadConfigurationTest extends TestCase
 
     public function testDontMergeFrameworkConfigurationSkipsAllBaseConfigs(): void
     {
-        $app = new Application;
+        $app = new Application(__DIR__ . '/../Fixtures');
+        $app->useConfigPath(__DIR__ . '/../Fixtures/config');
         $app->dontMergeFrameworkConfiguration();
 
         (new LoadConfiguration)->bootstrap($app);
 
-        // No base config should be present (app has no config dir with files)
         $config = $app->make('config');
 
+        $this->assertSame('bar', $config->string('app.foo'));
+        $this->assertSame('overwrite', $config->string('cache.default'));
+        $this->assertSame('overwrite', $config->string('database.default'));
+        $this->assertNull($config->get('app.name'));
         $this->assertNull($config->get('auth'));
-        $this->assertNull($config->get('cache'));
-        $this->assertNull($config->get('database'));
+        $this->assertNull($config->get('session'));
+        $this->assertNull($config->get('view'));
     }
 
     public function testAppConfigOverridesBaseConfigValues(): void

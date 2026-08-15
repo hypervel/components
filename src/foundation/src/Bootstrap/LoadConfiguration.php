@@ -72,11 +72,11 @@ class LoadConfiguration
             // Finally, we will set the application's environment based on the configuration
             // values that were loaded. We will pass a callback which will be used to get
             // the environment in a web context where an "--env" switch is not present.
-            $app->detectEnvironment(fn () => $config->string('app.env', 'production'));
+            $app->detectEnvironment(fn () => $config->string('app.env'));
 
             $app->resolveEnvironmentUsing($app->environment(...));
 
-            date_default_timezone_set($config->get('app.timezone', 'UTC'));
+            date_default_timezone_set($config->string('app.timezone'));
 
             mb_internal_encoding('UTF-8');
         } catch (Throwable $exception) {

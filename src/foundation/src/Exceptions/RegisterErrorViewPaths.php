@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Exceptions;
 
-use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\View;
 
 class RegisterErrorViewPaths
@@ -18,7 +17,7 @@ class RegisterErrorViewPaths
             return;
         }
 
-        View::replaceNamespace('errors', Collection::make(config('view.paths'))->map(function ($path) {
+        View::replaceNamespace('errors', config()->collection('view.paths')->map(function ($path) {
             return "{$path}/errors";
         })->push(__DIR__ . '/views')->all());
     }
