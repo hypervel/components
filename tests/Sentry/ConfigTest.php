@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
+use Closure;
 use Hypervel\Sentry\Features\RedisFeature;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
 use Hypervel\Sentry\Transport\Pool;
+use Hypervel\Support\Env;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
@@ -73,11 +75,60 @@ class ConfigTest extends SentryTestCase
         $this->assertNull($this->app->make('config')->get('pools.sentry'));
     }
 
+    public function testLogsChannelLevelUsesCurrentEnvironmentNames(): void
+    {
+        $this->assertSame('warning', $this->withEnvironmentValues([
+            'SENTRY_LOG_LEVEL' => 'warning',
+            'SENTRY_LOGS_LEVEL' => 'error',
+            'LOG_LEVEL' => 'info',
+        ], fn (): string => $this->sentryConfig()['logs_channel_level']));
+
+        $this->assertSame('info', $this->withEnvironmentValues([
+            'SENTRY_LOG_LEVEL' => null,
+            'SENTRY_LOGS_LEVEL' => 'error',
+            'LOG_LEVEL' => 'info',
+        ], fn (): string => $this->sentryConfig()['logs_channel_level']));
+    }
+
     public function testRedisFeatureIsInDefaultFeaturesConfig(): void
     {
         $features = $this->app->make('config')->array('sentry.features');
 
         $this->assertContains(RedisFeature::class, $features);
+    }
+
+    public function testStorageTelemetryIsEnabledByDefault(): void
+    {
+        $config = $this->withEnvironmentValues([
+            'SENTRY_BREADCRUMBS_STORAGE_ENABLED' => null,
+            'SENTRY_TRACE_STORAGE_ENABLED' => null,
+        ], fn (): array => $this->sentryConfig());
+
+        $this->assertTrue($config['breadcrumbs']['storage']);
+        $this->assertTrue($config['tracing']['storage']);
+    }
+
+    public function testBooleanEnvironmentValuesAreNormalized(): void
+    {
+        $config = $this->withEnvironmentValues([
+            'SENTRY_STRICT_TRACE_CONTINUATION' => '1',
+            'SENTRY_ENABLE_METRICS' => '0',
+            'SENTRY_SEND_DEFAULT_PII' => '1',
+            'SENTRY_BREADCRUMBS_SQL_QUERIES_ENABLED' => '1',
+            'SENTRY_BREADCRUMBS_CACHE_ENABLED' => '1',
+            'SENTRY_TRACE_VIEWS_ENABLED' => '1',
+            'SENTRY_TRACE_REDIS_COMMANDS' => '1',
+            'SENTRY_TRACE_SQL_ORIGIN_THRESHOLD_MS' => '250',
+        ], fn (): array => $this->sentryConfig());
+
+        $this->assertTrue($config['strict_trace_continuation']);
+        $this->assertFalse($config['enable_metrics']);
+        $this->assertTrue($config['send_default_pii']);
+        $this->assertTrue($config['breadcrumbs']['sql_queries']);
+        $this->assertTrue($config['breadcrumbs']['cache']);
+        $this->assertTrue($config['tracing']['views']);
+        $this->assertTrue($config['tracing']['redis_commands']);
+        $this->assertSame(250, $config['tracing']['sql_origin_threshold_ms']);
     }
 
     public function testPoolWaitTimeoutDefaultIsSetForFastFail(): void
@@ -104,5 +155,62 @@ class ConfigTest extends SentryTestCase
         $reflection = new ReflectionProperty($transport, 'pool');
 
         return $reflection->getValue($transport);
+    }
+
+    /**
+     * Load the package configuration.
+     */
+    private function sentryConfig(): array
+    {
+        return require dirname(__DIR__, 2) . '/src/sentry/config/sentry.php';
+    }
+
+    /**
+     * Run a callback with temporary environment variable values.
+     *
+     * @param array<string, null|string> $values
+     */
+    private function withEnvironmentValues(array $values, Closure $callback): mixed
+    {
+        $originalValues = [];
+
+        foreach ($values as $key => $value) {
+            $originalValues[$key] = [
+                'putenv' => getenv($key),
+                'server_exists' => array_key_exists($key, $_SERVER),
+                'server' => $_SERVER[$key] ?? null,
+                'env_exists' => array_key_exists($key, $_ENV),
+                'env' => $_ENV[$key] ?? null,
+            ];
+
+            unset($_SERVER[$key], $_ENV[$key]);
+            $value === null ? putenv($key) : putenv("{$key}={$value}");
+        }
+
+        Env::flushRepository();
+
+        try {
+            return $callback();
+        } finally {
+            foreach ($originalValues as $key => $value) {
+                $value['putenv'] === false
+                    ? putenv($key)
+                    : putenv("{$key}={$value['putenv']}");
+
+                if ($value['server_exists']) {
+                    $_SERVER[$key] = $value['server'];
+                } else {
+                    unset($_SERVER[$key]);
+                }
+
+                if ($value['env_exists']) {
+                    $_ENV[$key] = $value['env'];
+                } else {
+                    unset($_ENV[$key]);
+                }
+            }
+
+            Env::flushRepository();
+        }
     }
 }

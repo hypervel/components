@@ -21,7 +21,7 @@ class EventHandlerTest extends SentryTestCase
 {
     public function testMissingEventHandlerThrowsException(): void
     {
-        $handler = new EventHandler($this->app, []);
+        $handler = new EventHandler($this->app, config()->array('sentry'));
 
         $this->expectException(RuntimeException::class);
 
@@ -75,7 +75,7 @@ class EventHandlerTest extends SentryTestCase
         SentrySdk::setCurrentHub(new Hub($client));
 
         try {
-            $handler = new EventHandler($this->app, []);
+            $handler = new EventHandler($this->app, config()->array('sentry'));
             $handler->workerExit(new OnWorkerExit(m::mock(Server::class), 1));
         } finally {
             SentrySdk::setCurrentHub($previousHub);
@@ -84,7 +84,7 @@ class EventHandlerTest extends SentryTestCase
 
     private function tryAllEventHandlerMethods(array $methods): void
     {
-        $handler = new EventHandler($this->app, []);
+        $handler = new EventHandler($this->app, config()->array('sentry'));
 
         $methods = array_map(static function ($method) {
             return "{$method}Handler";

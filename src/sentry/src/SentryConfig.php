@@ -10,13 +10,14 @@ use Sentry\Options;
 /**
  * @internal
  */
-class SdkCapabilities
+class SentryConfig
 {
     /**
-     * Create a new SDK capability reader.
+     * Create a new Sentry configuration reader.
      */
     public function __construct(
         private readonly Repository $config,
+        private readonly string $root,
     ) {
     }
 
@@ -25,7 +26,7 @@ class SdkCapabilities
      */
     public function hasDsnSet(): bool
     {
-        return self::configHasDsn($this->userConfig());
+        return self::configHasDsn($this->all());
     }
 
     /**
@@ -33,7 +34,7 @@ class SdkCapabilities
      */
     public function hasSpotlightEnabled(): bool
     {
-        return self::configHasSpotlightEnabled($this->userConfig());
+        return self::configHasSpotlightEnabled($this->all());
     }
 
     /**
@@ -41,13 +42,14 @@ class SdkCapabilities
      */
     public function canRecordSpans(): bool
     {
-        $config = $this->userConfig();
+        $config = $this->all();
         $enableTracing = $config['enable_tracing'] ?? null;
+        $tracesSampleRate = $config['traces_sample_rate'];
 
         // Mirror Options::__construct()'s legacy enable_tracing default and Options::isTracingEnabled().
         $tracingEnabled = $enableTracing === true
             || ($enableTracing !== false
-                && (($config['traces_sample_rate'] ?? null) !== null
+                && ($tracesSampleRate !== null
                     || ($config['traces_sampler'] ?? null) !== null));
 
         return self::configHasActiveEndpoint($config) && $tracingEnabled;
@@ -58,7 +60,7 @@ class SdkCapabilities
      */
     public function canRecordBreadcrumbs(): bool
     {
-        $config = $this->userConfig();
+        $config = $this->all();
 
         return self::configHasActiveEndpoint($config)
             && ($config['max_breadcrumbs'] ?? Options::DEFAULT_MAX_BREADCRUMBS) > 0;
@@ -69,9 +71,9 @@ class SdkCapabilities
      *
      * @return array<string, mixed>
      */
-    private function userConfig(): array
+    public function all(): array
     {
-        return $this->config->array('sentry', []);
+        return $this->config->array($this->root);
     }
 
     /**
@@ -81,7 +83,9 @@ class SdkCapabilities
      */
     private static function configHasDsn(array $config): bool
     {
-        return ! empty($config['dsn']);
+        $dsn = $config['dsn'];
+
+        return ! empty($dsn);
     }
 
     /**
@@ -91,9 +95,10 @@ class SdkCapabilities
      */
     private static function configHasSpotlightEnabled(array $config): bool
     {
-        $spotlight = $config['spotlight'] ?? false;
+        $spotlight = $config['spotlight'];
 
-        return $spotlight === true || (is_string($spotlight) && $spotlight !== '');
+        // Match the SDK's disabled handling for the environment string '0'.
+        return $spotlight === true || (is_string($spotlight) && ! empty($spotlight));
     }
 
     /**

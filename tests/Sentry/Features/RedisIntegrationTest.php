@@ -8,6 +8,7 @@ use Error;
 use Exception;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Pool\PoolOptionInterface;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Http\Request;
@@ -35,12 +36,19 @@ class RedisIntegrationTest extends SentryTestCase
 
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,
-        'sentry.tracing.redis_commands' => true,
-        'sentry.tracing.redis_origin' => false,
         'sentry.features' => [
             RedisFeature::class,
         ],
     ];
+
+    protected function defineEnvironment(ApplicationContract $app): void
+    {
+        parent::defineEnvironment($app);
+
+        $config = $app->make('config');
+        $config->set('sentry.tracing.redis_commands', true);
+        $config->set('sentry.tracing.redis_origin', false);
+    }
 
     public function testFeatureIsApplicableWhenRedisCommandsTracingIsEnabled(): void
     {
@@ -51,11 +59,8 @@ class RedisIntegrationTest extends SentryTestCase
 
     public function testFeatureEnablesRedisEventsForFuturePools(): void
     {
-        $this->app->make('config')->set('database.redis.observed', [
-            'host' => '127.0.0.1',
-            'port' => 6379,
-            'database' => 0,
-        ]);
+        $config = $this->app->make('config');
+        $config->set('database.redis.observed', $config->array('database.redis.default'));
 
         $this->assertTrue(
             $this->app->make(RedisConfig::class)
@@ -65,14 +70,9 @@ class RedisIntegrationTest extends SentryTestCase
 
     public function testFeatureIsNotApplicableWhenRedisCommandsTracingIsDisabled(): void
     {
-        $this->resetApplicationWithConfig([
-            'sentry.tracing.redis_commands' => false,
-            'sentry.features' => [
-                RedisFeature::class,
-            ],
-        ]);
+        config()->set('sentry.tracing.redis_commands', false);
 
-        $feature = $this->app->make(RedisFeature::class);
+        $feature = new RedisFeature($this->app);
 
         $this->assertFalse($feature->isApplicable());
     }
@@ -418,12 +418,7 @@ class RedisIntegrationTest extends SentryTestCase
 
         $this->app->instance(PoolFactory::class, $poolFactory);
 
-        $config = $this->app->make('config');
-        $config->set("database.redis.{$connectionName}", [
-            'host' => '127.0.0.1',
-            'port' => 6379,
-            'database' => $database,
-        ]);
+        $this->app->make('config')->set("database.redis.{$connectionName}.database", $database);
     }
 
     private function createRedisConnection(string $name): RedisConnection

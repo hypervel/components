@@ -14,7 +14,7 @@ class ConsoleIntegrationTest extends SentryTestCase
     public function testCommandBreadcrumbIsRecordedWhenEnabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.command_info' => true,
+            'sentry' => $this->sentryConfigWith(['breadcrumbs.command_info' => true]),
         ]);
 
         $this->assertTrue($this->app->make('config')->boolean('sentry.breadcrumbs.command_info'));
@@ -30,7 +30,7 @@ class ConsoleIntegrationTest extends SentryTestCase
     public function testCommandBreadcrumbIsNotRecordedWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.command_info' => false,
+            'sentry' => $this->sentryConfigWith(['breadcrumbs.command_info' => false]),
         ]);
 
         $this->assertFalse($this->app->make('config')->boolean('sentry.breadcrumbs.command_info'));

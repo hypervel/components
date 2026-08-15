@@ -18,6 +18,7 @@ use Hypervel\Sentry\SentryServiceProvider;
 use Hypervel\Sentry\Tracing\BacktraceHelper;
 use Hypervel\Sentry\Tracing\Middleware as TracingMiddleware;
 use Hypervel\Support\Facades\Artisan;
+use LogicException;
 use Mockery as m;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
@@ -36,6 +37,16 @@ class ServiceProviderTest extends SentryTestCase
         $this->assertTrue(app()->bound('sentry'));
         $this->assertSame(app('sentry'), Facade::getFacadeRoot());
         $this->assertInstanceOf(HubInterface::class, app('sentry'));
+    }
+
+    public function testRegisteringASecondProviderFails(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            'Sentry provider [' . ConflictingSentryServiceProvider::class . '] cannot be registered because another Sentry provider is already registered. Add [hypervel/sentry] to [extra.hypervel.dont-discover] before registering a custom provider, or remove the custom provider.'
+        );
+
+        $this->app->register(ConflictingSentryServiceProvider::class);
     }
 
     public function testEnvironment(): void
@@ -177,6 +188,10 @@ class ServiceProviderTest extends SentryTestCase
         $this->assertFalse($inactive->canRecordSpansForTest());
         $this->assertFalse($inactive->canRecordBreadcrumbsForTest());
 
+        config()->set('sentry.spotlight', '0');
+
+        $this->assertFalse((new InspectableSentryFeature($this->app))->canRecordSpansForTest());
+
         config()->set('sentry.spotlight', 'http://localhost:8969/stream');
         config()->set('sentry.max_breadcrumbs', 0);
 
@@ -228,10 +243,13 @@ class ServiceProviderTest extends SentryTestCase
 
     public function testTracingMiddlewareHonorsDisabledAfterResponseContinuation(): void
     {
+        $tracingConfig = config()->array('sentry.tracing');
+        $tracingConfig['continue_after_response'] = false;
+        $tracingConfig['missing_routes'] = true;
+
         $this->resetApplicationWithConfig([
             'sentry.traces_sample_rate' => 1.0,
-            'sentry.tracing.continue_after_response' => false,
-            'sentry.tracing.missing_routes' => true,
+            'sentry.tracing' => $tracingConfig,
         ]);
         $middleware = $this->app->make(TracingMiddleware::class);
         $request = Request::create('/test', 'GET');
@@ -268,6 +286,11 @@ class InspectableSentryServiceProvider extends SentryServiceProvider
     {
         $this->bootFeatures();
     }
+}
+
+class ConflictingSentryServiceProvider extends SentryServiceProvider
+{
+    public static string $abstract = 'custom-sentry';
 }
 
 class InspectableSentryFeature extends Feature

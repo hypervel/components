@@ -22,7 +22,6 @@ class NotificationsIntegrationTest extends SentryTestCase
 {
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,
-        'sentry.tracing.views' => false,
         'sentry.features' => [
             NotificationsFeature::class,
         ],
@@ -31,6 +30,7 @@ class NotificationsIntegrationTest extends SentryTestCase
     protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
+        $app->make('config')->set('sentry.tracing.views', false);
         $app->instance(ViewFactory::class, m::mock(ViewFactory::class)->shouldIgnoreMissing());
     }
 
@@ -77,11 +77,11 @@ class NotificationsIntegrationTest extends SentryTestCase
     public function testSpanIsNotRecordedWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.traces_sample_rate' => 1.0,
-            'sentry.tracing.notifications' => false,
-            'sentry.features' => [
-                NotificationsFeature::class,
-            ],
+            'sentry' => $this->sentryConfigWith([
+                'traces_sample_rate' => 1.0,
+                'tracing.notifications' => false,
+                'features' => [NotificationsFeature::class],
+            ]),
         ]);
 
         $this->sendNotificationAndExpectNoSpan();
@@ -101,10 +101,10 @@ class NotificationsIntegrationTest extends SentryTestCase
     public function testBreadcrumbIsNotRecordedWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.notifications' => false,
-            'sentry.features' => [
-                NotificationsFeature::class,
-            ],
+            'sentry' => $this->sentryConfigWith([
+                'breadcrumbs.notifications' => false,
+                'features' => [NotificationsFeature::class],
+            ]),
         ]);
 
         $this->sendTestNotification();

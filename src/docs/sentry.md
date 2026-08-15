@@ -3,6 +3,7 @@
 - [Introduction](#introduction)
 - [Installation](#installation)
     - [Configuration](#configuration)
+    - [Replacing the Service Provider](#replacing-the-service-provider)
     - [Testing Your Installation](#testing-your-installation)
 - [Reporting Exceptions](#reporting-exceptions)
 - [Logging](#logging)
@@ -64,6 +65,22 @@ SENTRY_HYPERVEL_DSN=https://examplePublicKey@o0.ingest.sentry.io/0
 ```
 
 You may leave the DSN unset to disable event delivery while keeping the package installed, unless Spotlight is enabled.
+
+<a name="replacing-the-service-provider"></a>
+### Replacing the Service Provider
+
+You may extend `SentryServiceProvider` when your application needs to bind Sentry under a different container and configuration key:
+
+```php
+use Hypervel\Sentry\SentryServiceProvider as BaseSentryServiceProvider;
+
+class SentryServiceProvider extends BaseSentryServiceProvider
+{
+    public static string $abstract = 'custom-sentry';
+}
+```
+
+Add `hypervel/sentry` to `extra.hypervel.dont-discover` in your application's `composer.json`, then register the custom provider in `bootstrap/providers.php`. The custom provider replaces the discovered provider; registering both is not supported because they would share one Sentry SDK hub while reading different configuration roots.
 
 <a name="testing-your-installation"></a>
 ### Testing Your Installation
@@ -139,7 +156,7 @@ Log::channel('sentry_logs')->info('Order shipped', [
 ]);
 ```
 
-The channel uses `SENTRY_LOG_LEVEL`, falling back to `SENTRY_LOGS_LEVEL` and then your application's `LOG_LEVEL` value.
+The channel uses `SENTRY_LOG_LEVEL` and falls back directly to your application's `LOG_LEVEL` value. The upstream `SENTRY_LOGS_LEVEL` compatibility alias is not supported.
 
 <a name="performance-monitoring"></a>
 ## Performance Monitoring
@@ -151,6 +168,8 @@ SENTRY_TRACES_SAMPLE_RATE=0.1
 ```
 
 The default configuration traces requests, database queries, HTTP client requests, cache operations, queued jobs, notifications, and views. The conventional `/up` health route path is ignored by default.
+
+Enabling cache spans or breadcrumbs also enables repository events for every configured cache store while Sentry has an active DSN or Spotlight endpoint. This applies even when a store's own `events` option is `false`, because those events are required to record cache telemetry. Disable both `SENTRY_TRACE_CACHE_ENABLED` and `SENTRY_BREADCRUMBS_CACHE_ENABLED` when cache repository events must remain disabled.
 
 Incoming trace headers are still propagated when local trace recording is disabled. This allows a Hypervel service to remain part of a distributed trace without recording its own transaction.
 
@@ -274,6 +293,13 @@ To configure a single disk, pass its name and configuration:
 ```
 
 Both methods accept `enableSpans` and `enableBreadcrumbs` arguments. Per-disk settings cannot enable telemetry that is disabled globally.
+
+Filesystem spans and breadcrumbs are enabled globally by default. You may disable either form of telemetry using `SENTRY_TRACE_STORAGE_ENABLED` or `SENTRY_BREADCRUMBS_STORAGE_ENABLED`:
+
+```ini
+SENTRY_TRACE_STORAGE_ENABLED=false
+SENTRY_BREADCRUMBS_STORAGE_ENABLED=false
+```
 
 The integration preserves filesystem pooling, scoped prefixes, temporary URLs, streaming behavior, and fluent filesystem operations.
 
