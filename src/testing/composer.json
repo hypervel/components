@@ -23,6 +23,9 @@
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
     },
+    "bin": [
+        "bin/hypervel-test-profile"
+    ],
     "autoload": {
         "psr-4": {
             "Hypervel\\Testing\\": "src/"

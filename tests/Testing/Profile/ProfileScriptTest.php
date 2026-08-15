@@ -103,6 +103,82 @@ class ProfileScriptTest extends TestCase
     }
 
     #[Test]
+    public function itReportsWhenParaTestIsNotInstalled(): void
+    {
+        $fixturePath = ParallelTesting::tempDir('ComponentsProfileScriptMissingParallelTest');
+        $filesystem = new Filesystem;
+
+        try {
+            $filesystem->deleteDirectory($fixturePath);
+            $filesystem->makeDirectory($fixturePath . DIRECTORY_SEPARATOR . 'bin', 0700, true);
+
+            [$process, $processId] = $this->runProfiler(
+                $fixturePath,
+                scriptPath: $this->writeProfilerWrapper($filesystem, $fixturePath),
+            );
+            $output = $process->getOutput() . $process->getErrorOutput();
+
+            $this->assertNotSame(0, $process->getExitCode(), $output);
+            $this->assertStringContainsString(
+                'Install the brianium/paratest package to profile tests.',
+                $output,
+            );
+            $this->assertSame([], $this->profilePaths($processId));
+        } finally {
+            $filesystem->deleteDirectory($fixturePath);
+        }
+    }
+
+    #[Test]
+    public function itPreservesRunnerFailuresThatProduceMalformedReports(): void
+    {
+        $fixturePath = ParallelTesting::tempDir('ComponentsProfileScriptMalformedReport');
+        $filesystem = new Filesystem;
+
+        try {
+            $filesystem->deleteDirectory($fixturePath);
+            $this->writeMalformedReportRunner($filesystem, $fixturePath, 1);
+
+            [$process, $processId] = $this->runProfiler(
+                $fixturePath,
+                scriptPath: $this->writeProfilerWrapper($filesystem, $fixturePath),
+            );
+            $output = $process->getOutput() . $process->getErrorOutput();
+
+            $this->assertSame(1, $process->getExitCode(), $output);
+            $this->assertStringContainsString('Synthetic runner output.', $output);
+            $this->assertStringNotContainsString('Unable to read PHPUnit profile', $output);
+            $this->assertSame([], $this->profilePaths($processId));
+        } finally {
+            $filesystem->deleteDirectory($fixturePath);
+        }
+    }
+
+    #[Test]
+    public function itRejectsMalformedReportsFromSuccessfulRuns(): void
+    {
+        $fixturePath = ParallelTesting::tempDir('ComponentsProfileScriptMalformedSuccessfulReport');
+        $filesystem = new Filesystem;
+
+        try {
+            $filesystem->deleteDirectory($fixturePath);
+            $this->writeMalformedReportRunner($filesystem, $fixturePath, 0);
+
+            [$process, $processId] = $this->runProfiler(
+                $fixturePath,
+                scriptPath: $this->writeProfilerWrapper($filesystem, $fixturePath),
+            );
+            $output = $process->getOutput() . $process->getErrorOutput();
+
+            $this->assertNotSame(0, $process->getExitCode(), $output);
+            $this->assertStringContainsString('Unable to read PHPUnit profile', $output);
+            $this->assertSame([], $this->profilePaths($processId));
+        } finally {
+            $filesystem->deleteDirectory($fixturePath);
+        }
+    }
+
+    #[Test]
     public function itReportsWhenNoTestsCrossTheThreshold(): void
     {
         $fixturePath = ParallelTesting::tempDir('ComponentsProfileScriptFast');
@@ -194,16 +270,74 @@ PHP
     }
 
     /**
+     * Write a ParaTest fixture that produces a malformed report.
+     */
+    private function writeMalformedReportRunner(
+        Filesystem $filesystem,
+        string $fixturePath,
+        int $exitCode,
+    ): void {
+        $filesystem->makeDirectory($fixturePath . DIRECTORY_SEPARATOR . 'bin', 0700, true);
+        $filesystem->put(
+            $fixturePath . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'paratest',
+            str_replace('{{ exitCode }}', (string) $exitCode, <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+foreach ($argv as $argument) {
+    if (str_starts_with($argument, '--log-junit=')) {
+        file_put_contents(substr($argument, 12), '<testsuites>');
+    }
+}
+
+fwrite(STDERR, "Synthetic runner output.\n");
+
+exit({{ exitCode }});
+PHP),
+        );
+    }
+
+    /**
+     * Write a wrapper with Composer's runtime binary variables.
+     */
+    private function writeProfilerWrapper(Filesystem $filesystem, string $fixturePath): string
+    {
+        $wrapperPath = $fixturePath . DIRECTORY_SEPARATOR . 'profile.php';
+
+        $filesystem->put($wrapperPath, sprintf(
+            <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+$_composer_bin_dir = %s;
+$_composer_autoload_path = %s;
+
+require %s;
+PHP,
+            var_export($fixturePath . DIRECTORY_SEPARATOR . 'bin', true),
+            var_export(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'vendor/autoload.php', true),
+            var_export(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'src/testing/bin/hypervel-test-profile', true),
+        ));
+
+        return $wrapperPath;
+    }
+
+    /**
      * Run the Components profile script.
      *
      * @param array<int, string> $arguments
      * @return array{Process, int}
      */
-    private function runProfiler(string $fixturePath, array $arguments = []): array
-    {
+    private function runProfiler(
+        string $fixturePath,
+        array $arguments = [],
+        ?string $scriptPath = null,
+    ): array {
         $process = new Process([
             PHP_BINARY,
-            dirname(__DIR__, 3) . '/bin/profile-tests.php',
+            $scriptPath ?? dirname(__DIR__, 3) . '/src/testing/bin/hypervel-test-profile',
             '--processes=4',
             ...$arguments,
             $fixturePath,
@@ -229,7 +363,7 @@ PHP
     private function profilePaths(int $processId): array
     {
         $paths = glob(
-            sys_get_temp_dir() . DIRECTORY_SEPARATOR . "hypervel-components-profile-{$processId}-*.xml",
+            sys_get_temp_dir() . DIRECTORY_SEPARATOR . "hypervel-test-profile-{$processId}-*.xml",
         ) ?: [];
 
         sort($paths);

@@ -401,7 +401,10 @@
     "scripts": {
         "test": "phpunit",
         "test:parallel": "paratest",
-        "test:profile": "php bin/profile-tests.php",
+        "test:profile": [
+            "Composer\\Config::disableProcessTimeout",
+            "@php src/testing/bin/hypervel-test-profile"
+        ],
         "test:testbench": "php src/testbench/bin/testbench package:test --parallel tests/Testbench",
         "test:dogfood": [
             "Composer\\Config::disableProcessTimeout",
