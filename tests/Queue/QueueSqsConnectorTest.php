@@ -18,13 +18,33 @@ use ReflectionFunction;
 
 class QueueSqsConnectorTest extends TestCase
 {
-    public function testConnectSucceedsWithoutAfterCommitConfig(): void
+    public function testConnectSucceedsWithCompleteConfigurationAndNullCredentials(): void
     {
         $connector = new SqsConnector;
 
         $queue = $connector->connect($this->config());
 
         $this->assertInstanceOf(SqsQueue::class, $queue);
+    }
+
+    #[DataProvider('incompleteStaticCredentials')]
+    public function testConnectRejectsIncompleteStaticCredentials(?string $key, ?string $secret): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The SQS access key and secret must be configured together.');
+
+        (new SqsConnector)->connect($this->config([
+            'key' => $key,
+            'secret' => $secret,
+        ]));
+    }
+
+    public static function incompleteStaticCredentials(): array
+    {
+        return [
+            'key only' => ['key', null],
+            'secret only' => [null, 'secret'],
+        ];
     }
 
     public function testConnectBuildsStaticCredentialsWithToken(): void
@@ -101,6 +121,9 @@ class QueueSqsConnectorTest extends TestCase
         $overflow = [
             'enabled' => true,
             'store' => 'sqs-overflow',
+            'always' => false,
+            'delete_after_processing' => true,
+            'flush_on_clear' => false,
         ];
 
         $queue = (new SqsConnector)->connect($this->config([
@@ -114,8 +137,28 @@ class QueueSqsConnectorTest extends TestCase
     protected function config(array $overrides = []): array
     {
         return [
+            'driver' => 'sqs',
+            'key' => null,
+            'secret' => null,
+            'token' => null,
+            'credentials' => null,
+            'prefix' => 'https://sqs.us-east-1.amazonaws.com/account',
             'queue' => 'default',
+            'suffix' => null,
             'region' => 'us-east-1',
+            'version' => 'latest',
+            'http' => [
+                'timeout' => 60,
+                'connect_timeout' => 60,
+            ],
+            'after_commit' => false,
+            'overflow' => [
+                'enabled' => false,
+                'store' => null,
+                'always' => false,
+                'delete_after_processing' => true,
+                'flush_on_clear' => false,
+            ],
             ...$overrides,
         ];
     }

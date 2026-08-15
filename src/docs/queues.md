@@ -122,9 +122,25 @@ Configure a connection pool inside its queue connection definition:
     'driver' => 'sqs',
     'key' => env('AWS_ACCESS_KEY_ID'),
     'secret' => env('AWS_SECRET_ACCESS_KEY'),
-    'prefix' => env('SQS_PREFIX'),
+    'token' => null,
+    'credentials' => null,
+    'prefix' => env('SQS_PREFIX', 'https://sqs.us-east-1.amazonaws.com/your-account-id'),
     'queue' => env('SQS_QUEUE', 'default'),
+    'suffix' => env('SQS_SUFFIX'),
     'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
+    'version' => 'latest',
+    'http' => [
+        'timeout' => 60,
+        'connect_timeout' => 60,
+    ],
+    'after_commit' => false,
+    'overflow' => [
+        'enabled' => env('SQS_OVERFLOW_ENABLED', false),
+        'store' => env('SQS_OVERFLOW_STORE'),
+        'always' => false,
+        'delete_after_processing' => true,
+        'flush_on_clear' => env('SQS_OVERFLOW_FLUSH_ON_CLEAR', false),
+    ],
     'pool' => [
         'min_retained_objects' => 1,
         'max_objects' => 10,
@@ -135,6 +151,8 @@ Configure a connection pool inside its queue connection definition:
     ],
 ],
 ```
+
+When `credentials` is null, Hypervel uses a complete `key` and `secret` pair, or the AWS SDK's default credential chain when both are null. Configure both static values together. A non-null `credentials` value takes precedence and may contain an AWS credential value or a supported `ecs` or `instance` provider. If you supply callable or object credentials, set `pool.fingerprint` because these values cannot form an automatic pool identity. A null `token` means that the static credentials do not use a temporary AWS session token.
 
 `min_retained_objects` is an idle-trimming floor and does not eagerly connect. `max_objects` should be at least the maximum number of jobs a worker may process concurrently: a popped SQS or Beanstalkd job keeps its connection leased until `delete()`, `release()`, or `bury()` finishes. Backend failures discard the leased connection so a potentially desynchronized client is never returned to the pool.
 
@@ -203,25 +221,15 @@ Adjusting this value based on your queue load can be more efficient than continu
 <a name="sqs-overflow-storage"></a>
 #### SQS Overflow Storage
 
-Amazon SQS limits the maximum size of a queued message payload. If you need to dispatch jobs with payloads that may exceed this limit, you may configure Hypervel to store oversized SQS payloads in a cache store and send a pointer through SQS instead. To enable this feature, add an `overflow` array to your SQS queue connection configuration:
+Amazon SQS limits the maximum size of a queued message payload. If you need to dispatch jobs with payloads that may exceed this limit, you may configure Hypervel to store oversized SQS payloads in a cache store and send a pointer through SQS instead. To enable this feature, replace the `overflow` member inside your existing SQS connection with the following array:
 
 ```php
-'sqs' => [
-    'driver' => 'sqs',
-    'key' => env('AWS_ACCESS_KEY_ID'),
-    'secret' => env('AWS_SECRET_ACCESS_KEY'),
-    'prefix' => env('SQS_PREFIX', 'https://sqs.us-east-1.amazonaws.com/your-account-id'),
-    'queue' => env('SQS_QUEUE', 'default'),
-    'suffix' => env('SQS_SUFFIX'),
-    'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
-    'after_commit' => false,
-    'overflow' => [
-        'enabled' => env('SQS_OVERFLOW_ENABLED', false),
-        'store' => env('SQS_OVERFLOW_STORE'),
-        'always' => false,
-        'delete_after_processing' => true,
-        'flush_on_clear' => env('SQS_OVERFLOW_FLUSH_ON_CLEAR', false),
-    ],
+'overflow' => [
+    'enabled' => env('SQS_OVERFLOW_ENABLED', false),
+    'store' => env('SQS_OVERFLOW_STORE'),
+    'always' => false,
+    'delete_after_processing' => true,
+    'flush_on_clear' => env('SQS_OVERFLOW_FLUSH_ON_CLEAR', false),
 ],
 ```
 

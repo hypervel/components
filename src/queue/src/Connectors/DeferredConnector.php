@@ -23,7 +23,7 @@ class DeferredConnector implements ConnectorInterface
      */
     public function connect(array $config): Queue
     {
-        return (new DeferredQueue($config['after_commit'] ?? false))
+        return (new DeferredQueue($config['after_commit']))
             ->setExceptionCallback($this->exceptionCallback);
     }
 }

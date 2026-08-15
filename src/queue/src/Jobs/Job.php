@@ -304,9 +304,10 @@ abstract class Job implements JobContract
         }
 
         $config = $this->container->make('config');
+        $failed = $config->array('queue.failed');
 
-        return $config->get('queue.failed.database')
-            && in_array($config->get('queue.failed.driver'), ['database', 'database-uuids'], true)
+        return in_array($failed['driver'], ['database', 'database-uuids'], true)
+            && $failed['database'] !== ''
             && $this->container->bound('db');
     }
 

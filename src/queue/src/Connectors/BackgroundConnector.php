@@ -23,7 +23,7 @@ class BackgroundConnector implements ConnectorInterface
      */
     public function connect(array $config): Queue
     {
-        return (new BackgroundQueue($config['after_commit'] ?? false))
+        return (new BackgroundQueue($config['after_commit']))
             ->setExceptionCallback($this->exceptionCallback);
     }
 }

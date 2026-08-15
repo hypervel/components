@@ -25,11 +25,11 @@ class DatabaseConnector implements ConnectorInterface
     {
         return new DatabaseQueue(
             $this->connections,
-            $config['connection'] ?? null,
+            $config['connection'],
             $config['table'],
             $config['queue'],
-            $config['retry_after'] ?? 60,
-            $config['after_commit'] ?? false
+            $config['retry_after'],
+            $config['after_commit']
         );
     }
 }

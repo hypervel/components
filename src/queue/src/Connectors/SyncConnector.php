@@ -14,6 +14,6 @@ class SyncConnector implements ConnectorInterface
      */
     public function connect(array $config): Queue
     {
-        return new SyncQueue($config['after_commit'] ?? false);
+        return new SyncQueue($config['after_commit']);
     }
 }

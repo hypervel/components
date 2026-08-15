@@ -38,6 +38,19 @@ class QueueConfigTest extends TestCase
         });
     }
 
+    public function testSqsSdkConfigurationIsExplicit(): void
+    {
+        $config = $this->loadConfig()['connections']['sqs'];
+
+        $this->assertNull($config['token']);
+        $this->assertNull($config['credentials']);
+        $this->assertSame('latest', $config['version']);
+        $this->assertSame([
+            'timeout' => 60,
+            'connect_timeout' => 60,
+        ], $config['http']);
+    }
+
     public function testFileFailedJobStorageDefaultsAreOwnedByTheProvider(): void
     {
         $config = $this->loadConfig();
