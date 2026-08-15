@@ -46,9 +46,9 @@ class PhpRedisConnection extends RedisConnection
 
         $this->setOptions($redis);
 
-        $auth = $this->config['password'] ?? null;
+        $auth = $this->config['password'];
         if ($auth !== null && $auth !== '') {
-            $username = $this->config['username'] ?? null;
+            $username = $this->config['username'];
             $redis->auth(
                 $username !== null && $username !== '' && is_string($auth)
                     ? [$username, $auth]
@@ -56,12 +56,12 @@ class PhpRedisConnection extends RedisConnection
             );
         }
 
-        $database = $this->database ?? (int) ($this->config['database'] ?? 0);
+        $database = $this->database ?? (int) $this->config['database'];
         if ($database > 0) {
             $redis->select($database);
         }
 
-        $name = $this->config['name'] ?? null;
+        $name = $this->config['name'];
         if ($name !== null && $name !== '') {
             $redis->client('SETNAME', $name);
         }
@@ -69,7 +69,7 @@ class PhpRedisConnection extends RedisConnection
         $this->connection = $redis;
         $this->markReconnected();
 
-        if (($this->config['events'] ?? false) && $this->container->bound('events')) {
+        if ($this->config['events'] && $this->container->bound('events')) {
             $this->eventDispatcher = $this->container->make('events');
         }
 
@@ -116,13 +116,13 @@ class PhpRedisConnection extends RedisConnection
         $parameters = [
             $this->formatHost($config),
             (int) $config['port'],
-            $config['timeout'] ?? 0.0,
+            $config['timeout'],
             null,
-            $config['retry_interval'] ?? 0,
-            $config['read_timeout'] ?? 0.0,
+            $config['retry_interval'],
+            $config['read_timeout'],
         ];
 
-        if (! empty($config['context'])) {
+        if ($config['context'] !== []) {
             $parameters[] = $this->normalizeContext($config['context']);
         }
 
@@ -198,13 +198,13 @@ class PhpRedisConnection extends RedisConnection
                 ->resolveMaster($this->config);
 
             $redis = $this->createRedis([
-                'scheme' => $this->config['scheme'] ?? null,
+                'scheme' => $this->config['scheme'],
                 'host' => $host,
                 'port' => $port,
-                'timeout' => $this->config['timeout'] ?? 0,
-                'retry_interval' => $this->config['retry_interval'] ?? 0,
-                'read_timeout' => $this->config['read_timeout'] ?? 0,
-                'context' => $this->config['context'] ?? [],
+                'timeout' => $this->config['timeout'],
+                'retry_interval' => $this->config['retry_interval'],
+                'read_timeout' => $this->config['read_timeout'],
+                'context' => $this->config['context'],
             ]);
         } catch (Throwable $exception) {
             throw new ConnectionException('Connection reconnect failed ' . $exception->getMessage());

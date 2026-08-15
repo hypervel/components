@@ -13,7 +13,6 @@ use Hypervel\Redis\PhpRedisClusterConnection;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisConnection;
-use Hypervel\Support\Arr;
 use Throwable;
 
 class RedisPool extends Pool
@@ -31,13 +30,13 @@ class RedisPool extends Pool
     {
         $configService = $container->make(RedisConfig::class);
         $this->config = $configService->connectionConfig($name);
-        $poolOptions = Arr::get($this->config, 'pool', []);
+        $poolOptions = $this->config['pool'];
 
         $this->frequency = new Frequency;
 
         parent::__construct($container, $name, $poolOptions);
 
-        if (! array_key_exists('timeout', $this->config)) {
+        if ($this->config['timeout'] === null) {
             $this->config['timeout'] = $this->option->getConnectTimeout();
         }
 

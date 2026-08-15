@@ -43,19 +43,19 @@ class RedisConfig
             $connectionConfig = $this->normalizeClusterConfiguration($name, $connectionConfig);
         }
 
-        $sharedOptions = $redisConfig['options'] ?? [];
+        $sharedOptions = $redisConfig['options'];
         if (! is_array($sharedOptions)) {
             throw new InvalidArgumentException('The redis options config must be an array.');
         }
 
-        $connectionOptions = $connectionConfig['options'] ?? [];
+        $connectionOptions = $connectionConfig['options'];
         if (! is_array($connectionOptions)) {
             throw new InvalidArgumentException(sprintf('The redis connection [%s] options must be an array.', $name));
         }
 
         $connectionConfig['options'] = array_replace($sharedOptions, $connectionOptions);
 
-        if (array_key_exists('prefix', $connectionConfig)) {
+        if (isset($connectionConfig['prefix'])) {
             $connectionConfig['options']['prefix'] = $connectionConfig['prefix'];
         }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Redis;
 
 use Closure;
+use ErrorException;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Redis\RedisConnection;
@@ -169,6 +170,19 @@ class RedisConnectorTest extends TestCase
         });
     }
 
+    public function testIncompleteConnectionFailsBeforeOpeningASocket(): void
+    {
+        $name = $this->addTestConnection([]);
+        $connection = $this->app->make('config')->array("database.redis.{$name}");
+        unset($connection['options']);
+        $this->app->make('config')->set("database.redis.{$name}", $connection);
+
+        $this->expectException(ErrorException::class);
+        $this->expectExceptionMessage('Undefined array key "options"');
+
+        Redis::connection($name)->get('missing-schema');
+    }
+
     /**
      * Execute a callback with the underlying phpredis client for a named connection.
      *
@@ -194,17 +208,10 @@ class RedisConnectorTest extends TestCase
     {
         static $counter = 0;
         $name = 'connector_test_' . ++$counter;
+        $connection = $this->app->make('config')->array('database.redis.default');
+        $connection['pool']['max_connections'] = 2;
 
-        $config = array_merge([
-            'pool' => [
-                'min_connections' => 1,
-                'max_connections' => 2,
-                'connect_timeout' => 10.0,
-                'wait_timeout' => 3.0,
-                'heartbeat' => -1,
-                'max_idle_time' => 60.0,
-            ],
-        ], $config);
+        $config = array_replace($connection, $config);
 
         $this->app->make('config')->set("database.redis.{$name}", $config);
 

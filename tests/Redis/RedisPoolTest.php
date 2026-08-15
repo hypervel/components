@@ -24,6 +24,7 @@ class RedisPoolTest extends TestCase
             'host' => 'redis',
             'port' => 16379,
             'database' => 0,
+            'timeout' => null,
             'pool' => [
                 'min_connections' => 1,
                 'max_connections' => 30,
@@ -70,11 +71,14 @@ class RedisPoolTest extends TestCase
         $redisConfig = new RedisConfig(new Repository([
             'database' => [
                 'redis' => [
+                    'options' => [],
                     'default' => [
                         'host' => 'redis',
                         'port' => 16379,
                         'database' => 0,
+                        'timeout' => null,
                         'events' => false,
+                        'options' => [],
                         'pool' => [
                             'min_connections' => 1,
                             'max_connections' => 30,
@@ -106,6 +110,7 @@ class RedisPoolTest extends TestCase
             'host' => 'redis',
             'port' => 16379,
             'database' => 0,
+            'timeout' => null,
             'pool' => [
                 'min_connections' => 1,
                 'max_connections' => 30,
@@ -147,6 +152,8 @@ class RedisPoolTest extends TestCase
     }
 
     /**
+     * Mock a container with the given Redis configuration.
+     *
      * @param array<string, mixed> $connectionConfig
      */
     private function mockContainerWithRedisConfig(array $connectionConfig): m\MockInterface|Container

@@ -352,28 +352,7 @@ abstract class RedisConnection extends BaseConnection
 
     protected ?Dispatcher $eventDispatcher = null;
 
-    protected array $config = [
-        'timeout' => 0.0,
-        'retry_interval' => 0,
-        'read_timeout' => 0.0,
-        'cluster' => [
-            'enabled' => false,
-            'seeds' => [],
-        ],
-        'sentinel' => [
-            'enabled' => false,
-            'master_name' => '',
-            'nodes' => [],
-            'username' => null,
-            'password' => null,
-            'timeout' => 0.0,
-            'read_timeout' => 0.0,
-            'context' => [],
-        ],
-        'options' => [],
-        'context' => [],
-        'events' => false,
-    ];
+    protected array $config;
 
     /**
      * Current redis database.
@@ -398,7 +377,7 @@ abstract class RedisConnection extends BaseConnection
     public function __construct(Container $container, PoolInterface $pool, array $config)
     {
         parent::__construct($container, $pool);
-        $this->config = array_replace_recursive($this->config, $config);
+        $this->config = $config;
     }
 
     /**
@@ -615,16 +594,16 @@ abstract class RedisConnection extends BaseConnection
         $connectionOptions = [];
 
         foreach (self::CONNECTION_LEVEL_PHPREDIS_OPTIONS as $key) {
-            if ($key === 'read_timeout' && empty($this->config[$key])) {
+            $value = $this->config[$key];
+
+            if ($key === 'read_timeout' && empty($value)) {
                 continue;
             }
 
-            if (array_key_exists($key, $this->config)) {
-                $connectionOptions[$key] = $this->config[$key];
-            }
+            $connectionOptions[$key] = $value;
         }
 
-        return array_replace($connectionOptions, $this->config['options'] ?? []);
+        return array_replace($connectionOptions, $this->config['options']);
     }
 
     /**
@@ -777,10 +756,13 @@ abstract class RedisConnection extends BaseConnection
         }
 
         try {
-            $defaultDatabase = (int) ($this->config['database'] ?? 0);
+            // Cluster connections never select logical databases and omit this config member.
+            if ($this->database !== null) {
+                $defaultDatabase = (int) $this->config['database'];
 
-            if ($this->database !== null && $this->database !== $defaultDatabase) {
-                $this->select($defaultDatabase);
+                if ($this->database !== $defaultDatabase) {
+                    $this->select($defaultDatabase);
+                }
             }
         } catch (Throwable $exception) {
             $this->markInvalid();

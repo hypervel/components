@@ -48,11 +48,20 @@ You may configure your application's Redis settings via the `config/database.php
 
     'default' => [
         'url' => env('REDIS_URL'),
+        'scheme' => null,
         'host' => env('REDIS_HOST', 'localhost'),
         'username' => env('REDIS_USERNAME'),
         'password' => env('REDIS_PASSWORD'),
         'port' => (int) env('REDIS_PORT', 6379),
         'database' => (int) env('REDIS_DB', 0),
+        'name' => null,
+        'timeout' => null,
+        'retry_interval' => 0,
+        'read_timeout' => 0.0,
+        'context' => [],
+        'options' => [],
+        'prefix' => null,
+        'events' => false,
         'max_retries' => (int) env('REDIS_MAX_RETRIES', 3),
         'backoff_algorithm' => env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter'),
         'backoff_base' => (int) env('REDIS_BACKOFF_BASE', 100),
@@ -68,116 +77,62 @@ You may configure your application's Redis settings via the `config/database.php
             'max_lifetime' => (float) env('REDIS_MAX_LIFETIME', -1),
         ],
     ],
-
-    'cache' => [
-        'url' => env('REDIS_CACHE_URL', env('REDIS_URL')),
-        'host' => env('REDIS_CACHE_HOST', env('REDIS_HOST', 'localhost')),
-        'username' => env('REDIS_CACHE_USERNAME', env('REDIS_USERNAME')),
-        'password' => env('REDIS_CACHE_PASSWORD', env('REDIS_PASSWORD')),
-        'port' => (int) env('REDIS_CACHE_PORT', env('REDIS_PORT', 6379)),
-        'database' => (int) env('REDIS_CACHE_DB', env('REDIS_DB', 0)),
-        'max_retries' => (int) env('REDIS_CACHE_MAX_RETRIES', env('REDIS_MAX_RETRIES', 3)),
-        'backoff_algorithm' => env('REDIS_CACHE_BACKOFF_ALGORITHM', env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter')),
-        'backoff_base' => (int) env('REDIS_CACHE_BACKOFF_BASE', env('REDIS_BACKOFF_BASE', 100)),
-        'backoff_cap' => (int) env('REDIS_CACHE_BACKOFF_CAP', env('REDIS_BACKOFF_CAP', 1000)),
-        'pool' => [
-            'min_connections' => (int) env('REDIS_CACHE_MIN_CONNECTIONS', env('REDIS_MIN_CONNECTIONS', 1)),
-            'max_connections' => (int) env('REDIS_CACHE_MAX_CONNECTIONS', env('REDIS_MAX_CONNECTIONS', 10)),
-            'connect_timeout' => 10.0,
-            'wait_timeout' => 3.0,
-            'heartbeat' => (float) env('REDIS_CACHE_HEARTBEAT', env('REDIS_HEARTBEAT', -1)),
-            'heartbeat_timeout' => (float) env('REDIS_CACHE_HEARTBEAT_TIMEOUT', env('REDIS_HEARTBEAT_TIMEOUT', 1.0)),
-            'max_idle_time' => (float) env('REDIS_CACHE_MAX_IDLE_TIME', env('REDIS_MAX_IDLE_TIME', 60)),
-            'max_lifetime' => (float) env('REDIS_CACHE_MAX_LIFETIME', env('REDIS_MAX_LIFETIME', -1)),
-        ],
-    ],
 ],
 ```
 
-Hypervel's default configuration also includes `session`, `queue`, and `reverb` Redis connections. Each connection follows the same shape as the `default` and `cache` connections shown above.
+Hypervel's default configuration also includes `cache`, `session`, `queue`, and `reverb` Redis connections. Each connection follows the same standalone shape as the `default` connection shown above.
 
-Each standalone Redis server defined in your configuration file is required to have a name, host, and port unless you define a single URL to represent the Redis connection:
+Each named connection is a complete standalone, Sentinel, or Cluster record. If you replace a connection in your application's configuration, include every option for the selected topology. Missing members are not filled from the framework's connection record.
 
-```php
-'redis' => [
-    'options' => [
-        'prefix' => env('REDIS_PREFIX', app_id() . ':'),
-    ],
+For standalone and Sentinel connections, a null `name` disables `CLIENT SETNAME`. A null `timeout` uses the connection pool's `connect_timeout`, while a null `prefix` inherits the shared `redis.options.prefix` value. A null `scheme` leaves transport selection to the connection URL, stream context, or the default TCP transport. Cluster connections use their seeds when deriving a null scheme and do not have a client name.
 
-    'default' => [
-        'url' => 'tcp://127.0.0.1:6379?database=0',
-    ],
+You may define a single URL for a standalone connection instead of configuring its endpoint and credentials separately. Set the URL through the corresponding environment variable while keeping the rest of the complete connection record:
 
-    'cache' => [
-        'url' => 'tls://user:password@127.0.0.1:6380?database=0',
-    ],
-],
+```ini
+REDIS_URL="tcp://127.0.0.1:6379?database=0"
+REDIS_CACHE_URL="tls://user:password@127.0.0.1:6380?database=0"
 ```
 
 <a name="configuring-the-connection-scheme"></a>
 #### Configuring the Connection Scheme
 
-By default, Redis connections will use the `tcp` scheme when connecting to your Redis servers. However, you may use TLS / SSL encryption by specifying a `scheme` configuration option in your Redis server's configuration array:
+By default, Redis connections will use the `tcp` scheme when connecting to your Redis servers. However, you may use TLS / SSL encryption by changing the `scheme` member of the complete connection record:
 
 ```php
-'default' => [
-    'scheme' => 'tls',
-    'url' => env('REDIS_URL'),
-    'host' => env('REDIS_HOST', 'localhost'),
-    'username' => env('REDIS_USERNAME'),
-    'password' => env('REDIS_PASSWORD'),
-    'port' => (int) env('REDIS_PORT', 6379),
-    'database' => (int) env('REDIS_DB', 0),
-],
+'scheme' => 'tls',
 ```
 
-When no scheme is specified, a non-empty `context` configuration also selects TLS.
+When `scheme` is `null`, a non-empty `context` configuration selects TLS.
 
 <a name="phpredis"></a>
 ### PhpRedis
 
-Hypervel communicates with Redis using the PhpRedis extension. In addition to the default configuration options, Hypervel supports the following connection parameters: `url`, `scheme`, `host`, `username`, `password`, `port`, `database`, `name`, `timeout`, `retry_interval`, `read_timeout`, `context`, `max_retries`, `backoff_algorithm`, `backoff_base`, and `backoff_cap`.
+Hypervel communicates with Redis using the PhpRedis extension. Standalone connections support the following parameters: `url`, `scheme`, `host`, `username`, `password`, `port`, `database`, `name`, `timeout`, `retry_interval`, `read_timeout`, `context`, `options`, `prefix`, `events`, `max_retries`, `backoff_algorithm`, `backoff_base`, `backoff_cap`, and `pool`.
 
 ```php
-'default' => [
-    'url' => env('REDIS_URL'),
-    'host' => env('REDIS_HOST', 'localhost'),
-    'username' => env('REDIS_USERNAME'),
-    'password' => env('REDIS_PASSWORD'),
-    'port' => (int) env('REDIS_PORT', 6379),
-    'database' => (int) env('REDIS_DB', 0),
-    'timeout' => 5.0,
-    'retry_interval' => 0,
-    'read_timeout' => 60,
-    'name' => 'hypervel',
-    'context' => [
-        // 'stream' => ['verify_peer' => false],
-    ],
+'timeout' => 5.0,
+'retry_interval' => 0,
+'read_timeout' => 60,
+'name' => 'hypervel',
+'context' => [
+    // 'stream' => ['verify_peer' => false],
 ],
 ```
 
 The `read_timeout` value is applied both when the Redis socket is opened and as the PhpRedis `Redis::OPT_READ_TIMEOUT` option. The optional `name` value sets the client name on standalone Redis connections.
 
-The `context` option accepts stream options directly or nested under an `ssl` or `stream` key. If you need to configure PhpRedis options such as `prefix`, `scan`, `serializer`, `compression`, `compression_level`, `tcp_keepalive`, or `pack_ignore_numbers`, add them to the `options` array. The `pack_ignore_numbers` option requires PhpRedis 6.2 or later and applies only to standalone connections. Connection options override shared options, while a top-level connection `prefix` takes final precedence.
+The `context` option accepts stream options directly or nested under an `ssl` or `stream` key. If you need to configure PhpRedis options such as `prefix`, `scan`, `serializer`, `compression`, `compression_level`, `tcp_keepalive`, or `pack_ignore_numbers`, add them to the `options` array. The `pack_ignore_numbers` option requires PhpRedis 6.2 or later and applies only to standalone connections. Connection options override shared options, while a non-null top-level connection `prefix` takes final precedence.
 
 <a name="retry-and-backoff-configuration"></a>
 #### Retry and Backoff Configuration
 
-The `max_retries`, `backoff_algorithm`, `backoff_base`, and `backoff_cap` options may be used to configure how PhpRedis backs off between retry attempts. The following backoff algorithms are supported: `default`, `decorrelated_jitter`, `equal_jitter`, `exponential`, `uniform`, and `constant`:
+The `max_retries`, `backoff_algorithm`, `backoff_base`, and `backoff_cap` members of each complete connection record configure how PhpRedis backs off between retry attempts. The following backoff algorithms are supported: `default`, `decorrelated_jitter`, `equal_jitter`, `exponential`, `uniform`, and `constant`:
 
 ```php
-'default' => [
-    'url' => env('REDIS_URL'),
-    'host' => env('REDIS_HOST', 'localhost'),
-    'username' => env('REDIS_USERNAME'),
-    'password' => env('REDIS_PASSWORD'),
-    'port' => (int) env('REDIS_PORT', 6379),
-    'database' => (int) env('REDIS_DB', 0),
-    'max_retries' => (int) env('REDIS_MAX_RETRIES', 3),
-    'backoff_algorithm' => env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter'),
-    'backoff_base' => (int) env('REDIS_BACKOFF_BASE', 100),
-    'backoff_cap' => (int) env('REDIS_BACKOFF_CAP', 1000),
-],
+'max_retries' => (int) env('REDIS_MAX_RETRIES', 3),
+'backoff_algorithm' => env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter'),
+'backoff_base' => (int) env('REDIS_BACKOFF_BASE', 100),
+'backoff_cap' => (int) env('REDIS_BACKOFF_CAP', 1000),
 ```
 
 These settings control PhpRedis' native connection retry behavior. Hypervel does not replay a failed command because Redis may already have committed it before the failure became visible to the client.
@@ -222,11 +177,29 @@ If your application is utilizing Redis Cluster, you should define a `cluster` ar
 
 ```php
 'default' => [
+    'scheme' => null,
     'username' => env('REDIS_USERNAME'),
     'password' => env('REDIS_PASSWORD'),
-    'timeout' => 5.0,
-    'read_timeout' => 5.0,
+    'timeout' => null,
+    'read_timeout' => 0.0,
     'context' => [],
+    'options' => [],
+    'prefix' => null,
+    'events' => false,
+    'max_retries' => (int) env('REDIS_MAX_RETRIES', 3),
+    'backoff_algorithm' => env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter'),
+    'backoff_base' => (int) env('REDIS_BACKOFF_BASE', 100),
+    'backoff_cap' => (int) env('REDIS_BACKOFF_CAP', 1000),
+    'pool' => [
+        'min_connections' => (int) env('REDIS_MIN_CONNECTIONS', 1),
+        'max_connections' => (int) env('REDIS_MAX_CONNECTIONS', 10),
+        'connect_timeout' => 10.0,
+        'wait_timeout' => 3.0,
+        'heartbeat' => (float) env('REDIS_HEARTBEAT', -1),
+        'heartbeat_timeout' => (float) env('REDIS_HEARTBEAT_TIMEOUT', 1.0),
+        'max_idle_time' => (float) env('REDIS_MAX_IDLE_TIME', 60),
+        'max_lifetime' => (float) env('REDIS_MAX_LIFETIME', -1),
+    ],
     'cluster' => [
         'enabled' => true,
         'seeds' => explode(',', env('REDIS_CLUSTER_SEEDS', '127.0.0.1:6379')),
@@ -234,7 +207,7 @@ If your application is utilizing Redis Cluster, you should define a `cluster` ar
 ],
 ```
 
-The `seeds` option should contain one or more `host:port` entries for nodes in the cluster. Redis Cluster does not support selecting logical databases, so the `database` option is ignored for clustered connections.
+The `seeds` option should contain one or more `host:port` entries for nodes in the cluster. Redis Cluster does not support selecting logical databases, so Cluster records do not contain a `database` member. They also omit the standalone-only `url`, `host`, `port`, `name`, and `retry_interval` members.
 
 All nodes in a cluster connection must use the same transport. You may select TLS using the top-level `scheme` option, a `tls://` or `ssl://` seed, or a non-empty top-level `context` array. Bare seeds inherit the selected transport. Hypervel rejects conflicting schemes because PhpRedis applies one stream context to every node it discovers.
 
@@ -261,12 +234,32 @@ Redis Sentinel provides high availability for Redis by monitoring your Redis mas
 
 ```php
 'default' => [
+    'scheme' => null,
     'username' => env('REDIS_USERNAME'),
     'password' => env('REDIS_PASSWORD'),
     'database' => (int) env('REDIS_DB', 0),
-    'timeout' => 5.0,
+    'name' => null,
+    'timeout' => null,
     'retry_interval' => 0,
-    'read_timeout' => 5.0,
+    'read_timeout' => 0.0,
+    'context' => [],
+    'options' => [],
+    'prefix' => null,
+    'events' => false,
+    'max_retries' => (int) env('REDIS_MAX_RETRIES', 3),
+    'backoff_algorithm' => env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter'),
+    'backoff_base' => (int) env('REDIS_BACKOFF_BASE', 100),
+    'backoff_cap' => (int) env('REDIS_BACKOFF_CAP', 1000),
+    'pool' => [
+        'min_connections' => (int) env('REDIS_MIN_CONNECTIONS', 1),
+        'max_connections' => (int) env('REDIS_MAX_CONNECTIONS', 10),
+        'connect_timeout' => 10.0,
+        'wait_timeout' => 3.0,
+        'heartbeat' => (float) env('REDIS_HEARTBEAT', -1),
+        'heartbeat_timeout' => (float) env('REDIS_HEARTBEAT_TIMEOUT', 1.0),
+        'max_idle_time' => (float) env('REDIS_MAX_IDLE_TIME', 60),
+        'max_lifetime' => (float) env('REDIS_MAX_LIFETIME', -1),
+    ],
     'sentinel' => [
         'enabled' => true,
         'master_name' => env('REDIS_SENTINEL_MASTER', 'mymaster'),
@@ -275,6 +268,7 @@ Redis Sentinel provides high availability for Redis by monitoring your Redis mas
         'password' => env('REDIS_SENTINEL_PASSWORD'),
         'timeout' => 5.0,
         'read_timeout' => 5.0,
+        'context' => [],
     ],
 ],
 ```
