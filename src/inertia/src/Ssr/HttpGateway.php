@@ -65,8 +65,8 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
         }
 
         return self::$ssrClient ??= new Client([
-            'connect_timeout' => (int) config('inertia.ssr.connect_timeout', 2),
-            'timeout' => (int) config('inertia.ssr.timeout', 5),
+            'connect_timeout' => config()->integer('inertia.ssr.connect_timeout'),
+            'timeout' => config()->integer('inertia.ssr.timeout'),
             'cookies' => false,
             'http_errors' => false,
         ]);
@@ -207,7 +207,7 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
         event($event);
 
         // Throw an exception if configured (useful for E2E testing)
-        if (config('inertia.ssr.throw_on_error', false)) {
+        if (config()->boolean('inertia.ssr.throw_on_error')) {
             throw SsrException::fromEvent($event);
         }
     }
@@ -226,7 +226,7 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
 
         $enabled = $state->ssrDisabled !== null
             ? ! $this->resolveCallable($state->ssrDisabled)
-            : config('inertia.ssr.enabled', true);
+            : config()->boolean('inertia.ssr.enabled');
 
         return $enabled && ! $this->inExceptArray($request);
     }
@@ -266,7 +266,7 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
      */
     protected function shouldEnsureBundleExists(): bool
     {
-        return (bool) config('inertia.ssr.ensure_bundle_exists', true);
+        return config()->boolean('inertia.ssr.ensure_bundle_exists');
     }
 
     /**
@@ -283,7 +283,7 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
     public function getProductionUrl(string $path = '/'): string
     {
         $path = Str::start($path, '/');
-        $baseUrl = rtrim((string) config('inertia.ssr.url', 'http://127.0.0.1:13714'), '/');
+        $baseUrl = rtrim(config()->string('inertia.ssr.url'), '/');
 
         return $baseUrl . $path;
     }
@@ -334,7 +334,7 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
     private function armTransportBackoff(): void
     {
         self::$ssrUnavailableUntil = microtime(true)
-            + (float) config('inertia.ssr.backoff', 5.0);
+            + config()->float('inertia.ssr.backoff');
     }
 
     /**

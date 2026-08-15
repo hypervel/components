@@ -11,8 +11,8 @@ return [
     | These options configure if and how Inertia uses Server Side Rendering
     | to pre-render the initial visits made to your application's pages.
     |
-    | You can specify a custom SSR bundle path, or omit it to let Inertia
-    | try and automatically detect it for you.
+    | You can specify a custom SSR bundle path, or set it to null to let
+    | Inertia try and automatically detect it for you.
     |
     | Do note that enabling these options will NOT automatically make SSR work,
     | as a separate rendering service needs to be available. To learn more,
@@ -33,7 +33,7 @@ return [
 
         'ensure_bundle_exists' => (bool) env('INERTIA_SSR_ENSURE_BUNDLE_EXISTS', true),
 
-        // 'bundle' => base_path('bootstrap/ssr/ssr.mjs'),
+        'bundle' => null,
 
         /*
         |--------------------------------------------------------------------------
