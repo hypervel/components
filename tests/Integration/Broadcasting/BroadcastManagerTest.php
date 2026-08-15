@@ -307,15 +307,19 @@ class BroadcastManagerTest extends TestCase
         array $connectionConfig,
         string $expectedPrefix,
     ): void {
-        config()->set('database.redis', [
-            'client' => 'phpredis',
-            'options' => $sharedOptions,
-            'broadcasting' => array_merge([
+        $redisConfig = config()->array('database.redis');
+        $redisConfig['options'] = $sharedOptions;
+        $redisConfig['broadcasting'] = array_replace(
+            $redisConfig['default'],
+            [
                 'host' => '127.0.0.1',
                 'port' => 6379,
                 'database' => 0,
-            ], $connectionConfig),
-        ]);
+            ],
+            $connectionConfig,
+        );
+
+        config()->set('database.redis', $redisConfig);
         config()->set('broadcasting.connections.redis-test', [
             'driver' => 'redis',
             'connection' => 'broadcasting',
@@ -538,6 +542,9 @@ class BroadcastManagerTest extends TestCase
                 'secret' => 'secret',
                 'app_id' => 'app',
                 'options' => ['host' => '127.0.0.1'],
+                'client_options' => [],
+                'log' => false,
+                'jsonp' => false,
             ],
             'pusher' => [
                 'driver' => 'pusher',
@@ -545,6 +552,9 @@ class BroadcastManagerTest extends TestCase
                 'secret' => 'secret',
                 'app_id' => 'app',
                 'options' => ['host' => '127.0.0.1'],
+                'client_options' => [],
+                'log' => false,
+                'jsonp' => false,
             ],
             'ably' => [
                 'driver' => 'ably',
@@ -571,6 +581,17 @@ class BroadcastManagerTest extends TestCase
         $manager->setDefaultDriver('ably');
         $manager->setAbly($replacementAbly);
         $this->assertSame($replacementAbly, $manager->getAbly());
+    }
+
+    public function testPublicPusherFactoryAcceptsAPartialRecord(): void
+    {
+        $manager = new BroadcastManager(new Container);
+
+        $this->assertInstanceOf(Pusher::class, $manager->pusher([
+            'key' => 'key',
+            'secret' => 'secret',
+            'app_id' => 'app',
+        ]));
     }
 
     public function testPurgeInvalidatesCachedAndUncachedBroadcasterPoolsWhileForgetIsCacheOnly(): void
@@ -705,6 +726,7 @@ class BroadcastManagerTest extends TestCase
                 'connections' => [
                     'failing' => [
                         'driver' => 'redis',
+                        'connection' => 'default',
                     ],
                 ],
             ],

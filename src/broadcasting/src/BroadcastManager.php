@@ -368,7 +368,7 @@ class BroadcastManager implements BroadcastingFactoryContract
         return new PusherBroadcaster(
             $this->app,
             $this->pusher($config),
-            (bool) ($config['jsonp'] ?? false),
+            $config['jsonp'],
         );
     }
 
@@ -426,7 +426,7 @@ class BroadcastManager implements BroadcastingFactoryContract
     {
         /** @var RedisFactory $redis */
         $redis = $this->app->make('redis');
-        $connectionName = $config['connection'] ?? 'default';
+        $connectionName = $config['connection'];
         $redisConfig = $this->app->make(RedisConfig::class)->connectionConfig($connectionName);
 
         return new RedisBroadcaster(
