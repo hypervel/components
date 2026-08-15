@@ -18,7 +18,10 @@ trait ExcludesPaths
                 $except = trim($except, '/');
             }
 
-            if ($request->fullUrlIs($except) || $request->is($except)) {
+            // is() is checked first: it matches against the decoded path, while
+            // fullUrlIs() has to rebuild the absolute URL. Both are pure, so the
+            // order only decides which one gets to short-circuit the other.
+            if ($request->is($except) || $request->fullUrlIs($except)) {
                 return true;
             }
         }

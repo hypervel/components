@@ -394,8 +394,18 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      */
     public function is(mixed ...$patterns): bool
     {
-        return (new Collection($patterns))
-            ->contains(fn ($pattern) => Str::is($pattern, $this->decodedPath()));
+        // Hot path (global middleware runs this per request), so the subject is
+        // resolved once instead of per pattern and matched without wrapping the
+        // patterns in a Collection.
+        $path = $this->decodedPath();
+
+        foreach ($patterns as $pattern) {
+            if (Str::is($pattern, $path)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -411,8 +421,18 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      */
     public function fullUrlIs(mixed ...$patterns): bool
     {
-        return (new Collection($patterns))
-            ->contains(fn ($pattern) => Str::is($pattern, $this->fullUrl()));
+        // Hot path (global middleware runs this per request), so the URL is
+        // rebuilt once instead of per pattern and matched without wrapping the
+        // patterns in a Collection.
+        $url = $this->fullUrl();
+
+        foreach ($patterns as $pattern) {
+            if (Str::is($pattern, $url)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -90,7 +90,10 @@ class HandleCors
                 $path = trim($path, '/');
             }
 
-            if ($request->fullUrlIs($path) || $request->is($path)) {
+            // is() is checked first: it matches against the decoded path, while
+            // fullUrlIs() has to rebuild the absolute URL. Both are pure, so the
+            // order only decides which one gets to short-circuit the other.
+            if ($request->is($path) || $request->fullUrlIs($path)) {
                 return true;
             }
         }
