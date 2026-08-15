@@ -31,7 +31,7 @@ class ProfileExtension implements Extension
 
         $tracker = new ProfileTracker;
 
-        $facade->registerSubscriber(new TestPreparedSubscriber($tracker));
+        $facade->registerSubscriber(new TestPreparationStartedSubscriber($tracker));
         $facade->registerSubscriber(new TestFinishedSubscriber($tracker));
         $facade->registerSubscriber(new ExecutionFinishedSubscriber($tracker, $directory));
     }

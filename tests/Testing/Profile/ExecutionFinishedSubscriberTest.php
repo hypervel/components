@@ -23,8 +23,8 @@ class ExecutionFinishedSubscriberTest extends TestCase
         ProfileWriteStreamWrapper::$writeCount = 0;
 
         $tracker = new ProfileTracker;
-        $tracker->start('test-id', 1.0);
-        $tracker->stop('test-id', 'Example test', 2.0);
+        $tracker->start('Example test', 1.0);
+        $tracker->stop('Example test', 2.0);
 
         $subscriber = new ExecutionFinishedSubscriber($tracker, 'profile-write://directory');
         $event = (new ReflectionClass(ExecutionFinished::class))->newInstanceWithoutConstructor();

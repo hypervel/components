@@ -401,6 +401,7 @@
     "scripts": {
         "test": "phpunit",
         "test:parallel": "paratest",
+        "test:profile": "php bin/profile-tests.php",
         "test:testbench": "php src/testbench/bin/testbench package:test --parallel tests/Testbench",
         "test:dogfood": [
             "Composer\\Config::disableProcessTimeout",
