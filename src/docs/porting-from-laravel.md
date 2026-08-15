@@ -250,7 +250,7 @@ class CourierServiceProvider extends ServiceProvider
         );
 
         $this->app->singleton(Courier::class, fn ($app) => new Courier(
-            $app->make('config')->get('courier')
+            $app->make('config')->array('courier')
         ));
     }
 
@@ -312,9 +312,11 @@ Hypervel service providers may override the `isEnabled` method to opt out of reg
  */
 public function isEnabled(): bool
 {
-    return (bool) config('courier.enabled');
+    return config()->boolean('courier.enabled', false);
 }
 ```
+
+Hypervel calls `isEnabled` before the provider's `register` method. Configuration merged by that provider is not available yet, so this method may only read configuration already loaded by the application or framework. The fallback above is intentional because an unpublished package option may be absent.
 
 <a name="deferred-providers"></a>
 ### Deferred Providers
@@ -451,6 +453,17 @@ protected function mergeableOptions(string $name): array
 }
 ```
 
+Start from Hypervel's shipped configuration files and reapply your application overrides. Fixed nested arrays are complete values. Collections such as `connections`, `stores`, and `guards` merge by entry name, but an application entry replaces the complete framework entry with the same name. Hypervel does not silently supply missing members from source-code defaults. The public `Cache::build()`, `Storage::build()`, `Log::build()`, and `Mail::build()` APIs still accept partial runtime records, as do Auth's public guard creators for values also defaulted by the constructed guard.
+
+When porting Laravel configuration, pay particular attention to these current differences:
+
+- Auth guards declare nullable `password_timeout`; Eloquent providers include their complete `cache` block; and password brokers declare `driver` plus a nullable database `connection` or cache `store`.
+- Cache stores declare nullable per-store `prefix` values, and file stores declare nullable `permission` values.
+- Queue connections declare `after_commit` for the `sync`, `background`, and `deferred` drivers; `port` and nullable `timeout` for Beanstalkd; nullable `token` and `credentials`, `version`, and the complete `http` timeout block for SQS; and `migration_batch_size` for Redis.
+- Scout's Meilisearch configuration declares `retries` and `initial_retry_delay_ms`, while Fortify's limiter configuration declares `verification`.
+- `database.migrations` is an array containing `table` and `update_date_on_publish`, and `logging.deprecations` is an array containing `channel` and `trace`.
+- The scheduling cache store is configured through `cache.schedule_store` and `SCHEDULE_CACHE_STORE`. Laravel's older `SCHEDULE_CACHE_DRIVER` name is not supported.
+
 Application code should keep request-specific values in the request, session, context, or coroutine context instead of changing config values while the server is running.
 
 <a name="other-api-differences"></a>
@@ -507,7 +520,7 @@ Database connections are persistent, pooled worker resources. Define every conne
 
 Hypervel's Redis integration uses the PhpRedis extension exclusively. Its default `config/database.php` file does not contain a `client` option or `REDIS_CLIENT` environment variable. Remove those Laravel settings when porting configuration. A copied `client` option with any value other than `phpredis` is rejected; Predis is not supported.
 
-Laravel's top-level `database.redis.clusters` configuration is also rejected. Configure Redis Cluster by adding a `cluster` array to a named Redis connection. See the [Redis configuration](/docs/{{version}}/redis#configuration) and [cluster documentation](/docs/{{version}}/redis#clusters).
+Laravel's top-level `database.redis.clusters` configuration is also rejected. Each Hypervel Redis connection is a complete standalone, Sentinel, or Cluster record, so begin with the matching Hypervel example instead of adapting Laravel's connection shape. Configure Redis Cluster by adding a `cluster` array to a named Redis connection. See the [Redis configuration](/docs/{{version}}/redis#configuration) and [cluster documentation](/docs/{{version}}/redis#clusters).
 
 <a name="cache"></a>
 ### Cache
