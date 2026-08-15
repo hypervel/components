@@ -34,6 +34,7 @@ class DatabaseTruncationTest extends TestCase
             'database' => [
                 'migrations' => [
                     'table' => 'migrations',
+                    'update_date_on_publish' => true,
                 ],
             ],
         ]));

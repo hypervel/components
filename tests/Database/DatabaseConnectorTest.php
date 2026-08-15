@@ -137,7 +137,8 @@ class DatabaseConnectorTest extends TestCase
     public function testPostgresRejectsInvalidLockTimeout(): void
     {
         $config = ['host' => 'foo', 'database' => 'bar', 'lock_timeout' => '2'];
-        $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
+        $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection'])->getMock();
+        $connector->expects($this->never())->method('createConnection');
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Database connection [lock_timeout] must be a positive integer.');
