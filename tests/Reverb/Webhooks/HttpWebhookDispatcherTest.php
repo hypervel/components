@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Webhooks;
 
+use ErrorException;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcher;
 use Hypervel\Reverb\Application;
 use Hypervel\Reverb\Webhooks\HttpWebhookDispatcher;
@@ -21,7 +22,10 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $app = $this->makeApp(webhooks: ['url' => 'https://example.com/webhook', 'events' => ['channel_occupied']]);
+        $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+        ]));
 
         $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
@@ -41,7 +45,10 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $app = $this->makeApp(webhooks: ['url' => 'https://example.com/webhook', 'events' => ['channel_occupied']]);
+        $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+        ]));
 
         $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'member_added', ['channel' => 'test-channel']);
@@ -65,7 +72,10 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $app = $this->makeApp(webhooks: ['url' => 'https://example.com/webhook', 'events' => ['channel_occupied']]);
+        $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+        ]));
 
         $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
@@ -80,7 +90,10 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $app = $this->makeApp(webhooks: ['url' => 'https://example.com/webhook', 'events' => []]);
+        $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
+            'url' => 'https://example.com/webhook',
+            'events' => [],
+        ]));
 
         $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'member_added', ['channel' => 'presence-chat', 'user_id' => '42']);
@@ -95,7 +108,10 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $app = $this->makeApp(webhooks: ['url' => 'https://example.com/webhook', 'events' => ['client_event']]);
+        $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
+            'url' => 'https://example.com/webhook',
+            'events' => ['client_event'],
+        ]));
         $connection = new \Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 
         $dispatcher = new HttpWebhookDispatcher;
@@ -120,11 +136,13 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $app = $this->makeApp(webhooks: [
+        $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['channel_occupied'],
-            'filter' => ['channel_name_starts_with' => 'tenant-1-'],
-        ]);
+            'filter' => array_replace($this->webhookConfig()['filter'], [
+                'channel_name_starts_with' => 'tenant-1-',
+            ]),
+        ]));
 
         $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'tenant-2-chat']);
@@ -136,11 +154,13 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $app = $this->makeApp(webhooks: [
+        $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['channel_occupied'],
-            'filter' => ['channel_name_starts_with' => 'tenant-1-'],
-        ]);
+            'filter' => array_replace($this->webhookConfig()['filter'], [
+                'channel_name_starts_with' => 'tenant-1-',
+            ]),
+        ]));
 
         $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'tenant-1-chat']);
@@ -152,11 +172,13 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $app = $this->makeApp(webhooks: [
+        $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['channel_occupied'],
-            'filter' => ['channel_name_starts_with' => null],
-        ]);
+            'filter' => array_replace($this->webhookConfig()['filter'], [
+                'channel_name_starts_with' => null,
+            ]),
+        ]));
 
         $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'any-channel']);
@@ -168,11 +190,13 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $app = $this->makeApp(webhooks: [
+        $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['channel_occupied'],
-            'filter' => ['channel_name_ends_with' => '-chat'],
-        ]);
+            'filter' => array_replace($this->webhookConfig()['filter'], [
+                'channel_name_ends_with' => '-chat',
+            ]),
+        ]));
 
         $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'tenant-1-notifications']);
@@ -184,11 +208,13 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $app = $this->makeApp(webhooks: [
+        $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['channel_occupied'],
-            'filter' => ['channel_name_ends_with' => '-chat'],
-        ]);
+            'filter' => array_replace($this->webhookConfig()['filter'], [
+                'channel_name_ends_with' => '-chat',
+            ]),
+        ]));
 
         $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'tenant-1-chat']);
@@ -200,11 +226,13 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $app = $this->makeApp(webhooks: [
+        $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['channel_occupied'],
-            'filter' => ['channel_name_ends_with' => null],
-        ]);
+            'filter' => array_replace($this->webhookConfig()['filter'], [
+                'channel_name_ends_with' => null,
+            ]),
+        ]));
 
         $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'any-channel']);
@@ -216,14 +244,14 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $app = $this->makeApp(webhooks: [
+        $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['channel_occupied'],
             'filter' => [
                 'channel_name_starts_with' => 'tenant-1-',
                 'channel_name_ends_with' => '-chat',
             ],
-        ]);
+        ]));
 
         $dispatcher = new HttpWebhookDispatcher;
 
@@ -236,14 +264,14 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $app = $this->makeApp(webhooks: [
+        $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['channel_occupied'],
             'filter' => [
                 'channel_name_starts_with' => 'tenant-1-',
                 'channel_name_ends_with' => '-chat',
             ],
-        ]);
+        ]));
 
         $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'tenant-1-notifications']);
@@ -255,14 +283,14 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $app = $this->makeApp(webhooks: [
+        $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['channel_occupied'],
             'filter' => [
                 'channel_name_starts_with' => 'tenant-1-',
                 'channel_name_ends_with' => '-chat',
             ],
-        ]);
+        ]));
 
         $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'tenant-2-chat']);
@@ -274,11 +302,11 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $app = $this->makeApp(webhooks: [
+        $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['channel_occupied'],
             'headers' => ['Authorization' => 'Bearer test-token'],
-        ]);
+        ]));
 
         $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
@@ -299,11 +327,14 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
             ->andReturn(true);
         $this->app->instance(WebhookBatchBuffer::class, $buffer);
 
-        $app = $this->makeApp(webhooks: [
+        $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['channel_occupied'],
-            'batching' => ['enabled' => true, 'max_delay_ms' => 250],
-        ]);
+            'batching' => array_replace($this->webhookConfig()['batching'], [
+                'enabled' => true,
+                'max_delay_ms' => 250,
+            ]),
+        ]));
 
         $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
@@ -328,11 +359,13 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
             ->andReturn(false);
         $this->app->instance(WebhookBatchBuffer::class, $buffer);
 
-        $app = $this->makeApp(webhooks: [
+        $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['channel_occupied'],
-            'batching' => ['enabled' => true],
-        ]);
+            'batching' => array_replace($this->webhookConfig()['batching'], [
+                'enabled' => true,
+            ]),
+        ]));
 
         $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
@@ -355,11 +388,13 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
             ->with(m::type(FlushWebhookBatchJob::class))
             ->andThrow($failure);
         $this->app->instance(BusDispatcher::class, $bus);
-        $app = $this->makeApp(webhooks: [
+        $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['channel_occupied'],
-            'batching' => ['enabled' => true],
-        ]);
+            'batching' => array_replace($this->webhookConfig()['batching'], [
+                'enabled' => true,
+            ]),
+        ]));
         $dispatcher = new HttpWebhookDispatcher;
 
         try {
@@ -379,11 +414,13 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         $bus = m::mock(BusDispatcher::class);
         $bus->shouldNotReceive('dispatch');
         $this->app->instance(BusDispatcher::class, $bus);
-        $app = $this->makeApp(webhooks: [
+        $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['channel_occupied'],
-            'batching' => ['enabled' => true],
-        ]);
+            'batching' => array_replace($this->webhookConfig()['batching'], [
+                'enabled' => true,
+            ]),
+        ]));
 
         (new HttpWebhookDispatcher)->dispatch(
             $app,
@@ -398,11 +435,13 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $app = $this->makeApp(webhooks: [
+        $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['channel_occupied'],
-            'batching' => ['enabled' => false],
-        ]);
+            'batching' => array_replace($this->webhookConfig()['batching'], [
+                'enabled' => false,
+            ]),
+        ]));
 
         $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
@@ -410,11 +449,34 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         Queue::assertPushed(WebhookDeliveryJob::class);
     }
 
+    public function testMissingWebhookTimeoutFailsLoudly(): void
+    {
+        Queue::fake();
+
+        $webhooks = array_replace($this->webhookConfig(), [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+        ]);
+        unset($webhooks['timeout']);
+
+        $this->expectException(ErrorException::class);
+        $this->expectExceptionMessage('Undefined array key "timeout"');
+
+        (new HttpWebhookDispatcher)->dispatch(
+            $this->makeApp(webhooks: $webhooks),
+            'channel_occupied',
+            ['channel' => 'test-channel'],
+        );
+    }
+
     public function testSubscriptionCountEventIncludesCountInPayload(): void
     {
         Queue::fake();
 
-        $app = $this->makeApp(webhooks: ['url' => 'https://example.com/webhook', 'events' => []]);
+        $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
+            'url' => 'https://example.com/webhook',
+            'events' => [],
+        ]));
 
         $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'subscription_count', [
@@ -436,7 +498,10 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         Queue::fake();
 
         // Events list only has channel_occupied — subscription_count is NOT listed
-        $app = $this->makeApp(webhooks: ['url' => 'https://example.com/webhook', 'events' => ['channel_occupied']]);
+        $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+        ]));
 
         $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'subscription_count', [

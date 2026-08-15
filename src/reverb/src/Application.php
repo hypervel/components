@@ -8,6 +8,9 @@ class Application
 {
     /**
      * Create a new application instance.
+     *
+     * Rate limiting must be null or a complete record. Webhooks must be an
+     * empty array or a complete record.
      */
     public function __construct(
         protected string $id,
@@ -120,7 +123,7 @@ class Application
      */
     public function usesRateLimiting(): bool
     {
-        return ($this->rateLimiting['enabled'] ?? false) === true;
+        return $this->rateLimiting !== null && (bool) $this->rateLimiting['enabled'];
     }
 
     /**
@@ -144,11 +147,20 @@ class Application
      */
     public function hasWebhooks(): bool
     {
-        return ! empty($this->webhooks['url']);
+        if ($this->webhooks === []) {
+            return false;
+        }
+
+        $url = $this->webhooks['url'];
+
+        return $url !== null && $url !== '';
     }
 
     /**
      * Convert the application to an array.
+     *
+     * This is the Pusher client configuration shape, not the complete
+     * application constructor or configuration record.
      *
      * @return array<string, mixed>
      */

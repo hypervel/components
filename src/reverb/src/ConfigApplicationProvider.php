@@ -73,14 +73,14 @@ class ConfigApplicationProvider implements ApplicationProvider
             $app['key'],
             $app['secret'],
             (int) $app['ping_interval'],
-            (int) ($app['activity_timeout'] ?? 30),
+            (int) $app['activity_timeout'],
             $app['allowed_origins'],
             (int) $app['max_message_size'],
-            isset($app['max_connections']) ? (int) $app['max_connections'] : null,
-            $app['accept_client_events_from'] ?? 'members',
-            $app['rate_limiting'] ?? null,
-            $app['options'] ?? [],
-            $app['webhooks'] ?? [],
+            $app['max_connections'] === null ? null : (int) $app['max_connections'],
+            $app['accept_client_events_from'],
+            $app['rate_limiting'],
+            $app['options'],
+            $app['webhooks'],
         );
     }
 }

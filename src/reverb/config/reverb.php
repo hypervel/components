@@ -15,7 +15,7 @@ return [
     |
     */
 
-    'enabled' => env('REVERB_ENABLED', true),
+    'enabled' => (bool) env('REVERB_ENABLED', true),
 
     /*
     |--------------------------------------------------------------------------
@@ -49,7 +49,7 @@ return [
             'options' => [
                 'tls' => [],
             ],
-            'max_request_size' => env('REVERB_MAX_REQUEST_SIZE', 10_000),
+            'max_request_size' => (int) env('REVERB_MAX_REQUEST_SIZE', 10_000),
             /*
             |--------------------------------------------------------------
             | Multi-Instance Scaling via Redis
@@ -74,7 +74,7 @@ return [
             */
 
             'scaling' => [
-                'enabled' => env('REVERB_SCALING_ENABLED', false),
+                'enabled' => (bool) env('REVERB_SCALING_ENABLED', false),
                 'channel' => env('REVERB_SCALING_CHANNEL', 'reverb'),
                 'connection' => env('REVERB_SCALING_CONNECTION', 'reverb'),
             ],
@@ -121,6 +121,7 @@ return [
     | Here you may define how Reverb applications are managed. If you choose
     | to use the "config" provider, you may define an array of apps which
     | your server will support, including their connection credentials.
+    | A null max_connections value allows unlimited connections for an app.
     |
     */
 
@@ -145,7 +146,7 @@ return [
                 'max_message_size' => env('REVERB_APP_MAX_MESSAGE_SIZE', 10_000),
                 'accept_client_events_from' => env('REVERB_APP_ACCEPT_CLIENT_EVENTS_FROM', 'members'),
                 'rate_limiting' => [
-                    'enabled' => env('REVERB_APP_RATE_LIMITING_ENABLED', false),
+                    'enabled' => (bool) env('REVERB_APP_RATE_LIMITING_ENABLED', false),
                     'max_attempts' => env('REVERB_APP_RATE_LIMIT_MAX_ATTEMPTS', 60),
                     'decay_seconds' => env('REVERB_APP_RATE_LIMIT_DECAY_SECONDS', 60),
                     'terminate_on_limit' => env('REVERB_APP_RATE_LIMIT_TERMINATE', false),
@@ -163,6 +164,8 @@ return [
                 | on the "reverb-webhooks" Redis queue. Payloads are signed
                 | with HMAC-SHA256 using the app secret and include an
                 | X-Pusher-Key header for app identification.
+                | A null or empty URL disables webhooks. A null prefix filter
+                | matches any prefix, while a null suffix matches any suffix.
                 |
                 | Enable batching for production workloads — it consolidates
                 | many events into fewer HTTP requests, significantly reducing
@@ -210,7 +213,7 @@ return [
                     'retry_delay' => env('REVERB_WEBHOOK_RETRY_DELAY', 1),
 
                     'batching' => [
-                        'enabled' => env('REVERB_WEBHOOK_BATCHING_ENABLED', false),
+                        'enabled' => (bool) env('REVERB_WEBHOOK_BATCHING_ENABLED', false),
                         'max_events' => env('REVERB_WEBHOOK_BATCHING_MAX_EVENTS', 50),
                         'max_delay_ms' => env('REVERB_WEBHOOK_BATCHING_MAX_DELAY_MS', 250),
                         'max_payload_bytes' => env('REVERB_WEBHOOK_BATCHING_MAX_PAYLOAD_BYTES', 262144),

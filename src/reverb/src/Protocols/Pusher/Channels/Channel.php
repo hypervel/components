@@ -161,7 +161,7 @@ class Channel
         // the smoothing window), suppress the channel_occupied webhook — the
         // channel was never truly vacated from the consumer's perspective.
         if ($app->hasWebhooks()) {
-            $smoothingMs = (int) ($app->webhooks()['disconnect_smoothing_ms'] ?? 3000);
+            $smoothingMs = (int) $app->webhooks()['disconnect_smoothing_ms'];
 
             $cancelledLocally = app(DeferredWebhookManager::class)->cancelChannelVacated(
                 $app->id(),
@@ -269,7 +269,7 @@ class Channel
             return;
         }
 
-        $delayMs = (int) ($app->webhooks()['disconnect_smoothing_ms'] ?? 3000);
+        $delayMs = (int) $app->webhooks()['disconnect_smoothing_ms'];
         $manager = app(DeferredWebhookManager::class);
 
         if ($delayMs > 0 && $connection->isDisconnecting() && ! $manager->isDraining()) {
@@ -297,9 +297,14 @@ class Channel
         }
 
         $app = $connection->app();
+
+        if (! $app->hasWebhooks()) {
+            return;
+        }
+
         $webhooks = $app->webhooks();
 
-        if (! $app->hasWebhooks() || ! ($webhooks['subscription_count'] ?? false)) {
+        if (! $webhooks['subscription_count']) {
             return;
         }
 

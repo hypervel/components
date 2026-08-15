@@ -138,7 +138,7 @@ class Server
             }
         } catch (Throwable $e) {
             $terminateOnLimit = $e instanceof RateLimitExceeded
-                && ($from->app()->rateLimiting()['terminate_on_limit'] ?? false);
+                && $from->app()->rateLimiting()['terminate_on_limit'];
 
             try {
                 $this->error($from, $e);

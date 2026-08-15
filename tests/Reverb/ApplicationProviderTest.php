@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb;
 
+use ErrorException;
 use Hypervel\Reverb\Application;
 use Hypervel\Reverb\ApplicationManager;
 use Hypervel\Reverb\ConfigApplicationProvider;
@@ -43,8 +44,9 @@ class ApplicationProviderTest extends ReverbTestCase
     public function testHandlesStringTypedConfigValuesFromEnv(): void
     {
         // env() returns strings — ConfigApplicationProvider must cast to correct types
+        $application = config()->array('reverb.apps.apps.0');
         $provider = new ConfigApplicationProvider(collect([
-            [
+            array_replace($application, [
                 'app_id' => '123456',
                 'key' => 'reverb-key',
                 'secret' => 'reverb-secret',
@@ -54,7 +56,8 @@ class ApplicationProviderTest extends ReverbTestCase
                 'max_message_size' => '10000',
                 'max_connections' => '100',
                 'accept_client_events_from' => 'members',
-            ],
+                'rate_limiting' => array_replace($application['rate_limiting'], ['enabled' => '1']),
+            ]),
         ]));
 
         $app = $provider->findByKey('reverb-key');
@@ -65,24 +68,31 @@ class ApplicationProviderTest extends ReverbTestCase
         $this->assertSame(30, $app->activityTimeout());
         $this->assertSame(10000, $app->maxMessageSize());
         $this->assertSame(100, $app->maxConnections());
+        $this->assertTrue($app->usesRateLimiting());
     }
 
-    public function testDefaultsToMembersWhenAcceptClientEventsFromMissing(): void
+    public function testMissingAcceptClientEventsFromFailsLoudly(): void
     {
-        $provider = new ConfigApplicationProvider(collect([
-            [
-                'app_id' => '123456',
-                'key' => 'reverb-key',
-                'secret' => 'reverb-secret',
-                'ping_interval' => 60,
-                'allowed_origins' => ['*'],
-                'max_message_size' => 10_000,
-                // accept_client_events_from intentionally omitted
-            ],
-        ]));
+        $application = config()->array('reverb.apps.apps.0');
+        unset($application['accept_client_events_from']);
 
-        $app = $provider->findByKey('reverb-key');
+        $provider = new ConfigApplicationProvider(collect([$application]));
 
-        $this->assertSame('members', $app->acceptClientEventsFrom());
+        $this->expectException(ErrorException::class);
+        $this->expectExceptionMessage('Undefined array key "accept_client_events_from"');
+
+        $provider->findByKey('reverb-key');
+    }
+
+    public function testNullAndBlankWebhookUrlsDisableWebhooks(): void
+    {
+        foreach ([null, ''] as $url) {
+            $application = config()->array('reverb.apps.apps.0');
+            $application['webhooks']['url'] = $url;
+
+            $provider = new ConfigApplicationProvider(collect([$application]));
+
+            $this->assertFalse($provider->findByKey('reverb-key')->hasWebhooks());
+        }
     }
 }

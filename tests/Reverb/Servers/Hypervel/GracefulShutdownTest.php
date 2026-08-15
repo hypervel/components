@@ -206,11 +206,11 @@ class GracefulShutdownTest extends ReverbTestCase
     {
         Queue::fake([FlushWebhookBatchJob::class]);
 
-        config()->set('reverb.apps.apps.0.webhooks', [
-            'url' => 'https://example.com/webhook',
-            'events' => ['channel_occupied'],
-            'batching' => ['enabled' => true],
-        ]);
+        $webhooks = $this->webhookConfig();
+        $webhooks['url'] = 'https://example.com/webhook';
+        $webhooks['events'] = ['channel_occupied'];
+        $webhooks['batching']['enabled'] = true;
+        config()->set('reverb.apps.apps.0.webhooks', $webhooks);
 
         $buffer = m::mock(WebhookBatchBuffer::class);
         $buffer->shouldReceive('clearFlushLock')->once();
@@ -240,11 +240,11 @@ class GracefulShutdownTest extends ReverbTestCase
     {
         Queue::fake([FlushWebhookBatchJob::class]);
 
-        config()->set('reverb.apps.apps.0.webhooks', [
-            'url' => 'https://example.com/webhook',
-            'events' => ['channel_occupied'],
-            'batching' => ['enabled' => true],
-        ]);
+        $webhooks = $this->webhookConfig();
+        $webhooks['url'] = 'https://example.com/webhook';
+        $webhooks['events'] = ['channel_occupied'];
+        $webhooks['batching']['enabled'] = true;
+        config()->set('reverb.apps.apps.0.webhooks', $webhooks);
 
         $buffer = m::mock(WebhookBatchBuffer::class);
         $buffer->shouldReceive('clearFlushLock')->once();
@@ -294,6 +294,11 @@ class GracefulShutdownTest extends ReverbTestCase
             ->andReturn(0);
         $this->app->instance(SharedState::class, $sharedState);
 
+        $webhooks = array_replace($this->webhookConfig(), [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_vacated'],
+        ]);
+
         $app = new Application(
             'test-app',
             'test-key',
@@ -302,7 +307,7 @@ class GracefulShutdownTest extends ReverbTestCase
             30,
             ['*'],
             10_000,
-            webhooks: ['url' => 'https://example.com/webhook', 'events' => ['channel_vacated']],
+            webhooks: $webhooks,
         );
 
         $manager = $this->app->make(DeferredWebhookManager::class);

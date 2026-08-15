@@ -147,7 +147,7 @@ class ReverbServiceProvider extends ServiceProvider implements ReloadsConfigurat
         $config = $this->app->make('config');
         $reverbServer = $config->array('reverb.servers.reverb');
 
-        $servers = $config->array('server.servers', []);
+        $servers = $config->array('server.servers');
         /** @var array<string, mixed> $tlsConfiguration */
         $tlsConfiguration = $reverbServer['options']['tls'];
         $tls = TlsOptions::fromArray($tlsConfiguration);
@@ -488,7 +488,7 @@ class ReverbServiceProvider extends ServiceProvider implements ReloadsConfigurat
 
             $webhooks = $app->webhooks();
 
-            if (! ($webhooks['batching']['enabled'] ?? false)) {
+            if (! $webhooks['batching']['enabled']) {
                 continue;
             }
 
@@ -566,7 +566,7 @@ class ReverbServiceProvider extends ServiceProvider implements ReloadsConfigurat
 
             $webhooks = $app->webhooks();
 
-            if (! ($webhooks['batching']['enabled'] ?? false)) {
+            if (! $webhooks['batching']['enabled']) {
                 continue;
             }
 

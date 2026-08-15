@@ -118,7 +118,7 @@ For example, you may wish to maintain a single Hypervel application which, via R
 <a name="application-options"></a>
 ### Application Options
 
-Each application may also define client connection options, allowed origins, connection limits, message limits, client-event behavior, and message rate limiting:
+Each application may also define client connection options, allowed origins, connection limits, message limits, client-event behavior, message rate limiting, and webhooks:
 
 ```php
 'apps' => [
@@ -147,10 +147,32 @@ Each application may also define client connection options, allowed origins, con
                 'decay_seconds' => env('REVERB_APP_RATE_LIMIT_DECAY_SECONDS', 60),
                 'terminate_on_limit' => env('REVERB_APP_RATE_LIMIT_TERMINATE', false),
             ],
+            'webhooks' => [
+                'url' => env('REVERB_WEBHOOK_URL'),
+                'events' => [],
+                'headers' => [],
+                'filter' => [
+                    'channel_name_starts_with' => env('REVERB_WEBHOOK_CHANNEL_PREFIX'),
+                    'channel_name_ends_with' => env('REVERB_WEBHOOK_CHANNEL_SUFFIX'),
+                ],
+                'subscription_count' => env('REVERB_WEBHOOK_SUBSCRIPTION_COUNT', false),
+                'disconnect_smoothing_ms' => env('REVERB_WEBHOOK_DISCONNECT_SMOOTHING_MS', 3000),
+                'timeout' => env('REVERB_WEBHOOK_TIMEOUT', 5),
+                'retries' => env('REVERB_WEBHOOK_RETRIES', 3),
+                'retry_delay' => env('REVERB_WEBHOOK_RETRY_DELAY', 1),
+                'batching' => [
+                    'enabled' => env('REVERB_WEBHOOK_BATCHING_ENABLED', false),
+                    'max_events' => env('REVERB_WEBHOOK_BATCHING_MAX_EVENTS', 50),
+                    'max_delay_ms' => env('REVERB_WEBHOOK_BATCHING_MAX_DELAY_MS', 250),
+                    'max_payload_bytes' => env('REVERB_WEBHOOK_BATCHING_MAX_PAYLOAD_BYTES', 262144),
+                ],
+            ],
         ],
     ],
 ],
 ```
+
+When using the `config` application provider, each application entry is a complete record. A null `max_connections` value allows the application to accept an unlimited number of connections.
 
 The `accept_client_events_from` option controls which connections may send client events. The default value, `members`, allows client events from connections subscribed to the target private or presence channel. You may use `all` to allow client events from any connection, or any other value to disable client events.
 
@@ -344,10 +366,22 @@ To enable webhooks, configure a webhook URL and the events you would like to rec
 
     'subscription_count' => env('REVERB_WEBHOOK_SUBSCRIPTION_COUNT', false),
     'disconnect_smoothing_ms' => env('REVERB_WEBHOOK_DISCONNECT_SMOOTHING_MS', 3000),
+    'timeout' => env('REVERB_WEBHOOK_TIMEOUT', 5),
+    'retries' => env('REVERB_WEBHOOK_RETRIES', 3),
+    'retry_delay' => env('REVERB_WEBHOOK_RETRY_DELAY', 1),
+
+    'batching' => [
+        'enabled' => env('REVERB_WEBHOOK_BATCHING_ENABLED', false),
+        'max_events' => env('REVERB_WEBHOOK_BATCHING_MAX_EVENTS', 50),
+        'max_delay_ms' => env('REVERB_WEBHOOK_BATCHING_MAX_DELAY_MS', 250),
+        'max_payload_bytes' => env('REVERB_WEBHOOK_BATCHING_MAX_PAYLOAD_BYTES', 262144),
+    ],
 ],
 ```
 
 The `events` array acts as an allowlist. If the array is empty, Reverb will send all supported webhook events except `subscription_count`. The `subscription_count` event is controlled by its own configuration option and does not need to be listed in the `events` array. The `disconnect_smoothing_ms` option delays `channel_vacated` and `member_removed` webhooks after a disconnect so brief reconnects do not produce unnecessary remove / add webhook pairs.
+
+A null or empty `url` disables webhooks. A null `channel_name_starts_with` or `channel_name_ends_with` value disables filtering on that side of the channel name.
 
 <a name="delivery-and-signing"></a>
 ### Delivery and Signing
@@ -365,18 +399,14 @@ Custom headers may be configured, but `X-Pusher-Key`, `X-Pusher-Signature`, and 
 <a name="batching"></a>
 ### Batching
 
-For production workloads, you may enable webhook batching to combine many events into fewer HTTP requests:
+For production workloads, you may enable webhook batching to combine many events into fewer HTTP requests. The following members belong within the application's existing `webhooks` array:
 
 ```php
-'webhooks' => [
-    'url' => env('REVERB_WEBHOOK_URL'),
-
-    'batching' => [
-        'enabled' => env('REVERB_WEBHOOK_BATCHING_ENABLED', false),
-        'max_events' => env('REVERB_WEBHOOK_BATCHING_MAX_EVENTS', 50),
-        'max_delay_ms' => env('REVERB_WEBHOOK_BATCHING_MAX_DELAY_MS', 250),
-        'max_payload_bytes' => env('REVERB_WEBHOOK_BATCHING_MAX_PAYLOAD_BYTES', 262144),
-    ],
+'batching' => [
+    'enabled' => env('REVERB_WEBHOOK_BATCHING_ENABLED', false),
+    'max_events' => env('REVERB_WEBHOOK_BATCHING_MAX_EVENTS', 50),
+    'max_delay_ms' => env('REVERB_WEBHOOK_BATCHING_MAX_DELAY_MS', 250),
+    'max_payload_bytes' => env('REVERB_WEBHOOK_BATCHING_MAX_PAYLOAD_BYTES', 262144),
 ],
 ```
 
@@ -385,15 +415,12 @@ When batching is enabled, Reverb buffers events in Redis and schedules flush job
 <a name="failure-handling"></a>
 ### Failure Handling
 
-You may configure webhook delivery timeouts and retry behavior using the `timeout`, `retries`, and `retry_delay` options:
+You may configure webhook delivery timeouts and retry behavior using the following members within the application's existing `webhooks` array:
 
 ```php
-'webhooks' => [
-    'url' => env('REVERB_WEBHOOK_URL'),
-    'timeout' => env('REVERB_WEBHOOK_TIMEOUT', 5),
-    'retries' => env('REVERB_WEBHOOK_RETRIES', 3),
-    'retry_delay' => env('REVERB_WEBHOOK_RETRY_DELAY', 1),
-],
+'timeout' => env('REVERB_WEBHOOK_TIMEOUT', 5),
+'retries' => env('REVERB_WEBHOOK_RETRIES', 3),
+'retry_delay' => env('REVERB_WEBHOOK_RETRY_DELAY', 1),
 ```
 
 If a webhook delivery exhausts all retry attempts, Reverb dispatches the `Hypervel\Reverb\Webhooks\Events\WebhookFailed` event.
