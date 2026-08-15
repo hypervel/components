@@ -18,6 +18,7 @@ use Hypervel\Passkeys\Passkeys;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Attributes\WithConfig;
+use RuntimeException;
 
 #[DefineEnvironment('withPasskeys')]
 class PasskeyTest extends TestCase
@@ -69,7 +70,8 @@ class PasskeyTest extends TestCase
     }
 
     #[DefineEnvironment('withPasskeys')]
-    #[WithConfig('app.url', 'https://example.test')]
+    #[WithConfig('app.key', null)]
+    #[WithConfig('app.url', null)]
     #[WithConfig('fortify.passkeys.allowed_origins', ['https://example.test'])]
     #[WithConfig('fortify.passkeys.relying_party_id', 'example.test')]
     #[WithConfig('fortify.passkeys.timeout', 60000)]
@@ -80,6 +82,9 @@ class PasskeyTest extends TestCase
         $this->assertSame(config('fortify.passkeys.allowed_origins'), config('passkeys.allowed_origins'));
         $this->assertSame(config('fortify.passkeys.user_handle_secret'), config('passkeys.user_handle_secret'));
         $this->assertSame(config('fortify.passkeys.timeout'), config('passkeys.timeout'));
+        $this->assertSame('example.test', Passkeys::relyingPartyId());
+        $this->assertSame(['https://example.test'], Passkeys::allowedOrigins());
+        $this->assertSame('fortify-passkey-secret', Passkeys::userHandleSecret());
 
         $this->assertNull(config('passkeys.guard'));
         $this->assertSame(['web'], config('passkeys.middleware'));
@@ -93,9 +98,39 @@ class PasskeyTest extends TestCase
         $this->assertSame(Fortify::redirects('login', request: $request), Passkeys::redirectTo($request));
     }
 
+    #[WithConfig('app.key', null)]
+    #[WithConfig('app.url', null)]
+    #[WithConfig('fortify.passkeys.allowed_origins', [])]
+    #[WithConfig('fortify.passkeys.relying_party_id', null)]
+    #[WithConfig('fortify.passkeys.timeout', 60000)]
+    #[WithConfig('fortify.passkeys.user_handle_secret', null)]
+    public function testNullPasskeyConfigurationCrossesTheFortifyBridgeAndFailsAtUse(): void
+    {
+        $this->assertNull(config('passkeys.relying_party_id'));
+        $this->assertSame([], config('passkeys.allowed_origins'));
+        $this->assertNull(config('passkeys.user_handle_secret'));
+        $this->assertThrows(
+            fn () => Passkeys::relyingPartyId(),
+            RuntimeException::class,
+            'Passkey relying party ID must not be empty.',
+        );
+        $this->assertThrows(
+            fn () => Passkeys::allowedOrigins(),
+            RuntimeException::class,
+            'At least one passkey allowed origin must be configured.',
+        );
+        $this->assertThrows(
+            fn () => Passkeys::userHandleSecret(),
+            RuntimeException::class,
+            'Passkey user handle secret must not be empty.',
+        );
+    }
+
     #[DefineEnvironment('withPasskeys')]
     #[WithConfig('fortify.passkeys.allowed_origins', ['https://configured.example.test'])]
     #[WithConfig('fortify.passkeys.relying_party_id', 'configured.example.test')]
+    #[WithConfig('fortify.passkeys.timeout', 60000)]
+    #[WithConfig('fortify.passkeys.user_handle_secret', 'fortify-passkey-secret')]
     public function testRequestAwarePasskeyConfigurationOverridesFortifyBridgeConfig(): void
     {
         RequestContext::set(Request::create('https://dynamic.example.test/passkeys/login/options'));
@@ -174,16 +209,28 @@ class PasskeyTest extends TestCase
         $this->assertSame(['confirmPassword' => false], config('fortify-options.passkeys'));
     }
 
-    public function testPackageConfigReadsPasskeyAllowedOriginsFromEnvironment(): void
+    public function testPackageConfigUsesExplicitPasskeyValuesWhenApplicationUrlAndKeyAreNull(): void
     {
+        config([
+            'app.key' => null,
+            'app.url' => null,
+        ]);
+        $this->setEnvironmentValue('PASSKEYS_RELYING_PARTY_ID', 'example.com');
         $this->setEnvironmentValue('PASSKEYS_ALLOWED_ORIGINS', 'https://example.com, https://www.example.com');
+        $this->setEnvironmentValue('PASSKEYS_USER_HANDLE_SECRET', 'explicit-secret');
 
         try {
             $config = require dirname(__DIR__, 2) . '/src/fortify/config/fortify.php';
 
+            $this->assertSame('example.com', $config['passkeys']['relying_party_id']);
             $this->assertSame(['https://example.com', 'https://www.example.com'], $config['passkeys']['allowed_origins']);
+            $this->assertSame('explicit-secret', $config['passkeys']['user_handle_secret']);
+            $this->assertSame(60000, $config['passkeys']['timeout']);
+            $this->assertSame('6,1', $config['limiters']['verification']);
         } finally {
+            $this->unsetEnvironmentValue('PASSKEYS_RELYING_PARTY_ID');
             $this->unsetEnvironmentValue('PASSKEYS_ALLOWED_ORIGINS');
+            $this->unsetEnvironmentValue('PASSKEYS_USER_HANDLE_SECRET');
         }
     }
 

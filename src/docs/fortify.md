@@ -447,13 +447,24 @@ Passkey registration and deletion routes require [password confirmation](#passwo
 Fortify bridges these settings into the standalone Passkeys package:
 
 ```php
-'passkeys' => [
-    'relying_party_id' => env('PASSKEYS_RELYING_PARTY_ID', parse_url(config('app.url'), PHP_URL_HOST)),
-    'allowed_origins' => env_array('PASSKEYS_ALLOWED_ORIGINS', [config('app.url')]),
-    'user_handle_secret' => env('PASSKEYS_USER_HANDLE_SECRET', config('app.key')),
-    'timeout' => (int) env('PASSKEYS_TIMEOUT', 60000),
-],
+/** @var null|string $appUrl */
+$appUrl = config('app.url');
+$defaultRelyingPartyId = $appUrl === null ? null : parse_url($appUrl, PHP_URL_HOST);
+$defaultAllowedOrigins = $appUrl === null ? [] : [$appUrl];
+
+return [
+    // ...
+
+    'passkeys' => [
+        'relying_party_id' => env('PASSKEYS_RELYING_PARTY_ID', $defaultRelyingPartyId),
+        'allowed_origins' => env_array('PASSKEYS_ALLOWED_ORIGINS', $defaultAllowedOrigins),
+        'user_handle_secret' => env('PASSKEYS_USER_HANDLE_SECRET', config('app.key')),
+        'timeout' => (int) env('PASSKEYS_TIMEOUT', 60000),
+    ],
+];
 ```
+
+When your application has no canonical `app.url`, configure `PASSKEYS_RELYING_PARTY_ID` and `PASSKEYS_ALLOWED_ORIGINS` explicitly. Fortify will still boot without them, but a WebAuthn operation will reject the missing values when it first needs them.
 
 Set `PASSKEYS_ALLOWED_ORIGINS` to a comma-separated list when WebAuthn ceremonies should be accepted from more than one origin, such as `https://example.com,https://www.example.com`.
 

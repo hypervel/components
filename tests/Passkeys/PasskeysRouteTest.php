@@ -54,4 +54,19 @@ class PasskeysRouteTest extends TestCase
         $this->assertNotContains('auth.guard:admin', $middleware);
         $this->assertContains('guest', $middleware);
     }
+
+    #[WithConfig('passkeys.throttle', null)]
+    public function testNullThrottleOmitsThrottleMiddlewareFromLoginAndManagementRoutes(): void
+    {
+        foreach (['passkey.login', 'passkey.registration-options'] as $routeName) {
+            $route = Route::getRoutes()->getByName($routeName);
+
+            $this->assertNotNull($route);
+            $this->assertFalse(array_any(
+                $route->middleware(),
+                static fn (mixed $middleware): bool => is_string($middleware)
+                    && str_starts_with($middleware, 'throttle:'),
+            ));
+        }
+    }
 }

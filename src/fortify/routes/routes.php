@@ -26,16 +26,16 @@ use Hypervel\Passkeys\Http\Controllers\PasskeyLoginController;
 use Hypervel\Passkeys\Http\Controllers\PasskeyRegistrationController;
 use Hypervel\Support\Facades\Route;
 
-$middleware = (array) config('fortify.middleware');
-$guard = config('fortify.guard');
+$middleware = config()->array('fortify.middleware');
+$guard = config()->get('fortify.guard');
 
 if (is_string($guard) && $guard !== '') {
     $middleware[] = 'auth.guard:' . $guard;
 }
 
 Route::group(['middleware' => $middleware], function () {
-    $enableViews = config('fortify.views');
-    $authMiddleware = config('fortify.auth_middleware');
+    $enableViews = config()->boolean('fortify.views');
+    $authMiddleware = config()->string('fortify.auth_middleware');
 
     // Authentication...
     if ($enableViews) {
@@ -44,10 +44,10 @@ Route::group(['middleware' => $middleware], function () {
             ->name('login');
     }
 
-    $limiter = config('fortify.limiters.login');
-    $twoFactorLimiter = config('fortify.limiters.two-factor');
-    $passkeyLimiter = config('fortify.limiters.passkeys');
-    $verificationLimiter = config('fortify.limiters.verification', '6,1');
+    $limiter = config()->get('fortify.limiters.login');
+    $twoFactorLimiter = config()->get('fortify.limiters.two-factor');
+    $passkeyLimiter = config()->get('fortify.limiters.passkeys');
+    $verificationLimiter = config()->string('fortify.limiters.verification');
 
     Route::post(RoutePath::for('login', '/login'), [AuthenticatedSessionController::class, 'store'])
         ->middleware(array_filter([

@@ -2,6 +2,11 @@
 
 declare(strict_types=1);
 
+/** @var null|string $appUrl */
+$appUrl = config('app.url');
+$defaultRelyingPartyId = $appUrl === null ? null : parse_url($appUrl, PHP_URL_HOST);
+$defaultAllowedOrigins = $appUrl === null ? [] : [$appUrl];
+
 return [
     /*
     |--------------------------------------------------------------------------
@@ -10,11 +15,12 @@ return [
     |
     | The relying party ID represents your application in the WebAuthn protocol.
     | This is typically your domain (e.g., "example.com"). Passkeys are bound
-    | to this ID and can only be verified on matching domains.
+    | to this ID and can only be verified on matching domains. When this
+    | value is null, Passkeys reports the missing ID when it is first used.
     |
     */
 
-    'relying_party_id' => env('PASSKEYS_RELYING_PARTY_ID', parse_url(config('app.url'), PHP_URL_HOST)),
+    'relying_party_id' => env('PASSKEYS_RELYING_PARTY_ID', $defaultRelyingPartyId),
 
     /*
     |--------------------------------------------------------------------------
@@ -23,11 +29,12 @@ return [
     |
     | The origins permitted to complete WebAuthn ceremonies. Passkeys bound
     | to the relying party ID above will only verify when the browser
-    | reports one of these origins. Defaults to your application URL.
+    | reports one of these origins. Defaults to your application URL. When
+    | that URL is null, the empty list is rejected when origins are used.
     |
     */
 
-    'allowed_origins' => env_array('PASSKEYS_ALLOWED_ORIGINS', [config('app.url')]),
+    'allowed_origins' => env_array('PASSKEYS_ALLOWED_ORIGINS', $defaultAllowedOrigins),
 
     /*
     |--------------------------------------------------------------------------
@@ -36,6 +43,7 @@ return [
     |
     | A nonempty secret used to derive a stable WebAuthn user handle from each
     | user model. Set this explicitly if you rotate your application key.
+    | When both values are null, Passkeys reports the missing secret when used.
     |
     */
 

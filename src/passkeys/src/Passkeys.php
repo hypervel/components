@@ -47,7 +47,7 @@ class Passkeys
 
         $relyingPartyId = $request instanceof Request
             ? $callback($request)
-            : self::config()->string('passkeys.relying_party_id');
+            : self::config()->get('passkeys.relying_party_id');
 
         if (! is_string($relyingPartyId) || $relyingPartyId === '') {
             if ($request instanceof Request) {
@@ -88,7 +88,7 @@ class Passkeys
 
         $origins = $request instanceof Request
             ? $callback($request)
-            : self::config()->array('passkeys.allowed_origins');
+            : self::config()->get('passkeys.allowed_origins');
 
         $origins = is_array($origins) ? array_values(array_filter(
             $origins,
@@ -288,9 +288,9 @@ class Passkeys
      */
     public static function userHandleSecret(): string
     {
-        $secret = self::config()->string('passkeys.user_handle_secret');
+        $secret = self::config()->get('passkeys.user_handle_secret');
 
-        if ($secret === '') {
+        if (! is_string($secret) || $secret === '') {
             throw new RuntimeException('Passkey user handle secret must not be empty.');
         }
 

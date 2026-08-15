@@ -120,13 +120,11 @@ class FortifyServiceProvider extends ServiceProvider
         $this->app->make(ConfigMutationTracker::class)->applyAndRecord(
             $config,
             static function (ConfigRepository $config): void {
-                $appUrl = $config->string('app.url');
-
                 $config->set([
-                    'passkeys.relying_party_id' => $config->string('fortify.passkeys.relying_party_id', parse_url($appUrl, PHP_URL_HOST)),
-                    'passkeys.allowed_origins' => $config->array('fortify.passkeys.allowed_origins', [$appUrl]),
-                    'passkeys.user_handle_secret' => $config->string('fortify.passkeys.user_handle_secret', $config->string('app.key')),
-                    'passkeys.timeout' => $config->integer('fortify.passkeys.timeout', 60000),
+                    'passkeys.relying_party_id' => $config->get('fortify.passkeys.relying_party_id'),
+                    'passkeys.allowed_origins' => $config->get('fortify.passkeys.allowed_origins'),
+                    'passkeys.user_handle_secret' => $config->get('fortify.passkeys.user_handle_secret'),
+                    'passkeys.timeout' => $config->integer('fortify.passkeys.timeout'),
                 ]);
             },
         );

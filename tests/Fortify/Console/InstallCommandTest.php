@@ -80,6 +80,8 @@ class InstallCommandTest extends TestCase
 
         $this->assertTrue($config['lowercase_usernames']);
         $this->assertNotContains(Features::emailVerification(), $config['features']);
+        $this->assertSame('6,1', $config['limiters']['verification']);
+        $this->assertSame(60000, $config['passkeys']['timeout']);
 
         foreach ($this->publishedSupportFiles() as $file) {
             $this->assertFileExists($file);

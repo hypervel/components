@@ -11,15 +11,18 @@ use Hypervel\Fortify\Contracts\TwoFactorAuthenticationProvider as TwoFactorAuthe
 use Hypervel\Fortify\Contracts\TwoFactorDisabledResponse as TwoFactorDisabledResponseContract;
 use Hypervel\Fortify\Contracts\TwoFactorEnabledResponse as TwoFactorEnabledResponseContract;
 use Hypervel\Fortify\Fortify;
+use Hypervel\Fortify\FortifyServiceProvider;
 use Hypervel\Fortify\Http\Responses\TwoFactorDisabledResponse;
 use Hypervel\Fortify\Http\Responses\TwoFactorEnabledResponse;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Tests\Fortify\Fixtures\FixedClock;
+use InvalidArgumentException;
 use OTPHP\TOTP;
 use Psr\Clock\ClockInterface;
 use ReflectionClass;
+use ReflectionMethod;
 use Symfony\Component\HttpFoundation\Response;
 
 class FortifyServiceProviderTest extends TestCase
@@ -79,6 +82,23 @@ class FortifyServiceProviderTest extends TestCase
         $provider = $this->app->make(TwoFactorAuthenticationProviderContract::class);
 
         $this->assertTrue($provider->verify($secret, $code));
+    }
+
+    public function testPasskeyBridgeRequiresTheConfiguredTimeout(): void
+    {
+        config(['fortify.passkeys' => [
+            'relying_party_id' => null,
+            'allowed_origins' => [],
+            'user_handle_secret' => null,
+        ]]);
+
+        $provider = $this->app->getProvider(FortifyServiceProvider::class);
+        $method = new ReflectionMethod($provider, 'configurePasskeys');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Configuration value for key [fortify.passkeys.timeout]');
+
+        $method->invoke($provider);
     }
 
     #[DefineEnvironment('withTwoFactorAuthentication')]

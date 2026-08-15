@@ -11,6 +11,7 @@ use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Fortify\Fixtures\Admin;
+use InvalidArgumentException;
 
 class FortifyRouteTest extends TestCase
 {
@@ -57,7 +58,24 @@ class FortifyRouteTest extends TestCase
         $this->assertContains('throttle:5,1', $route->gatherMiddleware());
     }
 
+    public function testRouteConfigurationRequiresTheVerificationLimiter(): void
+    {
+        config(['fortify.limiters' => [
+            'login' => null,
+            'two-factor' => '5,1',
+            'passkeys' => null,
+        ]]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Configuration value for key [fortify.limiters.verification]');
+
+        require dirname(__DIR__, 2) . '/src/fortify/routes/routes.php';
+    }
+
+    #[WithConfig('fortify.limiters.login', null)]
+    #[WithConfig('fortify.limiters.passkeys', null)]
     #[WithConfig('fortify.limiters.two-factor', '10,1')]
+    #[WithConfig('fortify.limiters.verification', '6,1')]
     public function testTwoFactorChallengeThrottleCanBeCustomized(): void
     {
         $route = Route::getRoutes()->getByName('two-factor.login.store');

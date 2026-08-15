@@ -87,8 +87,24 @@ class PasskeysGuardTest extends TestCase
     private function configureAdminGuard(): void
     {
         config()->set([
-            'auth.guards.admin' => ['driver' => 'session', 'provider' => 'admins'],
-            'auth.providers.admins' => ['driver' => 'eloquent', 'model' => Admin::class],
+            'auth.guards.admin' => [
+                'driver' => 'session',
+                'provider' => 'admins',
+                'passwords' => null,
+                'password_timeout' => null,
+                'remember' => null,
+            ],
+            'auth.providers.admins' => [
+                'driver' => 'eloquent',
+                'model' => Admin::class,
+                'cache' => [
+                    'enabled' => false,
+                    'store' => null,
+                    'ttl' => 300,
+                    'prefix' => 'auth_users',
+                    'tags' => null,
+                ],
+            ],
         ]);
     }
 

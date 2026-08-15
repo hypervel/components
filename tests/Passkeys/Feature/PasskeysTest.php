@@ -49,6 +49,67 @@ class PasskeysTest extends TestCase
         $this->assertSame('application-key', $config['user_handle_secret']);
     }
 
+    public function testConfigUsesExplicitPasskeyValuesWhenApplicationUrlAndKeyAreNull(): void
+    {
+        config([
+            'app.key' => null,
+            'app.url' => null,
+        ]);
+        $this->setEnvironmentValue('PASSKEYS_RELYING_PARTY_ID', 'example.com');
+        $this->setEnvironmentValue('PASSKEYS_ALLOWED_ORIGINS', 'https://example.com');
+        $this->setEnvironmentValue('PASSKEYS_USER_HANDLE_SECRET', 'explicit-secret');
+
+        try {
+            $config = require dirname(__DIR__, 3) . '/src/passkeys/config/passkeys.php';
+
+            $this->assertSame('example.com', $config['relying_party_id']);
+            $this->assertSame(['https://example.com'], $config['allowed_origins']);
+            $this->assertSame('explicit-secret', $config['user_handle_secret']);
+        } finally {
+            $this->unsetEnvironmentValue('PASSKEYS_RELYING_PARTY_ID');
+            $this->unsetEnvironmentValue('PASSKEYS_ALLOWED_ORIGINS');
+            $this->unsetEnvironmentValue('PASSKEYS_USER_HANDLE_SECRET');
+        }
+    }
+
+    public function testNullDerivedPasskeyDefaultsFailAtTheDomainBoundary(): void
+    {
+        config([
+            'app.key' => null,
+            'app.url' => null,
+        ]);
+        $this->unsetEnvironmentValue('PASSKEYS_RELYING_PARTY_ID');
+        $this->unsetEnvironmentValue('PASSKEYS_ALLOWED_ORIGINS');
+        $this->unsetEnvironmentValue('PASSKEYS_USER_HANDLE_SECRET');
+
+        $config = require dirname(__DIR__, 3) . '/src/passkeys/config/passkeys.php';
+
+        config([
+            'passkeys.relying_party_id' => $config['relying_party_id'],
+            'passkeys.allowed_origins' => $config['allowed_origins'],
+            'passkeys.user_handle_secret' => $config['user_handle_secret'],
+        ]);
+
+        $this->assertNull($config['relying_party_id']);
+        $this->assertSame([], $config['allowed_origins']);
+        $this->assertNull($config['user_handle_secret']);
+        $this->assertThrows(
+            fn () => Passkeys::relyingPartyId(),
+            RuntimeException::class,
+            'Passkey relying party ID must not be empty.',
+        );
+        $this->assertThrows(
+            fn () => Passkeys::allowedOrigins(),
+            RuntimeException::class,
+            'At least one passkey allowed origin must be configured.',
+        );
+        $this->assertThrows(
+            fn () => Passkeys::userHandleSecret(),
+            RuntimeException::class,
+            'Passkey user handle secret must not be empty.',
+        );
+    }
+
     public function testItThrowsWhenTheUserHandleSecretIsEmpty(): void
     {
         config(['passkeys.user_handle_secret' => '']);
