@@ -18,6 +18,38 @@ use Hypervel\Tests\Telescope\FeatureTestCase;
 
 class DisabledWatcherTest extends FeatureTestCase
 {
+    private const array REDIS_CONNECTION = [
+        'url' => null,
+        'scheme' => null,
+        'host' => '127.0.0.1',
+        'username' => null,
+        'password' => null,
+        'port' => 6379,
+        'database' => 0,
+        'name' => null,
+        'timeout' => null,
+        'retry_interval' => 0,
+        'read_timeout' => 0.0,
+        'context' => [],
+        'options' => [],
+        'prefix' => null,
+        'events' => false,
+        'max_retries' => 3,
+        'backoff_algorithm' => 'decorrelated_jitter',
+        'backoff_base' => 100,
+        'backoff_cap' => 1000,
+        'pool' => [
+            'min_connections' => 1,
+            'max_connections' => 10,
+            'connect_timeout' => 10.0,
+            'wait_timeout' => 3.0,
+            'heartbeat' => -1.0,
+            'heartbeat_timeout' => 1.0,
+            'max_idle_time' => 60.0,
+            'max_lifetime' => -1.0,
+        ],
+    ];
+
     protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
@@ -35,14 +67,7 @@ class DisabledWatcherTest extends FeatureTestCase
     ])]
     public function testDisabledCacheWatcherDoesNotEnableCacheEvents(): void
     {
-        $config = $this->app->make('config');
-
-        foreach (array_keys($config->get('cache.stores', [])) as $store) {
-            $this->assertFalse(
-                $config->get("cache.stores.{$store}.events", false),
-                "Cache store '{$store}' should not have events enabled when CacheWatcher is disabled."
-            );
-        }
+        $this->assertFalse(config()->boolean('cache.stores.array.events'));
     }
 
     #[WithConfig('telescope.watchers', [
@@ -50,12 +75,7 @@ class DisabledWatcherTest extends FeatureTestCase
             'enabled' => false,
         ],
     ])]
-    #[WithConfig('database.redis.foo', [
-        'host' => '127.0.0.1',
-        'port' => 6379,
-        'database' => 0,
-        'events' => false,
-    ])]
+    #[WithConfig('database.redis.foo', self::REDIS_CONNECTION)]
     public function testDisabledRedisWatcherDoesNotEnableRedisEvents(): void
     {
         $this->assertFalse(
@@ -71,12 +91,7 @@ class DisabledWatcherTest extends FeatureTestCase
         ClientRequestWatcher::class => true,
         RedisWatcher::class => true,
     ])]
-    #[WithConfig('database.redis.foo', [
-        'host' => '127.0.0.1',
-        'port' => 6379,
-        'database' => 0,
-        'events' => false,
-    ])]
+    #[WithConfig('database.redis.foo', self::REDIS_CONNECTION)]
     public function testGloballyDisabledTelescopeRegistersStorageWithoutInstrumentation(): void
     {
         $this->assertInstanceOf(

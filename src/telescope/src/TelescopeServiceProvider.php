@@ -33,7 +33,7 @@ class TelescopeServiceProvider extends ServiceProvider implements ReloadsConfigu
             $this->registerPublishing();
         }
 
-        if (! config('telescope.enabled')) {
+        if (! config()->boolean('telescope.enabled')) {
             return;
         }
 
@@ -66,7 +66,7 @@ class TelescopeServiceProvider extends ServiceProvider implements ReloadsConfigu
     protected function registerRoutes(): void
     {
         Route::domain(config('telescope.domain'))
-            ->middleware(config('telescope.middleware', []))
+            ->middleware(config()->array('telescope.middleware'))
             ->prefix(config('telescope.path'))
             ->namespace('Hypervel\Telescope\Http\Controllers')
             ->group(__DIR__ . '/../routes/web.php');
@@ -126,7 +126,7 @@ class TelescopeServiceProvider extends ServiceProvider implements ReloadsConfigu
         $this->registerPrePackageUninstallListener();
         $this->registerStorageDriver();
 
-        if (! config('telescope.enabled')) {
+        if (! config()->boolean('telescope.enabled')) {
             return;
         }
 
@@ -210,7 +210,7 @@ class TelescopeServiceProvider extends ServiceProvider implements ReloadsConfigu
      */
     protected function registerStorageDriver(): void
     {
-        $driver = config('telescope.driver');
+        $driver = config()->string('telescope.driver');
 
         if (method_exists($this, $method = 'register' . ucfirst($driver) . 'Driver')) {
             $this->{$method}();

@@ -129,7 +129,7 @@ class Telescope
      */
     public static function start(Application $app): void
     {
-        if (! config('telescope.enabled')) {
+        if (! config()->boolean('telescope.enabled')) {
             return;
         }
 
@@ -162,7 +162,7 @@ class Telescope
                 'horizon:work',
                 'horizon:supervisor',
                 'watch',
-            ], config('telescope.ignore_commands', [])),
+            ], config()->array('telescope.ignore_commands')),
             true
         );
     }
@@ -172,7 +172,7 @@ class Telescope
      */
     protected static function requestIsToApprovedUri(Request $request): bool
     {
-        if (! empty($only = config('telescope.only_paths', []))) {
+        if (! empty($only = config()->array('telescope.only_paths'))) {
             return $request->is($only);
         }
 
@@ -193,7 +193,7 @@ class Telescope
             'vendor/telescope*',
             (config('horizon.path') ?? 'horizon') . '*',
             'vendor/horizon*',
-        ])->merge(config('telescope.ignore_paths', []))
+        ])->merge(config()->array('telescope.ignore_paths'))
             ->unless(is_null(config('telescope.path')), function ($paths) {
                 return $paths->prepend(config('telescope.path') . '*');
             })->all();
@@ -596,7 +596,7 @@ class Telescope
             return;
         }
 
-        if (config('telescope.defer', true)) {
+        if (config()->boolean('telescope.defer')) {
             Coroutine::defer(fn () => static::executeStore($storage));
             return;
         }
@@ -821,7 +821,7 @@ class Telescope
     {
         return [
             'path' => config('telescope.path'),
-            'timezone' => config('app.timezone'),
+            'timezone' => config()->string('app.timezone'),
             'recording' => ! cache('telescope:pause-recording'),
         ];
     }

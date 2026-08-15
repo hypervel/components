@@ -17,7 +17,7 @@ return [
     |
     */
 
-    'enabled' => env('TELESCOPE_ENABLED', true),
+    'enabled' => (bool) env('TELESCOPE_ENABLED', true),
 
     /*
     |--------------------------------------------------------------------------
@@ -75,16 +75,17 @@ return [
     |
     */
 
-    'defer' => env('TELESCOPE_STORE_DEFER', true),
+    'defer' => (bool) env('TELESCOPE_STORE_DEFER', true),
 
     /*
     |--------------------------------------------------------------------------
     | Telescope Queue
     |--------------------------------------------------------------------------
     |
-    | These options determine the queue connection and queue
-    | which will be used to process ProcessPendingUpdates jobs. This can
-    | be changed if you would prefer to use a non-default connection.
+    | These options determine the queue connection and queue which will be
+    | used to process ProcessPendingUpdates jobs. A null connection or queue
+    | uses the queue worker defaults, while a null or non-positive delay
+    | dispatches follow-up updates without a delay.
     |
     */
 
@@ -146,13 +147,13 @@ return [
         Watchers\BatchWatcher::class => env('TELESCOPE_BATCH_WATCHER', true),
 
         Watchers\CacheWatcher::class => [
-            'enabled' => env('TELESCOPE_CACHE_WATCHER', true),
+            'enabled' => (bool) env('TELESCOPE_CACHE_WATCHER', true),
             'hidden' => [],
             'ignore' => [],
         ],
 
         Watchers\ClientRequestWatcher::class => [
-            'enabled' => env('TELESCOPE_CLIENT_REQUEST_WATCHER', true),
+            'enabled' => (bool) env('TELESCOPE_CLIENT_REQUEST_WATCHER', true),
             'ignore_hosts' => [],
             'request_size_limit' => env('TELESCOPE_HTTP_CLIENT_REQUEST_SIZE_LIMIT', 64),
             'response_size_limit' => env('TELESCOPE_HTTP_CLIENT_RESPONSE_SIZE_LIMIT', 64),
@@ -166,12 +167,12 @@ return [
         ],
 
         Watchers\CommandWatcher::class => [
-            'enabled' => env('TELESCOPE_COMMAND_WATCHER', true),
+            'enabled' => (bool) env('TELESCOPE_COMMAND_WATCHER', true),
             'ignore' => [],
         ],
 
         Watchers\DumpWatcher::class => [
-            'enabled' => env('TELESCOPE_DUMP_WATCHER', true),
+            'enabled' => (bool) env('TELESCOPE_DUMP_WATCHER', true),
             'always' => env('TELESCOPE_DUMP_WATCHER_ALWAYS', false),
         ],
 
@@ -180,14 +181,14 @@ return [
         // listener and is treated as a passive observer, so it will not cause
         // listener-guarded events to be fired just for Telescope.
         Watchers\EventWatcher::class => [
-            'enabled' => env('TELESCOPE_EVENT_WATCHER', true),
+            'enabled' => (bool) env('TELESCOPE_EVENT_WATCHER', true),
             'ignore' => [],
         ],
 
         Watchers\ExceptionWatcher::class => env('TELESCOPE_EXCEPTION_WATCHER', true),
 
         Watchers\GateWatcher::class => [
-            'enabled' => env('TELESCOPE_GATE_WATCHER', true),
+            'enabled' => (bool) env('TELESCOPE_GATE_WATCHER', true),
             'ignore_abilities' => [],
             'ignore_packages' => true,
             'ignore_paths' => [],
@@ -196,14 +197,14 @@ return [
         Watchers\JobWatcher::class => env('TELESCOPE_JOB_WATCHER', true),
 
         Watchers\LogWatcher::class => [
-            'enabled' => env('TELESCOPE_LOG_WATCHER', true),
+            'enabled' => (bool) env('TELESCOPE_LOG_WATCHER', true),
             'level' => 'error',
         ],
 
         Watchers\MailWatcher::class => env('TELESCOPE_MAIL_WATCHER', true),
 
         Watchers\ModelWatcher::class => [
-            'enabled' => env('TELESCOPE_MODEL_WATCHER', true),
+            'enabled' => (bool) env('TELESCOPE_MODEL_WATCHER', true),
             'events' => ['eloquent.*'],
             'hydrations' => true,
         ],
@@ -211,7 +212,7 @@ return [
         Watchers\NotificationWatcher::class => env('TELESCOPE_NOTIFICATION_WATCHER', true),
 
         Watchers\QueryWatcher::class => [
-            'enabled' => env('TELESCOPE_QUERY_WATCHER', true),
+            'enabled' => (bool) env('TELESCOPE_QUERY_WATCHER', true),
             'ignore_packages' => true,
             'ignore_paths' => [],
             'slow' => 100,
@@ -223,7 +224,7 @@ return [
         // WebSocket message and should only be used for targeted debugging, not sustained
         // production use.
         Watchers\ReverbWatcher::class => [
-            'enabled' => env('TELESCOPE_REVERB_WATCHER', true),
+            'enabled' => (bool) env('TELESCOPE_REVERB_WATCHER', true),
             'events' => [
                 'connection_established',
                 'connection_closed',
@@ -237,7 +238,7 @@ return [
         ],
 
         Watchers\RequestWatcher::class => [
-            'enabled' => env('TELESCOPE_REQUEST_WATCHER', true),
+            'enabled' => (bool) env('TELESCOPE_REQUEST_WATCHER', true),
             'size_limit' => env('TELESCOPE_RESPONSE_SIZE_LIMIT', 64), // KB
             'ignore_http_methods' => [],
             'ignore_status_codes' => [],
