@@ -36,14 +36,14 @@ class ProfileTracker
     /**
      * Stop tracking a test.
      */
-    public function stop(string $testId, string $name, float $time): void
+    public function stop(string $testId, float $time): void
     {
         if (! isset($this->startTimes[$testId])) {
             return;
         }
 
         $this->slowTests[] = [
-            'name' => $name,
+            'name' => $testId,
             'duration' => $time - $this->startTimes[$testId],
         ];
 

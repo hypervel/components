@@ -143,6 +143,12 @@ class TestCommandTest extends TestCase
             $this->assertSame(0, $exitCode, $display);
             $this->assertStringContainsString('Top 10 slowest tests', $display);
             $this->assertStringContainsString('ProfileExampleTest', $display);
+            $this->assertSame(1, preg_match(
+                '/ProfileExampleTest.*?([0-9]+\.[0-9]{3})s/',
+                $display,
+                $matches,
+            ));
+            $this->assertGreaterThanOrEqual(0.05, (float) $matches[1]);
         } finally {
             $this->removeDirectory($basePath);
         }
@@ -634,14 +640,19 @@ XML);
 
 declare(strict_types=1);
 
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 final class ProfileExampleTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        usleep(60000);
+    }
+
     public function test_profile_runs(): void
     {
-        usleep(1000);
-
         $this->assertTrue(true);
     }
 }
