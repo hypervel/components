@@ -21,7 +21,7 @@ class CookieServiceProvider extends ServiceProvider implements ReloadsConfigurat
                 $config['path'],
                 $config['domain'],
                 $config['secure'],
-                $config['same_site'] ?? null
+                $config['same_site']
             );
         });
     }
@@ -46,7 +46,7 @@ class CookieServiceProvider extends ServiceProvider implements ReloadsConfigurat
             $config['path'],
             $config['domain'],
             $config['secure'],
-            $config['same_site'] ?? null,
+            $config['same_site'],
         );
     }
 }
