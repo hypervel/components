@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Hypervel\Database\Migrations\Migration;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 
@@ -17,9 +18,9 @@ return new class extends Migration {
         $tableNames = config()->array('permission.table_names');
         $columnNames = config()->array('permission.column_names');
         $pivotRole = $columnNames['role_pivot_key'];
-        $pivotRole ??= 'role_id';
+        $pivotRole ??= PermissionRegistrar::DEFAULT_ROLE_PIVOT_KEY;
         $pivotPermission = $columnNames['permission_pivot_key'];
-        $pivotPermission ??= 'permission_id';
+        $pivotPermission ??= PermissionRegistrar::DEFAULT_PERMISSION_PIVOT_KEY;
         $teamForeignKey = $columnNames['team_foreign_key'];
         $modelMorphKey = $columnNames['model_morph_key'];
 
@@ -84,7 +85,7 @@ return new class extends Migration {
             });
         }
 
-        $cacheStore = config()->string('permission.cache.store');
+        $cacheStore = config()->string('permission.cache.store', 'default');
 
         app('cache')
             ->store($cacheStore !== 'default' ? $cacheStore : null)

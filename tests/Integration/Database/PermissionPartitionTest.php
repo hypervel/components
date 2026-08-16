@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database;
 
+use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Blueprint;
@@ -86,7 +87,7 @@ class PermissionPartitionTest extends DatabaseTestCase
                     'enabled' => false,
                     'store' => null,
                     'ttl' => 300,
-                    'prefix' => 'auth_users',
+                    'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
                     'tags' => null,
                 ],
             ],

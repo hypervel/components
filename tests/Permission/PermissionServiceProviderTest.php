@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Permission;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Application;
+use Hypervel\Permission\DefaultTeamResolver;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\PermissionServiceProvider;
 use Hypervel\Testbench\TestCase;
@@ -41,5 +42,17 @@ class PermissionServiceProviderTest extends TestCase
         $provider->reloadConfiguration();
 
         $this->assertFalse($application->resolved(PermissionRegistrar::class));
+    }
+
+    public function testCanonicalOptionalDefaultsAreDeclared(): void
+    {
+        $config = require dirname(__DIR__, 2) . '/src/permission/config/permission.php';
+
+        $this->assertSame(DefaultTeamResolver::class, $config['team_resolver']);
+        $this->assertSame(PermissionRegistrar::DEFAULT_CACHE_EXPIRATION_SECONDS, $config['cache']['expiration_seconds']);
+        $this->assertSame(PermissionRegistrar::DEFAULT_CACHE_COLUMN_NAMES_EXCEPT, $config['cache']['column_names_except']);
+        $this->assertNull($config['column_names']['role_pivot_key']);
+        $this->assertNull($config['column_names']['permission_pivot_key']);
+        $this->assertArrayNotHasKey('wildcard_permission', $config);
     }
 }

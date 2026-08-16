@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Integration;
 
+use ErrorException;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Permission\Contracts\Permission as PermissionContract;
 use Hypervel\Permission\Contracts\Role as RoleContract;
@@ -13,10 +14,12 @@ use Hypervel\Permission\Exceptions\RoleDoesNotExist;
 use Hypervel\Permission\Models\Permission as HypervelPermission;
 use Hypervel\Permission\Models\Role as HypervelRole;
 use Hypervel\Permission\PermissionRegistrar;
+use Hypervel\Permission\Support\Config;
 use Hypervel\Tests\Permission\Fixtures\Models\Permission as TestPermission;
 use Hypervel\Tests\Permission\Fixtures\Models\Role as TestRole;
 use Hypervel\Tests\Permission\TestCase;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class PermissionRegistrarTest extends TestCase
 {
@@ -249,14 +252,35 @@ class PermissionRegistrarTest extends TestCase
         $this->assertFalse(array_key_exists('created_at', $role->getAttributes()));
     }
 
-    public function testInitializeCacheAcceptsDefaultColumnExclusions(): void
+    public function testInitializeCacheUsesOptionalConfigurationDefaults(): void
     {
-        $registrar = $this->app->make(PermissionRegistrar::class);
+        $permissionConfig = config()->array('permission');
+        unset(
+            $permissionConfig['models']['team'],
+            $permissionConfig['models']['default_model'],
+            $permissionConfig['team_resolver'],
+            $permissionConfig['cache']['expiration_seconds'],
+            $permissionConfig['cache']['store'],
+            $permissionConfig['cache']['column_names_except'],
+        );
+        config()->set('permission', $permissionConfig);
 
+        $registrar = $this->app->make(PermissionRegistrar::class);
         $registrar->initializeCache();
+
+        $registrar->setPermissionsTeamId('team-a');
 
         $this->assertSame(HypervelRole::class, $registrar->getRoleClass());
         $this->assertSame(HypervelPermission::class, $registrar->getPermissionClass());
+        $this->assertNull($registrar->getTeamClass());
+        $this->assertNull(Config::defaultModel());
+        $this->assertSame('team-a', $registrar->getPermissionsTeamId());
+        $this->assertSame(PermissionRegistrar::DEFAULT_CACHE_EXPIRATION_SECONDS, $registrar->cacheExpirationTime);
+        $this->assertSame($this->app->make('cache')->store()->getStore(), $registrar->getCacheStore());
+
+        $role = $this->app->make(RoleContract::class)::findByName('testRole');
+
+        $this->assertFalse(array_key_exists('created_at', $role->getAttributes()));
     }
 
     public function testNullPivotKeysUseConventionalColumnNames(): void
@@ -269,8 +293,29 @@ class PermissionRegistrarTest extends TestCase
         $registrar = $this->app->make(PermissionRegistrar::class);
         $registrar->initializeCache();
 
-        $this->assertSame('role_id', $registrar->pivotRole);
-        $this->assertSame('permission_id', $registrar->pivotPermission);
+        $this->assertSame(PermissionRegistrar::DEFAULT_ROLE_PIVOT_KEY, $registrar->pivotRole);
+        $this->assertSame(PermissionRegistrar::DEFAULT_PERMISSION_PIVOT_KEY, $registrar->pivotPermission);
+    }
+
+    #[DataProvider('requiredPivotKeyProvider')]
+    public function testInitializeCacheRequiresPivotKeys(string $missingKey): void
+    {
+        $columnNames = config()->array('permission.column_names');
+        unset($columnNames[$missingKey]);
+        config()->set('permission.column_names', $columnNames);
+
+        $this->expectException(ErrorException::class);
+        $this->expectExceptionMessage(sprintf('Undefined array key "%s"', $missingKey));
+
+        $this->app->make(PermissionRegistrar::class)->initializeCache();
+    }
+
+    public static function requiredPivotKeyProvider(): array
+    {
+        return [
+            'role pivot key' => ['role_pivot_key'],
+            'permission pivot key' => ['permission_pivot_key'],
+        ];
     }
 
     public function testInitializeCacheRejectsRequiredDefaultModelColumns(): void

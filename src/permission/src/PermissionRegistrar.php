@@ -42,6 +42,14 @@ use function Hypervel\Support\enum_value;
 
 class PermissionRegistrar
 {
+    public const int DEFAULT_CACHE_EXPIRATION_SECONDS = 86400;
+
+    public const string DEFAULT_ROLE_PIVOT_KEY = 'role_id';
+
+    public const string DEFAULT_PERMISSION_PIVOT_KEY = 'permission_id';
+
+    public const array DEFAULT_CACHE_COLUMN_NAMES_EXCEPT = ['created_at', 'updated_at', 'deleted_at'];
+
     public const string MODEL_ROLES_CACHE_KEY_PREFIX = 'hypervel.permission.cache.model.roles';
 
     public const string MODEL_PERMISSIONS_CACHE_KEY_PREFIX = 'hypervel.permission.cache.model.permissions';
@@ -241,14 +249,17 @@ class PermissionRegistrar
         /** @var null|class-string<Model> $teamClass */
         $teamClass = $this->config->get('permission.models.team');
         /** @var class-string<PermissionsTeamResolver> $teamResolverClass */
-        $teamResolverClass = $this->config->string('permission.team_resolver');
+        $teamResolverClass = $this->config->string('permission.team_resolver', DefaultTeamResolver::class);
 
         $this->permissionClass = $permissionClass;
         $this->roleClass = $roleClass;
         $this->teamClass = $teamClass;
         $this->teamResolver = $this->app->make($teamResolverClass);
 
-        $this->cacheExpirationTime = $this->config->integer('permission.cache.expiration_seconds');
+        $this->cacheExpirationTime = $this->config->integer(
+            'permission.cache.expiration_seconds',
+            self::DEFAULT_CACHE_EXPIRATION_SECONDS,
+        );
         $this->teams = $this->config->boolean('permission.teams');
         $this->teamsKey = $this->config->string('permission.column_names.team_foreign_key');
 
@@ -257,12 +268,17 @@ class PermissionRegistrar
         $this->modelPermissionsCacheKeyPrefix = $this->config->string('permission.cache.keys.model_permissions');
         $this->modelCacheTokenKey = $this->config->string('permission.cache.keys.model_token');
 
-        $pivotRole = $this->config->get('permission.column_names.role_pivot_key');
-        $pivotPermission = $this->config->get('permission.column_names.permission_pivot_key');
-        $this->pivotRole = is_string($pivotRole) && $pivotRole !== '' ? $pivotRole : 'role_id';
-        $this->pivotPermission = is_string($pivotPermission) && $pivotPermission !== '' ? $pivotPermission : 'permission_id';
+        $columnNames = $this->config->array('permission.column_names');
+        $pivotRole = $columnNames['role_pivot_key'];
+        $pivotPermission = $columnNames['permission_pivot_key'];
+        $this->pivotRole = is_string($pivotRole) && $pivotRole !== ''
+            ? $pivotRole
+            : self::DEFAULT_ROLE_PIVOT_KEY;
+        $this->pivotPermission = is_string($pivotPermission) && $pivotPermission !== ''
+            ? $pivotPermission
+            : self::DEFAULT_PERMISSION_PIVOT_KEY;
 
-        $cacheStore = $this->config->string('permission.cache.store');
+        $cacheStore = $this->config->string('permission.cache.store', 'default');
         $this->cacheStoreName = $cacheStore === 'default' ? null : $cacheStore;
 
         $this->assignmentPivotClasses = [];
@@ -285,7 +301,10 @@ class PermissionRegistrar
      */
     protected function validateCacheColumnExclusions(): void
     {
-        $except = $this->config->array('permission.cache.column_names_except');
+        $except = $this->config->array(
+            'permission.cache.column_names_except',
+            self::DEFAULT_CACHE_COLUMN_NAMES_EXCEPT,
+        );
         $partitionColumn = static::partitionColumn();
         $roleColumns = [(new $this->roleClass)->getKeyName(), 'name', 'guard_name'];
         $permissionColumns = [(new $this->permissionClass)->getKeyName(), 'name', 'guard_name'];
@@ -1399,7 +1418,10 @@ class PermissionRegistrar
      */
     private function getSerializedPermissionsForCache(): array
     {
-        $except = $this->config->array('permission.cache.column_names_except');
+        $except = $this->config->array(
+            'permission.cache.column_names_except',
+            self::DEFAULT_CACHE_COLUMN_NAMES_EXCEPT,
+        );
         $hasDeniedRolePermissions = false;
         $partition = $this->resolvePartition();
 
