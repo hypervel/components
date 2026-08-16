@@ -195,10 +195,20 @@ Build complete, long-term solutions, not MVPs or local workarounds. A broad chan
 - **Use `Sleep::usleep()` / `Sleep::sleep()` for delays in source code** — `Sleep` is fakeable in tests. Use raw `sleep()` / `usleep()` only where real time must pass, such as test harnesses and external-process polling.
 - **Use `xxh128` for internal non-cryptographic hashing** — cache and context keys, content checksums, and change detection. It is faster than `sha256`, which is reserved for trust boundaries: stored credential digests, signatures, and anything an attacker gains by forging. Seed it when the hashed value comes from user input, as `SwooleStore` does for its physical table keys.
 - **Use immutable dates by default** — Hypervel defaults to `Hypervel\Support\CarbonImmutable`, including where Laravel uses mutable Carbon. Create public or application-configurable dates through the `Date` facade or date helpers, and use exact `CarbonImmutable` for framework-owned internal or held values. Type configurable Carbon boundaries as `CarbonInterface` and native or third-party boundaries as `DateTimeInterface`. Capture the return value of every date modifier whose result must persist. Use `Hypervel\Support\Carbon` only for explicit mutable opt-out or conversion behavior.
-- **Use typed config getters and avoid duplicate defaults** — prefer `$config->string()`, `$config->integer()`, `$config->float()`, `$config->boolean()`, and `$config->array()` over `$config->get()` for values that cannot be null. Do not pass a code-level fallback when the framework or package config defines the key; missing or misspelled keys should fail loudly instead of silently using a second default. Framework and package defaults are shallow-merged with application config. `mergeableOptions()` is only for named groups such as connections or stores: application entries replace matching defaults, while other default entries remain. Other nested arrays are replaced as a whole. Keep a fallback when a setting inside one of those replaced arrays is intentionally optional.
+- **Always use American English spelling** — E.g., "behavior" vs "behaviour", "utilize" vs "utilise".
+
+### Configuration
+
+These rules apply to all code, including ported code.
+
+- Always use typed getters for values with one non-null type. Only use `get()` when null, union, or mixed values are meaningful. Add a test for any supported null behavior.
+- Cast environment-backed booleans and numbers in config files; if `null` is supported, cast only non-null values. Consumers must not repeat those casts. When a factory accepts raw configuration records, normalize each record once at that boundary.
+- Required settings live in shipped config and must not have a code-level fallback, so missing or misspelled keys fail loudly.
+- Intentionally optional settings keep one owning fallback and remain discoverable in config or feature documentation. Document what omission or null means.
+- Framework and package defaults are shallow-merged with application config. `mergeableOptions()` is only for named groups such as connections or stores: application entries replace matching defaults, while other default entries remain. Other nested arrays are replaced as a whole.
+- A non-obvious fallback value shared by multiple source paths must have an owning constant. If user-facing config exposes the same default, keep its concrete value readable and add a focused test asserting that it matches the constant. Do not create constants for obvious source fallbacks such as `true`, `false`, `null`, `[]`, or `'default'`.
 - **Env var naming** — Ported config keeps upstream names. New Hypervel-specific settings should use the established prefix for the package or subsystem that owns the value (`SERVER_`, `CACHE_`, `REDIS_`, etc.). Determine ownership semantically, not from the config filename: aggregate files such as `app.php` contain multiple domains, and `APP_` is for genuinely application-wide settings. If a value mirrors another config key, reuse that key's environment variable instead of defining a duplicate.
 - **Use `resolve...Using` for Hypervel-owned config resolvers** — prefer this naming for callbacks that resolve config-derived values, unless an established Laravel domain convention already exists, such as `redirectUsing()`.
-- **Always use American English spelling** — E.g., "behavior" vs "behaviour", "utilize" vs "utilise".
 
 ## Container
 
@@ -727,7 +737,7 @@ Full PHPStan runs through `composer fix` at checkpoints. During implementation, 
 When porting Laravel packages, whether first-party or third-party, keep them as close to 1:1 with upstream as possible so future changes are easy to merge. The exceptions are:
 - Modernizing PHP types, including native parameter, return, property, and class-constant types, plus other appropriate PHP 8.4+ features, strict types, and strict comparisons
 - Converting mutable Laravel date construction to Hypervel's immutable date conventions, typing configurable factory output as `CarbonInterface`, and capturing date-modifier return values
-- Converting container array access (`$app['events']`) and dynamic service-property access (`$app->events`) in ported code to named container methods, and untyped `$config->get()` calls to typed getters where the key isn't nullable (see Container and the typed-getter rule under Development Conventions)
+- Converting container array access (`$app['events']`) and dynamic service-property access (`$app->events`) in ported code to named container methods, and applying the Configuration rules to ported config and its consumers
 - Adding Laravel-style title docblocks to methods (not classes — see Development Conventions)
 - For ported Laravel packages: making them coroutine-safe, adding Swoole performance enhancements (e.g., static property caching), making them pass PHPStan
 - Not porting upstream framework-specific integrations that only make sense in the source framework (for example packages, drivers) unless Hypervel intentionally has an equivalent surface
