@@ -2,11 +2,13 @@
 
 declare(strict_types=1);
 
-use Monolog\Handler\ErrorLogHandler;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
 use Monolog\Processor\PsrLogMessageProcessor;
+
+$papertrailPort = env('PAPERTRAIL_PORT');
+$papertrailPort = $papertrailPort === null ? null : (int) $papertrailPort;
 
 return [
     /*
@@ -68,9 +70,7 @@ return [
             'driver' => 'single',
             'path' => storage_path('logs/hypervel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'bubble' => true,
             'permission' => null,
-            'locking' => false,
             'replace_placeholders' => true,
         ],
 
@@ -78,24 +78,18 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/hypervel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => env('LOG_DAILY_DAYS', 14),
-            'bubble' => true,
+            'days' => (int) env('LOG_DAILY_DAYS', 14),
             'permission' => null,
-            'locking' => false,
             'replace_placeholders' => true,
         ],
 
         'slack' => [
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),
-            'channel' => null,
             'username' => env('LOG_SLACK_USERNAME', env('APP_NAME', 'Hypervel')),
-            'attachment' => true,
             'emoji' => env('LOG_SLACK_EMOJI', ':boom:'),
-            'short' => false,
             'context' => true,
             'level' => env('LOG_LEVEL', 'critical'),
-            'bubble' => true,
             'exclude_fields' => [],
             'replace_placeholders' => true,
         ],
@@ -106,8 +100,8 @@ return [
             'handler' => env('LOG_PAPERTRAIL_HANDLER', SyslogUdpHandler::class),
             'handler_with' => [
                 'host' => env('PAPERTRAIL_URL'),
-                'port' => env('PAPERTRAIL_PORT'),
-                'connectionString' => 'tls://' . env('PAPERTRAIL_URL') . ':' . env('PAPERTRAIL_PORT'),
+                'port' => $papertrailPort,
+                'connectionString' => 'tls://' . env('PAPERTRAIL_URL') . ':' . $papertrailPort,
             ],
             'processors' => [PsrLogMessageProcessor::class],
         ],
@@ -144,16 +138,12 @@ return [
         'errorlog' => [
             'driver' => 'errorlog',
             'level' => env('LOG_LEVEL', 'debug'),
-            'type' => ErrorLogHandler::OPERATING_SYSTEM,
             'replace_placeholders' => true,
         ],
 
         'null' => [
             'driver' => 'monolog',
-            'level' => 'debug',
             'handler' => NullHandler::class,
-            'handler_with' => [],
-            'processors' => [],
         ],
 
         'emergency' => [
