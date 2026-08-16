@@ -402,6 +402,8 @@ To use the null engine, set the `driver` value to `null` in your `config/scout.p
 'driver' => 'null',
 ```
 
+Scout also selects the null engine when the resolved `scout.driver` setting is absent or set to PHP `null`. Omitting the `SCOUT_DRIVER` environment variable does not do this because the shipped configuration defaults to the `collection` engine.
+
 <a name="third-party-engine-configuration"></a>
 ## Third-Party Engine Configuration
 

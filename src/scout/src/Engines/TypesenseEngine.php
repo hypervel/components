@@ -61,7 +61,7 @@ class TypesenseEngine extends Engine implements DeletesByFilter
         /** @var EloquentCollection<int, Model&SearchableInterface> $models */
         $firstModel = $models->first();
 
-        if ($this->usesSoftDelete($firstModel) && $this->getConfig('soft_delete', false)) {
+        if ($this->usesSoftDelete($firstModel) && config()->boolean('scout.soft_delete')) {
             $models->each->pushSoftDeleteMetadata();
         }
 

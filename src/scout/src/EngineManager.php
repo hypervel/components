@@ -7,6 +7,7 @@ namespace Hypervel\Scout;
 use Algolia\AlgoliaSearch\Algolia;
 use Algolia\AlgoliaSearch\Api\SearchClient as AlgoliaSearchClient;
 use Closure;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Scout\Engines\AlgoliaEngine;
 use Hypervel\Scout\Engines\CollectionEngine;
@@ -98,10 +99,13 @@ class EngineManager
     {
         $this->ensureAlgoliaClientIsInstalled();
 
+        /** @var Repository $config */
+        $config = $this->container->make('config');
+
         return new AlgoliaEngine(
             $this->container->make(AlgoliaSearchClient::class),
-            $this->getConfig('soft_delete', false),
-            $this->getConfig('identify', false),
+            $config->boolean('scout.soft_delete'),
+            $config->boolean('scout.identify'),
         );
     }
 
@@ -128,9 +132,12 @@ class EngineManager
     {
         $this->ensureMeilisearchClientIsInstalled();
 
+        /** @var Repository $config */
+        $config = $this->container->make('config');
+
         return new MeilisearchEngine(
             $this->container->make(MeilisearchClient::class),
-            $this->getConfig('soft_delete', false)
+            $config->boolean('scout.soft_delete')
         );
     }
 
@@ -159,9 +166,12 @@ class EngineManager
     {
         $this->ensureTypesenseClientIsInstalled();
 
+        /** @var Repository $config */
+        $config = $this->container->make('config');
+
         return new TypesenseEngine(
             $this->container->make(TypesenseClient::class),
-            (int) $this->getConfig('typesense.max_total_results', 1000)
+            $config->integer('scout.typesense.max_total_results', 1000)
         );
     }
 
