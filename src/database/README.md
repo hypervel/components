@@ -10,7 +10,9 @@ Documentation: https://hypervel.org/docs/database
 - Laravel's external database pooler support uses a `::direct` connection suffix. Hypervel instead uses normal named connections for each endpoint and `migrations_connection` for schema and migration paths. This keeps direct and pooled endpoints as normal configured connections with their own pool settings, so Hypervel does not support Laravel's `::direct` suffix.
 - Laravel's deprecated database-inspection forwarding helpers are intentionally not ported. Extensions can call `ConnectionInterface::getDriverTitle()` and `threadCount()` directly.
 - Laravel's remaining directly deprecated Database compatibility forwarders are intentionally not ported. Use the current class-keyed factory resolver, schema blueprint and grammar APIs, and correctly named PostgreSQL truncation method instead.
+- Laravel's Capsule manager exposes a `setFetchMode()` method that writes configuration its connections do not read. Hypervel omits this ineffective connection-wide setter; use `Query\Builder::fetchUsing()` for each query that needs a custom row shape.
 - `make:migration` omits Laravel's deprecated `--fullpath` option and obsolete Composer constructor dependency because migration creation no longer dumps autoload files.
 - `Blueprint::dropForeign()` widens Laravel's method signature with an optional constraint name when columns are supplied, allowing explicitly named foreign keys to be dropped portably across SQLite and the server databases. Custom `Blueprint` subclasses that override this method must accept the optional second argument.
+- Eloquent models that override `CREATED_AT` or `UPDATED_AT` must declare the compatible `?string` constant type, such as `public const ?string UPDATED_AT = null;`. Laravel's constants are untyped, but omitting the type from an override in Hypervel causes a fatal error.
 
 Ported from: https://github.com/laravel/framework

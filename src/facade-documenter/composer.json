@@ -1,7 +1,7 @@
 {
     "name": "hypervel/facade-documenter",
     "type": "library",
-    "description": "Generate @method docblocks for Hypervel facades from their underlying proxies.",
+    "description": "Generates @method PHPDoc annotations for Hypervel facades from their underlying proxies.",
     "license": "MIT",
     "keywords": [
         "php",

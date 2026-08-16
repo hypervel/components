@@ -25,9 +25,14 @@ use Throwable;
 class DatabaseEntriesRepository implements EntriesRepository, ClearableRepository, PrunableRepository, TerminableRepository
 {
     /**
+     * The default number of entries inserted at once.
+     */
+    protected const int DEFAULT_CHUNK_SIZE = 1000;
+
+    /**
      * Context key for the per-request monitored tags cache.
      */
-    protected const MONITORED_TAGS_CONTEXT_KEY = '__telescope.monitored_tags';
+    protected const string MONITORED_TAGS_CONTEXT_KEY = '__telescope.monitored_tags';
 
     /**
      * The database connection name that should be used.
@@ -37,18 +42,37 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
     /**
      * The number of entries that will be inserted at once into the database.
      */
-    protected int $chunkSize = 1000;
+    protected int $chunkSize = self::DEFAULT_CHUNK_SIZE;
 
     /**
      * Create a new database repository.
      */
     public function __construct(string $connection, ?int $chunkSize = null)
     {
-        $this->connection = $connection;
+        $this->setConnection($connection);
+        $this->setChunkSize($chunkSize);
+    }
 
-        if ($chunkSize) {
-            $this->chunkSize = $chunkSize;
-        }
+    /**
+     * Set the database connection name.
+     *
+     * Boot-only. Request-time use changes shared worker configuration while
+     * concurrent coroutines may still be using the previous connection.
+     */
+    public function setConnection(string $connection): void
+    {
+        $this->connection = $connection;
+    }
+
+    /**
+     * Set the database insertion chunk size.
+     *
+     * Boot-only. Request-time use changes shared worker configuration while
+     * concurrent coroutines may still be using the previous chunk size.
+     */
+    public function setChunkSize(?int $chunkSize): void
+    {
+        $this->chunkSize = $chunkSize ?: self::DEFAULT_CHUNK_SIZE;
     }
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Log;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Log\Context\ResolvedContextLogProcessor;
 use Hypervel\Log\Handlers\FingersCrossedHandler as HypervelFingersCrossedHandler;
 use Hypervel\Log\Handlers\RotatingFileHandler as HypervelRotatingFileHandler;
@@ -34,7 +35,7 @@ use Stringable;
 
 class LogManagerTest extends TestCase
 {
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
         $app->make('config')->set('logging.channels.single', [
             'driver' => 'single',
@@ -340,7 +341,7 @@ class LogManagerTest extends TestCase
         $this->assertSame(HypervelRotatingFileHandler::class, get_class($handler));
     }
 
-    public function testItUtilisesTheNullDriverDuringTestsWhenNullDriverUsed()
+    public function testItUtilizesTheNullDriverDuringTestsWhenNullDriverUsed(): void
     {
         $manager = new class($this->app) extends LogManager {
             protected function createEmergencyLogger(): LoggerInterface
@@ -349,7 +350,7 @@ class LogManagerTest extends TestCase
             }
         };
 
-        $this->app['env'] = 'testing';
+        $this->app->instance('env', 'testing');
         $config = $this->app->make('config');
         $config->set('logging.default', null);
         $config->set('logging.channels.null', [
@@ -369,7 +370,7 @@ class LogManagerTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Emergency logger was created.');
 
-        $this->app['env'] = 'production';
+        $this->app->instance('env', 'production');
         $manager->info('message');
     }
 
@@ -522,6 +523,22 @@ class LogManagerTest extends TestCase
         $manager->forgetChannel('single');
 
         $this->assertEmpty($manager->getChannels());
+    }
+
+    public function testForgetChannelsClearsEveryChannelAndPreservesCustomCreators(): void
+    {
+        $config = $this->app->make('config');
+        $config->set('logging.channels.first', ['driver' => 'custom']);
+        $config->set('logging.channels.second', ['driver' => 'custom']);
+        $manager = new LogManager($this->app);
+        $manager->extend('custom', static fn () => new LoggerSpy);
+        $first = $manager->channel('first');
+        $second = $manager->channel('second');
+
+        $this->assertSame($manager, $manager->forgetChannels());
+
+        $this->assertNotSame($first, $manager->channel('first'));
+        $this->assertNotSame($second, $manager->channel('second'));
     }
 
     public function testLogManagerCanBuildOnDemandChannel()

@@ -155,16 +155,22 @@ class DatabaseEloquentTimestampsTest extends TestCase
         $user = UserWithCreatedAndUpdated::create(['email' => 'foo@example.com']);
 
         $user->timestamps = true;
+        $expectedException = new RuntimeException;
+        $usedTimestamps = null;
+        $caughtException = null;
 
         try {
-            $user->withoutTimestamps(function () use ($user) {
-                $this->assertFalse($user->usesTimestamps());
-                throw new RuntimeException;
+            $user->withoutTimestamps(function () use ($expectedException, $user, &$usedTimestamps): never {
+                $usedTimestamps = $user->usesTimestamps();
+
+                throw $expectedException;
             });
-            $this->fail();
-        } catch (RuntimeException) {
+        } catch (RuntimeException $exception) {
+            $caughtException = $exception;
         }
 
+        $this->assertSame($expectedException, $caughtException);
+        $this->assertFalse($usedTimestamps);
         $this->assertTrue($user->timestamps);
     }
 
@@ -312,7 +318,7 @@ class UserWithCreatedAndUpdated extends Eloquent
 
 class UserWithCreated extends Eloquent
 {
-    public const UPDATED_AT = null;
+    public const ?string UPDATED_AT = null;
 
     protected ?string $table = 'users_created_at';
 
@@ -323,7 +329,7 @@ class UserWithCreated extends Eloquent
 
 class UserWithUpdated extends Eloquent
 {
-    public const CREATED_AT = null;
+    public const ?string CREATED_AT = null;
 
     protected ?string $table = 'users_updated_at';
 

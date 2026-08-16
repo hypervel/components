@@ -13,7 +13,7 @@ class UnionType extends Type
      *
      * @var array<int, string>
      */
-    public const SUPPORTED = ['string', 'integer', 'number', 'boolean', 'object', 'array'];
+    public const array SUPPORTED = ['string', 'integer', 'number', 'boolean', 'object', 'array'];
 
     /**
      * The union's member type names.

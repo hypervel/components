@@ -40,19 +40,19 @@ class RedisProxy implements ConnectionContract
     /**
      * Context key prefix for per-connection pool state.
      */
-    public const CONNECTION_CONTEXT_PREFIX = '__redis.connection.';
+    public const string CONNECTION_CONTEXT_PREFIX = '__redis.connection.';
 
     /**
      * Context key prefix for the coroutine owning deferred pool cleanup.
      */
-    private const DEFERRED_RELEASE_OWNER_CONTEXT_KEY_PREFIX = '__redis.deferred_release_owner.';
+    private const string DEFERRED_RELEASE_OWNER_CONTEXT_KEY_PREFIX = '__redis.deferred_release_owner.';
 
     /**
      * Methods that must be called while explicitly holding a pool connection.
      *
      * These methods must remain excluded from Redis facade generation.
      */
-    private const CONNECTION_BOUND_METHODS = [
+    private const array CONNECTION_BOUND_METHODS = [
         'auth',
         'check',
         'client',
@@ -67,6 +67,7 @@ class RedisProxy implements ConnectionContract
         'getlastusetime',
         'getshouldtransform',
         'heartbeatcheck',
+        'invalidate',
         'isidleexpired',
         'islifetimeexpired',
         'masters',
@@ -104,7 +105,7 @@ class RedisProxy implements ConnectionContract
     {
         $config = $this->factory->getPool($this->poolName)->getConfig();
 
-        return $config['cluster']['enable'] ?? false;
+        return $config['cluster']['enabled'] ?? false;
     }
 
     /**
@@ -513,7 +514,7 @@ class RedisProxy implements ConnectionContract
         $pool = $this->factory->getPool($this->poolName);
         $config = $pool->getConfig();
 
-        if ($config['sentinel']['enable'] ?? false) {
+        if ($config['sentinel']['enabled'] ?? false) {
             [$host, $port] = $this->sentinelFactory->resolveMaster($config);
 
             return $this->createSubscriber(
@@ -525,7 +526,7 @@ class RedisProxy implements ConnectionContract
             );
         }
 
-        if (! ($config['cluster']['enable'] ?? false)) {
+        if (! ($config['cluster']['enabled'] ?? false)) {
             return $this->createSubscriber(
                 $config,
                 $config['host'],
@@ -564,7 +565,6 @@ class RedisProxy implements ConnectionContract
             throw $discoveryException;
         }
 
-        $context = $config['cluster']['context'] ?? [];
         $failures = [];
 
         foreach ($masters as $master) {
@@ -582,8 +582,8 @@ class RedisProxy implements ConnectionContract
                     $config,
                     $master[0],
                     (int) $master[1],
-                    null,
-                    $context,
+                    $config['scheme'] ?? null,
+                    $config['context'] ?? [],
                 );
             } catch (Throwable $exception) {
                 $failures[] = sprintf(

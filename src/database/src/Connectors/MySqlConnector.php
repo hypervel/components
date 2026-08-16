@@ -13,6 +13,9 @@ class MySqlConnector extends Connector implements ConnectorInterface
      */
     public function connect(array $config): PDO
     {
+        // Validate before opening a socket; session configuration runs only after connecting.
+        $this->getLockTimeout($config);
+
         $dsn = $this->getDsn($config);
 
         $options = $this->getOptions($config);
@@ -92,6 +95,13 @@ class MySqlConnector extends Connector implements ConnectorInterface
 
         if (isset($config['timezone'])) {
             $statements[] = sprintf("time_zone='%s'", $config['timezone']);
+        }
+
+        $lockTimeout = $this->getLockTimeout($config);
+
+        if ($lockTimeout !== null) {
+            $statements[] = sprintf('SESSION innodb_lock_wait_timeout=%d', $lockTimeout);
+            $statements[] = sprintf('SESSION lock_wait_timeout=%d', $lockTimeout);
         }
 
         $sqlMode = $this->getSqlMode($connection, $config);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\Postgres;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
@@ -28,21 +29,22 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 #[RequiresPhpExtension('pdo_pgsql')]
 class PostgresStartupOptionsTest extends PostgresTestCase
 {
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
 
-        $base = $app['config']->get('database.connections.pgsql');
+        $config = $app->make('config');
+        $base = $config->array('database.connections.pgsql');
 
-        $app['config']->set('database.connections.pgsql_startup_search_path', array_merge($base, [
+        $config->set('database.connections.pgsql_startup_search_path', array_merge($base, [
             'search_path' => 'public,private',
         ]));
 
-        $app['config']->set('database.connections.pgsql_startup_isolation', array_merge($base, [
+        $config->set('database.connections.pgsql_startup_isolation', array_merge($base, [
             'isolation_level' => 'read committed',
         ]));
 
-        $app['config']->set('database.connections.pgsql_startup_combined', array_merge($base, [
+        $config->set('database.connections.pgsql_startup_combined', array_merge($base, [
             'search_path' => 'public,private',
             'timezone' => 'UTC',
             'isolation_level' => 'read committed',

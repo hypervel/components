@@ -1,7 +1,7 @@
 {
     "name": "hypervel/contracts",
     "type": "library",
-    "description": "The contracts package for Hypervel.",
+    "description": "The Hypervel Contracts package.",
     "license": "MIT",
     "keywords": [
         "php",

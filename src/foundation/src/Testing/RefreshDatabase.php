@@ -62,9 +62,11 @@ trait RefreshDatabase
         $database = $this->app->make('db');
 
         foreach ($this->connectionsToTransact() as $name) {
-            if (isset(RefreshDatabaseState::$inMemoryConnections[$name])) {
+            $connectionName = $name ?? $this->getRefreshConnection();
+
+            if (isset(RefreshDatabaseState::$inMemoryConnections[$connectionName])) {
                 $database->connection($name)
-                    ->setPdo(RefreshDatabaseState::$inMemoryConnections[$name])
+                    ->setPdo(RefreshDatabaseState::$inMemoryConnections[$connectionName])
                     ->setEventDispatcher($this->app->make(Dispatcher::class));
             }
         }
@@ -186,7 +188,9 @@ trait RefreshDatabase
             $connection->setTransactionManager($transactionsManager);
 
             if ($this->usingInMemoryDatabase($name)) {
-                RefreshDatabaseState::$inMemoryConnections[$name] ??= $connection->getPdo();
+                $connectionName = $name ?? $this->getRefreshConnection();
+
+                RefreshDatabaseState::$inMemoryConnections[$connectionName] ??= $connection->getPdo();
             }
 
             $dispatcher = $connection->getEventDispatcher();

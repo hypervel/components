@@ -48,7 +48,7 @@ class Rule
      * Set by ValidationRuleParser::explodeWildcardRulesCompilable() to avoid
      * repeated Arr::undot() calls when Rule::forEach expands wildcard items.
      */
-    public const UNDOTTED_DATA_CONTEXT_KEY = '__validation.rule_compile_undotted_data';
+    public const string UNDOTTED_DATA_CONTEXT_KEY = '__validation.rule_compile_undotted_data';
 
     /**
      * Get a can constraint builder instance.

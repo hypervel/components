@@ -27,13 +27,13 @@ class StdoutLogger implements StdoutLoggerInterface
 {
     use LoggerTrait;
 
-    private const JSON_FLAGS = JSON_UNESCAPED_SLASHES
+    private const int JSON_FLAGS = JSON_UNESCAPED_SLASHES
         | JSON_UNESCAPED_UNICODE
         | JSON_PRESERVE_ZERO_FRACTION
         | JSON_INVALID_UTF8_SUBSTITUTE
         | JSON_PARTIAL_OUTPUT_ON_ERROR;
 
-    private const STANDARD_LEVELS = [
+    private const array STANDARD_LEVELS = [
         LogLevel::EMERGENCY => true,
         LogLevel::ALERT => true,
         LogLevel::CRITICAL => true,

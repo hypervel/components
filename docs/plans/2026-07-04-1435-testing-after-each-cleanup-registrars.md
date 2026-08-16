@@ -790,8 +790,6 @@ class TestState
 
 This class is intentionally empty in the skeleton. It gives app developers a wired place to add cleanup without exposing PHPUnit extension internals.
 
-The app skeleton currently also does not enable `SlowTestExtension`. That is a separate skeleton policy decision, not part of state cleanup correctness. During implementation, surface that decision to the owner before making any slow-test skeleton change.
-
 ### Update Documentation
 
 Update `src/boost/docs/testing.md`.
@@ -934,15 +932,14 @@ This prevents future contributors from hardcoding private/third-party cleanup in
     - add `AfterEachTestExtension` to `phpunit.xml`;
     - add root `extra.hypervel.test-state`;
     - add `tests/Support/TestState.php`.
-14. Surface the `SlowTestExtension` skeleton decision to the owner before making any slow-test skeleton change.
-15. Update `src/boost/docs/testing.md`.
-16. Update `src/boost/docs/packages.md`.
-17. Update `AGENTS.md` cleanup guidance and correct the stale `tests/AfterEachTestSubscriber.php` path to `src/testing/src/PHPUnit/AfterEachTestSubscriber.php`.
-18. Run focused tests after each changed test file.
-19. Run the app skeleton test command from `contrib/hypervel/hypervel` after changing the skeleton.
-20. Run `composer fix` from `contrib/hypervel/components`.
-21. Do a full self-review of all changes, tracing discovery, registration, callback execution, manifest scanning, skeleton config, and docs.
-22. Request code review from Claude and loop until signoff.
+14. Update `src/boost/docs/testing.md`.
+15. Update `src/boost/docs/packages.md`.
+16. Update `AGENTS.md` cleanup guidance and correct the stale `tests/AfterEachTestSubscriber.php` path to `src/testing/src/PHPUnit/AfterEachTestSubscriber.php`.
+17. Run focused tests after each changed test file.
+18. Run the app skeleton test command from `contrib/hypervel/hypervel` after changing the skeleton.
+19. Run `composer fix` from `contrib/hypervel/components`.
+20. Do a full self-review of all changes, tracing discovery, registration, callback execution, manifest scanning, skeleton config, and docs.
+21. Request code review from Claude and loop until signoff.
 
 ## Testing Plan
 

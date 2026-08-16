@@ -11,7 +11,7 @@ use Sentry\Tracing\SpanContext;
 
 final class ViewEngineDecorator implements Engine
 {
-    public const CONTEXT_KEY = '__sentry.view_name';
+    public const string CONTEXT_KEY = '__sentry.view_name';
 
     /**
      * Create a new view engine decorator instance.

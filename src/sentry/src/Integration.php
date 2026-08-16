@@ -32,7 +32,7 @@ use const SWOOLE_VERSION;
 
 class Integration implements IntegrationInterface
 {
-    private const CONTEXT_TRANSACTION_KEY = '__sentry.transaction';
+    private const string CONTEXT_TRANSACTION_KEY = '__sentry.transaction';
 
     public function setupOnce(): void
     {

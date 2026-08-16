@@ -1,7 +1,7 @@
 {
     "name": "hypervel/rate-limiter",
     "type": "library",
-    "description": "The rate limiter package for Hypervel.",
+    "description": "Atomic rate limiting for Hypervel applications.",
     "license": "MIT",
     "keywords": [
         "php",
@@ -30,7 +30,7 @@
     },
     "require": {
         "php": "^8.4",
-        "ext-swoole": "^6.2",
+        "ext-swoole": "^6.2.2",
         "hypervel/collections": "^0.4",
         "hypervel/console": "^0.4",
         "hypervel/container": "^0.4",

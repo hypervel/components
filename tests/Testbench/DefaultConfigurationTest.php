@@ -21,19 +21,19 @@ class DefaultConfigurationTest extends TestCase
     #[Test]
     public function itCanLoadUsingTestbenchConfigurations(): void
     {
-        $this->assertSame(\Hypervel\Testbench\Bootstrap\LoadConfiguration::class, \get_class($this->app[LoadConfiguration::class]));
+        $this->assertSame(TestbenchLoadConfiguration::class, $this->app->make(LoadConfiguration::class)::class);
     }
 
     #[Test]
     public function itPopulatesExpectedDebugConfig(): void
     {
-        $this->assertSame(Env::has('TESTBENCH_PACKAGE_TESTER'), $this->app['config']['app.debug']);
+        $this->assertSame(Env::has('TESTBENCH_PACKAGE_TESTER'), $this->app->make('config')->boolean('app.debug'));
     }
 
     #[Test]
     public function itPopulatesExpectedAppKeyConfig(): void
     {
-        $this->assertSame('AckfSECXIvnK5r28GVIWUAxmbBSjTsmF', $this->app['config']['app.key']);
+        $this->assertSame('AckfSECXIvnK5r28GVIWUAxmbBSjTsmF', $this->app->make('config')->string('app.key'));
     }
 
     #[Test]
@@ -43,7 +43,7 @@ class DefaultConfigurationTest extends TestCase
             'driver' => 'sqlite',
             'database' => ':memory:',
             'foreign_key_constraints' => false,
-        ], $this->app['config']['database.connections.testing']);
+        ], $this->app->make('config')->array('database.connections.testing'));
 
         $this->assertTrue($this->usesSqliteInMemoryDatabaseConnection('testing'));
         $this->assertFalse($this->usesSqliteInMemoryDatabaseConnection('sqlite'));
@@ -69,9 +69,10 @@ class DefaultConfigurationTest extends TestCase
     #[Test]
     public function itFallsBackToTheTestingConnectionWhenRuntimeSqliteIsMissing(): void
     {
-        $sqliteDatabase = $this->app['config']['database.connections.sqlite.database'];
+        $config = $this->app->make('config');
+        $sqliteDatabase = $config->string('database.connections.sqlite.database');
 
-        $this->assertSame('testing', $this->app['config']['database.default']);
+        $this->assertSame('testing', $config->string('database.default'));
         $this->assertSame(BASE_PATH . '/database/database.sqlite', $sqliteDatabase);
         $this->assertFileDoesNotExist($sqliteDatabase);
     }
@@ -116,30 +117,34 @@ class DefaultConfigurationTest extends TestCase
     #[Test]
     public function itPopulatesExpectedCacheDefaults(): void
     {
-        $this->assertSame(Env::has('TESTBENCH_PACKAGE_TESTER') ? 'database' : 'array', $this->app['config']['cache.default']);
-        $this->assertFalse($this->app['config']['cache.serializable_classes']);
+        $config = $this->app->make('config');
+
+        $this->assertSame(Env::has('TESTBENCH_PACKAGE_TESTER') ? 'database' : 'array', $config->string('cache.default'));
+        $this->assertFalse($config->boolean('cache.serializable_classes'));
     }
 
     #[Test]
     public function itPopulatesExpectedRateLimiterDefaults(): void
     {
-        $this->assertSame('worker-array', $this->app['config']['rate-limiter.default']);
+        $config = $this->app->make('config');
+
+        $this->assertSame('worker-array', $config->string('rate-limiter.default'));
         $this->assertSame(
             ['database', 'redis', 'swoole', 'worker-array'],
-            array_keys($this->app['config']['rate-limiter.stores']),
+            array_keys($config->array('rate-limiter.stores')),
         );
     }
 
     #[Test]
     public function itPopulatesExpectedSessionDefaults(): void
     {
-        $this->assertSame(Env::has('TESTBENCH_PACKAGE_TESTER') ? 'cookie' : 'array', $this->app['config']['session.driver']);
+        $this->assertSame(Env::has('TESTBENCH_PACKAGE_TESTER') ? 'cookie' : 'array', $this->app->make('config')->string('session.driver'));
     }
 
     #[Test]
     public function itPopulatesExpectedRedisConnections(): void
     {
-        $connections = $this->app['config']['database.redis'];
+        $connections = $this->app->make('config')->array('database.redis');
 
         $this->assertArrayHasKey('default', $connections);
         $this->assertArrayHasKey('cache', $connections);
@@ -159,6 +164,6 @@ class DefaultConfigurationTest extends TestCase
     #[Test]
     public function itResolvesTheDefaultUserModel(): void
     {
-        $this->assertSame(User::class, $this->app['config']['auth.providers.users.model']);
+        $this->assertSame(User::class, $this->app->make('config')->string('auth.providers.users.model'));
     }
 }

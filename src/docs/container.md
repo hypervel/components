@@ -63,7 +63,7 @@ class PodcastController extends Controller
 
 In this example, the `PodcastController` needs to retrieve podcasts from a data source such as Apple Music. So, we will **inject** a service that is able to retrieve podcasts. Since the service is injected, we are able to easily "mock", or create a dummy implementation of the `AppleMusic` service when testing our application.
 
-Hypervel's container is similar to Laravel's but resolves under a long-running Swoole worker. The bindings, attributes, and resolution helpers all behave like Laravel's, but instance caching is more aggressive and the per-request lifecycle is keyed to a coroutine rather than a fresh PHP process. See [Resolution Lifecycles](#resolution-lifecycles) for the behaviors that differ.
+Hypervel's container follows Laravel's named binding and resolution APIs while running inside a long-lived Swoole worker. Intentional public API differences are covered in the [porting guide](/docs/{{version}}/porting-from-laravel#container-lifecycles). Instance caching is more aggressive, and the per-request lifecycle is keyed to a coroutine rather than a fresh PHP process. See [Resolution Lifecycles](#resolution-lifecycles) for the lifecycle differences.
 
 <a name="zero-configuration-resolution"></a>
 ### Zero Configuration Resolution

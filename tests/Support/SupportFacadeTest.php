@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support\SupportFacadeTest;
 
-use ArrayAccess;
+use Hypervel\Container\Container;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Testing\Fakes\Fake;
 use Hypervel\Tests\TestCase;
@@ -22,29 +22,29 @@ class SupportFacadeTest extends TestCase
         FacadeStub::setFacadeApplication(null);
     }
 
-    public function testFacadeCallsUnderlyingApplication()
+    public function testFacadeCallsUnderlyingApplication(): void
     {
         $app = new ApplicationStub;
-        $app->setAttributes(['foo' => $mock = m::mock(stdClass::class)]);
+        $app->setInstances(['foo' => $mock = m::mock(stdClass::class)]);
         $mock->shouldReceive('bar')->once()->andReturn('baz');
         FacadeStub::setFacadeApplication($app);
         $this->assertSame('baz', FacadeStub::bar());
     }
 
-    public function testShouldReceiveReturnsAMockeryMock()
+    public function testShouldReceiveReturnsAMockeryMock(): void
     {
         $app = new ApplicationStub;
-        $app->setAttributes(['foo' => new stdClass]);
+        $app->setInstances(['foo' => new stdClass]);
         FacadeStub::setFacadeApplication($app);
 
         $this->assertInstanceOf(MockInterface::class, $mock = FacadeStub::shouldReceive('foo')->once()->with('bar')->andReturn('baz')->getMock());
-        $this->assertSame('baz', $app['foo']->foo('bar'));
+        $this->assertSame('baz', $app->make('foo')->foo('bar'));
     }
 
-    public function testSpyReturnsAMockerySpy()
+    public function testSpyReturnsAMockerySpy(): void
     {
         $app = new ApplicationStub;
-        $app->setAttributes(['foo' => new stdClass]);
+        $app->setInstances(['foo' => new stdClass]);
         FacadeStub::setFacadeApplication($app);
 
         $this->assertInstanceOf(MockInterface::class, $spy = FacadeStub::spy());
@@ -53,16 +53,16 @@ class SupportFacadeTest extends TestCase
         $spy->shouldHaveReceived('foo');
     }
 
-    public function testShouldReceiveCanBeCalledTwice()
+    public function testShouldReceiveCanBeCalledTwice(): void
     {
         $app = new ApplicationStub;
-        $app->setAttributes(['foo' => new stdClass]);
+        $app->setInstances(['foo' => new stdClass]);
         FacadeStub::setFacadeApplication($app);
 
         $this->assertInstanceOf(MockInterface::class, FacadeStub::shouldReceive('foo')->once()->with('bar')->andReturn('baz')->getMock());
         $this->assertInstanceOf(MockInterface::class, FacadeStub::shouldReceive('foo2')->once()->with('bar2')->andReturn('baz2')->getMock());
-        $this->assertSame('baz', $app['foo']->foo('bar'));
-        $this->assertSame('baz2', $app['foo']->foo2('bar2'));
+        $this->assertSame('baz', $app->make('foo')->foo('bar'));
+        $this->assertSame('baz2', $app->make('foo')->foo2('bar2'));
     }
 
     public function testCanBeMockedWithoutUnderlyingInstance()
@@ -71,20 +71,20 @@ class SupportFacadeTest extends TestCase
         $this->assertSame('bar', FacadeStub::foo());
     }
 
-    public function testExpectsReturnsAMockeryMockWithExpectationRequired()
+    public function testExpectsReturnsAMockeryMockWithExpectationRequired(): void
     {
         $app = new ApplicationStub;
-        $app->setAttributes(['foo' => new stdClass]);
+        $app->setInstances(['foo' => new stdClass]);
         FacadeStub::setFacadeApplication($app);
 
         $this->assertInstanceOf(MockInterface::class, $mock = FacadeStub::expects('foo')->with('bar')->andReturn('baz')->getMock());
-        $this->assertSame('baz', $app['foo']->foo('bar'));
+        $this->assertSame('baz', $app->make('foo')->foo('bar'));
     }
 
-    public function testFacadeResolvesAgainAfterClearingSpecific()
+    public function testFacadeResolvesAgainAfterClearingSpecific(): void
     {
         $app = new ApplicationStub;
-        $app->setAttributes(['foo' => $mock = m::mock(stdClass::class)]);
+        $app->setInstances(['foo' => $mock = m::mock(stdClass::class)]);
         $mock->shouldReceive('bar')->times(3)->andReturn('baz');
 
         // Resolve for the first time
@@ -100,10 +100,10 @@ class SupportFacadeTest extends TestCase
         $this->assertSame('baz', FacadeStub::bar());
     }
 
-    public function testFacadeResolvesAgainAfterClearingAll()
+    public function testFacadeResolvesAgainAfterClearingAll(): void
     {
         $app = new ApplicationStub;
-        $app->setAttributes(['foo' => $mock = m::mock(stdClass::class)]);
+        $app->setInstances(['foo' => $mock = m::mock(stdClass::class)]);
         $mock->shouldReceive('bar')->times(2)->andReturn('baz');
 
         // Resolve for the first time
@@ -135,16 +135,16 @@ class SupportFacadeTest extends TestCase
         $this->assertNull(FacadeStub::getFacadeApplication());
     }
 
-    public function testSwapSetsInstanceOnApp()
+    public function testSwapSetsInstanceOnApp(): void
     {
         $app = new ApplicationStub;
-        $app->setAttributes(['foo' => new stdClass]);
+        $app->setInstances(['foo' => new stdClass]);
         FacadeStub::setFacadeApplication($app);
 
         $replacement = new stdClass;
         FacadeStub::swap($replacement);
 
-        $this->assertSame($replacement, $app['foo']);
+        $this->assertSame($replacement, $app->make('foo'));
         $this->assertSame($replacement, FacadeStub::getFacadeRoot());
     }
 
@@ -176,26 +176,26 @@ class SupportFacadeTest extends TestCase
         $this->assertTrue(FacadeStub::isFake());
     }
 
-    public function testIsFakeReturnsFalseForNonFakeInstance()
+    public function testIsFakeReturnsFalseForNonFakeInstance(): void
     {
         $app = new ApplicationStub;
-        $app->setAttributes(['foo' => new stdClass]);
+        $app->setInstances(['foo' => new stdClass]);
         FacadeStub::setFacadeApplication($app);
 
         $this->assertFalse(FacadeStub::isFake());
     }
 
-    public function testUncachedFacadeResolvesEachTime()
+    public function testUncachedFacadeResolvesEachTime(): void
     {
         $app = new CountingApplicationStub;
-        $app->setAttributes(['uncached' => new stdClass]);
+        $app->setInstances(['uncached' => new stdClass]);
         UncachedFacadeStub::setFacadeApplication($app);
 
         UncachedFacadeStub::getFacadeRoot();
         UncachedFacadeStub::getFacadeRoot();
 
-        // offsetGet should be called twice since $cached = false
-        $this->assertSame(2, $app->offsetGetCount);
+        // The container should be queried twice since $cached = false.
+        $this->assertSame(2, $app->makeCount);
     }
 }
 
@@ -207,38 +207,13 @@ class FacadeStub extends Facade
     }
 }
 
-class ApplicationStub implements ArrayAccess
+class ApplicationStub extends Container
 {
-    protected array $attributes = [];
-
-    public function setAttributes(array $attributes): void
+    public function setInstances(array $instances): void
     {
-        $this->attributes = $attributes;
-    }
-
-    public function instance(string $key, mixed $instance): void
-    {
-        $this->attributes[$key] = $instance;
-    }
-
-    public function offsetExists($offset): bool
-    {
-        return isset($this->attributes[$offset]);
-    }
-
-    public function offsetGet($key): mixed
-    {
-        return $this->attributes[$key];
-    }
-
-    public function offsetSet($key, $value): void
-    {
-        $this->attributes[$key] = $value;
-    }
-
-    public function offsetUnset($key): void
-    {
-        unset($this->attributes[$key]);
+        foreach ($instances as $key => $instance) {
+            $this->instance($key, $instance);
+        }
     }
 }
 
@@ -258,12 +233,12 @@ class UncachedFacadeStub extends Facade
 
 class CountingApplicationStub extends ApplicationStub
 {
-    public int $offsetGetCount = 0;
+    public int $makeCount = 0;
 
-    public function offsetGet($key): mixed
+    public function make(string $abstract, array $parameters = []): mixed
     {
-        ++$this->offsetGetCount;
+        ++$this->makeCount;
 
-        return parent::offsetGet($key);
+        return parent::make($abstract, $parameters);
     }
 }

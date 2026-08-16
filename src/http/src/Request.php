@@ -48,7 +48,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     /**
      * Forwarded-header parameter mapping.
      */
-    protected const FORWARDED_PARAMS = [
+    protected const array FORWARDED_PARAMS = [
         self::HEADER_X_FORWARDED_FOR => 'for',
         self::HEADER_X_FORWARDED_HOST => 'host',
         self::HEADER_X_FORWARDED_PROTO => 'proto',
@@ -58,7 +58,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     /**
      * Mapping of trusted-header bitmask flags to header names.
      */
-    protected const TRUSTED_HEADERS = [
+    protected const array TRUSTED_HEADERS = [
         self::HEADER_FORWARDED => 'FORWARDED',
         self::HEADER_X_FORWARDED_FOR => 'X_FORWARDED_FOR',
         self::HEADER_X_FORWARDED_HOST => 'X_FORWARDED_HOST',

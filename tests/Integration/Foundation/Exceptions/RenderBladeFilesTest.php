@@ -52,7 +52,7 @@ class RenderBladeFilesTest extends TestCase
 
         $path = package_path('src/foundation/resources/exceptions/renderer/components/formatted-source.blade.php');
 
-        $html = (string) $this->app['view']->file($path, ['frame' => $frame])->render();
+        $html = (string) $this->app->make('view')->file($path, ['frame' => $frame])->render();
 
         $this->assertStringContainsString('data-tippy-content="', $html);
         $this->assertStringNotContainsString('<br', $html);
@@ -65,7 +65,7 @@ class RenderBladeFilesTest extends TestCase
 
         $path = package_path('src/foundation/resources/exceptions/renderer/components/query.blade.php');
 
-        $html = (string) $this->app['view']->file($path, ['queries' => $queries])->render();
+        $html = (string) $this->app->make('view')->file($path, ['queries' => $queries])->render();
 
         $this->assertStringContainsString('data-tippy-content="', $html);
         $this->assertMatchesRegularExpression('/&lt;br\s*\/?&gt;/', $html);
@@ -77,7 +77,7 @@ class RenderBladeFilesTest extends TestCase
 
         $path = package_path('src/foundation/resources/exceptions/renderer/components/request-header.blade.php');
 
-        $html = (string) $this->app['view']->file($path, ['headers' => $headers])->render();
+        $html = (string) $this->app->make('view')->file($path, ['headers' => $headers])->render();
 
         $this->assertStringContainsString('data-tippy-content="', $html);
         $this->assertStringNotContainsString('<br', $html);
@@ -90,7 +90,7 @@ class RenderBladeFilesTest extends TestCase
 
         $path = package_path('src/foundation/resources/exceptions/renderer/components/routing.blade.php');
 
-        $html = (string) $this->app['view']->file($path, ['routing' => $routing])->render();
+        $html = (string) $this->app->make('view')->file($path, ['routing' => $routing])->render();
 
         $this->assertStringContainsString('data-tippy-content="', $html);
         $this->assertStringNotContainsString('<br', $html);

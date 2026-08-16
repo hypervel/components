@@ -61,7 +61,7 @@ class ClientEventTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', [
             'url' => 'https://example.com/webhook',
             'events' => ['client_event'],
         ]);
@@ -133,7 +133,7 @@ class ClientEventTest extends ReverbTestCase
 
     public function testAllowsClientEventOnPublicChannelInAllMode(): void
     {
-        $this->app['config']->set('reverb.apps.apps.0.accept_client_events_from', 'all');
+        config()->set('reverb.apps.apps.0.accept_client_events_from', 'all');
         $this->channels()->findOrCreate('test-channel');
 
         $this->channelConnectionManager->shouldReceive('all')
@@ -161,7 +161,7 @@ class ClientEventTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', [
             'url' => 'https://example.com/webhook',
             'events' => ['client_event'],
         ]);
@@ -215,7 +215,7 @@ class ClientEventTest extends ReverbTestCase
 
     public function testDoesNotForwardClientMessageWhenSetToNone(): void
     {
-        $this->app['config']->set('reverb.apps.apps.0.accept_client_events_from', 'none');
+        config()->set('reverb.apps.apps.0.accept_client_events_from', 'none');
         $this->channels()->findOrCreate('private-test-channel');
 
         $connectionOne = collect(static::factory(data: ['user_info' => ['name' => 'Joe'], 'user_id' => '1']))->first();
@@ -247,7 +247,7 @@ class ClientEventTest extends ReverbTestCase
 
     public function testForwardsAClientMessageForUnauthenticatedClientWhenSetToAll(): void
     {
-        $this->app['config']->set('reverb.apps.apps.0.accept_client_events_from', 'all');
+        config()->set('reverb.apps.apps.0.accept_client_events_from', 'all');
         $connection = new FakeConnection;
         $this->channels()->findOrCreate('test-channel');
 
@@ -298,8 +298,8 @@ class ClientEventTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $this->app['config']->set('reverb.apps.apps.0.accept_client_events_from', 'all');
-        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.accept_client_events_from', 'all');
+        config()->set('reverb.apps.apps.0.webhooks', [
             'url' => 'https://example.com/webhook',
             'events' => ['client_event'],
         ]);

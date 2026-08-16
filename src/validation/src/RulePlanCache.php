@@ -18,7 +18,7 @@ use InvalidArgumentException;
  */
 final class RulePlanCache
 {
-    private const DEFAULT_MAX_SIZE = 2048;
+    private const int DEFAULT_MAX_SIZE = 2048;
 
     private static int $maxSize = self::DEFAULT_MAX_SIZE;
 

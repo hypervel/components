@@ -21,6 +21,34 @@ use TypeError;
 
 class DatabaseEntriesRepositoryTest extends FeatureTestCase
 {
+    public function testConfigurationCanBeReloaded(): void
+    {
+        $repository = new class('initial', 25) extends DatabaseEntriesRepository {
+            public function connection(): string
+            {
+                return $this->connection;
+            }
+
+            public function chunkSize(): int
+            {
+                return $this->chunkSize;
+            }
+        };
+
+        $this->assertSame('initial', $repository->connection());
+        $this->assertSame(25, $repository->chunkSize());
+
+        $repository->setConnection('refreshed');
+        $repository->setChunkSize(null);
+
+        $this->assertSame('refreshed', $repository->connection());
+        $this->assertSame(1000, $repository->chunkSize());
+
+        $repository->setChunkSize(0);
+
+        $this->assertSame(1000, $repository->chunkSize());
+    }
+
     public function testFindEntryByUuid(): void
     {
         $entry = EntryModelFactory::new()->create();

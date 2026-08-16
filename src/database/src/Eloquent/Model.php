@@ -71,22 +71,22 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Context key for storing models that should ignore touch.
      */
-    protected const IGNORE_ON_TOUCH_CONTEXT_KEY = '__database.model.ignore_on_touch';
+    protected const string IGNORE_ON_TOUCH_CONTEXT_KEY = '__database.model.ignore_on_touch';
 
     /**
      * Context key for storing whether broadcasting is enabled.
      */
-    protected const BROADCASTING_CONTEXT_KEY = '__database.model.broadcasting';
+    protected const string BROADCASTING_CONTEXT_KEY = '__database.model.broadcasting';
 
     /**
      * Context key for storing whether events are disabled.
      */
-    protected const EVENTS_DISABLED_CONTEXT_KEY = '__database.model.events_disabled';
+    protected const string EVENTS_DISABLED_CONTEXT_KEY = '__database.model.events_disabled';
 
     /**
      * Context key for storing whether mass assignment is unguarded.
      */
-    public const UNGUARDED_CONTEXT_KEY = '__database.model.unguarded';
+    public const string UNGUARDED_CONTEXT_KEY = '__database.model.unguarded';
 
     /**
      * The connection name for the model.
@@ -320,17 +320,13 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * The name of the "created at" column.
-     *
-     * @var null|string
      */
-    public const CREATED_AT = 'created_at';
+    public const ?string CREATED_AT = 'created_at';
 
     /**
      * The name of the "updated at" column.
-     *
-     * @var null|string
      */
-    public const UPDATED_AT = 'updated_at';
+    public const ?string UPDATED_AT = 'updated_at';
 
     /**
      * Create a new Eloquent model instance.

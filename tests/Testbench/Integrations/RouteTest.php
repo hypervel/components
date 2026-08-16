@@ -100,7 +100,7 @@ class RouteTest extends TestCase
     #[Test]
     public function itCanResolveNameRoutes(): void
     {
-        $this->app['router']->get('passthrough', fn () => route('bye'))->name('pass');
+        $this->app->make(Router::class)->get('passthrough', fn () => route('bye'))->name('pass');
 
         $response = $this->call('GET', route('pass'));
 
@@ -111,7 +111,7 @@ class RouteTest extends TestCase
     #[Test]
     public function itCanHandleRouteThrowingException(): void
     {
-        $this->app['router']->get('bad-route', fn () => throw new Exception('Route error!'))->name('bad');
+        $this->app->make(Router::class)->get('bad-route', fn () => throw new Exception('Route error!'))->name('bad');
 
         $response = $this->call('GET', route('bad'));
 

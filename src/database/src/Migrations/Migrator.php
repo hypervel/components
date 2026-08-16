@@ -818,7 +818,7 @@ class Migrator
         $container = Container::getInstance();
 
         if ($container->bound(Dispatcher::class)) {
-            $container[Dispatcher::class]->dispatch($event);
+            $container->make(Dispatcher::class)->dispatch($event);
         }
     }
 

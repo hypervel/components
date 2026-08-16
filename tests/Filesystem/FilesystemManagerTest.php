@@ -568,6 +568,25 @@ class FilesystemManagerTest extends TestCase
         );
     }
 
+    public function testForgetDisksClearsEveryDiskAndPreservesCustomCreators(): void
+    {
+        $container = $this->getContainer([
+            'disks' => [
+                'first' => ['driver' => 'custom'],
+                'second' => ['driver' => 'custom'],
+            ],
+        ]);
+        $manager = new FilesystemManager($container);
+        $manager->extend('custom', fn () => m::mock(Filesystem::class));
+        $first = $manager->disk('first');
+        $second = $manager->disk('second');
+
+        $this->assertSame($manager, $manager->forgetDisks());
+
+        $this->assertNotSame($first, $manager->disk('first'));
+        $this->assertNotSame($second, $manager->disk('second'));
+    }
+
     public function testPurgeClosesCachedAndNeverCachedClientPools(): void
     {
         $container = $this->getContainer([

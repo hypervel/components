@@ -1,7 +1,7 @@
 {
     "name": "hypervel/cookie",
     "type": "library",
-    "description": "The cookie package for Hypervel.",
+    "description": "The Hypervel Cookie package.",
     "license": "MIT",
     "keywords": [
         "php",

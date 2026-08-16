@@ -15,7 +15,7 @@ use RuntimeException;
 
 class MigrationCreator
 {
-    protected const CURRENT_MIGRATION_PATH_CONTEXT_KEY_PREFIX = '__database.migration_creator.current_path.';
+    protected const string CURRENT_MIGRATION_PATH_CONTEXT_KEY_PREFIX = '__database.migration_creator.current_path.';
 
     /**
      * The registered post create hooks.

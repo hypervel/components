@@ -59,11 +59,12 @@ class ApplicationTest extends TestCase
         $app = $testbench->createApplication();
 
         $environment = Env::has('TESTBENCH_PACKAGE_TESTER') ? 'testing' : 'workbench';
+        $applicationEnvironment = $app->make('env');
 
         $this->assertInstanceOf(Application::class, $app);
         $this->assertSame('App\\', $app->getNamespace());
-        $this->assertEquals($environment, $app['env']);
-        $this->assertSame($app['env'], $app['config']['app.env']);
+        $this->assertSame($environment, $applicationEnvironment);
+        $this->assertSame($applicationEnvironment, $app->make('config')->string('app.env'));
         $this->assertSame($environment, $app->environment());
         $this->assertSame(Env::has('TESTBENCH_PACKAGE_TESTER'), $app->runningUnitTests());
         $this->assertFalse($testbench->isRunningTestCase());
@@ -75,11 +76,12 @@ class ApplicationTest extends TestCase
         $app = TestbenchApplication::create((string) default_skeleton_path());
 
         $environment = Env::has('TESTBENCH_PACKAGE_TESTER') ? 'testing' : 'workbench';
+        $applicationEnvironment = $app->make('env');
 
         $this->assertInstanceOf(Application::class, $app);
         $this->assertSame('App\\', $app->getNamespace());
-        $this->assertEquals($environment, $app['env']);
-        $this->assertSame($app['env'], $app['config']['app.env']);
+        $this->assertSame($environment, $applicationEnvironment);
+        $this->assertSame($applicationEnvironment, $app->make('config')->string('app.env'));
         $this->assertSame($environment, $app->environment());
         $this->assertSame(Env::has('TESTBENCH_PACKAGE_TESTER'), $app->runningUnitTests());
     }
@@ -94,11 +96,12 @@ class ApplicationTest extends TestCase
         $app = TestbenchApplication::createFromConfig($config);
 
         $environment = Env::has('TESTBENCH_PACKAGE_TESTER') ? 'testing' : 'workbench';
+        $applicationEnvironment = $app->make('env');
 
         $this->assertInstanceOf(Application::class, $app);
         $this->assertSame('App\\', $app->getNamespace());
-        $this->assertEquals($environment, $app['env']);
-        $this->assertSame($app['env'], $app['config']['app.env']);
+        $this->assertSame($environment, $applicationEnvironment);
+        $this->assertSame($applicationEnvironment, $app->make('config')->string('app.env'));
         $this->assertSame($environment, $app->environment());
         $this->assertSame(Env::has('TESTBENCH_PACKAGE_TESTER'), $app->runningUnitTests());
     }

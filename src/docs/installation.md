@@ -41,17 +41,17 @@ The Hypervel framework has a few system requirements:
 - PDO PHP Extension
 - POSIX PHP Extension
 - Session PHP Extension
-- Swoole PHP Extension >= 6.2
+- Swoole PHP Extension >= 6.2.2
 - Tokenizer PHP Extension
 
 </div>
 
 If your application uses Redis for cache, queues, sessions, or broadcasting, you should also install the Redis PHP extension 6.1 or higher.
 
-You may install Swoole using PECL:
+You may install Swoole using [PIE](https://github.com/php/pie):
 
 ```shell
-pecl install swoole
+pie install swoole/swoole
 ```
 
 If you develop on macOS, you may also install Swoole via Homebrew. Replace `8.4` with your installed PHP version:

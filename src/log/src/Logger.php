@@ -24,7 +24,7 @@ class Logger implements LoggerInterface
     /**
      * The CoroutineContext key prefix for per-channel logger context.
      */
-    protected const CONTEXT_KEY_PREFIX = '__log.logger_state.';
+    protected const string CONTEXT_KEY_PREFIX = '__log.logger_state.';
 
     /**
      * The next worker-unique logger family identifier.

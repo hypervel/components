@@ -23,9 +23,10 @@ use RuntimeException;
 use SortDirection;
 
 /**
+ * @template TKey of array-key
  * @template TValue
  *
- * @mixin \Hypervel\Database\Query\Builder
+ * @mixin \Hypervel\Database\Query\Builder<TKey, TValue>
  */
 trait BuildsQueries
 {
@@ -34,7 +35,7 @@ trait BuildsQueries
     /**
      * Chunk the results of the query.
      *
-     * @param callable(\Hypervel\Support\Collection<int, TValue>, int): mixed $callback
+     * @param callable(\Hypervel\Support\Collection<TKey, TValue>, int): mixed $callback
      */
     public function chunk(int $count, callable $callback): bool
     {
@@ -112,8 +113,10 @@ trait BuildsQueries
     public function each(callable $callback, int $count = 1000): bool
     {
         return $this->chunk($count, function ($results) use ($callback) {
-            foreach ($results as $key => $value) {
-                if ($callback($value, $key) === false) {
+            $position = 0;
+
+            foreach ($results as $value) {
+                if ($callback($value, $position++) === false) {
                     return false;
                 }
             }
@@ -123,7 +126,7 @@ trait BuildsQueries
     /**
      * Chunk the results of a query by comparing IDs.
      *
-     * @param callable(\Hypervel\Support\Collection<int, TValue>, int): mixed $callback
+     * @param callable(\Hypervel\Support\Collection<TKey, TValue>, int): mixed $callback
      */
     public function chunkById(int $count, callable $callback, ?string $column = null, ?string $alias = null): bool
     {
@@ -133,7 +136,7 @@ trait BuildsQueries
     /**
      * Chunk the results of a query by comparing IDs in descending order.
      *
-     * @param callable(\Hypervel\Support\Collection<int, TValue>, int): mixed $callback
+     * @param callable(\Hypervel\Support\Collection<TKey, TValue>, int): mixed $callback
      */
     public function chunkByIdDesc(int $count, callable $callback, ?string $column = null, ?string $alias = null): bool
     {
@@ -143,7 +146,7 @@ trait BuildsQueries
     /**
      * Chunk the results of a query by comparing IDs in a given order.
      *
-     * @param callable(\Hypervel\Support\Collection<int, TValue>, int): mixed $callback
+     * @param callable(\Hypervel\Support\Collection<TKey, TValue>, int): mixed $callback
      */
     public function orderedChunkById(int $count, callable $callback, ?string $column = null, ?string $alias = null, SortDirection|bool $descending = false): bool
     {
@@ -220,8 +223,10 @@ trait BuildsQueries
     public function eachById(callable $callback, int $count = 1000, ?string $column = null, ?string $alias = null): bool
     {
         return $this->chunkById($count, function ($results, $page) use ($callback, $count) {
-            foreach ($results as $key => $value) {
-                if ($callback($value, (($page - 1) * $count) + $key) === false) {
+            $position = 0;
+
+            foreach ($results as $value) {
+                if ($callback($value, (($page - 1) * $count) + $position++) === false) {
                     return false;
                 }
             }
@@ -312,7 +317,7 @@ trait BuildsQueries
                     return;
                 }
 
-                $lastId = $results->last()->{$alias};
+                $lastId = data_get($results->last(), $alias);
 
                 if ($lastId === null) {
                     throw new RuntimeException("The lazyById operation was aborted because the [{$alias}] column is not present in the query result.");
@@ -341,8 +346,11 @@ trait BuildsQueries
      */
     public function firstOrFail(array|string $columns = ['*'], ?string $message = null)
     {
-        if (! is_null($result = $this->first($columns))) {
-            return $result;
+        // Inspect collection presence so a matching scalar null row is not mistaken for no row.
+        $results = $this->limit(1)->get($columns);
+
+        if ($results->isNotEmpty()) {
+            return $results->first();
         }
 
         throw new RecordNotFoundException($message ?: 'No record found for the given query.');

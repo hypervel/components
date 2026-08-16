@@ -10,6 +10,8 @@ use Hypervel\RateLimiter\AdmissionPolicy;
 use Hypervel\RateLimiter\Backoff;
 use Hypervel\RateLimiter\BackoffResult;
 use Hypervel\RateLimiter\Contracts\Store;
+use Hypervel\RateLimiter\Cooldown;
+use Hypervel\RateLimiter\CooldownResult;
 use Hypervel\RateLimiter\LeakyBucket;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\LimitResult;
@@ -464,8 +466,15 @@ class ThrottleRequestsCountingStore implements Store
         return $this->store->consume($key, $policy);
     }
 
-    public function inspect(string $key, AdmissionPolicy|Backoff $policy): LimitResult|BackoffResult
+    public function block(string $key, int $durationMicroseconds): CooldownResult
     {
+        return $this->store->block($key, $durationMicroseconds);
+    }
+
+    public function inspect(
+        string $key,
+        AdmissionPolicy|Backoff|Cooldown $policy,
+    ): LimitResult|BackoffResult|CooldownResult {
         ++$this->inspectCalls;
 
         return $this->store->inspect($key, $policy);

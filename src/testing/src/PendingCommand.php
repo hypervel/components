@@ -382,7 +382,7 @@ class PendingCommand
         } finally {
             $this->flushExpectations();
 
-            $this->app->offsetUnset(OutputStyle::class);
+            $this->app->forgetInstance(OutputStyle::class);
         }
     }
 
@@ -475,7 +475,7 @@ class PendingCommand
                 });
         }
 
-        $this->app->bind(OutputStyle::class, fn () => $mock);
+        $this->app->instance(OutputStyle::class, $mock);
 
         return $mock;
     }

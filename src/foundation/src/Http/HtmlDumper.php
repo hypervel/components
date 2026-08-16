@@ -18,19 +18,15 @@ class HtmlDumper extends BaseHtmlDumper
 
     /**
      * Where the source should be placed on "expanded" kind of dumps.
-     *
-     * @var string
      */
-    public const EXPANDED_SEPARATOR = 'class=sf-dump-expanded>';
+    public const string EXPANDED_SEPARATOR = 'class=sf-dump-expanded>';
 
     /**
      * Where the source should be placed on "non expanded" kind of dumps.
-     *
-     * @var string
      */
-    public const NON_EXPANDED_SEPARATOR = "\n</pre><script>";
+    public const string NON_EXPANDED_SEPARATOR = "\n</pre><script>";
 
-    protected const DUMPING_CONTEXT_KEY = '__foundation.html_dumper.dumping';
+    protected const string DUMPING_CONTEXT_KEY = '__foundation.html_dumper.dumping';
 
     /**
      * Create a new HTML dumper instance.
@@ -47,17 +43,16 @@ class HtmlDumper extends BaseHtmlDumper
      *
      * Boot-only. Registers a process-wide VarDumper handler for the worker
      * lifetime.
-     *
-     * @param string $basePath
-     * @param string $compiledViewPath
      */
-    public static function register($basePath, $compiledViewPath): void
+    public static function register(string $basePath, string $compiledViewPath): static
     {
         $cloner = tap(new VarCloner)->addCasters(ReflectionCaster::UNSET_CLOSURE_FILE_INFO); // @phpstan-ignore method.notFound (tap proxy __call)
 
         $dumper = new static($basePath, $compiledViewPath);
 
         VarDumper::setHandler(fn ($value) => $dumper->dumpWithSource($cloner->cloneVar($value)));
+
+        return $dumper;
     }
 
     /**

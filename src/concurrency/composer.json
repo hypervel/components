@@ -1,7 +1,7 @@
 {
     "name": "hypervel/concurrency",
     "type": "library",
-    "description": "The concurrency package for Hypervel.",
+    "description": "The Hypervel Concurrency package.",
     "license": "MIT",
     "keywords": [
         "php",

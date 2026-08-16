@@ -40,23 +40,23 @@ class Worker
 {
     use DetectsLostConnections;
 
-    public const EXIT_SUCCESS = 0;
+    public const int EXIT_SUCCESS = 0;
 
-    public const EXIT_ERROR = 1;
+    public const int EXIT_ERROR = 1;
 
-    public const EXIT_MEMORY_LIMIT = 12;
+    public const int EXIT_MEMORY_LIMIT = 12;
 
     /**
      * The cache key for the restart signal.
      *
      * IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
      */
-    public const RESTART_SIGNAL_CACHE_KEY = 'illuminate:queue:restart';
+    public const string RESTART_SIGNAL_CACHE_KEY = 'illuminate:queue:restart';
 
     /**
      * Signals installed when the worker daemon starts.
      */
-    protected const HANDLED_SIGNALS = [
+    protected const array HANDLED_SIGNALS = [
         SIGQUIT,
         SIGTERM,
         SIGINT,
@@ -252,10 +252,18 @@ class Worker
                     continue;
                 }
 
-                // If there are timeout jobs or the concurrency limit is hit,
-                // we should not accept new jobs
-                if ($this->hasTimeoutJobs() || $concurrent->isFull()) {
-                    $this->sleep($options->sleep);
+                // If there are timeout jobs or the concurrency limit is hit, we should
+                // not accept new jobs. A full worker waits on capacity so completed jobs
+                // wake it immediately instead of limiting throughput to the poll interval.
+                $hasTimeoutJobs = $this->hasTimeoutJobs();
+                if ($hasTimeoutJobs || $concurrent->isFull()) {
+                    $waitInterval = $options->sleep > 0 ? $options->sleep : 1;
+
+                    if ($hasTimeoutJobs) {
+                        $this->sleep($waitInterval);
+                    } else {
+                        $concurrent->waitForAvailableSlot($waitInterval);
+                    }
 
                     $status = $this->stopIfNecessary(
                         $options,
@@ -276,10 +284,9 @@ class Worker
                     continue;
                 }
 
-                // First, we will attempt to get the next job off of the queue.
-                // Then, we can fire off this job in coroutine. If there are no jobs,
-                // we will need to sleep the worker so no more jobs are processed
-                // until they should be processed.
+                // First, we will attempt to get the next job off of the queue. Then, we
+                // can fire off this job in coroutine. Workers that remain active after
+                // an empty pop will sleep before checking the queue again.
                 $job = $waiter->wait(fn () => $this->getNextJob(
                     $this->manager->connection($connectionName),
                     $queue
@@ -303,7 +310,9 @@ class Worker
                         $this->events->dispatch(new WorkerIdle($connectionName, $queue, $options));
                     }
 
-                    $this->sleep($options->sleep);
+                    if (! $options->stopWhenEmpty) {
+                        $this->sleep($options->sleep);
+                    }
                 }
 
                 // Finally, we will check to see if we have exceeded our memory limits or if

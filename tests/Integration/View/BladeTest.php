@@ -250,7 +250,7 @@ class BladeTest extends TestCase
     #[Override]
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app['config']->set('view.paths', [__DIR__ . '/templates']);
+        $app->make('config')->set('view.paths', [__DIR__ . '/templates']);
     }
 }
 

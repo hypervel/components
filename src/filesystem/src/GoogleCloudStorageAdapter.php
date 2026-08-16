@@ -16,7 +16,7 @@ use Throwable;
 
 class GoogleCloudStorageAdapter extends FilesystemAdapter
 {
-    public const DEFAULT_API_ENDPOINT = 'https://storage.googleapis.com';
+    public const string DEFAULT_API_ENDPOINT = 'https://storage.googleapis.com';
 
     public function __construct(
         FilesystemOperator $driver,

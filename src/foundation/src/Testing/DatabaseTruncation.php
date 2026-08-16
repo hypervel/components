@@ -30,7 +30,7 @@ trait DatabaseTruncation
         if (! RefreshDatabaseState::$migrated) {
             $this->artisan('migrate:fresh', $this->migrateFreshUsing());
 
-            $this->app[Kernel::class]->setArtisan(null);
+            $this->app->make(Kernel::class)->setArtisan(null);
 
             RefreshDatabaseState::$migrated = true;
 
@@ -151,7 +151,7 @@ trait DatabaseTruncation
      */
     protected function exceptTables(ConnectionInterface $connection, ?string $connectionName): array
     {
-        $migrations = $this->app['config']->get('database.migrations');
+        $migrations = $this->app->make('config')->get('database.migrations');
 
         $migrationsTable = is_array($migrations) ? ($migrations['table'] ?? 'migrations') : $migrations;
         $migrationsTable = $connection->getTablePrefix() . $migrationsTable;

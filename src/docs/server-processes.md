@@ -15,6 +15,7 @@
 - [Inter-Process Communication](#inter-process-communication)
     - [Sending Messages](#sending-messages)
     - [Receiving Messages](#receiving-messages)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -241,3 +242,8 @@ Values such as `false`, `null`, `0`, empty strings, and empty arrays are deliver
 
 > [!WARNING]
 > Server-process IPC uses PHP serialization, so you should only send data created by code you trust. Swoole owns the collected process handles and exported sockets, so you should not close them in application code.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Server Process began as a port of [Hyperf Process](https://github.com/hyperf/hyperf/tree/master/src/process) and has been adapted for Hypervel's framework architecture and coroutine runtime.

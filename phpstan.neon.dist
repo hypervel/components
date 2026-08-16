@@ -15,6 +15,7 @@ parameters:
   reportUnmatchedIgnoredErrors: false
   paths:
     - src
+    - src/testing/bin/hypervel-test-profile
   scanFiles:
     - phpstan-stubs/constants.php
     - vendor/swoole/ide-helper/src/swoole/Swoole/Http/Response.php

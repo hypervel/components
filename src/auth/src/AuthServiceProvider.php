@@ -11,6 +11,7 @@ use Hypervel\Cache\ModelCacheStoreValidator;
 use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
@@ -25,7 +26,7 @@ use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
-class AuthServiceProvider extends ServiceProvider
+class AuthServiceProvider extends ServiceProvider implements ReloadsConfiguration
 {
     private const int MAX_QUERY_ATTRIBUTE_LENGTH = 63;
 
@@ -40,6 +41,19 @@ class AuthServiceProvider extends ServiceProvider
         $this->registerRequestUserResolver();
         $this->registerEventRebindHandler();
         $this->commands([ClearResetsCommand::class]);
+    }
+
+    /**
+     * Reload configuration-derived worker state.
+     *
+     * Boot-only. Request-time use clears shared resolved guards while
+     * concurrent coroutines may still be using them.
+     */
+    public function reloadConfiguration(): void
+    {
+        if ($this->app->resolved('auth')) {
+            $this->app->make('auth')->forgetGuards();
+        }
     }
 
     /**

@@ -398,41 +398,61 @@ class PendingRequestTest extends TestCase
         ]);
         $pending = new ApiClientInspectablePendingRequest;
 
-        $pending->withApiRequestMiddleware(fn (): never => throw new RuntimeException('request'));
+        $requestException = new RuntimeException('request');
+        $pending->withApiRequestMiddleware(fn (): never => throw $requestException);
+        $caughtException = null;
+
         try {
             $pending->get('https://example.test/request');
-            $this->fail('Expected request middleware to fail.');
-        } catch (RuntimeException) {
-            $this->assertNull($pending->activeRequest());
+        } catch (RuntimeException $exception) {
+            $caughtException = $exception;
         }
 
+        $this->assertSame($requestException, $caughtException);
+        $this->assertNull($pending->activeRequest());
+
+        $responseException = new RuntimeException('response');
         $pending
             ->replaceApiRequestMiddleware([])
-            ->withApiResponseMiddleware(fn (): never => throw new RuntimeException('response'));
+            ->withApiResponseMiddleware(fn (): never => throw $responseException);
+        $caughtException = null;
+
         try {
             $pending->get('https://example.test/response');
-            $this->fail('Expected response middleware to fail.');
-        } catch (RuntimeException) {
-            $this->assertNull($pending->activeRequest());
+        } catch (RuntimeException $exception) {
+            $caughtException = $exception;
         }
+
+        $this->assertSame($responseException, $caughtException);
+        $this->assertNull($pending->activeRequest());
 
         $pending
             ->replaceApiResponseMiddleware([])
             ->withResource(ApiClientThrowingResource::class);
+        $caughtException = null;
+
         try {
             $pending->get('https://example.test/resource');
-            $this->fail('Expected resource construction to fail.');
-        } catch (RuntimeException) {
-            $this->assertNull($pending->activeRequest());
+        } catch (RuntimeException $exception) {
+            $caughtException = $exception;
         }
 
+        $this->assertNotNull($caughtException);
+        $this->assertSame(RuntimeException::class, $caughtException::class);
+        $this->assertSame('resource', $caughtException->getMessage());
+        $this->assertNull($pending->activeRequest());
+
         $pending->withResource(ApiResource::class);
+        $caughtException = null;
+
         try {
             $pending->get('https://example.test/transport');
-            $this->fail('Expected the transport to fail.');
-        } catch (ConnectionException) {
-            $this->assertNull($pending->activeRequest());
+        } catch (ConnectionException $exception) {
+            $caughtException = $exception;
         }
+
+        $this->assertInstanceOf(ConnectionException::class, $caughtException);
+        $this->assertNull($pending->activeRequest());
     }
 
     #[DataProvider('terminalProvider')]

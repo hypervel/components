@@ -21,7 +21,7 @@ class CustomPayloadTest extends TestCase
 
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app['config']->set('queue.default', 'sync');
+        $app->make('config')->set('queue.default', 'sync');
     }
 
     #[DataProvider('websites')]
@@ -44,12 +44,12 @@ class QueueServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->bind('one.time.password', fn () => random_int(1, 10));
+        $this->app->instance('one.time.password', random_int(1, 10));
 
         Queue::createPayloadUsing(function () {
             $password = $this->app->make('one.time.password');
 
-            $this->app->offsetUnset('one.time.password');
+            $this->app->forgetInstance('one.time.password');
 
             return ['password' => $password];
         });

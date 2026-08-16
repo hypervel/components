@@ -8,7 +8,7 @@ use Hypervel\Session\Console\SessionTableCommand;
 
 class SessionTableCommandTest extends TestCase
 {
-    public function testCreateMakesMigration()
+    public function testCreateMakesMigration(): void
     {
         $this->artisan(SessionTableCommand::class)->assertExitCode(0);
 
@@ -16,6 +16,9 @@ class SessionTableCommandTest extends TestCase
             'use Hypervel\Database\Migrations\Migration;',
             'return new class extends Migration',
             "Schema::create('sessions', function (Blueprint \$table) {",
+            "\$table->string('user_id')->nullable()->index();",
+            "\$table->string('auth_provider')->nullable();",
+            "\$table->ipAddress('ip_address')->nullable();",
             "Schema::dropIfExists('sessions');",
         ], 'create_sessions_table.php');
     }

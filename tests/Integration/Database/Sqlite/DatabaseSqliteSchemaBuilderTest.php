@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\Sqlite;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Filesystem\Filesystem;
@@ -18,13 +19,14 @@ use RuntimeException;
 
 class DatabaseSqliteSchemaBuilderTest extends SqliteTestCase
 {
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
 
-        $app['config']->set('database.default', 'conn1');
+        $config = $app->make('config');
+        $config->set('database.default', 'conn1');
 
-        $app['config']->set('database.connections.conn1', [
+        $config->set('database.connections.conn1', [
             'driver' => 'sqlite',
             'database' => ':memory:',
             'prefix' => '',

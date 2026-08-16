@@ -1,7 +1,7 @@
 {
     "name": "hypervel/coordinator",
     "type": "library",
-    "description": "The Hypervel Coordinator package for coroutine coordination.",
+    "description": "Coroutine lifecycle coordination for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",

@@ -6,29 +6,25 @@ namespace Hypervel\Tests\Integration\Routing;
 
 use ArrayIterator;
 use Hypervel\Http\Request;
+use Hypervel\Routing\CompiledRouteCollection;
 use Hypervel\Routing\Route;
 use Hypervel\Routing\RouteCollection;
+use Hypervel\Routing\Router;
 use Hypervel\Support\Arr;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class CompiledRouteCollectionTest extends RoutingTestCase
 {
-    /**
-     * @var \Hypervel\Routing\RouteCollection
-     */
-    protected $routeCollection;
+    protected RouteCollection $routeCollection;
 
-    /**
-     * @var \Hypervel\Routing\Router
-     */
-    protected $router;
+    protected Router $router;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->router = $this->app['router'];
+        $this->router = $this->app->make('router');
 
         $this->routeCollection = new RouteCollection;
     }
@@ -40,10 +36,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         parent::tearDown();
     }
 
-    /**
-     * @return \Hypervel\Routing\CompiledRouteCollection
-     */
-    protected function collection()
+    protected function collection(): CompiledRouteCollection
     {
         return $this->routeCollection->toCompiledRouteCollection($this->router, $this->app);
     }
@@ -95,7 +88,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame($action, Arr::except($route->getAction(), 'as'));
     }
 
-    public function testCompiledAndNonCompiledUrlResolutionHasSamePrecedenceForActions()
+    public function testCompiledAndNonCompiledUrlResolutionHasSamePrecedenceForActions(): void
     {
         $this->router->get('/foo/{bar}', ['FooController', 'show']);
         $this->router->get('/foo/{bar}/{baz}', ['FooController', 'show']);
@@ -104,7 +97,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame('foo/{bar}', $this->router->getRoutes()->getByAction('FooController@show')->uri);
 
         $this->router->setCompiledRoutes($this->router->getRoutes()->compile());
-        $this->assertSame('foo/{bar}', $this->app['router']->getRoutes()->getByAction('FooController@show')->uri);
+        $this->assertSame('foo/{bar}', $this->app->make('router')->getRoutes()->getByAction('FooController@show')->uri);
     }
 
     public function testCompiledAndNonCompiledUrlResolutionHasSamePrecedenceForNames()

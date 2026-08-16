@@ -1361,9 +1361,9 @@ trait ValidatesAttributes
      */
     public function validateImage(string $attribute, mixed $value, array $parameters = []): bool
     {
-        $mimes = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+        $mimes = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'avif', 'heic', 'heif'];
 
-        if (in_array('allow_svg', $parameters)) {
+        if (in_array('allow_svg', $parameters, true)) {
             $mimes[] = 'svg';
         }
 

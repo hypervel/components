@@ -28,11 +28,11 @@ class CommandEventsTest extends TestCase
     }
 
     #[DataProvider('foregroundCommandEventsProvider')]
-    public function testCommandEventsReceiveParsedInput($callback)
+    public function testCommandEventsReceiveParsedInput($callback): void
     {
-        $this->app[ConsoleKernel::class]->registerCommand(new TestCommand);
+        $this->app->make(ConsoleKernel::class)->registerCommand(new TestCommand);
 
-        $this->app[Dispatcher::class]->listen(function (CommandStarting $event) {
+        $this->app->make(Dispatcher::class)->listen(function (CommandStarting $event) {
             $this->log[] = 'CommandStarting';
             $this->log[] = $event->input->getArgument('firstname');
             $this->log[] = $event->input->getArgument('lastname');
@@ -54,7 +54,7 @@ class CommandEventsTest extends TestCase
         ], $this->log);
     }
 
-    public static function foregroundCommandEventsProvider()
+    public static function foregroundCommandEventsProvider(): iterable
     {
         yield 'Foreground with array' => [function ($testCase) {
             $testCase->artisan(TestCommand::class, [
@@ -69,23 +69,25 @@ class CommandEventsTest extends TestCase
         }];
     }
 
-    public function testCommandEventsReceiveParsedInputViaKernelCall()
+    public function testCommandEventsReceiveParsedInputViaKernelCall(): void
     {
-        $this->app[Dispatcher::class]->listen(function (CommandStarting $event) {
+        $events = $this->app->make(Dispatcher::class);
+
+        $events->listen(function (CommandStarting $event) {
             $this->log[] = 'CommandStarting';
             $this->log[] = $event->input->getArgument('firstname');
             $this->log[] = $event->input->getArgument('lastname');
             $this->log[] = $event->input->getOption('occupation');
         });
 
-        $this->app[Dispatcher::class]->listen(function (CommandFinished $event) {
+        $events->listen(function (CommandFinished $event) {
             $this->log[] = 'CommandFinished';
             $this->log[] = $event->input->getArgument('firstname');
             $this->log[] = $event->input->getArgument('lastname');
             $this->log[] = $event->input->getOption('occupation');
         });
 
-        $kernel = $this->app[ConsoleKernel::class];
+        $kernel = $this->app->make(ConsoleKernel::class);
         $kernel->registerCommand(new TestCommand);
 
         $kernel->call(TestCommand::class, [
@@ -105,8 +107,7 @@ class TestCommand extends Command
 {
     protected ?string $signature = 'command-events-test-command {firstname} {lastname} {--occupation=cook}';
 
-    public function handle()
+    public function handle(): void
     {
-        // ...
     }
 }

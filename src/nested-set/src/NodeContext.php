@@ -13,7 +13,7 @@ class NodeContext
     /**
      * Context key prefix for structural freshness state.
      */
-    protected const FRESHNESS_CONTEXT_KEY_PREFIX = '__nested_set.freshness.';
+    protected const string FRESHNESS_CONTEXT_KEY_PREFIX = '__nested_set.freshness.';
 
     /**
      * Determine whether the model is current for the logical tree revision.

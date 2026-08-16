@@ -11,7 +11,7 @@ use Hypervel\Permission\Contracts\PermissionsTeamResolver;
 
 final class DefaultTeamResolver implements PermissionsTeamResolver
 {
-    public const TEAM_ID_CONTEXT_KEY = '__permission.team_id';
+    public const string TEAM_ID_CONTEXT_KEY = '__permission.team_id';
 
     /**
      * Set the current permissions team id.

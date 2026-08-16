@@ -18,13 +18,13 @@ class RedisSharedStateTest extends TestCase
 {
     use InteractsWithRedis;
 
-    protected RedisSharedState $state;
+    protected RedisSharedStateProbe $state;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->state = new RedisSharedState(Redis::connection());
+        $this->state = new RedisSharedStateProbe(Redis::connection());
     }
 
     // ── Channel subscription tracking ──────────────────────────────────
@@ -186,6 +186,27 @@ class RedisSharedStateTest extends TestCase
 
         $this->assertTrue($this->state->clearSmoothingPending('app', 'channel:user', 5000));
         $this->assertTrue($this->state->clearMemberSmoothingPending('app', 'channel', 'user', 5000));
+    }
+
+    public function testChannelStateKeysShareOneClusterSlot(): void
+    {
+        $keys = $this->state->keysForTest('app1', 'presence-channel', 'user-1');
+        $otherChannelKeys = $this->state->keysForTest('app1', 'other-channel', 'user-1');
+        $otherApplicationKeys = $this->state->keysForTest('app2', 'presence-channel', 'user-1');
+
+        $this->assertCount(1, array_unique(array_map($this->clusterTag(...), $keys)));
+        $this->assertStringEndsWith(
+            '}:s|4:app1|16:presence-channel',
+            $keys['subscription'],
+        );
+        $this->assertNotSame(
+            $this->clusterTag($keys['subscription']),
+            $this->clusterTag($otherChannelKeys['subscription']),
+        );
+        $this->assertNotSame(
+            $this->clusterTag($keys['subscription']),
+            $this->clusterTag($otherApplicationKeys['subscription']),
+        );
     }
 
     // ── Concurrency ────────────────────────────────────────────────────
@@ -364,5 +385,32 @@ class RedisSharedStateTest extends TestCase
     public function testClearMemberSmoothingPendingReturnsFalseWhenNoMarker(): void
     {
         $this->assertFalse($this->state->clearMemberSmoothingPending('app1', 'presence-channel', 'user-1', 5000));
+    }
+
+    private function clusterTag(string $key): string
+    {
+        $this->assertSame(1, preg_match('/\{([^}]*)\}/', $key, $matches));
+
+        return $matches[1];
+    }
+}
+
+class RedisSharedStateProbe extends RedisSharedState
+{
+    /**
+     * Get the channel-scoped physical keys.
+     *
+     * @return array{subscription: string, user: string, subscription_lock: string, cache_miss_lock: string, channel_smoothing: string, member_smoothing: string}
+     */
+    public function keysForTest(string $appId, string $channel, string $userId): array
+    {
+        return [
+            'subscription' => $this->channelKey($appId, $channel),
+            'user' => $this->userKey($appId, $channel, $userId),
+            'subscription_lock' => $this->key(self::SUBSCRIPTION_COUNT_LOCK_KEY_TYPE, $appId, $channel),
+            'cache_miss_lock' => $this->key(self::CACHE_MISS_LOCK_KEY_TYPE, $appId, $channel),
+            'channel_smoothing' => $this->key(self::CHANNEL_SMOOTHING_KEY_TYPE, $appId, $channel),
+            'member_smoothing' => $this->key(self::MEMBER_SMOOTHING_KEY_TYPE, $appId, $channel, $userId),
+        ];
     }
 }

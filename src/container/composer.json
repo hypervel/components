@@ -1,6 +1,6 @@
 {
     "name": "hypervel/container",
-    "description": "The Container package for Hypervel.",
+    "description": "The Hypervel Container package.",
     "license": "MIT",
     "keywords": [
         "php",
@@ -24,7 +24,7 @@
     ],
     "require": {
         "php": "^8.4",
-        "ext-swoole": "^6.2",
+        "ext-swoole": "^6.2.2",
         "psr/container": "^2.0.1",
         "hypervel/context": "^0.4",
         "hypervel/contracts": "^0.4",

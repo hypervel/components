@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Container;
 
-use ArrayAccess;
 use Closure;
 use InvalidArgumentException;
 use LogicException;
 use Psr\Container\ContainerInterface;
 
-interface Container extends ArrayAccess, ContainerInterface
+interface Container extends ContainerInterface
 {
     /**
      * @template TClass of object

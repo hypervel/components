@@ -1,7 +1,7 @@
 {
     "name": "hypervel/mail",
     "type": "library",
-    "description": "The mail package for Hypervel.",
+    "description": "The Hypervel Mail package.",
     "license": "MIT",
     "keywords": [
         "php",

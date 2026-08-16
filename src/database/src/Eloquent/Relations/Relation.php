@@ -60,7 +60,7 @@ abstract class Relation implements BuilderContract
     /**
      * The context key for storing whether constraints are enabled.
      */
-    protected const CONSTRAINTS_CONTEXT_KEY = '__database.relation.constraints';
+    protected const string CONSTRAINTS_CONTEXT_KEY = '__database.relation.constraints';
 
     /**
      * An array to map morph names to their class names in the database.

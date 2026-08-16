@@ -18,19 +18,28 @@ class CliDumper extends BaseCliDumper
 {
     use ResolvesDumpSource;
 
-    protected const DUMPING_CONTEXT_KEY = '__foundation.cli_dumper.dumping';
+    protected const string DUMPING_CONTEXT_KEY = '__foundation.cli_dumper.dumping';
+
+    /**
+     * The console output instance.
+     *
+     * This remains separate from the constructor parameter because Symfony's
+     * inherited `$output` PHPDoc describes a dump destination and PHPStan
+     * applies it to a promoted property with the same name.
+     */
+    protected OutputInterface $output;
 
     /**
      * Create a new CLI dumper instance.
-     *
-     * @param OutputInterface $output
      */
     public function __construct(
-        protected mixed $output,
+        OutputInterface $output,
         protected string $basePath,
-        protected ?string $compiledViewPath,
+        protected string $compiledViewPath,
     ) {
         parent::__construct();
+
+        $this->output = $output;
 
         $this->setColors($this->supportsColors());
     }
@@ -40,17 +49,16 @@ class CliDumper extends BaseCliDumper
      *
      * Boot-only. Registers a process-wide VarDumper handler for the worker
      * lifetime.
-     *
-     * @param string $basePath
-     * @param string $compiledViewPath
      */
-    public static function register($basePath, $compiledViewPath): void
+    public static function register(string $basePath, string $compiledViewPath): static
     {
         $cloner = tap(new VarCloner)->addCasters(ReflectionCaster::UNSET_CLOSURE_FILE_INFO); // @phpstan-ignore method.notFound (tap proxy __call)
 
         $dumper = new static(new ConsoleOutput, $basePath, $compiledViewPath);
 
         VarDumper::setHandler(fn ($value) => $dumper->dumpWithSource($cloner->cloneVar($value)));
+
+        return $dumper;
     }
 
     /**

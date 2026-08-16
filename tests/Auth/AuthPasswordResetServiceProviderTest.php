@@ -14,6 +14,23 @@ use Mockery as m;
 
 class AuthPasswordResetServiceProviderTest extends TestCase
 {
+    public function testReloadConfigurationClearsResolvedBrokersWithoutResolvingUnusedManager(): void
+    {
+        $application = m::mock(Application::class);
+        $manager = m::mock(PasswordBrokerManager::class);
+        $application->shouldReceive('resolved')->once()->with('auth.password')->andReturnTrue();
+        $application->shouldReceive('make')->once()->with('auth.password')->andReturn($manager);
+        $manager->shouldReceive('forgetBrokers')->once()->andReturnSelf();
+
+        (new PasswordResetServiceProvider($application))->reloadConfiguration();
+
+        $unusedApplication = m::mock(Application::class);
+        $unusedApplication->shouldReceive('resolved')->once()->with('auth.password')->andReturnFalse();
+        $unusedApplication->shouldNotReceive('make');
+
+        (new PasswordResetServiceProvider($unusedApplication))->reloadConfiguration();
+    }
+
     public function testEventRebindDoesNotResolveAnUnusedPasswordManager(): void
     {
         [$application, $callback] = $this->registerProvider();

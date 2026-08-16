@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Fortify;
 
+use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Config\Repository as Config;
 use Hypervel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable;
@@ -50,6 +51,7 @@ use Hypervel\Fortify\Http\Responses\TwoFactorDisabledResponse;
 use Hypervel\Fortify\Http\Responses\TwoFactorEnabledResponse;
 use Hypervel\Fortify\Http\Responses\TwoFactorLoginResponse;
 use Hypervel\Fortify\Http\Responses\VerifyEmailResponse;
+use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Http\Request;
 use Hypervel\Passkeys\Passkeys;
 use Hypervel\Support\Facades\Route;
@@ -112,16 +114,22 @@ class FortifyServiceProvider extends ServiceProvider
     {
         Passkeys::ignoreRoutes();
 
-        $config = $this->app->make(Config::class);
+        $config = $this->app->make(ConfigRepository::class);
 
-        $appUrl = $config->string('app.url');
+        // Derived config can depend on the worker environment, so replay the operation after config reload rather than its master result.
+        $this->app->make(ConfigMutationTracker::class)->applyAndRecord(
+            $config,
+            static function (ConfigRepository $config): void {
+                $appUrl = $config->string('app.url');
 
-        $config->set([
-            'passkeys.relying_party_id' => $config->string('fortify.passkeys.relying_party_id', parse_url($appUrl, PHP_URL_HOST)),
-            'passkeys.allowed_origins' => $config->array('fortify.passkeys.allowed_origins', [$appUrl]),
-            'passkeys.user_handle_secret' => $config->string('fortify.passkeys.user_handle_secret', $config->string('app.key')),
-            'passkeys.timeout' => $config->integer('fortify.passkeys.timeout', 60000),
-        ]);
+                $config->set([
+                    'passkeys.relying_party_id' => $config->string('fortify.passkeys.relying_party_id', parse_url($appUrl, PHP_URL_HOST)),
+                    'passkeys.allowed_origins' => $config->array('fortify.passkeys.allowed_origins', [$appUrl]),
+                    'passkeys.user_handle_secret' => $config->string('fortify.passkeys.user_handle_secret', $config->string('app.key')),
+                    'passkeys.timeout' => $config->integer('fortify.passkeys.timeout', 60000),
+                ]);
+            },
+        );
 
         Passkeys::redirectUsing(
             static fn (Request $request): string => Fortify::redirects('login', request: $request),

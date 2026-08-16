@@ -1,7 +1,7 @@
 {
     "name": "hypervel/json-schema",
     "type": "library",
-    "description": "The JSON Schema package for Hypervel.",
+    "description": "The Hypervel JSON Schema package.",
     "license": "MIT",
     "keywords": [
         "php",

@@ -263,7 +263,7 @@ class PendingRequest
      *
      * @throws InvalidArgumentException
      */
-    public function withBody(mixed $content, string $contentType = 'application/json'): static
+    public function withBody(mixed $content, ?string $contentType = 'application/json'): static
     {
         $this->bodyFormat('body');
 
@@ -273,7 +273,9 @@ class PendingRequest
 
         $this->pendingBody = $content;
 
-        $this->contentType($contentType);
+        if ($contentType !== null) {
+            $this->contentType($contentType);
+        }
 
         return $this;
     }
@@ -494,6 +496,12 @@ class PendingRequest
     public function maxRedirects(int $max): static
     {
         return tap($this, function () use ($max) {
+            // withoutRedirecting() and withOptions() may leave a boolean here,
+            // which cannot be indexed to apply the per-request limit.
+            if (! is_array($this->options['allow_redirects'] ?? null)) {
+                $this->options['allow_redirects'] = [];
+            }
+
             $this->options['allow_redirects']['max'] = $max;
         });
     }
@@ -936,6 +944,10 @@ class PendingRequest
      */
     protected function expandUrlParameters(string $url): string
     {
+        if ($this->urlParameters === []) {
+            return $url;
+        }
+
         return UriTemplate::expand($url, $this->urlParameters);
     }
 
@@ -1253,6 +1265,10 @@ class PendingRequest
     protected function normalizeHeaderValues(array $headers): array
     {
         foreach ($headers as $name => $value) {
+            if (! is_string($name)) {
+                throw new InvalidArgumentException('HTTP header names must be strings.');
+            }
+
             $headers[$name] = $this->normalizeHeaderValue($value);
         }
 
@@ -1491,7 +1507,7 @@ class PendingRequest
     {
         $handler = $this->handler;
 
-        if ($handler === null && $this->connection !== null && $this->factory !== null) {
+        if ($handler === null && ! $this->async && $this->connection !== null && $this->factory !== null) {
             $handler = $this->factory->getConnectionHandler($this->connection);
         }
 
@@ -1504,6 +1520,8 @@ class PendingRequest
     public function pushHandlers(HandlerStack $handlerStack): HandlerStack
     {
         return tap($handlerStack, function ($stack) {
+            $stack->remove('prepare_body');
+
             if ($this->middleware->isNotEmpty()) {
                 // Only middleware can replace the prepared body before callbacks run.
                 $stack->push($this->buildPreparedBodyHandler());
@@ -1514,6 +1532,7 @@ class PendingRequest
             });
 
             $stack->push($this->buildBeforeSendingHandler());
+            $stack->push(Middleware::prepareBody(), 'prepare_body');
             $stack->push($this->buildRecorderHandler());
             $stack->push($this->buildStubHandler());
         });

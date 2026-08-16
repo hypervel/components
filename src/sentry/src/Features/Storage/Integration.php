@@ -15,9 +15,9 @@ use RuntimeException;
 
 class Integration extends Feature
 {
-    private const FEATURE_KEY = 'storage';
+    private const string FEATURE_KEY = 'storage';
 
-    private const STORAGE_DRIVER_NAME = 'sentry';
+    private const string STORAGE_DRIVER_NAME = 'sentry';
 
     public function isApplicable(): bool
     {

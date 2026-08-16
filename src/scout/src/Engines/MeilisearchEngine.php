@@ -35,12 +35,12 @@ class MeilisearchEngine extends Engine implements DeletesByFilter, UpdatesIndexS
     /**
      * The maximum time to wait for a filtered deletion task.
      */
-    protected const FILTER_DELETE_TIMEOUT_IN_MS = 500_000;
+    protected const int FILTER_DELETE_TIMEOUT_IN_MS = 500_000;
 
     /**
      * The interval between filtered deletion task checks.
      */
-    protected const FILTER_DELETE_INTERVAL_IN_MS = 5_000;
+    protected const int FILTER_DELETE_INTERVAL_IN_MS = 5_000;
 
     /**
      * Create a new MeilisearchEngine instance.

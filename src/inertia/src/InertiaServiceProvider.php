@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Inertia;
 
+use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
@@ -18,7 +19,7 @@ use Hypervel\Testing\TestResponse;
 use Hypervel\View\FileViewFinder;
 use LogicException;
 
-class InertiaServiceProvider extends ServiceProvider
+class InertiaServiceProvider extends ServiceProvider implements ReloadsConfiguration
 {
     /**
      * Register the service provider.
@@ -65,6 +66,17 @@ class InertiaServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__ . '/../config/inertia.php' => config_path('inertia.php'),
         ]);
+    }
+
+    /**
+     * Reload the worker configuration owned by the provider.
+     *
+     * Boot-only. Calling this while requests are running mutates shared worker
+     * state while concurrent coroutines may still use the previous configuration.
+     */
+    public function reloadConfiguration(): void
+    {
+        $this->app->forgetInstance('inertia.view-finder');
     }
 
     /**

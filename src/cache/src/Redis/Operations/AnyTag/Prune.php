@@ -29,7 +29,7 @@ class Prune
     /**
      * Default number of hash fields to process per HSCAN iteration.
      */
-    private const DEFAULT_SCAN_COUNT = 1000;
+    private const int DEFAULT_SCAN_COUNT = 1000;
 
     /**
      * Create a new prune operation instance.

@@ -1,7 +1,7 @@
 {
     "name": "hypervel/testing",
     "type": "library",
-    "description": "The testing package for Hypervel.",
+    "description": "The Hypervel Testing package.",
     "license": "MIT",
     "keywords": [
         "php",
@@ -23,6 +23,9 @@
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
     },
+    "bin": [
+        "bin/hypervel-test-profile"
+    ],
     "autoload": {
         "psr-4": {
             "Hypervel\\Testing\\": "src/"

@@ -35,7 +35,7 @@ trait Searchable
      * Coroutine-local rather than a static property so concurrent coroutines in
      * the same process don't share or overwrite each other's runner instances.
      */
-    public const SCOUT_RUNNER_CONTEXT_KEY = '__scout.runner';
+    public const string SCOUT_RUNNER_CONTEXT_KEY = '__scout.runner';
 
     /**
      * Additional metadata attributes managed by Scout.

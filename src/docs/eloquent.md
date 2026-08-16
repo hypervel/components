@@ -360,17 +360,13 @@ class Flight extends Model
 {
     /**
      * The name of the "created at" column.
-     *
-     * @var string|null
      */
-    public const CREATED_AT = 'creation_date';
+    public const ?string CREATED_AT = 'creation_date';
 
     /**
      * The name of the "updated at" column.
-     *
-     * @var string|null
      */
-    public const UPDATED_AT = 'updated_date';
+    public const ?string UPDATED_AT = 'updated_date';
 }
 ```
 
@@ -763,6 +759,9 @@ $flight = Flight::firstOrNew(
     ['delayed' => 1, 'arrival_time' => '11:30']
 );
 ```
+
+> [!NOTE]
+> If `firstOrCreate` or `updateOrCreate` encounters a concurrent insert, it attempts to retrieve the winning row from the write connection. Inside a repeatable-read transaction (the default on MySQL and MariaDB), a row committed after the transaction's snapshot may remain invisible, in which case the original unique constraint violation is rethrown. For idempotent collision handling in this situation, retry the complete transaction from outside it.
 
 <a name="retrieving-aggregates"></a>
 ### Retrieving Aggregates

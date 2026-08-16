@@ -14,12 +14,12 @@ trait ManagesLayouts
     /**
      * Context key for finished, captured sections.
      */
-    protected const SECTIONS_CONTEXT_KEY = '__view.sections';
+    protected const string SECTIONS_CONTEXT_KEY = '__view.sections';
 
     /**
      * Context key for the stack of in-progress sections.
      */
-    protected const SECTION_STACK_CONTEXT_KEY = '__view.section_stack';
+    protected const string SECTION_STACK_CONTEXT_KEY = '__view.section_stack';
 
     /**
      * The parent placeholder salt for the worker.

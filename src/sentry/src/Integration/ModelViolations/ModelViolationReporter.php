@@ -22,7 +22,7 @@ abstract class ModelViolationReporter
 {
     use ResolvesEventOrigin;
 
-    private const CONTEXT_REPORTED_PREFIX = '__sentry.model_violations.reported.';
+    private const string CONTEXT_REPORTED_PREFIX = '__sentry.model_violations.reported.';
 
     private ?Closure $callback;
 

@@ -1405,6 +1405,48 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals($builder, $result);
     }
 
+    public function testQueryableWhereForwardersAcceptBuilderAndRelationSubqueries(): void
+    {
+        $model = new ModelParentStub;
+        $model->foo_id = 7;
+        $connection = $this->mockConnectionForModel($model, 'SQLite');
+        $subquery = $connection->query()
+            ->select('score')
+            ->from('scores')
+            ->where('active', true);
+
+        $builder = $model->newQuery()
+            ->where($model->foo(), '>', 5)
+            ->orWhere($subquery, '<', 4)
+            ->whereNot($subquery, '=', 3)
+            ->orWhereNot($subquery, '=', 2);
+
+        $this->assertSame(
+            'select * from "model_parent_stubs" where (select * from "model_close_related_stubs" where "model_close_related_stubs"."id" = ?) > ? or (select "score" from "scores" where "active" = ?) < ? and not (select "score" from "scores" where "active" = ?) = ? or not (select "score" from "scores" where "active" = ?) = ?',
+            $builder->toSql()
+        );
+        $this->assertSame([7, 5, true, 4, true, 3, true, 2], $builder->getBindings());
+    }
+
+    public function testFirstWhereAcceptsRelationSubquery(): void
+    {
+        $model = new ModelParentStub;
+        $model->foo_id = 7;
+        $connection = $this->mockConnectionForModel($model, 'SQLite');
+        $connection->shouldReceive('getName')->andReturn('database');
+        $connection->expects('select')->with(
+            'select * from "model_parent_stubs" where (select * from "model_close_related_stubs" where "model_close_related_stubs"."id" = ?) > ? limit 1',
+            [7, 5],
+            true,
+            [],
+        )->andReturn([['id' => 11]]);
+
+        $result = $model->newQuery()->firstWhere($model->foo(), '>', 5);
+
+        $this->assertInstanceOf(ModelParentStub::class, $result);
+        $this->assertSame(11, $result->id);
+    }
+
     public function testRealQueryHigherOrderOrWhereScopes()
     {
         $model = new HigherOrderWhereScopeStub;
@@ -1759,6 +1801,24 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select "model_parent_stubs".*, exists(select * from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "foo_exists" from "model_parent_stubs"', $builder->toSql());
     }
 
+    public function testWithExistsRejectsConstraintTimeoutBeforeEmbeddingTheConstraint(): void
+    {
+        $this->assertRelationshipConstraintTimeoutRejected(function (Builder $builder): void {
+            $builder->withExists(['foo' => function ($query): void {
+                $query->where('active', true)->timeout(2);
+            }]);
+        });
+    }
+
+    public function testWithCountRejectsConstraintTimeoutBeforeEmbeddingTheConstraint(): void
+    {
+        $this->assertRelationshipConstraintTimeoutRejected(function (Builder $builder): void {
+            $builder->withCount(['foo' => function ($query): void {
+                $query->where('active', true)->timeout(2);
+            }]);
+        });
+    }
+
     public function testWithExistsAndSelect()
     {
         $model = new ModelParentStub;
@@ -1911,6 +1971,24 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         $this->assertSame('select * from "model_parent_stubs" where "bar" = ? and (select count(*) from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id" having "bam" > ?) >= 2 and "quux" = ?', $builder->toSql());
         $this->assertEquals(['baz', 'qux', 'quuux'], $builder->getBindings());
+    }
+
+    public function testRelationshipExistsRejectsConstraintTimeoutBeforeEmbeddingTheConstraint(): void
+    {
+        $this->assertRelationshipConstraintTimeoutRejected(function (Builder $builder): void {
+            $builder->whereHas('foo', function ($query): void {
+                $query->where('active', true)->timeout(2);
+            });
+        });
+    }
+
+    public function testRelationshipCountRejectsConstraintTimeoutBeforeEmbeddingTheConstraint(): void
+    {
+        $this->assertRelationshipConstraintTimeoutRejected(function (Builder $builder): void {
+            $builder->whereHas('foo', function ($query): void {
+                $query->where('active', true)->timeout(2);
+            }, '>=', 2);
+        });
     }
 
     public function testWithCountAndConstraintsWithBindingInSelectSub()
@@ -2757,6 +2835,32 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->latest('foo');
     }
 
+    public function testLatestAndOldestAcceptQueryableSubqueries(): void
+    {
+        $model = new ModelParentStub;
+        $model->foo_id = 7;
+        $this->mockConnectionForModel($model, 'SQLite');
+
+        $latest = $model->newQuery()->latest($model->foo());
+
+        $this->assertSame(
+            'select * from "model_parent_stubs" order by (select * from "model_close_related_stubs" where "model_close_related_stubs"."id" = ?) desc',
+            $latest->toSql()
+        );
+        $this->assertSame([7], $latest->getBindings());
+
+        $subquery = $model->foo()->getRelated()->newQuery()
+            ->select('score')
+            ->where('active', true);
+        $oldest = $model->newQuery()->oldest($subquery);
+
+        $this->assertSame(
+            'select * from "model_parent_stubs" order by (select "score" from "model_close_related_stubs" where "active" = ?) asc',
+            $oldest->toSql()
+        );
+        $this->assertSame([true], $oldest->getBindings());
+    }
+
     public function testOldestWithoutColumnWithCreatedAt()
     {
         $model = $this->getMockModel();
@@ -3187,6 +3291,29 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame(1, $result);
     }
 
+    /**
+     * Assert that a relationship constraint timeout is rejected before it is embedded.
+     */
+    protected function assertRelationshipConstraintTimeoutRejected(Closure $accept): void
+    {
+        $builder = (new ModelParentStub)->newQuery()->where('tenant_id', 7);
+        $sql = $builder->toSql();
+        $bindings = $builder->getBindings();
+
+        try {
+            $accept($builder);
+            $this->fail('Expected the relationship constraint timeout to be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame(
+                'A relationship constraint cannot define its own query timeout. Apply the timeout to the outer query instead.',
+                $exception->getMessage()
+            );
+        }
+
+        $this->assertSame($sql, $builder->toSql());
+        $this->assertSame($bindings, $builder->getBindings());
+    }
+
     protected function mockConnectionForModel($model, $database)
     {
         $grammarClass = 'Hypervel\Database\Query\Grammars\\' . $database . 'Grammar';
@@ -3436,7 +3563,7 @@ class ModelSelfRelatedStub extends Model
 
 class StubWithoutTimestamp extends Model
 {
-    public const UPDATED_AT = null;
+    public const ?string UPDATED_AT = null;
 
     protected ?string $table = 'table';
 }

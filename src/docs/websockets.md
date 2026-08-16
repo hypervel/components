@@ -7,6 +7,7 @@
 - [Sending Messages](#sending-messages)
 - [Subprotocols](#subprotocols)
 - [Events](#events)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -226,3 +227,8 @@ Hypervel dispatches the following events for custom WebSocket connections:
 - `Hypervel\WebSocketServer\Events\ConnectionClosed` provides the file descriptor, reactor ID, and server name.
 
 You may listen for these events using Hypervel's normal [event listeners](/docs/{{version}}/events#registering-events-and-listeners).
+
+<a name="credits"></a>
+## Credits
+
+Hypervel WebSocket Server began as a port of [Hyperf WebSocket Server](https://github.com/hyperf/hyperf/tree/master/src/websocket-server) and has been adapted for Hypervel's framework architecture and coroutine runtime.

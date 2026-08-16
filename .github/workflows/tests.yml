@@ -2,7 +2,12 @@ name: tests
 
 on:
   push:
+    branches:
+      - 0.4
   pull_request:
+
+permissions:
+  contents: read
 
 env:
   RUN_BLOCKING_TESTS: true
@@ -13,16 +18,14 @@ jobs:
     if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, '[ci skip]')"
 
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
-        include:
-          - php: "8.4"
-            swoole: "6.2.0"
+        php: ["8.4", "8.5"]
 
-    name: PHP ${{ matrix.php }} (swoole-${{ matrix.swoole }})
+    name: PHP ${{ matrix.php }} (Swoole 6.2.2)
 
     container:
-      image: phpswoole/swoole:${{ matrix.swoole }}-php${{ matrix.php }}
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
 
     steps:
       - name: Checkout code
@@ -32,9 +35,6 @@ jobs:
 
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
-
-      - name: Setup PHP extensions
-        uses: ./.github/actions/setup-php
 
       - name: Cache Composer dependencies
         uses: actions/cache@v5
@@ -71,7 +71,7 @@ jobs:
     name: Wayfinder
 
     container:
-      image: phpswoole/swoole:6.2.0-php8.4
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.2.2
 
     steps:
       - name: Checkout code
@@ -81,9 +81,6 @@ jobs:
 
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
-
-      - name: Setup PHP extensions
-        uses: ./.github/actions/setup-php
 
       - name: Cache Composer dependencies
         uses: actions/cache@v5
@@ -98,7 +95,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Install pnpm
         run: |

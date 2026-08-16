@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Testing;
 
 use Hypervel\Config\Repository;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Query\Builder as QueryBuilder;
@@ -18,7 +19,7 @@ class DatabaseTruncationTest extends TestCase
 {
     use DatabaseTruncation;
 
-    private ?array $app;
+    private ?Container $app;
 
     private ?array $tablesToTruncate = null;
 
@@ -28,13 +29,14 @@ class DatabaseTruncationTest extends TestCase
     {
         parent::setUp();
 
-        $this->app['config'] = new Repository([
+        $this->app = new Container;
+        $this->app->instance('config', new Repository([
             'database' => [
                 'migrations' => [
                     'table' => 'migrations',
                 ],
             ],
-        ]);
+        ]));
     }
 
     protected function tearDown(): void

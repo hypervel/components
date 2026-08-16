@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Horizon\Feature;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Horizon\Console\ClearCommand;
@@ -18,15 +19,17 @@ use Symfony\Component\Console\Output\BufferedOutput;
 
 class ClearCommandTest extends IntegrationTestCase
 {
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
 
-        $app['config']->set('horizon.defaults', [
+        $config = $app->make('config');
+
+        $config->set('horizon.defaults', [
             'supervisor-1' => ['connection' => 'redis'],
         ]);
-        $app['config']->set('queue.connections.redis.queue', 'default');
-        $app['config']->set('queue.connections.0.queue', 'zero-default');
+        $config->set('queue.connections.redis.queue', 'default');
+        $config->set('queue.connections.0.queue', 'zero-default');
     }
 
     #[DataProvider('queueIdentifierProvider')]

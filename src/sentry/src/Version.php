@@ -10,9 +10,9 @@ use Hypervel\Foundation\PackageManifest;
 
 final class Version
 {
-    public const SDK_IDENTIFIER = 'sentry.php.hypervel';
+    public const string SDK_IDENTIFIER = 'sentry.php.hypervel';
 
-    public const SDK_VERSION = Application::VERSION;
+    public const string SDK_VERSION = Application::VERSION;
 
     public static function getSdkIdentifier(): string
     {

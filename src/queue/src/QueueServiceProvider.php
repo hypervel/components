@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
+use Closure;
 use Hypervel\Contracts\Database\ModelIdentifier;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
+use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Queue\Connectors\BackgroundConnector;
@@ -44,7 +46,7 @@ use InvalidArgumentException;
 use Laravel\SerializableClosure\SerializableClosure;
 use Throwable;
 
-class QueueServiceProvider extends ServiceProvider
+class QueueServiceProvider extends ServiceProvider implements ReloadsConfiguration
 {
     use SerializesAndRestoresModelIdentifiers;
 
@@ -84,6 +86,22 @@ class QueueServiceProvider extends ServiceProvider
         ]);
 
         $this->registerLaravelInteropAliases();
+    }
+
+    /**
+     * Reload configuration-derived worker state.
+     *
+     * Boot-only. Request-time use replaces shared queue connections while
+     * concurrent coroutines may still be using the previous objects.
+     */
+    public function reloadConfiguration(): void
+    {
+        if ($this->app->resolved('queue')) {
+            $this->app->make('queue')->forgetConnections();
+        }
+
+        $this->app->forgetInstance('queue.connection');
+        $this->app->forgetInstance('queue.failer');
     }
 
     /**
@@ -142,26 +160,9 @@ class QueueServiceProvider extends ServiceProvider
     protected function registerManager(): void
     {
         $this->app->singleton('queue', function ($app) {
-            $manager = tap(new QueueManager($app), function ($manager) {
+            return tap(new QueueManager($app), function ($manager) {
                 $this->registerConnectors($manager);
             });
-
-            if (! $app->has(ExceptionHandler::class)) {
-                return $manager;
-            }
-
-            $reportHandler = fn (Throwable $e) => $app->make(ExceptionHandler::class)->report($e);
-
-            foreach (['background', 'deferred'] as $connector) {
-                try {
-                    $manager->connection($connector)
-                        ->setExceptionCallback($reportHandler); // @phpstan-ignore method.notFound (setExceptionCallback is on concrete Queue, not contract)
-                } catch (InvalidArgumentException) {
-                    // Ignore exception when the connector is not configured.
-                }
-            }
-
-            return $manager;
         });
     }
 
@@ -170,7 +171,7 @@ class QueueServiceProvider extends ServiceProvider
      */
     protected function registerConnection(): void
     {
-        $this->app->singleton('queue.connection', fn ($app) => $app['queue']->connection());
+        $this->app->singleton('queue.connection', fn ($app) => $app->make('queue')->connection());
     }
 
     /**
@@ -181,6 +182,18 @@ class QueueServiceProvider extends ServiceProvider
         foreach (['Null', 'Sync', 'Deferred', 'Background', 'Failover', 'Database', 'Redis', 'Beanstalkd', 'Sqs'] as $connector) {
             $this->{"register{$connector}Connector"}($manager);
         }
+    }
+
+    /**
+     * Get the exception reporter for in-process queue connections.
+     */
+    protected function exceptionReporter(): ?Closure
+    {
+        if (! $this->app->has(ExceptionHandler::class)) {
+            return null;
+        }
+
+        return fn (Throwable $exception) => $this->app->make(ExceptionHandler::class)->report($exception);
     }
 
     /**
@@ -204,7 +217,7 @@ class QueueServiceProvider extends ServiceProvider
      */
     protected function registerDeferredConnector(QueueManager $manager): void
     {
-        $manager->addConnector('deferred', fn () => new DeferredConnector);
+        $manager->addConnector('deferred', fn () => new DeferredConnector($this->exceptionReporter()));
     }
 
     /**
@@ -212,7 +225,7 @@ class QueueServiceProvider extends ServiceProvider
      */
     protected function registerBackgroundConnector(QueueManager $manager): void
     {
-        $manager->addConnector('background', fn () => new BackgroundConnector);
+        $manager->addConnector('background', fn () => new BackgroundConnector($this->exceptionReporter()));
     }
 
     /**
@@ -275,8 +288,8 @@ class QueueServiceProvider extends ServiceProvider
     {
         $this->app->singleton('queue.worker', function ($app) {
             return new Worker(
-                $app['queue'],
-                $app['events'],
+                $app->make('queue'),
+                $app->make('events'),
                 $app->make(ExceptionHandler::class),
                 fn () => $app->isDownForMaintenance(),
             );

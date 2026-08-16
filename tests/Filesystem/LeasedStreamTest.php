@@ -332,7 +332,7 @@ PHP;
 
 class RecordingStreamWrapper
 {
-    public const PROTOCOL = 'hypervel-leased-options-inner';
+    public const string PROTOCOL = 'hypervel-leased-options-inner';
 
     /** @var resource */
     public $context;

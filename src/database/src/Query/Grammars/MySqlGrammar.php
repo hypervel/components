@@ -22,12 +22,11 @@ class MySqlGrammar extends Grammar
     protected array $operators = ['sounds like'];
 
     /**
-     * Compile a select query into SQL.
+     * Compile the query timeout for a complete select statement.
      */
-    public function compileSelect(Builder $query): string
+    #[Override]
+    protected function compileSelectTimeout(Builder $query, string $sql): string
     {
-        $sql = parent::compileSelect($query);
-
         if ($query->timeout === null) {
             return $sql;
         }
@@ -35,8 +34,8 @@ class MySqlGrammar extends Grammar
         $milliseconds = $query->timeout * 1000;
 
         return preg_replace(
-            '/^select\b/i',
-            'select /*+ MAX_EXECUTION_TIME(' . $milliseconds . ') */',
+            '/^(\(*)select\b/i',
+            '${1}select /*+ MAX_EXECUTION_TIME(' . $milliseconds . ') */',
             $sql,
             1
         );

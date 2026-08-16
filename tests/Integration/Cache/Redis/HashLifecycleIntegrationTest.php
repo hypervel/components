@@ -7,21 +7,10 @@ namespace Hypervel\Tests\Integration\Cache\Redis;
 use Hypervel\Cache\TagMode;
 use Hypervel\Support\Facades\Cache;
 
-/**
- * Integration tests for Redis hash lifecycle behavior (ANY MODE ONLY).
- *
- * Tests critical Redis behavior that our package relies on:
- * - Redis automatically deletes empty hashes when all fields expire
- * - Hash structures have no TTL set on them (only fields have TTL via HSETEX)
- * - This reduces the need for aggressive cleanup of expired tag hashes
- *
- * NOTE: These tests require Redis 8.0+ with HSETEX support.
- */
 class HashLifecycleIntegrationTest extends RedisCacheIntegrationTestCase
 {
-    protected function setUp(): void
+    protected function setUpInCoroutine(): void
     {
-        parent::setUp();
         $this->setTagMode(TagMode::Any);
     }
 

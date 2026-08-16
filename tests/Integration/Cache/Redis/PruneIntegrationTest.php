@@ -283,27 +283,26 @@ class PruneIntegrationTest extends RedisCacheIntegrationTestCase
     public function testAllModePruneRemovesOrphanedEntries(): void
     {
         $this->setTagMode(TagMode::All);
+        $first = '{orphan-a}:post';
+        $second = '{orphan-b}:post';
 
-        // Create orphaned entries
-        Cache::tags(['posts', 'user:1'])->put('post:1', 'data', 60);
-        Cache::tags(['posts', 'user:2'])->put('post:2', 'data', 60);
-        Cache::tags(['posts'])->flush(); // Leaves orphans in user:1 and user:2
+        Cache::tags(['posts', 'orphans'])->put($first, 'data', 60);
+        Cache::tags(['posts', 'orphans'])->put($second, 'data', 60);
+        Cache::tags(['posts'])->flush();
 
-        // Verify orphans exist
-        $this->assertNotEmpty($this->getAllModeTagEntries('user:1'));
-        $this->assertNotEmpty($this->getAllModeTagEntries('user:2'));
+        $entries = $this->getAllModeTagEntries('orphans');
+        $this->assertCount(2, $entries);
+        $members = array_keys($entries);
+        $this->assertRedisKeysUseDifferentClusterSlots(
+            $this->getCachePrefix() . $members[0],
+            $this->getCachePrefix() . $members[1],
+        );
 
-        // Run prune operation (scans all tags)
         $this->store()->allTagOps()->prune()->execute();
 
-        // Orphans should be removed (ZSETs deleted or emptied)
         $this->assertEmpty(
-            $this->getAllModeTagEntries('user:1'),
-            'Orphaned entries should be removed from user:1'
-        );
-        $this->assertEmpty(
-            $this->getAllModeTagEntries('user:2'),
-            'Orphaned entries should be removed from user:2'
+            $this->getAllModeTagEntries('orphans'),
+            'Every orphaned entry should be removed from the tag.',
         );
     }
 

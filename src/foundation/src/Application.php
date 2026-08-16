@@ -46,10 +46,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * The Hypervel framework version.
-     *
-     * @var string
      */
-    public const VERSION = '0.4';
+    public const string VERSION = '0.4';
 
     /**
      * The base path for the Hypervel installation.
@@ -310,11 +308,11 @@ class Application extends Container implements ApplicationContract, CachesConfig
         $this->hasBeenBootstrapped = true;
 
         foreach ($bootstrappers as $bootstrapper) {
-            $this['events']->dispatch('bootstrapping: ' . $bootstrapper, [$this]);
+            $this->make('events')->dispatch('bootstrapping: ' . $bootstrapper, [$this]);
 
             $this->make($bootstrapper)->bootstrap($this);
 
-            $this['events']->dispatch('bootstrapped: ' . $bootstrapper, [$this]);
+            $this->make('events')->dispatch('bootstrapped: ' . $bootstrapper, [$this]);
         }
     }
 
@@ -323,7 +321,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function beforeBootstrapping(string $bootstrapper, Closure $callback): void
     {
-        $this['events']->listen('bootstrapping: ' . $bootstrapper, $callback);
+        $this->make('events')->listen('bootstrapping: ' . $bootstrapper, $callback);
     }
 
     /**
@@ -331,7 +329,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function afterBootstrapping(string $bootstrapper, Closure $callback): void
     {
-        $this['events']->listen('bootstrapped: ' . $bootstrapper, $callback);
+        $this->make('events')->listen('bootstrapped: ' . $bootstrapper, $callback);
     }
 
     /**
@@ -760,10 +758,10 @@ class Application extends Container implements ApplicationContract, CachesConfig
         if (count($environments) > 0) {
             $patterns = is_array($environments[0]) ? $environments[0] : $environments;
 
-            return Str::is($patterns, $this['env']);
+            return Str::is($patterns, $this->make('env'));
         }
 
-        return $this['env'];
+        return $this->make('env');
     }
 
     /**
@@ -771,7 +769,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function isLocal(): bool
     {
-        return $this['env'] === 'local';
+        return $this->make('env') === 'local';
     }
 
     /**
@@ -779,7 +777,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function isProduction(): bool
     {
-        return $this['env'] === 'production';
+        return $this->make('env') === 'production';
     }
 
     /**
@@ -791,7 +789,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
             ? $_SERVER['argv']
             : null;
 
-        return $this['env'] = (new EnvironmentDetector)->detect($callback, $args);
+        return $this->instance('env', (new EnvironmentDetector)->detect($callback, $args));
     }
 
     /**
@@ -843,7 +841,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function runningUnitTests(): bool
     {
-        return $this->bound('env') && $this['env'] === 'testing';
+        return $this->bound('env') && $this->make('env') === 'testing';
     }
 
     /**
@@ -1396,6 +1394,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
             'filesystem.disk' => [\Hypervel\Contracts\Filesystem\Filesystem::class],
             'hash' => [\Hypervel\Hashing\HashManager::class],
             'hash.driver' => [\Hypervel\Contracts\Hashing\Hasher::class],
+            'image' => [\Hypervel\Image\ImageManager::class],
             'jwt' => [
                 \Hypervel\Jwt\JwtManager::class,
                 \Hypervel\Jwt\Contracts\ManagerContract::class,

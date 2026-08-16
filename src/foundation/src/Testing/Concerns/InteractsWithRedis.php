@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Concerns;
 
 use Hypervel\Container\Container;
-use Hypervel\Foundation\Testing\RedisTestDatabases;
+use Hypervel\Foundation\Testing\RedisTestConfiguration;
 use Hypervel\Redis\Pool\PoolFactory;
-use Hypervel\Redis\RedisConfig;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testing\ParallelTesting;
-use RuntimeException;
 use Throwable;
 
 /**
@@ -23,10 +22,8 @@ use Throwable;
  * Tests that need Redis config overrides (prefix, DB number) should set
  * them in defineEnvironment() via $app->make('config')->set(...).
  *
- * Parallel Testing (ParaTest):
- * Each ParaTest worker gets its own Redis DB number to prevent cross-process
- * interference. Sequential runs use REDIS_DB directly. Parallel runs allocate
- * worker databases from REDIS_TEST_DB_MIN through REDIS_TEST_DB_MAX.
+ * Standalone ParaTest workers use separate logical databases for isolation.
+ * Redis Cluster only supports database zero, so Cluster suites run serially.
  *
  * Tests that need to call select() to switch databases should set
  * REDIS_TEST_SECONDARY_DB and use getSecondaryRedisDb(). The secondary DB is
@@ -34,7 +31,8 @@ use Throwable;
  * Use unique keys and clean them up with del().
  *
  * Environment Variables:
- * - REDIS_HOST: Redis host; must be set to enable Redis integration tests
+ * - REDIS_HOST: Standalone Redis host
+ * - REDIS_CLUSTER_HOSTS_AND_PORTS: Comma-separated Redis Cluster seeds
  * - REDIS_PORT: Redis port (default: 6379)
  * - REDIS_DB: Base Redis database number (default: 0)
  * - REDIS_TEST_DB_MIN: First Redis database available for parallel workers (default: REDIS_DB)
@@ -47,8 +45,8 @@ trait InteractsWithRedis
     /**
      * Set up Redis for testing (auto-called by setUpTraits).
      *
-     * Redis integration tests are opt-in via REDIS_HOST. Port, password, and
-     * database settings are only read after REDIS_HOST is present.
+     * Redis integration tests are opt-in via REDIS_HOST or
+     * REDIS_CLUSTER_HOSTS_AND_PORTS.
      *
      * When running under ParaTest, assigns a configured per-worker Redis DB
      * number to prevent cross-process interference.
@@ -57,11 +55,14 @@ trait InteractsWithRedis
     {
         if (! $this->hasExplicitRedisConfig()) {
             $this->markTestSkipped(
-                'Set REDIS_HOST to run Redis integration tests for ' . static::class
+                'Set REDIS_HOST or REDIS_CLUSTER_HOSTS_AND_PORTS to run Redis integration tests for ' . static::class
             );
         }
 
-        $this->configureRedisDatabases();
+        RedisTestConfiguration::configure(
+            $this->app->make('config'),
+            $this->parallelTestingToken(),
+        );
 
         $this->flushRedis();
     }
@@ -96,49 +97,19 @@ trait InteractsWithRedis
     }
 
     /**
-     * Check if REDIS_HOST was explicitly set in environment.
+     * Determine if Redis integration testing was explicitly configured.
      */
     protected function hasExplicitRedisConfig(): bool
     {
-        return env('REDIS_HOST') !== null;
+        return RedisTestConfiguration::isConfigured();
     }
 
     /**
-     * Get the base Redis DB number from environment.
-     *
-     * Reads from env directly (not config) because configureParallelRedisDb()
-     * mutates the config value — reading config here would cause the DB number
-     * to drift upward across tests in the same worker.
-     *
-     * Default matches database.php: env('REDIS_DB', 0).
+     * Determine if Redis integration testing uses a Cluster.
      */
-    protected function getBaseRedisDb(): int
+    protected function usingRedisCluster(): bool
     {
-        return RedisTestDatabases::baseDatabase();
-    }
-
-    /**
-     * Get the first Redis DB number available for parallel test workers.
-     */
-    protected function getRedisTestDbMin(): int
-    {
-        return RedisTestDatabases::minimumDatabase();
-    }
-
-    /**
-     * Get the last Redis DB number available for parallel test workers.
-     */
-    protected function getRedisTestDbMax(): int
-    {
-        return RedisTestDatabases::maximumDatabase();
-    }
-
-    /**
-     * Get the configured secondary Redis DB number.
-     */
-    protected function getConfiguredSecondaryRedisDb(): ?int
-    {
-        return RedisTestDatabases::configuredSecondaryDatabase();
+        return RedisTestConfiguration::usesCluster();
     }
 
     /**
@@ -146,11 +117,11 @@ trait InteractsWithRedis
      */
     protected function getParallelRedisDb(): int
     {
-        return RedisTestDatabases::primaryDatabase($this->parallelTestingToken());
+        return RedisTestConfiguration::primaryDatabase($this->parallelTestingToken());
     }
 
     /**
-     * Get the secondary Redis DB for tests that need to call select().
+     * Get the secondary Redis DB for standalone tests that need to call select().
      *
      * Must always return a DB number different from getParallelRedisDb().
      *
@@ -159,33 +130,7 @@ trait InteractsWithRedis
      */
     protected function getSecondaryRedisDb(): int
     {
-        return RedisTestDatabases::secondaryDatabase($this->parallelTestingToken());
-    }
-
-    /**
-     * Configure every Redis connection to use the current test database.
-     */
-    private function configureRedisDatabases(): void
-    {
-        $config = $this->app->make('config');
-        $database = $this->getParallelRedisDb();
-
-        foreach ($config->array('database.redis') as $name => $connection) {
-            if (in_array($name, ['client', 'options', 'clusters'], true) || ! is_array($connection)) {
-                continue;
-            }
-
-            $url = $connection['url'] ?? null;
-
-            // A database in the URL is merged after the raw connection options and would override the worker database.
-            if ($url !== null && $url !== '') {
-                throw new RuntimeException(
-                    "Redis connection [{$name}] must use REDIS_HOST and REDIS_PORT during integration tests so each test worker can select an isolated database."
-                );
-            }
-
-            $config->set("database.redis.{$name}.database", $database);
-        }
+        return RedisTestConfiguration::secondaryDatabase($this->parallelTestingToken());
     }
 
     /**
@@ -199,108 +144,59 @@ trait InteractsWithRedis
     }
 
     /**
-     * Get the configured Redis worker databases.
-     *
-     * @return array<int, int>
+     * Get the configured Redis connection for direct assertions.
      */
-    protected function redisWorkerDatabases(): array
+    protected function redisClient(string $connectionName = 'default'): RedisProxy
     {
-        return RedisTestDatabases::workerDatabases();
+        return Redis::connection($connectionName);
     }
 
     /**
-     * Get the zero-based Redis worker index for a ParaTest token.
+     * Get a topology-aware Redis connection without a key prefix.
      */
-    protected function redisWorkerIndex(string $token): int
+    protected function redisClientWithoutPrefix(): RedisProxy
     {
-        return RedisTestDatabases::workerIndex($token);
+        $connectionName = $this->createRedisConnectionWithOptions('test_no_prefix', [
+            'prefix' => '',
+        ]);
+
+        return Redis::connection($connectionName);
     }
 
     /**
-     * Get a non-negative integer Redis environment value.
+     * Assert that two physical keys occupy different Redis Cluster slots.
      */
-    protected function integerRedisEnvironment(string $key, int $default): int
+    protected function assertRedisKeysUseDifferentClusterSlots(string $firstKey, string $secondKey): void
     {
-        return RedisTestDatabases::integerEnvironment($key, $default);
-    }
-
-    /**
-     * Parse a non-negative integer Redis environment value.
-     */
-    protected function integerRedisEnvironmentValue(string $key, mixed $value): int
-    {
-        return RedisTestDatabases::integerEnvironmentValue($key, $value);
-    }
-
-    /**
-     * Get a raw phpredis client for direct Redis operations.
-     *
-     * This client has OPT_PREFIX set to the test prefix, so keys
-     * are automatically prefixed when using this client.
-     */
-    protected function redisClient(string $connectionName = 'default'): \Redis
-    {
-        $client = $this->rawRedisClientWithoutPrefix($connectionName);
-        $connectionConfig = $this->app->make(RedisConfig::class)->connectionConfig($connectionName);
-        $prefix = $connectionConfig['options']['prefix'] ?? '';
-
-        if (is_string($prefix) && $prefix !== '') {
-            $client->setOption(\Redis::OPT_PREFIX, $prefix);
+        if (! $this->usingRedisCluster()) {
+            return;
         }
 
-        return $client;
-    }
+        $redis = $this->redisClientWithoutPrefix();
+        $firstSlot = $redis->executeRaw(['CLUSTER', 'KEYSLOT', $firstKey]);
+        $secondSlot = $redis->executeRaw(['CLUSTER', 'KEYSLOT', $secondKey]);
 
-    /**
-     * Get a raw phpredis client WITHOUT any OPT_PREFIX.
-     *
-     * Useful for verifying actual key names in Redis. Uses the per-worker
-     * DB number for parallel safety.
-     */
-    protected function rawRedisClientWithoutPrefix(string $connectionName = 'default'): \Redis
-    {
-        $connectionConfig = $this->app->make(RedisConfig::class)->connectionConfig($connectionName);
-        $client = new \Redis;
-        $client->connect(
-            (string) $connectionConfig['host'],
-            (int) $connectionConfig['port']
+        $this->assertIsInt($firstSlot);
+        $this->assertIsInt($secondSlot);
+        $this->assertNotSame(
+            $firstSlot,
+            $secondSlot,
+            sprintf(
+                'Redis keys must occupy different Cluster slots: "%s" uses %d and "%s" uses %d.',
+                $firstKey,
+                $firstSlot,
+                $secondKey,
+                $secondSlot,
+            ),
         );
-
-        $password = $connectionConfig['password'] ?? null;
-        $username = $connectionConfig['username'] ?? null;
-
-        if (is_string($password) && $password !== '') {
-            $client->auth(
-                is_string($username) && $username !== ''
-                    ? [$username, $password]
-                    : $password
-            );
-        }
-
-        $client->select((int) ($connectionConfig['database'] ?? 0));
-
-        return $client;
-    }
-
-    /**
-     * Clean up keys matching a pattern using raw client (no prefix).
-     */
-    protected function cleanupKeysWithPattern(string $pattern): void
-    {
-        $client = $this->rawRedisClientWithoutPrefix();
-        $keys = $client->keys($pattern);
-        if (! empty($keys)) {
-            $client->del(...$keys);
-        }
-        $client->close();
     }
 
     /**
      * Clean up keys matching multiple patterns using the trait's standard Redis test semantics.
      *
      * If Redis was not explicitly enabled, cleanup is skipped just like
-     * setUpInteractsWithRedis(). If REDIS_HOST is set, connection failures
-     * still propagate as real test environment errors.
+     * setUpInteractsWithRedis(). When a topology is configured, connection
+     * failures still propagate as real test environment errors.
      */
     protected function cleanupRedisKeysWithPatterns(string ...$patterns): void
     {
@@ -308,17 +204,13 @@ trait InteractsWithRedis
             return;
         }
 
-        $client = $this->rawRedisClientWithoutPrefix();
+        $connection = $this->redisClientWithoutPrefix();
 
-        try {
-            foreach ($patterns as $pattern) {
-                $keys = $client->keys($pattern);
-                if (! empty($keys)) {
-                    $client->del(...$keys);
-                }
+        foreach ($patterns as $pattern) {
+            $keys = $connection->keys($pattern);
+            if (! empty($keys)) {
+                $connection->del(...$keys);
             }
-        } finally {
-            $client->close();
         }
     }
 
@@ -351,21 +243,15 @@ trait InteractsWithRedis
             return $name;
         }
 
-        $config->set("database.redis.{$name}", [
-            'host' => env('REDIS_HOST', '127.0.0.1'),
-            'password' => env('REDIS_PASSWORD', null) ?: null,
-            'port' => (int) env('REDIS_PORT', 6379),
-            'database' => $this->getParallelRedisDb(),
-            'pool' => [
-                'min_connections' => 1,
-                'max_connections' => $maxConnections,
-                'connect_timeout' => 10.0,
-                'wait_timeout' => 3.0,
-                'heartbeat' => -1,
-                'max_idle_time' => 60.0,
-            ],
-            'options' => $options,
+        $connection = $config->array('database.redis.default');
+        $pool = $config->array('database.redis.default.pool');
+
+        $connection['options'] = $options;
+        $connection['pool'] = array_replace($pool, [
+            'max_connections' => $maxConnections,
         ]);
+
+        $config->set("database.redis.{$name}", $connection);
 
         return $name;
     }

@@ -38,7 +38,7 @@ class CacheManager implements FactoryContract
     /**
      * The context key prefix for memoized cache repositories.
      */
-    protected const MEMOIZED_CONTEXT_KEY_PREFIX = '__cache.memoized.';
+    protected const string MEMOIZED_CONTEXT_KEY_PREFIX = '__cache.memoized.';
 
     /**
      * The array of resolved cache stores.
@@ -467,6 +467,19 @@ class CacheManager implements FactoryContract
                 unset($this->stores[$cacheName]);
             }
         }
+
+        return $this;
+    }
+
+    /**
+     * Forget all resolved cache drivers.
+     *
+     * Boot or tests only. Mutates the singleton's store cache; concurrent
+     * coroutines may already hold stores that next resolution will replace.
+     */
+    public function forgetDrivers(): static
+    {
+        $this->stores = [];
 
         return $this;
     }

@@ -2,14 +2,19 @@ name: static analysis
 
 on:
   push:
+    branches:
+      - 0.4
   pull_request:
+
+permissions:
+  contents: read
 
 jobs:
   types:
     runs-on: ubuntu-latest
 
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         include:
           - name: Source Code
@@ -20,7 +25,7 @@ jobs:
     name: ${{ matrix.name }}
 
     container:
-      image: phpswoole/swoole:6.2.0-php8.4
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.2.2
 
     steps:
       - name: Checkout code
@@ -30,9 +35,6 @@ jobs:
 
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
-
-      - name: Setup PHP extensions
-        uses: ./.github/actions/setup-php
 
       - name: Cache Composer dependencies
         uses: actions/cache@v5

@@ -14,8 +14,12 @@ class CreateSwooleTable extends BaseListener
      */
     public function handle(BeforeServerStart $event): void
     {
-        $this->swooleStores()->each(function (array $config) {
-            $this->container->make(SwooleTableManager::class)->get($config['table']);
+        $tables = $this->container->make(SwooleTableManager::class);
+
+        $this->swooleStores()->each(function (array $config) use ($tables): void {
+            $tables->get($config['table']);
         });
+
+        $tables->seal();
     }
 }

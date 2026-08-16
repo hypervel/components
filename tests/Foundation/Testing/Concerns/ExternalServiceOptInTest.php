@@ -34,8 +34,9 @@ class ExternalServiceOptInTest extends TestCase
      *
      * @var list<string>
      */
-    private const ENVIRONMENT_KEYS = [
+    private const array ENVIRONMENT_KEYS = [
         'REDIS_HOST',
+        'REDIS_CLUSTER_HOSTS_AND_PORTS',
         'MEILISEARCH_HOST',
         'TYPESENSE_HOST',
         'ALGOLIA_APP_ID',
@@ -68,11 +69,12 @@ class ExternalServiceOptInTest extends TestCase
     public function testRedisSkipsBeforeFlushingWhenHostIsNotConfigured(): void
     {
         $this->setExternalServiceEnvironmentValue('REDIS_HOST', null);
+        $this->setExternalServiceEnvironmentValue('REDIS_CLUSTER_HOSTS_AND_PORTS', null);
 
         $harness = new RedisOptInHarness;
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Set REDIS_HOST to run Redis integration tests');
+        $this->expectExceptionMessage('Set REDIS_HOST or REDIS_CLUSTER_HOSTS_AND_PORTS to run Redis integration tests');
 
         try {
             $harness->runSetUp();
@@ -83,7 +85,20 @@ class ExternalServiceOptInTest extends TestCase
 
     public function testRedisRunsWhenHostIsConfigured(): void
     {
+        $this->setExternalServiceEnvironmentValue('REDIS_CLUSTER_HOSTS_AND_PORTS', null);
         $this->setExternalServiceEnvironmentValue('REDIS_HOST', '127.0.0.1');
+
+        $harness = new RedisOptInHarness;
+
+        $harness->runSetUp();
+
+        $this->assertSame(1, $harness->flushRedisCalls);
+    }
+
+    public function testRedisRunsWhenClusterIsConfigured(): void
+    {
+        $this->setExternalServiceEnvironmentValue('REDIS_HOST', null);
+        $this->setExternalServiceEnvironmentValue('REDIS_CLUSTER_HOSTS_AND_PORTS', 'redis-cluster-1:6379');
 
         $harness = new RedisOptInHarness;
 

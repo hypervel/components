@@ -71,10 +71,8 @@ class EloquentStrictLoadingTest extends DatabaseTestCase
         $this->assertNull($models[0]->number);
     }
 
-    public function testStrictModeDoesntThrowAnExceptionOnEagerLoading()
+    public function testStrictModeDoesntThrowAnExceptionOnEagerLoading(): void
     {
-        $this->app['config']->set('database.connections.testing.zxc', false);
-
         EloquentStrictLoadingTestModel1::create();
         EloquentStrictLoadingTestModel1::create();
 

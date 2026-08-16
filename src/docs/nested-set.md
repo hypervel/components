@@ -28,6 +28,7 @@
 - [Soft Deleting Nodes](#soft-deleting-nodes)
 - [Rendering Trees](#rendering-trees)
 - [Performance](#performance)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -35,8 +36,6 @@
 Hypervel's nested set package provides tools for storing hierarchical data in a relational database. It is useful for category trees, menus, organizational charts, threaded comments, file hierarchies, and other data where you often need to read a full branch of the tree.
 
 Nested sets store each node with left and right boundary columns. This makes ancestor and descendant reads efficient, while inserts and moves update the affected boundary ranges.
-
-The package is based on Aimeos's maintained `laravel-nestedset` package and adapted for Hypervel's Eloquent implementation.
 
 <a name="installation"></a>
 ## Installation
@@ -896,3 +895,8 @@ If a model observer vetoes a mutation and it returns `false`, throw from the tra
 Concurrent writers to the same table and nested set scope must also be serialized by your application. The package does not add an implicit distributed lock or network call.
 
 The schema helpers create separate indexes for right-bound scans, left-bound scans, and parent lookups. Scope columns prefix each index, which keeps each scoped tree's reads isolated and substantially reduces ancestor, descendant, child, and sibling query work. These indexes add a bounded cost to structural writes; this favors the read-heavy workloads nested sets are designed for. Add a depth index only when your application frequently filters large trees by depth.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Nested Set began as a port of [Aimeos Laravel Nested Set](https://github.com/aimeos/laravel-nestedset) and has been adapted for Hypervel's framework architecture and coroutine runtime.

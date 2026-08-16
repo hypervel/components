@@ -103,7 +103,7 @@ class TestCaseTraitsTest extends TestCase
 
     public function testPackageTestCaseRunsInTestingEnvironment(): void
     {
-        $this->assertSame('testing', $this->app['env']);
+        $this->assertSame('testing', $this->app->make('env'));
         $this->assertSame('testing', $this->app->environment());
         $this->assertTrue($this->app->runningUnitTests());
     }

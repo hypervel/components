@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Queue\JobEncryptionTest;
 
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Encryption\DecryptException;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\ShouldBeEncrypted;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Bus\Dispatchable;
@@ -21,12 +22,13 @@ use Override;
 #[WithMigration('queue')]
 class JobEncryptionTest extends QueueTestCase
 {
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
 
-        $app['config']->set('app.key', Str::random(32));
-        $app['config']->set('queue.default', 'database');
+        $config = $app->make('config');
+        $config->set('app.key', Str::random(32));
+        $config->set('queue.default', 'database');
     }
 
     #[Override]

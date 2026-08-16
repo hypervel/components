@@ -15,7 +15,6 @@ use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\SimpleConnectionResolver;
 use Hypervel\Support\Traits\CapsuleManagerTrait;
-use PDO;
 
 /**
  * Standalone database manager for non-production use outside full application bootstrap.
@@ -60,9 +59,9 @@ class Manager
      */
     protected function setupDefaultConfiguration(): void
     {
-        $this->container['config']['database.fetch'] = PDO::FETCH_OBJ;
+        $configuration = $this->container->make('config');
 
-        $this->container['config']['database.default'] = 'default';
+        $configuration['database.default'] = 'default';
     }
 
     /**
@@ -122,11 +121,12 @@ class Manager
      */
     public function addConnection(array $config, string $name = 'default'): void
     {
-        $connections = $this->container['config']['database.connections'];
+        $configuration = $this->container->make('config');
+        $connections = $configuration['database.connections'] ?? [];
 
         $connections[$name] = $config;
 
-        $this->container['config']['database.connections'] = $connections;
+        $configuration['database.connections'] = $connections;
     }
 
     /**
@@ -144,15 +144,8 @@ class Manager
         }
     }
 
-    /**
-     * Set the fetch mode for the database connections.
-     */
-    public function setFetchMode(int $fetchMode): static
-    {
-        $this->container['config']['database.fetch'] = $fetchMode;
-
-        return $this;
-    }
+    // REMOVED: Capsule's setter writes unused configuration and cannot safely
+    // define a connection-wide row shape. Use Query\Builder::fetchUsing() per query.
 
     /**
      * Get the database manager instance.
@@ -168,7 +161,7 @@ class Manager
     public function getEventDispatcher(): ?Dispatcher
     {
         if ($this->container->bound('events')) {
-            return $this->container['events'];
+            return $this->container->make('events');
         }
 
         return null;

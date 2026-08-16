@@ -17,10 +17,10 @@ class MonitorSupervisorMemoryTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        $this->app['env'] = 'production';
+        $this->app->instance('env', 'production');
     }
 
-    public function testSupervisorIsTerminatedWhenUsingTooMuchMemory()
+    public function testSupervisorIsTerminatedWhenUsingTooMuchMemory(): void
     {
         $monitor = new MonitorSupervisorMemory;
 
@@ -33,7 +33,7 @@ class MonitorSupervisorMemoryTest extends IntegrationTestCase
         $monitor->handle(new SupervisorLooped($supervisor));
     }
 
-    public function testSupervisorIsNotTerminatedWhenUsingLowMemory()
+    public function testSupervisorIsNotTerminatedWhenUsingLowMemory(): void
     {
         $monitor = new MonitorSupervisorMemory;
 

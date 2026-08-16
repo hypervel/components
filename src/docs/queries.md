@@ -5,6 +5,7 @@
     - [Chunking Results](#chunking-results)
     - [Streaming Results Lazily](#streaming-results-lazily)
     - [Aggregates](#aggregates)
+    - [Custom Fetch Modes](#custom-fetch-modes)
 - [Select Statements](#select-statements)
 - [Raw Expressions](#raw-expressions)
 - [Joins](#joins)
@@ -291,6 +292,30 @@ DB::table('orders')->where('finalized', 1)->doesntExistOr(function () {
 });
 ```
 
+<a name="custom-fetch-modes"></a>
+### Custom Fetch Modes
+
+By default, the query builder returns each row as a `stdClass` object. You may use the `fetchUsing` method to pass a different [PDO fetch mode](https://www.php.net/manual/en/pdostatement.fetch.php) to row-returning operations:
+
+```php
+use Hypervel\Support\Facades\DB;
+use PDO;
+
+$users = DB::table('users')
+    ->fetchUsing(PDO::FETCH_ASSOC)
+    ->get();
+
+echo $users->first()['email'];
+```
+
+The selected mode is also used by chunking and lazy streaming methods. Methods such as `lazyById` and cursor pagination still require array or object rows containing their ordering columns. Calling `fetchUsing` without arguments restores the connection's fixed object mode.
+
+Methods that return a fixed shape—including existence checks, aggregates, counts, plucks, and scalar value helpers—ignore custom fetch modes. Eloquent also expects array or object rows so it can hydrate models and cannot use scalar fetch modes.
+
+The `cursor` method applies the selected mode to each streamed row. Whole-result grouping and keying modes therefore cannot produce the same collection shape as `get`, and `PDO::FETCH_FUNC` is not available to cursors. Conversely, streaming modes such as `PDO::FETCH_LAZY` and `PDO::FETCH_INTO` are not available to `get`.
+
+Fetch modes are scoped to the query builder. Connections and Capsule do not expose a mutable connection-wide default.
+
 <a name="select-statements"></a>
 ## Select Statements
 
@@ -324,13 +349,20 @@ $users = $query->addSelect('age')->get();
 <a name="query-timeouts"></a>
 #### Query Timeouts
 
-When using MariaDB or MySQL, the `timeout` method may be used to limit a select query's execution time in seconds:
+When using MariaDB or MySQL, the `timeout` method may be used to limit a complete select statement's execution time in seconds. Apply the timeout to the outer query after composing any subqueries or unions:
 
 ```php
+$activeMemberships = DB::table('memberships')
+    ->select('user_id')
+    ->where('active', true);
+
 $users = DB::table('users')
+    ->whereIn('id', $activeMemberships)
     ->timeout(2)
     ->get();
 ```
+
+Embedded queries cannot define independent timeouts, and a timed query cannot be passed to the `explain` method. The timeout applies only to select statements; it does not limit insert, update, or delete statements, nor does it provide a transaction-wide lock wait timeout.
 
 <a name="index-hints"></a>
 #### Index Hints

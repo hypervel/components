@@ -25,6 +25,7 @@ use Hypervel\Support\Traits\Macroable;
 use Psr\Log\LogLevel;
 use Redis;
 use RedisCluster;
+use RedisClusterException;
 use RedisException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -333,7 +334,7 @@ abstract class RedisConnection extends BaseConnection
     /**
      * Top-level connection config keys that should be applied through setOption.
      */
-    private const CONNECTION_LEVEL_PHPREDIS_OPTIONS = [
+    private const array CONNECTION_LEVEL_PHPREDIS_OPTIONS = [
         'read_timeout',
         'max_retries',
         'backoff_algorithm',
@@ -353,30 +354,25 @@ abstract class RedisConnection extends BaseConnection
 
     protected array $config = [
         'timeout' => 0.0,
-        'reserved' => null,
         'retry_interval' => 0,
         'read_timeout' => 0.0,
         'cluster' => [
-            'enable' => false,
-            'name' => null,
+            'enabled' => false,
             'seeds' => [],
-            'read_timeout' => 0.0,
-            'persistent' => false,
-            'context' => [],
         ],
         'sentinel' => [
-            'enable' => false,
+            'enabled' => false,
             'master_name' => '',
             'nodes' => [],
-            'persistent' => '',
-            'read_timeout' => 0,
+            'username' => null,
+            'password' => null,
+            'timeout' => 0.0,
+            'read_timeout' => 0.0,
             'context' => [],
         ],
         'options' => [],
         'context' => [],
-        'event' => [
-            'enable' => false,
-        ],
+        'events' => false,
     ];
 
     /**
@@ -419,7 +415,7 @@ abstract class RedisConnection extends BaseConnection
 
             $name = strtolower($name);
             $result = $this->executeCommand($name, $arguments);
-        } catch (RedisException $exception) {
+        } catch (RedisException|RedisClusterException $exception) {
             if ($this->shouldInvalidateAfter($exception)) {
                 $this->markInvalid();
             }
@@ -532,6 +528,16 @@ abstract class RedisConnection extends BaseConnection
         }
 
         return true;
+    }
+
+    /**
+     * Mark the connection invalid before its next use.
+     *
+     * @internal
+     */
+    public function invalidate(): void
+    {
+        $this->markInvalid();
     }
 
     /**
@@ -863,13 +869,13 @@ abstract class RedisConnection extends BaseConnection
     /**
      * Determine whether a failed command left the connection unsafe to reuse.
      */
-    protected function shouldInvalidateAfter(RedisException $exception): bool
+    protected function shouldInvalidateAfter(RedisException|RedisClusterException $exception): bool
     {
         if ($this->connection->getLastError() !== $exception->getMessage()) {
             return true;
         }
 
-        if (! ($this->config['sentinel']['enable'] ?? false)) {
+        if (! ($this->config['sentinel']['enabled'] ?? false)) {
             return false;
         }
 
@@ -992,6 +998,10 @@ abstract class RedisConnection extends BaseConnection
      */
     protected function callMget(array $keys): array
     {
+        if ($keys === []) {
+            return [];
+        }
+
         return array_map(function ($value) {
             return $value !== false ? $value : null;
         }, $this->connection->mGet($keys));
@@ -1444,7 +1454,7 @@ abstract class RedisConnection extends BaseConnection
     {
         [$method, $args] = $this->prepareEval($script, $numberOfKeys, ...$arguments);
 
-        return $this->connection->{$method}(...$args);
+        return $this->normalizeNullReplies($this->connection->{$method}(...$args));
     }
 
     /**
@@ -1645,17 +1655,33 @@ abstract class RedisConnection extends BaseConnection
                 if ($result === false) {
                     $evalError = $this->connection->getLastError();
                     if ($evalError !== null) {
-                        throw new LuaScriptException('Lua script execution failed: ' . $evalError);
+                        throw $this->scriptException($evalError);
                     }
                     // If no error, script legitimately returned nil (which becomes false)
                 }
             } elseif ($error !== null) {
                 // Some other error (syntax, OOM, WRONGTYPE, etc.)
-                throw new LuaScriptException('Lua script execution failed: ' . $error);
+                throw $this->scriptException($error);
             }
             // If $error is null and $result is false, the script legitimately returned false
         }
 
+        return $this->normalizeNullReplies($result);
+    }
+
+    /**
+     * Create an exception for a Lua script error.
+     */
+    protected function scriptException(string $error): Throwable
+    {
+        return new LuaScriptException('Lua script execution failed: ' . $error);
+    }
+
+    /**
+     * Normalize topology-specific null replies.
+     */
+    protected function normalizeNullReplies(mixed $result): mixed
+    {
         return $result;
     }
 

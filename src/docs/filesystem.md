@@ -11,6 +11,7 @@
 - [Obtaining Disk Instances](#obtaining-disk-instances)
     - [On-Demand Disks](#on-demand-disks)
 - [Retrieving Files](#retrieving-files)
+    - [Images](#retrieving-images)
     - [Downloading Files](#downloading-files)
     - [File URLs](#file-urls)
     - [Temporary URLs](#temporary-urls)
@@ -329,7 +330,7 @@ $files = new ScopedFilesystemProxy(
 $files->put('avatar.jpg', $contents);
 ```
 
-The disk and prefix resolvers are each called once per operation. Keep the disk resolver fast by reading values already available in memory. Equivalent S3 and Google Cloud Storage configurations created with `Storage::build()` reuse the same client pool. Use `ScopedCloudFilesystemProxy` when you need methods from the `Cloud` contract, such as `url()`. Every disk returned by its resolver must implement that contract, or the first operation throws a `TypeError`.
+The disk and prefix resolvers are each called once per operation. For `image()`, both are resolved when the image is created and captured for its later lazy read, as described under [Images](#retrieving-images). Keep the disk resolver fast by reading values already available in memory. Equivalent S3 and Google Cloud Storage configurations created with `Storage::build()` reuse the same client pool. Use `ScopedCloudFilesystemProxy` when you need methods from the `Cloud` contract, such as `url()`. Every disk returned by its resolver must implement that contract, or the first operation throws a `TypeError`.
 
 Dynamic scoped filesystems fail closed when the resolved prefix is empty. Pass `allowRootPassthrough: true` to the constructor only when root access is intentional. Prefixes and user paths are normalized with Flysystem's path normalizer, traversal and control characters are rejected, and unknown methods are not forwarded because an unmapped call could bypass the scope. Percent-encoded segments are treated as literal file names; URL decoding belongs at the HTTP boundary.
 
@@ -437,6 +438,19 @@ if (Storage::disk('s3')->directoryMissing('photos')) {
     // ...
 }
 ```
+
+<a name="retrieving-images"></a>
+### Images
+
+After installing `hypervel/image`, you may create an image from a file already stored on any filesystem disk. The file is read when the image is first materialized, such as when it is inspected, converted to bytes, processed, or stored:
+
+```php
+$image = Storage::disk('public')->image('avatars/photo.jpg');
+```
+
+You may then resize, crop, convert, or store the image using Hypervel's [image manipulation features](/docs/{{version}}/images).
+
+When `image()` is called on a dynamic `ScopedFilesystemProxy` or `ScopedCloudFilesystemProxy`, the current disk and non-empty prefix are captured when the image is created. This prevents an image from crossing tenant boundaries if it is processed after the coroutine context changes. An empty prefix fails immediately unless the proxy was deliberately constructed with `allowRootPassthrough: true`.
 
 <a name="downloading-files"></a>
 ### Downloading Files

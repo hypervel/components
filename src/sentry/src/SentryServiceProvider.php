@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry;
 
+use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Contracts\Http\Kernel as HttpKernelInterface;
 use Hypervel\Contracts\View\Engine;
 use Hypervel\Contracts\View\View;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Foundation\Console\AboutCommand;
 use Hypervel\Http\Request;
 use Hypervel\ObjectPool\PoolOptions;
@@ -41,6 +44,7 @@ use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Sentry\ClientBuilder;
+use Sentry\ClientInterface;
 use Sentry\Integration as SdkIntegration;
 use Sentry\Logger\DebugFileLogger;
 use Sentry\Logs\Logs;
@@ -50,12 +54,12 @@ use Sentry\State\HubInterface;
 use Sentry\State\Layer;
 use Throwable;
 
-class SentryServiceProvider extends ServiceProvider
+class SentryServiceProvider extends ServiceProvider implements ReloadsConfiguration
 {
     /**
      * Configuration options that are Hypervel-specific and should not be sent to the base PHP SDK.
      */
-    protected const HYPERVEL_SPECIFIC_OPTIONS = [
+    protected const array HYPERVEL_SPECIFIC_OPTIONS = [
         // These settings are Hypervel-specific and the PHP SDK will throw errors if it receives them
         'tracing',
         'breadcrumbs',
@@ -70,7 +74,7 @@ class SentryServiceProvider extends ServiceProvider
     /**
      * Options that should be resolved from the container instead of being passed directly to the SDK.
      */
-    protected const OPTIONS_TO_RESOLVE_FROM_CONTAINER = [
+    protected const array OPTIONS_TO_RESOLVE_FROM_CONTAINER = [
         'logger',
     ];
 
@@ -133,6 +137,28 @@ class SentryServiceProvider extends ServiceProvider
     }
 
     /**
+     * Reload the worker configuration owned by the provider.
+     *
+     * Boot-only. Calling this while requests are running mutates shared worker
+     * state while concurrent coroutines may still use the previous configuration.
+     */
+    public function reloadConfiguration(): void
+    {
+        if (! $this->app->resolved(HubInterface::class)) {
+            return;
+        }
+
+        $hub = $this->app->make(HubInterface::class);
+
+        if (! $hub instanceof Hub) {
+            return;
+        }
+
+        $hub->bindClient($this->createClient());
+        $this->app->forgetInstance(BacktraceHelper::class);
+    }
+
+    /**
      * Configure and register the Sentry client with the container.
      */
     protected function configureAndRegisterClient(): void
@@ -188,69 +214,7 @@ class SentryServiceProvider extends ServiceProvider
 
         // HubInterface singleton — coroutine-scoped hub with full integration setup
         $this->app->singleton(HubInterface::class, function () {
-            /** @var ClientBuilder $clientBuilder */
-            $clientBuilder = $this->app->make(ClientBuilder::class);
-
-            $options = $clientBuilder->getOptions();
-
-            $userConfig = $this->getUserConfig();
-
-            /** @var array<array-key, class-string>|callable $userIntegrationOption */
-            $userIntegrationOption = $userConfig['integrations'] ?? [];
-
-            $userIntegrations = $this->resolveIntegrationsFromUserConfig(
-                is_array($userIntegrationOption) ? $userIntegrationOption : [],
-            );
-
-            $options->setIntegrations(static function (array $integrations) use ($options, $userIntegrations, $userIntegrationOption): array {
-                if ($options->hasDefaultIntegrations()) {
-                    // Remove the default error and fatal exception listeners to let the framework handle those
-                    // through the exception handler and log channel integration
-                    $integrations = array_filter($integrations, static function (SdkIntegration\IntegrationInterface $integration): bool {
-                        if ($integration instanceof SdkIntegration\ErrorListenerIntegration) {
-                            return false;
-                        }
-
-                        if ($integration instanceof SdkIntegration\ExceptionListenerIntegration) {
-                            return false;
-                        }
-
-                        if ($integration instanceof SdkIntegration\FatalErrorListenerIntegration) {
-                            return false;
-                        }
-
-                        // Remove the default request integration so it can be re-added with
-                        // a Hypervel-specific request fetcher that reads from coroutine context.
-                        if ($integration instanceof SdkIntegration\RequestIntegration) {
-                            return false;
-                        }
-
-                        return true;
-                    });
-
-                    $integrations[] = new SdkIntegration\RequestIntegration(
-                        new HypervelRequestFetcher
-                    );
-                }
-
-                $integrations = array_merge(
-                    $integrations,
-                    [
-                        new Integration,
-                        new ContextIntegration,
-                        new ExceptionContextIntegration,
-                    ],
-                    $userIntegrations
-                );
-
-                if (is_callable($userIntegrationOption)) {
-                    return $userIntegrationOption($integrations);
-                }
-
-                return $integrations;
-            });
-
-            $hub = new Hub($clientBuilder->getClient());
+            $hub = new Hub($this->createClient());
 
             SentrySdk::setCurrentHub($hub);
 
@@ -266,6 +230,76 @@ class SentryServiceProvider extends ServiceProvider
 
             return new BacktraceHelper($options, new RepresentationSerializer($options));
         });
+    }
+
+    /**
+     * Create the configured Sentry client.
+     */
+    protected function createClient(): ClientInterface
+    {
+        /** @var ClientBuilder $clientBuilder */
+        $clientBuilder = $this->app->make(ClientBuilder::class);
+
+        $options = $clientBuilder->getOptions();
+
+        $userConfig = $this->getUserConfig();
+
+        /** @var array<array-key, class-string>|callable $userIntegrationOption */
+        $userIntegrationOption = $userConfig['integrations'] ?? [];
+
+        $userIntegrations = $this->resolveIntegrationsFromUserConfig(
+            is_array($userIntegrationOption) ? $userIntegrationOption : [],
+        );
+
+        $options->setIntegrations(static function (array $integrations) use ($options, $userIntegrations, $userIntegrationOption): array {
+            if ($options->hasDefaultIntegrations()) {
+                // Remove the default error and fatal exception listeners to let the framework handle those
+                // through the exception handler and log channel integration
+                $integrations = array_filter($integrations, static function (SdkIntegration\IntegrationInterface $integration): bool {
+                    if ($integration instanceof SdkIntegration\ErrorListenerIntegration) {
+                        return false;
+                    }
+
+                    if ($integration instanceof SdkIntegration\ExceptionListenerIntegration) {
+                        return false;
+                    }
+
+                    if ($integration instanceof SdkIntegration\FatalErrorListenerIntegration) {
+                        return false;
+                    }
+
+                    // Remove the default request integration so it can be re-added with
+                    // a Hypervel-specific request fetcher that reads from coroutine context.
+                    if ($integration instanceof SdkIntegration\RequestIntegration) {
+                        return false;
+                    }
+
+                    return true;
+                });
+
+                $integrations[] = new SdkIntegration\RequestIntegration(
+                    new HypervelRequestFetcher
+                );
+            }
+
+            $integrations = array_merge(
+                $integrations,
+                [
+                    new Integration,
+                    new ContextIntegration,
+                    new ExceptionContextIntegration,
+                ],
+                $userIntegrations
+            );
+
+            if (is_callable($userIntegrationOption)) {
+                return $userIntegrationOption($integrations);
+            }
+
+            return $integrations;
+        });
+
+        return $clientBuilder->getClient();
     }
 
     /**
@@ -557,22 +591,28 @@ class SentryServiceProvider extends ServiceProvider
      */
     protected function registerLogChannels(): void
     {
-        $config = $this->app->make('config');
+        $config = $this->app->make(ConfigRepository::class);
 
-        $logChannels = $config->array('logging.channels', []);
+        // Derived config can depend on the worker environment, so replay the operation after config reload rather than its master result.
+        $this->app->make(ConfigMutationTracker::class)->applyAndRecord(
+            $config,
+            static function (ConfigRepository $config): void {
+                $logChannels = $config->array('logging.channels', []);
 
-        if (! array_key_exists('sentry', $logChannels)) {
-            $config->set('logging.channels.sentry', [
-                'driver' => 'sentry',
-            ]);
-        }
+                if (! array_key_exists('sentry', $logChannels)) {
+                    $config->set('logging.channels.sentry', [
+                        'driver' => 'sentry',
+                    ]);
+                }
 
-        if (! array_key_exists('sentry_logs', $logChannels)) {
-            $config->set('logging.channels.sentry_logs', [
-                'driver' => 'sentry_logs',
-                'level' => $config->string('sentry.logs_channel_level', 'debug'),
-            ]);
-        }
+                if (! array_key_exists('sentry_logs', $logChannels)) {
+                    $config->set('logging.channels.sentry_logs', [
+                        'driver' => 'sentry_logs',
+                        'level' => $config->string('sentry.logs_channel_level', 'debug'),
+                    ]);
+                }
+            },
+        );
     }
 
     /**
@@ -677,8 +717,6 @@ class SentryServiceProvider extends ServiceProvider
      */
     protected function getUserConfig(): array
     {
-        $config = $this->app['config'][static::$abstract];
-
-        return empty($config) ? [] : $config;
+        return $this->app->make('config')->array(static::$abstract);
     }
 }

@@ -71,6 +71,9 @@ class WorkerCachedMaintenanceMode implements MaintenanceModeContract
 
     /**
      * Flush the cached maintenance mode state.
+     *
+     * Boot or tests only. Request-time use clears worker-wide state while
+     * concurrent coroutines may still be using the previous snapshot.
      */
     public static function flushCache(): void
     {

@@ -10,6 +10,7 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Integration\Support\Fixtures\MultipleInstanceManager;
 use Mockery as m;
 use RuntimeException;
+use stdClass;
 
 class MultipleInstanceManagerTest extends TestCase
 {
@@ -68,5 +69,20 @@ class MultipleInstanceManagerTest extends TestCase
         $manager = new MultipleInstanceManager($this->app);
         $manager->extend('custom', fn () => $this);
         $this->assertSame($manager, $manager->instance('custom'));
+    }
+
+    public function testForgetInstancesClearsEveryInstanceAndPreservesCustomCreators(): void
+    {
+        $manager = new MultipleInstanceManager($this->app);
+        $manager->extend('custom', fn () => new stdClass);
+        $foo = $manager->instance('foo');
+        $bar = $manager->instance('bar');
+        $custom = $manager->instance('custom');
+
+        $this->assertSame($manager, $manager->forgetInstances());
+
+        $this->assertNotSame($foo, $manager->instance('foo'));
+        $this->assertNotSame($bar, $manager->instance('bar'));
+        $this->assertNotSame($custom, $manager->instance('custom'));
     }
 }

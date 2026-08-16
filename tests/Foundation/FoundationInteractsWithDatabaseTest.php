@@ -626,7 +626,7 @@ class ProductStub extends Model
 
 class CustomProductStub extends ProductStub
 {
-    public const DELETED_AT = 'trashed_at';
+    public const string DELETED_AT = 'trashed_at';
 }
 
 class OrderStub extends Model

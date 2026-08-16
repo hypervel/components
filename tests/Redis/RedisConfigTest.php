@@ -13,23 +13,50 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 class RedisConfigTest extends TestCase
 {
-    public function testConnectionNamesExcludesMetadataKeys(): void
+    public function testConnectionConfigAcceptsPhpRedisClient(): void
     {
-        $redisConfig = [
-            'client' => 'phpredis',
-            'options' => ['prefix' => 'global:'],
-            'clusters' => ['cache' => []],
-            'default' => ['host' => '127.0.0.1', 'port' => 6379, 'database' => 0],
-            'cache' => ['host' => '127.0.0.1', 'port' => 6379, 'database' => 1],
-        ];
-
         $config = m::mock(Repository::class);
-        $config->shouldReceive('array')->with('database.redis')->andReturn($redisConfig);
+        $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'client' => 'phpredis',
+            'default' => ['host' => '127.0.0.1', 'port' => 6379, 'database' => 0],
+        ]);
 
-        $this->assertSame(['default', 'cache'], (new RedisConfig($config))->connectionNames());
+        $connection = (new RedisConfig($config))->connectionConfig('default');
+
+        $this->assertSame('127.0.0.1', $connection['host']);
     }
 
-    public function testConnectionNamesThrowsForNonArrayConnectionEntry(): void
+    public function testConnectionConfigRejectsUnsupportedClient(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The phpredis Redis client is the only supported client.');
+
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'client' => 'predis',
+            'default' => ['host' => '127.0.0.1', 'port' => 6379],
+        ]);
+
+        (new RedisConfig($config))->connectionConfig('default');
+    }
+
+    public function testConnectionConfigRejectsLaravelClusterNamespace(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'The redis.clusters configuration is not supported. Configure cluster settings on a named Redis connection.'
+        );
+
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'clusters' => ['cache' => []],
+            'default' => ['host' => '127.0.0.1', 'port' => 6379],
+        ]);
+
+        (new RedisConfig($config))->connectionConfig('default');
+    }
+
+    public function testConnectionConfigThrowsForNonArrayConnectionEntry(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The redis connection [default] must be an array.');
@@ -39,10 +66,10 @@ class RedisConfigTest extends TestCase
             'default' => 'tcp://127.0.0.1:6379',
         ]);
 
-        (new RedisConfig($config))->connectionNames();
+        (new RedisConfig($config))->connectionConfig('default');
     }
 
-    public function testConnectionNamesThrowsWhenHostPortMissingForDirectConnection(): void
+    public function testConnectionConfigThrowsWhenHostPortMissingForDirectConnection(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The redis connection [custom] must define host and port.');
@@ -52,7 +79,41 @@ class RedisConfigTest extends TestCase
             'custom' => ['foo' => 'bar'],
         ]);
 
-        (new RedisConfig($config))->connectionNames();
+        (new RedisConfig($config))->connectionConfig('custom');
+    }
+
+    public function testConnectionConfigRejectsUnsupportedScheme(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The redis connection [default] scheme must be tcp or tls.');
+
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'default' => [
+                'scheme' => 'ssl',
+                'host' => '127.0.0.1',
+                'port' => 6379,
+            ],
+        ]);
+
+        (new RedisConfig($config))->connectionConfig('default');
+    }
+
+    public function testConnectionConfigRejectsInvalidContext(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The redis connection [default] context must be an array.');
+
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'default' => [
+                'context' => 'invalid',
+                'host' => '127.0.0.1',
+                'port' => 6379,
+            ],
+        ]);
+
+        (new RedisConfig($config))->connectionConfig('default');
     }
 
     public function testConnectionConfigMergesSharedAndConnectionOptions(): void
@@ -110,18 +171,18 @@ class RedisConfigTest extends TestCase
             'default' => [
                 'host' => '127.0.0.1',
                 'port' => 6379,
-                'event' => ['enable' => true],
+                'events' => true,
             ],
         ]);
         $redisConfig = new RedisConfig($config);
 
-        $this->assertTrue($redisConfig->connectionConfig('default')['event']['enable']);
+        $this->assertTrue($redisConfig->connectionConfig('default')['events']);
 
         $redisConfig->disableEvents();
-        $this->assertFalse($redisConfig->connectionConfig('default')['event']['enable']);
+        $this->assertFalse($redisConfig->connectionConfig('default')['events']);
 
         $redisConfig->enableEvents();
-        $this->assertTrue($redisConfig->connectionConfig('default')['event']['enable']);
+        $this->assertTrue($redisConfig->connectionConfig('default')['events']);
     }
 
     public function testEventOverrideCreatesEventConfigForFutureAssemblies(): void
@@ -137,7 +198,7 @@ class RedisConfigTest extends TestCase
 
         $redisConfig->enableEvents();
 
-        $this->assertTrue($redisConfig->connectionConfig('default')['event']['enable']);
+        $this->assertTrue($redisConfig->connectionConfig('default')['events']);
     }
 
     public function testConnectionConfigThrowsForMissingConnection(): void
@@ -170,23 +231,30 @@ class RedisConfigTest extends TestCase
         (new RedisConfig($config))->connectionConfig('default');
     }
 
-    public function testConnectionNamesAcceptsClusterConnectionWithoutHostAndPort(): void
+    public function testConnectionConfigAcceptsClusterConnectionWithoutHostAndPort(): void
     {
         $config = m::mock(Repository::class);
         $config->shouldReceive('array')->with('database.redis')->andReturn([
             'clustered' => [
                 'database' => 0,
                 'cluster' => [
-                    'enable' => true,
+                    'enabled' => true,
                     'seeds' => ['127.0.0.1:7000', '127.0.0.1:7001'],
                 ],
             ],
         ]);
 
-        $this->assertSame(['clustered'], (new RedisConfig($config))->connectionNames());
+        $connection = (new RedisConfig($config))->connectionConfig('clustered');
+
+        $this->assertSame('tcp', $connection['scheme']);
+        $this->assertSame([], $connection['context']);
+        $this->assertSame(
+            ['tcp://127.0.0.1:7000', 'tcp://127.0.0.1:7001'],
+            $connection['cluster']['seeds'],
+        );
     }
 
-    public function testConnectionNamesThrowsWhenClusterEnabledWithoutSeeds(): void
+    public function testConnectionConfigThrowsWhenClusterEnabledWithoutSeeds(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The redis connection [clustered] cluster seeds must be a non-empty array.');
@@ -195,17 +263,17 @@ class RedisConfigTest extends TestCase
         $config->shouldReceive('array')->with('database.redis')->andReturn([
             'clustered' => [
                 'cluster' => [
-                    'enable' => true,
+                    'enabled' => true,
                     'seeds' => [],
                 ],
             ],
         ]);
 
-        (new RedisConfig($config))->connectionNames();
+        (new RedisConfig($config))->connectionConfig('clustered');
     }
 
     #[DataProvider('invalidTopologyEntries')]
-    public function testConnectionNamesRejectsInvalidClusterSeeds(mixed $seed): void
+    public function testConnectionConfigRejectsInvalidClusterSeeds(mixed $seed): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The redis connection [clustered] cluster seeds must all be non-empty strings.');
@@ -214,33 +282,165 @@ class RedisConfigTest extends TestCase
         $config->shouldReceive('array')->with('database.redis')->andReturn([
             'clustered' => [
                 'cluster' => [
-                    'enable' => true,
+                    'enabled' => true,
                     'seeds' => [$seed],
                 ],
             ],
         ]);
 
-        (new RedisConfig($config))->connectionNames();
+        (new RedisConfig($config))->connectionConfig('clustered');
     }
 
-    public function testConnectionNamesAcceptsSentinelConnectionWithoutHostAndPort(): void
+    public function testConfiguredTlsSchemeSecuresBareClusterSeeds(): void
+    {
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'clustered' => [
+                'scheme' => 'tls',
+                'cluster' => [
+                    'enabled' => true,
+                    'seeds' => ['127.0.0.1:7000'],
+                ],
+            ],
+        ]);
+
+        $connection = (new RedisConfig($config))->connectionConfig('clustered');
+
+        $this->assertSame('tls', $connection['scheme']);
+        $this->assertSame([], $connection['context']);
+        $this->assertSame(['tls://127.0.0.1:7000'], $connection['cluster']['seeds']);
+    }
+
+    public function testSecureClusterSeedSelectsTlsTransport(): void
+    {
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'clustered' => [
+                'cluster' => [
+                    'enabled' => true,
+                    'seeds' => ['ssl://127.0.0.1:7000', '127.0.0.1:7001'],
+                ],
+            ],
+        ]);
+
+        $connection = (new RedisConfig($config))->connectionConfig('clustered');
+
+        $this->assertSame('tls', $connection['scheme']);
+        $this->assertSame(
+            ['tls://127.0.0.1:7000', 'tls://127.0.0.1:7001'],
+            $connection['cluster']['seeds'],
+        );
+    }
+
+    public function testNonEmptyClusterContextSelectsTlsTransport(): void
+    {
+        $context = ['ssl' => ['verify_peer' => true]];
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'clustered' => [
+                'context' => $context,
+                'cluster' => [
+                    'enabled' => true,
+                    'seeds' => ['127.0.0.1:7000'],
+                ],
+            ],
+        ]);
+
+        $connection = (new RedisConfig($config))->connectionConfig('clustered');
+
+        $this->assertSame('tls', $connection['scheme']);
+        $this->assertSame($context, $connection['context']);
+        $this->assertSame(['tls://127.0.0.1:7000'], $connection['cluster']['seeds']);
+    }
+
+    #[DataProvider('inconsistentClusterTransports')]
+    public function testConnectionConfigRejectsInconsistentClusterTransport(array $connection): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'PhpRedis applies one stream context to every discovered node; use a single tcp or tls transport across scheme, context, and seeds.'
+        );
+
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'clustered' => $connection,
+        ]);
+
+        (new RedisConfig($config))->connectionConfig('clustered');
+    }
+
+    public static function inconsistentClusterTransports(): array
+    {
+        return [
+            'configured tcp with tls seed' => [[
+                'scheme' => 'tcp',
+                'cluster' => [
+                    'enabled' => true,
+                    'seeds' => ['tls://127.0.0.1:7000'],
+                ],
+            ]],
+            'stream context with tcp seed' => [[
+                'context' => ['ssl' => ['verify_peer' => true]],
+                'cluster' => [
+                    'enabled' => true,
+                    'seeds' => ['tcp://127.0.0.1:7000'],
+                ],
+            ]],
+            'configured tcp with stream context' => [[
+                'scheme' => 'tcp',
+                'context' => ['ssl' => ['verify_peer' => true]],
+                'cluster' => [
+                    'enabled' => true,
+                    'seeds' => ['127.0.0.1:7000'],
+                ],
+            ]],
+            'mixed seed schemes' => [[
+                'cluster' => [
+                    'enabled' => true,
+                    'seeds' => ['tcp://127.0.0.1:7000', 'tls://127.0.0.1:7001'],
+                ],
+            ]],
+        ];
+    }
+
+    public function testConnectionConfigRejectsUnsupportedClusterSeedScheme(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The redis connection [clustered] cluster seeds may only use tcp, tls, or ssl schemes.');
+
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'clustered' => [
+                'cluster' => [
+                    'enabled' => true,
+                    'seeds' => ['redis://127.0.0.1:7000'],
+                ],
+            ],
+        ]);
+
+        (new RedisConfig($config))->connectionConfig('clustered');
+    }
+
+    public function testConnectionConfigAcceptsSentinelConnectionWithoutHostAndPort(): void
     {
         $config = m::mock(Repository::class);
         $config->shouldReceive('array')->with('database.redis')->andReturn([
             'sentinel' => [
                 'database' => 0,
                 'sentinel' => [
-                    'enable' => true,
+                    'enabled' => true,
                     'nodes' => ['tcp://127.0.0.1:26379'],
                     'master_name' => 'mymaster',
                 ],
             ],
         ]);
 
-        $this->assertSame(['sentinel'], (new RedisConfig($config))->connectionNames());
+        $connection = (new RedisConfig($config))->connectionConfig('sentinel');
+
+        $this->assertSame('mymaster', $connection['sentinel']['master_name']);
     }
 
-    public function testConnectionNamesThrowsWhenSentinelEnabledWithoutNodes(): void
+    public function testConnectionConfigThrowsWhenSentinelEnabledWithoutNodes(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The redis connection [sentinel] sentinel nodes must be a non-empty array.');
@@ -249,18 +449,18 @@ class RedisConfigTest extends TestCase
         $config->shouldReceive('array')->with('database.redis')->andReturn([
             'sentinel' => [
                 'sentinel' => [
-                    'enable' => true,
+                    'enabled' => true,
                     'nodes' => [],
                     'master_name' => 'mymaster',
                 ],
             ],
         ]);
 
-        (new RedisConfig($config))->connectionNames();
+        (new RedisConfig($config))->connectionConfig('sentinel');
     }
 
     #[DataProvider('invalidTopologyEntries')]
-    public function testConnectionNamesRejectsInvalidSentinelNodes(mixed $node): void
+    public function testConnectionConfigRejectsInvalidSentinelNodes(mixed $node): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The redis connection [sentinel] sentinel nodes must all be non-empty strings.');
@@ -269,14 +469,14 @@ class RedisConfigTest extends TestCase
         $config->shouldReceive('array')->with('database.redis')->andReturn([
             'sentinel' => [
                 'sentinel' => [
-                    'enable' => true,
+                    'enabled' => true,
                     'nodes' => [$node],
                     'master_name' => 'mymaster',
                 ],
             ],
         ]);
 
-        (new RedisConfig($config))->connectionNames();
+        (new RedisConfig($config))->connectionConfig('sentinel');
     }
 
     public static function invalidTopologyEntries(): array
@@ -287,7 +487,7 @@ class RedisConfigTest extends TestCase
         ];
     }
 
-    public function testConnectionNamesThrowsWhenSentinelEnabledWithoutMasterName(): void
+    public function testConnectionConfigThrowsWhenSentinelEnabledWithoutMasterName(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The redis connection [sentinel] sentinel master name must be configured.');
@@ -296,14 +496,14 @@ class RedisConfigTest extends TestCase
         $config->shouldReceive('array')->with('database.redis')->andReturn([
             'sentinel' => [
                 'sentinel' => [
-                    'enable' => true,
+                    'enabled' => true,
                     'nodes' => ['tcp://127.0.0.1:26379'],
                     'master_name' => '',
                 ],
             ],
         ]);
 
-        (new RedisConfig($config))->connectionNames();
+        (new RedisConfig($config))->connectionConfig('sentinel');
     }
 
     public function testConnectionConfigParsesUrl(): void
@@ -364,7 +564,7 @@ class RedisConfigTest extends TestCase
         $this->assertSame(0, $connectionConfig['database']);
     }
 
-    public function testConnectionNamesAcceptsUrlOnlyConnection(): void
+    public function testConnectionConfigAcceptsUrlOnlyConnection(): void
     {
         $config = m::mock(Repository::class);
         $config->shouldReceive('array')->with('database.redis')->andReturn([
@@ -373,10 +573,12 @@ class RedisConfigTest extends TestCase
             ],
         ]);
 
-        $this->assertSame(['default'], (new RedisConfig($config))->connectionNames());
+        $connection = (new RedisConfig($config))->connectionConfig('default');
+
+        $this->assertSame('127.0.0.1', $connection['host']);
     }
 
-    public function testConnectionNamesThrowsWhenClusterAndSentinelBothEnabled(): void
+    public function testConnectionConfigThrowsWhenClusterAndSentinelBothEnabled(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The redis connection [mixed] cannot enable both cluster and sentinel.');
@@ -385,17 +587,17 @@ class RedisConfigTest extends TestCase
         $config->shouldReceive('array')->with('database.redis')->andReturn([
             'mixed' => [
                 'cluster' => [
-                    'enable' => true,
+                    'enabled' => true,
                     'seeds' => ['127.0.0.1:7000'],
                 ],
                 'sentinel' => [
-                    'enable' => true,
+                    'enabled' => true,
                     'nodes' => ['tcp://127.0.0.1:26379'],
                     'master_name' => 'mymaster',
                 ],
             ],
         ]);
 
-        (new RedisConfig($config))->connectionNames();
+        (new RedisConfig($config))->connectionConfig('mixed');
     }
 }

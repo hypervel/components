@@ -547,6 +547,7 @@ class RedisProxyIntegrationTest extends TestCase
             $transaction->set($key, 'after');
         });
 
+        // PhpRedis Cluster currently returns [false]; RedisClusterIntegrationTest pins that topology-specific shape.
         $this->assertFalse($result);
 
         $redis->releaseContextConnection();

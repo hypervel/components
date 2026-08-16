@@ -48,22 +48,22 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Temporarily store the raw blocks found in the template.
      */
-    protected const RAW_BLOCKS_CONTEXT_KEY = '__view.raw_blocks';
+    protected const string RAW_BLOCKS_CONTEXT_KEY = '__view.raw_blocks';
 
     /**
      * Footer lines to be added to the template.
      */
-    protected const FOOTER_CONTEXT_KEY = '__view.footer';
+    protected const string FOOTER_CONTEXT_KEY = '__view.footer';
 
     /**
      * The file currently being compiled.
      */
-    protected const PATH_CONTEXT_KEY = '__view.path';
+    protected const string PATH_CONTEXT_KEY = '__view.path';
 
     /**
      * The temporary echo format override for the current coroutine.
      */
-    protected const ECHO_FORMAT_CONTEXT_KEY = '__view.echo_format';
+    protected const string ECHO_FORMAT_CONTEXT_KEY = '__view.echo_format';
 
     /**
      * All of the registered extensions.

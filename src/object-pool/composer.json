@@ -1,6 +1,6 @@
 {
     "name": "hypervel/object-pool",
-    "description": "The object pool package for Hypervel.",
+    "description": "Object pooling for Hypervel applications and packages.",
     "license": "MIT",
     "keywords": [
         "php",

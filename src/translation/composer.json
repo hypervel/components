@@ -1,7 +1,7 @@
 {
     "name": "hypervel/translation",
     "type": "library",
-    "description": "The translation package for Hypervel.",
+    "description": "The Hypervel Translation package.",
     "license": "MIT",
     "keywords": [
         "php",

@@ -88,7 +88,7 @@ class Kernel implements KernelContract
      * and an instance property would be overwritten by whichever coroutine
      * called handle() most recently.
      */
-    protected const REQUEST_STARTED_AT_CONTEXT_KEY = '__http.kernel.request_started_at';
+    protected const string REQUEST_STARTED_AT_CONTEXT_KEY = '__http.kernel.request_started_at';
 
     /**
      * The priority-sorted list of middleware.
@@ -133,7 +133,7 @@ class Kernel implements KernelContract
             $request->enableHttpMethodParameterOverride();
             $response = $this->sendRequestThroughRouter($request);
 
-            $events = $this->app['events'];
+            $events = $this->app->make('events');
 
             if ($events->hasListeners(RequestHandled::class)) {
                 $events->dispatch(
@@ -209,7 +209,7 @@ class Kernel implements KernelContract
     public function terminate(Request $request, Response $response): void
     {
         $exception = null;
-        $events = $this->app['events'];
+        $events = $this->app->make('events');
 
         try {
             if ($events->hasListeners(Terminating::class)) {

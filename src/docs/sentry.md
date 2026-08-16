@@ -17,6 +17,7 @@
 - [Sensitive Data](#sensitive-data)
 - [Spotlight](#spotlight)
 - [Delivery and Shutdown](#delivery-and-shutdown)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -327,3 +328,8 @@ use Swoole\Constant;
 ```
 
 Increasing these values does not change normal request latency. They only bound transport operations and graceful shutdown work.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Sentry began as a port of [Sentry Laravel](https://github.com/getsentry/sentry-laravel) and has been adapted for Hypervel's framework architecture and coroutine runtime.

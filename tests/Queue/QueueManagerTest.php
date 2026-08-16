@@ -332,6 +332,25 @@ class QueueManagerTest extends TestCase
         $this->assertSame($queue, $manager->connection('sync'));
     }
 
+    public function testForgetConnectionsClearsEveryConnectionAndPreservesConnectors(): void
+    {
+        $container = $this->getContainer();
+        $config = $container->make('config');
+        $config->set('queue.connections.first', ['driver' => 'custom']);
+        $config->set('queue.connections.second', ['driver' => 'custom']);
+        $manager = new QueueManager($container);
+        $connector = m::mock(ConnectorInterface::class);
+        $connector->shouldReceive('connect')->times(4)->andReturnUsing(fn () => new NullQueue);
+        $manager->addConnector('custom', fn () => $connector);
+        $first = $manager->connection('first');
+        $second = $manager->connection('second');
+
+        $this->assertSame($manager, $manager->forgetConnections());
+
+        $this->assertNotSame($first, $manager->connection('first'));
+        $this->assertNotSame($second, $manager->connection('second'));
+    }
+
     protected function getContainer(): Container
     {
         $container = new Container;

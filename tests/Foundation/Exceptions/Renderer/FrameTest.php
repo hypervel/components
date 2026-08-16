@@ -13,7 +13,7 @@ use Symfony\Component\ErrorHandler\Exception\FlattenException;
 class FrameTest extends TestCase
 {
     #[DataProvider('unixFileDataProvider')]
-    public function testItNormalizesFilePathOnUnix($frameData, $basePath, $expected)
+    public function testItNormalizesFilePathOnUnix(array $frameData, string $basePath, string $expected): void
     {
         $exception = m::mock(FlattenException::class);
         $classMap = [];
@@ -22,7 +22,7 @@ class FrameTest extends TestCase
         $this->assertEquals($expected, $frame->file());
     }
 
-    public static function unixFileDataProvider()
+    public static function unixFileDataProvider(): iterable
     {
         yield 'internal function' => [
             ['line' => 10],
@@ -50,7 +50,7 @@ class FrameTest extends TestCase
     // REMOVED: windowsFileDataProvider - Swoole doesn't run on Windows
 
     #[DataProvider('unixIsFromVendorDataProvider')]
-    public function testItDeterminesIfFrameIsFromVendorOnUnix($frameData, $basePath, $expected)
+    public function testItDeterminesIfFrameIsFromVendorOnUnix(array $frameData, string $basePath, bool $expected): void
     {
         $exception = m::mock(FlattenException::class);
         $classMap = [];
@@ -59,7 +59,7 @@ class FrameTest extends TestCase
         $this->assertEquals($expected, $frame->isFromVendor());
     }
 
-    public static function unixIsFromVendorDataProvider()
+    public static function unixIsFromVendorDataProvider(): iterable
     {
         yield 'vendor file' => [
             ['file' => '/path/to/your-app/vendor/laravel/framework/src/File.php', 'line' => 10],

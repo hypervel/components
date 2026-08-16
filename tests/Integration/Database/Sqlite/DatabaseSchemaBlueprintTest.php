@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Database\Sqlite;
 
 use Closure;
 use Exception;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
@@ -15,9 +16,9 @@ use RuntimeException;
 
 class DatabaseSchemaBlueprintTest extends SqliteTestCase
 {
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app['config']->set('database.connections.sqlite.foreign_key_constraints', false);
+        $app->make('config')->set('database.connections.sqlite.foreign_key_constraints', false);
     }
 
     protected function setUpInCoroutine(): void

@@ -56,12 +56,38 @@ class DatabaseStore implements PrunableStore, Store
     }
 
     /**
+     * Atomically extend a cooldown block.
+     */
+    public function block(string $key, int $durationMicroseconds): CooldownResult
+    {
+        $connection = $this->connections->connection($this->connectionName);
+        $this->ensureOutsideTransaction($connection);
+
+        return $connection->transaction(function (ConnectionInterface $connection) use ($key, $durationMicroseconds): CooldownResult {
+            [$value, $secondaryValue, $expiresAt] = $this->stateForUpdate($connection, $key);
+            $result = $this->calculateCooldownBlock(
+                $durationMicroseconds,
+                $this->currentDatabaseTimeInMicroseconds($connection),
+                $value,
+                $secondaryValue,
+                $expiresAt,
+            );
+
+            $this->writeState($connection, $key, $value, $secondaryValue, $expiresAt);
+
+            return $result;
+        }, attempts: 3);
+    }
+
+    /**
      * Inspect a policy without mutating its state.
      *
-     * @return ($policy is Backoff ? BackoffResult : LimitResult)
+     * @return ($policy is Backoff ? BackoffResult : ($policy is Cooldown ? CooldownResult : LimitResult))
      */
-    public function inspect(string $key, AdmissionPolicy|Backoff $policy): LimitResult|BackoffResult
-    {
+    public function inspect(
+        string $key,
+        AdmissionPolicy|Backoff|Cooldown $policy,
+    ): LimitResult|BackoffResult|CooldownResult {
         $connection = $this->connections->connection($this->connectionName);
         $row = $connection->table($this->table)
             ->useWritePdo()
