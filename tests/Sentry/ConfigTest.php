@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
-use Closure;
 use Hypervel\Sentry\Features\RedisFeature;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
 use Hypervel\Sentry\Transport\Pool;
-use Hypervel\Support\Env;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
@@ -163,54 +161,5 @@ class ConfigTest extends SentryTestCase
     private function sentryConfig(): array
     {
         return require dirname(__DIR__, 2) . '/src/sentry/config/sentry.php';
-    }
-
-    /**
-     * Run a callback with temporary environment variable values.
-     *
-     * @param array<string, null|string> $values
-     */
-    private function withEnvironmentValues(array $values, Closure $callback): mixed
-    {
-        $originalValues = [];
-
-        foreach ($values as $key => $value) {
-            $originalValues[$key] = [
-                'putenv' => getenv($key),
-                'server_exists' => array_key_exists($key, $_SERVER),
-                'server' => $_SERVER[$key] ?? null,
-                'env_exists' => array_key_exists($key, $_ENV),
-                'env' => $_ENV[$key] ?? null,
-            ];
-
-            unset($_SERVER[$key], $_ENV[$key]);
-            $value === null ? putenv($key) : putenv("{$key}={$value}");
-        }
-
-        Env::flushRepository();
-
-        try {
-            return $callback();
-        } finally {
-            foreach ($originalValues as $key => $value) {
-                $value['putenv'] === false
-                    ? putenv($key)
-                    : putenv("{$key}={$value['putenv']}");
-
-                if ($value['server_exists']) {
-                    $_SERVER[$key] = $value['server'];
-                } else {
-                    unset($_SERVER[$key]);
-                }
-
-                if ($value['env_exists']) {
-                    $_ENV[$key] = $value['env'];
-                } else {
-                    unset($_ENV[$key]);
-                }
-            }
-
-            Env::flushRepository();
-        }
     }
 }

@@ -20,6 +20,12 @@ use Sentry\Integration\TransactionIntegration;
  *
  * @see https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/
  */
+$organizationId = env('SENTRY_ORG_ID');
+$sampleRate = env('SENTRY_SAMPLE_RATE');
+$tracesSampleRate = env('SENTRY_TRACES_SAMPLE_RATE');
+$profilesSampleRate = env('SENTRY_PROFILES_SAMPLE_RATE');
+$logFlushThreshold = env('SENTRY_LOG_FLUSH_THRESHOLD');
+
 return [
     // @see https://docs.sentry.io/concepts/key-terms/dsn-explainer/
     'dsn' => env('SENTRY_HYPERVEL_DSN', env('SENTRY_DSN')),
@@ -40,16 +46,16 @@ return [
     'environment' => env('SENTRY_ENVIRONMENT'),
 
     // Override the organization ID used for trace continuation checks.
-    'org_id' => env('SENTRY_ORG_ID') === null ? null : (int) env('SENTRY_ORG_ID'),
+    'org_id' => $organizationId === null ? null : (int) $organizationId,
 
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#sample_rate
-    'sample_rate' => env('SENTRY_SAMPLE_RATE') === null ? 1.0 : (float) env('SENTRY_SAMPLE_RATE'),
+    'sample_rate' => $sampleRate === null ? 1.0 : (float) $sampleRate,
 
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#traces_sample_rate
-    'traces_sample_rate' => env('SENTRY_TRACES_SAMPLE_RATE') === null ? null : (float) env('SENTRY_TRACES_SAMPLE_RATE'),
+    'traces_sample_rate' => $tracesSampleRate === null ? null : (float) $tracesSampleRate,
 
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#profiles_sample_rate
-    'profiles_sample_rate' => env('SENTRY_PROFILES_SAMPLE_RATE') === null ? null : (float) env('SENTRY_PROFILES_SAMPLE_RATE'),
+    'profiles_sample_rate' => $profilesSampleRate === null ? null : (float) $profilesSampleRate,
 
     // Only continue incoming traces when the organization IDs are compatible with this SDK instance.
     'strict_trace_continuation' => (bool) env('SENTRY_STRICT_TRACE_CONTINUATION', false),
@@ -61,7 +67,7 @@ return [
     'enable_metrics' => (bool) env('SENTRY_ENABLE_METRICS', true),
 
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#log_flush_threshold
-    'log_flush_threshold' => env('SENTRY_LOG_FLUSH_THRESHOLD') === null ? null : (int) env('SENTRY_LOG_FLUSH_THRESHOLD'),
+    'log_flush_threshold' => $logFlushThreshold === null ? null : (int) $logFlushThreshold,
 
     // The minimum log level that will be sent to Sentry as logs using the `sentry_logs` logging channel
     'logs_channel_level' => env('SENTRY_LOG_LEVEL', env('LOG_LEVEL', 'debug')),
