@@ -11,7 +11,6 @@ use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Fortify\Fixtures\Admin;
-use InvalidArgumentException;
 
 class FortifyRouteTest extends TestCase
 {
@@ -58,7 +57,7 @@ class FortifyRouteTest extends TestCase
         $this->assertContains('throttle:5,1', $route->gatherMiddleware());
     }
 
-    public function testRouteConfigurationRequiresTheVerificationLimiter(): void
+    public function testOmittedVerificationLimiterUsesTheDefault(): void
     {
         config(['fortify.limiters' => [
             'login' => null,
@@ -66,10 +65,12 @@ class FortifyRouteTest extends TestCase
             'passkeys' => null,
         ]]);
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Configuration value for key [fortify.limiters.verification]');
-
         require dirname(__DIR__, 2) . '/src/fortify/routes/routes.php';
+
+        $route = Route::getRoutes()->getByName('verification.send');
+
+        $this->assertNotNull($route);
+        $this->assertContains('throttle:6,1', $route->gatherMiddleware());
     }
 
     #[WithConfig('fortify.limiters.login', null)]

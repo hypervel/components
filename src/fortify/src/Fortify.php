@@ -29,6 +29,8 @@ use RuntimeException;
 
 class Fortify
 {
+    public const string DEFAULT_VERIFICATION_LIMITER = '6,1';
+
     public const string PASSWORD_UPDATED = 'password-updated';
 
     public const string PROFILE_INFORMATION_UPDATED = 'profile-information-updated';

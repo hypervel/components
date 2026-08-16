@@ -302,6 +302,8 @@ The published configuration sets those limiters to `login` and `passkeys`, and t
 
 The two-factor challenge submit route is throttled by default with `throttle:5,1`. You may set `fortify.limiters.two-factor` to a different throttle string or to a named limiter if your application needs custom keying.
 
+Email verification and resend routes allow six requests per minute by default. You may customize this with `fortify.limiters.verification`; omitting the setting keeps the default limit.
+
 ```php
 use Hypervel\Http\Request;
 use Hypervel\RateLimiter\Limit;
@@ -463,6 +465,8 @@ return [
     ],
 ];
 ```
+
+Each passkey member may be omitted. Fortify then uses these same application-derived identity values and a 60-second WebAuthn timeout. Explicit null or empty identity values remain explicit and are rejected when a WebAuthn operation first needs them; a configured timeout must be a positive integer.
 
 When your application has no canonical `app.url`, configure `PASSKEYS_RELYING_PARTY_ID` and `PASSKEYS_ALLOWED_ORIGINS` explicitly. Fortify will still boot without them, but a WebAuthn operation will reject the missing values when it first needs them.
 
@@ -725,7 +729,15 @@ php artisan vendor:publish --tag=passkeys-migrations
 php artisan migrate
 ```
 
-Standalone routes use `passkeys.guard`, `passkeys.middleware`, `passkeys.management_middleware`, `passkeys.throttle`, and `passkeys.redirect`.
+Standalone routes use the following configuration options:
+
+| Option | Description |
+| --- | --- |
+| `guard` | The guard selected for standalone routes. An omitted or null value uses the current request guard. |
+| `middleware` | The required middleware applied to every standalone route. |
+| `management_middleware` | The required additional middleware applied when creating or deleting passkeys. |
+| `throttle` | The throttle middleware applied to passkey endpoints. Omission uses `throttle:6,1`; null disables throttling. |
+| `redirect` | The successful login destination used when no intended URL exists. Omission uses `/`. |
 
 Call `Passkeys::ignoreRoutes()` during boot before registering your own endpoints:
 

@@ -163,7 +163,7 @@ return [
         'relying_party_id' => env('PASSKEYS_RELYING_PARTY_ID', $defaultRelyingPartyId),
         'allowed_origins' => env_array('PASSKEYS_ALLOWED_ORIGINS', $defaultAllowedOrigins),
         'user_handle_secret' => env('PASSKEYS_USER_HANDLE_SECRET', config('app.key')),
-        'timeout' => (int) env('PASSKEYS_TIMEOUT', 60000),
+        'timeout' => (int) env('PASSKEYS_TIMEOUT', 60_000),
     ],
 
     /*

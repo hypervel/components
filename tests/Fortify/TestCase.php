@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Fortify;
 
+use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Contracts\Config\Repository as Config;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Schema\Blueprint;
@@ -45,15 +46,11 @@ abstract class TestCase extends TestbenchTestCase
                 'driver' => 'session',
                 'provider' => 'users',
                 'passwords' => 'users',
-                'password_timeout' => null,
-                'remember' => null,
             ],
             'auth.guards.admin' => [
                 'driver' => 'session',
                 'provider' => 'admins',
                 'passwords' => 'admins',
-                'password_timeout' => null,
-                'remember' => null,
             ],
             'auth.providers.users' => [
                 'driver' => 'eloquent',
@@ -62,7 +59,7 @@ abstract class TestCase extends TestbenchTestCase
                     'enabled' => false,
                     'store' => null,
                     'ttl' => 300,
-                    'prefix' => 'auth_users',
+                    'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
                     'tags' => null,
                 ],
             ],
@@ -73,7 +70,7 @@ abstract class TestCase extends TestbenchTestCase
                     'enabled' => false,
                     'store' => null,
                     'ttl' => 300,
-                    'prefix' => 'auth_users',
+                    'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
                     'tags' => null,
                 ],
             ],

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Hypervel\Fortify\Features;
+use Hypervel\Fortify\Fortify;
 use Hypervel\Fortify\Http\Controllers\AuthenticatedSessionController;
 use Hypervel\Fortify\Http\Controllers\ConfirmablePasswordController;
 use Hypervel\Fortify\Http\Controllers\ConfirmedPasswordStatusController;
@@ -47,7 +48,7 @@ Route::group(['middleware' => $middleware], function () {
     $limiter = config()->get('fortify.limiters.login');
     $twoFactorLimiter = config()->get('fortify.limiters.two-factor');
     $passkeyLimiter = config()->get('fortify.limiters.passkeys');
-    $verificationLimiter = config()->string('fortify.limiters.verification');
+    $verificationLimiter = config()->string('fortify.limiters.verification', Fortify::DEFAULT_VERIFICATION_LIMITER);
 
     Route::post(RoutePath::for('login', '/login'), [AuthenticatedSessionController::class, 'store'])
         ->middleware(array_filter([

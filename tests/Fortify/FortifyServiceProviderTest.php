@@ -16,9 +16,9 @@ use Hypervel\Fortify\Http\Responses\TwoFactorDisabledResponse;
 use Hypervel\Fortify\Http\Responses\TwoFactorEnabledResponse;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
+use Hypervel\Passkeys\Passkeys;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Tests\Fortify\Fixtures\FixedClock;
-use InvalidArgumentException;
 use OTPHP\TOTP;
 use Psr\Clock\ClockInterface;
 use ReflectionClass;
@@ -84,21 +84,31 @@ class FortifyServiceProviderTest extends TestCase
         $this->assertTrue($provider->verify($secret, $code));
     }
 
-    public function testPasskeyBridgeRequiresTheConfiguredTimeout(): void
+    public function testPackageConfigDefaultsRemainAligned(): void
     {
-        config(['fortify.passkeys' => [
-            'relying_party_id' => null,
-            'allowed_origins' => [],
-            'user_handle_secret' => null,
-        ]]);
+        $this->unsetEnvironmentValue('PASSKEYS_TIMEOUT');
+
+        $config = require dirname(__DIR__, 2) . '/src/fortify/config/fortify.php';
+
+        $this->assertSame(Fortify::DEFAULT_VERIFICATION_LIMITER, $config['limiters']['verification']);
+        $this->assertSame(Passkeys::DEFAULT_TIMEOUT, $config['passkeys']['timeout']);
+    }
+
+    public function testOmittedPasskeySettingsUseTheApplicationAndPackageDefaults(): void
+    {
+        $appKey = config()->string('app.key');
+
+        config(['fortify.passkeys' => []]);
 
         $provider = $this->app->getProvider(FortifyServiceProvider::class);
         $method = new ReflectionMethod($provider, 'configurePasskeys');
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Configuration value for key [fortify.passkeys.timeout]');
-
         $method->invoke($provider);
+
+        $this->assertSame('example.test', config('passkeys.relying_party_id'));
+        $this->assertSame(['https://example.test'], config('passkeys.allowed_origins'));
+        $this->assertSame($appKey, config('passkeys.user_handle_secret'));
+        $this->assertSame(Passkeys::DEFAULT_TIMEOUT, config('passkeys.timeout'));
     }
 
     #[DefineEnvironment('withTwoFactorAuthentication')]
