@@ -353,20 +353,39 @@ class AuthManagerTest extends TestCase
         );
     }
 
-    public function testDatabaseUserProviderRequiresDeclaredConnection(): void
+    public function testDatabaseUserProviderUsesDefaultConnectionWhenOmitted(): void
     {
-        $this->app->make('config')->set('auth.providers.incomplete', [
+        $this->app->make('config')->set('auth.providers.database', [
             'driver' => 'database',
             'table' => 'users',
         ]);
         $database = m::mock();
         $database->shouldReceive('connection')
-            ->zeroOrMoreTimes()
+            ->once()
+            ->with(null)
+            ->andReturn(m::mock(ConnectionInterface::class));
+        $this->app->instance('db', $database);
+
+        $this->assertInstanceOf(
+            DatabaseUserProvider::class,
+            (new AuthManager($this->app))->createUserProvider('database'),
+        );
+    }
+
+    public function testDatabaseUserProviderRequiresDeclaredTable(): void
+    {
+        $this->app->make('config')->set('auth.providers.incomplete', [
+            'driver' => 'database',
+        ]);
+        $database = m::mock();
+        $database->shouldReceive('connection')
+            ->once()
+            ->with(null)
             ->andReturn(m::mock(ConnectionInterface::class));
         $this->app->instance('db', $database);
 
         $this->expectException(ErrorException::class);
-        $this->expectExceptionMessage('Undefined array key "connection"');
+        $this->expectExceptionMessage('Undefined array key "table"');
 
         (new AuthManager($this->app))->createUserProvider('incomplete');
     }
@@ -413,7 +432,7 @@ class AuthManagerTest extends TestCase
                 'enabled' => true,
                 'store' => null,
                 'ttl' => 300,
-                'prefix' => 'auth_users',
+                'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
                 'tags' => null,
             ],
         ]);
@@ -460,7 +479,7 @@ class AuthManagerTest extends TestCase
                 'cache' => [
                     'enabled' => true,
                     'ttl' => 300,
-                    'prefix' => 'auth_users',
+                    'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
                     'tags' => null,
                 ],
             ], 'store'],
@@ -479,7 +498,7 @@ class AuthManagerTest extends TestCase
                         'enabled' => true,
                         'store' => null,
                         'ttl' => $ttl,
-                        'prefix' => 'auth_users',
+                        'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
                         'tags' => null,
                     ],
                 ],
@@ -873,7 +892,7 @@ class AuthManagerTest extends TestCase
                         'enabled' => true,
                         'store' => 'web-store',
                         'ttl' => 300,
-                        'prefix' => 'auth_users',
+                        'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
                         'tags' => null,
                     ],
                 ],
@@ -940,7 +959,7 @@ class AuthManagerTest extends TestCase
                         'enabled' => true,
                         'store' => 'web-store',
                         'ttl' => 300,
-                        'prefix' => 'auth_users',
+                        'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
                         'tags' => null,
                     ],
                 ],
@@ -955,7 +974,7 @@ class AuthManagerTest extends TestCase
         $repo->shouldReceive('getStore')->andReturn(m::mock(RedisStore::class));
         $repo->shouldReceive('forget')
             ->once()
-            ->with('auth_users:' . AuthManagerCacheUserStub::class . ':tenant:42')
+            ->with(EloquentUserProvider::DEFAULT_CACHE_PREFIX . ':' . AuthManagerCacheUserStub::class . ':tenant:42')
             ->andReturn(true);
         $cacheManager->shouldReceive('store')->with('web-store')->andReturn($repo);
         $container->instance('cache', $cacheManager);
@@ -984,7 +1003,7 @@ class AuthManagerTest extends TestCase
                         'enabled' => true,
                         'store' => 'redis',
                         'ttl' => 300,
-                        'prefix' => 'auth_users',
+                        'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
                         'tags' => null,
                     ],
                 ],

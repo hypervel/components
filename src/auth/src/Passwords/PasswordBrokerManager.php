@@ -93,14 +93,14 @@ class PasswordBrokerManager implements FactoryContract
 
         return match ($config['driver']) {
             'cache' => new CacheTokenRepository(
-                $this->app->make('cache')->store($config['store']),
+                $this->app->make('cache')->store($config['store'] ?? null),
                 $this->app->make('hash'),
                 $key,
                 $config['expire'] * 60,
                 $config['throttle'],
             ),
             'database' => new DatabaseTokenRepository(
-                $this->app->make('db')->connection($config['connection']),
+                $this->app->make('db')->connection($config['connection'] ?? null),
                 $this->app->make('hash'),
                 $config['table'],
                 $key,

@@ -47,14 +47,18 @@ class PasswordConfirmationTest extends TestCase
         $this->assertSame(3600, PasswordConfirmation::timeout($config, 'admin'));
     }
 
-    public function testTimeoutFailsWhenGuardSettingIsMissing(): void
+    public function testMissingGuardTimeoutInheritsGlobal(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
-            'Configuration value for key [auth.guards.admin.password_timeout] must be an integer, NULL given.'
-        );
+        $config = new Repository([
+            'auth' => [
+                'password_timeout' => 3600,
+                'guards' => [
+                    'admin' => [],
+                ],
+            ],
+        ]);
 
-        PasswordConfirmation::timeout(new Repository, 'admin');
+        $this->assertSame(3600, PasswordConfirmation::timeout($config, 'admin'));
     }
 
     public function testTimeoutFailsWhenGlobalSettingIsMissing(): void

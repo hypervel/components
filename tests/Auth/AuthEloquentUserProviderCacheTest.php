@@ -36,7 +36,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
 {
     protected const string MODEL = EloquentCacheProviderUserStub::class;
 
-    protected const string DEFAULT_KEY_PREFIX = 'auth_users';
+    protected const string DEFAULT_KEY_PREFIX = EloquentUserProvider::DEFAULT_CACHE_PREFIX;
 
     protected MockInterface $cacheManager;
 
@@ -200,7 +200,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     public function testEnableCacheNormalizesBlankPrefixToDefault()
     {
         // Two enableCache() calls with blank prefixes (null and '') should both
-        // produce keys using the 'auth_users' default. We set up two distinct
+        // produce keys using the provider default. We set up two distinct
         // repositories returned in sequence from store(null).
         $repo1 = m::mock(CacheRepository::class);
         $repo1->shouldReceive('getStore')->andReturn(m::mock(RedisStore::class));

@@ -360,7 +360,8 @@ class AuthPasswordBrokerManagerTest extends TestCase
         );
     }
 
-    public function testCacheBrokerUsesDefaultStore(): void
+    #[DataProvider('defaultCacheStoreProvider')]
+    public function testCacheBrokerUsesDefaultStore(array $broker): void
     {
         $container = $this->makeContainer([
             'app' => [
@@ -369,13 +370,7 @@ class AuthPasswordBrokerManagerTest extends TestCase
             'auth' => [
                 'timebox_duration' => 200000,
                 'passwords' => [
-                    'users' => [
-                        'driver' => 'cache',
-                        'provider' => 'users',
-                        'store' => null,
-                        'expire' => 60,
-                        'throttle' => 60,
-                    ],
+                    'users' => $broker,
                 ],
             ],
         ]);
@@ -396,6 +391,24 @@ class AuthPasswordBrokerManagerTest extends TestCase
             PasswordBrokerContract::class,
             (new PasswordBrokerManager($container))->broker('users')
         );
+    }
+
+    /**
+     * Provide cache broker configurations that use the default store.
+     */
+    public static function defaultCacheStoreProvider(): array
+    {
+        $broker = [
+            'driver' => 'cache',
+            'provider' => 'users',
+            'expire' => 60,
+            'throttle' => 60,
+        ];
+
+        return [
+            'omitted' => [$broker],
+            'explicit null' => [$broker + ['store' => null]],
+        ];
     }
 
     public function testBrokerRejectsUnknownDriver(): void

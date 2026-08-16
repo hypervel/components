@@ -38,7 +38,7 @@ Guards that send password reset links declare their password broker with the `pa
 
 `Password::setDefaultDriver()` may override the broker for the current coroutine. Otherwise, a bare `Password::sendResetLink()` or `Password::reset()` uses the current guard's `passwords` key. If the current guard does not declare a broker, Hypervel throws a configuration exception naming the guard and the key to add. To target a different broker, pass its name explicitly with `Password::broker('admins')`.
 
-The password reset driver's complete record defines where password reset data will be stored. Hypervel includes two drivers:
+The password reset driver defines where password reset data will be stored. Hypervel includes two drivers:
 
 <div class="content-list" markdown="1">
 
@@ -47,7 +47,7 @@ The password reset driver's complete record defines where password reset data wi
 
 </div>
 
-A database broker requires its driver, provider, table, nullable connection, expiry, and throttle settings. Set `connection` to null to use the default database connection:
+A database broker requires its driver, provider, table, expiry, and throttle settings. You may also define a `connection` to store password reset tokens on a specific database connection. If this option is omitted or `null`, Hypervel uses the default database connection:
 
 ```php
 'passwords' => [
@@ -55,7 +55,6 @@ A database broker requires its driver, provider, table, nullable connection, exp
         'driver' => 'database',
         'provider' => 'users',
         'table' => 'password_reset_tokens',
-        'connection' => null,
         'expire' => 60,
         'throttle' => 60,
     ],
@@ -80,14 +79,13 @@ There is also a cache driver available for handling password resets, which does 
     'users' => [
         'driver' => 'cache',
         'provider' => 'users',
-        'store' => null,
         'expire' => 60,
         'throttle' => 60,
     ],
 ],
 ```
 
-Set `store` to null to use the default cache store. To prevent a call to `artisan cache:clear` from flushing your password reset data, specify a separate cache store with the `store` configuration key. The value should correspond to a store configured in your `config/cache.php` configuration value.
+If the `store` option is omitted or `null`, Hypervel uses the default cache store. To prevent a call to `artisan cache:clear` from flushing your password reset data, specify a separate cache store with the `store` configuration key. The value should correspond to a store configured in your `config/cache.php` configuration file.
 
 <a name="model-preparation"></a>
 ### Model Preparation

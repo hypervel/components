@@ -206,10 +206,10 @@ You may enable the cache per Eloquent provider in your application's `config/aut
         'driver' => 'eloquent',
         'model' => env('AUTH_MODEL', App\Models\User::class),
         'cache' => [
-            'enabled' => env('AUTH_USERS_CACHE_ENABLED', false),
-            'store' => env('AUTH_USERS_CACHE_STORE'),
-            'ttl' => (int) env('AUTH_USERS_CACHE_TTL', 300),
-            'prefix' => env('AUTH_USERS_CACHE_PREFIX', 'auth_users'),
+            'enabled' => (bool) env('AUTH_USER_CACHE_ENABLED', false),
+            'store' => env('AUTH_USER_CACHE_STORE'),
+            'ttl' => (int) env('AUTH_USER_CACHE_TTL', 300),
+            'prefix' => env('AUTH_USER_CACHE_PREFIX', 'auth_user'),
             'tags' => null,
         ],
     ],
@@ -242,15 +242,15 @@ Providers constructed directly and not represented in `auth.providers` must also
 When `store` is `null`, Hypervel uses your default cache store. For a single Redis-backed deployment, you may enable the cache like this:
 
 ```ini
-AUTH_USERS_CACHE_ENABLED=true
-AUTH_USERS_CACHE_STORE=redis
+AUTH_USER_CACHE_ENABLED=true
+AUTH_USER_CACHE_STORE=redis
 ```
 
 For high-concurrency deployments, Hypervel's default `stack` cache store layers a short-lived Swoole Table cache over Redis. This keeps hot authenticated-user reads in local shared memory for a few seconds while Redis remains the shared backing store:
 
 ```ini
-AUTH_USERS_CACHE_ENABLED=true
-AUTH_USERS_CACHE_STORE=stack
+AUTH_USER_CACHE_ENABLED=true
+AUTH_USER_CACHE_STORE=stack
 ```
 
 Supported stores are `redis`, `database`, `file`, `storage`, `swoole`, and stacks containing only supported stores. Stack layers are validated recursively. The `array`, `worker-array`, `null`, `session`, and `failover` stores are rejected. Failover is unsuitable because an unavailable primary can retain a stale identity and serve it after recovery.
@@ -264,7 +264,7 @@ Auth cache configuration is read during process startup and must not be changed 
 <a name="user-lookup-cache-custom-keys"></a>
 #### Custom Cache Keys
 
-The default cache key format is `{prefix}:{user-model-fqcn}:{identifier}`, such as `auth_users:App\Models\User:42`. Including the model class prevents collisions when different guards use different user models.
+The default cache key format is `{prefix}:{user-model-fqcn}:{identifier}`, such as `auth_user:App\Models\User:42`. Including the model class prevents collisions when different guards use different user models.
 
 If the same user identifier can resolve to different records based on request-scoped application state, you may register a cache key resolver in a service provider:
 
@@ -324,7 +324,7 @@ If the selected guard does not use an Eloquent user provider, or if caching is d
 <a name="user-lookup-cache-bulk-invalidation"></a>
 #### Bulk Invalidation
 
-If you need to clear many cached users at once, use a dedicated cache store for auth, point `AUTH_USERS_CACHE_STORE` at that store, and flush it:
+If you need to clear many cached users at once, use a dedicated cache store for auth, point `AUTH_USER_CACHE_STORE` at that store, and flush it:
 
 ```php
 use Hypervel\Support\Facades\Cache;
@@ -352,7 +352,7 @@ For narrower bulk flushes, configure a Redis cache store in `any` tag mode and a
             'enabled' => true,
             'store' => 'auth',
             'ttl' => 300,
-            'prefix' => 'auth_users',
+            'prefix' => 'auth_user',
             'tags' => ['auth_users'],
         ],
     ],
@@ -404,7 +404,7 @@ Cache::store('auth')->tags(['workspace:' . CurrentWorkspace::id()])->flush();
 If you instantiate `EloquentUserProvider` yourself, the provider exposes lower-level cache APIs:
 
 ```php
-public function enableCache(?string $storeName, int $ttl = 300, ?string $prefix = 'auth_users', ?array $tags = null): static;
+public function enableCache(?string $storeName, int $ttl = 300, ?string $prefix = 'auth_user', ?array $tags = null): static;
 public function isCacheEnabled(): bool;
 public function clearUserCache(mixed $identifier): void;
 
@@ -655,14 +655,14 @@ if (Auth::attempt(['email' => $email, 'password' => $password], $remember)) {
 }
 ```
 
-You may customize the cookie lifetime for a session guard using the `remember` option in your application's `config/auth.php` configuration file. The value is expressed in minutes. When this option is `null`, Hypervel uses the built-in 400-day lifetime:
+You may customize the cookie lifetime for a session guard using the `remember` option in your application's `config/auth.php` configuration file. The value is expressed in minutes. If this option is omitted or `null`, Hypervel uses the built-in 400-day lifetime. For example, the following configuration uses a 30-day lifetime:
 
 ```php
 'guards' => [
     'web' => [
         'driver' => 'session',
         'provider' => 'users',
-        'remember' => null,
+        'remember' => 60 * 24 * 30,
     ],
 ],
 ```
@@ -843,7 +843,7 @@ While building your application, you may occasionally have actions that should r
 <a name="password-confirmation-configuration"></a>
 ### Configuration
 
-After confirming their password, a user will not be asked to confirm their password again for three hours. However, you may configure the length of time before the user is re-prompted for their password by changing the value of the `password_timeout` configuration value within your application's `config/auth.php` configuration file. Password confirmation is scoped to the current guard, so confirming under one guard never satisfies the `password.confirm` middleware under another guard. Individual guards may override the timeout with a `password_timeout` key in their guard configuration.
+After confirming their password, a user will not be asked to confirm their password again for three hours. However, you may configure the length of time before the user is re-prompted for their password by changing the value of the `password_timeout` configuration value within your application's `config/auth.php` configuration file. Password confirmation is scoped to the current guard, so confirming under one guard never satisfies the `password.confirm` middleware under another guard. Individual guards may override the timeout with a `password_timeout` key in their guard configuration. If the guard option is omitted or `null`, the application-wide timeout is used.
 
 <a name="password-confirmation-routing"></a>
 ### Routing

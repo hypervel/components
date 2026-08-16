@@ -35,7 +35,7 @@ class EloquentUserProviderCacheTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected const string DEFAULT_KEY_PREFIX = 'auth_users';
+    protected const string DEFAULT_KEY_PREFIX = EloquentUserProvider::DEFAULT_CACHE_PREFIX;
 
     protected CacheManager $realCacheManager;
 
@@ -89,7 +89,7 @@ class EloquentUserProviderCacheTest extends TestCase
                     'enabled' => true,
                     'store' => 'auth-file',
                     'ttl' => 300,
-                    'prefix' => 'auth_users',
+                    'prefix' => self::DEFAULT_KEY_PREFIX,
                     'tags' => null,
                 ],
             ],
@@ -100,7 +100,7 @@ class EloquentUserProviderCacheTest extends TestCase
                     'enabled' => true,
                     'store' => 'auth-file',
                     'ttl' => 300,
-                    'prefix' => 'auth_users',
+                    'prefix' => self::DEFAULT_KEY_PREFIX,
                     'tags' => null,
                 ],
             ],
