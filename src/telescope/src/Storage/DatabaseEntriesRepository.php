@@ -27,7 +27,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
     /**
      * The default number of entries inserted at once.
      */
-    protected const int DEFAULT_CHUNK_SIZE = 1000;
+    public const int DEFAULT_CHUNK_SIZE = 1000;
 
     /**
      * Context key for the per-request monitored tags cache.

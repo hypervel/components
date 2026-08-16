@@ -28,7 +28,6 @@ class DisabledWatcherTest extends FeatureTestCase
         'database' => 0,
         'name' => null,
         'timeout' => null,
-        'retry_interval' => 0,
         'read_timeout' => 0.0,
         'context' => [],
         'options' => [],

@@ -67,7 +67,7 @@ class TelescopeServiceProvider extends ServiceProvider implements ReloadsConfigu
     {
         Route::domain(config('telescope.domain'))
             ->middleware(config()->array('telescope.middleware'))
-            ->prefix(config('telescope.path'))
+            ->prefix(config()->string('telescope.path'))
             ->namespace('Hypervel\Telescope\Http\Controllers')
             ->group(__DIR__ . '/../routes/web.php');
     }
@@ -154,7 +154,10 @@ class TelescopeServiceProvider extends ServiceProvider implements ReloadsConfigu
 
             if ($repository instanceof DatabaseEntriesRepository) {
                 $repository->setConnection($config->string('telescope.storage.database.connection'));
-                $repository->setChunkSize($config->integer('telescope.storage.database.chunk'));
+                $repository->setChunkSize($config->integer(
+                    'telescope.storage.database.chunk',
+                    DatabaseEntriesRepository::DEFAULT_CHUNK_SIZE,
+                ));
             }
         }
     }
@@ -245,7 +248,10 @@ class TelescopeServiceProvider extends ServiceProvider implements ReloadsConfigu
 
         $this->app->when(DatabaseEntriesRepository::class)
             ->needs('$chunkSize')
-            ->give(fn () => $config->integer('telescope.storage.database.chunk'));
+            ->give(fn () => $config->integer(
+                'telescope.storage.database.chunk',
+                DatabaseEntriesRepository::DEFAULT_CHUNK_SIZE,
+            ));
     }
 
     /**
