@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Http;
 
+use ArrayObject;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Support\Json;
@@ -12,6 +13,8 @@ use InvalidArgumentException;
 use JsonSerializable;
 use Override;
 use Symfony\Component\HttpFoundation\JsonResponse as BaseJsonResponse;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 
 class JsonResponse extends BaseJsonResponse
 {
@@ -20,13 +23,40 @@ class JsonResponse extends BaseJsonResponse
     }
 
     /**
+     * The pristine header bag cloned for responses that add no headers of their own.
+     */
+    protected static ?ResponseHeaderBag $headerPrototype = null;
+
+    /**
      * Create a new JSON response instance.
      */
     public function __construct(mixed $data = null, int $status = 200, array $headers = [], int $options = 0, bool $json = false)
     {
         $this->encodingOptions = $options;
 
-        parent::__construct($data, $status, $headers, $json);
+        // Symfony builds a ResponseHeaderBag per response, and its constructor
+        // sets Cache-Control to an empty string only to parse that value back
+        // out through a regex — roughly four fifths of the cost of building a
+        // JSON response, for a result identical every time. Cloning a prototype
+        // skips it. SymfonyResponse::__construct is called rather than
+        // parent::__construct because JsonResponse's signature only accepts an
+        // array of headers, while Response's also accepts a prepared bag.
+        $bag = clone (static::$headerPrototype ??= new ResponseHeaderBag);
+
+        // The bag stamps Date when it is constructed, so a clone carries the
+        // prototype's timestamp and has to be given the current one. Given
+        // headers are added after, so a caller supplying Date still wins.
+        $bag->set('Date', gmdate('D, d M Y H:i:s') . ' GMT');
+
+        if ($headers !== []) {
+            $bag->add($headers);
+        }
+
+        SymfonyResponse::__construct('', $status, $bag);
+
+        $data ??= new ArrayObject;
+
+        $json ? $this->setJson($data) : $this->setData($data);
     }
 
     /**
@@ -123,5 +153,7 @@ class JsonResponse extends BaseJsonResponse
     public static function flushState(): void
     {
         static::flushMacros();
+
+        static::$headerPrototype = null;
     }
 }
