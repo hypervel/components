@@ -72,8 +72,8 @@ class TinkerCommand extends Command
         $loader = ClassAliasAutoloader::register(
             $shell,
             $path,
-            $appConfig->array('tinker.alias'),
-            $appConfig->array('tinker.dont_alias')
+            $appConfig->array('tinker.alias', []),
+            $appConfig->array('tinker.dont_alias', [])
         );
 
         if ($code = $this->option('execute')) {
@@ -113,7 +113,7 @@ class TinkerCommand extends Command
 
         $config = $this->getHypervel()->make('config');
 
-        foreach ($config->array('tinker.commands') as $command) {
+        foreach ($config->array('tinker.commands', []) as $command) {
             $commands[] = $this->getApplication()->addCommand(
                 $this->getHypervel()->make($command)
             );
@@ -147,7 +147,7 @@ class TinkerCommand extends Command
 
         $config = $this->getHypervel()->make('config');
 
-        return array_merge($casters, $config->array('tinker.casters'));
+        return array_merge($casters, $config->array('tinker.casters', []));
     }
 
     /**

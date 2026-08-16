@@ -33,6 +33,18 @@ class TinkerCommandTest extends TestCase
             ->assertExitCode(0);
     }
 
+    public function testOptionalCommandAndAliasListsMayBeOmitted(): void
+    {
+        $config = config()->array('tinker');
+
+        unset($config['commands'], $config['alias'], $config['dont_alias']);
+
+        config()->set('tinker', $config);
+
+        $this->artisan('tinker', ['--execute' => 'echo "hello";'])
+            ->assertExitCode(0);
+    }
+
     public function testExecuteFailure(): void
     {
         $this->artisan('tinker', ['--execute' => 'throw new \Exception("fail");'])

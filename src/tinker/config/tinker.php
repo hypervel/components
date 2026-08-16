@@ -56,9 +56,9 @@ return [
     |
     */
 
-    'casters' => [
-        // App\Value::class => App\Tinker\ValueCaster::class . '::cast',
-    ],
+    // 'casters' => [
+    //     App\Value::class => App\Tinker\ValueCaster::class . '::cast',
+    // ],
 
     /*
     |--------------------------------------------------------------------------

@@ -30,7 +30,6 @@ class TinkerServiceProviderTest extends TestCase
         $this->assertIsArray($config->get('tinker.commands'));
         $this->assertIsArray($config->get('tinker.alias'));
         $this->assertIsArray($config->get('tinker.dont_alias'));
-        $this->assertSame([], $config->get('tinker.casters'));
         $this->assertNotNull($config->get('tinker.trust_project'));
     }
 }
