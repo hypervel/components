@@ -33,6 +33,9 @@ use ReflectionMethod;
 use SortDirection;
 
 /**
+ * Forwarded query methods operate on this builder, so their value type is TModel.
+ * Keep toBase() and getQuery() unparameterized because raw queries return stdClass rows.
+ *
  * @template TModel of \Hypervel\Database\Eloquent\Model
  *
  * @property-read $this|HigherOrderBuilderProxy $orWhere
@@ -42,8 +45,9 @@ use SortDirection;
  * @method $this whereCan(\UnitEnum|string $ability, mixed $user = null)
  * @method $this withCan(\UnitEnum|string|list<\UnitEnum|string> $abilities, mixed $user = null)
  * @method $this fetchUsing(mixed ...$fetchUsing)
+ * @method $this useWritePdo()
  *
- * @mixin \Hypervel\Database\Query\Builder
+ * @mixin \Hypervel\Database\Query\Builder<int, TModel>
  */
 class Builder implements BuilderContract
 {

@@ -660,6 +660,8 @@ If a test fails with a type error, the source code type may be wrong — not the
 
 Tests that require external services (databases, Redis, HTTP servers, search engines) that can't run in every environment go in `tests/Integration/{PackageName}/`. The exception is tests that call freely-available external APIs (e.g., the Guzzle tests hitting the public Pokemon API) — those can stay in regular `tests/` since they need no local service configuration.
 
+**Optimize integration tests for parallel testing** — ParaTest runs tests concurrently. Set up only the tables and services each test needs. Keep database cases in one data-provider test when splitting them would make schema setup compete. Load the full schema only when testing migrations or schema parity; do not hide avoidable slowness with longer timeouts.
+
 Service workflows enumerate their test directories explicitly. Adding a service-specific directory requires adding it to the matching workflow; using the service trait provides isolation and skip behavior but does not make CI discover the test.
 
 #### External service test traits

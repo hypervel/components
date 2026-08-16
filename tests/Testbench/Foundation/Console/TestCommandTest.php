@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Foundation\Console;
 
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\Foundation\Console\TestCommand;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\ParallelTesting;
 use Override;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionClass;
+use Symfony\Component\Process\Process;
 
 use function Hypervel\Testbench\package_path;
 use function Hypervel\Testbench\parse_environment_variables;
@@ -192,6 +195,116 @@ class TestCommandTest extends TestCase
         $this->assertSame('(true)', $variables['TESTBENCH_PACKAGE_TESTER']);
         $this->assertSame(package_path(), $variables['TESTBENCH_WORKING_PATH']);
         $this->assertArrayNotHasKey('TESTBENCH_APP_BASE_PATH', $variables);
+    }
+
+    #[Test]
+    public function itAggregatesProfilesFromParallelPackageWorkers(): void
+    {
+        $packagePath = $this->createParallelProfilePackage();
+        $vendorPath = $packagePath . DIRECTORY_SEPARATOR . 'vendor';
+
+        try {
+            $this->assertTrue(
+                symlink(package_path('vendor'), $vendorPath),
+                'Unable to link the fixture package dependencies.',
+            );
+
+            $process = new Process([
+                PHP_BINARY,
+                package_path('src/testbench/bin/testbench'),
+                'package:test',
+                '--parallel',
+                '--profile',
+                '--without-tty',
+                '--processes=2',
+            ], env: [
+                'TESTBENCH_WORKING_PATH' => $packagePath,
+            ]);
+            $process->setTimeout(30);
+            $process->run();
+            $output = $process->getOutput() . $process->getErrorOutput();
+
+            $this->assertSame(0, $process->getExitCode(), $output);
+            $this->assertStringContainsString('Top 10 slowest tests', $output);
+            $this->assertStringContainsString('ParallelProfileAlphaTest', $output);
+            $this->assertStringContainsString('ParallelProfileBetaTest', $output);
+            $this->assertCount(2, glob($packagePath . DIRECTORY_SEPARATOR . 'profile-worker-*') ?: []);
+        } finally {
+            if (is_link($vendorPath)) {
+                unlink($vendorPath);
+            }
+
+            (new Filesystem)->deleteDirectory($packagePath);
+        }
+    }
+
+    /**
+     * Create a tiny package whose two profile tests occupy separate workers.
+     */
+    private function createParallelProfilePackage(): string
+    {
+        $packagePath = ParallelTesting::tempDir('TestbenchParallelProfilePackage');
+        $filesystem = new Filesystem;
+
+        $filesystem->deleteDirectory($packagePath);
+        $filesystem->makeDirectory($packagePath . DIRECTORY_SEPARATOR . 'tests', 0700, true);
+        $filesystem->put($packagePath . DIRECTORY_SEPARATOR . 'composer.json', json_encode([
+            'name' => 'hypervel/tests-parallel-profile-fixture',
+        ], JSON_THROW_ON_ERROR));
+        // An explicit file prevents this package from inheriting Components' Testbench configuration.
+        $filesystem->put($packagePath . DIRECTORY_SEPARATOR . 'testbench.yaml', "dont-discover: []\n");
+        $filesystem->put($packagePath . DIRECTORY_SEPARATOR . 'phpunit.xml', sprintf(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit bootstrap="vendor/autoload.php">
+    <testsuites>
+        <testsuite name="Profile">
+            <directory>tests</directory>
+        </testsuite>
+    </testsuites>
+    <php>
+        <env name="HYPERVEL_PROFILE_FIXTURE_PATH" value="%s" force="true"/>
+    </php>
+</phpunit>
+XML,
+            htmlspecialchars($packagePath, ENT_QUOTES | ENT_XML1),
+        ));
+
+        foreach (['Alpha', 'Beta'] as $name) {
+            $filesystem->put(
+                $packagePath . DIRECTORY_SEPARATOR . 'tests' . DIRECTORY_SEPARATOR . "ParallelProfile{$name}Test.php",
+                str_replace(
+                    '{{ name }}',
+                    $name,
+                    <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\Test;
+
+final class ParallelProfile{{ name }}Test extends TestCase
+{
+    #[Test]
+    public function profileRuns(): void
+    {
+        usleep(100000);
+
+        file_put_contents(
+            $_SERVER['HYPERVEL_PROFILE_FIXTURE_PATH'] . '/profile-worker-' . $_SERVER['TEST_TOKEN'],
+            '{{ name }}',
+        );
+
+        $this->assertTrue(true);
+    }
+}
+PHP
+                ),
+            );
+        }
+
+        return $packagePath;
     }
 
     /**

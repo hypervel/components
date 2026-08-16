@@ -469,6 +469,12 @@ The Artisan test runner also includes a convenient mechanism for listing your ap
 php artisan test --profile
 ```
 
+Packages that run ParaTest directly may use the profiler included with the `hypervel/testing` package. Except for `--log-junit`, the command forwards ParaTest options, files, and directories. Test paths are resolved from your project's root. The output lists every test whose setup, execution, and teardown meet the displayed slow-test threshold:
+
+```shell
+./vendor/bin/hypervel-test-profile --processes=4 tests/Feature
+```
+
 <a name="configuration-and-route-caching"></a>
 ## Configuration and Route Caching
 

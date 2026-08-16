@@ -25,6 +25,6 @@ class TestFinishedSubscriber implements FinishedSubscriberContract
         $time = $event->telemetryInfo()->time()->seconds()
             + ($event->telemetryInfo()->time()->nanoseconds() / 1e9);
 
-        $this->tracker->stop($event->test()->id(), $event->test()->id(), $time);
+        $this->tracker->stop($event->test()->id(), $time);
     }
 }

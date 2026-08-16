@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Testing\Profile;
 
-use PHPUnit\Event\Test\Prepared;
-use PHPUnit\Event\Test\PreparedSubscriber as PreparedSubscriberContract;
+use PHPUnit\Event\Test\PreparationStarted;
+use PHPUnit\Event\Test\PreparationStartedSubscriber as PreparationStartedSubscriberContract;
 
-class TestPreparedSubscriber implements PreparedSubscriberContract
+class TestPreparationStartedSubscriber implements PreparationStartedSubscriberContract
 {
     /**
-     * Create a new test prepared subscriber.
+     * Create a new test preparation started subscriber.
      */
     public function __construct(
         protected ProfileTracker $tracker,
@@ -20,7 +20,7 @@ class TestPreparedSubscriber implements PreparedSubscriberContract
     /**
      * Handle the event.
      */
-    public function notify(Prepared $event): void
+    public function notify(PreparationStarted $event): void
     {
         $time = $event->telemetryInfo()->time()->seconds()
             + ($event->telemetryInfo()->time()->nanoseconds() / 1e9);

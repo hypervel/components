@@ -15,6 +15,7 @@ parameters:
   reportUnmatchedIgnoredErrors: false
   paths:
     - src
+    - src/testing/bin/hypervel-test-profile
   scanFiles:
     - phpstan-stubs/constants.php
     - vendor/swoole/ide-helper/src/swoole/Swoole/Http/Response.php
@@ -86,11 +87,6 @@ parameters:
     - identifier: method.childReturnType
       path: src/database/*
     - identifier: method.childParameterType
-      path: src/database/*
-
-    # Eloquent @mixin forwarding loses Eloquent\Builder type - methods forwarded via __call return Query\Builder
-    # but actually return $this (Eloquent\Builder) at runtime
-    - message: '#Method .* should return Hypervel\\Database\\Eloquent\\Builder<.*> but returns Hypervel\\Database\\Query\\Builder\.$#'
       path: src/database/*
 
     # Relation @mixin forwarding - Relation methods returning $this forward to Builder methods

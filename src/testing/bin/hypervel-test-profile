@@ -1,0 +1,141 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Composer\InstalledVersions;
+use Symfony\Component\Process\Process;
+
+// Installed packages use Composer's proxy; this fallback only covers the in-tree Components checkout.
+$autoloadPath = isset($_composer_autoload_path) && is_string($_composer_autoload_path)
+    ? $_composer_autoload_path
+    : dirname(__DIR__, 3) . '/vendor/autoload.php';
+
+require $autoloadPath;
+
+/*
+ * Report every test whose full lifecycle takes at least this many seconds.
+ * Lower the threshold when investigating smaller contributors to suite runtime.
+ */
+$slowTestThresholdSeconds = 0.3;
+
+$installedRootPath = InstalledVersions::getRootPackage()['install_path'] ?? null;
+$workingPath = is_string($installedRootPath) && $installedRootPath !== ''
+    ? $installedRootPath
+    : getcwd();
+
+if ($workingPath === false) {
+    throw new RuntimeException('Unable to determine the project working directory.');
+}
+
+$workingPath = realpath($workingPath) ?: $workingPath;
+$binaryDirectory = isset($_composer_bin_dir) && is_string($_composer_bin_dir)
+    ? $_composer_bin_dir
+    : $workingPath . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'bin';
+$paraTestPath = $binaryDirectory . DIRECTORY_SEPARATOR . 'paratest';
+
+if (! is_file($paraTestPath)) {
+    throw new RuntimeException('Install the brianium/paratest package to profile tests.');
+}
+
+$reportPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'hypervel-test-profile-'
+    . getmypid() . '-' . bin2hex(random_bytes(6)) . '.xml';
+
+$process = new Process([
+    PHP_BINARY,
+    $paraTestPath,
+    '--log-junit=' . $reportPath,
+    ...array_slice($argv, 1),
+], cwd: $workingPath);
+$process->setTimeout(null);
+
+if (stream_isatty(STDOUT)) {
+    try {
+        $process->setTty(true);
+    } catch (RuntimeException) {
+    }
+}
+
+try {
+    $exitCode = $process->run(static function (string $type, string $output): void {
+        fwrite($type === Process::ERR ? STDERR : STDOUT, $output);
+    });
+
+    if (! is_file($reportPath)) {
+        if ($exitCode === 0) {
+            throw new RuntimeException(sprintf('Unable to find PHPUnit profile [%s].', $reportPath));
+        }
+    } else {
+        $tests = [];
+
+        $document = new DOMDocument;
+
+        $reportLoaded = @$document->load($reportPath);
+
+        if (! $reportLoaded && $exitCode === 0) {
+            throw new RuntimeException(sprintf('Unable to read PHPUnit profile [%s].', $reportPath));
+        }
+
+        if ($reportLoaded) {
+            // PHPUnit's JUnit timer starts at PreparationStarted, matching ProfileTracker.
+            foreach ($document->getElementsByTagName('testcase') as $test) {
+                if (! $test instanceof DOMElement || ! $test->hasAttribute('time')) {
+                    continue;
+                }
+
+                $name = $test->getAttribute('name');
+                $class = $test->getAttribute('class');
+
+                $duration = (float) $test->getAttribute('time');
+
+                if ($duration < $slowTestThresholdSeconds) {
+                    continue;
+                }
+
+                $tests[] = [
+                    'name' => $class === '' ? $name : $class . '::' . $name,
+                    'duration' => $duration,
+                ];
+            }
+
+            usort(
+                $tests,
+                static function (array $first, array $second): int {
+                    $durationComparison = $second['duration'] <=> $first['duration'];
+
+                    return $durationComparison !== 0
+                        ? $durationComparison
+                        : $first['name'] <=> $second['name'];
+                },
+            );
+
+            if ($tests === []) {
+                fwrite(STDOUT, sprintf(
+                    '%sNo tests took at least %.3f seconds.%s',
+                    PHP_EOL,
+                    $slowTestThresholdSeconds,
+                    PHP_EOL,
+                ));
+            } else {
+                fwrite(STDOUT, sprintf(
+                    '%sTests taking at least %.3f seconds (%d)%s%s',
+                    PHP_EOL,
+                    $slowTestThresholdSeconds,
+                    count($tests),
+                    PHP_EOL,
+                    PHP_EOL,
+                ));
+
+                foreach ($tests as $test) {
+                    fwrite(STDOUT, sprintf('  %.3fs  %s%s', $test['duration'], $test['name'], PHP_EOL));
+                }
+            }
+        }
+    }
+} finally {
+    if (is_file($reportPath)) {
+        unlink($reportPath);
+    }
+}
+
+exit($exitCode);
