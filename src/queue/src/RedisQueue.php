@@ -7,6 +7,7 @@ namespace Hypervel\Queue;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Contracts\Queue\ClearableQueue;
+use Hypervel\Contracts\Queue\IndexAwareQueue;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Redis\Factory as Redis;
@@ -18,8 +19,10 @@ use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 
-class RedisQueue extends Queue implements QueueContract, ClearableQueue
+class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAwareQueue
 {
+    public const int DEFAULT_MIGRATION_BATCH_SIZE = -1;
+
     /**
      * Indicates if a secondary queue had a job available between checks of the primary queue.
      *
@@ -49,7 +52,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
         protected ?int $retryAfter = 60,
         protected ?int $blockFor = null,
         protected bool $dispatchAfterCommit = false,
-        protected int $migrationBatchSize = -1
+        protected int $migrationBatchSize = self::DEFAULT_MIGRATION_BATCH_SIZE
     ) {
     }
 

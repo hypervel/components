@@ -12,10 +12,10 @@ class QueueConfigTest extends TestCase
 {
     public function testConcurrencyNumberIsLoadedAsIntegerFromEnvironment(): void
     {
-        $this->withEnvironment(['QUEUE_CONCURRENCY_NUMBER' => '5'], function (): void {
+        $this->withEnvironment(['QUEUE_CONCURRENCY' => '5'], function (): void {
             $config = $this->loadConfig();
 
-            $this->assertSame(5, $config['concurrency_number']);
+            $this->assertSame(5, $config['concurrency']);
         });
     }
 
@@ -36,19 +36,6 @@ class QueueConfigTest extends TestCase
                 'flush_on_clear' => false,
             ], $config['connections']['sqs']['overflow']);
         });
-    }
-
-    public function testSqsSdkConfigurationIsExplicit(): void
-    {
-        $config = $this->loadConfig()['connections']['sqs'];
-
-        $this->assertNull($config['token']);
-        $this->assertNull($config['credentials']);
-        $this->assertSame('latest', $config['version']);
-        $this->assertSame([
-            'timeout' => 60,
-            'connect_timeout' => 60,
-        ], $config['http']);
     }
 
     public function testFileFailedJobStorageDefaultsAreOwnedByTheProvider(): void

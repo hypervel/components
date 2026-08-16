@@ -4,15 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Queue\QueueConnectionTest;
 
-use ErrorException;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Database\DatabaseTransactionRecord;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Foundation\Bus\Dispatchable;
-use Hypervel\Queue\Connectors\SqsConnector;
-use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Testbench\Attributes\WithConfig;
@@ -140,17 +137,6 @@ class QueueConnectionTest extends TestCase
         } catch (SqsException) {
             // This job was dispatched
         }
-    }
-
-    public function testSqsConnectorRequiresCompleteHttpConfiguration(): void
-    {
-        $config = config()->array('queue.connections.sqs');
-        unset($config['http']['connect_timeout']);
-
-        $this->expectException(ErrorException::class);
-        $this->expectExceptionMessage('Undefined array key "connect_timeout"');
-
-        (new SqsConnector)->connect(Arr::except($config, ['pool']));
     }
 }
 

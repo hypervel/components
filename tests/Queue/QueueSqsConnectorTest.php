@@ -18,13 +18,31 @@ use ReflectionFunction;
 
 class QueueSqsConnectorTest extends TestCase
 {
-    public function testConnectSucceedsWithCompleteConfigurationAndNullCredentials(): void
+    public function testConnectSucceedsWhenOptionalSdkConfigurationIsOmitted(): void
     {
         $connector = new SqsConnector;
 
         $queue = $connector->connect($this->config());
 
         $this->assertInstanceOf(SqsQueue::class, $queue);
+    }
+
+    public function testDefaultConfigurationPreservesIndividualHttpOverridesAndOptions(): void
+    {
+        $config = (new QueueSqsConnectorStub)->defaultConfiguration([
+            'http' => [
+                'timeout' => 15,
+                'proxy' => 'http://proxy.test',
+            ],
+        ]);
+
+        $this->assertNull($config['credentials']);
+        $this->assertSame('latest', $config['version']);
+        $this->assertSame([
+            'timeout' => 15,
+            'connect_timeout' => 60,
+            'proxy' => 'http://proxy.test',
+        ], $config['http']);
     }
 
     #[DataProvider('incompleteStaticCredentials')]
@@ -141,16 +159,10 @@ class QueueSqsConnectorTest extends TestCase
             'key' => null,
             'secret' => null,
             'token' => null,
-            'credentials' => null,
             'prefix' => 'https://sqs.us-east-1.amazonaws.com/account',
             'queue' => 'default',
             'suffix' => null,
             'region' => 'us-east-1',
-            'version' => 'latest',
-            'http' => [
-                'timeout' => 60,
-                'connect_timeout' => 60,
-            ],
             'after_commit' => false,
             'overflow' => [
                 'enabled' => false,
@@ -166,6 +178,11 @@ class QueueSqsConnectorTest extends TestCase
 
 class QueueSqsConnectorStub extends SqsConnector
 {
+    public function defaultConfiguration(array $config): array
+    {
+        return $this->getDefaultConfiguration($config);
+    }
+
     public function resolveCredentials(array $config): mixed
     {
         return $this->resolveCredentialProvider($config);

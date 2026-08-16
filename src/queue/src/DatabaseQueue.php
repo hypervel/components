@@ -301,8 +301,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
         // A non-empty deferred group means partitionJobsByAfterCommit() resolved a transactions manager.
         foreach ($afterCommit as $job) {
             /** @var DatabaseTransactionsManager $transactions */
-            $this->addUniqueJobRollbackCallback($transactions, $job);
-            $this->addDebouncedJobRollbackCallback($transactions, $job);
+            $this->addJobRollbackCallback($transactions, $job);
         }
 
         if ($this->afterCommitDispatcher !== null) {

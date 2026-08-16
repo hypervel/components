@@ -33,7 +33,7 @@ class RedisConnector implements ConnectorInterface
             $config['retry_after'],
             $config['block_for'],
             $config['after_commit'],
-            $config['migration_batch_size']
+            $config['migration_batch_size'] ?? RedisQueue::DEFAULT_MIGRATION_BATCH_SIZE
         );
     }
 }

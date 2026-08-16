@@ -18,6 +18,8 @@ class SqsConnector implements ConnectorInterface
      */
     public function connect(array $config): Queue
     {
+        $config = $this->getDefaultConfiguration($config);
+
         $key = $config['key'];
         $secret = $config['secret'];
         $token = $config['token'];
@@ -38,16 +40,7 @@ class SqsConnector implements ConnectorInterface
 
         // The queue token is an AWS session credential, while the SDK's
         // top-level token option is an unrelated bearer token.
-        $clientConfig = [
-            'region' => $config['region'],
-            'version' => $config['version'],
-            'http' => [
-                'timeout' => $config['http']['timeout'],
-                'connect_timeout' => $config['http']['connect_timeout'],
-                ...Arr::except($config['http'], ['timeout', 'connect_timeout']),
-            ],
-            ...Arr::except($config, ['token', 'overflow', 'region', 'version', 'http']),
-        ];
+        $clientConfig = Arr::except($config, ['token', 'overflow']);
 
         return new SqsQueue(
             new SqsClient($clientConfig),
@@ -85,5 +78,22 @@ class SqsConnector implements ConnectorInterface
         };
 
         return CredentialProvider::memoize($resolved);
+    }
+
+    /**
+     * Get the default configuration for SQS.
+     */
+    protected function getDefaultConfiguration(array $config): array
+    {
+        return [
+            'credentials' => null,
+            'version' => 'latest',
+            ...$config,
+            'http' => [
+                'timeout' => 60,
+                'connect_timeout' => 60,
+                ...($config['http'] ?? []),
+            ],
+        ];
     }
 }

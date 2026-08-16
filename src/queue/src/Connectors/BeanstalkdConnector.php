@@ -30,7 +30,7 @@ class BeanstalkdConnector implements ConnectorInterface
      */
     protected function pheanstalk(array $config): Pheanstalk
     {
-        $timeout = $config['timeout'];
+        $timeout = $config['timeout'] ?? null;
 
         return Pheanstalk::create(
             $config['host'],

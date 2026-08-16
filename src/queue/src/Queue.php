@@ -19,6 +19,7 @@ use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\Attributes\Backoff;
+use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
 use Hypervel\Queue\Attributes\FailOnTimeout;
 use Hypervel\Queue\Attributes\MaxExceptions;
@@ -101,8 +102,17 @@ abstract class Queue
     public function bulk(array $jobs, mixed $data = '', ?string $queue = null): mixed
     {
         foreach ((array) $jobs as $job) {
-            /* @phpstan-ignore-next-line */
-            $this->push($job, $data, $queue);
+            $delay = is_object($job)
+                ? $this->getAttributeValue($job, Delay::class, 'delay')
+                : null;
+
+            if ($delay !== null) {
+                /* @phpstan-ignore-next-line */
+                $this->later($delay, $job, $data, $queue);
+            } else {
+                /* @phpstan-ignore-next-line */
+                $this->push($job, $data, $queue);
+            }
         }
 
         return null;
@@ -357,8 +367,7 @@ abstract class Queue
             $transactions = $this->container->make('db.transactions');
 
             if ($transactions->callbackApplicableTransactions()->isNotEmpty()) {
-                $this->addUniqueJobRollbackCallback($transactions, $job);
-                $this->addDebouncedJobRollbackCallback($transactions, $job);
+                $this->addJobRollbackCallback($transactions, $job);
 
                 if ($this->afterCommitDispatcher !== null) {
                     $dispatcher = $this->afterCommitDispatcher;
@@ -441,35 +450,55 @@ abstract class Queue
     }
 
     /**
-     * Register a transaction rollback callback that releases the unique lock for the given job.
+     * Register a transaction rollback callback that releases the job's locks.
      */
-    protected function addUniqueJobRollbackCallback(DatabaseTransactionsManager $transactions, object|string $job): void
+    protected function addJobRollbackCallback(DatabaseTransactionsManager $transactions, object|string $job): void
     {
-        if (! $job instanceof ShouldBeUnique) {
-            return;
+        $callback = $this->createJobRollbackCallback($job);
+
+        if ($callback !== null) {
+            $transactions->addCallbackForRollback($callback);
         }
-
-        $lock = new UniqueLock($this->container->make(Cache::class));
-
-        $transactions->addCallbackForRollback(
-            static fn () => $lock->release($job)
-        );
     }
 
     /**
-     * Register a transaction rollback callback that releases the debounce token for the given job.
+     * Create a callback that releases the job's locks.
      */
-    protected function addDebouncedJobRollbackCallback(DatabaseTransactionsManager $transactions, object|string $job): void
+    protected function createJobRollbackCallback(object|string $job): ?Closure
     {
-        if (! is_object($job) || ($job->debounceOwner ?? '') === '') {
-            return;
+        $uniqueLock = $job instanceof ShouldBeUnique
+            ? new UniqueLock($this->container->make(Cache::class))
+            : null;
+        $debounceOwner = is_object($job) ? ($job->debounceOwner ?? '') : '';
+        $debounceLock = $debounceOwner !== ''
+            ? new DebounceLock($this->container->make(Cache::class))
+            : null;
+
+        if ($uniqueLock === null && $debounceLock === null) {
+            return null;
         }
 
-        $lock = new DebounceLock($this->container->make(Cache::class));
+        return static function () use ($uniqueLock, $debounceLock, $debounceOwner, $job): void {
+            // Failover invokes both releases as one cancellation callback, so preserve
+            // the transaction record's exception isolation inside that callback.
+            $exception = null;
 
-        $transactions->addCallbackForRollback(
-            static fn () => $lock->release($job, $job->debounceOwner ?? '')
-        );
+            try {
+                $uniqueLock?->release($job);
+            } catch (Throwable $throwable) {
+                $exception = $throwable;
+            }
+
+            try {
+                $debounceLock?->release($job, $debounceOwner);
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+
+            if ($exception !== null) {
+                throw $exception;
+            }
+        };
     }
 
     /**

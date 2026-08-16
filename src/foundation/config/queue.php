@@ -25,7 +25,7 @@ return [
     | by every worker.
     |
     */
-    'concurrency_number' => (int) env('QUEUE_CONCURRENCY_NUMBER', 1),
+    'concurrency' => (int) env('QUEUE_CONCURRENCY', 1),
 
     /*
     |--------------------------------------------------------------------------
@@ -36,17 +36,18 @@ return [
     | used by your application. An example configuration is provided for
     | each backend supported by Hypervel. You're also free to add more.
     |
-    | Drivers: "sync", "background", "deferred", "database", "beanstalkd", "sqs", "redis", "null"
+    | Drivers: "sync", "background", "deferred", "database", "beanstalkd", "sqs", "redis", "failover", "null"
     |
-    | A null database connection selects the default database connection. A
-    | null Beanstalkd timeout disables the socket timeout. Connection records
-    | for drivers without named queues may omit the "queue" member.
+    | A null database connection selects the default database connection.
+    | Connection records for drivers without named queues may omit the
+    | "queue" member.
     |
-    | For SQS, a non-null credentials option takes precedence over the static
-    | key and secret. When all three are null, the AWS SDK uses its default
-    | credential chain. A null token means no temporary AWS session token.
-    | Callable or object credentials require an explicit pool fingerprint.
-    | The version and HTTP options configure the underlying AWS SDK client.
+    | Except for sync and database, a dispatch waits for the most recently
+    | started applicable transaction and its enclosing stack to commit.
+    | Database queue inserts remain in the business transaction by default;
+    | enable after-commit dispatch when the queue does not share every
+    | connection whose transactional data the job depends on. Failover waits
+    | for every applicable transaction so failures remain in its fallback chain.
     |
     */
 
@@ -58,12 +59,12 @@ return [
 
         'background' => [
             'driver' => 'background',
-            'after_commit' => false,
+            'after_commit' => true,
         ],
 
         'deferred' => [
             'driver' => 'deferred',
-            'after_commit' => false,
+            'after_commit' => true,
         ],
 
         'database' => [
@@ -78,12 +79,11 @@ return [
         'beanstalkd' => [
             'driver' => 'beanstalkd',
             'host' => env('BEANSTALKD_QUEUE_HOST', 'localhost'),
-            'port' => 11300,
+            'port' => (int) env('BEANSTALKD_QUEUE_PORT', 11300),
             'queue' => env('BEANSTALKD_QUEUE', 'default'),
             'retry_after' => (int) env('BEANSTALKD_QUEUE_RETRY_AFTER', 90),
             'block_for' => 0,
-            'timeout' => null,
-            'after_commit' => false,
+            'after_commit' => true,
             'pool' => [
                 'min_retained_objects' => 1,
                 'max_objects' => 10,
@@ -98,24 +98,18 @@ return [
             'driver' => 'sqs',
             'key' => env('AWS_ACCESS_KEY_ID'),
             'secret' => env('AWS_SECRET_ACCESS_KEY'),
-            'token' => null,
-            'credentials' => null,
+            'token' => env('AWS_SESSION_TOKEN'),
             'prefix' => env('SQS_PREFIX', 'https://sqs.us-east-1.amazonaws.com/your-account-id'),
             'queue' => env('SQS_QUEUE', 'default'),
             'suffix' => env('SQS_SUFFIX'),
             'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
-            'version' => 'latest',
-            'http' => [
-                'timeout' => 60,
-                'connect_timeout' => 60,
-            ],
-            'after_commit' => false,
+            'after_commit' => true,
             'overflow' => [
-                'enabled' => env('SQS_OVERFLOW_ENABLED', false),
+                'enabled' => (bool) env('SQS_OVERFLOW_ENABLED', false),
                 'store' => env('SQS_OVERFLOW_STORE'),
                 'always' => false,
                 'delete_after_processing' => true,
-                'flush_on_clear' => env('SQS_OVERFLOW_FLUSH_ON_CLEAR', false),
+                'flush_on_clear' => (bool) env('SQS_OVERFLOW_FLUSH_ON_CLEAR', false),
             ],
             'pool' => [
                 'min_retained_objects' => 1,
@@ -133,8 +127,16 @@ return [
             'queue' => env('REDIS_QUEUE', 'default'),
             'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
             'block_for' => null,
-            'after_commit' => false,
-            'migration_batch_size' => -1,
+            'after_commit' => true,
+        ],
+
+        'failover' => [
+            'driver' => 'failover',
+            'connections' => [
+                'database',
+                'deferred',
+            ],
+            'after_commit' => true,
         ],
     ],
 
@@ -165,8 +167,9 @@ return [
     |
     | Supported drivers: "database", "database-uuids", "file", "null"
     |
-    | Database drivers require "database" and "table". The file driver uses
-    | a "path" and "limit" instead; omitting them stores up to 100 failures in
+    | Database drivers require "database" and "table". A null "database" uses
+    | the default database connection. The file driver uses a "path" and
+    | "limit" instead; omitting them stores up to 100 failures in
     | storage/framework/cache/failed-jobs.json.
     |
     */
