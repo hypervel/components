@@ -23,7 +23,7 @@ class Task extends Prompt
      *
      * This must remain well above the public render interval.
      */
-    protected const LOGGER_WRITE_TIMEOUT_SECONDS = 10;
+    protected const float LOGGER_WRITE_TIMEOUT_SECONDS = Logger::DEFAULT_WRITE_TIMEOUT_SECONDS;
 
     /**
      * Scheduling margin added to one complete renderer frame interval.
@@ -517,10 +517,9 @@ class Task extends Prompt
         fclose($sockets[0]);
         $this->pid = $pid;
         $this->socket = $sockets[1];
-        stream_set_timeout($this->socket, static::LOGGER_WRITE_TIMEOUT_SECONDS);
 
         $rendererInterval = $this->interval;
-        $logger = new Logger($this->identifier, $this->socket);
+        $logger = new Logger($this->identifier, $this->socket, static::LOGGER_WRITE_TIMEOUT_SECONDS);
         $result = null;
         $callbackFailure = null;
         $rendererFailure = null;
@@ -539,7 +538,11 @@ class Task extends Prompt
         if ($rendererFailure === null) {
             try {
                 // A truncated newline-framed message makes a later reset unrecoverable.
-                Utils::writeAll($this->socket, $this->identifier . '_reset:' . ($success ? '1' : '0') . PHP_EOL);
+                Utils::writeAll(
+                    $this->socket,
+                    $this->identifier . '_reset:' . ($success ? '1' : '0') . PHP_EOL,
+                    static::LOGGER_WRITE_TIMEOUT_SECONDS,
+                );
                 $settlementTimeout = $rendererInterval + static::RENDERER_SETTLEMENT_MARGIN_MILLISECONDS;
                 stream_set_timeout(
                     $this->socket,
@@ -628,8 +631,7 @@ class Task extends Prompt
                 usleep($this->interval * 1000);
             }
 
-            stream_set_blocking($socket, true);
-            Utils::writeAll($socket, static::RENDERER_ACKNOWLEDGEMENT);
+            Utils::writeAll($socket, static::RENDERER_ACKNOWLEDGEMENT, static::LOGGER_WRITE_TIMEOUT_SECONDS);
         } catch (Throwable) {
             $exitCode = 1;
         }

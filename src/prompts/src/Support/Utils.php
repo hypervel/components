@@ -13,6 +13,16 @@ use RuntimeException;
 class Utils
 {
     /**
+     * The largest chunk offered to a single write attempt.
+     */
+    private const int WRITE_CHUNK_BYTES = 65536;
+
+    /**
+     * The stream type that always accepts a full write and cannot be selected on.
+     */
+    private const string MEMORY_STREAM_TYPE = 'MEMORY';
+
+    /**
      * Determine if all items in an array match a truth test.
      *
      * @param array<array-key, mixed> $values
@@ -67,40 +77,83 @@ class Utils
     }
 
     /**
-     * Write an entire payload to a stream.
+     * Write an entire payload to a stream, waiting up to a timeout for a blocked reader.
+     *
+     * The stream is driven in non-blocking mode because stream_set_timeout() only
+     * governs reads. A blocking write into a full buffer parks in the underlying
+     * send syscall on macOS and BSD, where no timeout applies and no signal can
+     * interrupt it, so the caller would wait for the reader forever.
+     *
+     * @param resource $stream
+     * @param float $timeout seconds to wait for a stalled reader to accept more output
+     */
+    public static function writeAll($stream, string $payload, float $timeout = 10.0): void
+    {
+        $length = strlen($payload);
+
+        if ($length === 0) {
+            return;
+        }
+
+        // Selectable streams are driven non-blocking; the rest keep their original mode.
+        $selectable = stream_get_meta_data($stream)['stream_type'] !== self::MEMORY_STREAM_TYPE
+            && @stream_set_blocking($stream, false);
+        $offset = 0;
+
+        try {
+            while ($offset < $length) {
+                // Capping the chunk keeps the copy proportional to what a write can accept.
+                $written = @fwrite($stream, substr($payload, $offset, self::WRITE_CHUNK_BYTES));
+
+                if (is_int($written) && $written > 0) {
+                    $offset += $written;
+
+                    continue;
+                }
+
+                // Only a failed write reports closure; zero simply means the buffer is full.
+                if ($written === false) {
+                    throw new RuntimeException(
+                        feof($stream)
+                            ? 'The prompt renderer closed while receiving output.'
+                            : 'Unable to write output to the prompt renderer.',
+                    );
+                }
+
+                // A blocking stream returning zero cannot be waited on without stalling.
+                if (! $selectable) {
+                    throw new RuntimeException('Unable to write output to the prompt renderer.');
+                }
+
+                if (! self::awaitWritable($stream, $timeout)) {
+                    throw new RuntimeException('The prompt renderer timed out while receiving output.');
+                }
+            }
+        } finally {
+            if ($selectable) {
+                @stream_set_blocking($stream, true);
+            }
+        }
+    }
+
+    /**
+     * Wait for a stream to accept more output.
      *
      * @param resource $stream
      */
-    public static function writeAll($stream, string $payload): void
+    private static function awaitWritable($stream, float $timeout): bool
     {
-        $length = strlen($payload);
-        $offset = 0;
+        $read = null;
+        $except = null;
+        $write = [$stream];
+        $seconds = (int) $timeout;
 
-        while ($offset < $length) {
-            $written = @fwrite($stream, substr($payload, $offset));
-
-            if (is_int($written) && $written > 0) {
-                $offset += $written;
-
-                if ($offset === $length) {
-                    continue;
-                }
-            }
-
-            $metadata = stream_get_meta_data($stream);
-
-            // A timed-out stream stays latched and must not be reused after this failure.
-            if ($metadata['timed_out']) {
-                throw new RuntimeException('The prompt renderer timed out while receiving output.');
-            }
-
-            if ($written === false || $written === 0) {
-                throw new RuntimeException(
-                    $metadata['eof']
-                        ? 'The prompt renderer closed while receiving output.'
-                        : 'Unable to write output to the prompt renderer.',
-                );
-            }
-        }
+        return (bool) @stream_select(
+            $read,
+            $write,
+            $except,
+            $seconds,
+            (int) round(($timeout - $seconds) * 1_000_000),
+        );
     }
 }
