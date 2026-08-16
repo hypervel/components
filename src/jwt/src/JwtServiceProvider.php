@@ -132,14 +132,13 @@ class JwtServiceProvider extends ServiceProvider implements ReloadsConfiguration
     {
         $this->callAfterResolving(AuthManager::class, function (AuthManager $authManager) {
             $authManager->extend('jwt', function ($app, $name, $config) use ($authManager) {
-                $ttl = $config['ttl'];
+                $ttl = array_key_exists('ttl', $config)
+                    ? $config['ttl']
+                    : $app->make('config')->get('jwt.ttl');
 
-                if ($ttl === 'inherit') {
-                    /** @var null|int $ttl */
-                    $ttl = $app->make('config')->get('jwt.ttl');
-                } elseif (! is_int($ttl) && $ttl !== null) {
+                if (! is_int($ttl) && $ttl !== null) {
                     throw new InvalidArgumentException(
-                        "Auth guard [{$name}] declares an invalid jwt ttl. Use an integer, null, or 'inherit'."
+                        "JWT TTL for auth guard [{$name}] must be an integer or null."
                     );
                 }
 

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Jwt;
 
-use ErrorException;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Cache\Repository as CacheRepository;
 use Hypervel\Cache\StackStore;
@@ -85,8 +84,6 @@ class JwtServiceProviderTest extends TestCase
         $config->set('auth.guards.jwt', [
             'driver' => 'jwt',
             'provider' => 'users',
-            'passwords' => null,
-            'password_timeout' => null,
             'ttl' => null,
         ]);
         $config->set('auth.providers.users', [
@@ -113,8 +110,6 @@ class JwtServiceProviderTest extends TestCase
         $config->set('auth.guards.jwt', [
             'driver' => 'jwt',
             'provider' => 'users',
-            'passwords' => null,
-            'password_timeout' => null,
             'ttl' => 15,
         ]);
         $config->set('auth.providers.users', [
@@ -133,34 +128,17 @@ class JwtServiceProviderTest extends TestCase
         $this->assertSame(15, $guard->getTTL());
     }
 
-    public function testGuardRequiresTtlMember(): void
-    {
-        $this->app->make('config')->set('auth.guards.jwt', [
-            'driver' => 'jwt',
-            'provider' => 'users',
-            'passwords' => null,
-            'password_timeout' => null,
-        ]);
-
-        $this->expectException(ErrorException::class);
-        $this->expectExceptionMessage('Undefined array key "ttl"');
-
-        $this->app->make(AuthManager::class)->guard('jwt');
-    }
-
     public function testGuardRejectsUnsupportedTtlValue(): void
     {
         $this->app->make('config')->set('auth.guards.customers', [
             'driver' => 'jwt',
             'provider' => 'users',
-            'passwords' => null,
-            'password_timeout' => null,
             'ttl' => 'forever',
         ]);
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage(
-            "Auth guard [customers] declares an invalid jwt ttl. Use an integer, null, or 'inherit'."
+            'JWT TTL for auth guard [customers] must be an integer or null.'
         );
 
         $this->app->make(AuthManager::class)->guard('customers');

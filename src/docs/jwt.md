@@ -119,9 +119,6 @@ To use JWT authentication, configure an auth guard that uses the `jwt` driver:
     'api' => [
         'driver' => 'jwt',
         'provider' => 'users',
-        'passwords' => null,
-        'password_timeout' => null,
-        'ttl' => 'inherit',
     ],
 ],
 ```
@@ -227,7 +224,9 @@ After registering the driver, you may select it using the `driver` configuration
 The `ttl` configuration option controls how long newly issued tokens remain valid, in minutes:
 
 ```php
-'ttl' => env('JWT_TTL', 120),
+$ttl = env('JWT_TTL', 120);
+
+'ttl' => $ttl === null ? null : (int) $ttl,
 ```
 
 Set this value to `null` to issue tokens without an `exp` claim:
@@ -236,29 +235,25 @@ Set this value to `null` to issue tokens without an `exp` claim:
 'ttl' => null,
 ```
 
-Every JWT guard declares its own `ttl` member. Set it to `inherit` to use the global `jwt.ttl` value, an integer to override that value in minutes, or `null` to issue non-expiring tokens from that guard:
+JWT guards inherit the global `jwt.ttl` value when their guard configuration omits the `ttl` option. You may set a guard's `ttl` to an integer to override that value in minutes, or to `null` to issue non-expiring tokens from that guard:
 
 ```php
 'guards' => [
     'customers' => [
         'driver' => 'jwt',
         'provider' => 'customers',
-        'passwords' => null,
-        'password_timeout' => null,
         'ttl' => 15,
     ],
 
     'devices' => [
         'driver' => 'jwt',
         'provider' => 'devices',
-        'passwords' => null,
-        'password_timeout' => null,
         'ttl' => null,
     ],
 ],
 ```
 
-The `inherit` value is only supported by JWT guard records. The global `jwt.ttl` option accepts an integer or `null`.
+The global `jwt.ttl` option accepts an integer or `null`.
 
 For one token-producing operation, use `setTTL`:
 
@@ -276,7 +271,7 @@ The override is cleared after the token is generated.
 Subject locking is enabled by default:
 
 ```php
-'lock_subject' => env('JWT_LOCK_SUBJECT', true),
+'lock_subject' => (bool) env('JWT_LOCK_SUBJECT', true),
 ```
 
 When subject locking is enabled and the user provider exposes its model class, JWT adds a provider hash to each token. This prevents a token issued for one provider model from authenticating against another provider model that happens to have the same ID.
@@ -362,7 +357,7 @@ If your application uses timestamp validations and your servers have small clock
 The JWT blacklist lets the package invalidate tokens before they naturally expire:
 
 ```php
-'blacklist_enabled' => env('JWT_BLACKLIST_ENABLED', false),
+'blacklist_enabled' => (bool) env('JWT_BLACKLIST_ENABLED', false),
 ```
 
 Blacklisting is disabled by default. When enabled, newly issued tokens include a `jti` claim and authenticated blacklist checks require cache access. Enable it when your application needs server-side token invalidation.
@@ -384,13 +379,15 @@ If the blacklist store uses a cache stack or any node-local tier, a revoked toke
 You may configure a grace period for concurrent requests that are using the same token while a refresh is in progress:
 
 ```php
-'blacklist_grace_period' => env('JWT_BLACKLIST_GRACE_PERIOD', 0),
+'blacklist_grace_period' => (int) env('JWT_BLACKLIST_GRACE_PERIOD', 0),
 ```
 
 The `refresh_ttl` option also controls how long blacklist entries are retained. When the refresh lifetime is `null`, revocations for refreshable tokens are retained forever:
 
 ```php
-'refresh_ttl' => env('JWT_REFRESH_TTL', 20160),
+$refreshTtl = env('JWT_REFRESH_TTL', 20160);
+
+'refresh_ttl' => $refreshTtl === null ? null : (int) $refreshTtl,
 ```
 
 <a name="authenticating-requests"></a>
@@ -500,13 +497,15 @@ Do not protect the refresh route with `auth:api`. Refresh must be able to read a
 The refresh window is controlled by `refresh_ttl`, in minutes:
 
 ```php
-'refresh_ttl' => env('JWT_REFRESH_TTL', 20160),
+$refreshTtl = env('JWT_REFRESH_TTL', 20160);
+
+'refresh_ttl' => $refreshTtl === null ? null : (int) $refreshTtl,
 ```
 
 If `refresh_iat` is `false`, refreshed tokens keep the original `iat` claim. If `refresh_iat` is `true`, refreshed tokens receive a fresh `iat` claim:
 
 ```php
-'refresh_iat' => env('JWT_REFRESH_IAT', false),
+'refresh_iat' => (bool) env('JWT_REFRESH_IAT', false),
 ```
 
 You may force the old token to remain blacklisted forever when blacklist is enabled:

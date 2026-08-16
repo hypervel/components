@@ -1004,9 +1004,6 @@ class JwtGuardTest extends TestCase
                     'jwt' => [
                         'driver' => 'jwt',
                         'provider' => 'users',
-                        'passwords' => null,
-                        'password_timeout' => null,
-                        'ttl' => 'inherit',
                     ],
                 ],
                 'providers' => [
