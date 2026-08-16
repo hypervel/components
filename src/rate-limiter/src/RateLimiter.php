@@ -205,7 +205,7 @@ class RateLimiter extends MultipleInstanceManager
      */
     protected function createDatabaseDriver(array $config): Store
     {
-        $connection = $config['connection'];
+        $connection = $config['connection'] ?? null;
         $table = $config['table'];
 
         if ($connection !== null && (! is_string($connection) || $connection === '')) {

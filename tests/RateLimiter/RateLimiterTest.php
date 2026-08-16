@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\RateLimiter;
 
+use Hypervel\RateLimiter\DatabaseStore;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\Limiter;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\RateLimiter\WorkerArrayStore;
+use Hypervel\Support\ClassInvoker;
 use Hypervel\Support\Facades\RateLimiter as RateLimiterFacade;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
@@ -228,6 +230,21 @@ class RateLimiterTest extends TestCase
         $this->expectExceptionMessage('must return an instance of [Hypervel\RateLimiter\Contracts\Store]');
 
         $manager->store('invalid');
+    }
+
+    public function testDatabaseStoreMayOmitTheConnection(): void
+    {
+        config([
+            'rate-limiter.stores.database-default' => [
+                'driver' => 'database',
+                'table' => 'rate_limits',
+            ],
+        ]);
+
+        $store = $this->app->make(RateLimiter::class)->store('database-default')->getStore();
+
+        $this->assertInstanceOf(DatabaseStore::class, $store);
+        $this->assertNull((new ClassInvoker($store))->connectionName);
     }
 
     #[DataProvider('invalidStoreConfigurations')]
