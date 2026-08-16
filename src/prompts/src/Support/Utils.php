@@ -95,9 +95,12 @@ class Utils
             return;
         }
 
+        $metadata = stream_get_meta_data($stream);
+
         // Selectable streams are driven non-blocking; the rest keep their original mode.
-        $selectable = stream_get_meta_data($stream)['stream_type'] !== self::MEMORY_STREAM_TYPE
+        $selectable = $metadata['stream_type'] !== self::MEMORY_STREAM_TYPE
             && @stream_set_blocking($stream, false);
+        $blocking = self::isBlocking($metadata);
         $offset = 0;
 
         try {
@@ -130,10 +133,22 @@ class Utils
                 }
             }
         } finally {
-            if ($selectable) {
+            // Only restore blocking mode when the caller was relying on it.
+            if ($selectable && $blocking) {
                 @stream_set_blocking($stream, true);
             }
         }
+    }
+
+    /**
+     * Determine whether a stream was in blocking mode.
+     *
+     * @param array<string, mixed> $metadata
+     */
+    private static function isBlocking(array $metadata): bool
+    {
+        // php://temp omits the blocking state entirely, so treat it as the stream default.
+        return (bool) ($metadata['blocked'] ?? true);
     }
 
     /**

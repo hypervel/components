@@ -8,6 +8,7 @@ use Hypervel\Prompts\Support\Logger;
 use Hypervel\Prompts\Support\Utils;
 use Hypervel\Tests\TestCase;
 use ReflectionProperty;
+use RuntimeException;
 
 class LoggerTest extends TestCase
 {
@@ -159,6 +160,30 @@ class LoggerTest extends TestCase
 
             $this->assertNotNull($logger->transportFailure());
             $this->assertTrue(stream_get_meta_data($sockets[0])['blocked']);
+        } finally {
+            fclose($sockets[0]);
+            fclose($sockets[1]);
+        }
+    }
+
+    public function testLeavesANonBlockingStreamNonBlocking(): void
+    {
+        $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+        stream_set_blocking($sockets[0], false);
+
+        try {
+            Utils::writeAll($sockets[0], "output\n", 0.5);
+
+            $this->assertFalse(stream_get_meta_data($sockets[0])['blocked']);
+
+            // A timed-out write must not silently hand back a blocking stream either.
+            try {
+                Utils::writeAll($sockets[0], str_repeat('x', 1024 * 1024), 0.5);
+            } catch (RuntimeException) {
+                // The timeout is the point of the payload; the mode is what matters here.
+            }
+
+            $this->assertFalse(stream_get_meta_data($sockets[0])['blocked']);
         } finally {
             fclose($sockets[0]);
             fclose($sockets[1]);
