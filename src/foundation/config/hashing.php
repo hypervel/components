@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+$bcryptLimit = env('BCRYPT_LIMIT');
+
 return [
     /*
     |--------------------------------------------------------------------------
@@ -30,9 +32,9 @@ return [
     */
 
     'bcrypt' => [
-        'rounds' => env('BCRYPT_ROUNDS', 12),
-        'verify' => env('HASH_VERIFY', true),
-        'limit' => env('BCRYPT_LIMIT', null),
+        'rounds' => (int) env('BCRYPT_ROUNDS', 12),
+        'verify' => (bool) env('HASH_VERIFY', true),
+        'limit' => $bcryptLimit === null ? null : (int) $bcryptLimit,
     ],
 
     /*
@@ -47,10 +49,10 @@ return [
     */
 
     'argon' => [
-        'memory' => env('ARGON_MEMORY', 65536),
-        'threads' => env('ARGON_THREADS', 1),
-        'time' => env('ARGON_TIME', 4),
-        'verify' => env('HASH_VERIFY', true),
+        'memory' => (int) env('ARGON_MEMORY', 65536),
+        'threads' => (int) env('ARGON_THREADS', 1),
+        'time' => (int) env('ARGON_TIME', 4),
+        'verify' => (bool) env('HASH_VERIFY', true),
     ],
 
     /*
