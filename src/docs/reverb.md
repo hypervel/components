@@ -118,9 +118,11 @@ For example, you may wish to maintain a single Hypervel application which, via R
 <a name="application-options"></a>
 ### Application Options
 
-Each application may also define client connection options, allowed origins, connection limits, message limits, client-event behavior, message rate limiting, and webhooks:
+Each application may also define client connection options, allowed origins, connection limits, message limits, client-event behavior, and message rate limiting. Webhook configuration is covered in the dedicated [Webhooks](#webhooks) section:
 
 ```php
+$maxConnections = env('REVERB_APP_MAX_CONNECTIONS');
+
 'apps' => [
     'provider' => 'config',
 
@@ -131,48 +133,28 @@ Each application may also define client connection options, allowed origins, con
             'secret' => env('REVERB_APP_SECRET'),
             'options' => [
                 'host' => env('REVERB_HOST'),
-                'port' => env('REVERB_PORT', 443),
+                'port' => (int) env('REVERB_PORT', 443),
                 'scheme' => env('REVERB_SCHEME', 'https'),
                 'useTLS' => env('REVERB_SCHEME', 'https') === 'https',
             ],
             'allowed_origins' => ['*'],
-            'ping_interval' => env('REVERB_APP_PING_INTERVAL', 60),
-            'activity_timeout' => env('REVERB_APP_ACTIVITY_TIMEOUT', 30),
-            'max_connections' => env('REVERB_APP_MAX_CONNECTIONS'),
-            'max_message_size' => env('REVERB_APP_MAX_MESSAGE_SIZE', 10_000),
+            'ping_interval' => (int) env('REVERB_APP_PING_INTERVAL', 60),
+            'activity_timeout' => (int) env('REVERB_APP_ACTIVITY_TIMEOUT', 30),
+            'max_connections' => $maxConnections === null ? null : (int) $maxConnections,
+            'max_message_size' => (int) env('REVERB_APP_MAX_MESSAGE_SIZE', 10_000),
             'accept_client_events_from' => env('REVERB_APP_ACCEPT_CLIENT_EVENTS_FROM', 'members'),
             'rate_limiting' => [
-                'enabled' => env('REVERB_APP_RATE_LIMITING_ENABLED', false),
-                'max_attempts' => env('REVERB_APP_RATE_LIMIT_MAX_ATTEMPTS', 60),
-                'decay_seconds' => env('REVERB_APP_RATE_LIMIT_DECAY_SECONDS', 60),
-                'terminate_on_limit' => env('REVERB_APP_RATE_LIMIT_TERMINATE', false),
-            ],
-            'webhooks' => [
-                'url' => env('REVERB_WEBHOOK_URL'),
-                'events' => [],
-                'headers' => [],
-                'filter' => [
-                    'channel_name_starts_with' => env('REVERB_WEBHOOK_CHANNEL_PREFIX'),
-                    'channel_name_ends_with' => env('REVERB_WEBHOOK_CHANNEL_SUFFIX'),
-                ],
-                'subscription_count' => env('REVERB_WEBHOOK_SUBSCRIPTION_COUNT', false),
-                'disconnect_smoothing_ms' => env('REVERB_WEBHOOK_DISCONNECT_SMOOTHING_MS', 3000),
-                'timeout' => env('REVERB_WEBHOOK_TIMEOUT', 5),
-                'retries' => env('REVERB_WEBHOOK_RETRIES', 3),
-                'retry_delay' => env('REVERB_WEBHOOK_RETRY_DELAY', 1),
-                'batching' => [
-                    'enabled' => env('REVERB_WEBHOOK_BATCHING_ENABLED', false),
-                    'max_events' => env('REVERB_WEBHOOK_BATCHING_MAX_EVENTS', 50),
-                    'max_delay_ms' => env('REVERB_WEBHOOK_BATCHING_MAX_DELAY_MS', 250),
-                    'max_payload_bytes' => env('REVERB_WEBHOOK_BATCHING_MAX_PAYLOAD_BYTES', 262144),
-                ],
+                'enabled' => (bool) env('REVERB_APP_RATE_LIMIT_ENABLED', false),
+                'max_attempts' => (int) env('REVERB_APP_RATE_LIMIT_MAX_ATTEMPTS', 60),
+                'decay_seconds' => (int) env('REVERB_APP_RATE_LIMIT_DECAY_SECONDS', 60),
+                'terminate_on_limit' => (bool) env('REVERB_APP_RATE_LIMIT_TERMINATE_ON_LIMIT', false),
             ],
         ],
     ],
 ],
 ```
 
-When using the `config` application provider, each application entry is a complete record. A null `max_connections` value allows the application to accept an unlimited number of connections.
+When using the `config` application provider, omitting `activity_timeout` uses 30 seconds, omitting `options` uses an empty array, and omitting `rate_limiting` or `webhooks` disables that feature. A null `max_connections` value allows the application to accept an unlimited number of connections. Supplied rate-limiting and webhook records must include every member shown in their respective examples.
 
 The `accept_client_events_from` option controls which connections may send client events. The default value, `members`, allows client events from connections subscribed to the target private or presence channel. You may use `all` to allow client events from any connection, or any other value to disable client events.
 
@@ -181,7 +163,7 @@ The `max_message_size` option limits the size of each WebSocket message sent by 
 ```php
 'servers' => [
     'reverb' => [
-        'max_request_size' => env('REVERB_MAX_REQUEST_SIZE', 10_000),
+        'max_request_size' => (int) env('REVERB_MAX_REQUEST_SIZE', 10_000),
         // ...
     ],
 ],
@@ -200,7 +182,7 @@ However, Reverb may also terminate TLS directly. To do so, configure TLS options
 'servers' => [
     'reverb' => [
         'host' => env('REVERB_SERVER_HOST', '0.0.0.0'),
-        'port' => env('REVERB_SERVER_PORT', 8080),
+        'port' => (int) env('REVERB_SERVER_PORT', 8080),
         'options' => [
             'tls' => [
                 'local_cert' => '/path/to/cert.pem',
@@ -275,6 +257,8 @@ public function register(): void
 }
 ```
 
+Logging outgoing broadcasts is configured separately. Set the optional `log` setting on the `reverb` connection in `config/broadcasting.php` to write outbound SDK requests, including serialized event payloads, to your application's default log channel.
+
 <a name="restarting"></a>
 ### Restarting
 
@@ -298,7 +282,7 @@ If your application uses [Telescope](/docs/{{version}}/telescope), Hypervel incl
 use Hypervel\Telescope\Watchers;
 
 Watchers\ReverbWatcher::class => [
-    'enabled' => env('TELESCOPE_REVERB_WATCHER', true),
+    'enabled' => (bool) env('TELESCOPE_REVERB_WATCHER', true),
     'events' => [
         'connection_established',
         'connection_closed',
@@ -308,7 +292,7 @@ Watchers\ReverbWatcher::class => [
         // 'message_received',
         // 'message_sent',
     ],
-    'message_size_limit' => env('TELESCOPE_REVERB_MESSAGE_SIZE_LIMIT', 64),
+    'message_size_limit' => (int) env('TELESCOPE_REVERB_MESSAGE_SIZE_LIMIT', 64),
 ],
 ```
 
@@ -364,17 +348,17 @@ To enable webhooks, configure a webhook URL and the events you would like to rec
         'channel_name_ends_with' => env('REVERB_WEBHOOK_CHANNEL_SUFFIX'),
     ],
 
-    'subscription_count' => env('REVERB_WEBHOOK_SUBSCRIPTION_COUNT', false),
-    'disconnect_smoothing_ms' => env('REVERB_WEBHOOK_DISCONNECT_SMOOTHING_MS', 3000),
-    'timeout' => env('REVERB_WEBHOOK_TIMEOUT', 5),
-    'retries' => env('REVERB_WEBHOOK_RETRIES', 3),
-    'retry_delay' => env('REVERB_WEBHOOK_RETRY_DELAY', 1),
+    'subscription_count' => (bool) env('REVERB_WEBHOOK_SUBSCRIPTION_COUNT', false),
+    'disconnect_smoothing_ms' => (int) env('REVERB_WEBHOOK_DISCONNECT_SMOOTHING_MS', 3000),
+    'timeout' => (int) env('REVERB_WEBHOOK_TIMEOUT', 5),
+    'retries' => (int) env('REVERB_WEBHOOK_RETRIES', 3),
+    'retry_delay' => (int) env('REVERB_WEBHOOK_RETRY_DELAY', 1),
 
     'batching' => [
-        'enabled' => env('REVERB_WEBHOOK_BATCHING_ENABLED', false),
-        'max_events' => env('REVERB_WEBHOOK_BATCHING_MAX_EVENTS', 50),
-        'max_delay_ms' => env('REVERB_WEBHOOK_BATCHING_MAX_DELAY_MS', 250),
-        'max_payload_bytes' => env('REVERB_WEBHOOK_BATCHING_MAX_PAYLOAD_BYTES', 262144),
+        'enabled' => (bool) env('REVERB_WEBHOOK_BATCHING_ENABLED', false),
+        'max_events' => (int) env('REVERB_WEBHOOK_BATCHING_MAX_EVENTS', 50),
+        'max_delay_ms' => (int) env('REVERB_WEBHOOK_BATCHING_MAX_DELAY_MS', 250),
+        'max_payload_bytes' => (int) env('REVERB_WEBHOOK_BATCHING_MAX_PAYLOAD_BYTES', 262144),
     ],
 ],
 ```
@@ -403,10 +387,10 @@ For production workloads, you may enable webhook batching to combine many events
 
 ```php
 'batching' => [
-    'enabled' => env('REVERB_WEBHOOK_BATCHING_ENABLED', false),
-    'max_events' => env('REVERB_WEBHOOK_BATCHING_MAX_EVENTS', 50),
-    'max_delay_ms' => env('REVERB_WEBHOOK_BATCHING_MAX_DELAY_MS', 250),
-    'max_payload_bytes' => env('REVERB_WEBHOOK_BATCHING_MAX_PAYLOAD_BYTES', 262144),
+    'enabled' => (bool) env('REVERB_WEBHOOK_BATCHING_ENABLED', false),
+    'max_events' => (int) env('REVERB_WEBHOOK_BATCHING_MAX_EVENTS', 50),
+    'max_delay_ms' => (int) env('REVERB_WEBHOOK_BATCHING_MAX_DELAY_MS', 250),
+    'max_payload_bytes' => (int) env('REVERB_WEBHOOK_BATCHING_MAX_PAYLOAD_BYTES', 262144),
 ],
 ```
 
@@ -418,9 +402,9 @@ When batching is enabled, Reverb buffers events in Redis and schedules flush job
 You may configure webhook delivery timeouts and retry behavior using the following members within the application's existing `webhooks` array:
 
 ```php
-'timeout' => env('REVERB_WEBHOOK_TIMEOUT', 5),
-'retries' => env('REVERB_WEBHOOK_RETRIES', 3),
-'retry_delay' => env('REVERB_WEBHOOK_RETRY_DELAY', 1),
+'timeout' => (int) env('REVERB_WEBHOOK_TIMEOUT', 5),
+'retries' => (int) env('REVERB_WEBHOOK_RETRIES', 3),
+'retry_delay' => (int) env('REVERB_WEBHOOK_RETRY_DELAY', 1),
 ```
 
 If a webhook delivery exhausts all retry attempts, Reverb dispatches the `Hypervel\Reverb\Webhooks\Events\WebhookFailed` event.

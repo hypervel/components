@@ -892,7 +892,7 @@ class ServerTest extends ReverbTestCase
             )));
         $this->app->instance(ExceptionHandler::class, $exceptionHandler);
 
-        $this->server->open($connection = new FakeConnection);
+        $connection = new FakeConnection;
         $this->server->message(
             $connection,
             json_encode([

@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+$maxConnections = env('REVERB_APP_MAX_CONNECTIONS');
+
 return [
     /*
     |--------------------------------------------------------------------------
@@ -44,7 +46,7 @@ return [
     'servers' => [
         'reverb' => [
             'host' => env('REVERB_SERVER_HOST', '0.0.0.0'),
-            'port' => env('REVERB_SERVER_PORT', 8080),
+            'port' => (int) env('REVERB_SERVER_PORT', 8080),
             'path' => env('REVERB_SERVER_PATH', ''),
             'options' => [
                 'tls' => [],
@@ -101,14 +103,14 @@ return [
             */
 
             'swoole_shared_state' => [
-                'rows' => env('REVERB_SWOOLE_SHARED_STATE_ROWS', 65536),
+                'rows' => (int) env('REVERB_SWOOLE_SHARED_STATE_ROWS', 65536),
 
                 // Rows for the webhook throttle/dedupe lock table. Only
                 // used for subscription_count throttling, cache_miss
                 // deduplication, and disconnect smoothing markers. A small
                 // fraction of channels need lock rows, so this can be much
                 // smaller than the main table.
-                'lock_rows' => env('REVERB_SWOOLE_SHARED_STATE_LOCK_ROWS', 8192),
+                'lock_rows' => (int) env('REVERB_SWOOLE_SHARED_STATE_LOCK_ROWS', 8192),
             ],
         ],
     ],
@@ -135,21 +137,21 @@ return [
                 'app_id' => env('REVERB_APP_ID'),
                 'options' => [
                     'host' => env('REVERB_HOST'),
-                    'port' => env('REVERB_PORT', 443),
+                    'port' => (int) env('REVERB_PORT', 443),
                     'scheme' => env('REVERB_SCHEME', 'https'),
                     'useTLS' => env('REVERB_SCHEME', 'https') === 'https',
                 ],
                 'allowed_origins' => ['*'],
-                'ping_interval' => env('REVERB_APP_PING_INTERVAL', 60),
-                'activity_timeout' => env('REVERB_APP_ACTIVITY_TIMEOUT', 30),
-                'max_connections' => env('REVERB_APP_MAX_CONNECTIONS'),
-                'max_message_size' => env('REVERB_APP_MAX_MESSAGE_SIZE', 10_000),
+                'ping_interval' => (int) env('REVERB_APP_PING_INTERVAL', 60),
+                'activity_timeout' => (int) env('REVERB_APP_ACTIVITY_TIMEOUT', 30),
+                'max_connections' => $maxConnections === null ? null : (int) $maxConnections,
+                'max_message_size' => (int) env('REVERB_APP_MAX_MESSAGE_SIZE', 10_000),
                 'accept_client_events_from' => env('REVERB_APP_ACCEPT_CLIENT_EVENTS_FROM', 'members'),
                 'rate_limiting' => [
-                    'enabled' => (bool) env('REVERB_APP_RATE_LIMITING_ENABLED', false),
-                    'max_attempts' => env('REVERB_APP_RATE_LIMIT_MAX_ATTEMPTS', 60),
-                    'decay_seconds' => env('REVERB_APP_RATE_LIMIT_DECAY_SECONDS', 60),
-                    'terminate_on_limit' => env('REVERB_APP_RATE_LIMIT_TERMINATE', false),
+                    'enabled' => (bool) env('REVERB_APP_RATE_LIMIT_ENABLED', false),
+                    'max_attempts' => (int) env('REVERB_APP_RATE_LIMIT_MAX_ATTEMPTS', 60),
+                    'decay_seconds' => (int) env('REVERB_APP_RATE_LIMIT_DECAY_SECONDS', 60),
+                    'terminate_on_limit' => (bool) env('REVERB_APP_RATE_LIMIT_TERMINATE_ON_LIMIT', false),
                 ],
                 /*
                 |--------------------------------------------------------------
@@ -199,24 +201,24 @@ return [
                     // subscribe/unsubscribe for non-presence channels. Throttled
                     // to once per 5 seconds for channels with over 100 subscribers.
                     // Controlled separately from the events list above.
-                    'subscription_count' => env('REVERB_WEBHOOK_SUBSCRIPTION_COUNT', false),
+                    'subscription_count' => (bool) env('REVERB_WEBHOOK_SUBSCRIPTION_COUNT', false),
 
                     // Delay in milliseconds before firing channel_vacated and
                     // member_removed webhooks after a client disconnects. If the
                     // client reconnects within this window, both the removal and
                     // the subsequent re-addition webhooks are suppressed. Set to
                     // 0 to disable and fire immediately on disconnect.
-                    'disconnect_smoothing_ms' => env('REVERB_WEBHOOK_DISCONNECT_SMOOTHING_MS', 3000),
+                    'disconnect_smoothing_ms' => (int) env('REVERB_WEBHOOK_DISCONNECT_SMOOTHING_MS', 3000),
 
-                    'timeout' => env('REVERB_WEBHOOK_TIMEOUT', 5),
-                    'retries' => env('REVERB_WEBHOOK_RETRIES', 3),
-                    'retry_delay' => env('REVERB_WEBHOOK_RETRY_DELAY', 1),
+                    'timeout' => (int) env('REVERB_WEBHOOK_TIMEOUT', 5),
+                    'retries' => (int) env('REVERB_WEBHOOK_RETRIES', 3),
+                    'retry_delay' => (int) env('REVERB_WEBHOOK_RETRY_DELAY', 1),
 
                     'batching' => [
                         'enabled' => (bool) env('REVERB_WEBHOOK_BATCHING_ENABLED', false),
-                        'max_events' => env('REVERB_WEBHOOK_BATCHING_MAX_EVENTS', 50),
-                        'max_delay_ms' => env('REVERB_WEBHOOK_BATCHING_MAX_DELAY_MS', 250),
-                        'max_payload_bytes' => env('REVERB_WEBHOOK_BATCHING_MAX_PAYLOAD_BYTES', 262144),
+                        'max_events' => (int) env('REVERB_WEBHOOK_BATCHING_MAX_EVENTS', 50),
+                        'max_delay_ms' => (int) env('REVERB_WEBHOOK_BATCHING_MAX_DELAY_MS', 250),
+                        'max_payload_bytes' => (int) env('REVERB_WEBHOOK_BATCHING_MAX_PAYLOAD_BYTES', 262144),
                     ],
                 ],
             ],

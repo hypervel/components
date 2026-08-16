@@ -41,8 +41,8 @@ class FlushWebhookBatchJob implements ShouldQueue
         $buffer->clearFlushLock($this->appId);
 
         $config = $this->webhookConfig;
-        $maxEvents = (int) $config['batching']['max_events'];
-        $maxBytes = (int) $config['batching']['max_payload_bytes'];
+        $maxEvents = $config['batching']['max_events'];
+        $maxBytes = $config['batching']['max_payload_bytes'];
 
         // Claim events atomically — moves them from buffer to processing hash.
         // If claim returns empty, either the buffer is empty or another flush
@@ -68,9 +68,9 @@ class FlushWebhookBatchJob implements ShouldQueue
             $config['url'],
             $application->key(),
             $application->secret(),
-            (int) $config['retries'],
-            (int) $config['retry_delay'],
-            (int) $config['timeout'],
+            $config['retries'],
+            $config['retry_delay'],
+            $config['timeout'],
             $config['headers'],
         );
 

@@ -292,7 +292,7 @@ class Server
     {
         $config = $connection->app()->rateLimiting();
 
-        return Limit::perSecond((int) $config['max_attempts'], (int) $config['decay_seconds'])
+        return Limit::perSecond($config['max_attempts'], $config['decay_seconds'])
             ->by('reverb:message:' . $connection->id());
     }
 

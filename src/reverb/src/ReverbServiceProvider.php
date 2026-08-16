@@ -156,7 +156,7 @@ class ReverbServiceProvider extends ServiceProvider implements ReloadsConfigurat
             'name' => 'reverb',
             'type' => ServerInterface::SERVER_WEBSOCKET,
             'host' => $reverbServer['host'],
-            'port' => (int) $reverbServer['port'],
+            'port' => $reverbServer['port'],
             'sock_type' => $tls->socketType(),
             'callbacks' => [
                 Event::ON_REQUEST => [HttpServer::class, 'onRequest'],

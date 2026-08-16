@@ -49,9 +49,7 @@ class HttpWebhookDispatcher implements WebhookDispatcher
 
         $eventData = $this->buildEventData($application, $event, $data, $connection);
 
-        $batchingEnabled = (bool) $webhooks['batching']['enabled'];
-
-        if ($batchingEnabled) {
+        if ($webhooks['batching']['enabled']) {
             $buffer = app(WebhookBatchBuffer::class);
             $shouldSchedule = $buffer->appendAndCheckSchedule($application->id(), $eventData);
 
@@ -60,7 +58,7 @@ class HttpWebhookDispatcher implements WebhookDispatcher
                     FlushWebhookBatchJob::dispatch($application->id(), $webhooks)
                         ->onQueue('reverb-webhook-flush')
                         ->delay(now()->addMilliseconds(
-                            (int) $webhooks['batching']['max_delay_ms']
+                            $webhooks['batching']['max_delay_ms']
                         ));
                 } catch (Throwable $exception) {
                     try {
@@ -85,9 +83,9 @@ class HttpWebhookDispatcher implements WebhookDispatcher
                 $webhooks['url'],
                 $application->key(),
                 $application->secret(),
-                (int) $webhooks['retries'],
-                (int) $webhooks['retry_delay'],
-                (int) $webhooks['timeout'],
+                $webhooks['retries'],
+                $webhooks['retry_delay'],
+                $webhooks['timeout'],
                 $webhooks['headers'],
             );
         }

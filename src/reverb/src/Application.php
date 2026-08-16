@@ -7,6 +7,11 @@ namespace Hypervel\Reverb;
 class Application
 {
     /**
+     * The default application activity timeout in seconds.
+     */
+    public const int DEFAULT_ACTIVITY_TIMEOUT = 30;
+
+    /**
      * Create a new application instance.
      *
      * Rate limiting must be null or a complete record. Webhooks must be an
@@ -26,6 +31,24 @@ class Application
         protected array $options = [],
         protected array $webhooks = [],
     ) {
+        if ($this->rateLimiting !== null) {
+            $this->rateLimiting['enabled'] = (bool) $this->rateLimiting['enabled'];
+            $this->rateLimiting['max_attempts'] = (int) $this->rateLimiting['max_attempts'];
+            $this->rateLimiting['decay_seconds'] = (int) $this->rateLimiting['decay_seconds'];
+            $this->rateLimiting['terminate_on_limit'] = (bool) $this->rateLimiting['terminate_on_limit'];
+        }
+
+        if ($this->webhooks !== []) {
+            $this->webhooks['subscription_count'] = (bool) $this->webhooks['subscription_count'];
+            $this->webhooks['disconnect_smoothing_ms'] = (int) $this->webhooks['disconnect_smoothing_ms'];
+            $this->webhooks['timeout'] = (int) $this->webhooks['timeout'];
+            $this->webhooks['retries'] = (int) $this->webhooks['retries'];
+            $this->webhooks['retry_delay'] = (int) $this->webhooks['retry_delay'];
+            $this->webhooks['batching']['enabled'] = (bool) $this->webhooks['batching']['enabled'];
+            $this->webhooks['batching']['max_events'] = (int) $this->webhooks['batching']['max_events'];
+            $this->webhooks['batching']['max_delay_ms'] = (int) $this->webhooks['batching']['max_delay_ms'];
+            $this->webhooks['batching']['max_payload_bytes'] = (int) $this->webhooks['batching']['max_payload_bytes'];
+        }
     }
 
     /**
@@ -123,7 +146,7 @@ class Application
      */
     public function usesRateLimiting(): bool
     {
-        return $this->rateLimiting !== null && (bool) $this->rateLimiting['enabled'];
+        return $this->rateLimiting !== null && $this->rateLimiting['enabled'];
     }
 
     /**
