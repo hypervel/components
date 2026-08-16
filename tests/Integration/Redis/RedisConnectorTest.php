@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Redis;
 
 use Closure;
-use ErrorException;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Redis\RedisConnection;
@@ -168,19 +167,6 @@ class RedisConnectorTest extends TestCase
         $this->withClient($name, function (\Redis $client): void {
             $this->assertSame(1, $client->getOption(\Redis::OPT_TCP_KEEPALIVE));
         });
-    }
-
-    public function testIncompleteConnectionFailsBeforeOpeningASocket(): void
-    {
-        $name = $this->addTestConnection([]);
-        $connection = $this->app->make('config')->array("database.redis.{$name}");
-        unset($connection['options']);
-        $this->app->make('config')->set("database.redis.{$name}", $connection);
-
-        $this->expectException(ErrorException::class);
-        $this->expectExceptionMessage('Undefined array key "options"');
-
-        Redis::connection($name)->get('missing-schema');
     }
 
     /**

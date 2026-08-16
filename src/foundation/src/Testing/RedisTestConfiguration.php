@@ -105,7 +105,6 @@ class RedisTestConfiguration
                     $connection['port'],
                     $connection['database'],
                     $connection['name'],
-                    $connection['retry_interval'],
                     $connection['sentinel'],
                 );
 

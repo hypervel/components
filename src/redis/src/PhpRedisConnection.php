@@ -56,7 +56,7 @@ class PhpRedisConnection extends RedisConnection
             );
         }
 
-        $database = $this->database ?? (int) $this->config['database'];
+        $database = $this->database ?? $this->config['database'];
         if ($database > 0) {
             $redis->select($database);
         }
@@ -115,10 +115,10 @@ class PhpRedisConnection extends RedisConnection
     {
         $parameters = [
             $this->formatHost($config),
-            (int) $config['port'],
+            $config['port'],
             $config['timeout'],
             null,
-            $config['retry_interval'],
+            0, // Hypervel applies the complete retry policy through setOptions().
             $config['read_timeout'],
         ];
 
@@ -202,7 +202,6 @@ class PhpRedisConnection extends RedisConnection
                 'host' => $host,
                 'port' => $port,
                 'timeout' => $this->config['timeout'],
-                'retry_interval' => $this->config['retry_interval'],
                 'read_timeout' => $this->config['read_timeout'],
                 'context' => $this->config['context'],
             ]);

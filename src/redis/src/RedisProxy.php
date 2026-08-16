@@ -530,7 +530,7 @@ class RedisProxy implements ConnectionContract
             return $this->createSubscriber(
                 $config,
                 $config['host'],
-                (int) $config['port'],
+                $config['port'],
                 $config['scheme'],
                 $config['context'],
             );
@@ -624,7 +624,7 @@ class RedisProxy implements ConnectionContract
             host: $host,
             port: $port,
             password: $password,
-            timeout: (float) $config['timeout'],
+            timeout: $config['timeout'],
             prefix: (string) ($config['options']['prefix'] ?? ''),
             username: $username,
             scheme: $scheme,

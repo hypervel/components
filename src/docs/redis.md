@@ -48,20 +48,11 @@ You may configure your application's Redis settings via the `config/database.php
 
     'default' => [
         'url' => env('REDIS_URL'),
-        'scheme' => null,
         'host' => env('REDIS_HOST', 'localhost'),
         'username' => env('REDIS_USERNAME'),
         'password' => env('REDIS_PASSWORD'),
         'port' => (int) env('REDIS_PORT', 6379),
         'database' => (int) env('REDIS_DB', 0),
-        'name' => null,
-        'timeout' => null,
-        'retry_interval' => 0,
-        'read_timeout' => 0.0,
-        'context' => [],
-        'options' => [],
-        'prefix' => null,
-        'events' => false,
         'max_retries' => (int) env('REDIS_MAX_RETRIES', 3),
         'backoff_algorithm' => env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter'),
         'backoff_base' => (int) env('REDIS_BACKOFF_BASE', 100),
@@ -82,11 +73,11 @@ You may configure your application's Redis settings via the `config/database.php
 
 Hypervel's default configuration also includes `cache`, `session`, `queue`, and `reverb` Redis connections. Each connection follows the same standalone shape as the `default` connection shown above.
 
-Each named connection is a complete standalone, Sentinel, or Cluster record. If you replace a connection in your application's configuration, include every option for the selected topology. Missing members are not filled from the framework's connection record.
+Each named connection selects a standalone, Sentinel, or Cluster topology. Every topology may omit `scheme`, `timeout`, `read_timeout`, `context`, `options`, `prefix`, and `events`; they default to `null`, `null`, `0.0`, an empty array, an empty array, `null`, and `false`, respectively. Standalone and Sentinel connections may also omit `name`, which defaults to `null`.
 
-For standalone and Sentinel connections, a null `name` disables `CLIENT SETNAME`. A null `timeout` uses the connection pool's `connect_timeout`, while a null `prefix` inherits the shared `redis.options.prefix` value. A null `scheme` leaves transport selection to the connection URL, stream context, or the default TCP transport. Cluster connections use their seeds when deriving a null scheme and do not have a client name.
+For standalone and Sentinel connections, an omitted or null `name` disables `CLIENT SETNAME`. An omitted or null `timeout` uses the connection pool's `connect_timeout`, while an omitted or null `prefix` inherits the shared `redis.options.prefix` value. An omitted or null `scheme` leaves transport selection to the connection URL, stream context, or the default TCP transport. Cluster connections derive their transport from their seeds and context when `scheme` is omitted and do not have a client name.
 
-You may define a single URL for a standalone connection instead of configuring its endpoint and credentials separately. Set the URL through the corresponding environment variable while keeping the rest of the complete connection record:
+You may define a single URL for a standalone connection instead of configuring its endpoint and credentials separately. Set the URL through the corresponding environment variable:
 
 ```ini
 REDIS_URL="tcp://127.0.0.1:6379?database=0"
@@ -96,22 +87,21 @@ REDIS_CACHE_URL="tls://user:password@127.0.0.1:6380?database=0"
 <a name="configuring-the-connection-scheme"></a>
 #### Configuring the Connection Scheme
 
-By default, Redis connections will use the `tcp` scheme when connecting to your Redis servers. However, you may use TLS / SSL encryption by changing the `scheme` member of the complete connection record:
+By default, Redis connections will use the `tcp` scheme when connecting to your Redis servers. However, you may use TLS / SSL encryption by adding a `scheme` member to the connection:
 
 ```php
 'scheme' => 'tls',
 ```
 
-When `scheme` is `null`, a non-empty `context` configuration selects TLS.
+When `scheme` is omitted or null, a non-empty `context` configuration selects TLS.
 
 <a name="phpredis"></a>
 ### PhpRedis
 
-Hypervel communicates with Redis using the PhpRedis extension. Standalone connections support the following parameters: `url`, `scheme`, `host`, `username`, `password`, `port`, `database`, `name`, `timeout`, `retry_interval`, `read_timeout`, `context`, `options`, `prefix`, `events`, `max_retries`, `backoff_algorithm`, `backoff_base`, `backoff_cap`, and `pool`.
+Hypervel communicates with Redis using the PhpRedis extension. Standalone connections support the following parameters: `url`, `scheme`, `host`, `username`, `password`, `port`, `database`, `name`, `timeout`, `read_timeout`, `context`, `options`, `prefix`, `events`, `max_retries`, `backoff_algorithm`, `backoff_base`, `backoff_cap`, and `pool`.
 
 ```php
 'timeout' => 5.0,
-'retry_interval' => 0,
 'read_timeout' => 60,
 'name' => 'hypervel',
 'context' => [
@@ -119,14 +109,14 @@ Hypervel communicates with Redis using the PhpRedis extension. Standalone connec
 ],
 ```
 
-The `read_timeout` value is applied both when the Redis socket is opened and as the PhpRedis `Redis::OPT_READ_TIMEOUT` option. The optional `name` value sets the client name on standalone Redis connections.
+A non-zero `read_timeout` is applied both when the Redis socket is opened and as the PhpRedis `Redis::OPT_READ_TIMEOUT` option. A value of `0.0` leaves PHP's `default_socket_timeout` in effect. The optional `name` value sets the client name on standalone Redis connections.
 
 The `context` option accepts stream options directly or nested under an `ssl` or `stream` key. If you need to configure PhpRedis options such as `prefix`, `scan`, `serializer`, `compression`, `compression_level`, `tcp_keepalive`, or `pack_ignore_numbers`, add them to the `options` array. The `pack_ignore_numbers` option requires PhpRedis 6.2 or later and applies only to standalone connections. Connection options override shared options, while a non-null top-level connection `prefix` takes final precedence.
 
 <a name="retry-and-backoff-configuration"></a>
 #### Retry and Backoff Configuration
 
-The `max_retries`, `backoff_algorithm`, `backoff_base`, and `backoff_cap` members of each complete connection record configure how PhpRedis backs off between retry attempts. The following backoff algorithms are supported: `default`, `decorrelated_jitter`, `equal_jitter`, `exponential`, `uniform`, and `constant`:
+The `max_retries`, `backoff_algorithm`, `backoff_base`, and `backoff_cap` members configure how PhpRedis backs off between retry attempts. The following backoff algorithms are supported: `default`, `decorrelated_jitter`, `equal_jitter`, `exponential`, `uniform`, and `constant`:
 
 ```php
 'max_retries' => (int) env('REDIS_MAX_RETRIES', 3),
@@ -135,7 +125,7 @@ The `max_retries`, `backoff_algorithm`, `backoff_base`, and `backoff_cap` member
 'backoff_cap' => (int) env('REDIS_BACKOFF_CAP', 1000),
 ```
 
-These settings control PhpRedis' native connection retry behavior. Hypervel does not replay a failed command because Redis may already have committed it before the failure became visible to the client.
+These settings control PhpRedis' native connection retry behavior. Hypervel applies the complete retry policy to every connection before issuing commands. Hypervel does not replay a failed command because Redis may already have committed it before the failure became visible to the client.
 
 <a name="unix-socket-connections"></a>
 #### Unix Socket Connections
@@ -177,15 +167,8 @@ If your application is utilizing Redis Cluster, you should define a `cluster` ar
 
 ```php
 'default' => [
-    'scheme' => null,
     'username' => env('REDIS_USERNAME'),
     'password' => env('REDIS_PASSWORD'),
-    'timeout' => null,
-    'read_timeout' => 0.0,
-    'context' => [],
-    'options' => [],
-    'prefix' => null,
-    'events' => false,
     'max_retries' => (int) env('REDIS_MAX_RETRIES', 3),
     'backoff_algorithm' => env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter'),
     'backoff_base' => (int) env('REDIS_BACKOFF_BASE', 100),
@@ -207,7 +190,7 @@ If your application is utilizing Redis Cluster, you should define a `cluster` ar
 ],
 ```
 
-The `seeds` option should contain one or more `host:port` entries for nodes in the cluster. Redis Cluster does not support selecting logical databases, so Cluster records do not contain a `database` member. They also omit the standalone-only `url`, `host`, `port`, `name`, and `retry_interval` members.
+The `seeds` option should contain one or more `host:port` entries for nodes in the cluster. Redis Cluster does not support selecting logical databases, so Cluster records do not contain a `database` member. They also omit the standalone-only `url`, `host`, `port`, and `name` members.
 
 All nodes in a cluster connection must use the same transport. You may select TLS using the top-level `scheme` option, a `tls://` or `ssl://` seed, or a non-empty top-level `context` array. Bare seeds inherit the selected transport. Hypervel rejects conflicting schemes because PhpRedis applies one stream context to every node it discovers.
 
@@ -234,18 +217,9 @@ Redis Sentinel provides high availability for Redis by monitoring your Redis mas
 
 ```php
 'default' => [
-    'scheme' => null,
     'username' => env('REDIS_USERNAME'),
     'password' => env('REDIS_PASSWORD'),
     'database' => (int) env('REDIS_DB', 0),
-    'name' => null,
-    'timeout' => null,
-    'retry_interval' => 0,
-    'read_timeout' => 0.0,
-    'context' => [],
-    'options' => [],
-    'prefix' => null,
-    'events' => false,
     'max_retries' => (int) env('REDIS_MAX_RETRIES', 3),
     'backoff_algorithm' => env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter'),
     'backoff_base' => (int) env('REDIS_BACKOFF_BASE', 100),
@@ -273,7 +247,7 @@ Redis Sentinel provides high availability for Redis by monitoring your Redis mas
 ],
 ```
 
-When Sentinel is enabled, Hypervel asks Sentinel for the current master address and then connects to that Redis master. The `username` and `password` values in the `sentinel` array authenticate with Sentinel itself. Redis authentication still uses the connection's top-level `username` and `password` values. The nested `timeout`, `read_timeout`, and `context` values configure Sentinel discovery, while their top-level counterparts configure the resolved Redis connection. The top-level `retry_interval` value applies only to the resolved Redis connection.
+When Sentinel is enabled, Hypervel asks Sentinel for the current master address and then connects to that Redis master. The `username` and `password` values in the `sentinel` array authenticate with Sentinel itself. Redis authentication still uses the connection's top-level `username` and `password` values. The nested `timeout`, `read_timeout`, and `context` values configure Sentinel discovery, while optional top-level values configure the resolved Redis connection.
 
 Sentinel nodes may use `tcp://` or `tls://` schemes. IPv6 addresses must use brackets, including when TLS is enabled:
 

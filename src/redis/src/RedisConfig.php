@@ -23,7 +23,7 @@ class RedisConfig
     }
 
     /**
-     * Get a single Redis connection config with merged options.
+     * Get a normalized Redis connection configuration.
      *
      * @return array<string, mixed>
      */
@@ -37,10 +37,22 @@ class RedisConfig
         }
 
         $connectionConfig = $this->parseConnectionConfiguration($connectionConfig);
+        $connectionConfig += [
+            'scheme' => null,
+            'timeout' => null,
+            'read_timeout' => 0.0,
+            'context' => [],
+            'options' => [],
+            'prefix' => null,
+            'events' => false,
+        ];
+
         $this->validateConnectionConfig($name, $connectionConfig);
 
         if ((bool) ($connectionConfig['cluster']['enabled'] ?? false)) {
             $connectionConfig = $this->normalizeClusterConfiguration($name, $connectionConfig);
+        } else {
+            $connectionConfig += ['name' => null];
         }
 
         $sharedOptions = $redisConfig['options'];
@@ -140,7 +152,7 @@ class RedisConfig
             throw new InvalidArgumentException(sprintf('The redis connection [%s] must be an array.', $name));
         }
 
-        $scheme = $connectionConfig['scheme'] ?? null;
+        $scheme = $connectionConfig['scheme'];
 
         if ($scheme !== null && (! is_string($scheme) || ! in_array($scheme, ['tcp', 'tls'], true))) {
             throw new InvalidArgumentException(sprintf(
@@ -217,9 +229,9 @@ class RedisConfig
     private function normalizeClusterConfiguration(string $name, array $connectionConfig): array
     {
         /** @var null|'tcp'|'tls' $scheme */
-        $scheme = $connectionConfig['scheme'] ?? null;
+        $scheme = $connectionConfig['scheme'];
         /** @var array<array-key, mixed> $context */
-        $context = $connectionConfig['context'] ?? [];
+        $context = $connectionConfig['context'];
         /** @var array<array-key, string> $seeds */
         $seeds = $connectionConfig['cluster']['seeds'];
 

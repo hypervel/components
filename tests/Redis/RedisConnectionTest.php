@@ -391,7 +391,7 @@ class RedisConnectionTest extends TestCase
         $redis = m::mock(Redis::class);
         $redis->expects('setOption')->with(Redis::OPT_READ_TIMEOUT, 2.5)->andReturnTrue();
         $this->expectDefaultConnectionOptions($redis);
-        $connection = new class($container, $this->getMockedPool(), $this->sentinelConfig(['timeout' => 1.5, 'retry_interval' => 100, 'read_timeout' => 2.5, 'context' => ['stream' => ['tcp_nodelay' => true]]]), $redis) extends PhpRedisConnection {
+        $connection = new class($container, $this->getMockedPool(), $this->sentinelConfig(['timeout' => 1.5, 'read_timeout' => 2.5, 'context' => ['stream' => ['tcp_nodelay' => true]]]), $redis) extends PhpRedisConnection {
             private array $createdConfig = [];
 
             public function __construct(
@@ -417,7 +417,6 @@ class RedisConnectionTest extends TestCase
         };
 
         $this->assertSame(1.5, $connection->getCreatedConfig()['timeout']);
-        $this->assertSame(100, $connection->getCreatedConfig()['retry_interval']);
         $this->assertSame(2.5, $connection->getCreatedConfig()['read_timeout']);
         $this->assertSame(
             ['stream' => ['tcp_nodelay' => true]],
@@ -2749,7 +2748,6 @@ class RedisConnectionTest extends TestCase
             'port' => 6379,
             'database' => 0,
             'name' => null,
-            'retry_interval' => 0,
         ], $overrides);
     }
 
@@ -2761,7 +2759,6 @@ class RedisConnectionTest extends TestCase
         return array_replace($this->baseConnectionConfig(), [
             'database' => 0,
             'name' => null,
-            'retry_interval' => 0,
             'sentinel' => [
                 'enabled' => true,
                 'master_name' => 'primary',

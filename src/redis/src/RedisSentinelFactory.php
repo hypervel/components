@@ -62,8 +62,8 @@ class RedisSentinelFactory
                         ? "{$resolved['scheme']}://{$resolved['host']}"
                         : $resolved['host'],
                     'port' => (int) $resolved['port'],
-                    'connectTimeout' => (float) $sentinel['timeout'],
-                    'readTimeout' => (float) $sentinel['read_timeout'],
+                    'connectTimeout' => $sentinel['timeout'],
+                    'readTimeout' => $sentinel['read_timeout'],
                 ];
                 $context = $sentinel['context'];
                 $password = $sentinel['password'];
@@ -80,7 +80,7 @@ class RedisSentinelFactory
                 }
 
                 $master = $this->create($options)->getMasterAddrByName(
-                    (string) $sentinel['master_name']
+                    $sentinel['master_name']
                 );
 
                 if (is_array($master)

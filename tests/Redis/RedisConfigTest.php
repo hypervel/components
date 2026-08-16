@@ -13,18 +13,37 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 class RedisConfigTest extends TestCase
 {
-    public function testConnectionConfigAcceptsPhpRedisClient(): void
+    public function testConnectionConfigAppliesOptionalStandaloneDefaults(): void
     {
         $config = m::mock(Repository::class);
         $config->shouldReceive('array')->with('database.redis')->andReturn([
             'client' => 'phpredis',
-            'options' => [],
-            'default' => ['host' => '127.0.0.1', 'port' => 6379, 'database' => 0, 'options' => []],
+            'options' => ['prefix' => 'shared:'],
+            'default' => ['host' => '127.0.0.1', 'port' => 6379, 'database' => 0],
         ]);
 
         $connection = (new RedisConfig($config))->connectionConfig('default');
 
-        $this->assertSame('127.0.0.1', $connection['host']);
+        $this->assertSame([
+            'scheme' => null,
+            'name' => null,
+            'timeout' => null,
+            'read_timeout' => 0.0,
+            'context' => [],
+            'options' => ['prefix' => 'shared:'],
+            'prefix' => null,
+            'events' => false,
+        ], [
+            'scheme' => $connection['scheme'],
+            'name' => $connection['name'],
+            'timeout' => $connection['timeout'],
+            'read_timeout' => $connection['read_timeout'],
+            'context' => $connection['context'],
+            'options' => $connection['options'],
+            'prefix' => $connection['prefix'],
+            'events' => $connection['events'],
+        ]);
+        $this->assertArrayNotHasKey('retry_interval', $connection);
     }
 
     public function testConnectionConfigRejectsUnsupportedClient(): void
@@ -261,7 +280,6 @@ class RedisConfigTest extends TestCase
             'options' => [],
             'clustered' => [
                 'database' => 0,
-                'options' => [],
                 'cluster' => [
                     'enabled' => true,
                     'seeds' => ['127.0.0.1:7000', '127.0.0.1:7001'],
@@ -277,6 +295,7 @@ class RedisConfigTest extends TestCase
             ['tcp://127.0.0.1:7000', 'tcp://127.0.0.1:7001'],
             $connection['cluster']['seeds'],
         );
+        $this->assertArrayNotHasKey('name', $connection);
     }
 
     public function testConnectionConfigThrowsWhenClusterEnabledWithoutSeeds(): void

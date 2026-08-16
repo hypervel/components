@@ -370,7 +370,7 @@ class InteractsWithRedisParallelTest extends TestCase
         foreach (['default', 'cache', 'session', 'queue', 'reverb'] as $connectionName) {
             $connection = $config->array("database.redis.{$connectionName}");
 
-            foreach (['url', 'host', 'port', 'database', 'name', 'retry_interval', 'sentinel'] as $member) {
+            foreach (['url', 'host', 'port', 'database', 'name', 'sentinel'] as $member) {
                 $this->assertArrayNotHasKey($member, $connection);
             }
 
@@ -415,7 +415,7 @@ class InteractsWithRedisParallelTest extends TestCase
         $this->assertSame(['prefix' => ''], $connection['options']);
         $this->assertSame(3, $connection['pool']['max_connections']);
 
-        foreach (['url', 'host', 'port', 'database', 'name', 'retry_interval', 'sentinel'] as $member) {
+        foreach (['url', 'host', 'port', 'database', 'name', 'sentinel'] as $member) {
             $this->assertArrayNotHasKey($member, $connection);
         }
 

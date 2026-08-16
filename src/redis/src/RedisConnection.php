@@ -758,7 +758,7 @@ abstract class RedisConnection extends BaseConnection
         try {
             // Cluster connections never select logical databases and omit this config member.
             if ($this->database !== null) {
-                $defaultDatabase = (int) $this->config['database'];
+                $defaultDatabase = $this->config['database'];
 
                 if ($this->database !== $defaultDatabase) {
                     $this->select($defaultDatabase);

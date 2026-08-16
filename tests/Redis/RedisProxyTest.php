@@ -1490,7 +1490,6 @@ class RedisProxyTest extends TestCase
             'port' => 6379,
             'database' => 0,
             'name' => null,
-            'retry_interval' => 0,
         ], $overrides);
     }
 
@@ -1502,7 +1501,6 @@ class RedisProxyTest extends TestCase
         return array_replace($this->baseConnectionConfig(), [
             'database' => 0,
             'name' => null,
-            'retry_interval' => 0,
             'sentinel' => [
                 'enabled' => true,
                 'master_name' => 'primary',
