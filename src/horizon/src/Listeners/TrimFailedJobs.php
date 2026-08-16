@@ -6,6 +6,7 @@ namespace Hypervel\Horizon\Listeners;
 
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Events\MasterSupervisorLooped;
+use Hypervel\Horizon\Repositories\RedisJobRepository;
 use Hypervel\Support\CarbonImmutable;
 
 class TrimFailedJobs
@@ -27,7 +28,7 @@ class TrimFailedJobs
     {
         if (! isset($this->lastTrimmed)) {
             $this->frequency = max(1, intdiv(
-                config()->integer('horizon.trim.failed'),
+                config()->integer('horizon.trim.failed', RedisJobRepository::DEFAULT_FAILED_JOB_RETENTION),
                 12
             ));
 

@@ -161,6 +161,10 @@ class RedisPayloadTest extends IntegrationTestCase
 
     public function testItDeterminesIfJobIsSilencedCorrectly()
     {
+        $horizonConfig = config()->array('horizon');
+        unset($horizonConfig['silenced'], $horizonConfig['silenced_tags']);
+        config()->set('horizon', $horizonConfig);
+
         $JobPayload = new JobPayload(json_encode(['id' => '1']));
 
         $JobPayload->prepare(new BroadcastEvent(new class implements Silenced {}));

@@ -45,7 +45,7 @@ class ProvisioningPlan
         return new static(
             $master,
             config()->array('horizon.environments'),
-            config()->array('horizon.defaults'),
+            config()->array('horizon.defaults', []),
         );
     }
 

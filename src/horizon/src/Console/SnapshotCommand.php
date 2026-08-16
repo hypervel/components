@@ -12,6 +12,8 @@ use Symfony\Component\Console\Attribute\AsCommand;
 #[AsCommand(name: 'horizon:snapshot')]
 class SnapshotCommand extends Command
 {
+    public const int DEFAULT_SNAPSHOT_LOCK_SECONDS = 300;
+
     /**
      * The name and signature of the console command.
      */
@@ -27,7 +29,10 @@ class SnapshotCommand extends Command
      */
     public function handle(Lock $lock, MetricsRepository $metrics): void
     {
-        $seconds = config()->integer('horizon.metrics.snapshot_lock') - 30;
+        $seconds = config()->integer(
+            'horizon.metrics.snapshot_lock',
+            self::DEFAULT_SNAPSHOT_LOCK_SECONDS,
+        ) - 30;
 
         if ($lock->get('metrics:snapshot', $seconds)) {
             $metrics->snapshot();

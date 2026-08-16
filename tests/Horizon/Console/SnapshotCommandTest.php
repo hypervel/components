@@ -10,7 +10,6 @@ use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\HorizonServiceProvider;
 use Hypervel\Horizon\Lock;
 use Hypervel\Testbench\TestCase;
-use InvalidArgumentException;
 use Mockery as m;
 
 class SnapshotCommandTest extends TestCase
@@ -25,7 +24,10 @@ class SnapshotCommandTest extends TestCase
     public function testDefaultSnapshotLockLeavesAThirtySecondSafetyMargin(): void
     {
         $lock = m::mock(Lock::class);
-        $lock->shouldReceive('get')->once()->with('metrics:snapshot', 270)->andReturnFalse();
+        $lock->shouldReceive('get')->once()->with(
+            'metrics:snapshot',
+            SnapshotCommand::DEFAULT_SNAPSHOT_LOCK_SECONDS - 30,
+        )->andReturnFalse();
 
         $this->app->make(SnapshotCommand::class)->handle(
             $lock,
@@ -33,17 +35,20 @@ class SnapshotCommandTest extends TestCase
         );
     }
 
-    public function testSnapshotLockIsRequiredWhenMetricsConfigurationIsReplaced(): void
+    public function testSnapshotLockUsesItsDefaultWhenMetricsConfigurationIsReplaced(): void
     {
         config(['horizon.metrics' => [
             'trim_snapshots' => ['job' => 12, 'queue' => 12],
         ]]);
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('horizon.metrics.snapshot_lock');
+        $lock = m::mock(Lock::class);
+        $lock->shouldReceive('get')->once()->with(
+            'metrics:snapshot',
+            SnapshotCommand::DEFAULT_SNAPSHOT_LOCK_SECONDS - 30,
+        )->andReturnFalse();
 
         $this->app->make(SnapshotCommand::class)->handle(
-            m::mock(Lock::class),
+            $lock,
             m::mock(MetricsRepository::class),
         );
     }

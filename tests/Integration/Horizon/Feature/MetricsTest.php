@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Horizon\Feature;
 
 use Hypervel\Horizon\Contracts\MetricsRepository;
+use Hypervel\Horizon\Repositories\RedisMetricsRepository;
 use Hypervel\Horizon\Stopwatch;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Queue;
@@ -213,8 +214,10 @@ class MetricsTest extends IntegrationTestCase
         );
     }
 
-    public function testOnlyPast24SnapshotsAreRetained()
+    public function testOmittedRetentionSettingsKeepTheDefaultNumberOfSnapshots(): void
     {
+        config()->set('horizon.metrics.trim_snapshots', []);
+
         $stopwatch = m::mock(Stopwatch::class);
         $stopwatch->shouldReceive('start');
         $stopwatch->shouldReceive('forget');
@@ -233,13 +236,19 @@ class MetricsTest extends IntegrationTestCase
 
         // Check the job snapshots...
         $snapshots = resolve(MetricsRepository::class)->snapshotsForJob(Jobs\BasicJob::class);
-        $this->assertCount(24, $snapshots);
-        $this->assertSame(CarbonImmutable::now()->getTimestamp() - 1, $snapshots[23]->time);
+        $this->assertCount(RedisMetricsRepository::DEFAULT_JOB_SNAPSHOT_RETENTION, $snapshots);
+        $this->assertSame(
+            CarbonImmutable::now()->getTimestamp() - 1,
+            $snapshots[RedisMetricsRepository::DEFAULT_JOB_SNAPSHOT_RETENTION - 1]->time,
+        );
 
         // Check the queue snapshots...
         $snapshots = resolve(MetricsRepository::class)->snapshotsForQueue('default');
-        $this->assertCount(24, $snapshots);
-        $this->assertSame(CarbonImmutable::now()->getTimestamp() - 1, $snapshots[23]->time);
+        $this->assertCount(RedisMetricsRepository::DEFAULT_QUEUE_SNAPSHOT_RETENTION, $snapshots);
+        $this->assertSame(
+            CarbonImmutable::now()->getTimestamp() - 1,
+            $snapshots[RedisMetricsRepository::DEFAULT_QUEUE_SNAPSHOT_RETENTION - 1]->time,
+        );
 
         CarbonImmutable::setTestNow();
     }
