@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+$secureCookie = env('SESSION_SECURE_COOKIE');
+
 return [
     /*
     |--------------------------------------------------------------------------
@@ -121,7 +123,9 @@ return [
     | Session blocking prevents concurrent requests for the same session
     | from executing at the same time. You may configure the cache store
     | and time limits used to acquire and maintain the session lock. Set the
-    | block store to null to use the default cache store.
+    | block store to null to use the default cache store. The selected store
+    | must support atomic locks and be shared by every application instance
+    | that should coordinate.
     |
     */
 
@@ -193,10 +197,12 @@ return [
     | By setting this option to true, session cookies will only be sent back
     | to the server if the browser has a HTTPS connection. This will keep
     | the cookie from being sent to you when it can't be done securely.
+    | A null value follows the current request scheme, securing the cookie
+    | for HTTPS responses but not HTTP responses.
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    'secure' => $secureCookie === null ? null : (bool) $secureCookie,
 
     /*
     |--------------------------------------------------------------------------
@@ -209,7 +215,7 @@ return [
     |
     */
 
-    'http_only' => env('SESSION_HTTP_ONLY', true),
+    'http_only' => (bool) env('SESSION_HTTP_ONLY', true),
 
     /*
     |--------------------------------------------------------------------------
@@ -239,7 +245,7 @@ return [
     |
     */
 
-    'partitioned' => env('SESSION_PARTITIONED_COOKIE', false),
+    'partitioned' => (bool) env('SESSION_PARTITIONED_COOKIE', false),
 
     /*
     |--------------------------------------------------------------------------

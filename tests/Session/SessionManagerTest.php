@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Session;
 
 use BadMethodCallException;
 use Hypervel\Auth\AuthManager;
+use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
@@ -246,7 +247,7 @@ class SessionManagerTest extends TestCase
                 'enabled' => false,
                 'store' => null,
                 'ttl' => 300,
-                'prefix' => 'auth_users',
+                'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
                 'tags' => null,
             ],
         ]);
@@ -270,7 +271,7 @@ class SessionManagerTest extends TestCase
                 'enabled' => false,
                 'store' => null,
                 'ttl' => 300,
-                'prefix' => 'auth_users',
+                'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
                 'tags' => null,
             ],
         ]);
