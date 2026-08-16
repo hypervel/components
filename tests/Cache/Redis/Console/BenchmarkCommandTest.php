@@ -84,10 +84,9 @@ class BenchmarkCommandTest extends TestCase
         );
     }
 
-    public function testMemoryRecoveryGuidanceInheritsTheSharedPrefix(): void
+    public function testMemoryRecoveryGuidanceInheritsTheSharedPrefixWhenStorePrefixIsOmitted(): void
     {
         config()->set('cache.prefix', 'shared:');
-        config()->set('cache.stores.redis.prefix', null);
 
         $command = $this->createCommand();
         $output = new BufferedOutput;

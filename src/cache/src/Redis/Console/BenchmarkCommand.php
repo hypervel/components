@@ -568,7 +568,7 @@ class BenchmarkCommand extends Command
         $this->newLine();
         $this->line('   Option 2 - Clear only benchmark keys (preserves other cache):');
         $prefixKey = "cache.stores.{$this->storeName}.prefix";
-        $storePrefix = $config->array("cache.stores.{$this->storeName}")['prefix'];
+        $storePrefix = $config->get($prefixKey);
         $cachePrefix = $storePrefix === null
             ? $config->string('cache.prefix')
             : $config->string($prefixKey);
