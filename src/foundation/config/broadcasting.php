@@ -26,8 +26,6 @@ return [
     | Here you may define all of the broadcast connections that will be used
     | to broadcast events to other systems or over WebSockets. Samples of
     | each available type of connection are provided inside this array.
-    | The Pusher-compatible "log" option controls SDK logging and is
-    | separate from the broadcast connection that uses the log driver.
     |
     */
 
@@ -39,7 +37,7 @@ return [
             'app_id' => env('REVERB_APP_ID'),
             'options' => [
                 'host' => env('REVERB_HOST'),
-                'port' => env('REVERB_PORT', 443),
+                'port' => (int) env('REVERB_PORT', 443),
                 'scheme' => env('REVERB_SCHEME', 'https'),
                 'useTLS' => env('REVERB_SCHEME', 'https') === 'https',
                 'path' => env('REVERB_SERVER_PATH', ''),
@@ -47,7 +45,7 @@ return [
             'client_options' => [
                 // Guzzle client options: https://docs.guzzlephp.org/en/stable/request-options.html
             ],
-            'log' => false,
+            // 'log' => true,
             'jsonp' => false,
         ],
 
@@ -59,7 +57,7 @@ return [
             'options' => [
                 'cluster' => env('PUSHER_APP_CLUSTER'),
                 'host' => env('PUSHER_HOST') ?: 'api-' . env('PUSHER_APP_CLUSTER', 'mt1') . '.pusher.com',
-                'port' => env('PUSHER_PORT', 443),
+                'port' => (int) env('PUSHER_PORT', 443),
                 'scheme' => env('PUSHER_SCHEME', 'https'),
                 'encrypted' => true,
                 'useTLS' => env('PUSHER_SCHEME', 'https') === 'https',
@@ -67,7 +65,7 @@ return [
             'client_options' => [
                 // Guzzle client options: https://docs.guzzlephp.org/en/stable/request-options.html
             ],
-            'log' => false,
+            // 'log' => true,
             'jsonp' => false,
         ],
 

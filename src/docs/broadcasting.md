@@ -154,7 +154,7 @@ PUSHER_APP_CLUSTER="mt1"
 
 The `config/broadcasting.php` file's `pusher` configuration also allows you to specify additional `options` that are supported by Channels, such as the cluster.
 
-The connection's `log` option enables logging within the Pusher SDK. This is separate from Hypervel's `log` broadcast driver, which writes broadcast events to your application's log instead of sending them to Pusher.
+The Pusher-compatible `reverb` and `pusher` connections accept an optional `log` setting. When enabled, the Pusher SDK writes outbound broadcast requests, including serialized event payloads, to your application's default log channel. This is separate from Hypervel's `log` broadcast driver, which writes broadcast events to your application's log instead of sending them to Pusher.
 
 Pusher JSONP responses are disabled by default. If a legacy client requires JSONP, you may explicitly enable it by setting the connection's `jsonp` option to `true`.
 
