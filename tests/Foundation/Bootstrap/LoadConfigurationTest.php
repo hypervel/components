@@ -12,6 +12,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\LoadConfiguration;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use ReflectionClass;
 use RuntimeException;
 
@@ -122,6 +123,17 @@ class LoadConfigurationTest extends TestCase
         $this->assertNull($config->get('auth'));
         $this->assertNull($config->get('session'));
         $this->assertNull($config->get('view'));
+    }
+
+    public function testDontMergeFrameworkConfigurationRequiresApplicationEnvironment(): void
+    {
+        $app = new Application;
+        $app->dontMergeFrameworkConfiguration();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Configuration value for key [app.env] must be a string, NULL given.');
+
+        (new LoadConfiguration)->bootstrap($app);
     }
 
     public function testAppConfigOverridesBaseConfigValues(): void

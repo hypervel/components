@@ -69,12 +69,12 @@ return [
     |--------------------------------------------------------------------------
     |
     | This setting controls clickable source links on development exception
-    | pages. Set it to an editor name or an array of editor options. A null
-    | value disables source links.
+    | pages. Set it to an editor name or an array of editor options. Omit this
+    | option or set it to null to disable source links.
     |
     */
 
-    'editor' => null,
+    // 'editor' => 'vscode',
 
     /*
     |--------------------------------------------------------------------------
@@ -162,15 +162,15 @@ return [
     |
     | Here you may specify the default timezone for your application, which
     | will be used by the PHP date and date-time functions. The timezone
-    | is set to "UTC" by default as it is suitable for most use cases.
-    | Set the schedule timezone to null to use the application timezone for
-    | scheduled tasks.
+    | is set to "UTC" by default as it is suitable for most use cases. You may
+    | specify a separate default timezone for scheduled tasks. When omitted,
+    | scheduled tasks use the application timezone.
     |
     */
 
     'timezone' => env('APP_TIMEZONE', 'UTC'),
 
-    'schedule_timezone' => null,
+    // 'schedule_timezone' => 'America/Chicago',
 
     /*
     |--------------------------------------------------------------------------
