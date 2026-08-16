@@ -33,10 +33,7 @@ class KernelTest extends TestCase
 {
     protected function useTokyoApplicationTimezone(ApplicationContract $app): void
     {
-        $app->make('config')->set([
-            'app.timezone' => 'Asia/Tokyo',
-            'app.schedule_timezone' => null,
-        ]);
+        $app->make('config')->set('app.timezone', 'Asia/Tokyo');
     }
 
     public function testHandleCatchesExceptionsAndReturnsOne()
@@ -124,7 +121,7 @@ class KernelTest extends TestCase
     }
 
     #[DefineEnvironment('useTokyoApplicationTimezone')]
-    public function testNullScheduleTimezoneUsesTheApplicationTimezone(): void
+    public function testMissingScheduleTimezoneUsesTheApplicationTimezone(): void
     {
         $event = $this->app->make(KernelContract::class)
             ->resolveConsoleSchedule()

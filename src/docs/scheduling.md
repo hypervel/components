@@ -331,6 +331,8 @@ If you are repeatedly assigning the same timezone to all of your scheduled tasks
 'schedule_timezone' => 'America/Chicago',
 ```
 
+When this option is omitted, scheduled tasks use the application timezone.
+
 > [!WARNING]
 > Remember that some timezones utilize daylight savings time. When daylight saving time changes occur, your scheduled task may run twice or even not run at all. For this reason, we recommend avoiding timezone scheduling when possible.
 

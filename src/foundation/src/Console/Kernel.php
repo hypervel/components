@@ -279,7 +279,9 @@ class Kernel implements KernelContract
      */
     protected function scheduleTimezone(): ?string
     {
-        return $this->app->make('config')->get('app.schedule_timezone');
+        $config = $this->app->make('config');
+
+        return $config->get('app.schedule_timezone', $config->string('app.timezone'));
     }
 
     /**
