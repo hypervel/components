@@ -325,18 +325,18 @@ function settings(Repository $config): array
 
 The available methods are `string`, `integer`, `float`, `boolean`, `array`, and `collection`. When a key is missing or contains the wrong type, Hypervel will throw an `InvalidArgumentException` that names the full configuration key.
 
-Some configuration values intentionally allow null or more than one type. You should retrieve these values using `get()` or the direct `config('key')` form. For example, a null editor disables source links:
+Some configuration values intentionally allow null or more than one type. You should retrieve these values using `get()` or the direct `config('key')` form. For example, a missing or null editor disables source links:
 
 ```php
 $editor = config('app.editor');
 ```
 
-Options that support null are still listed in their configuration file. The comments in that file explain whether null inherits another option, disables a feature, or is checked when the feature is used. Whenever an option has a default value, define it in the configuration file instead of repeating it each time the option is read. Otherwise, a missing or misspelled key could silently use the repeated default.
+Stable public options remain discoverable through their configuration file or relevant feature documentation. Optional options may appear as commented examples instead of active keys, and their documentation explains what omission or null means. Defaults for required options belong in the configuration file instead of being repeated at each read; deliberately optional settings keep a single source fallback.
 
 <a name="merging-framework-defaults"></a>
 ### Merging Framework Defaults
 
-When your application replaces a nested configuration array, the application array replaces the entire framework array. Hypervel does not recursively merge its individual options. Therefore, your array should contain every option from the current framework configuration. Lists are also replaced completely, so an empty application list may intentionally clear a framework list.
+When your application replaces a nested configuration array, the application array replaces the entire framework array. Hypervel does not recursively merge its individual options. Therefore, your array should contain every required option from the current framework configuration; documented optional members may remain omitted. Lists are also replaced completely, so an empty application list may intentionally clear a framework list.
 
 For named groups such as database connections, cache stores, filesystem disks, log channels, mailers, and queue connections, Hypervel merges the names while replacing the contents of any matching name. For example, adding a new database connection preserves the other connections. However, replacing `database.connections.mysql` replaces the entire MySQL connection array. Start with Hypervel's provided configuration for the selected driver, then apply your changes. If a required option is missing, Hypervel will report the missing option instead of quietly supplying another default.
 

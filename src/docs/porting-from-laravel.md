@@ -453,13 +453,12 @@ protected function mergeableOptions(string $name): array
 }
 ```
 
-Start from Hypervel's shipped configuration files and reapply your application overrides. Fixed nested arrays are complete values. Collections such as `connections`, `stores`, and `guards` merge by entry name, but an application entry replaces the complete framework entry with the same name. Hypervel does not silently supply missing members from source-code defaults. The public `Cache::build()`, `Storage::build()`, `Log::build()`, and `Mail::build()` APIs still accept partial runtime records, as do Auth's public guard creators for values also defaulted by the constructed guard.
+Start from Hypervel's shipped configuration files and reapply your application overrides. Fixed nested arrays are complete values. Collections such as `connections`, `stores`, and `guards` merge by entry name, but an application entry replaces the complete framework entry with the same name. Hypervel does not silently supply missing required members from source-code defaults; deliberately optional settings use their documented defaults when omitted. Applications that call `dontMergeFrameworkConfiguration()` must still define `app.env` and `app.timezone`, which are required during bootstrap. The public `Cache::build()`, `Storage::build()`, `Log::build()`, and `Mail::build()` APIs still accept partial runtime records, as do Auth's public guard creators for values also defaulted by the constructed guard.
 
 When porting Laravel configuration, pay particular attention to these current differences:
 
-- Auth guards declare nullable `password_timeout`; Eloquent providers include their complete `cache` block; and password brokers declare `driver` plus a nullable database `connection` or cache `store`.
-- Cache stores declare nullable per-store `prefix` values, and file stores declare nullable `permission` values.
-- Queue connections declare `after_commit` for the `sync`, `background`, and `deferred` drivers; `port` and nullable `timeout` for Beanstalkd; nullable `token` and `credentials`, `version`, and the complete `http` timeout block for SQS; and `migration_batch_size` for Redis.
+- Eloquent auth providers include their complete `cache` block, and password brokers explicitly declare their `driver`.
+- Hypervel's shipped background, deferred, Beanstalkd, SQS, Redis, and failover queues dispatch after commit by default; sync and database do not. Beanstalkd records require `port`, while SQS records require the nullable AWS session `token`. Advanced Beanstalkd, SQS SDK, Redis migration, and file failed-job settings remain optional as documented in the [queue guide](/docs/{{version}}/queues).
 - Scout's Meilisearch configuration declares `retries` and `initial_retry_delay_ms`, while Fortify's limiter configuration declares `verification`.
 - `database.migrations` is an array containing `table` and `update_date_on_publish`, and `logging.deprecations` is an array containing `channel` and `trace`.
 - The scheduling cache store is configured through `cache.schedule_store` and `SCHEDULE_CACHE_STORE`. Laravel's older `SCHEDULE_CACHE_DRIVER` name is not supported.
@@ -520,7 +519,7 @@ Database connections are persistent, pooled worker resources. Define every conne
 
 Hypervel's Redis integration uses the PhpRedis extension exclusively. Its default `config/database.php` file does not contain a `client` option or `REDIS_CLIENT` environment variable. Remove those Laravel settings when porting configuration. A copied `client` option with any value other than `phpredis` is rejected; Predis is not supported.
 
-Laravel's top-level `database.redis.clusters` configuration is also rejected. Each Hypervel Redis connection is a complete standalone, Sentinel, or Cluster record, so begin with the matching Hypervel example instead of adapting Laravel's connection shape. Configure Redis Cluster by adding a `cluster` array to a named Redis connection. See the [Redis configuration](/docs/{{version}}/redis#configuration) and [cluster documentation](/docs/{{version}}/redis#clusters).
+Laravel's top-level `database.redis.clusters` configuration is also rejected. Each Hypervel Redis connection selects its standalone, Sentinel, or Cluster topology within the named connection, so begin with the matching Hypervel example instead of adapting Laravel's connection shape. Optional advanced members use their documented defaults when omitted. Hypervel does not support Laravel's `retry_interval` setting; configure retries with `max_retries`, `backoff_algorithm`, `backoff_base`, and `backoff_cap`. Configure Redis Cluster by adding a `cluster` array to a named Redis connection. See the [Redis configuration](/docs/{{version}}/redis#configuration) and [cluster documentation](/docs/{{version}}/redis#clusters).
 
 <a name="cache"></a>
 ### Cache
