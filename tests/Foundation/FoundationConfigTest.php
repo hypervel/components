@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
-use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Foundation\Application;
 use Hypervel\Redis\RedisConfig;
-use Hypervel\Support\Env;
 use Hypervel\Testbench\TestCase;
 use Swoole\Constant;
 
@@ -33,6 +31,30 @@ class FoundationConfigTest extends TestCase
         $config = $this->appConfigWithEnvironment('APP_PREVIOUS_KEYS', '(null)');
 
         $this->assertSame([], $config['previous_keys']);
+    }
+
+    public function testLoggingConfigReadsDailyRetentionAsAnInteger(): void
+    {
+        $config = $this->withEnvironmentValue('LOG_DAILY_DAYS', '30', function (): array {
+            return require dirname(__DIR__, 2) . '/src/foundation/config/logging.php';
+        });
+
+        $this->assertSame(30, $config['channels']['daily']['days']);
+    }
+
+    public function testLoggingConfigNormalizesNullablePapertrailPort(): void
+    {
+        $config = $this->withEnvironmentValue('PAPERTRAIL_PORT', '514', function (): array {
+            return require dirname(__DIR__, 2) . '/src/foundation/config/logging.php';
+        });
+
+        $this->assertSame(514, $config['channels']['papertrail']['handler_with']['port']);
+
+        $config = $this->withEnvironmentValue('PAPERTRAIL_PORT', null, function (): array {
+            return require dirname(__DIR__, 2) . '/src/foundation/config/logging.php';
+        });
+
+        $this->assertNull($config['channels']['papertrail']['handler_with']['port']);
     }
 
     public function testCacheConfigReadsTheScheduleCacheStoreEnvironmentVariable(): void
@@ -61,22 +83,70 @@ class FoundationConfigTest extends TestCase
         $this->assertNull($config['schedule_store']);
     }
 
-    public function testShippedCacheStoreEnablesRepositoryEvents(): void
+    public function testShippedCacheStoresUseTheirDriverEventDefaults(): void
     {
-        $this->assertTrue(config()->boolean('cache.stores.array.events'));
         $this->assertNotNull($this->app->make('cache')->store('array')->getEventDispatcher());
+        $this->assertNull($this->app->make('cache')->store('failover')->getEventDispatcher());
     }
 
-    public function testShippedRedisConnectionsUseTheCompleteStandaloneSchema(): void
+    public function testQueueConfigDeclaresConnectionPolicyAndOmitsAdvancedDefaults(): void
+    {
+        $config = $this->withEnvironmentValue(
+            'BEANSTALKD_QUEUE_PORT',
+            '11400',
+            fn (): array => $this->withEnvironmentValue(
+                'AWS_SESSION_TOKEN',
+                'session-token',
+                fn (): array => $this->queueConfig(),
+            ),
+        );
+        $connections = $config['connections'];
+
+        $this->assertFalse($connections['sync']['after_commit']);
+        $this->assertFalse($connections['database']['after_commit']);
+
+        foreach (['background', 'deferred', 'beanstalkd', 'sqs', 'redis', 'failover'] as $connection) {
+            $this->assertTrue($connections[$connection]['after_commit']);
+        }
+
+        $this->assertSame(11400, $connections['beanstalkd']['port']);
+        $this->assertArrayNotHasKey('timeout', $connections['beanstalkd']);
+        $this->assertSame('session-token', $connections['sqs']['token']);
+        $this->assertArrayNotHasKey('credentials', $connections['sqs']);
+        $this->assertArrayNotHasKey('version', $connections['sqs']);
+        $this->assertArrayNotHasKey('http', $connections['sqs']);
+        $this->assertArrayNotHasKey('migration_batch_size', $connections['redis']);
+        $this->assertSame(['database', 'deferred'], $connections['failover']['connections']);
+    }
+
+    public function testQueueConfigNormalizesOverflowFlags(): void
+    {
+        $config = $this->withEnvironmentValues([
+            'SQS_OVERFLOW_ENABLED' => '1',
+            'SQS_OVERFLOW_FLUSH_ON_CLEAR' => '0',
+        ], fn (): array => $this->queueConfig());
+
+        $this->assertTrue($config['connections']['sqs']['overflow']['enabled']);
+        $this->assertFalse($config['connections']['sqs']['overflow']['flush_on_clear']);
+    }
+
+    public function testShippedRedisConnectionsDeclareRequiredMembersAndUseOptionalDefaults(): void
     {
         $requiredMembers = [
             'url',
-            'scheme',
             'host',
             'username',
             'password',
             'port',
             'database',
+            'max_retries',
+            'backoff_algorithm',
+            'backoff_base',
+            'backoff_cap',
+            'pool',
+        ];
+        $omittedMembers = [
+            'scheme',
             'name',
             'timeout',
             'retry_interval',
@@ -85,11 +155,6 @@ class FoundationConfigTest extends TestCase
             'options',
             'prefix',
             'events',
-            'max_retries',
-            'backoff_algorithm',
-            'backoff_base',
-            'backoff_cap',
-            'pool',
         ];
         $requiredPoolMembers = [
             'min_connections',
@@ -109,15 +174,111 @@ class FoundationConfigTest extends TestCase
 
             $this->assertSame([], array_diff($requiredMembers, array_keys($connection)));
             $this->assertSame([], array_diff($requiredPoolMembers, array_keys($connection['pool'])));
-            $this->assertNull($connection['name']);
-            $this->assertNull($connection['timeout']);
-            $this->assertNull($connection['prefix']);
-            $this->assertFalse($connection['events']);
+            $this->assertSame([], array_intersect($omittedMembers, array_keys($connection)));
+
+            $effectiveConnection = $redisConfig->connectionConfig($name);
+
+            $this->assertNull($effectiveConnection['name']);
+            $this->assertNull($effectiveConnection['timeout']);
+            $this->assertNull($effectiveConnection['prefix']);
+            $this->assertFalse($effectiveConnection['events']);
             $this->assertSame(
                 $sharedPrefix,
-                $redisConfig->connectionConfig($name)['options']['prefix'],
+                $effectiveConnection['options']['prefix'],
             );
         }
+    }
+
+    public function testShippedFilesystemDisksDeclareVisibilityAndFailurePolicy(): void
+    {
+        $disks = $this->filesystemConfig()['disks'];
+
+        foreach ([
+            'local' => 'private',
+            'public' => 'public',
+            's3' => 'public',
+            'gcs' => 'public',
+        ] as $name => $visibility) {
+            $this->assertSame($visibility, $disks[$name]['visibility']);
+            $this->assertFalse($disks[$name]['throw']);
+            $this->assertFalse($disks[$name]['report']);
+        }
+    }
+
+    public function testS3RootReadsTheAwsRootEnvironmentVariable(): void
+    {
+        $config = $this->withEnvironmentValue(
+            'AWS_ROOT',
+            'application-files',
+            fn (): array => $this->filesystemConfig(),
+        );
+
+        $this->assertSame('application-files', $config['disks']['s3']['root']);
+    }
+
+    public function testFilesystemConfigNormalizesPathStyleEndpointFlag(): void
+    {
+        $config = $this->withEnvironmentValue(
+            'AWS_USE_PATH_STYLE_ENDPOINT',
+            '1',
+            fn (): array => $this->filesystemConfig(),
+        );
+
+        $this->assertTrue($config['disks']['s3']['use_path_style_endpoint']);
+    }
+
+    public function testDatabaseConfigNormalizesConnectionPortsAndForeignKeyFlag(): void
+    {
+        $config = $this->withEnvironmentValues([
+            'DB_FOREIGN_KEYS' => '0',
+            'DB_PORT' => '15432',
+            'DB_POOLED_PORT' => '16432',
+        ], function (): array {
+            return require dirname(__DIR__, 2) . '/src/foundation/config/database.php';
+        });
+
+        $this->assertFalse($config['connections']['sqlite']['foreign_key_constraints']);
+        $this->assertSame(15432, $config['connections']['mysql']['port']);
+        $this->assertSame(15432, $config['connections']['mariadb']['port']);
+        $this->assertSame(15432, $config['connections']['pgsql']['port']);
+        $this->assertSame(16432, $config['connections']['pgsql-pooled']['port']);
+    }
+
+    public function testHashingConfigNormalizesAlgorithmOptions(): void
+    {
+        $config = $this->withEnvironmentValues([
+            'BCRYPT_ROUNDS' => '13',
+            'BCRYPT_LIMIT' => '72',
+            'HASH_VERIFY' => '0',
+            'ARGON_MEMORY' => '32768',
+            'ARGON_THREADS' => '2',
+            'ARGON_TIME' => '3',
+        ], function (): array {
+            return require dirname(__DIR__, 2) . '/src/foundation/config/hashing.php';
+        });
+
+        $this->assertSame(13, $config['bcrypt']['rounds']);
+        $this->assertSame(72, $config['bcrypt']['limit']);
+        $this->assertFalse($config['bcrypt']['verify']);
+        $this->assertSame(32768, $config['argon']['memory']);
+        $this->assertSame(2, $config['argon']['threads']);
+        $this->assertSame(3, $config['argon']['time']);
+        $this->assertFalse($config['argon']['verify']);
+
+        $config = $this->withEnvironmentValue('BCRYPT_LIMIT', null, function (): array {
+            return require dirname(__DIR__, 2) . '/src/foundation/config/hashing.php';
+        });
+
+        $this->assertNull($config['bcrypt']['limit']);
+    }
+
+    public function testMailConfigNormalizesSmtpPort(): void
+    {
+        $config = $this->withEnvironmentValue('MAIL_PORT', '1025', function (): array {
+            return require dirname(__DIR__, 2) . '/src/foundation/config/mail.php';
+        });
+
+        $this->assertSame(1025, $config['mailers']['smtp']['port']);
     }
 
     public function testServerConfigUsesSafeTaskDefaults(): void
@@ -165,11 +326,22 @@ class FoundationConfigTest extends TestCase
         $config = require dirname(__DIR__, 2) . '/src/foundation/config/broadcasting.php';
 
         $this->assertFalse($config['connections']['reverb']['jsonp']);
-        $this->assertFalse($config['connections']['reverb']['log']);
         $this->assertFalse($config['connections']['pusher']['jsonp']);
-        $this->assertFalse($config['connections']['pusher']['log']);
         $this->assertArrayNotHasKey('pool', $config['connections']['pusher']);
         $this->assertArrayNotHasKey('pool', $config['connections']['ably']);
+    }
+
+    public function testBroadcastingConfigNormalizesConnectionPorts(): void
+    {
+        $config = $this->withEnvironmentValues([
+            'REVERB_PORT' => '8443',
+            'PUSHER_PORT' => '9443',
+        ], function (): array {
+            return require dirname(__DIR__, 2) . '/src/foundation/config/broadcasting.php';
+        });
+
+        $this->assertSame(8443, $config['connections']['reverb']['options']['port']);
+        $this->assertSame(9443, $config['connections']['pusher']['options']['port']);
     }
 
     public function testViewCompiledPathFallsBackToStoragePathWhenDirectoryDoesNotExist(): void
@@ -225,48 +397,26 @@ class FoundationConfigTest extends TestCase
     }
 
     /**
+     * Load the filesystem configuration.
+     */
+    protected function filesystemConfig(): array
+    {
+        return require dirname(__DIR__, 2) . '/src/foundation/config/filesystems.php';
+    }
+
+    /**
+     * Load the queue configuration.
+     */
+    protected function queueConfig(): array
+    {
+        return require dirname(__DIR__, 2) . '/src/foundation/config/queue.php';
+    }
+
+    /**
      * Load the server configuration.
      */
     protected function serverConfig(): array
     {
         return require dirname(__DIR__, 2) . '/src/foundation/config/server.php';
-    }
-
-    /**
-     * Run a callback with a temporary environment variable value.
-     */
-    protected function withEnvironmentValue(string $key, ?string $value, Closure $callback): mixed
-    {
-        $originalPutenv = getenv($key);
-        $originalServerExists = array_key_exists($key, $_SERVER);
-        $originalServer = $_SERVER[$key] ?? null;
-        $originalEnvExists = array_key_exists($key, $_ENV);
-        $originalEnv = $_ENV[$key] ?? null;
-
-        try {
-            $value === null
-                ? $this->unsetEnvironmentValue($key)
-                : $this->setEnvironmentValue($key, $value);
-
-            return $callback();
-        } finally {
-            $originalPutenv === false
-                ? putenv($key)
-                : putenv("{$key}={$originalPutenv}");
-
-            if ($originalServerExists) {
-                $_SERVER[$key] = $originalServer;
-            } else {
-                unset($_SERVER[$key]);
-            }
-
-            if ($originalEnvExists) {
-                $_ENV[$key] = $originalEnv;
-            } else {
-                unset($_ENV[$key]);
-            }
-
-            Env::flushRepository();
-        }
     }
 }
