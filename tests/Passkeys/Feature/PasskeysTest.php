@@ -33,6 +33,26 @@ class PasskeysTest extends TestCase
         $this->assertSame(30000, Passkeys::timeout());
     }
 
+    public function testConfigDefaultsRemainAligned(): void
+    {
+        $this->unsetEnvironmentValue('PASSKEYS_TIMEOUT');
+
+        $config = require dirname(__DIR__, 3) . '/src/passkeys/config/passkeys.php';
+
+        $this->assertSame(Passkeys::DEFAULT_TIMEOUT, $config['timeout']);
+        $this->assertSame(Passkeys::DEFAULT_THROTTLE, $config['throttle']);
+    }
+
+    public function testOmittedTimeoutAndRedirectUseTheirDefaults(): void
+    {
+        $config = config()->array('passkeys');
+        unset($config['timeout'], $config['redirect']);
+        config()->set('passkeys', $config);
+
+        $this->assertSame(Passkeys::DEFAULT_TIMEOUT, Passkeys::timeout());
+        $this->assertSame('/', Passkeys::redirectTo(Request::create('/')));
+    }
+
     public function testItReturnsTheConfiguredUserHandleSecret(): void
     {
         config(['passkeys.user_handle_secret' => 'configured-secret']);

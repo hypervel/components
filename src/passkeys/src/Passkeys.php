@@ -16,6 +16,10 @@ use RuntimeException;
 
 class Passkeys
 {
+    public const int DEFAULT_TIMEOUT = 60_000;
+
+    public const string DEFAULT_THROTTLE = 'throttle:6,1';
+
     private const string DEFAULT_PASSKEY_MODEL = Passkey::class;
 
     private const bool DEFAULT_REGISTERS_ROUTES = true;
@@ -136,7 +140,7 @@ class Passkeys
      */
     public static function timeout(): int
     {
-        $timeout = self::config()->integer('passkeys.timeout');
+        $timeout = self::config()->integer('passkeys.timeout', self::DEFAULT_TIMEOUT);
 
         if ($timeout < 1) {
             throw new RuntimeException('Passkey timeout must be a positive integer.');
@@ -228,7 +232,7 @@ class Passkeys
             }
         }
 
-        return self::config()->string('passkeys.redirect');
+        return self::config()->string('passkeys.redirect', '/');
     }
 
     /**

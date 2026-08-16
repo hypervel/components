@@ -8,6 +8,7 @@ use Hypervel\Auth\Middleware\Authenticate;
 use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
 use Hypervel\Auth\Middleware\RequirePassword;
 use Hypervel\Auth\Middleware\UseGuard;
+use Hypervel\Passkeys\Passkeys;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\Attributes\WithConfig;
 
@@ -67,6 +68,22 @@ class PasskeysRouteTest extends TestCase
                 static fn (mixed $middleware): bool => is_string($middleware)
                     && str_starts_with($middleware, 'throttle:'),
             ));
+        }
+    }
+
+    public function testOmittedThrottleUsesDefaultMiddlewareOnLoginAndManagementRoutes(): void
+    {
+        $config = config()->array('passkeys');
+        unset($config['throttle']);
+        config()->set('passkeys', $config);
+
+        require dirname(__DIR__, 2) . '/src/passkeys/routes/routes.php';
+
+        foreach (['passkey.login', 'passkey.registration-options'] as $routeName) {
+            $route = Route::getRoutes()->getByName($routeName);
+
+            $this->assertNotNull($route);
+            $this->assertContains(Passkeys::DEFAULT_THROTTLE, $route->middleware());
         }
     }
 }

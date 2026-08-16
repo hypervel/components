@@ -59,7 +59,7 @@ return [
     |
     */
 
-    'timeout' => (int) env('PASSKEYS_TIMEOUT', 60000),
+    'timeout' => (int) env('PASSKEYS_TIMEOUT', 60_000),
 
     /*
     |--------------------------------------------------------------------------
