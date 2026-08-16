@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Auth\Authenticatable as AuthenticatableTrait;
+use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -561,7 +562,7 @@ class GuardTest extends TestCase
                 'enabled' => false,
                 'store' => null,
                 'ttl' => 300,
-                'prefix' => 'auth_users',
+                'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
                 'tags' => null,
             ],
         ]);

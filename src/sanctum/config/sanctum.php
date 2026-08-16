@@ -99,7 +99,7 @@ return [
         'ttl' => (int) env('SANCTUM_CACHE_TTL', 300),
         'prefix' => env('SANCTUM_CACHE_PREFIX', 'sanctum'),
         'last_used_at_update_interval' => filter_var(
-            env('SANCTUM_LAST_USED_UPDATE_INTERVAL', 300),
+            env('SANCTUM_LAST_USED_AT_UPDATE_INTERVAL', 300),
             FILTER_VALIDATE_INT,
             FILTER_NULL_ON_FAILURE,
         ),

@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Sanctum;
 
 use Closure;
 use Hypervel\Auth\AuthManager;
+use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\ModelCacheStoreValidator;
 use Hypervel\Config\Repository as ConfigRepository;
@@ -62,7 +63,7 @@ class SanctumServiceProviderTest extends TestCase
                             'enabled' => false,
                             'store' => null,
                             'ttl' => 300,
-                            'prefix' => 'auth_users',
+                            'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
                             'tags' => null,
                         ],
                     ],
@@ -268,7 +269,7 @@ class SanctumServiceProviderTest extends TestCase
                             'enabled' => false,
                             'store' => null,
                             'ttl' => 300,
-                            'prefix' => 'auth_users',
+                            'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
                             'tags' => null,
                         ],
                     ],
@@ -340,6 +341,28 @@ class SanctumServiceProviderTest extends TestCase
                 'Configuration value for key [sanctum.prefix] must be a string, boolean given.',
             ],
         ];
+    }
+
+    public function testDefineRoutesRequiresPrefixWhenRoutesAreEnabled(): void
+    {
+        $config = new ConfigRepository([
+            'sanctum' => [
+                'routes' => true,
+            ],
+        ]);
+        $application = m::mock(Application::class);
+        $application->shouldReceive('routesAreCached')->once()->andReturnFalse();
+        $application->shouldReceive('make')
+            ->once()
+            ->with(ConfigRepositoryContract::class)
+            ->andReturn($config);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Configuration value for key [sanctum.prefix] must be a string, NULL given.'
+        );
+
+        (new SanctumServiceProviderFixture($application))->defineRoutesUsingParent();
     }
 
     // REMOVED: Hypervel's Middleware::statefulApi() owns middleware priority before kernel construction.

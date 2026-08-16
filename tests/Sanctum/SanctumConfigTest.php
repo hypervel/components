@@ -13,7 +13,7 @@ class SanctumConfigTest extends TestCase
     {
         $config = $this->loadConfigWithEnvironmentValues([
             'SANCTUM_CACHE_TTL' => '600',
-            'SANCTUM_LAST_USED_UPDATE_INTERVAL' => '120',
+            'SANCTUM_LAST_USED_AT_UPDATE_INTERVAL' => '120',
         ]);
 
         $this->assertSame(600, $config['cache']['ttl']);
@@ -34,7 +34,7 @@ class SanctumConfigTest extends TestCase
     public function testInvalidLastUsedUpdateIntervalRemainsInvalid(): void
     {
         $config = $this->loadConfigWithEnvironmentValues([
-            'SANCTUM_LAST_USED_UPDATE_INTERVAL' => 'not-an-interval',
+            'SANCTUM_LAST_USED_AT_UPDATE_INTERVAL' => 'not-an-interval',
         ]);
 
         $this->assertNull($config['cache']['last_used_at_update_interval']);

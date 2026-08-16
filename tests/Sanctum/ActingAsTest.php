@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
+use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Sanctum\SanctumServiceProvider;
@@ -44,7 +45,7 @@ class ActingAsTest extends TestCase
                     'enabled' => false,
                     'store' => null,
                     'ttl' => 300,
-                    'prefix' => 'auth_users',
+                    'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
                     'tags' => null,
                 ],
             ],
