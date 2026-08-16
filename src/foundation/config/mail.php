@@ -47,43 +47,36 @@ return [
             'scheme' => env('MAIL_SCHEME'),
             'url' => env('MAIL_URL'),
             'host' => env('MAIL_HOST', '127.0.0.1'),
-            'port' => env('MAIL_PORT', 2525),
+            'port' => (int) env('MAIL_PORT', 2525),
             'username' => env('MAIL_USERNAME'),
             'password' => env('MAIL_PASSWORD'),
             'timeout' => null,
-            'source_ip' => null,
             'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
-            'pool' => [],
         ],
 
         'ses' => [
             'transport' => 'ses-v2',
-            'options' => [],
-            'pool' => [],
         ],
 
         'postmark' => [
             'transport' => 'postmark',
-            'message_stream_id' => env('POSTMARK_MESSAGE_STREAM_ID'),
-            'client' => [],
-            'pool' => [],
+            // 'message_stream_id' => env('POSTMARK_MESSAGE_STREAM_ID'),
+            // 'client' => [
+            //     'timeout' => 5,
+            // ],
         ],
 
         'resend' => [
             'transport' => 'resend',
-            'pool' => [],
         ],
 
         'cloudflare' => [
             'transport' => 'cloudflare',
-            'client' => [],
-            'pool' => [],
         ],
 
         'sendmail' => [
             'transport' => 'sendmail',
             'path' => env('MAIL_SENDMAIL_PATH', '/usr/sbin/sendmail -bs -i'),
-            'pool' => [],
         ],
 
         'log' => [
@@ -102,7 +95,6 @@ return [
                 'log',
             ],
             'retry_after' => 60,
-            'pool' => [],
         ],
 
         'roundrobin' => [
@@ -112,7 +104,6 @@ return [
                 'postmark',
             ],
             'retry_after' => 60,
-            'pool' => [],
         ],
     ],
 

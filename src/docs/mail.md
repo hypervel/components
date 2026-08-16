@@ -46,10 +46,14 @@ Hypervel's email services may be configured via your application's `config/mail.
 
 Within your `mail` configuration file, you will find a `mailers` configuration array. This array contains a sample configuration entry for each of the major mail drivers / transports supported by Hypervel, while the `default` configuration value determines which mailer will be used by default when your application needs to send an email message.
 
+If your server has multiple network interfaces, an SMTP mailer may define a `source_ip` option to bind its outgoing connection to a specific local IP address.
+
 <a name="driver-prerequisites"></a>
 ### Driver / Transport Prerequisites
 
 The API based drivers such as Mailgun, Postmark, and Resend are often simpler and faster than sending mail via SMTP servers. Whenever possible, we recommend that you use one of these drivers.
+
+The Mailgun, Postmark, and Cloudflare transports accept an optional `client` array containing Symfony HTTP client options, such as request timeouts.
 
 <a name="cloudflare-driver"></a>
 #### Cloudflare Driver
