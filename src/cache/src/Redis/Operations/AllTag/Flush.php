@@ -9,7 +9,7 @@ use Hypervel\Redis\RedisConnection;
 
 class Flush
 {
-    private const CHUNK_SIZE = 1000;
+    private const int CHUNK_SIZE = 1000;
 
     public function __construct(
         private readonly StoreContext $context,

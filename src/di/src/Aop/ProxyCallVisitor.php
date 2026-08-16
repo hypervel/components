@@ -50,13 +50,13 @@ use PhpParser\NodeVisitorAbstract;
 
 class ProxyCallVisitor extends NodeVisitorAbstract
 {
-    private const ARGUMENT_FUNCTIONS = [
+    private const array ARGUMENT_FUNCTIONS = [
         'func_get_arg',
         'func_get_args',
         'func_num_args',
     ];
 
-    private const INDIRECT_CALL_FUNCTIONS = [
+    private const array INDIRECT_CALL_FUNCTIONS = [
         'call_user_func',
         'call_user_func_array',
     ];

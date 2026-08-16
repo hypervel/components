@@ -45,7 +45,7 @@ class FileLoader implements Loader
      */
     public function load(string $locale, string $group, ?string $namespace = null): array
     {
-        // Mirrors the eager check in Translator::setLocale(); keep both predicates identical.
+        // Mirrors Translator::assertValidLocale(); keep both predicates identical.
         if (Str::contains($locale, ['/', '\\']) || $locale === '.' || $locale === '..') {
             throw new InvalidArgumentException('Invalid characters present in locale.');
         }

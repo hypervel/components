@@ -38,11 +38,11 @@ class EventHandler
         DatabaseEvents\TransactionRolledBack::class => 'transactionRolledBack',
     ];
 
-    private const CONTEXT_RESPONSE_SPANS_KEY = '__sentry.tracing.response_spans';
+    private const string CONTEXT_RESPONSE_SPANS_KEY = '__sentry.tracing.response_spans';
 
-    public const CONTEXT_TRANSACTION_SPANS_KEY = '__sentry.tracing.transaction_spans';
+    public const string CONTEXT_TRANSACTION_SPANS_KEY = '__sentry.tracing.transaction_spans';
 
-    private const CONTEXT_CLEANUP_REGISTERED_KEY = '__sentry.tracing.cleanup_registered';
+    private const string CONTEXT_CLEANUP_REGISTERED_KEY = '__sentry.tracing.cleanup_registered';
 
     private readonly bool $traceSqlQueries;
 

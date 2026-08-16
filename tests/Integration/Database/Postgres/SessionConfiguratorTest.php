@@ -16,7 +16,7 @@ use RuntimeException;
 
 class SessionConfiguratorTest extends PostgresTestCase
 {
-    private const CONNECTION_NAME = 'postgres_session_configurator_test';
+    private const string CONNECTION_NAME = 'postgres_session_configurator_test';
 
     private DbPool $sessionPool;
 

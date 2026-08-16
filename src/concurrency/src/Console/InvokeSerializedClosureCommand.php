@@ -15,7 +15,7 @@ use Throwable;
 #[AsCommand(name: 'invoke-serialized-closure')]
 class InvokeSerializedClosureCommand extends Command
 {
-    private const JSON_FLAGS = JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PRESERVE_ZERO_FRACTION;
+    private const int JSON_FLAGS = JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PRESERVE_ZERO_FRACTION;
 
     protected ?string $signature = 'invoke-serialized-closure {code? : The serialized closure}';
 

@@ -38,6 +38,8 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 
+use function Hypervel\Coroutine\parallel;
+
 class AuthManagerTest extends TestCase
 {
     public function testGetDefaultDriverFromConfig()
@@ -191,12 +193,65 @@ class AuthManagerTest extends TestCase
         $this->assertSame('admins', $manager->getDefaultUserProvider());
     }
 
+    public function testGetUserProviderNameUsesSelectedOrExplicitGuardWithoutChangingSelection(): void
+    {
+        $manager = new AuthManager($container = $this->getContainer());
+        $config = $container->make('config');
+        $config->set('auth.defaults.guard', 'web');
+        $config->set('auth.guards.web.provider', 'users');
+        $config->set('auth.guards.admin.provider', 'admins');
+
+        $manager->shouldUse('admin');
+
+        $this->assertSame('admins', $manager->getUserProviderName());
+        $this->assertSame('users', $manager->getUserProviderName('web'));
+        $this->assertSame('admins', $manager->getUserProviderName(AuthManagerGuardEnum::Admin));
+        $this->assertSame('admin', $manager->getDefaultDriver());
+    }
+
+    public function testGetUserProviderNameIsIsolatedBetweenConcurrentCoroutines(): void
+    {
+        $manager = new AuthManager($container = $this->getContainer());
+        $config = $container->make('config');
+        $config->set('auth.defaults.guard', 'web');
+        $config->set('auth.guards.web.provider', 'users');
+        $config->set('auth.guards.admin.provider', 'admins');
+
+        [$users, $admins] = parallel([
+            function () use ($manager): ?string {
+                $manager->shouldUse('web');
+                usleep(5000);
+
+                return $manager->getUserProviderName();
+            },
+            function () use ($manager): ?string {
+                $manager->shouldUse('admin');
+                usleep(5000);
+
+                return $manager->getUserProviderName();
+            },
+        ]);
+
+        $this->assertSame('users', $users);
+        $this->assertSame('admins', $admins);
+    }
+
     public function testGetDefaultUserProviderReturnsNullWhenCurrentGuardHasNoProvider(): void
     {
         $manager = new AuthManager($container = $this->getContainer());
         $container->make('config')->set('auth.defaults.guard', 'api');
         $container->make('config')->set('auth.guards.api', ['driver' => 'token']);
 
+        $this->assertNull($manager->getDefaultUserProvider());
+    }
+
+    public function testUserProviderNamesNormalizeAnEmptyProviderToNull(): void
+    {
+        $manager = new AuthManager($container = $this->getContainer());
+        $container->make('config')->set('auth.defaults.guard', 'api');
+        $container->make('config')->set('auth.guards.api.provider', '');
+
+        $this->assertNull($manager->getUserProviderName());
         $this->assertNull($manager->getDefaultUserProvider());
     }
 

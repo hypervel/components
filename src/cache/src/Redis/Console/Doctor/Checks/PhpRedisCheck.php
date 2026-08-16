@@ -7,15 +7,23 @@ namespace Hypervel\Cache\Redis\Console\Doctor\Checks;
 use Hypervel\Cache\Redis\Console\Doctor\CheckResult;
 
 /**
- * Checks that PHPRedis extension is installed with required version.
- *
- * Requires phpredis ≥6.3.0 for full feature support (HSETEX, etc.).
+ * Checks that PHPRedis is installed with the version required by the tag mode.
  */
 final class PhpRedisCheck implements EnvironmentCheckInterface
 {
-    private const REQUIRED_VERSION = '6.3.0';
+    private const string MINIMUM_VERSION = '6.1.0';
+
+    private const string ANY_TAG_MINIMUM_VERSION = '6.3.0';
 
     private ?string $installedVersion = null;
+
+    /**
+     * Create a new PHPRedis check instance.
+     */
+    public function __construct(
+        private readonly string $taggingMode,
+    ) {
+    }
 
     public function name(): string
     {
@@ -36,10 +44,11 @@ final class PhpRedisCheck implements EnvironmentCheckInterface
 
         $result->assert(true, "PHPRedis extension is installed (v{$this->installedVersion})");
 
-        $versionOk = version_compare($this->installedVersion, self::REQUIRED_VERSION, '>=');
+        $requiredVersion = $this->requiredVersion();
+        $versionOk = version_compare($this->installedVersion, $requiredVersion, '>=');
         $result->assert(
             $versionOk,
-            'PHPRedis version >= ' . self::REQUIRED_VERSION
+            'PHPRedis version >= ' . $requiredVersion
         );
 
         return $result;
@@ -48,13 +57,25 @@ final class PhpRedisCheck implements EnvironmentCheckInterface
     public function getFixInstructions(): ?string
     {
         if (! extension_loaded('redis')) {
-            return 'Install PHPRedis: pecl install redis';
+            return 'Install PHPRedis: pie install phpredis/phpredis';
         }
 
-        if ($this->installedVersion !== null && version_compare($this->installedVersion, self::REQUIRED_VERSION, '<')) {
-            return "Upgrade PHPRedis: pecl upgrade redis (current: {$this->installedVersion}, required: " . self::REQUIRED_VERSION . '+)';
+        $requiredVersion = $this->requiredVersion();
+
+        if ($this->installedVersion !== null && version_compare($this->installedVersion, $requiredVersion, '<')) {
+            return "Upgrade PHPRedis: pie install phpredis/phpredis (current: {$this->installedVersion}, required: {$requiredVersion}+)";
         }
 
         return null;
+    }
+
+    /**
+     * Get the minimum required PHPRedis version.
+     */
+    private function requiredVersion(): string
+    {
+        return $this->taggingMode === 'any'
+            ? self::ANY_TAG_MINIMUM_VERSION
+            : self::MINIMUM_VERSION;
     }
 }

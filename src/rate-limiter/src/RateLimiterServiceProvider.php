@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\RateLimiter;
 
+use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Core\Events\BeforeServerStart;
 use Hypervel\RateLimiter\Console\PruneCommand;
@@ -12,7 +13,7 @@ use Hypervel\RateLimiter\Listeners\InitializeSwooleTables;
 use Hypervel\RateLimiter\Listeners\RegisterPruneTimer;
 use Hypervel\Support\ServiceProvider;
 
-class RateLimiterServiceProvider extends ServiceProvider
+class RateLimiterServiceProvider extends ServiceProvider implements ReloadsConfiguration
 {
     /**
      * Register the service provider.
@@ -23,6 +24,19 @@ class RateLimiterServiceProvider extends ServiceProvider
             PruneCommand::class,
             RateLimiterTableCommand::class,
         ]);
+    }
+
+    /**
+     * Reload configuration-derived worker state.
+     *
+     * Boot-only. Request-time use clears shared rate limiter stores while
+     * concurrent coroutines may still be using them.
+     */
+    public function reloadConfiguration(): void
+    {
+        if ($this->app->resolved(RateLimiter::class)) {
+            $this->app->make(RateLimiter::class)->forgetInstances();
+        }
     }
 
     /**

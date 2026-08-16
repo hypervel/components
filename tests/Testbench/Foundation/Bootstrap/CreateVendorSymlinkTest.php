@@ -69,7 +69,7 @@ class CreateVendorSymlinkTest extends TestCase
 
         (new CreateVendorSymlink($workingPath))->bootstrap($application);
 
-        $this->assertTrue($application['TESTBENCH_VENDOR_SYMLINK']);
+        $this->assertTrue($application->make('TESTBENCH_VENDOR_SYMLINK'));
         $this->assertSame($config, $application->make('config'));
 
         $application->terminate();
@@ -89,7 +89,7 @@ class CreateVendorSymlinkTest extends TestCase
 
         (new CreateVendorSymlink($workingPath))->bootstrap($application);
 
-        $this->assertFalse($application['TESTBENCH_VENDOR_SYMLINK']);
+        $this->assertFalse($application->make('TESTBENCH_VENDOR_SYMLINK'));
     }
 
     #[Test]
@@ -125,14 +125,16 @@ class CreateVendorSymlinkTest extends TestCase
         $filesystem->ensureDirectoryExists($application->basePath('vendor'));
         $filesystem->put($application->basePath('vendor/owned.txt'), 'owned');
         $this->ownsVendorDirectory = true;
+        $caughtException = null;
 
         try {
             (new CreateVendorSymlinkAction($workingPath))->handle($application);
-            $this->fail('Expected vendor link creation to fail.');
-        } catch (Throwable) {
-            $this->addToAssertionCount(1);
+        } catch (Throwable $exception) {
+            $caughtException = $exception;
         }
 
+        $this->assertNotNull($caughtException);
+        $this->assertFalse(is_link($application->basePath('vendor')));
         $this->assertDirectoryExists($application->basePath('vendor'));
         $this->assertFileExists($application->basePath('vendor/owned.txt'));
     }

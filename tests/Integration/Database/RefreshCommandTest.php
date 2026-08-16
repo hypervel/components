@@ -29,9 +29,9 @@ class RefreshCommandTest extends DatabaseTestCase
         $this->migrateRefreshWith($options);
     }
 
-    private function migrateRefreshWith(array $options)
+    private function migrateRefreshWith(array $options): void
     {
-        if ($this->app['config']->get('database.default') !== 'testing') {
+        if ($this->app->make('config')->get('database.default') !== 'testing') {
             $this->artisan('db:wipe', ['--drop-views' => true]);
         }
 
@@ -41,9 +41,9 @@ class RefreshCommandTest extends DatabaseTestCase
 
         $this->artisan('migrate:refresh', $options);
         DB::table('members')->insert(['name' => 'foo', 'email' => 'foo@bar', 'password' => 'secret']);
-        $this->assertEquals(1, DB::table('members')->count());
+        $this->assertSame(1, DB::table('members')->count());
 
         $this->artisan('migrate:refresh', $options);
-        $this->assertEquals(0, DB::table('members')->count());
+        $this->assertSame(0, DB::table('members')->count());
     }
 }

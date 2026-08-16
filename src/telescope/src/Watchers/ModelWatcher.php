@@ -18,7 +18,7 @@ use Hypervel\Telescope\Telescope;
 
 class ModelWatcher extends Watcher
 {
-    public const HYDRATIONS_CONTEXT_KEY = '__telescope.watcher.model.hydrations';
+    public const string HYDRATIONS_CONTEXT_KEY = '__telescope.watcher.model.hydrations';
 
     /**
      * Register the watcher.

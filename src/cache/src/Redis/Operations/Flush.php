@@ -27,10 +27,9 @@ class Flush
      */
     public function execute(): bool
     {
-        return $this->context->withConnection(function (RedisConnection $connection) {
-            $connection->flushdb();
-
-            return true;
-        });
+        return $this->context->withConnection(
+            fn (RedisConnection $connection): bool => (bool) $connection->flushdb(),
+            transform: true,
+        );
     }
 }

@@ -58,7 +58,7 @@ class RedisPool extends Pool
      */
     protected function createConnection(): ConnectionInterface
     {
-        if ($this->config['cluster']['enable'] ?? false) {
+        if ($this->config['cluster']['enabled'] ?? false) {
             return new PhpRedisClusterConnection($this->container, $this, $this->config);
         }
 

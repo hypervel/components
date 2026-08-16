@@ -186,6 +186,20 @@ class TranslationTranslatorTest extends TestCase
         $this->assertSame('lv', $translator->getFallback());
     }
 
+    public function testBaseLocaleCanBeChangedWithoutReplacingCurrentRequestOverride(): void
+    {
+        $translator = new Translator($this->getLoader(), 'en');
+
+        $translator->setBaseLocale('fr');
+
+        $this->assertSame('fr', $translator->getLocale());
+
+        $translator->setLocale('de');
+        $translator->setBaseLocale('es');
+
+        $this->assertSame('de', $translator->getLocale());
+    }
+
     public function testGetDoesNotCallGetLineTwiceForMissingKeyWhenLocaleMatchesFallback(): void
     {
         $translator = $this->getMockBuilder(Translator::class)->onlyMethods(['getLine'])->setConstructorArgs([$this->getLoader(), 'en'])->getMock();
@@ -203,6 +217,88 @@ class TranslationTranslatorTest extends TestCase
         $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([]);
         $translator->getLoader()->shouldReceive('load')->once()->with('en', 'foo', '*')->andReturn(['bar' => 'breeze :foo']);
         $this->assertSame('breeze bar', $translator->get('foo.bar', ['foo' => 'bar']));
+    }
+
+    public function testLinesAddedBeforeLoadingPreserveAndOverrideLoaderLines(): void
+    {
+        $loader = (new ArrayLoader)->addMessages('en', 'messages', [
+            'file' => 'from file',
+            'override' => 'from file',
+        ]);
+        $translator = new Translator($loader, 'en');
+
+        $translator->addLines([
+            'messages.added' => 'registered',
+            'messages.override' => 'registered',
+        ], 'en');
+
+        $this->assertSame('from file', $translator->get('messages.file'));
+        $this->assertSame('registered', $translator->get('messages.added'));
+        $this->assertSame('registered', $translator->get('messages.override'));
+    }
+
+    public function testRegisteredLinesReplayInCallOrder(): void
+    {
+        $translator = new Translator(new ArrayLoader, 'en');
+
+        $translator->addLines(['messages.parent.child' => 'first'], 'en');
+        $translator->addLines(['messages.parent' => 'replacement'], 'en');
+        $translator->addLines(['messages.parent.child' => 'last'], 'en');
+        $translator->forgetLoadedGroups();
+
+        $this->assertSame(['child' => 'last'], $translator->array('messages.parent'));
+    }
+
+    public function testNamespacedRegisteredLinesSurviveLoadedGroupRefresh(): void
+    {
+        $loader = (new ArrayLoader)->addMessages('en', 'messages', [
+            'file' => 'before refresh',
+            'override' => 'before refresh',
+        ], 'package');
+        $translator = new Translator($loader, 'en');
+
+        $translator->addLines([
+            'messages.registered' => 'registered',
+            'messages.override' => 'registered',
+        ], 'en', 'package');
+
+        $this->assertSame('before refresh', $translator->get('package::messages.file'));
+
+        $loader->addMessages('en', 'messages', [
+            'file' => 'after refresh',
+            'override' => 'after refresh',
+        ], 'package');
+        $translator->forgetLoadedGroups();
+
+        $this->assertSame('after refresh', $translator->get('package::messages.file'));
+        $this->assertSame('registered', $translator->get('package::messages.registered'));
+        $this->assertSame('registered', $translator->get('package::messages.override'));
+    }
+
+    public function testJsonRegisteredLinesSurviveLoadedGroupRefresh(): void
+    {
+        $loader = (new ArrayLoader)->addMessages('en', '*', [
+            'Message' => 'before refresh',
+            'Override' => 'before refresh',
+        ]);
+        $translator = new Translator($loader, 'en');
+
+        $translator->addLines([
+            '*.Registered' => 'registered',
+            '*.Override' => 'registered',
+        ], 'en');
+
+        $this->assertSame('before refresh', $translator->get('Message'));
+
+        $loader->addMessages('en', '*', [
+            'Message' => 'after refresh',
+            'Override' => 'after refresh',
+        ]);
+        $translator->forgetLoadedGroups();
+
+        $this->assertSame('after refresh', $translator->get('Message'));
+        $this->assertSame('registered', $translator->get('Registered'));
+        $this->assertSame('registered', $translator->get('Override'));
     }
 
     public function testChoiceMethodProperlyLoadsAndRetrievesItemForAnInt(): void
@@ -620,15 +716,13 @@ class TranslationTranslatorTest extends TestCase
     public function testInvalidFallbackLocaleIsRejectedBeforeItsFilesystemAccess(): void
     {
         $files = m::mock(Filesystem::class);
-        $files->shouldReceive('exists')->once()->with(__DIR__ . '/en.json')->andReturn(false);
-        $files->shouldReceive('exists')->once()->with(__DIR__ . '/en/messages.php')->andReturn(false);
+        $files->shouldReceive('exists')->never();
         $translator = new Translator(new FileLoader($files, __DIR__), 'en');
-        $translator->setFallback('../fr');
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Invalid characters present in locale.');
 
-        $translator->get('messages.welcome');
+        $translator->setFallback('../fr');
     }
 
     public function testInvalidLocaleFromResolverIsRejectedBeforeItsFilesystemAccess(): void
@@ -644,16 +738,20 @@ class TranslationTranslatorTest extends TestCase
         $translator->get('messages.welcome');
     }
 
-    public function testSetLocaleRejectsInvalidLocaleImmediately(): void
+    public function testLocaleSettersRejectInvalidLocaleImmediately(): void
     {
         $loader = m::mock(Loader::class);
         $loader->shouldReceive('load')->never();
         $translator = new Translator($loader, 'en');
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid characters present in locale.');
-
-        $translator->setLocale('..');
+        foreach (['setLocale', 'setBaseLocale'] as $method) {
+            try {
+                $translator->{$method}('..');
+                $this->fail("Expected {$method} to reject the invalid locale.");
+            } catch (InvalidArgumentException $exception) {
+                $this->assertSame('Invalid characters present in locale.', $exception->getMessage());
+            }
+        }
     }
 
     public function testMissingKeyCallbackDoesNotRecurse(): void

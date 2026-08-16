@@ -148,14 +148,15 @@ class PhpRedisCacheFunnelTest extends TestCase
      */
     protected function configureLockConnection(array $options): void
     {
-        $baseConfig = $this->app['config']->get('database.redis.default');
+        $config = $this->app->make('config');
+        $baseConfig = $config->array('database.redis.default');
 
-        $this->app['config']->set('database.redis.lock-test', array_merge($baseConfig, [
+        $config->set('database.redis.lock-test', array_merge($baseConfig, [
             'options' => $options,
         ]));
 
-        $this->app['config']->set('cache.stores.redis.connection', 'default');
-        $this->app['config']->set('cache.stores.redis.lock_connection', 'lock-test');
+        $config->set('cache.stores.redis.connection', 'default');
+        $config->set('cache.stores.redis.lock_connection', 'lock-test');
 
         Cache::forgetDriver('redis');
     }
@@ -172,9 +173,9 @@ class PhpRedisCacheFunnelTest extends TestCase
     protected function assertFunnelAcquiresAndReleases(): void
     {
         $repository = Cache::store('redis');
-        $repository->lock('test1')->forceRelease();
+        $repository->lock('{test}1')->forceRelease();
 
-        $first = $repository->funnel('test')
+        $first = $repository->funnel('{test}')
             ->limit(1)
             ->releaseAfter(60)
             ->block(0)
@@ -182,7 +183,7 @@ class PhpRedisCacheFunnelTest extends TestCase
 
         $this->assertSame('first', $first);
 
-        $second = $repository->funnel('test')
+        $second = $repository->funnel('{test}')
             ->limit(1)
             ->releaseAfter(60)
             ->block(0)
@@ -190,7 +191,7 @@ class PhpRedisCacheFunnelTest extends TestCase
 
         $this->assertSame('second', $second);
 
-        $lease = $repository->funnel('test')
+        $lease = $repository->funnel('{test}')
             ->limit(1)
             ->releaseAfter(60)
             ->block(0)
@@ -203,6 +204,6 @@ class PhpRedisCacheFunnelTest extends TestCase
             $lease->release();
         }
 
-        $repository->lock('test1')->forceRelease();
+        $repository->lock('{test}1')->forceRelease();
     }
 }

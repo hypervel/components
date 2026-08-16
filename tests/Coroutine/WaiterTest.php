@@ -14,6 +14,7 @@ use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Support\Sleep;
 use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
 use Hypervel\Tests\TestCase;
+use ReflectionProperty;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 
@@ -30,7 +31,16 @@ class WaiterTest extends TestCase
         Container::setInstance($container);
     }
 
-    public function testWait()
+    public function testDefaultPushTimeoutIsExposed(): void
+    {
+        $this->assertSame(10.0, Waiter::DEFAULT_PUSH_TIMEOUT_SECONDS);
+        $this->assertSame(
+            Waiter::DEFAULT_PUSH_TIMEOUT_SECONDS,
+            (new ReflectionProperty(Waiter::class, 'pushTimeout'))->getValue(new Waiter),
+        );
+    }
+
+    public function testWait(): void
     {
         $id = uniqid();
         $result = wait(function () use ($id) {
@@ -99,7 +109,7 @@ class WaiterTest extends TestCase
         );
     }
 
-    public function testWaitNone()
+    public function testWaitNone(): void
     {
         $callback = function () {
         };
@@ -115,7 +125,7 @@ class WaiterTest extends TestCase
         $this->assertSame(null, $result);
     }
 
-    public function testWaitException()
+    public function testWaitException(): void
     {
         $message = uniqid();
         $callback = function () use ($message) {
@@ -127,7 +137,7 @@ class WaiterTest extends TestCase
         wait($callback);
     }
 
-    public function testWaitReturnsAfterDeferredWorkCompletes()
+    public function testWaitReturnsAfterDeferredWorkCompletes(): void
     {
         $childCoroutineId = null;
         $deferredWorkCompleted = false;
@@ -148,7 +158,7 @@ class WaiterTest extends TestCase
         $this->assertFalse(Coroutine::exists($childCoroutineId));
     }
 
-    public function testWaitRethrowsExceptionAfterDeferredWorkCompletes()
+    public function testWaitRethrowsExceptionAfterDeferredWorkCompletes(): void
     {
         $childCoroutineId = null;
         $deferredWorkCompleted = false;
@@ -175,7 +185,7 @@ class WaiterTest extends TestCase
         $this->assertFalse(Coroutine::exists($childCoroutineId));
     }
 
-    public function testWaitReturnException()
+    public function testWaitReturnException(): void
     {
         $message = uniqid();
         $callback = function () use ($message) {
@@ -187,14 +197,14 @@ class WaiterTest extends TestCase
         $this->assertSame($message, $result->getMessage());
     }
 
-    public function testPushTimeout()
+    public function testPushTimeout(): void
     {
         $channel = new Channel(1);
         $this->assertSame(true, $channel->push(1, 0.05));
         $this->assertSame(false, $channel->push(1, 0.05));
     }
 
-    public function testTimeout()
+    public function testTimeout(): void
     {
         $childCoroutineId = null;
         $callback = function () use (&$childCoroutineId) {

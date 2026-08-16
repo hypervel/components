@@ -1,6 +1,6 @@
 {
     "name": "hypervel/telescope",
-    "description": "The telescope package for Hypervel.",
+    "description": "The Hypervel Telescope package.",
     "license": "MIT",
     "keywords": [
         "php",

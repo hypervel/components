@@ -219,7 +219,7 @@ trait ConfiguresPrompts
      */
     protected function getPromptValidatorInstance($field, $value, $rules, array $messages = [], array $attributes = [])
     {
-        return $this->hypervel['validator']->make(
+        return $this->hypervel->make('validator')->make(
             [$field => $value],
             [$field => $rules],
             empty($messages) ? $this->validationMessages() : $messages,

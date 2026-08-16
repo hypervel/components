@@ -181,13 +181,13 @@ trait MakesHttpRequests
     public function withMiddleware($middleware = null): static
     {
         if (is_null($middleware)) {
-            unset($this->app['middleware.disable']);
+            $this->app->forgetInstance('middleware.disable');
 
             return $this;
         }
 
         foreach ((array) $middleware as $abstract) {
-            unset($this->app[$abstract]);
+            $this->app->forgetInstance($abstract);
         }
 
         return $this;
@@ -268,7 +268,7 @@ trait MakesHttpRequests
      */
     public function from(string $url): static
     {
-        $this->app['session']->setPreviousUrl($url);
+        $this->app->make('session')->setPreviousUrl($url);
 
         return $this->withHeader('referer', $url);
     }
@@ -278,7 +278,7 @@ trait MakesHttpRequests
      */
     public function fromRoute(BackedEnum|string $name, mixed $parameters = []): static
     {
-        return $this->from($this->app['url']->route($name, $parameters));
+        return $this->from($this->app->make('url')->route($name, $parameters));
     }
 
     /**

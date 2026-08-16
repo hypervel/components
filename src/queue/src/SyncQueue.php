@@ -191,7 +191,7 @@ class SyncQueue extends Queue implements QueueContract
     protected function raiseBeforeJobEvent(JobContract $job): void
     {
         if ($this->container->bound('events')) {
-            $this->container['events']
+            $this->container->make('events')
                 ->dispatch(new JobProcessing($this->connectionName, $job));
         }
     }
@@ -202,7 +202,7 @@ class SyncQueue extends Queue implements QueueContract
     protected function raiseAfterJobEvent(JobContract $job): void
     {
         if ($this->container->bound('events')) {
-            $this->container['events']
+            $this->container->make('events')
                 ->dispatch(new JobProcessed($this->connectionName, $job));
         }
     }
@@ -213,7 +213,7 @@ class SyncQueue extends Queue implements QueueContract
     protected function raiseJobAttemptedEvent(JobContract $job, ?Throwable $exceptionOccurred = null): void
     {
         if ($this->container->bound('events')) {
-            $this->container['events']
+            $this->container->make('events')
                 ->dispatch(new JobAttempted($this->connectionName, $job, $exceptionOccurred));
         }
     }
@@ -224,7 +224,7 @@ class SyncQueue extends Queue implements QueueContract
     protected function raiseExceptionOccurredJobEvent(JobContract $job, Throwable $e): void
     {
         if ($this->container->bound('events')) {
-            $this->container['events']
+            $this->container->make('events')
                 ->dispatch(new JobExceptionOccurred($this->connectionName, $job, $e));
         }
     }

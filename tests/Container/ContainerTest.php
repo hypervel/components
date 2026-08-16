@@ -15,6 +15,7 @@ use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Container\CircularDependencyException;
 use Hypervel\Contracts\Container\ContextualAttribute;
 use Hypervel\Contracts\Container\SelfBuilding;
+use Hypervel\Foundation\Application;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use LogicException;
@@ -37,6 +38,16 @@ class ContainerTest extends TestCase
 
         $this->assertInstanceOf(Container::class, $container2);
         $this->assertNotSame($container, $container2);
+    }
+
+    public function testContainerSingletonIsSharedAcrossInheritanceHierarchy(): void
+    {
+        $application = new Application;
+
+        Container::setInstance($application);
+
+        $this->assertSame($application, Container::getInstance());
+        $this->assertSame($application, Application::getInstance());
     }
 
     public function testClosureResolution()
@@ -297,33 +308,12 @@ class ContainerTest extends TestCase
         $this->assertSame($c, $container);
     }
 
-    public function testArrayAccess()
+    // REMOVED: Container ArrayAccess is intentionally unsupported; use named container methods.
+
+    public function testAliases(): void
     {
         $container = new Container;
-        $this->assertFalse(isset($container['something']));
-        $container['something'] = function () {
-            return 'foo';
-        };
-        $this->assertTrue(isset($container['something']));
-        $this->assertNotEmpty($container['something']);
-        $this->assertSame('foo', $container['something']);
-        unset($container['something']);
-        $this->assertFalse(isset($container['something']));
-
-        // test offsetSet when it's not instanceof Closure
-        $container = new Container;
-        $container['something'] = 'text';
-        $this->assertTrue(isset($container['something']));
-        $this->assertNotEmpty($container['something']);
-        $this->assertSame('text', $container['something']);
-        unset($container['something']);
-        $this->assertFalse(isset($container['something']));
-    }
-
-    public function testAliases()
-    {
-        $container = new Container;
-        $container['foo'] = 'bar';
+        $container->bind('foo', fn () => 'bar');
         $container->alias('foo', 'baz');
         $container->alias('baz', 'bat');
         $this->assertSame('bar', $container->make('foo'));
@@ -341,12 +331,12 @@ class ContainerTest extends TestCase
         $this->assertEquals([1, 2, 3], $container->make('baz', [1, 2, 3]));
     }
 
-    public function testBindingsCanBeOverridden()
+    public function testBindingsCanBeOverridden(): void
     {
         $container = new Container;
-        $container['foo'] = 'bar';
-        $container['foo'] = 'baz';
-        $this->assertSame('baz', $container['foo']);
+        $container->bind('foo', fn () => 'bar');
+        $container->bind('foo', fn () => 'baz');
+        $this->assertSame('baz', $container->make('foo'));
     }
 
     public function testBindingAnInstanceReturnsTheInstance()
@@ -522,23 +512,17 @@ class ContainerTest extends TestCase
         $this->assertFalse($container->bound(ContainerConcreteStub::class));
     }
 
-    public function testUnsetRemoveBoundInstances()
-    {
-        $container = new Container;
-        $container->instance('object', new stdClass);
-        unset($container['object']);
+    // REMOVED: Instance-forgetting coverage is consolidated in testForgetInstanceForgetsInstance.
 
-        $this->assertFalse($container->bound('object'));
-    }
-
-    public function testBoundInstanceAndAliasCheckViaArrayAccess()
+    // Upstream: testBoundInstanceAndAliasCheckViaArrayAccess; Hypervel uses named binding checks.
+    public function testBoundInstanceAndAliasCheck(): void
     {
         $container = new Container;
         $container->instance('object', new stdClass);
         $container->alias('object', 'alias');
 
-        $this->assertTrue(isset($container['object']));
-        $this->assertTrue(isset($container['alias']));
+        $this->assertTrue($container->bound('object'));
+        $this->assertTrue($container->bound('alias'));
     }
 
     public function testReboundListeners()
@@ -638,14 +622,30 @@ class ContainerTest extends TestCase
         $container->build('Foo\Bar\Baz\DummyClass');
     }
 
-    public function testForgetInstanceForgetsInstance()
+    public function testForgetInstanceForgetsInstance(): void
     {
         $container = new Container;
         $containerConcreteStub = new ContainerConcreteStub;
         $container->instance(ContainerConcreteStub::class, $containerConcreteStub);
+        $this->assertTrue($container->bound(ContainerConcreteStub::class));
         $this->assertTrue($container->isShared(ContainerConcreteStub::class));
         $container->forgetInstance(ContainerConcreteStub::class);
+        $this->assertFalse($container->bound(ContainerConcreteStub::class));
         $this->assertFalse($container->isShared(ContainerConcreteStub::class));
+    }
+
+    public function testForgetInstanceResolvesAliasBeforeForgettingCachedInstance(): void
+    {
+        $container = new Container;
+        $container->singleton(ContainerConcreteStub::class);
+        $container->alias(ContainerConcreteStub::class, 'container.stub');
+
+        $first = $container->make('container.stub');
+        $container->forgetInstance('container.stub');
+        $second = $container->make('container.stub');
+
+        $this->assertNotSame($first, $second);
+        $this->assertSame($second, $container->make(ContainerConcreteStub::class));
     }
 
     public function testForgetInstanceForgetsScopedInstance()
@@ -798,30 +798,6 @@ class ContainerTest extends TestCase
 
         $second = $container->make(IContainerContractStub::class);
         $this->assertInstanceOf(ContainerImplementationStubTwo::class, $second);
-    }
-
-    public function testOffsetUnsetClearsScopedInstance()
-    {
-        $container = new Container;
-        $container->scoped(ContainerConcreteStub::class);
-
-        $first = $container->make(ContainerConcreteStub::class);
-
-        unset($container[ContainerConcreteStub::class]);
-
-        $second = $container->make(ContainerConcreteStub::class);
-
-        $this->assertNotSame($first, $second);
-    }
-
-    public function testOffsetUnsetClearsScopedLifecycleMarker(): void
-    {
-        $container = new Container;
-        $container->scoped(ContainerConcreteStub::class);
-
-        unset($container[ContainerConcreteStub::class]);
-
-        $this->assertFalse($container->isScoped(ContainerConcreteStub::class));
     }
 
     public function testExtendingResolvedAutoSingletonUpdatesCachedInstance(): void
@@ -1110,14 +1086,7 @@ class ContainerTest extends TestCase
         $this->assertInstanceOf(stdClass::class, $container->get('Taylor'));
     }
 
-    public function testContainerCanDynamicallySetService()
-    {
-        $container = new Container;
-        $this->assertFalse(isset($container['name']));
-        $container['name'] = 'Taylor';
-        $this->assertTrue(isset($container['name']));
-        $this->assertSame('Taylor', $container['name']);
-    }
+    // REMOVED: Container ArrayAccess is intentionally unsupported; use named container methods.
 
     public function testUnknownEntryThrowsException()
     {

@@ -21,10 +21,8 @@ class Js implements Htmlable, Stringable
 
     /**
      * Flags that should be used when encoding to JSON.
-     *
-     * @var int
      */
-    protected const REQUIRED_FLAGS = JSON_HEX_TAG
+    protected const int REQUIRED_FLAGS = JSON_HEX_TAG
         | JSON_HEX_APOS
         | JSON_HEX_AMP
         | JSON_HEX_QUOT

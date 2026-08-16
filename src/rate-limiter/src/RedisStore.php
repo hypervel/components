@@ -339,6 +339,58 @@ redis.call('PEXPIRE', KEYS[1], math.max(1, math.floor((resetAfter + 999) / 1000)
 return {delay == 0 and 1 or 0, failures, 0, delay, 0}
 LUA;
 
+    private const string COOLDOWN_SCRIPT = <<<'LUA'
+local MAX_INTEGER = 9007199254740991
+local mode = ARGV[1]
+local duration = tonumber(ARGV[2])
+local time = redis.call('TIME')
+local now = tonumber(time[1]) * 1000000 + tonumber(time[2])
+local raw = redis.call('GET', KEYS[1])
+local expiresAt = 0
+
+if raw then
+    if raw ~= '0' and not string.match(raw, '^[1-9]%d*$') then
+        return redis.error_reply('ERR corrupt rate limiter cooldown state')
+    end
+
+    expiresAt = tonumber(raw)
+
+    if expiresAt > MAX_INTEGER then
+        return redis.error_reply('ERR corrupt rate limiter cooldown state')
+    end
+
+    local ttl = redis.call('PTTL', KEYS[1])
+    if ttl == -1 then
+        return redis.error_reply('ERR corrupt rate limiter cooldown state has no expiry')
+    end
+    if ttl <= 0 or expiresAt <= now then
+        expiresAt = 0
+    end
+end
+
+if mode == 'inspect' then
+    local retry = math.max(expiresAt - now, 0)
+    return {retry == 0 and 1 or 0, 0, 0, retry, 0}
+end
+
+if now > MAX_INTEGER - duration then
+    return redis.error_reply('ERR rate limiter cooldown timestamp overflow')
+end
+
+expiresAt = math.max(expiresAt, now + duration)
+local retry = expiresAt - now
+local ttl = math.floor(retry / 1000)
+
+if retry % 1000 ~= 0 then
+    ttl = ttl + 1
+end
+
+redis.call('SET', KEYS[1], expiresAt)
+redis.call('PEXPIRE', KEYS[1], ttl)
+
+return {0, 0, 0, retry, 0}
+LUA;
+
     /**
      * Create a new Redis rate limiter store.
      */
@@ -365,17 +417,28 @@ LUA;
     }
 
     /**
+     * Atomically extend a cooldown block.
+     */
+    public function block(string $key, int $durationMicroseconds): CooldownResult
+    {
+        return $this->executeCooldown($key, $durationMicroseconds, 'block');
+    }
+
+    /**
      * Inspect a policy without mutating its state.
      *
-     * @return ($policy is Backoff ? BackoffResult : LimitResult)
+     * @return ($policy is Backoff ? BackoffResult : ($policy is Cooldown ? CooldownResult : LimitResult))
      */
-    public function inspect(string $key, AdmissionPolicy|Backoff $policy): LimitResult|BackoffResult
-    {
+    public function inspect(
+        string $key,
+        AdmissionPolicy|Backoff|Cooldown $policy,
+    ): LimitResult|BackoffResult|CooldownResult {
         return match (true) {
             $policy instanceof Limit => $this->executeFixedWindow($key, $policy, 'inspect'),
             $policy instanceof SlidingWindow => $this->executeSlidingWindow($key, $policy, 'inspect'),
             $policy instanceof LeakyBucket => $this->executeLeakyBucket($key, $policy, 'inspect'),
             $policy instanceof Backoff => $this->executeBackoff($key, $policy, 'inspect'),
+            $policy instanceof Cooldown => $this->executeCooldown($key, 0, 'inspect'),
             default => throw new InvalidRateLimitException(sprintf(
                 'Admission policy [%s] is not supported.',
                 $policy::class,
@@ -468,6 +531,23 @@ LUA;
         }
 
         return new BackoffResult($values[0] === 1, $values[1], $values[3]);
+    }
+
+    /**
+     * Execute a cooldown operation.
+     */
+    protected function executeCooldown(string $key, int $durationMicroseconds, string $mode): CooldownResult
+    {
+        $values = $this->integerTuple($this->execute(self::COOLDOWN_SCRIPT, $key, [
+            $mode,
+            (string) $durationMicroseconds,
+        ]));
+
+        if ($values[1] !== 0 || $values[2] !== 0 || $values[4] !== 0) {
+            throw new UnexpectedValueException('Redis returned an invalid rate limiter cooldown result.');
+        }
+
+        return new CooldownResult($values[0] === 1, $values[3]);
     }
 
     /**

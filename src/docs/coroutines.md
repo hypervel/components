@@ -28,6 +28,7 @@
     - [Lockers](#lockers)
 - [Advanced Coroutine APIs](#advanced-coroutine-apis)
 - [Common Pitfalls](#common-pitfalls)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -655,10 +656,6 @@ You may inspect the current limit and number of running coroutines:
 $limit = $concurrent->getLimit();
 
 $runningCoroutineCount = $concurrent->getRunningCoroutineCount();
-
-$runningCoroutineCount = $concurrent->getLength();
-
-$runningCoroutineCount = $concurrent->length();
 ```
 
 You may use the `isFull` method to determine if the concurrency limit has been reached and the `isEmpty` method to determine if all child coroutines have finished:
@@ -673,11 +670,15 @@ if ($concurrent->isEmpty()) {
 }
 ```
 
-You may access the underlying channel using `getChannel`:
+If you need to wait for capacity without starting another coroutine, you may use the `waitForAvailableSlot` method. The method returns `false` when the timeout is reached:
 
 ```php
-$channel = $concurrent->getChannel();
+if (! $concurrent->waitForAvailableSlot(timeout: 1.0)) {
+    // No slot became available within one second...
+}
 ```
+
+This method only waits until a slot becomes available; it does not reserve the slot after returning. A later `create` or `fork` call will wait again if another producer claims the available slot first.
 
 You may use `fork` instead of `create` when child coroutines should receive a copy of the parent context:
 
@@ -824,3 +825,8 @@ Use `Coroutine::defer()` for cleanup that belongs to one coroutine. Use [`Hyperv
 Prefer the [Concurrency facade](/docs/{{version}}/concurrency) or the `parallel` helper when the parent coroutine needs results or exceptions from child coroutines. Use `go`, `co`, `Coroutine::create`, or `Concurrent` when a child may run independently and its exceptions may be reported instead of returned to the parent.
 
 Swoole can make most stream-based I/O operations yield to other coroutines while they wait. Some PHP extensions cannot be hooked and will block the entire worker process. For CPU-intensive work or extensions that cannot yield, you should run the work in a separate process.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Coroutine began as a port of [Hyperf Coroutine](https://github.com/hyperf/coroutine) and has been adapted for Hypervel's framework architecture and coroutine runtime.

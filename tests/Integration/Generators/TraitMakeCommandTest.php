@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Integration\Generators;
 
 class TraitMakeCommandTest extends TestCase
 {
-    protected $files = [
+    protected array $files = [
         'app/FooTrait.php',
         'app/Traits/FooTrait.php',
         'app/Concerns/FooTrait.php',
@@ -23,12 +23,12 @@ class TraitMakeCommandTest extends TestCase
         ], 'app/FooTrait.php');
     }
 
-    public function testItCanGenerateTraitFileWhenTraitsFolderExists()
+    public function testItCanGenerateTraitFileWhenTraitsFolderExists(): void
     {
         $traitsFolderPath = app_path('Traits');
 
         /** @var \Hypervel\Filesystem\Filesystem $files */
-        $files = $this->app['files'];
+        $files = $this->app->make('files');
 
         $files->ensureDirectoryExists($traitsFolderPath);
 
@@ -43,12 +43,12 @@ class TraitMakeCommandTest extends TestCase
         $files->deleteDirectory($traitsFolderPath);
     }
 
-    public function testItCanGenerateTraitFileWhenConcernsFolderExists()
+    public function testItCanGenerateTraitFileWhenConcernsFolderExists(): void
     {
         $traitsFolderPath = app_path('Concerns');
 
         /** @var \Hypervel\Filesystem\Filesystem $files */
-        $files = $this->app['files'];
+        $files = $this->app->make('files');
 
         $files->ensureDirectoryExists($traitsFolderPath);
 

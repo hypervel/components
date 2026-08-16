@@ -1,7 +1,7 @@
 {
     "name": "hypervel/hashing",
     "type": "library",
-    "description": "The hashing package for Hypervel.",
+    "description": "The Hypervel Hashing package.",
     "license": "MIT",
     "keywords": [
         "php",

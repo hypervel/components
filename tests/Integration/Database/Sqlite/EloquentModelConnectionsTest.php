@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\Sqlite\EloquentModelConnectionsTest;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Eloquent\Relations\HasMany;
@@ -15,17 +16,18 @@ use UnitEnum;
 
 class EloquentModelConnectionsTest extends SqliteTestCase
 {
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app['config']->set('database.default', 'conn1');
+        $config = $app->make('config');
+        $config->set('database.default', 'conn1');
 
-        $app['config']->set('database.connections.conn1', [
+        $config->set('database.connections.conn1', [
             'driver' => 'sqlite',
             'database' => ':memory:',
             'prefix' => '',
         ]);
 
-        $app['config']->set('database.connections.conn2', [
+        $config->set('database.connections.conn2', [
             'driver' => 'sqlite',
             'database' => ':memory:',
             'prefix' => '',

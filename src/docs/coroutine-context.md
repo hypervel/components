@@ -24,6 +24,7 @@
     - [Request Context](#request-context)
     - [Parent Coroutine Context](#parent-coroutine-context)
 - [Common Pitfalls](#common-pitfalls)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -466,3 +467,8 @@ Values set outside a coroutine are stored in the shared non-coroutine context. T
 Values stored in one coroutine are not visible inside another unless you copy them. Use `Coroutine::fork`, `go(..., copyContext: true)`, `parallel(..., copyContext: true)`, or `CoroutineContext::copyFrom(...)` when a child needs values from its parent.
 
 Objects remain shared when context is copied unless they implement `ReplicableContext`. Avoid copying mutable request-specific objects when shared changes would be unsafe.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Coroutine Context began as a port of [Hyperf Context](https://github.com/hyperf/context) and has been adapted for Hypervel's framework architecture and coroutine runtime.

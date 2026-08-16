@@ -1,7 +1,7 @@
 {
     "name": "hypervel/di",
     "type": "library",
-    "description": "The Hypervel DI package providing AOP (Aspect-Oriented Programming) and class map functionality.",
+    "description": "Dependency injection, aspect-oriented programming, and class-map support for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",

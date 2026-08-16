@@ -136,6 +136,7 @@ The Working rules and the Avoid overengineering rules apply to all work in this 
 
 - **Use one source of truth** — Put all user documentation in `src/docs/`. Package READMEs are intentionally minimal, not a second documentation surface, and must not duplicate user documentation.
 - **Write user documentation in Laravel-docs prose** — Use the simple, direct, human-friendly style of first-party Laravel documentation. Prefer natural explanations and examples over implementation language; avoid internal jargon, stiff wording, and needless detail.
+- **Keep the Laravel porting guide current and focused** — Whenever a framework change introduces, changes, or removes a public API, feature, configuration surface, or supported integration in a way that a Laravel application or package porter genuinely must account for, update `src/docs/porting-from-laravel.md` in the same change. Hard boot or runtime failures, silent semantic differences, and commonly used framework surfaces normally qualify. Internal implementation differences, performance work that preserves the public contract, incidental source drift, package-specific details, and narrow edge cases that do not change normal porting decisions do not. The guide is a high-signal starting context for humans and LLMs, not an exhaustive framework diff or dumping ground. Treat its context size as a design constraint: keep additions concise and action-oriented, link to the canonical feature documentation instead of duplicating its detail, and remove stale or duplicated guidance whenever editing the guide.
 
 #### Package READMEs
 
@@ -194,14 +195,14 @@ Build complete, long-term solutions, not MVPs or local workarounds. A broad chan
 - **Use `Sleep::usleep()` / `Sleep::sleep()` for delays in source code** — `Sleep` is fakeable in tests. Use raw `sleep()` / `usleep()` only where real time must pass, such as test harnesses and external-process polling.
 - **Use `xxh128` for internal non-cryptographic hashing** — cache and context keys, content checksums, and change detection. It is faster than `sha256`, which is reserved for trust boundaries: stored credential digests, signatures, and anything an attacker gains by forging. Seed it when the hashed value comes from user input, as `SwooleStore` does for its physical table keys.
 - **Use immutable dates by default** — Hypervel defaults to `Hypervel\Support\CarbonImmutable`, including where Laravel uses mutable Carbon. Create public or application-configurable dates through the `Date` facade or date helpers, and use exact `CarbonImmutable` for framework-owned internal or held values. Type configurable Carbon boundaries as `CarbonInterface` and native or third-party boundaries as `DateTimeInterface`. Capture the return value of every date modifier whose result must persist. Use `Hypervel\Support\Carbon` only for explicit mutable opt-out or conversion behavior.
-- **Use typed config getters and avoid duplicate defaults** — prefer `$config->string()`, `$config->integer()`, `$config->float()`, `$config->boolean()`, and `$config->array()` over `$config->get()` for values that cannot be null. Framework and package defaults are shallow-merged with application config. `mergeableOptions()` is only for named groups such as connections or stores: application entries replace matching defaults, while other default entries remain. Other nested arrays are replaced as a whole. Keep a fallback when a setting inside one of those replaced arrays is intentionally optional.
+- **Use typed config getters and avoid duplicate defaults** — prefer `$config->string()`, `$config->integer()`, `$config->float()`, `$config->boolean()`, and `$config->array()` over `$config->get()` for values that cannot be null. Do not pass a code-level fallback when the framework or package config defines the key; missing or misspelled keys should fail loudly instead of silently using a second default. Framework and package defaults are shallow-merged with application config. `mergeableOptions()` is only for named groups such as connections or stores: application entries replace matching defaults, while other default entries remain. Other nested arrays are replaced as a whole. Keep a fallback when a setting inside one of those replaced arrays is intentionally optional.
 - **Env var naming** — Ported config keeps upstream names. New Hypervel-specific settings should use the established prefix for the package or subsystem that owns the value (`SERVER_`, `CACHE_`, `REDIS_`, etc.). Determine ownership semantically, not from the config filename: aggregate files such as `app.php` contain multiple domains, and `APP_` is for genuinely application-wide settings. If a value mirrors another config key, reuse that key's environment variable instead of defining a duplicate.
 - **Use `resolve...Using` for Hypervel-owned config resolvers** — prefer this naming for callbacks that resolve config-derived values, unless an established Laravel domain convention already exists, such as `redirectUsing()`.
 - **Always use American English spelling** — E.g., "behavior" vs "behaviour", "utilize" vs "utilise".
 
 ## Container
 
-Hypervel's container keeps Laravel's API surface — `bind()`, `singleton()`, `scoped()`, `instance()`, aliases, contextual bindings — with resolution adapted for long-lived Swoole workers. `make()` and `get()` resolve identically; `get()` is just the PSR-compliant exception wrapper. Use `make()`, and use it instead of array access too: `offsetGet()` always returns `mixed`, while `make()` carries class-string generics phpstan can follow, `make()` can take parameters, and `$app[$key] = $value` is a hidden `bind()`. Converting `$app['...']` in ported code to `make()` is an approved modernization (see Policy under Porting Packages). `Container::getInstance()` auto-creates via `??= new static()`, so it always returns a container.
+Hypervel's container keeps Laravel's named API surface — `bind()`, `singleton()`, `scoped()`, `instance()`, aliases, contextual bindings — with resolution adapted for long-lived Swoole workers. Container ArrayAccess and dynamic service properties are intentionally unsupported. `make()` and `get()` resolve identically; `get()` is the PSR-compliant exception wrapper. `Container::getInstance()` auto-creates via `??= new static()`, so it always returns a container.
 
 ### Resolution semantics vs Laravel
 
@@ -374,6 +375,10 @@ These rules apply to all tests — new tests for framework work and ported tests
 ### Avoid overengineered tests
 
 Test supported public behavior, meaningful branches, verified regressions, and realistic coroutine or worker-lifetime failures. Do not add production APIs, branches, or defensive machinery solely to make speculative states testable. Do not require invariants to survive deliberate framework escape hatches unless the public contract promises that behavior.
+
+### Exceptions in tests
+
+In any test, PHPUnit assertion failures, skips, and incomplete markers extend `AssertionFailedError`, which extends `RuntimeException`; a catch must not swallow one and let the test pass. An exception test must fail unless its intended behavior and exception path occurred. Before rewriting an existing or ported exception test, demonstrate a concrete violation; a broad catch alone is not a defect. When writing a new test that controls the exception, prefer prebuilding it and asserting its identity after the catch.
 
 ### Directory layout
 
@@ -653,7 +658,7 @@ Integration tests that use an external service must use that service's test trai
 
 | Trait | Service | Key Env Vars |
 |-------|---------|-------------|
-| `InteractsWithRedis` | Redis/Valkey | `REDIS_HOST`, `REDIS_PORT` |
+| `InteractsWithRedis` | Redis / Redis Cluster / Valkey | `REDIS_HOST`, `REDIS_PORT`, `REDIS_CLUSTER_HOSTS_AND_PORTS` |
 | `InteractsWithMeilisearch` | Meilisearch | `MEILISEARCH_HOST`, `MEILISEARCH_PORT`, `MEILISEARCH_KEY` |
 | `InteractsWithTypesense` | Typesense | `TYPESENSE_HOST`, `TYPESENSE_PORT`, `TYPESENSE_API_KEY`, `TYPESENSE_PROTOCOL` |
 | `InteractsWithAlgolia` | Algolia | `ALGOLIA_APP_ID`, `ALGOLIA_SECRET` |
@@ -663,7 +668,7 @@ This applies whether the test calls the service directly or reaches it through t
 
 These traits are required for external-service tests to work under ParaTest. Parallel workers share external services unless the trait isolates them. Tests that bypass the trait will leak state across workers and fail depending on timing.
 
-The traits handle service-specific setup and cleanup. For example, `InteractsWithRedis` assigns each ParaTest worker its own Redis database and flushes it before and after each test. This isolates the test keyspace without changing the Redis behavior being tested.
+The traits handle service-specific setup and cleanup. For example, `InteractsWithRedis` assigns each ParaTest worker its own Redis database and flushes it before and after each test. Redis Cluster only supports database zero, so Cluster suites run serially and flush that database between tests. Both approaches isolate the test keyspace without changing the Redis behavior being tested.
 
 If a service is not configured, the trait skips the test before connecting. If the service is configured but unreachable or misconfigured, the test fails.
 
@@ -681,10 +686,10 @@ Each integration group has its own workflow file in `.github/workflows/`:
 |----------|------|-----------|
 | `engine.yml` | HTTP test servers | `tests/Integration/Engine`, `tests/Integration/HttpServer` |
 | `databases.yml` | MySQL, MariaDB, PostgreSQL, SQLite | `tests/Integration/Database`, `tests/Integration/*/Database/*` |
-| `redis.yml` | Redis, Valkey | `tests/Integration/Auth/Redis`, `tests/Integration/Cache/Redis`, `tests/Integration/Horizon`, `tests/Integration/Http/Redis`, `tests/Integration/Queue/Redis`, `tests/Integration/RateLimiter/Redis`, `tests/Integration/Redis` |
+| `redis.yml` | Redis, Redis Cluster, Valkey | `tests/Integration/Auth/Redis`, `tests/Integration/Broadcasting/Redis`, `tests/Integration/Cache/Redis`, `tests/Integration/Horizon`, `tests/Integration/Http/Redis`, `tests/Integration/Queue/Redis`, `tests/Integration/RateLimiter/Redis`, `tests/Integration/Redis`, `tests/Integration/Session/Redis`; it also reruns the driver-neutral queue chaining and dispatching tests with Redis, while the Cluster job runs the topology-neutral Redis files and Redis-backed Reverb state tests listed in the workflow |
 | `scout.yml` | Meilisearch, Typesense | `tests/Integration/Scout/*` |
 
-When adding integration tests that need a new service, either add them to an existing workflow or create a new one. The workflow must spin up the service container and set the appropriate env vars.
+When adding integration tests that need a new service, either add them to an existing workflow or create a new one. The workflow must start the service and set the appropriate env vars.
 
 #### Environment files
 
@@ -722,7 +727,7 @@ Full PHPStan runs through `composer fix` at checkpoints. During implementation, 
 When porting Laravel packages, whether first-party or third-party, keep them as close to 1:1 with upstream as possible so future changes are easy to merge. The exceptions are:
 - Modernizing PHP types, including native parameter, return, property, and class-constant types, plus other appropriate PHP 8.4+ features, strict types, and strict comparisons
 - Converting mutable Laravel date construction to Hypervel's immutable date conventions, typing configurable factory output as `CarbonInterface`, and capturing date-modifier return values
-- Converting container array access (`$app['events']`) to `make()`, and untyped `$config->get()` calls to the typed getters where the key isn't nullable (see Container and the typed-getter rule under Development Conventions)
+- Converting container array access (`$app['events']`) and dynamic service-property access (`$app->events`) in ported code to named container methods, and untyped `$config->get()` calls to typed getters where the key isn't nullable (see Container and the typed-getter rule under Development Conventions)
 - Adding Laravel-style title docblocks to methods (not classes — see Development Conventions)
 - For ported Laravel packages: making them coroutine-safe, adding Swoole performance enhancements (e.g., static property caching), making them pass PHPStan
 - Not porting upstream framework-specific integrations that only make sense in the source framework (for example packages, drivers) unless Hypervel intentionally has an equivalent surface
@@ -875,6 +880,7 @@ Tests for these features should be **removed** (not commented out) without askin
 - **Databases:** SQL Server, MongoDB, DynamoDB — Hypervel only supports MySQL, MariaDB, PostgreSQL, and SQLite
 - **Cache drivers:** Memcached, DynamoDB, MongoDB
 - **Dynamic connections:** `DB::build()`, `DB::connectUsing()` — incompatible with Swoole connection pooling
+- **Container access:** ArrayAccess and dynamic service properties
 
 This list is exhaustive. Any other missing functionality requires investigation and reporting per When to Stop and Report.
 
@@ -889,5 +895,5 @@ This list is exhaustive. Any other missing functionality requires investigation 
 7. Fix mock types (PDO, QueryBuilder, Grammar, etc.)
 8. Add `->andReturnSelf()` to chained method mocks
 9. Use a test-specific namespace only when helper classes have generic, collision-prone names — already-specific helper names do not need extra namespace ceremony.
-10. Remove tests for unsupported features (SQL Server/MongoDB/DynamoDB databases, Memcached/DynamoDB/MongoDB cache, dynamic connections)
+10. Remove tests only for the approved unsupported features listed above
 11. Run tests and fix any remaining type errors

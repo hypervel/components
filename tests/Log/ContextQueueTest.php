@@ -193,7 +193,7 @@ class ContextQueueTest extends TestCase
         $job->shouldReceive('payload')->andReturn($payload);
 
         $event = new JobProcessing('sync', $job);
-        $this->app['events']->dispatch($event);
+        $this->app->make('events')->dispatch($event);
 
         // Context should now be hydrated
         $this->assertSame('abc-123', Repository::getInstance()->get('trace_id'));
@@ -206,7 +206,7 @@ class ContextQueueTest extends TestCase
         $job->shouldReceive('payload')->andReturn(['job' => 'SomeJob']);
 
         $event = new JobProcessing('sync', $job);
-        $this->app['events']->dispatch($event);
+        $this->app->make('events')->dispatch($event);
 
         // No context Repository should have been allocated
         $this->assertFalse(Repository::hasInstance());
@@ -221,7 +221,7 @@ class ContextQueueTest extends TestCase
         $job = m::mock(\Hypervel\Contracts\Queue\Job::class);
         $job->shouldReceive('payload')->andReturn(['job' => 'SomeJob']);
 
-        $this->app['events']->dispatch(new JobProcessing('sync', $job));
+        $this->app->make('events')->dispatch(new JobProcessing('sync', $job));
 
         $this->assertSame($repository, Repository::getInstance());
         $this->assertSame([], $repository->all());
@@ -266,7 +266,7 @@ class ContextQueueTest extends TestCase
         $job = m::mock(\Hypervel\Contracts\Queue\Job::class);
         $job->shouldReceive('payload')->andReturn($payload);
 
-        $this->app['events']->dispatch(new JobProcessing('sync', $job));
+        $this->app->make('events')->dispatch(new JobProcessing('sync', $job));
 
         $this->assertTrue($called);
     }
@@ -311,7 +311,7 @@ class ContextQueueTest extends TestCase
         // Hydrate from the payload
         $job = m::mock(\Hypervel\Contracts\Queue\Job::class);
         $job->shouldReceive('payload')->andReturn($payload);
-        $this->app['events']->dispatch(new JobProcessing('sync', $job));
+        $this->app->make('events')->dispatch(new JobProcessing('sync', $job));
 
         // Verify all types survived the round trip
         $this->assertSame('hello', Repository::getInstance()->get('string'));

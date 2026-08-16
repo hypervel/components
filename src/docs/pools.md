@@ -16,6 +16,7 @@
     - [Borrowing Connections](#borrowing-connections)
     - [Connection Pool Options](#connection-pool-options)
     - [Connection Pool Lifecycle](#connection-pool-lifecycle)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -373,3 +374,8 @@ Packages that cache connection pools must close them before the server forks and
 
 > [!WARNING]
 > Do not call native channel methods from a destructor. Close connection pools explicitly while the worker runtime is active.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Pool began as a port of [Hyperf Pool](https://github.com/hyperf/hyperf/tree/master/src/pool) and has been adapted for Hypervel's framework architecture and coroutine runtime.

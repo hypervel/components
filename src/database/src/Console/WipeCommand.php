@@ -67,7 +67,7 @@ class WipeCommand extends Command
      */
     protected function dropAllTables(?string $database): void
     {
-        $this->hypervel['db']->connection($database)
+        $this->hypervel->make('db')->connection($database)
             ->getSchemaBuilder()
             ->dropAllTables();
     }
@@ -77,7 +77,7 @@ class WipeCommand extends Command
      */
     protected function dropAllViews(?string $database): void
     {
-        $this->hypervel['db']->connection($database)
+        $this->hypervel->make('db')->connection($database)
             ->getSchemaBuilder()
             ->dropAllViews();
     }
@@ -87,7 +87,7 @@ class WipeCommand extends Command
      */
     protected function dropAllTypes(?string $database): void
     {
-        $this->hypervel['db']->connection($database)
+        $this->hypervel->make('db')->connection($database)
             ->getSchemaBuilder()
             ->dropAllTypes();
     }
@@ -103,7 +103,7 @@ class WipeCommand extends Command
      */
     protected function flushDatabaseConnection(?string $database): void
     {
-        $this->hypervel['db']->purge($database);
+        $this->hypervel->make('db')->purge($database);
     }
 
     /**

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 use Closure;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Benchmark;
@@ -23,7 +24,7 @@ abstract class Facade
     /**
      * The application instance being facaded.
      */
-    protected static $app;
+    protected static ?ContainerContract $app = null;
 
     /**
      * The resolved object instances.
@@ -55,12 +56,14 @@ abstract class Facade
     public static function resolved(Closure $callback): void
     {
         $accessor = static::getFacadeAccessor();
+        /** @var ContainerContract $app */
+        $app = static::$app;
 
-        if (static::$app->resolved($accessor) === true) {
-            $callback(static::getFacadeRoot(), static::$app);
+        if ($app->resolved($accessor) === true) {
+            $callback(static::getFacadeRoot(), $app);
         }
 
-        static::$app->afterResolving($accessor, function ($service, $app) use ($callback) {
+        $app->afterResolving($accessor, function ($service, $app) use ($callback) {
             $callback($service, $app);
         });
     }
@@ -228,10 +231,10 @@ abstract class Facade
 
         if (static::$app) {
             if (static::$cached) {
-                return static::$resolvedInstance[$name] = static::$app[$name];
+                return static::$resolvedInstance[$name] = static::$app->make($name);
             }
 
-            return static::$app[$name];
+            return static::$app->make($name);
         }
 
         return null;
@@ -321,7 +324,7 @@ abstract class Facade
     /**
      * Get the application instance behind the facade.
      */
-    public static function getFacadeApplication()
+    public static function getFacadeApplication(): ?ContainerContract
     {
         return static::$app;
     }
@@ -329,12 +332,10 @@ abstract class Facade
     /**
      * Set the application instance.
      *
-     * Tests only. Replaces the worker-wide facade application reference;
+     * Boot or tests only. Replaces the worker-wide facade application reference;
      * runtime use races across coroutines and breaks every facade lookup.
-     *
-     * @param mixed $app
      */
-    public static function setFacadeApplication($app): void
+    public static function setFacadeApplication(?ContainerContract $app): void
     {
         static::$app = $app;
     }

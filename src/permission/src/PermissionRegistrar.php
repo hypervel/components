@@ -42,17 +42,17 @@ use function Hypervel\Support\enum_value;
 
 class PermissionRegistrar
 {
-    public const MODEL_ROLES_CACHE_KEY_PREFIX = 'hypervel.permission.cache.model.roles';
+    public const string MODEL_ROLES_CACHE_KEY_PREFIX = 'hypervel.permission.cache.model.roles';
 
-    public const MODEL_PERMISSIONS_CACHE_KEY_PREFIX = 'hypervel.permission.cache.model.permissions';
+    public const string MODEL_PERMISSIONS_CACHE_KEY_PREFIX = 'hypervel.permission.cache.model.permissions';
 
-    public const MODEL_CACHE_TOKEN_KEY = 'hypervel.permission.cache.model.token';
+    public const string MODEL_CACHE_TOKEN_KEY = 'hypervel.permission.cache.model.token';
 
-    public const PERMISSION_CATALOG_CONTEXT_KEY = '__permission.catalog';
+    public const string PERMISSION_CATALOG_CONTEXT_KEY = '__permission.catalog';
 
-    public const WILDCARD_PERMISSION_INDEX_CONTEXT_KEY = '__permission.wildcard_index';
+    public const string WILDCARD_PERMISSION_INDEX_CONTEXT_KEY = '__permission.wildcard_index';
 
-    public const MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY = '__permission.model_via_role_permissions';
+    public const string MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY = '__permission.model_via_role_permissions';
 
     protected static ?string $partitionColumn = null;
 

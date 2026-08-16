@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\Sqlite;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
@@ -22,9 +23,9 @@ class DatabaseSchemaBuilderTest extends SqliteTestCase
         $this->artisan('migrate:install', ['--database' => 'sqlite-with-indexed-prefix']);
     }
 
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app['config']->set([
+        $app->make('config')->set([
             'database.connections.sqlite-with-prefix' => [
                 'driver' => 'sqlite',
                 'database' => ':memory:',

@@ -1,7 +1,7 @@
 {
     "name": "hypervel/socialite",
     "type": "library",
-    "description": "Hypervel wrapper around OAuth 2 libraries.",
+    "description": "OAuth 2.0 and OpenID Connect authentication for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",

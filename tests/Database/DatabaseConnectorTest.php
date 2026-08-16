@@ -9,6 +9,7 @@ use Hypervel\Database\Connectors\MySqlConnector;
 use Hypervel\Database\Connectors\PostgresConnector;
 use Hypervel\Database\Connectors\SQLiteConnector;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -62,6 +63,38 @@ class DatabaseConnectorTest extends TestCase
         $this->assertSame($result, $connection);
     }
 
+    public function testMySqlLockTimeoutIsCombinedWithConnectionSettings(): void
+    {
+        $config = [
+            'host' => 'foo',
+            'database' => 'bar',
+            'charset' => 'utf8',
+            'lock_timeout' => 2,
+            'strict' => false,
+        ];
+
+        $connector = $this->getMockBuilder(MySqlConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
+        $connection = m::mock(PDO::class);
+        $connector->expects($this->once())->method('getOptions')->with($this->equalTo($config))->willReturn(['options']);
+        $connector->expects($this->once())->method('createConnection')->willReturn($connection);
+        $connection->shouldReceive('exec')->once()->with('use `bar`;')->andReturn(true);
+        $connection->shouldReceive('exec')->once()->with("SET NAMES 'utf8', SESSION innodb_lock_wait_timeout=2, SESSION lock_wait_timeout=2, SESSION sql_mode='NO_ENGINE_SUBSTITUTION';")->andReturn(true);
+
+        $this->assertSame($connection, $connector->connect($config));
+    }
+
+    public function testMySqlRejectsInvalidLockTimeout(): void
+    {
+        $config = ['host' => 'foo', 'database' => '', 'lock_timeout' => 0];
+        $connector = $this->getMockBuilder(MySqlConnector::class)->onlyMethods(['createConnection'])->getMock();
+        $connector->expects($this->never())->method('createConnection');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Database connection [lock_timeout] must be a positive integer.');
+
+        $connector->connect($config);
+    }
+
     public function testPostgresConnectCallsCreateConnectionWithProperArguments()
     {
         $dsn = 'pgsql:host=foo;dbname=\'bar\';port=111;client_encoding=\'utf8\'';
@@ -87,6 +120,29 @@ class DatabaseConnectorTest extends TestCase
         $result = $connector->connect($config);
 
         $this->assertSame($result, $connection);
+    }
+
+    public function testPostgresLockTimeoutIsBakedIntoDsn(): void
+    {
+        $dsn = "pgsql:host=foo;dbname='bar';options='-c lock_timeout=2s'";
+        $config = ['host' => 'foo', 'database' => 'bar', 'lock_timeout' => 2];
+        $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
+        $connection = m::mock(PDO::class);
+        $connector->expects($this->once())->method('getOptions')->with($this->equalTo($config))->willReturn(['options']);
+        $connector->expects($this->once())->method('createConnection')->with($this->equalTo($dsn), $this->equalTo($config), $this->equalTo(['options']))->willReturn($connection);
+
+        $this->assertSame($connection, $connector->connect($config));
+    }
+
+    public function testPostgresRejectsInvalidLockTimeout(): void
+    {
+        $config = ['host' => 'foo', 'database' => 'bar', 'lock_timeout' => '2'];
+        $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Database connection [lock_timeout] must be a positive integer.');
+
+        $connector->connect($config);
     }
 
     /**
@@ -289,13 +345,14 @@ class DatabaseConnectorTest extends TestCase
 
     public function testPostgresCombinesMultipleStartupParamsInDsn()
     {
-        $dsn = 'pgsql:host=foo;dbname=\'bar\';options=\'-c search_path="public" -c TimeZone=UTC -c default_transaction_isolation=SERIALIZABLE -c synchronous_commit=on\'';
+        $dsn = 'pgsql:host=foo;dbname=\'bar\';options=\'-c search_path="public" -c TimeZone=UTC -c default_transaction_isolation=SERIALIZABLE -c lock_timeout=2s -c synchronous_commit=on\'';
         $config = [
             'host' => 'foo',
             'database' => 'bar',
             'search_path' => 'public',
             'timezone' => 'UTC',
             'isolation_level' => 'SERIALIZABLE',
+            'lock_timeout' => 2,
             'synchronous_commit' => 'on',
         ];
         $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
@@ -331,6 +388,18 @@ class DatabaseConnectorTest extends TestCase
         $result = $connector->connect($config);
 
         $this->assertSame($result, $connection);
+    }
+
+    public function testSQLiteRejectsLockTimeout(): void
+    {
+        $config = ['database' => ':memory:', 'lock_timeout' => 2];
+        $connector = $this->getMockBuilder(SQLiteConnector::class)->onlyMethods(['createConnection'])->getMock();
+        $connector->expects($this->never())->method('createConnection');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('SQLite connections use [busy_timeout] instead of [lock_timeout].');
+
+        $connector->connect($config);
     }
 
     public function testSQLiteNamedMemoryDatabasesMayBeConnectedTo()

@@ -1,7 +1,7 @@
 {
     "name": "hypervel/nested-set",
     "type": "library",
-    "description": "The nested-set package for Hypervel.",
+    "description": "Nested set support for Hypervel Eloquent models.",
     "license": "MIT",
     "keywords": [
         "php",

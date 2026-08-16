@@ -18,7 +18,7 @@ class TransformIntegrationTest extends TestCase
 {
     use InteractsWithRedis;
 
-    public function testGetReturnsNullForMissingKey()
+    public function testGetReturnsNullForMissingKey(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
@@ -29,7 +29,7 @@ class TransformIntegrationTest extends TestCase
         $this->assertNull($result);
     }
 
-    public function testGetReturnsValueForExistingKey()
+    public function testGetReturnsValueForExistingKey(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
@@ -41,7 +41,7 @@ class TransformIntegrationTest extends TestCase
         $this->assertSame('hello', $result);
     }
 
-    public function testSetWithExpiryAndFlag()
+    public function testSetWithExpiryAndFlag(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
@@ -59,7 +59,7 @@ class TransformIntegrationTest extends TestCase
         $this->assertLessThanOrEqual(600, $ttl);
     }
 
-    public function testSetWithExpiryNxFailsWhenKeyExists()
+    public function testSetWithExpiryNxFailsWhenKeyExists(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
@@ -73,7 +73,7 @@ class TransformIntegrationTest extends TestCase
         $this->assertSame('first', $redis->get('transform_set_nx'));
     }
 
-    public function testSetnxReturnsIntNotBool()
+    public function testSetnxReturnsIntNotBool(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
@@ -89,7 +89,7 @@ class TransformIntegrationTest extends TestCase
         $this->assertSame(0, $result);
     }
 
-    public function testMgetTransformsFalseToNull()
+    public function testMgetTransformsFalseToNull(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
@@ -103,7 +103,14 @@ class TransformIntegrationTest extends TestCase
         $this->assertSame(['value1', null, 'value3'], $result);
     }
 
-    public function testEvalReordersArguments()
+    public function testMgetReturnsAnEmptyArrayForEmptyKeys(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+
+        $this->assertSame([], $redis->mget([]));
+    }
+
+    public function testEvalReordersArguments(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
@@ -117,27 +124,37 @@ class TransformIntegrationTest extends TestCase
         $this->assertSame('eval_value', $result);
     }
 
-    public function testEvalWithMultipleKeysAndArgs()
+    public function testEvalWithMultipleKeysAndArgs(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
 
         // Set two keys, then use eval with 2 KEYS + 1 ARGV
-        $redis->set('eval_k1', 'v1');
-        $redis->set('eval_k2', 'v2');
+        $redis->set('{eval}:k1', 'v1');
+        $redis->set('{eval}:k2', 'v2');
 
         $result = $redis->eval(
             'return {redis.call("GET", KEYS[1]), redis.call("GET", KEYS[2]), ARGV[1]}',
             2,
-            'eval_k1',
-            'eval_k2',
+            '{eval}:k1',
+            '{eval}:k2',
             'extra_arg'
         );
 
         $this->assertSame(['v1', 'v2', 'extra_arg'], $result);
     }
 
-    public function testHmsetWithArrayForm()
+    public function testEvalNormalizesNestedNilReplies(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+        $redis->flushdb();
+
+        $result = $redis->eval('return {1, {false, 2}}', 0);
+
+        $this->assertSame([1, [false, 2]], $result);
+    }
+
+    public function testHmsetWithArrayForm(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
@@ -150,7 +167,7 @@ class TransformIntegrationTest extends TestCase
         $this->assertSame('val2', $redis->hget('hash', 'field2'));
     }
 
-    public function testHmsetWithAlternatingKeyValuePairs()
+    public function testHmsetWithAlternatingKeyValuePairs(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
@@ -164,7 +181,7 @@ class TransformIntegrationTest extends TestCase
         $this->assertSame('v2', $redis->hget('hash_alt', 'f2'));
     }
 
-    public function testHmgetReturnsIndexedValues()
+    public function testHmgetReturnsIndexedValues(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
@@ -178,7 +195,7 @@ class TransformIntegrationTest extends TestCase
         $this->assertSame(['val1', 'val2'], $result);
     }
 
-    public function testHmgetWithMultipleStringArgs()
+    public function testHmgetWithMultipleStringArgs(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
@@ -192,7 +209,7 @@ class TransformIntegrationTest extends TestCase
         $this->assertSame(['1', '2'], $result);
     }
 
-    public function testHsetnxReturnsInt()
+    public function testHsetnxReturnsInt(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
@@ -208,7 +225,7 @@ class TransformIntegrationTest extends TestCase
         $this->assertSame(0, $result);
     }
 
-    public function testLremSwapsArguments()
+    public function testLremSwapsArguments(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
@@ -230,7 +247,7 @@ class TransformIntegrationTest extends TestCase
         $this->assertSame(['b', 'c', 'a'], $remaining);
     }
 
-    public function testSpopWithoutCountReturnsSingleElement()
+    public function testSpopWithoutCountReturnsSingleElement(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
@@ -243,7 +260,7 @@ class TransformIntegrationTest extends TestCase
         $this->assertSame('member1', $result);
     }
 
-    public function testSpopWithCountReturnsArray()
+    public function testSpopWithCountReturnsArray(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
@@ -257,7 +274,7 @@ class TransformIntegrationTest extends TestCase
         $this->assertCount(2, $result);
     }
 
-    public function testSpopReturnsEmptySetAsFalse()
+    public function testSpopReturnsEmptySetAsFalse(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
@@ -268,7 +285,7 @@ class TransformIntegrationTest extends TestCase
         $this->assertFalse($result);
     }
 
-    public function testBlpopReturnsNullOnTimeout()
+    public function testBlpopReturnsNullOnTimeout(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
@@ -279,7 +296,7 @@ class TransformIntegrationTest extends TestCase
         $this->assertNull($result);
     }
 
-    public function testBrpopReturnsNullOnTimeout()
+    public function testBrpopReturnsNullOnTimeout(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
@@ -290,7 +307,7 @@ class TransformIntegrationTest extends TestCase
         $this->assertNull($result);
     }
 
-    public function testBlpopReturnsArrayOnSuccess()
+    public function testBlpopReturnsArrayOnSuccess(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
@@ -302,7 +319,7 @@ class TransformIntegrationTest extends TestCase
         $this->assertSame(['blpop_list', 'item1'], $result);
     }
 
-    public function testZaddWithOptionsAndScoreMemberPairs()
+    public function testZaddWithOptionsAndScoreMemberPairs(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
@@ -316,7 +333,7 @@ class TransformIntegrationTest extends TestCase
         $this->assertSame(2.0, $redis->zscore('zset', 'member2'));
     }
 
-    public function testZaddWithArrayForm()
+    public function testZaddWithArrayForm(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
@@ -328,7 +345,7 @@ class TransformIntegrationTest extends TestCase
         $this->assertSame(1.0, $redis->zscore('zset2', 'mem1'));
     }
 
-    public function testZrangebyscoreConvertsLimitOption()
+    public function testZrangebyscoreConvertsLimitOption(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
@@ -344,7 +361,7 @@ class TransformIntegrationTest extends TestCase
         $this->assertSame(['b', 'c'], $result);
     }
 
-    public function testZrevrangebyscoreConvertsLimitOption()
+    public function testZrevrangebyscoreConvertsLimitOption(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
@@ -358,7 +375,7 @@ class TransformIntegrationTest extends TestCase
         $this->assertSame(['d', 'c'], $result);
     }
 
-    public function testFlushdbAsync()
+    public function testFlushdbAsync(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
 
@@ -370,7 +387,24 @@ class TransformIntegrationTest extends TestCase
         $this->assertTrue($result);
     }
 
-    public function testExecuteRawDelegatesToRawCommand()
+    public function testPingUsesTheConfiguredTopology(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+
+        $this->assertTrue($redis->ping());
+    }
+
+    public function testInfoHonorsTheServerSectionFilter(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+        $info = $redis->info('server');
+
+        $this->assertIsArray($info);
+        $this->assertArrayHasKey('redis_version', $info);
+        $this->assertArrayNotHasKey('used_memory', $info);
+    }
+
+    public function testExecuteRawDelegatesToRawCommand(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
@@ -383,14 +417,24 @@ class TransformIntegrationTest extends TestCase
         $this->assertSame('raw_value', $result);
     }
 
-    public function testEvalshaLoadsAndExecutesScript()
+    public function testExecuteRawNormalizesAMissingValue(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+        $redis->flushdb();
+
+        $result = $redis->executeRaw(['GET', 'missing_raw_key']);
+
+        $this->assertFalse($result);
+    }
+
+    public function testEvalshaLoadsAndExecutesScript(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
         $redis->flushdb();
 
         $redis->set('evalsha_key', 'evalsha_value');
 
-        // Transform: evalsha(script, numKeys, key) → script('load', script) + evalSha(sha, [key], numKeys)
+        // Transform: evalsha(script, numKeys, key) → cached evalSha with an eval fallback.
         $result = $redis->evalsha('return redis.call("GET", KEYS[1])', 1, 'evalsha_key');
 
         $this->assertSame('evalsha_value', $result);

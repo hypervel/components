@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Notifications;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -18,16 +19,16 @@ class SendingMailableNotificationsTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected function defineEnvironment(\Hypervel\Contracts\Foundation\Application $app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app['config']->set('mail.default', 'array');
-        $app['config']->set('mail.mailers.array', ['transport' => 'array']);
+        $config = $app->make('config');
 
-        $app['config']->set('app.locale', 'en');
+        $config->set('mail.default', 'array');
+        $config->set('mail.mailers.array', ['transport' => 'array']);
+        $config->set('app.locale', 'en');
+        $config->set('mail.markdown.theme', 'blank');
 
-        $app['config']->set('mail.markdown.theme', 'blank');
-
-        $app['view']->addLocation(__DIR__ . '/Fixtures');
+        $app->make('view')->addLocation(__DIR__ . '/Fixtures');
     }
 
     protected function afterRefreshingDatabase()

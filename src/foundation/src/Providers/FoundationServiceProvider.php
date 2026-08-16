@@ -15,6 +15,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Foundation\ExceptionRenderer;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
+use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Core\Events\BeforeWorkerStart;
 use Hypervel\Database\ConnectionInterface;
@@ -105,9 +106,11 @@ use Symfony\Component\ErrorHandler\ErrorRenderer\HtmlErrorRenderer;
 use Symfony\Component\VarDumper\Caster\StubCaster;
 use Symfony\Component\VarDumper\Cloner\AbstractCloner;
 
-class FoundationServiceProvider extends ServiceProvider
+class FoundationServiceProvider extends ServiceProvider implements ReloadsConfiguration
 {
     protected Repository $config;
+
+    protected CliDumper|HtmlDumper|null $dumper = null;
 
     public function __construct(protected ApplicationContract $app)
     {
@@ -145,7 +148,7 @@ class FoundationServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton('composer', fn ($app) => new Composer(
-            $app['files'],
+            $app->make('files'),
             $app->basePath()
         ));
 
@@ -227,6 +230,25 @@ class FoundationServiceProvider extends ServiceProvider
     }
 
     /**
+     * Reload configuration-derived worker state.
+     *
+     * Boot-only. Request-time use replaces shared worker state while
+     * concurrent coroutines may still hold the previous objects.
+     */
+    public function reloadConfiguration(): void
+    {
+        $this->setDefaultTimezone();
+        $this->dumper?->setCompiledViewPath($this->config->string('view.compiled'));
+
+        if ($this->app->resolved(MaintenanceModeManager::class)) {
+            $this->app->make(MaintenanceModeManager::class)->forgetDrivers();
+        }
+
+        WorkerCachedMaintenanceMode::flushCache();
+        $this->app->forgetInstance(MaintenanceModeContract::class);
+    }
+
+    /**
      * Register the framework clock implementation.
      */
     protected function registerClock(): void
@@ -253,13 +275,14 @@ class FoundationServiceProvider extends ServiceProvider
     protected function registerDeferHandler(): void
     {
         $this->app->scoped(DeferredCallbackCollection::class);
+        $events = $this->app->make('events');
 
-        $this->app['events']->listen(function (CommandFinished $event) {
+        $events->listen(function (CommandFinished $event) {
             $this->app->make(DeferredCallbackCollection::class)
                 ->invokeWhen(fn (DeferredCallback $callback) => $this->app->runningInConsole() && ($event->exitCode === 0 || $callback->always));
         });
 
-        $this->app['events']->listen(function (JobAttempted $event) {
+        $events->listen(function (JobAttempted $event) {
             if (in_array($event->connectionName, ['sync', 'deferred'], true)) {
                 return;
             }
@@ -420,12 +443,26 @@ class FoundationServiceProvider extends ServiceProvider
 
         $format = $_SERVER['VAR_DUMPER_FORMAT'] ?? null;
 
-        match (true) {
-            $format === 'html' => HtmlDumper::register($basePath, $compiledViewPath),
-            $format === 'cli' => CliDumper::register($basePath, $compiledViewPath),
+        if (in_array($format, ['html', 'cli'], true)) {
+            unset($_SERVER['VAR_DUMPER_FORMAT']);
+
+            try {
+                $this->dumper = $format === 'html'
+                    ? HtmlDumper::register($basePath, $compiledViewPath)
+                    : CliDumper::register($basePath, $compiledViewPath);
+            } finally {
+                $_SERVER['VAR_DUMPER_FORMAT'] = $format;
+            }
+
+            return;
+        }
+
+        $this->dumper = match (true) {
             $format === 'server' => null,
             $format && parse_url($format, PHP_URL_SCHEME) === 'tcp' => null,
-            default => php_sapi_name() === 'cli' ? CliDumper::register($basePath, $compiledViewPath) : HtmlDumper::register($basePath, $compiledViewPath),
+            default => in_array(PHP_SAPI, ['cli', 'phpdbg'], true)
+                ? CliDumper::register($basePath, $compiledViewPath)
+                : HtmlDumper::register($basePath, $compiledViewPath),
         };
     }
 }

@@ -7,16 +7,16 @@ namespace Hypervel\Tests\Foundation;
 use Hypervel\Container\Container;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\LoadConfiguration;
+use Hypervel\Foundation\Console\CliDumper;
 use Hypervel\Foundation\Console\EventListCommand;
 use Hypervel\Foundation\Console\VendorPublishCommand;
-use Hypervel\Foundation\Exceptions\Renderer\Frame;
 use Hypervel\Tests\TestCase;
 use ReflectionClass;
-use Symfony\Component\ErrorHandler\Exception\FlattenException;
+use Symfony\Component\Console\Output\BufferedOutput;
 
 class StaticStateTest extends TestCase
 {
-    public function testApplicationFlushStateClearsMacros()
+    public function testApplicationFlushStateClearsMacros(): void
     {
         Application::macro('testMacro', function () {
             return 'test';
@@ -29,7 +29,7 @@ class StaticStateTest extends TestCase
         $this->assertFalse(Application::hasMacro('testMacro'));
     }
 
-    public function testApplicationFlushStatePreservesContainerStaticCleanup()
+    public function testApplicationFlushStatePreservesContainerStaticCleanup(): void
     {
         $container = new class extends Application {
             public function fillBuildRecipeCache(string $concrete): void
@@ -54,38 +54,38 @@ class StaticStateTest extends TestCase
         $this->assertSame([], $container->buildRecipeCache());
     }
 
-    public function testLoadConfigurationFlushStateClearsAlwaysUseConfig()
+    public function testLoadConfigurationFlushStateClearsAlwaysUseConfig(): void
     {
         LoadConfiguration::alwaysUse(fn () => ['app' => ['name' => 'Static Test']]);
 
         $app = new Application;
         (new LoadConfiguration)->bootstrap($app);
 
-        $this->assertSame('Static Test', $app['config']['app.name']);
+        $this->assertSame('Static Test', $app->make('config')->string('app.name'));
 
         LoadConfiguration::flushState();
 
         $app = new Application;
         (new LoadConfiguration)->bootstrap($app);
 
-        $this->assertSame('Hypervel', $app['config']['app.name']);
+        $this->assertSame('Hypervel', $app->make('config')->string('app.name'));
     }
 
-    public function testFrameFlushStateClearsDumpSourceResolver()
+    public function testCliDumperFlushStateClearsDumpSourceResolver(): void
     {
-        Frame::resolveDumpSourceUsing(fn () => ['/tmp/example.php', 'example.php', 1]);
+        CliDumper::resolveDumpSourceUsing(fn () => ['/tmp/example.php', 'example.php', 1]);
 
         $this->assertSame(
             ['/tmp/example.php', 'example.php', 1],
-            $this->newFrame()->resolveDumpSource()
+            $this->newCliDumper()->resolveDumpSource()
         );
 
-        Frame::flushState();
+        CliDumper::flushState();
 
-        $this->assertNull($this->newFrame()->resolveDumpSource());
+        $this->assertNull($this->newCliDumper()->resolveDumpSource());
     }
 
-    public function testVendorPublishCommandFlushStateRestoresMigrationDateUpdates()
+    public function testVendorPublishCommandFlushStateRestoresMigrationDateUpdates(): void
     {
         $property = (new ReflectionClass(VendorPublishCommand::class))->getProperty('updateMigrationDates');
 
@@ -98,7 +98,7 @@ class StaticStateTest extends TestCase
         $this->assertTrue($property->getValue());
     }
 
-    public function testEventListCommandFlushStateClearsEventsResolver()
+    public function testEventListCommandFlushStateClearsEventsResolver(): void
     {
         $property = (new ReflectionClass(EventListCommand::class))->getProperty('eventsResolver');
 
@@ -111,14 +111,9 @@ class StaticStateTest extends TestCase
         $this->assertNull($property->getValue());
     }
 
-    protected function newFrame(): Frame
+    protected function newCliDumper(): CliDumper
     {
-        return new Frame(
-            $this->createStub(FlattenException::class),
-            [],
-            ['file' => __FILE__, 'line' => 1],
-            __DIR__,
-        );
+        return new CliDumper(new BufferedOutput, __DIR__, '');
     }
 }
 

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Container;
 
-use ArrayAccess;
 use Closure;
 use Exception;
 use Hypervel\Container\Attributes\Bind;
@@ -30,19 +29,19 @@ use Swoole\Coroutine as SwooleCoroutine;
 use Throwable;
 use TypeError;
 
-class Container implements ArrayAccess, ContainerContract
+class Container implements ContainerContract
 {
     use ReflectsClosures;
 
     /**
      * Context key for the coroutine-local build stack.
      */
-    protected const BUILD_STACK_CONTEXT_KEY = '__container.build_stack';
+    protected const string BUILD_STACK_CONTEXT_KEY = '__container.build_stack';
 
     /**
      * Context key for the coroutine-local resolution depth counter.
      */
-    public const DEPTH_CONTEXT_KEY = '__container.depth';
+    public const string DEPTH_CONTEXT_KEY = '__container.depth';
 
     /**
      * Context key for the coroutine-local resolving stack.
@@ -53,7 +52,7 @@ class Container implements ArrayAccess, ContainerContract
      * positives when call() pushes a class name that is then re-resolved
      * inside the method body.
      */
-    protected const RESOLVING_STACK_CONTEXT_KEY = '__container.resolving_stack';
+    protected const string RESOLVING_STACK_CONTEXT_KEY = '__container.resolving_stack';
 
     /**
      * Maximum resolution depth before assuming a circular dependency.
@@ -62,24 +61,22 @@ class Container implements ArrayAccess, ContainerContract
      * abstract names differ from the concretes pushed by build(), making
      * the direct in_array check insufficient.
      */
-    protected const MAX_RESOLUTION_DEPTH = 500;
+    protected const int MAX_RESOLUTION_DEPTH = 500;
 
     /**
      * Context key for the coroutine-local parameter override stack.
      */
-    protected const PARAMETER_OVERRIDES_CONTEXT_KEY = '__container.parameter_overrides';
+    protected const string PARAMETER_OVERRIDES_CONTEXT_KEY = '__container.parameter_overrides';
 
     /**
      * Context key prefix for coroutine-local scoped instances.
      */
-    protected const SCOPED_CONTEXT_PREFIX = '__container.scoped.';
+    protected const string SCOPED_CONTEXT_PREFIX = '__container.scoped.';
 
     /**
      * The current globally available container (if any).
-     *
-     * @var null|static
      */
-    protected static $instance;
+    protected static ?self $instance = null;
 
     /**
      * An array of the types that have been resolved.
@@ -713,9 +710,9 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * Register an existing instance as shared in the container.
      *
-     * Tests only. Replaces a worker-lifetime shared instance; runtime use races
-     * across coroutines and changes the object returned to every subsequent
-     * resolver.
+     * Boot or tests only. Replaces a worker-lifetime shared instance; runtime
+     * use races across coroutines and changes the object returned to every
+     * subsequent resolver.
      *
      * @template TInstance of mixed
      *
@@ -2270,7 +2267,7 @@ class Container implements ArrayAccess, ContainerContract
      */
     public function forgetInstance(string $abstract): void
     {
-        $this->forgetCachedInstances($abstract);
+        $this->forgetCachedInstances($this->getAlias($abstract));
     }
 
     /**
@@ -2357,7 +2354,7 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * Get the globally available instance of the container.
      */
-    public static function getInstance(): static
+    public static function getInstance(): self
     {
         return static::$instance ??= new static;
     }
@@ -2368,9 +2365,9 @@ class Container implements ArrayAccess, ContainerContract
      * Tests only. Replaces the process-wide container singleton; runtime use
      * races across coroutines and breaks every facade/global container lookup.
      */
-    public static function setInstance(?ContainerContract $container = null): ?ContainerContract
+    public static function setInstance(?self $container = null): ?self
     {
-        return static::$instance = $container; // @phpstan-ignore assign.propertyType
+        return static::$instance = $container;
     }
 
     /**
@@ -2381,62 +2378,6 @@ class Container implements ArrayAccess, ContainerContract
         static::$buildRecipes = [];
     }
 
-    /**
-     * Determine if a given offset exists.
-     *
-     * @param string $key
-     */
-    public function offsetExists($key): bool
-    {
-        return $this->bound($key);
-    }
-
-    /**
-     * Get the value at a given offset.
-     *
-     * @param string $key
-     */
-    public function offsetGet($key): mixed
-    {
-        return $this->make($key);
-    }
-
-    /**
-     * Set the value at a given offset.
-     *
-     * @param string $key
-     * @param mixed $value
-     */
-    public function offsetSet($key, $value): void
-    {
-        $this->bind($key, $value instanceof Closure ? $value : fn () => $value);
-    }
-
-    /**
-     * Unset the value at a given offset.
-     *
-     * @param string $key
-     */
-    public function offsetUnset($key): void
-    {
-        unset($this->bindings[$key], $this->resolved[$key], $this->scopedInstances[$key]);
-
-        $this->dropStaleInstances($key);
-    }
-
-    /**
-     * Dynamically access container services.
-     */
-    public function __get(string $key): mixed
-    {
-        return $this[$key];
-    }
-
-    /**
-     * Dynamically set container services.
-     */
-    public function __set(string $key, mixed $value): void
-    {
-        $this[$key] = $value;
-    }
+    // Hypervel intentionally omits container array and dynamic property access.
+    // Use named methods so resolution and binding lifecycles remain explicit.
 }

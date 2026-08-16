@@ -4,6 +4,7 @@
 - [Environment](#environment)
 - [Creating Tests](#creating-tests)
     - [Running Tests in Coroutines](#running-tests-in-coroutines)
+    - [Request Context](#request-context)
     - [Owning Asynchronous Test Resources](#owning-asynchronous-test-resources)
     - [Test State Cleanup](#test-state-cleanup)
     - [Macro State](#macro-state)
@@ -150,7 +151,7 @@ class AuthContextTest extends TestCase
 {
     protected function setUpInCoroutine(): void
     {
-        CoroutineContext::set('auth_context.users.foo', 'Taylor');
+        CoroutineContext::set('auth_context.users.foo', 'John');
     }
 
     protected function tearDownInCoroutine(): void
@@ -160,7 +161,7 @@ class AuthContextTest extends TestCase
 
     public function test_context_value_is_available(): void
     {
-        $this->assertSame('Taylor', CoroutineContext::get('auth_context.users.foo'));
+        $this->assertSame('John', CoroutineContext::get('auth_context.users.foo'));
     }
 }
 ```
@@ -170,6 +171,24 @@ By default, Hypervel copies coroutine context values prepared outside the test m
 ```php
 protected bool $copyNonCoroutineContext = false;
 ```
+
+<a name="request-context"></a>
+### Request Context
+
+Hypervel's HTTP testing methods automatically populate the request context for you. Tests that call the `request` helper without making an HTTP request are different: no request exists in the current context, so Hypervel builds a fresh fallback request from your application's configured URL every time the helper runs. Any change you make to one of those requests, such as calling `request()->merge(...)`, will not be visible to the next `request()` call.
+
+If a test needs a stable request, create one and store it in the request context:
+
+```php
+use Hypervel\Context\RequestContext;
+use Hypervel\Http\Request;
+
+RequestContext::set(Request::create('/?name=John'));
+
+$this->assertSame('John', request('name'));
+```
+
+The request is stored in the current coroutine's context, so it is discarded when the test finishes and will not leak into other tests. If several tests need the same request, you may set it in the `setUpInCoroutine` method.
 
 <a name="owning-asynchronous-test-resources"></a>
 ### Owning Asynchronous Test Resources
@@ -303,7 +322,7 @@ Integration tests that use an external service must use that service's test trai
 
 | Trait | Service | Key Environment Variables |
 |-------|---------|---------------------------|
-| `InteractsWithRedis` | Redis / Valkey | `REDIS_HOST`, `REDIS_PORT` |
+| `InteractsWithRedis` | Redis / Redis Cluster / Valkey | `REDIS_HOST`, `REDIS_PORT`, `REDIS_CLUSTER_HOSTS_AND_PORTS` |
 | `InteractsWithMeilisearch` | Meilisearch | `MEILISEARCH_HOST`, `MEILISEARCH_PORT`, `MEILISEARCH_KEY` |
 | `InteractsWithTypesense` | Typesense | `TYPESENSE_HOST`, `TYPESENSE_PORT`, `TYPESENSE_API_KEY`, `TYPESENSE_PROTOCOL` |
 | `InteractsWithAlgolia` | Algolia | `ALGOLIA_APP_ID`, `ALGOLIA_SECRET` |
@@ -324,7 +343,15 @@ The search traits create a worker-specific prefix from `TEST_TOKEN`. Prefix test
 
 Tests that touch Redis must use `InteractsWithRedis`.
 
-Set `REDIS_HOST` to opt into Redis integration tests. When tests are not running in parallel, `InteractsWithRedis` uses your normal configured Redis database. When tests are running in parallel, it assigns each ParaTest worker its own Redis database and flushes it before and after each test. This isolates the test keyspace without changing the Redis behavior being tested.
+Set `REDIS_HOST` to run Redis integration tests against a standalone Redis or Valkey server. When tests are not running in parallel, `InteractsWithRedis` uses your normal configured Redis database. When tests are running in parallel, it assigns each ParaTest worker its own Redis database and flushes it before and after each test. This isolates the test keyspace without changing the Redis behavior being tested.
+
+To run Redis integration tests against Redis Cluster, set `REDIS_CLUSTER_HOSTS_AND_PORTS` to a comma-separated list of Cluster nodes:
+
+```ini
+REDIS_CLUSTER_HOSTS_AND_PORTS=127.0.0.1:7000,127.0.0.1:7001,127.0.0.1:7002
+```
+
+Redis Cluster does not support logical databases. Cluster integration tests therefore use database zero and must run serially. The database is flushed before and after each test.
 
 Parallel Redis databases are selected from the `REDIS_TEST_DB_MIN` and `REDIS_TEST_DB_MAX` environment variables. By default, `REDIS_TEST_DB_MIN` uses your configured `REDIS_DB` value and `REDIS_TEST_DB_MAX` is `15`:
 
@@ -340,7 +367,7 @@ If Hypervel cannot assign a Redis database to a worker, the test run will fail. 
 php artisan test --parallel --processes=4
 ```
 
-Some low-level Redis tests may need to switch to a second Redis database with `select`. You may reserve that database using `REDIS_TEST_SECONDARY_DB`:
+Some low-level standalone Redis tests may need to switch to a second Redis database with `select`. You may reserve that database using `REDIS_TEST_SECONDARY_DB`:
 
 ```ini
 REDIS_TEST_SECONDARY_DB=15
@@ -440,6 +467,12 @@ The Artisan test runner also includes a convenient mechanism for listing your ap
 
 ```shell
 php artisan test --profile
+```
+
+Packages that run ParaTest directly may use the profiler included with the `hypervel/testing` package. Except for `--log-junit`, the command forwards ParaTest options, files, and directories. Test paths are resolved from your project's root. The output lists every test whose setup, execution, and teardown meet the displayed slow-test threshold:
+
+```shell
+./vendor/bin/hypervel-test-profile --processes=4 tests/Feature
 ```
 
 <a name="configuration-and-route-caching"></a>

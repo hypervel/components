@@ -57,13 +57,14 @@
 - [Performance](#performance)
 - [Exceptions](#exceptions)
 - [Differences From Spatie Laravel Permission](#differences-from-spatie-laravel-permission)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
 
 Hypervel's permission package provides role-based access control for Eloquent models. A permission represents one ability, such as `edit articles`. A role is a named group of permissions, such as `editor`. You may assign roles and permissions to users or other models, then check access by role, direct permission, or permission inherited through a role.
 
-The package is based on Spatie's `laravel-permission` package and adapted for Hypervel. It also supports denied permissions, which explicitly reject an ability even when the model receives the same permission directly or through a role.
+The package also supports denied permissions, which explicitly reject an ability even when the model receives the same permission directly or through a role.
 
 <a name="installation"></a>
 ## Installation
@@ -1514,3 +1515,8 @@ Partition registration and isolation failures use focused exceptions:
 - Hypervel adds opt-in generic row partitioning through `PermissionRegistrar::resolvePartitionUsing(...)`. It scopes model lifecycle operations, every package relation and pivot, queries, commands, cache identities, and invalidation without depending on any partition domain.
 - Hypervel's cache config uses `expiration_seconds` and separate named cache keys so role, model-role, model-permission, and assignment-token caches can be invalidated independently.
 - Undefined `permission.cache.store` values fail fast through Hypervel's cache manager instead of silently falling back to an array store.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Permission began as a port of [Spatie Laravel Permission](https://github.com/spatie/laravel-permission) and has been adapted for Hypervel's framework architecture and coroutine runtime.

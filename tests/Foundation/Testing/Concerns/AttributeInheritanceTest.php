@@ -8,6 +8,15 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\PHPUnit\AttributeParser;
 use Hypervel\Testbench\TestCase;
 
+// Keep this parent above the test class because PHP resolves inheritance as the file is loaded.
+/**
+ * Abstract parent test case with class-level attributes for inheritance testing.
+ */
+#[WithConfig('testing.parent_class', 'parent_value')]
+abstract class AbstractParentTestCase extends TestCase
+{
+}
+
 /**
  * Tests that attributes are inherited from parent TestCase classes.
  */
@@ -69,12 +78,4 @@ class AttributeInheritanceTest extends AbstractParentTestCase
         // Child should be second
         $this->assertSame('testing.child_class', $withConfigAttributes[1]['instance']->key);
     }
-}
-
-/**
- * Abstract parent test case with class-level attributes for inheritance testing.
- */
-#[WithConfig('testing.parent_class', 'parent_value')]
-abstract class AbstractParentTestCase extends TestCase
-{
 }

@@ -196,7 +196,6 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Foundation\Console\VendorPublishCommand::flushState();
         \Hypervel\Foundation\DevCommands::flushState();
         \Hypervel\Foundation\Events\DiscoverEvents::flushState();
-        \Hypervel\Foundation\Exceptions\Renderer\Frame::flushState();
         \Hypervel\Foundation\Http\FormRequest::flushState();
         \Hypervel\Foundation\Http\HtmlDumper::flushState();
         \Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull::flushState();
@@ -317,12 +316,14 @@ class AfterEachTestSubscriber implements FinishedSubscriber
 
         $this->flushFortifyState();
         $this->flushHorizonState();
+        $this->flushImageState();
         $this->flushInertiaState();
         $this->flushJwtState();
         $this->flushNestedSetState();
         $this->flushPasskeysState();
         $this->flushPermissionState();
         $this->flushReverbState();
+        $this->flushSaloonState();
         $this->flushSanctumState();
         $this->flushScoutState();
         $this->flushSentryState();
@@ -349,6 +350,14 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         $this->callIfExists(\Hypervel\Horizon\SupervisorCommandString::class, 'flushState');
         $this->callIfExists(\Hypervel\Horizon\SystemProcessCounter::class, 'flushState');
         $this->callIfExists(\Hypervel\Horizon\WorkerCommandString::class, 'flushState');
+    }
+
+    /**
+     * Flush Image state.
+     */
+    protected function flushImageState(): void
+    {
+        $this->callIfExists(\Hypervel\Image\Image::class, 'flushState');
     }
 
     /**
@@ -407,6 +416,17 @@ class AfterEachTestSubscriber implements FinishedSubscriber
     {
         $this->callIfExists(\Hypervel\Reverb\Loggers\Log::class, 'flushState');
         $this->callIfExists(\Hypervel\Reverb\Servers\Hypervel\WebSocketHandler::class, 'flushState');
+    }
+
+    /**
+     * Flush Saloon state.
+     */
+    protected function flushSaloonState(): void
+    {
+        $this->callIfExists(\Hypervel\Saloon\Http\Connector::class, 'flushState');
+        $this->callIfExists(\Hypervel\Saloon\Http\PendingRequest::class, 'flushState');
+        $this->callIfExists(\Hypervel\Saloon\Http\PendingRequest\BootPlugins::class, 'flushState');
+        $this->callIfExists(\Hypervel\Saloon\Http\Request::class, 'flushState');
     }
 
     /**

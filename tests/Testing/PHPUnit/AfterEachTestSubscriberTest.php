@@ -21,8 +21,13 @@ use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Http\Resources\JsonApi\JsonApiResource;
 use Hypervel\Http\Response as HttpResponse;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Image\Image;
 use Hypervel\NestedSet\NestedSet;
 use Hypervel\Process\InvokedProcess;
+use Hypervel\Saloon\Http\Connector as SaloonConnector;
+use Hypervel\Saloon\Http\PendingRequest as SaloonPendingRequest;
+use Hypervel\Saloon\Http\PendingRequest\BootPlugins;
+use Hypervel\Saloon\Http\Request as SaloonRequest;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Testing\Fakes\NotificationFake;
@@ -67,6 +72,7 @@ class AfterEachTestSubscriberTest extends TestCase
             JsonApiResource::class,
             HttpResponse::class,
             UploadedFile::class,
+            Image::class,
             InvokedProcess::class,
             NotificationFake::class,
         ];
@@ -242,6 +248,37 @@ class AfterEachTestSubscriberTest extends TestCase
             $this->assertSame([], $classes->getValue());
         } finally {
             NestedSet::flushState();
+        }
+    }
+
+    public function testFrameworkCleanupFlushesSaloonStaticState(): void
+    {
+        $macro = 'saloonCleanupProbe';
+        SaloonConnector::macro($macro, static fn (): string => 'connector');
+        SaloonPendingRequest::macro($macro, static fn (): string => 'pending');
+        SaloonRequest::macro($macro, static fn (): string => 'request');
+        $methods = new ReflectionProperty(BootPlugins::class, 'methods');
+        $methods->setValue(null, [self::class => ['bootTesting']]);
+
+        $subscriber = new class extends AfterEachTestSubscriber {
+            public function flushSaloonStateForTest(): void
+            {
+                $this->flushSaloonState();
+            }
+        };
+
+        try {
+            $subscriber->flushSaloonStateForTest();
+
+            $this->assertFalse(SaloonConnector::hasMacro($macro));
+            $this->assertFalse(SaloonPendingRequest::hasMacro($macro));
+            $this->assertFalse(SaloonRequest::hasMacro($macro));
+            $this->assertSame([], $methods->getValue());
+        } finally {
+            SaloonConnector::flushState();
+            SaloonPendingRequest::flushState();
+            BootPlugins::flushState();
+            SaloonRequest::flushState();
         }
     }
 

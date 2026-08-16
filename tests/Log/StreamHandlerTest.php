@@ -16,7 +16,7 @@ use function Hypervel\Coroutine\parallel;
 
 class StreamHandlerTest extends TestCase
 {
-    private const STREAM_SCHEME = 'hypervel-log-test';
+    private const string STREAM_SCHEME = 'hypervel-log-test';
 
     protected function setUp(): void
     {

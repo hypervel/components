@@ -15,7 +15,7 @@ class QueueFakeTest extends TestCase
 {
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app['config']->set('queue.default', 'sync');
+        $app->make('config')->set('queue.default', 'sync');
     }
 
     public function testFakeFor()

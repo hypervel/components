@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Redis;
 
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
-use Hypervel\Redis\Limiters\ConcurrencyLease;
 use Hypervel\Redis\Limiters\ConcurrencyLimiterBuilder;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
@@ -195,7 +194,7 @@ class ConcurrencyLimiterBuilderTest extends TestCase
         });
     }
 
-    public function testAcquireReturnsLease(): void
+    public function testAcquireReturnsOwnedLease(): void
     {
         $redis = $this->mockRedis();
         $this->expectSlotClaim($redis, 'test-key1');
@@ -203,7 +202,9 @@ class ConcurrencyLimiterBuilderTest extends TestCase
         $builder = new ConcurrencyLimiterBuilder($redis, 'test-key');
         $builder->limit(5)->block(0);
 
-        $this->assertInstanceOf(ConcurrencyLease::class, $builder->acquire());
+        $lease = $builder->acquire();
+
+        $this->assertNotEmpty($lease->owner());
     }
 
     public function testThenDoesNotRouteCallbackTimeoutExceptionToFailureCallback(): void

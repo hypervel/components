@@ -23,36 +23,6 @@ class RedisConfig
     }
 
     /**
-     * Get the configured Redis connection names.
-     *
-     * @return list<string>
-     */
-    public function connectionNames(): array
-    {
-        $redisConfig = $this->all();
-        $names = [];
-
-        foreach ($redisConfig as $name => $connectionConfig) {
-            if (in_array($name, ['client', 'options', 'clusters'], true)) {
-                continue;
-            }
-
-            if (! is_array($connectionConfig)) {
-                throw new InvalidArgumentException(sprintf('The redis connection [%s] must be an array.', $name));
-            }
-
-            $this->validateConnectionConfig(
-                $name,
-                $this->parseConnectionConfiguration($connectionConfig),
-            );
-
-            $names[] = $name;
-        }
-
-        return $names;
-    }
-
-    /**
      * Get a single Redis connection config with merged options.
      *
      * @return array<string, mixed>
@@ -68,6 +38,10 @@ class RedisConfig
 
         $connectionConfig = $this->parseConnectionConfiguration($connectionConfig);
         $this->validateConnectionConfig($name, $connectionConfig);
+
+        if ((bool) ($connectionConfig['cluster']['enabled'] ?? false)) {
+            $connectionConfig = $this->normalizeClusterConfiguration($name, $connectionConfig);
+        }
 
         $sharedOptions = $redisConfig['options'] ?? [];
         if (! is_array($sharedOptions)) {
@@ -86,7 +60,7 @@ class RedisConfig
         }
 
         if ($this->eventsOverride !== null) {
-            $connectionConfig['event']['enable'] = $this->eventsOverride;
+            $connectionConfig['events'] = $this->eventsOverride;
         }
 
         return $connectionConfig;
@@ -136,22 +110,47 @@ class RedisConfig
     }
 
     /**
-     * Get all redis config.
+     * Get all Redis config.
      *
      * @return array<string, mixed>
      */
     private function all(): array
     {
-        return $this->config->array('database.redis');
+        $redisConfig = $this->config->array('database.redis');
+
+        if (array_key_exists('client', $redisConfig) && $redisConfig['client'] !== 'phpredis') {
+            throw new InvalidArgumentException('The phpredis Redis client is the only supported client.');
+        }
+
+        if (array_key_exists('clusters', $redisConfig)) {
+            throw new InvalidArgumentException(
+                'The redis.clusters configuration is not supported. Configure cluster settings on a named Redis connection.'
+            );
+        }
+
+        return $redisConfig;
     }
 
     /**
-     * Validate a redis connection config entry.
+     * Validate a Redis connection config entry.
      */
     private function validateConnectionConfig(string $name, mixed $connectionConfig): void
     {
         if (! is_array($connectionConfig)) {
             throw new InvalidArgumentException(sprintf('The redis connection [%s] must be an array.', $name));
+        }
+
+        $scheme = $connectionConfig['scheme'] ?? null;
+
+        if ($scheme !== null && (! is_string($scheme) || ! in_array($scheme, ['tcp', 'tls'], true))) {
+            throw new InvalidArgumentException(sprintf(
+                'The redis connection [%s] scheme must be tcp or tls.',
+                $name,
+            ));
+        }
+
+        if (isset($connectionConfig['context']) && ! is_array($connectionConfig['context'])) {
+            throw new InvalidArgumentException(sprintf('The redis connection [%s] context must be an array.', $name));
         }
 
         $clusterConfig = $connectionConfig['cluster'] ?? [];
@@ -164,8 +163,8 @@ class RedisConfig
             throw new InvalidArgumentException(sprintf('The redis connection [%s] sentinel config must be an array.', $name));
         }
 
-        $clusterEnabled = (bool) ($clusterConfig['enable'] ?? false);
-        $sentinelEnabled = (bool) ($sentinelConfig['enable'] ?? false);
+        $clusterEnabled = (bool) ($clusterConfig['enabled'] ?? false);
+        $sentinelEnabled = (bool) ($sentinelConfig['enabled'] ?? false);
 
         if ($clusterEnabled && $sentinelEnabled) {
             throw new InvalidArgumentException(sprintf('The redis connection [%s] cannot enable both cluster and sentinel.', $name));
@@ -210,5 +209,65 @@ class RedisConfig
         if (! array_key_exists('host', $connectionConfig) || ! array_key_exists('port', $connectionConfig)) {
             throw new InvalidArgumentException(sprintf('The redis connection [%s] must define host and port.', $name));
         }
+    }
+
+    /**
+     * Normalize the transport shared by all nodes in a Redis Cluster.
+     */
+    private function normalizeClusterConfiguration(string $name, array $connectionConfig): array
+    {
+        /** @var null|'tcp'|'tls' $scheme */
+        $scheme = $connectionConfig['scheme'] ?? null;
+        /** @var array<array-key, mixed> $context */
+        $context = $connectionConfig['context'] ?? [];
+        /** @var array<array-key, string> $seeds */
+        $seeds = $connectionConfig['cluster']['seeds'];
+
+        $seedSchemes = [];
+
+        foreach ($seeds as $seed) {
+            if (preg_match('/^([a-z][a-z0-9+.-]*):\/\//i', $seed, $matches) !== 1) {
+                continue;
+            }
+
+            $seedScheme = strtolower($matches[1]);
+
+            if (! in_array($seedScheme, ['tcp', 'tls', 'ssl'], true)) {
+                throw new InvalidArgumentException(sprintf(
+                    'The redis connection [%s] cluster seeds may only use tcp, tls, or ssl schemes.',
+                    $name,
+                ));
+            }
+
+            $seedSchemes[] = $seedScheme === 'ssl' ? 'tls' : $seedScheme;
+        }
+
+        $seedSchemes = array_values(array_unique($seedSchemes));
+        $seedScheme = count($seedSchemes) === 1 ? $seedSchemes[0] : null;
+        $selectedScheme = $scheme ?? ($context !== [] ? 'tls' : ($seedScheme ?? 'tcp'));
+
+        if (count($seedSchemes) > 1
+            || ($seedScheme !== null && $seedScheme !== $selectedScheme)
+            || ($context !== [] && $selectedScheme !== 'tls')) {
+            throw new InvalidArgumentException(sprintf(
+                'The redis connection [%s] cluster transport is inconsistent. PhpRedis applies one stream context to every discovered node; use a single tcp or tls transport across scheme, context, and seeds.',
+                $name,
+            ));
+        }
+
+        $connectionConfig['scheme'] = $selectedScheme;
+        $connectionConfig['context'] = $context;
+        $connectionConfig['cluster']['seeds'] = array_map(
+            static function (string $seed) use ($selectedScheme): string {
+                if (preg_match('/^[a-z][a-z0-9+.-]*(:\/\/.*)$/i', $seed, $matches) === 1) {
+                    return $selectedScheme . $matches[1];
+                }
+
+                return $selectedScheme . '://' . $seed;
+            },
+            $seeds,
+        );
+
+        return $connectionConfig;
     }
 }

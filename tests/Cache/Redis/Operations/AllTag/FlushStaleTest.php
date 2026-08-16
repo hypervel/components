@@ -168,26 +168,17 @@ class FlushStaleTest extends RedisCacheTestCase
     /**
      * @test
      */
-    public function testFlushStaleEntriesClusterModeUsesMulti(): void
+    public function testFlushStaleEntriesClusterModeUsesSequentialCommands(): void
     {
         [$store, , $connection] = $this->createClusterStore();
 
-        // Should NOT use pipeline in cluster mode
         $connection->shouldNotReceive('pipeline');
-
-        // Cluster mode uses multi() which handles cross-slot commands
-        $connection->shouldReceive('multi')
-            ->once()
-            ->andReturn($connection);
+        $connection->shouldNotReceive('multi');
 
         $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->with('prefix:_all:tag:users:entries', '0', (string) now()->getTimestamp())
-            ->andReturn($connection);
-
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([5]);
+            ->andReturn(5);
 
         $operation = new FlushStale($store->getContext());
         $operation->execute(['_all:tag:users:entries']);
@@ -200,32 +191,22 @@ class FlushStaleTest extends RedisCacheTestCase
     {
         [$store, , $connection] = $this->createClusterStore();
 
-        // Should NOT use pipeline in cluster mode
         $connection->shouldNotReceive('pipeline');
+        $connection->shouldNotReceive('multi');
 
-        // Cluster mode uses multi() which handles cross-slot commands
-        $connection->shouldReceive('multi')
-            ->once()
-            ->andReturn($connection);
-
-        // All tags processed in single multi block
         $timestamp = (string) now()->getTimestamp();
         $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->with('prefix:_all:tag:users:entries', '0', $timestamp)
-            ->andReturn($connection);
+            ->andReturn(3);
         $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->with('prefix:_all:tag:posts:entries', '0', $timestamp)
-            ->andReturn($connection);
+            ->andReturn(2);
         $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->with('prefix:_all:tag:comments:entries', '0', $timestamp)
-            ->andReturn($connection);
-
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([3, 2, 0]);
+            ->andReturn(0);
 
         $operation = new FlushStale($store->getContext());
         $operation->execute(['_all:tag:users:entries', '_all:tag:posts:entries', '_all:tag:comments:entries']);
@@ -238,20 +219,12 @@ class FlushStaleTest extends RedisCacheTestCase
     {
         [$store, , $connection] = $this->createClusterStore(prefix: 'custom_prefix:');
 
-        // Cluster mode uses multi()
-        $connection->shouldReceive('multi')
-            ->once()
-            ->andReturn($connection);
+        $connection->shouldNotReceive('multi');
 
-        // Should use custom prefix
         $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->with('custom_prefix:_all:tag:users:entries', '0', (string) now()->getTimestamp())
-            ->andReturn($connection);
-
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([1]);
+            ->andReturn(1);
 
         $operation = new FlushStale($store->getContext());
         $operation->execute(['_all:tag:users:entries']);

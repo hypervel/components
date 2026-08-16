@@ -57,7 +57,7 @@ class HorizonConfigTest extends TestCase
                 'horizon' => ['name' => $name],
             ]);
             $app = m::mock(Application::class)->makePartial();
-            $app->shouldReceive('make')->with('config')->andReturn($config);
+            $app->shouldReceive('make')->with(ConfigRepository::class)->andReturn($config);
 
             (new HorizonServiceProviderForTesting($app))->normalize();
 

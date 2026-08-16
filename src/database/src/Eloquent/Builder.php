@@ -41,12 +41,13 @@ use SortDirection;
  *
  * @method $this whereCan(\UnitEnum|string $ability, mixed $user = null)
  * @method $this withCan(\UnitEnum|string|list<\UnitEnum|string> $abilities, mixed $user = null)
+ * @method $this fetchUsing(mixed ...$fetchUsing)
  *
  * @mixin \Hypervel\Database\Query\Builder
  */
 class Builder implements BuilderContract
 {
-    /** @use \Hypervel\Database\Concerns\BuildsQueries<TModel> */
+    /** @use \Hypervel\Database\Concerns\BuildsQueries<int, TModel> */
     use BuildsQueries, ForwardsCalls, QueriesRelationships {
         BuildsQueries::sole as baseSole;
     }
@@ -312,9 +313,9 @@ class Builder implements BuilderContract
     /**
      * Add a basic where clause to the query.
      *
-     * @param array|(Closure(static): mixed)|Expression|string $column
+     * @param array|(Closure(static): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
      */
-    public function where(array|Closure|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
+    public function where(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
         if ($column instanceof Closure && is_null($operator)) {
             // @phpstan-ignore argument.type (closure receives Builder instance, static type not required)
@@ -336,10 +337,10 @@ class Builder implements BuilderContract
     /**
      * Add a basic where clause to the query, and return the first result.
      *
-     * @param array|(Closure(static): mixed)|Expression|string $column
+     * @param array|(Closure(static): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
      * @return null|TModel
      */
-    public function firstWhere(array|Closure|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): ?Model
+    public function firstWhere(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): ?Model
     {
         return $this->where(...func_get_args())->first();
     }
@@ -347,9 +348,9 @@ class Builder implements BuilderContract
     /**
      * Add an "or where" clause to the query.
      *
-     * @param array|(Closure(static): mixed)|Expression|string $column
+     * @param array|(Closure(static): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
      */
-    public function orWhere(array|Closure|Expression|string $column, mixed $operator = null, mixed $value = null): static
+    public function orWhere(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null): static
     {
         [$value, $operator] = $this->query->prepareValueAndOperator(
             $value,
@@ -363,9 +364,9 @@ class Builder implements BuilderContract
     /**
      * Add a basic "where not" clause to the query.
      *
-     * @param array|(Closure(static): mixed)|Expression|string $column
+     * @param array|(Closure(static): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
      */
-    public function whereNot(array|Closure|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
+    public function whereNot(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
         return $this->where($column, $operator, $value, $boolean . ' not');
     }
@@ -373,9 +374,9 @@ class Builder implements BuilderContract
     /**
      * Add an "or where not" clause to the query.
      *
-     * @param array|(Closure(static): mixed)|Expression|string $column
+     * @param array|(Closure(static): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
      */
-    public function orWhereNot(array|Closure|Expression|string $column, mixed $operator = null, mixed $value = null): static
+    public function orWhereNot(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null): static
     {
         return $this->whereNot($column, $operator, $value, 'or');
     }
@@ -383,7 +384,7 @@ class Builder implements BuilderContract
     /**
      * Add an "order by" clause for a timestamp to the query.
      */
-    public function latest(Expression|string|null $column = null): static
+    public function latest(Closure|self|QueryBuilder|Relation|Expression|string|null $column = null): static
     {
         if (is_null($column)) {
             $column = $this->model->getCreatedAtColumn() ?? 'created_at';
@@ -397,7 +398,7 @@ class Builder implements BuilderContract
     /**
      * Add an "order by" clause for a timestamp to the query.
      */
-    public function oldest(Expression|string|null $column = null): static
+    public function oldest(Closure|self|QueryBuilder|Relation|Expression|string|null $column = null): static
     {
         if (is_null($column)) {
             $column = $this->model->getCreatedAtColumn() ?? 'created_at';

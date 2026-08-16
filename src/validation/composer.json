@@ -1,7 +1,7 @@
 {
     "name": "hypervel/validation",
     "type": "library",
-    "description": "The validation package for Hypervel.",
+    "description": "The Hypervel Validation package.",
     "license": "MIT",
     "keywords": [
         "php",

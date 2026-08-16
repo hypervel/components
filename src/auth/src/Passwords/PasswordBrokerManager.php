@@ -182,6 +182,19 @@ class PasswordBrokerManager implements FactoryContract
     }
 
     /**
+     * Forget all resolved password brokers.
+     *
+     * Boot or tests only. Mutates the singleton's broker cache; concurrent
+     * coroutines may already hold a broker that next resolution will replace.
+     */
+    public function forgetBrokers(): static
+    {
+        $this->brokers = [];
+
+        return $this;
+    }
+
+    /**
      * Refresh the event dispatcher on resolved brokers.
      *
      * Boot or tests only. Replaces the dispatcher on every resolved concrete

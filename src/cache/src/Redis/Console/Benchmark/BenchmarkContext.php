@@ -26,7 +26,7 @@ class BenchmarkContext
      * Key prefix for benchmark-generated cache entries.
      * Matches the pattern used by DoctorContext (_doctor:test:).
      */
-    public const KEY_PREFIX = '_bench:';
+    public const string KEY_PREFIX = '_bench:';
 
     /**
      * Memory usage threshold (percentage) before throwing exception.

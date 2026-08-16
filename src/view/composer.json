@@ -1,6 +1,6 @@
 {
     "name": "hypervel/view",
-    "description": "The view package for Hypervel.",
+    "description": "The Hypervel View package.",
     "license": "MIT",
     "keywords": [
         "php",

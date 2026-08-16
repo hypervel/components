@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Encryption;
 
+use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Encryption\Commands\KeyGenerateCommand;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Str;
 use Laravel\SerializableClosure\SerializableClosure;
 use SensitiveParameter;
 
-class EncryptionServiceProvider extends ServiceProvider
+class EncryptionServiceProvider extends ServiceProvider implements ReloadsConfiguration
 {
     /**
      * Register the service provider.
@@ -23,6 +24,18 @@ class EncryptionServiceProvider extends ServiceProvider
         $this->commands([
             KeyGenerateCommand::class,
         ]);
+    }
+
+    /**
+     * Reload configuration-derived worker state.
+     *
+     * Boot-only. Request-time use replaces shared encryption state while
+     * concurrent coroutines may still be using the previous key.
+     */
+    public function reloadConfiguration(): void
+    {
+        $this->registerSerializableClosureSecurityKey();
+        $this->app->forgetInstance('encrypter');
     }
 
     /**

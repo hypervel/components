@@ -12,7 +12,7 @@ use Throwable;
 
 final class LeasedStream
 {
-    public const PROTOCOL = 'hypervel-leased';
+    public const string PROTOCOL = 'hypervel-leased';
 
     /** @var resource */
     public $context;

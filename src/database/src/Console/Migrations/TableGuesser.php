@@ -6,12 +6,12 @@ namespace Hypervel\Database\Console\Migrations;
 
 class TableGuesser
 {
-    public const CREATE_PATTERNS = [
+    public const array CREATE_PATTERNS = [
         '/^create_(\w+)_table$/',
         '/^create_(\w+)$/',
     ];
 
-    public const CHANGE_PATTERNS = [
+    public const array CHANGE_PATTERNS = [
         '/.+_(to|from|in)_(\w+)_table$/',
         '/.+_(to|from|in)_(\w+)$/',
     ];

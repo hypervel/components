@@ -15,6 +15,7 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
+use ReflectionMethod;
 
 class QueueProcessingTest extends IntegrationTestCase
 {
@@ -159,14 +160,17 @@ class QueueProcessingTest extends IntegrationTestCase
 
     public function testInvalidRawPayloadIsTerminallyRemovedWithoutHorizonTelemetryFailure(): void
     {
-        Redis::connection('default')->rpush('queues:default', '{invalid');
-        Redis::connection('default')->rpush('queues:default:notify', 1);
+        /** @var RedisQueue $queue */
+        $queue = Queue::connection('redis');
+        $queueKey = $this->getQueueRedisKey($queue);
+        Redis::connection('default')->rpush($queueKey, '{invalid');
+        Redis::connection('default')->rpush("{$queueKey}:notify", 1);
 
         $this->work();
 
-        $this->assertSame(0, Redis::connection('default')->llen('queues:default'));
-        $this->assertSame(0, Redis::connection('default')->zcard('queues:default:reserved'));
-        $this->assertSame(0, Redis::connection('default')->llen('queues:default:notify'));
+        $this->assertSame(0, Redis::connection('default')->llen($queueKey));
+        $this->assertSame(0, Redis::connection('default')->zcard("{$queueKey}:reserved"));
+        $this->assertSame(0, Redis::connection('default')->llen("{$queueKey}:notify"));
     }
 
     public function testMigratedTelemetryRetainsValidPayloadsFromMixedInput(): void
@@ -179,6 +183,11 @@ class QueueProcessingTest extends IntegrationTestCase
 
         $this->assertCount(1, $event->payloads);
         $this->assertSame('valid', $event->payloads->first()->id());
+    }
+
+    private function getQueueRedisKey(RedisQueue $queue, ?string $name = null): string
+    {
+        return (new ReflectionMethod($queue, 'getQueueRedisKey'))->invoke($queue, $name);
     }
 }
 

@@ -65,14 +65,14 @@ class CoroutineCreateFailureTest extends TestCase
                 $concurrent->create(static fn (): null => null);
                 $this->fail('Expected coroutine creation to fail.');
             } catch (CoroutineCreateException) {
-                $this->assertSame(0, $concurrent->length());
+                $this->assertSame(0, $concurrent->getRunningCoroutineCount());
             }
 
             try {
                 $concurrent->fork(static fn (): null => null);
                 $this->fail('Expected coroutine creation to fail.');
             } catch (CoroutineCreateException) {
-                $this->assertSame(0, $concurrent->length());
+                $this->assertSame(0, $concurrent->getRunningCoroutineCount());
             }
         });
     }
@@ -87,7 +87,7 @@ class CoroutineCreateFailureTest extends TestCase
                 $concurrent->create(static fn (): null => null);
                 $this->fail('Expected coroutine creation to fail.');
             } catch (CoroutineCreateException) {
-                $this->assertSame(0, $concurrent->length());
+                $this->assertSame(0, $concurrent->getRunningCoroutineCount());
                 $this->assertTrue($concurrent->wait(0.001));
             }
         });

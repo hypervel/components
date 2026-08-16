@@ -5,93 +5,58 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 /**
+ * @method static mixed command(string $method, array $parameters = [])
  * @method static \Hypervel\Redis\RedisProxy connection(\UnitEnum|string|null $name = null)
- * @method static void purge(\UnitEnum|string|null $name = null)
  * @method static array<string, \Hypervel\Redis\RedisProxy> connections()
- * @method static void enableEvents()
  * @method static void disableEvents()
+ * @method static void enableEvents()
+ * @method static \Hypervel\Redis\Limiters\ConcurrencyLimiterBuilder funnel(string $name)
  * @method static void listen(\Closure $callback)
  * @method static void listenForFailures(\Closure $callback)
- * @method static void subscribe(array|string $channels, \Closure $callback)
  * @method static void psubscribe(array|string $channels, \Closure $callback)
- * @method static mixed command(string $method, array $parameters = [])
+ * @method static void purge(\UnitEnum|string|null $name = null)
+ * @method static void subscribe(array|string $channels, \Closure $callback)
  * @method static \Hypervel\Redis\Limiters\DurationLimiterBuilder throttle(string $name)
- * @method static \Hypervel\Redis\Limiters\ConcurrencyLimiterBuilder funnel(string $name)
+ * @method static bool|\Redis discard()
+ * @method static int flushByPattern(string $pattern)
+ * @method static void flushMacros()
  * @method static string getName()
+ * @method static bool hasMacro(string $name)
+ * @method static void hScan(mixed $key, mixed $cursor, mixed ...$arguments)
  * @method static bool isCluster()
  * @method static void macro(string $name, callable|object $macro)
  * @method static void mixin(object $mixin, bool $replace = true)
- * @method static bool hasMacro(string $name)
- * @method static void flushMacros()
- * @method static void scan(mixed $cursor, mixed ...$arguments)
- * @method static void hScan(mixed $key, mixed $cursor, mixed ...$arguments)
- * @method static void zScan(mixed $key, mixed $cursor, mixed ...$arguments)
- * @method static void sScan(mixed $key, mixed $cursor, mixed ...$arguments)
- * @method static mixed withConnection(callable $callback, bool $transform = true)
- * @method static mixed withPinnedConnection(callable $callback)
- * @method static mixed withoutSerializationOrCompression(callable $callback)
- * @method static \Hypervel\Redis\Subscriber\Subscriber subscriber()
- * @method static int flushByPattern(string $pattern)
  * @method static ($callback is null ? \Redis : array<int, mixed>|false) pipeline(callable|null $callback = null)
+ * @method static void scan(mixed $cursor, mixed ...$arguments)
+ * @method static void sScan(mixed $key, mixed $cursor, mixed ...$arguments)
+ * @method static \Hypervel\Redis\Subscriber\Subscriber subscriber()
  * @method static ($callback is null ? \Redis|\RedisCluster : array<int, mixed>|false) transaction(callable|null $callback = null)
- * @method static bool|\Redis discard()
- * @method static \Hypervel\Contracts\Events\Dispatcher|null getEventDispatcher()
- * @method static bool hasHashTag(string $key)
- * @method static bool serialized()
- * @method static bool compressed()
- * @method static array<int|string, string> pack(array<int|string, mixed> $values)
- * @method static mixed evalWithShaCache(string $script, array<string> $keys = [], array<mixed> $args = [])
- * @method static mixed get(string $key) Get the value of a key
- * @method static bool set(string $key, mixed $value, mixed $expireResolution = null, mixed $expireTTL = null, mixed $flag = null) Set the value of a key
- * @method static array mget(array $keys) Get the values of multiple keys
- * @method static bool|int|\Redis setnx(string $key, mixed $value) Set key if not exists
- * @method static array|false|\Redis hmget(string $key, array $fields) Get hash field values
- * @method static bool|\Redis hmset(string $key, array $fieldValues) Set hash field values
- * @method static bool|int|\Redis hsetnx(string $hash, string $key, mixed $value) Set hash field if not exists
- * @method static mixed hget(string $key, string $member) Get hash field value
- * @method static false|int|\Redis hset(string $key, mixed ...$fields_and_vals) Set hash field values
- * @method static false|int lrem(string $key, int $count, mixed $value) Remove list elements
- * @method static false|int|\Redis llen(string $key) Get list length
- * @method static null|array|false|\Redis blpop(array|string $key_or_keys, float|int|string $timeout_or_key, mixed ...$extra_args) Blocking left pop from list
- * @method static null|array|false|\Redis brpop(array|string $key_or_keys, float|int|string $timeout_or_key, mixed ...$extra_args) Blocking right pop from list
- * @method static mixed spop(string $key, int $count = 0) Remove and return random set member
- * @method static false|int|\Redis sRem(string $key, mixed $value, mixed ...$other_values) Remove members from set
- * @method static false|float|int|\Redis zadd(string $key, array|float $score_or_options, mixed ...$more_scores_and_mems) Add members to sorted set
- * @method static false|int|\Redis zcard(string $key) Get sorted set cardinality
- * @method static false|int|\Redis zcount(string $key, int|string $start, int|string $end) Count sorted set members by score range
- * @method static array|false|\Redis zrangebyscore(string $key, string $min, string $max, array $options = []) Get sorted set members by score range
- * @method static array|false|\Redis zrevrangebyscore(string $key, string $max, string $min, array $options = []) Get sorted set members by score range (reverse)
- * @method static int zinterstore(string $output, array $keys, array $options = []) Intersect sorted sets
- * @method static int zunionstore(string $output, array $keys, array $options = []) Union sorted sets
- * @method static mixed eval(string $script, int $numberOfKeys, mixed ...$arguments) Evaluate Lua script
- * @method static mixed evalsha(string $script, int $numkeys, mixed ...$arguments) Evaluate Lua script by SHA1
- * @method static mixed flushdb(mixed ...$arguments) Flush database
- * @method static mixed executeRaw(array $parameters) Execute raw Redis command
- * @method static array|false|\Redis smembers(string $key) Get all set members
- * @method static false|int|\Redis hdel(string $key, string $field, string ...$other_fields) Delete hash fields
- * @method static false|int|\Redis zrem(mixed $key, mixed $member, mixed ...$other_members) Remove sorted set members
- * @method static false|int|\Redis hlen(string $key) Get number of hash fields
- * @method static array|false|\Redis hkeys(string $key) Get all hash field names
- * @method static string _serialize(mixed $value) Serialize a value using configured serializer
+ * @method static mixed withConnection(callable $callback, bool $transform = true)
+ * @method static mixed withoutSerializationOrCompression(callable $callback)
+ * @method static mixed withPinnedConnection(callable $callback)
+ * @method static void zScan(mixed $key, mixed $cursor, mixed ...$arguments)
  * @method static string _digest(mixed $value)
  * @method static string _pack(mixed $value)
+ * @method static string _serialize(mixed $value) Serialize a value using configured serializer
  * @method static mixed _unpack(string $value)
  * @method static mixed acl(string $subcmd, string ...$args)
  * @method static false|int|\Redis append(string $key, mixed $value)
- * @method static bool|\Redis bgSave()
  * @method static bool|\Redis bgrewriteaof()
- * @method static array|false|\Redis waitaof(int $numlocal, int $numreplicas, int $timeout)
+ * @method static bool|\Redis bgSave()
  * @method static false|int|\Redis bitcount(string $key, int $start = 0, int $end = -1, bool $bybit = false)
  * @method static false|int|\Redis bitop(string $operation, string $deskey, string $srckey, string ...$other_keys)
  * @method static false|int|\Redis bitpos(string $key, bool $bit, int $start = 0, int $end = -1, bool $bybit = false)
+ * @method static false|\Redis|string blmove(string $src, string $dst, string $wherefrom, string $whereto, float $timeout)
+ * @method static null|array|false|\Redis blmpop(float $timeout, array $keys, string $from, int $count = 1)
+ * @method static null|array|false|\Redis blpop(array|string $key_or_keys, float|int|string $timeout_or_key, mixed ...$extra_args) Blocking left pop from list
+ * @method static null|array|false|\Redis brpop(array|string $key_or_keys, float|int|string $timeout_or_key, mixed ...$extra_args) Blocking right pop from list
  * @method static false|\Redis|string brpoplpush(string $src, string $dst, float|int $timeout)
+ * @method static null|array|false|\Redis bzmpop(float $timeout, array $keys, string $from, int $count = 1)
  * @method static array|false|\Redis bzPopMax(array|string $key, int|string $timeout_or_key, mixed ...$extra_args)
  * @method static array|false|\Redis bzPopMin(array|string $key, int|string $timeout_or_key, mixed ...$extra_args)
- * @method static null|array|false|\Redis bzmpop(float $timeout, array $keys, string $from, int $count = 1)
- * @method static null|array|false|\Redis zmpop(array $keys, string $from, int $count = 1)
- * @method static null|array|false|\Redis blmpop(float $timeout, array $keys, string $from, int $count = 1)
- * @method static null|array|false|\Redis lmpop(array $keys, string $from, int $count = 1)
  * @method static bool clearLastError()
+ * @method static void clearTransferredBytes()
+ * @method static bool compressed()
  * @method static mixed config(string $operation, array|string|null $key_or_settings = null, string|null $value = null)
  * @method static bool|\Redis copy(string $src, string $dst, array|null $options = null)
  * @method static false|int|\Redis dbSize()
@@ -104,18 +69,22 @@ namespace Hypervel\Support\Facades;
  * @method static false|\Redis|string digest(string $key)
  * @method static false|\Redis|string dump(string $key)
  * @method static false|\Redis|string echo(string $str)
+ * @method static mixed eval(string $script, int $numberOfKeys, mixed ...$arguments) Evaluate Lua script
  * @method static mixed eval_ro(string $script_sha, array $args = [], int $num_keys = 0)
+ * @method static mixed evalsha(string $script, int $numkeys, mixed ...$arguments) Evaluate Lua script by SHA1
  * @method static mixed evalsha_ro(string $sha1, array $args = [], int $num_keys = 0)
+ * @method static mixed evalWithShaCache(string $script, array<string> $keys = [], array<mixed> $args = [])
  * @method static array|false|\Redis exec()
+ * @method static mixed executeRaw(array $parameters) Execute raw Redis command
  * @method static bool|int|\Redis exists(mixed $key, mixed ...$other_keys)
  * @method static bool|\Redis expire(string $key, int $timeout, string|null $mode = null)
  * @method static bool|\Redis expireAt(string $key, int $timestamp, string|null $mode = null)
- * @method static bool|\Redis failover(array|null $to = null, bool $abort = false, int $timeout = 0)
  * @method static false|int|\Redis expiretime(string $key)
- * @method static false|int|\Redis pexpiretime(string $key)
+ * @method static bool|\Redis failover(array|null $to = null, bool $abort = false, int $timeout = 0)
  * @method static mixed fcall(string $fn, array $keys = [], array $args = [])
  * @method static mixed fcall_ro(string $fn, array $keys = [], array $args = [])
  * @method static bool|\Redis flushAll(bool|null $sync = null)
+ * @method static mixed flushdb(mixed ...$arguments) Flush database
  * @method static array|bool|\Redis|string function(string $operation, mixed ...$args)
  * @method static false|int|\Redis geoadd(string $key, float $lng, float $lat, string $member, mixed ...$other_triples_and_options)
  * @method static false|float|\Redis geodist(string $key, string $src, string $dst, string|null $unit = null)
@@ -127,11 +96,13 @@ namespace Hypervel\Support\Facades;
  * @method static mixed georadiusbymember_ro(string $key, string $member, float $radius, string $unit, array $options = [])
  * @method static array geosearch(string $key, array|string $position, array|int|float $shape, string $unit, array $options = [])
  * @method static array|false|int|\Redis geosearchstore(string $dst, string $src, array|string $position, array|int|float $shape, string $unit, array $options = [])
+ * @method static mixed get(string $key) Get the value of a key
  * @method static mixed getAuth()
  * @method static false|int|\Redis getBit(string $key, int $idx)
- * @method static bool|\Redis|string getEx(string $key, array $options = [])
  * @method static int getDBNum()
  * @method static bool|\Redis|string getDel(string $key)
+ * @method static \Hypervel\Contracts\Events\Dispatcher|null getEventDispatcher()
+ * @method static bool|\Redis|string getEx(string $key, array $options = [])
  * @method static string getHost()
  * @method static null|string getLastError()
  * @method static int getMode()
@@ -139,32 +110,39 @@ namespace Hypervel\Support\Facades;
  * @method static null|string getPersistentID()
  * @method static int getPort()
  * @method static false|\Redis|string getRange(string $key, int $start, int $end)
- * @method static array|false|int|\Redis|string lcs(string $key1, string $key2, array|null $options = null)
  * @method static float getReadTimeout()
  * @method static false|\Redis|string getset(string $key, mixed $value)
  * @method static false|float getTimeout()
  * @method static array getTransferredBytes()
- * @method static void clearTransferredBytes()
  * @method static array|false|\Redis getWithMeta(string $key)
- * @method static array|false|\Redis hexpire(string $key, int $ttl, array $fields, string|null $mode = null)
- * @method static array|false|\Redis hpexpire(string $key, int $ttl, array $fields, string|null $mode = null)
- * @method static array|false|\Redis hexpireat(string $key, int $time, array $fields, string|null $mode = null)
- * @method static array|false|\Redis hpexpireat(string $key, int $mstime, array $fields, string|null $mode = null)
- * @method static array|false|\Redis httl(string $key, array $fields)
- * @method static array|false|\Redis hpttl(string $key, array $fields)
- * @method static array|false|\Redis hexpiretime(string $key, array $fields)
- * @method static array|false|\Redis hpexpiretime(string $key, array $fields)
- * @method static array|false|\Redis hpersist(string $key, array $fields)
+ * @method static bool hasHashTag(string $key)
+ * @method static false|int|\Redis hdel(string $key, string $field, string ...$other_fields) Delete hash fields
  * @method static bool|\Redis hExists(string $key, string $field)
+ * @method static array|false|\Redis hexpire(string $key, int $ttl, array $fields, string|null $mode = null)
+ * @method static array|false|\Redis hexpireat(string $key, int $time, array $fields, string|null $mode = null)
+ * @method static array|false|\Redis hexpiretime(string $key, array $fields)
+ * @method static mixed hget(string $key, string $member) Get hash field value
  * @method static array|false|\Redis hGetAll(string $key)
- * @method static mixed hGetWithMeta(string $key, string $member)
  * @method static array|false|\Redis hgetdel(string $key, array $fields)
  * @method static array|false|\Redis hgetex(string $key, array $fields, string|array|null $expiry = null)
+ * @method static mixed hGetWithMeta(string $key, string $member)
  * @method static false|int|\Redis hIncrBy(string $key, string $field, int $value)
  * @method static false|float|\Redis hIncrByFloat(string $key, string $field, float $value)
+ * @method static array|false|\Redis hkeys(string $key) Get all hash field names
+ * @method static false|int|\Redis hlen(string $key) Get number of hash fields
+ * @method static array|false|\Redis hmget(string $key, array $fields) Get hash field values
+ * @method static bool|\Redis hmset(string $key, array $fieldValues) Set hash field values
+ * @method static array|false|\Redis hpersist(string $key, array $fields)
+ * @method static array|false|\Redis hpexpire(string $key, int $ttl, array $fields, string|null $mode = null)
+ * @method static array|false|\Redis hpexpireat(string $key, int $mstime, array $fields, string|null $mode = null)
+ * @method static array|false|\Redis hpexpiretime(string $key, array $fields)
+ * @method static array|false|\Redis hpttl(string $key, array $fields)
  * @method static array|false|\Redis|string hRandField(string $key, array|null $options = null)
+ * @method static false|int|\Redis hset(string $key, mixed ...$fields_and_vals) Set hash field values
  * @method static false|int|\Redis hsetex(string $key, array $fields, array|null $expiry = null)
+ * @method static bool|int|\Redis hsetnx(string $hash, string $key, mixed $value) Set hash field if not exists
  * @method static false|int|\Redis hStrLen(string $key, string $field)
+ * @method static array|false|\Redis httl(string $key, array $fields)
  * @method static array|false|\Redis hVals(string $key)
  * @method static false|int|\Redis incr(string $key, int $by = 1)
  * @method static false|int|\Redis incrBy(string $key, int $value)
@@ -172,20 +150,22 @@ namespace Hypervel\Support\Facades;
  * @method static array|false|\Redis info(string ...$sections)
  * @method static bool isConnected()
  * @method static array|false|\Redis keys(string $pattern)
+ * @method static int lastSave()
+ * @method static array|false|int|\Redis|string lcs(string $key1, string $key2, array|null $options = null)
+ * @method static mixed lindex(string $key, int $index)
  * @method static false|int|\Redis lInsert(string $key, string $pos, mixed $pivot, mixed $value)
+ * @method static false|int|\Redis llen(string $key) Get list length
  * @method static false|\Redis|string lMove(string $src, string $dst, string $wherefrom, string $whereto)
- * @method static false|\Redis|string blmove(string $src, string $dst, string $wherefrom, string $whereto, float $timeout)
+ * @method static null|array|false|\Redis lmpop(array $keys, string $from, int $count = 1)
  * @method static array|bool|\Redis|string lPop(string $key, int $count = 0)
  * @method static null|array|bool|int|\Redis lPos(string $key, mixed $value, array|null $options = null)
  * @method static false|int|\Redis lPush(string $key, mixed ...$elements)
- * @method static false|int|\Redis rPush(string $key, mixed ...$elements)
  * @method static false|int|\Redis lPushx(string $key, mixed $value)
- * @method static false|int|\Redis rPushx(string $key, mixed $value)
- * @method static bool|\Redis lSet(string $key, int $index, mixed $value)
- * @method static int lastSave()
- * @method static mixed lindex(string $key, int $index)
  * @method static array|false|\Redis lrange(string $key, int $start, int $end)
+ * @method static false|int lrem(string $key, int $count, mixed $value) Remove list elements
+ * @method static bool|\Redis lSet(string $key, int $index, mixed $value)
  * @method static bool|\Redis ltrim(string $key, int $start, int $end)
+ * @method static array mget(array $keys) Get the values of multiple keys
  * @method static bool|\Redis migrate(string $host, int $port, array|string $key, int $dstdb, int $timeout, bool $copy = false, bool $replace = false, mixed $credentials = null)
  * @method static bool|\Redis move(string $key, int $index)
  * @method static bool|\Redis mset(array $key_values)
@@ -193,9 +173,11 @@ namespace Hypervel\Support\Facades;
  * @method static bool|\Redis msetnx(array $key_values)
  * @method static bool|\Redis multi(int $value = 1)
  * @method static false|int|\Redis|string object(string $subcommand, string $key)
+ * @method static array<int|string, string> pack(array<int|string, mixed> $values)
  * @method static bool|\Redis persist(string $key)
  * @method static bool pexpire(string $key, int $timeout, string|null $mode = null)
  * @method static bool|\Redis pexpireAt(string $key, int $timestamp, string|null $mode = null)
+ * @method static false|int|\Redis pexpiretime(string $key)
  * @method static int|\Redis pfadd(string $key, array $elements)
  * @method static false|int|\Redis pfcount(array|string $key_or_keys)
  * @method static bool|\Redis pfmerge(string $dst, array $srckeys)
@@ -205,45 +187,53 @@ namespace Hypervel\Support\Facades;
  * @method static false|int|\Redis publish(string $channel, string $message)
  * @method static mixed pubsub(string $command, mixed $arg = null)
  * @method static array|bool|\Redis punsubscribe(array $patterns)
- * @method static array|bool|\Redis|string rPop(string $key, int $count = 0)
  * @method static false|\Redis|string randomKey()
  * @method static mixed rawcommand(string $command, mixed ...$args)
  * @method static bool|\Redis rename(string $old_name, string $new_name)
  * @method static bool|\Redis renameNx(string $key_src, string $key_dst)
+ * @method static bool|\Redis replicaof(string|null $host = null, int $port = 6379)
  * @method static bool|\Redis restore(string $key, int $ttl, string $value, array|null $options = null)
  * @method static mixed role()
+ * @method static array|bool|\Redis|string rPop(string $key, int $count = 0)
  * @method static false|\Redis|string rpoplpush(string $srckey, string $dstkey)
+ * @method static false|int|\Redis rPush(string $key, mixed ...$elements)
+ * @method static false|int|\Redis rPushx(string $key, mixed $value)
  * @method static false|int|\Redis sAdd(string $key, mixed $value, mixed ...$other_values)
  * @method static int sAddArray(string $key, array $values)
- * @method static array|false|\Redis sDiff(string $key, string ...$other_keys)
- * @method static false|int|\Redis sDiffStore(string $dst, string $key, string ...$other_keys)
- * @method static array|false|\Redis sInter(array|string $key, string ...$other_keys)
- * @method static false|int|\Redis sintercard(array $keys, int $limit = -1)
- * @method static false|int|\Redis sInterStore(array|string $key, string ...$other_keys)
- * @method static array|false|\Redis sMisMember(string $key, string $member, string ...$other_members)
- * @method static bool|\Redis sMove(string $src, string $dst, mixed $value)
- * @method static mixed sRandMember(string $key, int $count = 0)
- * @method static array|false|\Redis sUnion(string $key, string ...$other_keys)
- * @method static false|int|\Redis sUnionStore(string $dst, string $key, string ...$other_keys)
  * @method static bool|\Redis save()
  * @method static false|int|\Redis scard(string $key)
  * @method static mixed script(string $command, mixed ...$args)
+ * @method static array|false|\Redis sDiff(string $key, string ...$other_keys)
+ * @method static false|int|\Redis sDiffStore(string $dst, string $key, string ...$other_keys)
  * @method static bool|\Redis select(int $db)
+ * @method static bool serialized()
  * @method static false|string serverName()
  * @method static false|string serverVersion()
+ * @method static bool set(string $key, mixed $value, mixed $expireResolution = null, mixed $expireTTL = null, mixed $flag = null) Set the value of a key
  * @method static false|int|\Redis setBit(string $key, int $idx, bool $value)
- * @method static false|int|\Redis setRange(string $key, int $index, string $value)
  * @method static bool|\Redis setex(string $key, int $expire, mixed $value)
+ * @method static bool|int|\Redis setnx(string $key, mixed $value) Set key if not exists
+ * @method static false|int|\Redis setRange(string $key, int $index, string $value)
+ * @method static array|false|\Redis sInter(array|string $key, string ...$other_keys)
+ * @method static false|int|\Redis sintercard(array $keys, int $limit = -1)
+ * @method static false|int|\Redis sInterStore(array|string $key, string ...$other_keys)
  * @method static bool|\Redis sismember(string $key, mixed $value)
- * @method static bool|\Redis replicaof(string|null $host = null, int $port = 6379)
- * @method static false|int|\Redis touch(array|string $key_or_array, string ...$more_keys)
  * @method static mixed slowlog(string $operation, int $length = 0)
+ * @method static array|false|\Redis smembers(string $key) Get all set members
+ * @method static array|false|\Redis sMisMember(string $key, string $member, string ...$other_members)
+ * @method static bool|\Redis sMove(string $src, string $dst, mixed $value)
  * @method static mixed sort(string $key, array|null $options = null)
  * @method static mixed sort_ro(string $key, array|null $options = null)
+ * @method static mixed spop(string $key, int $count = 0) Remove and return random set member
+ * @method static mixed sRandMember(string $key, int $count = 0)
+ * @method static false|int|\Redis sRem(string $key, mixed $value, mixed ...$other_values) Remove members from set
  * @method static false|int|\Redis strlen(string $key)
+ * @method static array|false|\Redis sUnion(string $key, string ...$other_keys)
+ * @method static false|int|\Redis sUnionStore(string $dst, string $key, string ...$other_keys)
  * @method static array|bool|\Redis sunsubscribe(array $channels)
  * @method static bool|\Redis swapdb(int $src, int $dst)
  * @method static array|\Redis time()
+ * @method static false|int|\Redis touch(array|string $key_or_array, string ...$more_keys)
  * @method static false|int|\Redis ttl(string $key)
  * @method static false|int|\Redis type(string $key)
  * @method static false|int|\Redis unlink(array|string $key, string ...$other_keys)
@@ -262,8 +252,9 @@ namespace Hypervel\Support\Facades;
  * @method static false|int|\Redis vrem(string $key, mixed $member)
  * @method static false|int|\Redis vsetattr(string $key, mixed $member, array|string $attributes)
  * @method static array|false|\Redis vsim(string $key, mixed $member, array|null $options = null)
- * @method static bool|\Redis watch(array|string $key, string ...$other_keys)
  * @method static false|int wait(int $numreplicas, int $timeout)
+ * @method static array|false|\Redis waitaof(int $numlocal, int $numreplicas, int $timeout)
+ * @method static bool|\Redis watch(array|string $key, string ...$other_keys)
  * @method static false|int xack(string $key, string $group, array $ids)
  * @method static false|\Redis|string xadd(string $key, string $id, array $values, int $maxlen = 0, bool $approx = false, bool $nomkstream = false)
  * @method static array|bool|\Redis xautoclaim(string $key, string $group, string $consumer, int $min_idle, string $start, int $count = -1, bool $justid = false)
@@ -279,28 +270,37 @@ namespace Hypervel\Support\Facades;
  * @method static array|bool|\Redis xreadgroup(string $group, string $consumer, array $streams, int $count = 1, int $block = 1)
  * @method static array|bool|\Redis xrevrange(string $key, string $end, string $start, int $count = -1)
  * @method static false|int|\Redis xtrim(string $key, string $threshold, bool $approx = false, bool $minid = false, int $limit = -1)
+ * @method static false|float|int|\Redis zadd(string $key, array|float $score_or_options, mixed ...$more_scores_and_mems) Add members to sorted set
+ * @method static false|int|\Redis zcard(string $key) Get sorted set cardinality
+ * @method static false|int|\Redis zcount(string $key, int|string $start, int|string $end) Count sorted set members by score range
+ * @method static array|false|\Redis zdiff(array $keys, array|null $options = null)
+ * @method static false|int|\Redis zdiffstore(string $dst, array $keys)
  * @method static false|float|\Redis zIncrBy(string $key, float $value, mixed $member)
+ * @method static array|false|\Redis zinter(array $keys, array|null $weights = null, array|null $options = null)
+ * @method static false|int|\Redis zintercard(array $keys, int $limit = -1)
+ * @method static int zinterstore(string $output, array $keys, array $options = []) Intersect sorted sets
  * @method static false|int|\Redis zLexCount(string $key, string $min, string $max)
+ * @method static null|array|false|\Redis zmpop(array $keys, string $from, int $count = 1)
  * @method static array|false|\Redis zMscore(string $key, mixed $member, mixed ...$other_members)
  * @method static array|false|\Redis zPopMax(string $key, int|null $count = null)
  * @method static array|false|\Redis zPopMin(string $key, int|null $count = null)
+ * @method static array|\Redis|string zRandMember(string $key, array|null $options = null)
  * @method static array|false|\Redis zRange(string $key, string|int $start, string|int $end, array|bool|null $options = null)
  * @method static array|false|\Redis zRangeByLex(string $key, string $min, string $max, int $offset = -1, int $count = -1)
+ * @method static array|false|\Redis zrangebyscore(string $key, string $min, string $max, array $options = []) Get sorted set members by score range
  * @method static false|int|\Redis zrangestore(string $dstkey, string $srckey, string $start, string $end, array|bool|null $options = null)
- * @method static array|\Redis|string zRandMember(string $key, array|null $options = null)
  * @method static false|int|\Redis zRank(string $key, mixed $member)
+ * @method static false|int|\Redis zrem(mixed $key, mixed $member, mixed ...$other_members) Remove sorted set members
  * @method static false|int|\Redis zRemRangeByLex(string $key, string $min, string $max)
  * @method static false|int|\Redis zRemRangeByRank(string $key, int $start, int $end)
  * @method static false|int|\Redis zRemRangeByScore(string $key, string $start, string $end)
  * @method static array|false|\Redis zRevRange(string $key, int $start, int $end, mixed $scores = null)
  * @method static array|false|\Redis zRevRangeByLex(string $key, string $max, string $min, int $offset = -1, int $count = -1)
+ * @method static array|false|\Redis zrevrangebyscore(string $key, string $max, string $min, array $options = []) Get sorted set members by score range (reverse)
  * @method static false|int|\Redis zRevRank(string $key, mixed $member)
  * @method static false|float|\Redis zScore(string $key, mixed $member)
- * @method static array|false|\Redis zdiff(array $keys, array|null $options = null)
- * @method static false|int|\Redis zdiffstore(string $dst, array $keys)
- * @method static array|false|\Redis zinter(array $keys, array|null $weights = null, array|null $options = null)
- * @method static false|int|\Redis zintercard(array $keys, int $limit = -1)
  * @method static array|false|\Redis zunion(array $keys, array|null $weights = null, array|null $options = null)
+ * @method static int zunionstore(string $output, array $keys, array $options = []) Union sorted sets
  *
  * @see \Hypervel\Redis\RedisManager
  */
@@ -331,6 +331,7 @@ class Redis extends Facade
             'getLastUseTime',
             'getShouldTransform',
             'heartbeatCheck',
+            'invalidate',
             'isIdleExpired',
             'isLifetimeExpired',
             'macroCall',

@@ -52,7 +52,7 @@ class Horizon
     /**
      * The context key for Horizon's CSP nonce attribute.
      */
-    protected const CSP_NONCE_CONTEXT_KEY = '__horizon.csp_nonce';
+    protected const string CSP_NONCE_CONTEXT_KEY = '__horizon.csp_nonce';
 
     /**
      * Determine if the given request can access the Horizon dashboard.
@@ -96,7 +96,7 @@ class Horizon
 
         $prefix = config()->string('horizon.prefix');
 
-        if (($config['cluster']['enable'] ?? false)
+        if (($config['cluster']['enabled'] ?? false)
             && ! RedisConnection::hasHashTag($prefix)) {
             $prefix = '{' . $prefix . '}';
         }

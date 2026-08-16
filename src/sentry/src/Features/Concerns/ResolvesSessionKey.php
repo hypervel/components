@@ -11,9 +11,9 @@ use Throwable;
 
 trait ResolvesSessionKey
 {
-    private const SESSION_KEY_RESOLUTION_CONTEXT_KEY = '__sentry.session_key.resolving';
+    private const string SESSION_KEY_RESOLUTION_CONTEXT_KEY = '__sentry.session_key.resolving';
 
-    private const SESSION_KEY_PLACEHOLDER = '{sessionKey}';
+    private const string SESSION_KEY_PLACEHOLDER = '{sessionKey}';
 
     /**
      * Retrieve the current session key if available.

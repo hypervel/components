@@ -17,7 +17,7 @@ class DatabaseEventsTest extends SentryTestCase
             'sentry.breadcrumbs.sql_queries' => true,
         ]);
 
-        $this->assertTrue($this->app['config']->get('sentry.breadcrumbs.sql_queries'));
+        $this->assertTrue($this->app->make('config')->boolean('sentry.breadcrumbs.sql_queries'));
 
         $this->dispatchHypervelEvent(new QueryExecuted(
             $query = 'SELECT * FROM breadcrumbs WHERE bindings = ?;',
@@ -37,7 +37,7 @@ class DatabaseEventsTest extends SentryTestCase
             'sentry.breadcrumbs.sql_bindings' => true,
         ]);
 
-        $this->assertTrue($this->app['config']->get('sentry.breadcrumbs.sql_bindings'));
+        $this->assertTrue($this->app->make('config')->boolean('sentry.breadcrumbs.sql_bindings'));
 
         $this->dispatchHypervelEvent(new QueryExecuted(
             $query = 'SELECT * FROM breadcrumbs WHERE bindings = ?;',
@@ -58,7 +58,7 @@ class DatabaseEventsTest extends SentryTestCase
             'sentry.breadcrumbs.sql_queries' => false,
         ]);
 
-        $this->assertFalse($this->app['config']->get('sentry.breadcrumbs.sql_queries'));
+        $this->assertFalse($this->app->make('config')->boolean('sentry.breadcrumbs.sql_queries'));
 
         $this->dispatchHypervelEvent(new QueryExecuted(
             'SELECT * FROM breadcrumbs WHERE bindings = ?;',
@@ -76,7 +76,7 @@ class DatabaseEventsTest extends SentryTestCase
             'sentry.breadcrumbs.sql_bindings' => false,
         ]);
 
-        $this->assertFalse($this->app['config']->get('sentry.breadcrumbs.sql_bindings'));
+        $this->assertFalse($this->app->make('config')->boolean('sentry.breadcrumbs.sql_bindings'));
 
         $this->dispatchHypervelEvent(new QueryExecuted(
             $query = 'SELECT * FROM breadcrumbs WHERE bindings <> ?;',

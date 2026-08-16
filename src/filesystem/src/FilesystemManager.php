@@ -56,12 +56,12 @@ class FilesystemManager implements FactoryContract
     /**
      * The logical name used while resolving on-demand disks.
      */
-    protected const ON_DEMAND_DISK_NAME = 'ondemand';
+    protected const string ON_DEMAND_DISK_NAME = 'ondemand';
 
     /**
      * Google Cloud Storage client constructor options supported by the installed SDK.
      */
-    protected const GCS_CLIENT_OPTIONS = [
+    protected const array GCS_CLIENT_OPTIONS = [
         'apiEndpoint',
         'projectId',
         'authCache',
@@ -332,7 +332,7 @@ class FilesystemManager implements FactoryContract
             $name
         )->shouldServeSignedUrls(
             $config['serve'] ?? false,
-            fn () => $this->app['url'],
+            fn () => $this->app->make('url'),
         );
     }
 
@@ -730,6 +730,21 @@ class FilesystemManager implements FactoryContract
         foreach ((array) $disk as $diskName) {
             unset($this->disks[$diskName]);
         }
+
+        return $this;
+    }
+
+    /**
+     * Forget all resolved disks.
+     *
+     * Boot or tests only. Mutates the singleton's disk cache; concurrent
+     * coroutines may already hold disks that next resolution will replace.
+     * Shared pools remain available until their idle TTL expires or purge()
+     * deliberately invalidates them.
+     */
+    public function forgetDisks(): static
+    {
+        $this->disks = [];
 
         return $this;
     }

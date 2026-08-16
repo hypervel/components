@@ -1250,6 +1250,8 @@ RecordDelivery::dispatch($order)->onConnection('background');
 
 The `background` and `deferred` drivers do not persist jobs to an external queue backend. Delayed jobs on these connections are scheduled with an in-memory timer and will be lost if the worker exits before the timer fires. Use a persistent queue connection such as `database`, `redis`, `sqs`, or `beanstalkd` for durable delayed work.
 
+Uncaught exceptions from jobs run on either connection are reported through your application's exception handler.
+
 You may also chain `afterResponse` onto a dispatch to run the job synchronously when the current coroutine ends:
 
 ```php

@@ -507,7 +507,7 @@ class QueueWorkerTest extends TestCase
         );
     }
 
-    public function testRecordingSleepStillYieldsToAConcurrencyLimitedJob(): void
+    public function testWorkerWaitsForConcurrencySlotWithoutPollingDelay(): void
     {
         $jobCompleted = false;
         $reported = null;
@@ -523,7 +523,7 @@ class QueueWorkerTest extends TestCase
         $worker = $this->getWorker('default', ['queue' => [$job]]);
         $options = new WorkerOptions;
         $options->concurrency = 1;
-        $options->sleep = 0;
+        $options->sleep = 3;
         $options->stopWhenEmpty = true;
 
         $status = $worker->daemon('default', 'queue', $options);
@@ -532,13 +532,27 @@ class QueueWorkerTest extends TestCase
         $this->assertTrue($job->fired);
         $this->assertNull($reported, $reported?->getMessage() ?? 'Unexpected job failure.');
         $this->assertTrue($jobCompleted);
-        $this->assertSame(0, $worker->sleptFor);
+        $this->assertNull($worker->sleptFor);
     }
 
-    public function testDaemonSleepsWhenQueueIsEmptyAtStartup()
+    public function testTimeoutJobsUseMinimumWaitWhenPollingIsDisabled(): void
     {
-        // Regression: the idle branch must sleep even when $jobsProcessed is still 0
-        // (i.e. on the very first loop iteration with an empty queue).
+        $worker = $this->getWorker('default', ['queue' => []]);
+        $worker->currentTime = 0;
+        $options = new WorkerOptions(timeout: 1, sleep: 0, maxTime: 1);
+
+        $worker->registerCoroutineJobForTest(new WorkerContractOnlyJob, $options);
+        $worker->currentTime = 1;
+        $worker->terminateTimeoutJobsForTest($options);
+
+        $status = $worker->daemon('default', 'queue', $options);
+
+        $this->assertSame(Worker::EXIT_SUCCESS, $status);
+        $this->assertSame(1, $worker->sleptFor);
+    }
+
+    public function testDaemonStopsImmediatelyWhenQueueIsEmptyAtStartup(): void
+    {
         $workerOptions = new WorkerOptions;
         $workerOptions->stopWhenEmpty = true;
         $workerOptions->sleep = 5;
@@ -547,7 +561,7 @@ class QueueWorkerTest extends TestCase
 
         $status = $worker->daemon('default', 'queue', $workerOptions);
 
-        $this->assertEquals(5, $worker->sleptFor);
+        $this->assertNull($worker->sleptFor);
         $this->assertSame(Worker::EXIT_SUCCESS, $status);
     }
 

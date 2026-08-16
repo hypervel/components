@@ -1,7 +1,8 @@
 Hypervel Documentation
 ===
 
-You can find the online version of the Hypervel documentation at [https://hypervel.org/docs](https://hypervel.org/docs).
+> [!WARNING]
+> The documentation in this branch covers the unreleased Hypervel 0.4 rewrite. The published documentation at [hypervel.org/docs](https://hypervel.org/docs) currently covers Hypervel 0.3. APIs and behavior described in this branch may change before Hypervel 0.4 is released.
 
 ## Contribution Guidelines
 

@@ -30,12 +30,12 @@ class Task extends Prompt
      *
      * Reset can arrive while the renderer is sleeping between frames.
      */
-    protected const RENDERER_SETTLEMENT_MARGIN_MILLISECONDS = 1000;
+    protected const int RENDERER_SETTLEMENT_MARGIN_MILLISECONDS = 1000;
 
     /**
      * The renderer settlement acknowledgement byte.
      */
-    protected const RENDERER_ACKNOWLEDGEMENT = "\x06";
+    protected const string RENDERER_ACKNOWLEDGEMENT = "\x06";
 
     /**
      * The minimum width for the longest line calculation.

@@ -14,7 +14,7 @@ use RuntimeException;
 
 class RedisSentinelFactoryTest extends TestCase
 {
-    public function testResolveMasterFallsBackAcrossNodesAndPreservesZeroAuth(): void
+    public function testResolveMasterFallsBackAcrossNodesAndUsesSentinelSettings(): void
     {
         $first = m::mock(RedisSentinel::class);
         $first->expects('getMasterAddrByName')
@@ -40,14 +40,13 @@ class RedisSentinelFactoryTest extends TestCase
         };
 
         $master = $factory->resolveMaster([
-            'timeout' => 2.5,
-            'retry_interval' => 100,
             'sentinel' => [
                 'nodes' => ['tcp://127.0.0.1:26379', 'tcp://127.0.0.2:26380'],
                 'master_name' => 'primary',
-                'persistent' => 'sentinel-id',
+                'username' => 'sentinel-user',
+                'password' => '0',
+                'timeout' => 2.5,
                 'read_timeout' => 1.5,
-                'auth' => '0',
             ],
         ]);
 
@@ -56,11 +55,43 @@ class RedisSentinelFactoryTest extends TestCase
 
         foreach ($factory->createdWith as $options) {
             $this->assertSame(2.5, $options['connectTimeout']);
-            $this->assertSame('sentinel-id', $options['persistent']);
-            $this->assertSame(100, $options['retryInterval']);
             $this->assertSame(1.5, $options['readTimeout']);
-            $this->assertSame('0', $options['auth']);
+            $this->assertSame(['sentinel-user', '0'], $options['auth']);
+            $this->assertArrayNotHasKey('persistent', $options);
+            $this->assertArrayNotHasKey('retryInterval', $options);
         }
+    }
+
+    public function testResolveMasterUsesSentinelPasswordWithoutUsername(): void
+    {
+        $sentinel = m::mock(RedisSentinel::class);
+        $sentinel->expects('getMasterAddrByName')
+            ->with('primary')
+            ->andReturn(['10.0.0.1', 6380]);
+        $factory = new class($sentinel) extends RedisSentinelFactory {
+            public array $createdWith = [];
+
+            public function __construct(private RedisSentinel $sentinel)
+            {
+            }
+
+            public function create(array $options = []): RedisSentinel
+            {
+                $this->createdWith[] = $options;
+
+                return $this->sentinel;
+            }
+        };
+
+        $factory->resolveMaster([
+            'sentinel' => [
+                'nodes' => ['127.0.0.1:26379'],
+                'master_name' => 'primary',
+                'password' => 'secret',
+            ],
+        ]);
+
+        $this->assertSame('secret', $factory->createdWith[0]['auth']);
     }
 
     #[DataProvider('sentinelEndpoints')]

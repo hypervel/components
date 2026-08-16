@@ -169,14 +169,18 @@ class SearchableModelTest extends ScoutTestCase
     public function testWithoutSyncingToSearchRestoresStateOnException(): void
     {
         $this->assertTrue(SearchableModel::isSearchSyncingEnabled());
+        $expectedException = new RuntimeException('Test exception');
+        $caughtException = null;
 
         try {
-            SearchableModel::withoutSyncingToSearch(function () {
-                throw new RuntimeException('Test exception');
+            SearchableModel::withoutSyncingToSearch(function () use ($expectedException): never {
+                throw $expectedException;
             });
-        } catch (RuntimeException) {
-            // Expected
+        } catch (RuntimeException $exception) {
+            $caughtException = $exception;
         }
+
+        $this->assertSame($expectedException, $caughtException);
 
         // Syncing should be restored even after exception
         $this->assertTrue(SearchableModel::isSearchSyncingEnabled());

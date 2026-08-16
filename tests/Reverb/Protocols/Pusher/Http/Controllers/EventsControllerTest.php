@@ -88,7 +88,7 @@ class EventsControllerTest extends ReverbTestCase
 
         $connection->assertReceivedCount(1);
 
-        // Second request — exclude this socket, connection should NOT receive
+        // Second request — exclude this socket, connection should not receive
         $connection->resetReceived();
         $this->signedPostRequest('events', [
             'name' => 'NewEvent',
@@ -254,7 +254,7 @@ class EventsControllerTest extends ReverbTestCase
         $body = json_encode($data);
         $timestamp = time();
 
-        // Build the signature WITHOUT the path prefix (as the Pusher PHP client does)
+        // Build the signature without the path prefix (as the Pusher PHP client does)
         $query = "auth_key={$key}&auth_timestamp={$timestamp}&auth_version=1.0";
         $params = explode('&', $query);
         sort($params);
@@ -264,7 +264,7 @@ class EventsControllerTest extends ReverbTestCase
         $signatureString = "POST\n/apps/{$appId}/events\n{$query}";
         $signature = hash_hmac('sha256', $signatureString, $secret);
 
-        // Send the request TO the prefixed URL
+        // Send the request to the prefixed URL
         $response = $this->reverbCall('POST', "/ws/apps/{$appId}/events?{$query}&auth_signature={$signature}", [
             'CONTENT_TYPE' => 'application/json',
             'CONTENT_LENGTH' => (string) strlen($body),
@@ -278,7 +278,7 @@ class EventsControllerTest extends ReverbTestCase
      */
     protected function withPathPrefix(ApplicationContract $app): void
     {
-        $app['config']->set('reverb.servers.reverb.path', '/ws');
+        $app->make('config')->set('reverb.servers.reverb.path', '/ws');
     }
 
     public function testReturnsEmptyObjectWhenNoInfoRequested(): void

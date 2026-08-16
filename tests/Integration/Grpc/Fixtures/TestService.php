@@ -17,7 +17,7 @@ use Hypervel\Tests\Grpc\Fixtures\TestRequest;
 
 class TestService
 {
-    private const MAX_TEST_RESPONSE_SIZE = 5 * 1024 * 1024;
+    private const int MAX_TEST_RESPONSE_SIZE = 5 * 1024 * 1024;
 
     /**
      * Handle the integration fixture's unary call.

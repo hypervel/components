@@ -6,6 +6,9 @@ namespace Hypervel\Auth;
 
 use Hypervel\Contracts\Auth\UserProvider;
 use InvalidArgumentException;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 trait CreatesUserProviders
 {
@@ -43,11 +46,28 @@ trait CreatesUserProviders
     }
 
     /**
+     * Get the user provider name declared by the given guard.
+     */
+    public function getUserProviderName(UnitEnum|string|null $guard = null): ?string
+    {
+        if ($guard instanceof UnitEnum) {
+            $guard = (string) enum_value($guard);
+        }
+
+        $guard ??= $this->getDefaultDriver();
+        $provider = $this->app->make('config')->get("auth.guards.{$guard}.provider");
+
+        return is_string($provider) && $provider !== ''
+            ? $provider
+            : null;
+    }
+
+    /**
      * Get the provider name declared by the current default guard.
      */
     public function getDefaultUserProvider(): ?string
     {
-        return $this->app->make('config')->get('auth.guards.' . $this->getDefaultDriver() . '.provider');
+        return $this->getUserProviderName();
     }
 
     /**

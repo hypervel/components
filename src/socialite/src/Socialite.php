@@ -11,15 +11,15 @@ use Hypervel\Socialite\Testing\SocialiteFake;
 use Hypervel\Support\Facades\Facade;
 
 /**
- * @method static \Hypervel\Socialite\Contracts\Provider with(string $driver)
- * @method static \Hypervel\Socialite\Contracts\Provider driver(\UnitEnum|string|null $driver = null)
  * @method static \Hypervel\Socialite\Two\AbstractProvider buildOAuth2Provider(string $provider, array|null $config)
- * @method static string getDefaultDriver()
+ * @method static \Hypervel\Socialite\Contracts\Provider driver(\UnitEnum|string|null $driver = null)
  * @method static \Hypervel\Socialite\SocialiteManager extend(string $driver, Closure $callback)
- * @method static array getDrivers()
- * @method static \Hypervel\Contracts\Container\Container getContainer()
- * @method static \Hypervel\Socialite\SocialiteManager setContainer(\Hypervel\Contracts\Container\Container $container)
  * @method static \Hypervel\Socialite\SocialiteManager forgetDrivers()
+ * @method static \Hypervel\Contracts\Container\Container getContainer()
+ * @method static string getDefaultDriver()
+ * @method static array getDrivers()
+ * @method static \Hypervel\Socialite\SocialiteManager setContainer(\Hypervel\Contracts\Container\Container $container)
+ * @method static \Hypervel\Socialite\Contracts\Provider with(string $driver)
  *
  * @see \Hypervel\Socialite\SocialiteManager
  */

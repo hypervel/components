@@ -20,6 +20,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use LogicException;
 use Mockery as m;
 use ReflectionMethod;
 use stdClass;
@@ -59,6 +60,34 @@ class CacheSwooleStoreTest extends TestCase
         $this->expectExceptionMessage('Swoole table [missing] is not defined.');
 
         (new SwooleTableManager($container))->get('missing');
+    }
+
+    public function testSealingRetainsExistingTablesAndRejectsLateCreation(): void
+    {
+        $config = m::mock(ConfigRepository::class);
+        $config->shouldReceive('get')
+            ->once()
+            ->with('cache.swoole_tables.first')
+            ->andReturn([
+                'rows' => 64,
+                'bytes' => 1024,
+                'conflict_proportion' => 0.2,
+            ]);
+
+        $container = m::mock(Container::class);
+        $container->shouldReceive('make')->once()->with('config')->andReturn($config);
+
+        $manager = new SwooleTableManager($container);
+        $first = $manager->get('first');
+
+        $manager->seal();
+
+        $this->assertSame($first, $manager->get('first'));
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Swoole cache table [second] was not initialized before the server fork.');
+
+        $manager->get('second');
     }
 
     public function testSwooleTableRejectsStringValuesLargerThanColumnSize(): void

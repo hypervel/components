@@ -5,15 +5,18 @@ declare(strict_types=1);
 namespace Hypervel\View;
 
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\View\Compilers\BladeCompiler;
+use Hypervel\View\Compilers\Compiler;
 use Hypervel\View\Engines\CompilerEngine;
 use Hypervel\View\Engines\EngineResolver;
 use Hypervel\View\Engines\FileEngine;
 use Hypervel\View\Engines\PhpEngine;
 
-class ViewServiceProvider extends ServiceProvider
+class ViewServiceProvider extends ServiceProvider implements ReloadsConfiguration
 {
     /**
      * Register the service provider.
@@ -35,11 +38,11 @@ class ViewServiceProvider extends ServiceProvider
             // Next we need to grab the engine resolver instance that will be used by the
             // environment. The resolver will be used by an environment to get each of
             // the various engine implementations such as plain PHP or Blade engine.
-            $resolver = $app['view.engine.resolver'];
+            $resolver = $app->make('view.engine.resolver');
 
-            $finder = $app['view.finder'];
+            $finder = $app->make('view.finder');
 
-            $factory = $this->createFactory($resolver, $finder, $app['events']);
+            $factory = $this->createFactory($resolver, $finder, $app->make('events'));
 
             // We will also set the container instance on this view environment since the
             // view composers may be classes registered in the container, which allows
@@ -50,6 +53,42 @@ class ViewServiceProvider extends ServiceProvider
 
             return $factory;
         });
+    }
+
+    /**
+     * Reload the worker configuration owned by the provider.
+     *
+     * Boot-only. Calling this while requests are running mutates shared worker
+     * state while concurrent coroutines may still use the previous configuration.
+     */
+    public function reloadConfiguration(): void
+    {
+        $config = $this->app->make(ConfigRepository::class);
+
+        if ($this->app->resolved('view')) {
+            $factory = $this->app->make('view');
+
+            if ($factory instanceof Factory && ($finder = $factory->getFinder()) instanceof FileViewFinder) {
+                $finder->setPaths($config->array('view.paths'));
+                $finder->flush();
+            }
+        }
+
+        if ($this->app->resolved('blade.compiler')) {
+            $compiler = $this->app->make('blade.compiler');
+
+            if ($compiler instanceof Compiler) {
+                $compiler->reloadConfiguration(
+                    $config->string('view.compiled'),
+                    $config->boolean('view.relative_hash') ? $this->app->basePath() : '',
+                    $config->boolean('view.cache'),
+                    $config->string('view.compiled_extension'),
+                    $config->boolean('view.check_cache_timestamps'),
+                );
+            }
+        }
+
+        CompilerEngine::forgetCompiledOrNotExpired();
     }
 
     /**

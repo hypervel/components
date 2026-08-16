@@ -227,10 +227,12 @@ class JobDispatchingTest extends QueueTestCase
     {
         Config::set('queue.default', 'database');
         $events = [];
-        $this->app['events']->listen(function (JobQueueing $e) use (&$events) {
+        $dispatcher = $this->app->make('events');
+
+        $dispatcher->listen(function (JobQueueing $e) use (&$events) {
             $events[] = $e;
         });
-        $this->app['events']->listen(function (JobQueued $e) use (&$events) {
+        $dispatcher->listen(function (JobQueued $e) use (&$events) {
             $events[] = $e;
         });
 
@@ -253,7 +255,7 @@ class JobDispatchingTest extends QueueTestCase
     {
         Config::set('queue.default', 'database');
         $events = [];
-        $this->app['events']->listen(function (JobQueued $e) use (&$events) {
+        $this->app->make('events')->listen(function (JobQueued $e) use (&$events) {
             $events[] = $e;
         });
 

@@ -18,13 +18,13 @@ class StoreContext
      * The maximum expiry timestamp (Year 9999) for "forever" items.
      * Used in the tag registry to represent items with no expiration.
      */
-    public const MAX_EXPIRY = 253402300799;
+    public const int MAX_EXPIRY = 253402300799;
 
     /**
      * The value stored in tag hash fields.
      * We only need to track membership, so we use a minimal placeholder value.
      */
-    public const TAG_FIELD_VALUE = '1';
+    public const string TAG_FIELD_VALUE = '1';
 
     private readonly TagKeyBuilder $tagKeyBuilder;
 
@@ -124,18 +124,18 @@ class StoreContext
      * Execute callback with a held connection from the pool.
      *
      * Delegates to Redis::withConnection() for context awareness (respects
-     * active pipeline/multi connections). Uses transform: false to provide
-     * raw phpredis behavior for cache operations.
+     * active pipeline/multi connections). Cache operations use raw phpredis
+     * behavior unless they explicitly request Laravel-style transforms.
      *
      * @template T
      * @param callable(RedisConnection): T $callback
      * @return T
      */
-    public function withConnection(callable $callback): mixed
+    public function withConnection(callable $callback, bool $transform = false): mixed
     {
         return $this->redis
             ->connection($this->connectionName)
-            ->withConnection($callback, transform: false);
+            ->withConnection($callback, transform: $transform);
     }
 
     /**

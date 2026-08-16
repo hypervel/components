@@ -30,27 +30,27 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Context key for the cached URL scheme.
      */
-    protected const CACHED_SCHEME_CONTEXT_KEY = '__routing.url.cached_scheme';
+    protected const string CACHED_SCHEME_CONTEXT_KEY = '__routing.url.cached_scheme';
 
     /**
      * Context key for the cached root URL.
      */
-    protected const CACHED_ROOT_CONTEXT_KEY = '__routing.url.cached_root';
+    protected const string CACHED_ROOT_CONTEXT_KEY = '__routing.url.cached_root';
 
     /**
      * Context key for the forced root URL override.
      */
-    protected const FORCED_ROOT_CONTEXT_KEY = '__routing.url.forced_root';
+    protected const string FORCED_ROOT_CONTEXT_KEY = '__routing.url.forced_root';
 
     /**
      * Context key for the forced asset root URL override.
      */
-    protected const FORCED_ASSET_ROOT_CONTEXT_KEY = '__routing.url.forced_asset_root';
+    protected const string FORCED_ASSET_ROOT_CONTEXT_KEY = '__routing.url.forced_asset_root';
 
     /**
      * Context key for request-scoped default route parameters.
      */
-    protected const DEFAULT_PARAMETERS_CONTEXT_KEY = '__routing.url.default_parameters';
+    protected const string DEFAULT_PARAMETERS_CONTEXT_KEY = '__routing.url.default_parameters';
 
     /**
      * The route collection.
@@ -780,6 +780,17 @@ class UrlGenerator implements UrlGeneratorContract
     }
 
     /**
+     * Set the fallback asset URL root.
+     *
+     * Boot-only. The root is stored on the worker-shared URL generator and
+     * affects subsequent requests without a coroutine-local asset origin.
+     */
+    public function setAssetRoot(?string $root): void
+    {
+        $this->assetRoot = $root;
+    }
+
+    /**
      * Set a callback to be used to format the host of generated URLs.
      *
      * Boot-only. The callback persists on the singleton URL generator and
@@ -834,9 +845,9 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Set the current request instance.
      *
-     * Tests only. Per-request code should rely on RequestContext (read first by
-     * getRequest()); this setter writes the singleton UrlGenerator's fallback
-     * request used outside coroutine contexts, plus mutates the shared
+     * Boot or tests only. Per-request code should rely on RequestContext (read
+     * first by getRequest()); this setter writes the singleton UrlGenerator's
+     * fallback request used outside coroutine contexts, plus mutates the shared
      * routeGenerator — runtime use races across coroutines.
      */
     public function setRequest(Request $request): void
