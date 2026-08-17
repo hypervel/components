@@ -13,29 +13,12 @@ trait ExcludesPaths
      */
     protected function inExceptArray(Request $request): bool
     {
-        $excluded = $this->getExcludedPaths();
-
-        if ($excluded === []) {
-            return false;
-        }
-
-        // Reading the host validates it against the trusted host patterns, and
-        // that must happen even when a path matches: is() only looks at the
-        // path, so short-circuiting on it would let an untrusted Host header
-        // through on excluded paths. Resolving it once up front keeps the
-        // validation and lets the cheap path match run first below.
-        $request->getHost();
-
-        foreach ($excluded as $except) {
+        foreach ($this->getExcludedPaths() as $except) {
             if ($except !== '/') {
                 $except = trim($except, '/');
             }
 
-            // is() is checked first: it matches against the decoded path, while
-            // fullUrlIs() has to rebuild the absolute URL. Both are free of
-            // further side effects, so the order only decides which one gets to
-            // short-circuit the other.
-            if ($request->is($except) || $request->fullUrlIs($except)) {
+            if ($request->fullUrlIs($except) || $request->is($except)) {
                 return true;
             }
         }

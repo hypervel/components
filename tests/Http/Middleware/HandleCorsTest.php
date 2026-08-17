@@ -325,6 +325,28 @@ class HandleCorsTest extends TestCase
         return $container;
     }
 
+    public function testPathsWrittenAsAbsoluteUrlsStillMatch(): void
+    {
+        // The full URL is only rebuilt for patterns that could match one, so a
+        // CORS path written as an absolute URL still has to be honored.
+        $response = $this->dispatchPreflight('admin/ping', [
+            'Origin' => 'http://localhost',
+            'Access-Control-Request-Method' => 'POST',
+        ], ['paths' => ['http://localhost/admin/*']]);
+
+        $this->assertSame('http://localhost', $response->headers->get('Access-Control-Allow-Origin'));
+    }
+
+    public function testPathsWrittenAsAbsoluteUrlsDoNotMatchOtherPaths(): void
+    {
+        $response = $this->dispatchPreflight('public/ping', [
+            'Origin' => 'http://localhost',
+            'Access-Control-Request-Method' => 'POST',
+        ], ['paths' => ['http://localhost/admin/*']]);
+
+        $this->assertNull($response->headers->get('Access-Control-Allow-Origin'));
+    }
+
     protected function makeRequest(string $method, string $path, array $headers = []): Request
     {
         $request = Request::create('http://localhost/' . ltrim($path, '/'), $method);
