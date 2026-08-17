@@ -12,9 +12,11 @@ use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use JsonSerializable;
 use Override;
+use Stringable;
 use Symfony\Component\HttpFoundation\JsonResponse as BaseJsonResponse;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
+use TypeError;
 
 class JsonResponse extends BaseJsonResponse
 {
@@ -33,6 +35,18 @@ class JsonResponse extends BaseJsonResponse
     public function __construct(mixed $data = null, int $status = 200, array $headers = [], int $options = 0, bool $json = false)
     {
         $this->encodingOptions = $options;
+
+        if ($json
+            && ! is_string($data)
+            && ! is_numeric($data)
+            && ! $data instanceof Stringable
+        ) {
+            throw new TypeError(sprintf(
+                '"%s": If $json is set to true, argument $data must be a string or object implementing __toString(), "%s" given.',
+                BaseJsonResponse::class . '::__construct',
+                get_debug_type($data),
+            ));
+        }
 
         // Symfony builds a ResponseHeaderBag per response, and its constructor
         // sets Cache-Control to an empty string only to parse that value back
@@ -56,7 +70,7 @@ class JsonResponse extends BaseJsonResponse
 
         $data ??= new ArrayObject;
 
-        $json ? $this->setJson($data) : $this->setData($data);
+        $json ? $this->setJson((string) $data) : $this->setData($data);
     }
 
     /**
