@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Http;
 
 use Hypervel\Config\Repository;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Application;
@@ -465,6 +466,39 @@ class KernelTest extends TestCase
         $this->assertSame($original?->getTimestamp(), $captured?->getTimestamp());
         $this->assertNull($kernel->requestStartedAt());
         $this->assertTrue($transportStartedAt->equalTo($request->startedAt()));
+    }
+
+    public function testProductionRequestStartTimeIsMaterializedLazily(): void
+    {
+        $app = new Application;
+        $events = new Dispatcher($app);
+        $app->instance('events', $events);
+        $app->instance('config', new Repository(['app' => ['timezone' => 'UTC']]));
+        $app->bootstrapWith([]);
+
+        $router = m::mock(Router::class);
+        $router->shouldReceive('dispatch')->once()->andReturn(new Response);
+
+        $kernel = new class($app, $router) extends Kernel {
+            public function rawRequestStartedAt(): mixed
+            {
+                return CoroutineContext::get(self::REQUEST_STARTED_AT_CONTEXT_KEY);
+            }
+        };
+        $request = Request::create('/');
+        $response = $kernel->handle($request);
+
+        $this->assertIsFloat($kernel->rawRequestStartedAt());
+
+        $startedAt = $kernel->requestStartedAt();
+
+        $this->assertInstanceOf(CarbonImmutable::class, $startedAt);
+        $this->assertSame($startedAt, $kernel->rawRequestStartedAt());
+        $this->assertSame($startedAt, $kernel->requestStartedAt());
+
+        $kernel->terminate($request, $response);
+
+        $this->assertNull($kernel->rawRequestStartedAt());
     }
 
     public function testRequestStartedAtIsIsolatedBetweenConcurrentCoroutines(): void

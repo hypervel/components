@@ -139,7 +139,10 @@ class Kernel implements KernelContract
      */
     public function handle(Request $request): Response
     {
-        CoroutineContext::set(self::REQUEST_STARTED_AT_CONTEXT_KEY, CarbonImmutable::now());
+        CoroutineContext::set(
+            self::REQUEST_STARTED_AT_CONTEXT_KEY,
+            CarbonImmutable::hasTestNow() ? CarbonImmutable::now() : microtime(true)
+        );
 
         try {
             $request->enableHttpMethodParameterOverride();
@@ -244,9 +247,9 @@ class Kernel implements KernelContract
         }
 
         try {
-            $requestStartedAt = CoroutineContext::get(self::REQUEST_STARTED_AT_CONTEXT_KEY);
-
-            if ($requestStartedAt !== null && $this->requestLifecycleDurationHandlers !== []) {
+            if ($this->requestLifecycleDurationHandlers !== []
+                && ($requestStartedAt = $this->requestStartedAt()) !== null
+            ) {
                 $requestStartedAt = $requestStartedAt->setTimezone(
                     $this->app->make('config')->string('app.timezone')
                 );
@@ -357,7 +360,17 @@ class Kernel implements KernelContract
      */
     public function requestStartedAt(): ?CarbonImmutable
     {
-        return CoroutineContext::get(self::REQUEST_STARTED_AT_CONTEXT_KEY);
+        $requestStartedAt = CoroutineContext::get(self::REQUEST_STARTED_AT_CONTEXT_KEY);
+
+        if (is_float($requestStartedAt)) {
+            $requestStartedAt = CarbonImmutable::createFromTimestamp(
+                $requestStartedAt,
+                date_default_timezone_get()
+            );
+            CoroutineContext::set(self::REQUEST_STARTED_AT_CONTEXT_KEY, $requestStartedAt);
+        }
+
+        return $requestStartedAt;
     }
 
     /**
