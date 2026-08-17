@@ -9,6 +9,7 @@ use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseManager;
+use Hypervel\Pipeline\PipeDescriptor;
 use Hypervel\Pipeline\Pipeline;
 use Hypervel\Tests\Pipeline\Fixtures\FooPipeline;
 use Hypervel\Tests\TestCase;
@@ -235,6 +236,57 @@ class PipelineTest extends TestCase
         $this->assertEquals($parameters, $_SERVER['__test.pipe.parameters']);
 
         unset($_SERVER['__test.pipe.parameters']);
+    }
+
+    public function testPipelineUsageWithAnImmutablePipeDescriptor(): void
+    {
+        $descriptor = PipeDescriptor::fromString(PipelineTestParameterPipe::class . ':one,two');
+
+        $result = (new Pipeline(new Container))
+            ->send('foo')
+            ->through($descriptor)
+            ->then(fn ($piped) => $piped);
+
+        $this->assertSame('foo', $result);
+        $this->assertSame(['one', 'two'], $_SERVER['__test.pipe.parameters']);
+
+        unset($_SERVER['__test.pipe.parameters']);
+    }
+
+    public function testPipeDescriptorUsesThePipelineMethodWhenNoneIsSpecified(): void
+    {
+        $result = (new Pipeline(new Container))->send('data')
+            ->through(PipeDescriptor::fromString(PipelineTestPartialMethodPipe::class))
+            ->via('missingMethod')
+            ->then(fn (mixed $piped): mixed => $piped);
+
+        $this->assertSame('data:invoked', $result);
+    }
+
+    public function testPipeDescriptorPreservesLazyContainerResolutionAndCallableFallback(): void
+    {
+        $container = new Container;
+        $container->bind(PipelineTestUnreachablePipe::class);
+        $container->bind(PipelineTestPipeOne::class, fn () => new PipelineTestPipeTwo);
+
+        $result = (new Pipeline($container))->send('data')
+            ->through([
+                new PipeDescriptor(PipelineTestShortCircuitPipe::class),
+                new PipeDescriptor(PipelineTestUnreachablePipe::class),
+            ])
+            ->then(fn (mixed $piped): mixed => $piped);
+
+        $this->assertSame('short-circuited', $result);
+        $this->assertArrayNotHasKey('__test.pipe.unreachable', $_SERVER);
+
+        $result = (new Pipeline($container))->send('foo')
+            ->through(new PipeDescriptor(PipelineTestPipeOne::class))
+            ->then(fn (mixed $piped): mixed => $piped);
+
+        $this->assertSame('foo', $result);
+        $this->assertSame('foo', $_SERVER['__test.pipe.one']);
+
+        unset($_SERVER['__test.pipe.one']);
     }
 
     public function testPipelineViaChangesTheMethodBeingCalledOnThePipes(): void

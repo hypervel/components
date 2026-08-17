@@ -18,6 +18,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
+use Hypervel\Pipeline\PipeDescriptor;
 use Hypervel\Pipeline\Pipeline as BasePipeline;
 use Hypervel\Routing\Events\PreparingResponse;
 use Hypervel\Routing\Events\ResponsePrepared;
@@ -713,7 +714,31 @@ class Router implements BindingRegistrar, RegistrarContract
         $disabled = $this->container->bound('middleware.disable')
             && $this->container->make('middleware.disable') === true;
 
-        return $disabled ? [] : $this->gatherRouteMiddleware($route);
+        if ($disabled) {
+            return [];
+        }
+
+        $middleware = $this->gatherRouteMiddleware($route);
+
+        if ($middleware === []) {
+            return [];
+        }
+
+        if ($middleware !== $route->resolvedMiddleware) {
+            return array_map(
+                static fn (mixed $pipe): mixed => is_string($pipe) && ! is_callable($pipe)
+                    ? PipeDescriptor::fromString($pipe)
+                    : $pipe,
+                $middleware
+            );
+        }
+
+        return $route->middlewareDescriptors ??= array_map(
+            static fn (mixed $pipe): mixed => is_string($pipe) && ! is_callable($pipe)
+                ? PipeDescriptor::fromString($pipe)
+                : $pipe,
+            $middleware
+        );
     }
 
     /**

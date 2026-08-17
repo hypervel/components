@@ -160,13 +160,20 @@ class Pipeline implements PipelineContract
         return function ($stack, $pipe) {
             return function ($passable) use ($stack, $pipe) {
                 try {
-                    if (is_callable($pipe)) {
+                    $method = $this->method;
+
+                    if ($pipe instanceof PipeDescriptor) {
+                        $parameters = $pipe->parameters === []
+                            ? [$passable, $stack]
+                            : array_merge([$passable, $stack], $pipe->parameters);
+                        $method = $pipe->method ?? $method;
+                        $pipe = $this->getContainer()->make($pipe->name);
+                    } elseif (is_callable($pipe)) {
                         // If the pipe is a callable, then we will call it directly, but otherwise we
                         // will resolve the pipes out of the dependency container and call it with
                         // the appropriate method and arguments, returning the results back out.
                         return $pipe($passable, $stack);
-                    }
-                    if (! is_object($pipe)) {
+                    } elseif (! is_object($pipe)) {
                         // Only pipes written as 'name:arg,arg' carry parameters, so the
                         // parse is skipped for the common parameterless case.
                         if (str_contains($pipe, ':')) {
@@ -188,8 +195,8 @@ class Pipeline implements PipelineContract
                         $parameters = [$passable, $stack];
                     }
 
-                    $carry = method_exists($pipe, $this->method)
-                        ? $pipe->{$this->method}(...$parameters)
+                    $carry = method_exists($pipe, $method)
+                        ? $pipe->{$method}(...$parameters)
                         : $pipe(...$parameters);
 
                     return $this->handleCarry($carry);

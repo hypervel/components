@@ -139,6 +139,13 @@ class Route
     public ?array $resolvedMiddleware = null;
 
     /**
+     * The cached pipeline descriptors for resolved class-string middleware.
+     *
+     * @var null|array<int, mixed>
+     */
+    public ?array $middlewareDescriptors = null;
+
+    /**
      * The compiled version of the route.
      *
      * Safe to cache on the Route instance — immutable after compilation,
@@ -398,6 +405,7 @@ class Route
     {
         $this->computedMiddleware = null;
         $this->controller = null;
+        $this->middlewareDescriptors = null;
         $this->resolvedMiddleware = null;
 
         if ($this->isControllerAction()) {
@@ -1535,6 +1543,7 @@ class Route
         $this->computedMiddleware = null;
         $this->controller = null;
         $this->controllerDispatcher = null;
+        $this->middlewareDescriptors = null;
         $this->resolvedMiddleware = null;
         $this->shouldCacheControllerOnRoute = null;
 
@@ -1569,6 +1578,7 @@ class Route
         $this->container = null;
         $this->controller = null;
         $this->controllerDispatcher = null;
+        $this->middlewareDescriptors = null;
         $this->missing = null;
         $this->resolvedMiddleware = null;
         $this->router = null;
