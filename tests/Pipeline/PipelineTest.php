@@ -258,16 +258,16 @@ class PipelineTest extends TestCase
         // whatever the previous pipeline resolved for the same class.
         $handled = (new Pipeline($container))->send('data')
             ->through(PipelineTestPartialMethodPipe::class)
-            ->then(fn ($piped) => $piped);
+            ->then(fn (mixed $piped): mixed => $piped);
 
         $invoked = (new Pipeline($container))->send('data')
             ->through(PipelineTestPartialMethodPipe::class)
             ->via('missingMethod')
-            ->then(fn ($piped) => $piped);
+            ->then(fn (mixed $piped): mixed => $piped);
 
         $handledAgain = (new Pipeline($container))->send('data')
             ->through(PipelineTestPartialMethodPipe::class)
-            ->then(fn ($piped) => $piped);
+            ->then(fn (mixed $piped): mixed => $piped);
 
         $this->assertSame('data:handled', $handled);
         $this->assertSame('data:invoked', $invoked, 'A missing pipe method did not fall back to __invoke.');
@@ -281,7 +281,7 @@ class PipelineTest extends TestCase
 
         $result = (new Pipeline($container))->send('data')
             ->through([PipelineTestShortCircuitPipe::class, PipelineTestUnreachablePipe::class])
-            ->then(fn ($piped) => $piped);
+            ->then(fn (mixed $piped): mixed => $piped);
 
         $this->assertSame('short-circuited', $result);
         $this->assertArrayNotHasKey(
