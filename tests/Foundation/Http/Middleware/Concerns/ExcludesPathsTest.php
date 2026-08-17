@@ -39,6 +39,26 @@ class ExcludesPathsTest extends TestCase
         $this->assertFalse($excluder->check(Request::create('http://example.com/up')));
     }
 
+    public function testUrlAndPathAreResolvedOnceAcrossMultiplePatterns(): void
+    {
+        $request = CountingRequest::create('http://example.com/api/users');
+        $excluder = new ExcludesPathsTestExcluder(['missing', 'also-missing', 'api/*']);
+
+        $this->assertTrue($excluder->check($request));
+        $this->assertSame(1, $request->fullUrlCalls);
+        $this->assertSame(1, $request->decodedPathCalls);
+    }
+
+    public function testFullUrlMatchDoesNotResolveTheDecodedPath(): void
+    {
+        $request = CountingRequest::create('http://example.com/admin/users');
+        $excluder = new ExcludesPathsTestExcluder(['http://example.com/admin/*']);
+
+        $this->assertTrue($excluder->check($request));
+        $this->assertSame(1, $request->fullUrlCalls);
+        $this->assertSame(0, $request->decodedPathCalls);
+    }
+
     public function testUntrustedHostIsRejectedEvenWhenThePathIsExcluded(): void
     {
         $request = Request::create('http://evil.com/up');
@@ -102,5 +122,26 @@ class ExcludesPathsTestExcluder
     public function check(Request $request): bool
     {
         return $this->inExceptArray($request);
+    }
+}
+
+class CountingRequest extends Request
+{
+    public int $fullUrlCalls = 0;
+
+    public int $decodedPathCalls = 0;
+
+    public function fullUrl(): string
+    {
+        ++$this->fullUrlCalls;
+
+        return parent::fullUrl();
+    }
+
+    public function decodedPath(): string
+    {
+        ++$this->decodedPathCalls;
+
+        return parent::decodedPath();
     }
 }
