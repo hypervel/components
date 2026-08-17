@@ -394,17 +394,15 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      */
     public function is(mixed ...$patterns): bool
     {
-        // Resolved before the loop, and only once there is something to match:
-        // the previous Collection::contains() never ran its callback for an
-        // empty pattern list, so resolving the subject unconditionally would
-        // start doing work — and, for fullUrlIs(), throwing — where it did not.
+        // Global middleware runs this per request, so the path is decoded once
+        // for the whole list rather than per pattern, and matched without
+        // wrapping the patterns in a Collection. Resolving it lazily also keeps
+        // Collection::contains()'s behavior of never touching the subject when
+        // there is nothing to match against.
         if ($patterns === []) {
             return false;
         }
 
-        // Hot path (global middleware runs this per request), so the subject is
-        // resolved once instead of per pattern and matched without wrapping the
-        // patterns in a Collection.
         $path = $this->decodedPath();
 
         foreach ($patterns as $pattern) {
@@ -429,15 +427,13 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      */
     public function fullUrlIs(mixed ...$patterns): bool
     {
-        // See is(): rebuilding the URL for an empty pattern list would resolve
-        // the host, which validates it and can throw where 0.4 returned false.
+        // See is(). The empty check matters more here: rebuilding the URL
+        // resolves the host, which validates it and can throw, so an empty
+        // pattern list has to stay the no-op Collection::contains() made it.
         if ($patterns === []) {
             return false;
         }
 
-        // Hot path (global middleware runs this per request), so the URL is
-        // rebuilt once instead of per pattern and matched without wrapping the
-        // patterns in a Collection.
         $url = $this->fullUrl();
 
         foreach ($patterns as $pattern) {
