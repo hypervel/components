@@ -1325,13 +1325,26 @@ class Str
      */
     public static function trim(string $value, ?string $charlist = null): string
     {
-        if ($charlist === null) {
-            $trimDefaultCharacters = " \n\r\t\v\0";
-
-            return preg_replace('~^[\s' . self::INVISIBLE_CHARACTERS . $trimDefaultCharacters . ']+|[\s' . self::INVISIBLE_CHARACTERS . $trimDefaultCharacters . ']+$~u', '', $value) ?? trim($value);
+        if ($charlist !== null) {
+            return trim($value, $charlist);
         }
 
-        return trim($value, $charlist);
+        $trimmed = trim($value);
+
+        if ($trimmed === '') {
+            return '';
+        }
+
+        if (ord($trimmed[0]) < 0x80
+            && ord($trimmed[-1]) < 0x80
+            && $trimmed[0] !== "\f"
+            && $trimmed[-1] !== "\f") {
+            return $trimmed;
+        }
+
+        $trimDefaultCharacters = " \n\r\t\v\0";
+
+        return preg_replace('~^[\s' . self::INVISIBLE_CHARACTERS . $trimDefaultCharacters . ']+|[\s' . self::INVISIBLE_CHARACTERS . $trimDefaultCharacters . ']+$~u', '', $value) ?? $trimmed;
     }
 
     /**

@@ -1227,6 +1227,9 @@ class SupportStrTest extends TestCase
         $this->assertSame('ム', Str::trim('ム'));
         $this->assertSame('だ', Str::trim('   だ    '));
         $this->assertSame('ム', Str::trim('   ム    '));
+        $this->assertSame('foo', Str::trim("\f foo \f"));
+        $this->assertSame('foo', Str::trim("\u{200B}foo\u{200B}"));
+        $this->assertSame('foo', Str::trim("\u{3000}foo\u{3000}"));
 
         $this->assertSame(
             'foo bar',
@@ -1244,6 +1247,9 @@ class SupportStrTest extends TestCase
         );
 
         $this->assertSame("\xE9", Str::trim(" \xE9 "));
+        $this->assertSame("foo\xE9bar", Str::trim(" foo\xE9bar "));
+        $this->assertSame("\xE9foo", Str::trim(" \xE9foo "));
+        $this->assertSame("foo\xE9", Str::trim(" foo\xE9 "));
 
         $trimDefaultChars = [' ', "\n", "\r", "\t", "\v", "\0"];
 
