@@ -62,7 +62,22 @@ class RequestBridge
 
         // Swoole headers → HTTP_* format
         foreach ($headers as $key => $value) {
-            $httpKey = 'HTTP_' . strtoupper(str_replace('-', '_', $key));
+            $httpKey = match ($key) {
+                'accept' => 'HTTP_ACCEPT',
+                'accept-encoding' => 'HTTP_ACCEPT_ENCODING',
+                'authorization' => 'HTTP_AUTHORIZATION',
+                'connection' => 'HTTP_CONNECTION',
+                'content-length' => 'HTTP_CONTENT_LENGTH',
+                'content-type' => 'HTTP_CONTENT_TYPE',
+                'host' => 'HTTP_HOST',
+                'user-agent' => 'HTTP_USER_AGENT',
+                'x-forwarded-for' => 'HTTP_X_FORWARDED_FOR',
+                'x-forwarded-host' => 'HTTP_X_FORWARDED_HOST',
+                'x-forwarded-port' => 'HTTP_X_FORWARDED_PORT',
+                'x-forwarded-proto' => 'HTTP_X_FORWARDED_PROTO',
+                'x-request-id' => 'HTTP_X_REQUEST_ID',
+                default => 'HTTP_' . strtoupper(str_replace('-', '_', $key)),
+            };
             $result[$httpKey] = $value;
         }
 

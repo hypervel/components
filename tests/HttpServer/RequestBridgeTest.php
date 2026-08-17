@@ -151,6 +151,22 @@ class RequestBridgeTest extends TestCase
         $this->assertSame('Bearer token123', $request->headers->get('authorization'));
     }
 
+    public function testMixedCaseAndUnknownHeadersUseGenericNormalization(): void
+    {
+        $swooleRequest = $this->createSwooleRequest(
+            server: ['request_method' => 'get', 'request_uri' => '/'],
+            header: [
+                'User-Agent' => 'custom-client',
+                'X-Custom-Mixed-Header' => 'custom-value',
+            ],
+        );
+
+        $request = RequestBridge::createFromSwoole($swooleRequest);
+
+        $this->assertSame('custom-client', $request->headers->get('user-agent'));
+        $this->assertSame('custom-value', $request->headers->get('x-custom-mixed-header'));
+    }
+
     public function testContentTypeAndContentLengthGetSpecialTreatment(): void
     {
         $swooleRequest = $this->createSwooleRequest(
