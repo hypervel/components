@@ -15,6 +15,7 @@ use Override;
 use RuntimeException;
 use Stringable;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 
 class Response extends SymfonyResponse
 {
@@ -24,15 +25,28 @@ class Response extends SymfonyResponse
     use ResponseTrait;
 
     /**
+     * The pristine header bag cloned for each response.
+     */
+    protected static ?ResponseHeaderBag $headerPrototype = null;
+
+    /**
      * Create a new HTTP response.
      *
      * @throws InvalidArgumentException
      */
     public function __construct(mixed $content = '', int $status = 200, array $headers = [])
     {
-        // The parent constructor accepts the headers since Symfony 8.1; assigning
-        // the property directly would hit the deprecated property setter.
-        parent::__construct('', $status, $headers);
+        $bag = clone (static::$headerPrototype ??= new ResponseHeaderBag);
+
+        // A cloned bag carries the prototype's timestamp. Refresh it before
+        // adding the given headers so a caller-supplied Date still wins.
+        $bag->set('Date', gmdate('D, d M Y H:i:s') . ' GMT');
+
+        if ($headers !== []) {
+            $bag->add($headers);
+        }
+
+        SymfonyResponse::__construct('', $status, $bag);
 
         $this->setContent($content);
     }
@@ -43,7 +57,9 @@ class Response extends SymfonyResponse
     #[Override]
     public function getContent(): string|false
     {
-        return transform(parent::getContent(), fn ($content) => $content, '');
+        $content = parent::getContent();
+
+        return $content === false ? '' : $content;
     }
 
     /**
@@ -153,5 +169,7 @@ class Response extends SymfonyResponse
     public static function flushState(): void
     {
         static::flushMacros();
+
+        static::$headerPrototype = null;
     }
 }
