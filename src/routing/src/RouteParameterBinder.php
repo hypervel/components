@@ -38,6 +38,20 @@ class RouteParameterBinder
     }
 
     /**
+     * Get route parameters from a compiled matcher result.
+     *
+     * @param array<string, mixed> $parameters
+     */
+    public function parametersFromCompiledMatch(array $parameters): array
+    {
+        if ($this->route->parameterNames() === [] && $this->route->defaults === []) {
+            return [];
+        }
+
+        return $this->replaceDefaults($this->matchToKeys($parameters));
+    }
+
+    /**
      * Get the parameter matches for the path portion of the URI.
      */
     protected function bindPathParameters(Request $request): array

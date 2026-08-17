@@ -482,6 +482,34 @@ class Route
 
         $parameters = (new RouteParameterBinder($this))->parameters($request);
 
+        return $this->storeParameters($parameters);
+    }
+
+    /**
+     * Bind parameters returned by the compiled route matcher.
+     *
+     * @internal
+     *
+     * @param array<string, mixed> $parameters
+     */
+    public function bindFromCompiledMatch(array $parameters, Request $request): static
+    {
+        if ($this::class !== self::class) {
+            return $this->bind($request);
+        }
+
+        $this->compileRoute();
+
+        $parameters = (new RouteParameterBinder($this))->parametersFromCompiledMatch($parameters);
+
+        return $this->storeParameters($parameters);
+    }
+
+    /**
+     * Store the route's current and original parameters for this coroutine.
+     */
+    private function storeParameters(array $parameters): static
+    {
         CoroutineContext::set($this->parametersContextKey(), $parameters);
         CoroutineContext::set($this->originalParametersContextKey(), $parameters);
 

@@ -189,6 +189,7 @@ class CompiledRouteCollection extends AbstractRouteCollection
         $path = rtrim($request->getPathInfo(), '/') ?: '/';
 
         $route = null;
+        $result = null;
 
         try {
             if ($result = $matcher->match($path)) {
@@ -200,6 +201,8 @@ class CompiledRouteCollection extends AbstractRouteCollection
             } catch (NotFoundHttpException) {
             }
         }
+
+        $compiledRoute = $route;
 
         $routePort = $route?->getPort();
 
@@ -220,6 +223,10 @@ class CompiledRouteCollection extends AbstractRouteCollection
                 }
             } catch (NotFoundHttpException|MethodNotAllowedHttpException) {
             }
+        }
+
+        if ($route !== null && $route === $compiledRoute && $result !== null) {
+            return $route->bindFromCompiledMatch($result, $request);
         }
 
         return $this->handleMatchedRoute($request, $route);

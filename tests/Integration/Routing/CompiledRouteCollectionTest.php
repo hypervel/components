@@ -359,6 +359,92 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame('foo', $routes->match(Request::create('/foo', 'GET'))->getName());
     }
 
+    public function testCompiledMatchBindsPathParametersAndOriginalValues(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/users/{user}/posts/{post}', [
+                'uses' => 'FooController@index',
+                'as' => 'posts.show',
+            ])
+        );
+
+        $route = $this->collection()->match(Request::create('/users/12/posts/34', 'GET'));
+
+        $this->assertSame(['user' => '12', 'post' => '34'], $route->parameters());
+        $this->assertSame(['user' => '12', 'post' => '34'], $route->originalParameters());
+
+        $route->setParameter('user', 'changed');
+
+        $this->assertSame(['user' => 'changed', 'post' => '34'], $route->parameters());
+        $this->assertSame(['user' => '12', 'post' => '34'], $route->originalParameters());
+    }
+
+    public function testCompiledMatchUsesAnOverriddenRouteBindMethod(): void
+    {
+        $router = new BindTrackingRouter($this->app->make('events'), $this->app);
+        $routes = new RouteCollection;
+        $routes->add($router->newRoute('GET', '/users/{user}', [
+            'uses' => 'FooController@index',
+            'as' => 'users.show',
+        ]));
+
+        $route = $routes
+            ->toCompiledRouteCollection($router, $this->app)
+            ->match(Request::create('/users/42', 'GET'));
+
+        $this->assertInstanceOf(BindTrackingRoute::class, $route);
+        $this->assertSame(1, $route->bindCalls);
+        $this->assertSame(['user' => '42'], $route->parameters());
+    }
+
+    public function testCompiledMatchBindsDomainAndPathParameters(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/users/{user}', [
+                'uses' => 'FooController@index',
+                'as' => 'tenant.users.show',
+                'domain' => '{tenant}.example.com',
+            ])
+        );
+
+        $route = $this->collection()->match(
+            Request::create('https://hypervel.example.com/users/42', 'GET')
+        );
+
+        $this->assertSame(['tenant' => 'hypervel', 'user' => '42'], $route->parameters());
+        $this->assertSame(['tenant' => 'hypervel', 'user' => '42'], $route->originalParameters());
+    }
+
+    public function testCompiledMatchAppliesOptionalParameterDefaults(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/reports/{period?}', [
+                'uses' => 'FooController@index',
+                'as' => 'reports.show',
+            ])->defaults('period', 'current')
+        );
+
+        $route = $this->collection()->match(Request::create('/reports', 'GET'));
+
+        $this->assertSame(['period' => 'current'], $route->parameters());
+        $this->assertSame(['period' => 'current'], $route->originalParameters());
+    }
+
+    public function testCompiledMatchAppliesDefaultsWithoutUriParameters(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/reports', [
+                'uses' => 'FooController@index',
+                'as' => 'reports.index',
+            ])->defaults('format', 'summary')
+        );
+
+        $route = $this->collection()->match(Request::create('/reports', 'GET'));
+
+        $this->assertSame(['format' => 'summary'], $route->parameters());
+        $this->assertSame(['format' => 'summary'], $route->originalParameters());
+    }
+
     public function testMatchingDynamicallyAddedRoutesTakePrecedenceOverFallbackRoutes()
     {
         $this->routeCollection->add($this->fallbackRoute(['uses' => 'FooController@index']));
@@ -384,7 +470,10 @@ class CompiledRouteCollectionTest extends RoutingTestCase
 
         $routes->add($this->newRoute('GET', '/bar/{id}', ['uses' => 'FooController@index', 'as' => 'bar']));
 
-        $this->assertSame('fallback', $routes->match(Request::create('/baz/1', 'GET'))->getName());
+        $route = $routes->match(Request::create('/baz/1', 'GET'));
+
+        $this->assertSame('fallback', $route->getName());
+        $this->assertSame(['fallbackPlaceholder' => 'baz/1'], $route->parameters());
     }
 
     public function testMatchingCachedFallbackTakesPrecedenceOverDynamicFallback()
@@ -590,5 +679,27 @@ class CompiledRouteCollectionTest extends RoutingTestCase
             "{{$placeholder}}",
             $action
         )->where($placeholder, '.*')->fallback();
+    }
+}
+
+class BindTrackingRouter extends Router
+{
+    public function newRoute(array|string $methods, string $uri, mixed $action): Route
+    {
+        return (new BindTrackingRoute($methods, $uri, $action))
+            ->setRouter($this)
+            ->setContainer($this->container);
+    }
+}
+
+class BindTrackingRoute extends Route
+{
+    public int $bindCalls = 0;
+
+    public function bind(Request $request): static
+    {
+        ++$this->bindCalls;
+
+        return parent::bind($request);
     }
 }
