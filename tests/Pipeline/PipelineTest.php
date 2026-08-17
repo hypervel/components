@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Pipeline;
 
+use Closure;
 use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Database\Connection;
@@ -609,7 +610,7 @@ class PipelineTestParameterPipe
 
 class PipelineTestShortCircuitPipe
 {
-    public function handle($piped, $next)
+    public function handle(mixed $piped, Closure $next): string
     {
         return 'short-circuited';
     }
@@ -617,12 +618,12 @@ class PipelineTestShortCircuitPipe
 
 class PipelineTestPartialMethodPipe
 {
-    public function handle($piped, $next)
+    public function handle(mixed $piped, Closure $next): mixed
     {
         return $next($piped . ':handled');
     }
 
-    public function __invoke($piped, $next)
+    public function __invoke(mixed $piped, Closure $next): mixed
     {
         return $next($piped . ':invoked');
     }
@@ -635,7 +636,7 @@ class PipelineTestUnreachablePipe
         $_SERVER['__test.pipe.unreachable'] = true;
     }
 
-    public function handle($piped, $next)
+    public function handle(mixed $piped, Closure $next): mixed
     {
         return $next($piped);
     }

@@ -136,8 +136,11 @@ class WorkerCachedMaintenanceMode implements MaintenanceModeContract
      */
     protected static function now(): float
     {
+        // Sub-second precision on both sides: getTimestamp() truncates to whole
+        // seconds, which over-reports the elapsed time between two fractional
+        // instants and would refresh the snapshot before the interval is up.
         return CarbonImmutable::hasTestNow()
-            ? (float) CarbonImmutable::now()->getTimestamp()
+            ? CarbonImmutable::now()->getPreciseTimestamp(6) / 1_000_000
             : microtime(true);
     }
 }

@@ -394,6 +394,14 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      */
     public function is(mixed ...$patterns): bool
     {
+        // Resolved before the loop, and only once there is something to match:
+        // the previous Collection::contains() never ran its callback for an
+        // empty pattern list, so resolving the subject unconditionally would
+        // start doing work — and, for fullUrlIs(), throwing — where it did not.
+        if ($patterns === []) {
+            return false;
+        }
+
         // Hot path (global middleware runs this per request), so the subject is
         // resolved once instead of per pattern and matched without wrapping the
         // patterns in a Collection.
@@ -421,6 +429,12 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      */
     public function fullUrlIs(mixed ...$patterns): bool
     {
+        // See is(): rebuilding the URL for an empty pattern list would resolve
+        // the host, which validates it and can throw where 0.4 returned false.
+        if ($patterns === []) {
+            return false;
+        }
+
         // Hot path (global middleware runs this per request), so the URL is
         // rebuilt once instead of per pattern and matched without wrapping the
         // patterns in a Collection.

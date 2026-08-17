@@ -272,12 +272,7 @@ class KernelTest extends TestCase
         $terminable = new class {
             public int $terminated = 0;
 
-            public function handle($request, $next)
-            {
-                return $next($request);
-            }
-
-            public function terminate($request, $response): void
+            public function terminate(Request $request, Response $response): void
             {
                 ++$this->terminated;
             }
@@ -285,11 +280,6 @@ class KernelTest extends TestCase
 
         $nonTerminable = new class {
             public int $resolved = 0;
-
-            public function handle($request, $next)
-            {
-                return $next($request);
-            }
         };
 
         $app->instance('terminable-middleware', $terminable);
