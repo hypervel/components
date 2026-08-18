@@ -146,6 +146,21 @@ class Route
     public ?array $middlewareDescriptors = null;
 
     /**
+     * The middleware descriptors represented by the compiled pipeline.
+     *
+     * @var null|array<int, mixed>
+     */
+    public ?array $middlewarePipelinePipes = null;
+
+    /**
+     * The reusable route middleware pipeline.
+     *
+     * It captures only the onion structure; each invocation supplies its own
+     * request and resolves descriptor middleware without caching the instance.
+     */
+    public ?Closure $middlewarePipeline = null;
+
+    /**
      * The compiled version of the route.
      *
      * Safe to cache on the Route instance — immutable after compilation,
@@ -406,6 +421,8 @@ class Route
         $this->computedMiddleware = null;
         $this->controller = null;
         $this->middlewareDescriptors = null;
+        $this->middlewarePipeline = null;
+        $this->middlewarePipelinePipes = null;
         $this->resolvedMiddleware = null;
 
         if ($this->isControllerAction()) {
@@ -1562,6 +1579,8 @@ class Route
         $this->controller = null;
         $this->controllerDispatcher = null;
         $this->middlewareDescriptors = null;
+        $this->middlewarePipeline = null;
+        $this->middlewarePipelinePipes = null;
         $this->resolvedMiddleware = null;
         $this->shouldCacheControllerOnRoute = null;
 
@@ -1597,6 +1616,8 @@ class Route
         $this->controller = null;
         $this->controllerDispatcher = null;
         $this->middlewareDescriptors = null;
+        $this->middlewarePipeline = null;
+        $this->middlewarePipelinePipes = null;
         $this->missing = null;
         $this->resolvedMiddleware = null;
         $this->router = null;

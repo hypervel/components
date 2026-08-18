@@ -50,6 +50,23 @@ class RouterExtensionTest extends RoutingTestCase
         $this->assertSame(2, $middleware->runs);
     }
 
+    public function testSubclassRouteDispatchReusesItsPipeline(): void
+    {
+        $container = new Container;
+        $middleware = new RouterTestMiddleware;
+        $container->instance(RouterTestMiddleware::class, $middleware);
+        $router = $this->router($container);
+        $router->get('hooked', static fn (): string => 'route')
+            ->middleware(RouterTestMiddleware::class);
+
+        $this->assertSame('route', $router->dispatch(Request::create('/hooked', 'GET'))->getContent());
+        $this->assertSame('route', $router->dispatch(Request::create('/hooked', 'GET'))->getContent());
+
+        $this->assertSame(1, $router->pipelineCreations);
+        $this->assertSame(2, $router->middlewareResolutions);
+        $this->assertSame(2, $middleware->runs);
+    }
+
     public function testMiddlewareOverrideCanRetainRequiredMiddlewareWhenUserMiddlewareIsDisabled(): void
     {
         $container = new Container;

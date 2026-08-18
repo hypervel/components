@@ -688,12 +688,20 @@ class Router implements BindingRegistrar, RegistrarContract
             return $route->run();
         }
 
-        return $this->newPipeline()
-            ->send($request)
-            ->through($middleware)
-            ->then(function ($request) use ($route) {
-                return $this->prepareResponse($request, $route->run());
-            });
+        // Compile lazily for each route, then rebuild if middleware resolution
+        // changes so the cached onion never retains a stale pipe list.
+        if ($route->middlewarePipeline === null
+            || $route->middlewarePipelinePipes !== $middleware
+        ) {
+            $route->middlewarePipelinePipes = $middleware;
+            $route->middlewarePipeline = $this->newPipeline()
+                ->through($middleware)
+                ->toClosure(function ($request) use ($route) {
+                    return $this->prepareResponse($request, $route->run());
+                });
+        }
+
+        return ($route->middlewarePipeline)($request);
     }
 
     /**

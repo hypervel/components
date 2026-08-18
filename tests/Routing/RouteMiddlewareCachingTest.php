@@ -54,6 +54,30 @@ class RouteMiddlewareCachingTest extends RoutingTestCase
         $this->assertSame(TestMiddleware::class, $route->middlewareDescriptors[0]->name);
     }
 
+    public function testRouteDispatchReusesPipelineWithoutCachingMiddlewareInstances(): void
+    {
+        $container = new Container;
+        $resolutions = 0;
+        $router = $this->getRouter($container);
+        $container->bind(TestMiddleware::class, function () use (&$resolutions): TestMiddleware {
+            ++$resolutions;
+
+            return new TestMiddleware;
+        });
+        $route = $router->get('foo', [
+            'middleware' => TestMiddleware::class,
+            'uses' => fn () => 'ok',
+        ]);
+
+        $this->assertSame('ok', $router->dispatch(Request::create('foo', 'GET'))->getContent());
+        $pipeline = $route->middlewarePipeline;
+        $this->assertNotNull($pipeline);
+
+        $this->assertSame('ok', $router->dispatch(Request::create('foo', 'GET'))->getContent());
+        $this->assertSame($pipeline, $route->middlewarePipeline);
+        $this->assertSame(2, $resolutions);
+    }
+
     public function testRouteWithoutMiddlewareDoesNotBuildDescriptors(): void
     {
         $router = $this->getRouter();
@@ -77,6 +101,24 @@ class RouteMiddlewareCachingTest extends RoutingTestCase
         $this->assertSame(TestMiddleware::class, $first[0]->name);
         $this->assertSame(SecondTestMiddleware::class, $second[0]->name);
         $this->assertNull($route->middlewareDescriptors);
+        $this->assertNull($route->middlewarePipeline);
+    }
+
+    public function testRouterSubclassRebuildsReusablePipelineWhenMiddlewareChanges(): void
+    {
+        $container = new Container;
+        $router = new DynamicMiddlewareRouter(new Dispatcher($container), $container);
+        $container->bind(ControllerDispatcherContract::class, fn ($app) => new ControllerDispatcher($app));
+        $container->bind(CallableDispatcherContract::class, fn ($app) => new CallableDispatcher($app));
+        $route = $router->get('foo', fn () => 'ok');
+
+        $this->assertSame('ok', $router->dispatch(Request::create('foo', 'GET'))->getContent());
+        $firstPipeline = $route->middlewarePipeline;
+        $this->assertNotNull($firstPipeline);
+
+        $this->assertSame('ok', $router->dispatch(Request::create('foo', 'GET'))->getContent());
+        $secondPipeline = $route->middlewarePipeline;
+        $this->assertNotSame($firstPipeline, $secondPipeline);
     }
 
     public function testResolvedMiddlewareIsNullBeforeGathering(): void
@@ -105,6 +147,7 @@ class RouteMiddlewareCachingTest extends RoutingTestCase
         $route->flushController();
 
         $this->assertNull($route->middlewareDescriptors);
+        $this->assertNull($route->middlewarePipeline);
         $this->assertNull($route->resolvedMiddleware);
     }
 
@@ -123,6 +166,7 @@ class RouteMiddlewareCachingTest extends RoutingTestCase
         $route->prepareForSerialization();
 
         $this->assertNull($route->middlewareDescriptors);
+        $this->assertNull($route->middlewarePipeline);
         $this->assertNull($route->resolvedMiddleware);
     }
 
@@ -188,6 +232,7 @@ class RouteMiddlewareCachingTest extends RoutingTestCase
 
         $this->assertNull($route->computedMiddleware);
         $this->assertNull($route->middlewareDescriptors);
+        $this->assertNull($route->middlewarePipeline);
         $this->assertNull($route->resolvedMiddleware);
     }
 
