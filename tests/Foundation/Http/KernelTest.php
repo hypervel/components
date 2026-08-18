@@ -540,6 +540,33 @@ class KernelTest extends TestCase
         $this->assertSame(2, $resolutions);
     }
 
+    public function testSetApplicationClearsApplicationSpecificMiddlewareCaches(): void
+    {
+        $kernel = new class(new Application, m::mock(Router::class)) extends Kernel {
+            public function primeMiddlewareCaches(): void
+            {
+                $this->terminableMiddleware = ['test-middleware' => false];
+                $this->middlewarePipelineStack = ['test-middleware'];
+                $this->middlewarePipeline = static fn (): null => null;
+            }
+
+            public function middlewareCaches(): array
+            {
+                return [
+                    $this->terminableMiddleware,
+                    $this->middlewarePipelineStack,
+                    $this->middlewarePipeline,
+                ];
+            }
+        };
+        $application = new Application;
+        $kernel->primeMiddlewareCaches();
+
+        $this->assertSame($kernel, $kernel->setApplication($application));
+        $this->assertSame($application, $kernel->getApplication());
+        $this->assertSame([[], [], null], $kernel->middlewareCaches());
+    }
+
     public function testRequestStartedAtIsIsolatedBetweenConcurrentCoroutines(): void
     {
         $app = new Application;

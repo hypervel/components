@@ -800,6 +800,9 @@ class Kernel implements KernelContract
     public function setApplication(Application $app): static
     {
         $this->app = $app;
+        $this->terminableMiddleware = [];
+        $this->middlewarePipelineStack = [];
+        $this->middlewarePipeline = null;
 
         return $this;
     }
