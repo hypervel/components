@@ -11,6 +11,7 @@ use Hypervel\Routing\Route;
 use Hypervel\Routing\RouteCollection;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Arr;
+use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\RequestContext as SymfonyRequestContext;
@@ -415,6 +416,60 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $route->forgetParameter('runtime');
 
         $this->assertSame([], $route->parameters());
+    }
+
+    public function testUnconstrainedStaticMatchPreservesHostValidation(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/status', [
+                'uses' => 'FooController@index',
+                'as' => 'status',
+            ])
+        );
+
+        $request = StaticMatchTrackingRequest::create('/status', 'GET');
+        $route = $this->collection()->match($request);
+
+        $this->assertSame('status', $route->getName());
+        $this->assertSame(1, $request->hostReads);
+    }
+
+    public function testUnconstrainedStaticMatchRejectsAnInvalidHost(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/status', [
+                'uses' => 'FooController@index',
+                'as' => 'status',
+            ])
+        );
+        $request = Request::create('/status', 'GET');
+        $request->headers->set('HOST', 'invalid host');
+
+        $this->expectException(SuspiciousOperationException::class);
+
+        $this->collection()->match($request);
+    }
+
+    public function testStaticCompiledFallbackYieldsToDynamicNonFallbackRoute(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/status', [
+                'uses' => 'FooController@index',
+                'as' => 'compiled-fallback',
+            ])->fallback()
+        );
+        $routes = $this->collection();
+        $routes->add(
+            $this->newRoute('GET', '/status', [
+                'uses' => 'FooController@index',
+                'as' => 'dynamic',
+            ])
+        );
+
+        $this->assertSame(
+            'dynamic',
+            $routes->match(Request::create('/status', 'GET'))->getName()
+        );
     }
 
     public function testCompiledMatchUsesAnOverriddenRouteBindMethod(): void
@@ -825,5 +880,17 @@ class BindTrackingRoute extends Route
         ++$this->bindCalls;
 
         return parent::bind($request);
+    }
+}
+
+class StaticMatchTrackingRequest extends Request
+{
+    public int $hostReads = 0;
+
+    public function getHost(): string
+    {
+        ++$this->hostReads;
+
+        return parent::getHost();
     }
 }

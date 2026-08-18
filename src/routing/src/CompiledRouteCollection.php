@@ -75,6 +75,21 @@ class CompiledRouteCollection extends AbstractRouteCollection
     protected bool $hasPortConstraints;
 
     /**
+     * Whether exact static routes need only path, method, and slash checks.
+     *
+     * Host, scheme, condition, and port constraints retain Symfony matching.
+     */
+    protected bool $supportsDirectStaticMatching;
+
+    /**
+     * The compiled matcher state used after an exact static path miss.
+     *
+     * Removing the already-missed static table lets Symfony continue with dynamic
+     * routes without repeating the same static lookup.
+     */
+    protected array $compiledWithoutStaticRoutes = [];
+
+    /**
      * A cache of route names grouped by the HTTP method they respond to, built from the route attributes.
      *
      * @var null|array<string, array<int, string>>
@@ -113,6 +128,16 @@ class CompiledRouteCollection extends AbstractRouteCollection
         $this->requiresScheme = $this->compiledRoutesRequireScheme($compiled);
         $this->requiresFullRequestContext = ($compiled[4] ?? null) !== null;
         $this->hasPortConstraints = $this->compiledRoutesHavePortConstraints($attributes);
+        $this->supportsDirectStaticMatching = ! empty($compiled[1])
+            && ! ($compiled[0] ?? false)
+            && ! $this->requiresScheme
+            && ! $this->requiresFullRequestContext
+            && ! $this->hasPortConstraints;
+
+        if ($this->supportsDirectStaticMatching) {
+            $this->compiledWithoutStaticRoutes = $compiled;
+            $this->compiledWithoutStaticRoutes[1] = [];
+        }
     }
 
     /**
@@ -244,63 +269,86 @@ class CompiledRouteCollection extends AbstractRouteCollection
     public function match(Request $request): Route
     {
         $method = $request->getMethod();
-        $host = $request->getHost();
         $pathInfo = $request->getPathInfo();
+        $path = rtrim($pathInfo, '/') ?: '/';
+        $skipStaticRoutes = false;
+        $result = null;
+        $route = null;
 
-        if ($this->requiresFullRequestContext) {
-            $context = new RequestContext(
-                method: $method,
-                host: $host,
-                scheme: $request->getScheme(),
-                httpPort: $request->isSecure() ? 443 : (int) $request->getPort(),
-                httpsPort: $request->isSecure() ? (int) $request->getPort() : 443,
-                path: $pathInfo,
-                queryString: $request->server->get('QUERY_STRING', ''),
-            );
-        } else {
-            $context = clone $this->requestContextPrototype;
+        if ($this->supportsDirectStaticMatching) {
+            $staticRoutes = $this->compiled[1][$path] ?? (str_contains($path, '%') ? null : false);
 
-            if ($method !== 'GET') {
-                $context->setMethod($method);
-            }
+            if (is_array($staticRoutes)) {
+                $result = $this->matchDirectStaticRoute($method, $path, $staticRoutes);
 
-            $context->setHost($host);
+                if ($result !== null) {
+                    $route = $this->getByName($result['_route']);
 
-            if ($this->requiresScheme) {
-                $context->setScheme($request->getScheme());
+                    // Preserve the host validation performed by Symfony's request context path.
+                    $request->getHost();
+                }
+            } else {
+                $skipStaticRoutes = $staticRoutes === false;
             }
         }
 
-        $matcher = new CompiledUrlMatcher($this->compiled, $context);
-        $path = rtrim($pathInfo, '/') ?: '/';
+        if ($result === null) {
+            $host = $request->getHost();
 
-        $route = null;
-        $result = null;
+            if ($this->requiresFullRequestContext) {
+                $context = new RequestContext(
+                    method: $method,
+                    host: $host,
+                    scheme: $request->getScheme(),
+                    httpPort: $request->isSecure() ? 443 : (int) $request->getPort(),
+                    httpsPort: $request->isSecure() ? (int) $request->getPort() : 443,
+                    path: $pathInfo,
+                    queryString: $request->server->get('QUERY_STRING', ''),
+                );
+            } else {
+                $context = clone $this->requestContextPrototype;
 
-        try {
-            if ($result = $matcher->match($path)) {
-                $route = $this->getByName($result['_route']);
+                if ($method !== 'GET') {
+                    $context->setMethod($method);
+                }
+
+                $context->setHost($host);
+
+                if ($this->requiresScheme) {
+                    $context->setScheme($request->getScheme());
+                }
             }
-        } catch (MethodNotAllowedException $exception) {
-            if (! $this->hasDynamicRoutes && ! $this->hasPortConstraints) {
-                return $this->getRouteForMethods($request, $exception->getAllowedMethods());
-            }
+
+            $matcher = new CompiledUrlMatcher(
+                $skipStaticRoutes ? $this->compiledWithoutStaticRoutes : $this->compiled,
+                $context
+            );
 
             try {
-                return $this->routes->match($request);
-            } catch (NotFoundHttpException) {
-            }
-        } catch (ResourceNotFoundException) {
-            if (! $this->hasDynamicRoutes) {
-                throw new NotFoundHttpException(sprintf(
-                    'The route %s could not be found.',
-                    $request->path()
-                ));
-            }
+                if ($result = $matcher->match($path)) {
+                    $route = $this->getByName($result['_route']);
+                }
+            } catch (MethodNotAllowedException $exception) {
+                if (! $this->hasDynamicRoutes && ! $this->hasPortConstraints) {
+                    return $this->getRouteForMethods($request, $exception->getAllowedMethods());
+                }
 
-            try {
-                return $this->routes->match($request);
-            } catch (NotFoundHttpException) {
+                try {
+                    return $this->routes->match($request);
+                } catch (NotFoundHttpException) {
+                }
+            } catch (ResourceNotFoundException) {
+                if (! $this->hasDynamicRoutes) {
+                    throw new NotFoundHttpException(sprintf(
+                        'The route %s could not be found.',
+                        $request->path()
+                    ));
+                }
+
+                try {
+                    return $this->routes->match($request);
+                } catch (NotFoundHttpException) {
+                }
             }
         }
 
@@ -335,6 +383,38 @@ class CompiledRouteCollection extends AbstractRouteCollection
         }
 
         return $this->handleMatchedRoute($request, $route);
+    }
+
+    /**
+     * Match an unconstrained exact path without constructing Symfony matcher state.
+     *
+     * Null means a static path existed but Symfony must resolve method or slash
+     * semantics. Encoded static paths use that fallback as well so dynamic
+     * requests pay only one preliminary hash lookup.
+     *
+     * @param array<int, array<int, mixed>> $routes
+     * @return null|array<string, mixed>
+     */
+    protected function matchDirectStaticRoute(string $method, string $path, array $routes): ?array
+    {
+        $canonicalMethod = $method === 'HEAD' ? 'GET' : $method;
+
+        foreach ($routes as [$result, , $requiredMethods, , $hasTrailingSlash]) {
+            if ($path !== '/' && $hasTrailingSlash) {
+                continue;
+            }
+
+            if ($requiredMethods
+                && ! isset($requiredMethods[$canonicalMethod])
+                && ! isset($requiredMethods[$method])
+            ) {
+                continue;
+            }
+
+            return $result;
+        }
+
+        return null;
     }
 
     /**
