@@ -518,8 +518,12 @@ class Route
      */
     private function storeParameters(array $parameters): static
     {
-        CoroutineContext::set($this->parametersContextKey(), $parameters);
-        CoroutineContext::set($this->originalParametersContextKey(), $parameters);
+        $routeId = spl_object_id($this);
+
+        CoroutineContext::setMany([
+            self::PARAMS_CONTEXT_KEY_PREFIX . $routeId => $parameters,
+            self::ORIGINAL_PARAMS_CONTEXT_KEY_PREFIX . $routeId => $parameters,
+        ]);
 
         return $this;
     }
@@ -1491,7 +1495,7 @@ class Route
             $this->wheres,
             ['utf8' => true],
             $this->getDomain() ?: '',
-            [],
+            $this->httpOnly() ? ['http'] : ($this->httpsOnly() ? ['https'] : []),
             $this->methods
         );
     }

@@ -13,6 +13,7 @@ use Hypervel\Routing\Router;
 use Hypervel\Support\Arr;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Routing\RequestContext as SymfonyRequestContext;
 
 class CompiledRouteCollectionTest extends RoutingTestCase
 {
@@ -300,9 +301,21 @@ class CompiledRouteCollectionTest extends RoutingTestCase
     {
         $this->routeCollection->add($this->newRoute('GET', '/foo', ['uses' => 'FooController@index']));
 
-        $this->expectException(MethodNotAllowedHttpException::class);
+        try {
+            $this->collection()->match(Request::create('/foo', 'POST'));
+            $this->fail('Expected the compiled route to reject the POST method.');
+        } catch (MethodNotAllowedHttpException $exception) {
+            $this->assertSame('GET, HEAD', $exception->getHeaders()['Allow']);
+        }
+    }
 
-        $this->collection()->match(Request::create('/foo', 'POST'));
+    public function testOptionsRequestUsesCompiledAllowedMethods(): void
+    {
+        $this->routeCollection->add($this->newRoute('GET', '/foo', ['uses' => 'FooController@index']));
+
+        $route = $this->collection()->match(Request::create('/foo', 'OPTIONS'));
+
+        $this->assertSame(['OPTIONS'], $route->methods());
     }
 
     public function testMatchingThrowsExceptionWhenMethodIsNotAllowedWhileSameRouteIsAddedDynamically()
@@ -415,6 +428,75 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame(['tenant' => 'hypervel', 'user' => '42'], $route->originalParameters());
     }
 
+    public function testCompiledMatchHonorsHttpsOnlyRoute(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/secure/{resource}', [
+                'uses' => 'FooController@index',
+                'as' => 'secure',
+                'https',
+            ])
+        );
+
+        $this->assertSame(
+            'secure',
+            $this->collection()->match(Request::create('https://example.com/secure/report'))->getName()
+        );
+
+        $this->expectException(NotFoundHttpException::class);
+
+        $this->collection()->match(Request::create('http://example.com/secure/report'));
+    }
+
+    public function testCompiledMatchHonorsHttpOnlyRoute(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/insecure', [
+                'uses' => 'FooController@index',
+                'as' => 'insecure',
+                'http',
+            ])
+        );
+
+        $this->assertSame(
+            'insecure',
+            $this->collection()->match(Request::create('http://example.com/insecure'))->getName()
+        );
+
+        $this->expectException(NotFoundHttpException::class);
+
+        $this->collection()->match(Request::create('https://example.com/insecure'));
+    }
+
+    public function testCompiledConditionReceivesCompleteRequestContext(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/conditional', [
+                'uses' => 'FooController@index',
+                'as' => 'conditional',
+            ])
+        );
+
+        $compiled = $this->routeCollection->compile();
+        $compiled['compiled'][1]['/conditional'][0][6] = -1;
+        $compiled['compiled'][4] = static fn (
+            int $condition,
+            SymfonyRequestContext $context
+        ): bool => $condition === -1 && $context->getQueryString() === 'token=1';
+        $collection = (new CompiledRouteCollection($compiled['compiled'], $compiled['attributes']))
+            ->setRouter($this->router)
+            ->setContainer($this->app);
+
+        $this->assertSame(
+            'conditional',
+            $collection->match(Request::create('/conditional?token=1'))->getName()
+        );
+
+        $this->expectException(NotFoundHttpException::class);
+
+        $collection->match(Request::create('/conditional?token=2'));
+    }
+
     public function testCompiledMatchAppliesOptionalParameterDefaults(): void
     {
         $this->routeCollection->add(
@@ -428,6 +510,23 @@ class CompiledRouteCollectionTest extends RoutingTestCase
 
         $this->assertSame(['period' => 'current'], $route->parameters());
         $this->assertSame(['period' => 'current'], $route->originalParameters());
+    }
+
+    public function testCompiledMatchKeepsUriParameterOrderWhenDefaultsArePresent(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/reports/{category}/{period?}', [
+                'uses' => 'FooController@index',
+                'as' => 'reports.category',
+            ])->defaults('period', 'current')
+        );
+
+        $route = $this->collection()->match(Request::create('/reports/sales', 'GET'));
+
+        $this->assertSame(
+            ['category' => 'sales', 'period' => 'current'],
+            $route->parameters()
+        );
     }
 
     public function testCompiledMatchAppliesDefaultsWithoutUriParameters(): void

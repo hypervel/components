@@ -711,6 +711,10 @@ class Router implements BindingRegistrar, RegistrarContract
      */
     protected function middlewareFor(Route $route): array
     {
+        if ($route->resolvedMiddleware === []) {
+            return [];
+        }
+
         $disabled = $this->container->bound('middleware.disable')
             && $this->container->make('middleware.disable') === true;
 

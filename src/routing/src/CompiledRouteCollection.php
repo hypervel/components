@@ -33,6 +33,11 @@ class CompiledRouteCollection extends AbstractRouteCollection
     protected ?RouteCollection $routes = null;
 
     /**
+     * Whether routes have been added after this collection was compiled.
+     */
+    protected bool $hasDynamicRoutes = false;
+
+    /**
      * The router instance used by the route.
      */
     protected Router $router;
@@ -48,6 +53,26 @@ class CompiledRouteCollection extends AbstractRouteCollection
      * @var array<string, Route>
      */
     protected array $nameCache = [];
+
+    /**
+     * An immutable request context template cloned for each match.
+     */
+    protected RequestContext $requestContextPrototype;
+
+    /**
+     * Whether any compiled route has a scheme constraint.
+     */
+    protected bool $requiresScheme;
+
+    /**
+     * Whether compiled route conditions require the complete request context.
+     */
+    protected bool $requiresFullRequestContext;
+
+    /**
+     * Whether any compiled route has a port constraint.
+     */
+    protected bool $hasPortConstraints;
 
     /**
      * A cache of route names grouped by the HTTP method they respond to, built from the route attributes.
@@ -81,6 +106,42 @@ class CompiledRouteCollection extends AbstractRouteCollection
         $this->compiled = $compiled;
         $this->attributes = $attributes;
         $this->routes = new RouteCollection;
+        $this->requestContextPrototype = new RequestContext;
+        $this->requiresScheme = $this->compiledRoutesRequireScheme($compiled);
+        $this->requiresFullRequestContext = ($compiled[4] ?? null) !== null;
+        $this->hasPortConstraints = $this->compiledRoutesHavePortConstraints($attributes);
+    }
+
+    /**
+     * Determine whether the compiled matcher contains scheme-constrained routes.
+     */
+    protected function compiledRoutesRequireScheme(array $compiled): bool
+    {
+        foreach ([$compiled[1] ?? [], $compiled[3] ?? []] as $routeGroups) {
+            foreach ($routeGroups as $routes) {
+                foreach ($routes as $route) {
+                    if (! empty($route[3])) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Determine whether any compiled route requires a specific server port.
+     */
+    protected function compiledRoutesHavePortConstraints(array $attributes): bool
+    {
+        foreach ($attributes as $route) {
+            if (($route['action']['port'] ?? null) !== null) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -92,7 +153,10 @@ class CompiledRouteCollection extends AbstractRouteCollection
     {
         $this->ensureNoCrossPortConflictWithCompiledRoutes($route);
 
-        return $this->routes->add($route);
+        $route = $this->routes->add($route);
+        $this->hasDynamicRoutes = true;
+
+        return $route;
     }
 
     /**
@@ -161,9 +225,10 @@ class CompiledRouteCollection extends AbstractRouteCollection
     /**
      * Find the first route matching a given request.
      *
-     * Fresh RequestContext per request for coroutine safety — a shared mutable
-     * RequestContext would race under coroutine interleaving. The allocation
-     * cost of one small object per request is negligible.
+     * Clone an immutable RequestContext template per request for coroutine safety.
+     * A shared mutable context would race under coroutine interleaving. Ordinary
+     * routes populate only method and validated host; scheme and complete request
+     * metadata are resolved only when the compiled route table requires them.
      *
      * No request duplication needed — trailing slashes are trimmed via rtrim()
      * on the path string and passed to match() directly, avoiding the overhead
@@ -175,18 +240,36 @@ class CompiledRouteCollection extends AbstractRouteCollection
      */
     public function match(Request $request): Route
     {
-        $context = new RequestContext(
-            method: $request->getMethod(),
-            host: $request->getHost(),
-            scheme: $request->getScheme(),
-            httpPort: $request->isSecure() ? 443 : (int) $request->getPort(),
-            httpsPort: $request->isSecure() ? (int) $request->getPort() : 443,
-            path: $request->getPathInfo(),
-            queryString: $request->server->get('QUERY_STRING', ''),
-        );
+        $method = $request->getMethod();
+        $host = $request->getHost();
+        $pathInfo = $request->getPathInfo();
+
+        if ($this->requiresFullRequestContext) {
+            $context = new RequestContext(
+                method: $method,
+                host: $host,
+                scheme: $request->getScheme(),
+                httpPort: $request->isSecure() ? 443 : (int) $request->getPort(),
+                httpsPort: $request->isSecure() ? (int) $request->getPort() : 443,
+                path: $pathInfo,
+                queryString: $request->server->get('QUERY_STRING', ''),
+            );
+        } else {
+            $context = clone $this->requestContextPrototype;
+
+            if ($method !== 'GET') {
+                $context->setMethod($method);
+            }
+
+            $context->setHost($host);
+
+            if ($this->requiresScheme) {
+                $context->setScheme($request->getScheme());
+            }
+        }
 
         $matcher = new CompiledUrlMatcher($this->compiled, $context);
-        $path = rtrim($request->getPathInfo(), '/') ?: '/';
+        $path = rtrim($pathInfo, '/') ?: '/';
 
         $route = null;
         $result = null;
@@ -195,7 +278,23 @@ class CompiledRouteCollection extends AbstractRouteCollection
             if ($result = $matcher->match($path)) {
                 $route = $this->getByName($result['_route']);
             }
-        } catch (ResourceNotFoundException|MethodNotAllowedException) {
+        } catch (MethodNotAllowedException $exception) {
+            if (! $this->hasDynamicRoutes && ! $this->hasPortConstraints) {
+                return $this->getRouteForMethods($request, $exception->getAllowedMethods());
+            }
+
+            try {
+                return $this->routes->match($request);
+            } catch (NotFoundHttpException) {
+            }
+        } catch (ResourceNotFoundException) {
+            if (! $this->hasDynamicRoutes) {
+                throw new NotFoundHttpException(sprintf(
+                    'The route %s could not be found.',
+                    $request->path()
+                ));
+            }
+
             try {
                 return $this->routes->match($request);
             } catch (NotFoundHttpException) {
@@ -207,14 +306,17 @@ class CompiledRouteCollection extends AbstractRouteCollection
         $routePort = $route?->getPort();
 
         if ($routePort !== null && $routePort !== (int) $request->getPort()) {
-            try {
-                return $this->routes->match($request);
-            } catch (NotFoundHttpException|MethodNotAllowedHttpException) {
-                $route = null;
+            $route = null;
+
+            if ($this->hasDynamicRoutes) {
+                try {
+                    return $this->routes->match($request);
+                } catch (NotFoundHttpException|MethodNotAllowedHttpException) {
+                }
             }
         }
 
-        if ($route && $route->isFallback) {
+        if ($route && $route->isFallback && $this->hasDynamicRoutes) {
             try {
                 $dynamicRoute = $this->routes->match($request);
 

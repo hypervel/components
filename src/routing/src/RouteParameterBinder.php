@@ -82,11 +82,17 @@ class RouteParameterBinder
             return [];
         }
 
-        $parameters = array_intersect_key($matches, array_flip($parameterNames));
+        $parameters = [];
 
-        return array_filter($parameters, function ($value) {
-            return is_string($value) && strlen($value) > 0;
-        });
+        foreach ($parameterNames as $parameterName) {
+            $value = $matches[$parameterName] ?? null;
+
+            if (is_string($value) && $value !== '') {
+                $parameters[$parameterName] = $value;
+            }
+        }
+
+        return $parameters;
     }
 
     /**
