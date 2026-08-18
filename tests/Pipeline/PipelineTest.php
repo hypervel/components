@@ -301,6 +301,22 @@ class PipelineTest extends TestCase
         $this->assertSame('data', $result);
     }
 
+    public function testCompiledClosureCanProcessIndependentValuesAndBindings(): void
+    {
+        $container = new Container;
+        $container->bind(PipelineTestPipeOne::class, fn () => new PipelineTestAppendPipe(':first'));
+
+        $pipeline = (new Pipeline($container))
+            ->through(PipeDescriptor::fromString(PipelineTestPipeOne::class))
+            ->toClosure(fn (mixed $value): mixed => $value);
+
+        $this->assertSame('foo:first', $pipeline('foo'));
+
+        $container->bind(PipelineTestPipeOne::class, fn () => new PipelineTestAppendPipe(':second'));
+
+        $this->assertSame('foo:second', $pipeline('foo'));
+    }
+
     public function testPipelineViaDispatchesPerMethodForTheSamePipeClass(): void
     {
         $container = new Container;
@@ -647,6 +663,18 @@ class PipelineTestPipeTwo
         $_SERVER['__test.pipe.one'] = $piped;
 
         return $next($piped);
+    }
+}
+
+class PipelineTestAppendPipe
+{
+    public function __construct(private readonly string $suffix)
+    {
+    }
+
+    public function handle(mixed $piped, Closure $next): mixed
+    {
+        return $next($piped . $this->suffix);
     }
 }
 

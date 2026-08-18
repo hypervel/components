@@ -101,11 +101,7 @@ class Pipeline implements PipelineContract
      */
     public function then(Closure $destination): mixed
     {
-        $pipeline = array_reduce(
-            array_reverse($this->pipes()),
-            $this->carry(),
-            $this->prepareDestination($destination)
-        );
+        $pipeline = $this->toClosure($destination);
 
         try {
             return $this->withinTransaction !== false
@@ -116,6 +112,24 @@ class Pipeline implements PipelineContract
                 ($this->finally)($this->passable);
             }
         }
+    }
+
+    /**
+     * Compile the pipeline structure without binding it to a passable value.
+     *
+     * The returned closure receives its passable per invocation. Immutable pipe
+     * descriptors stay in the onion while their middleware instances are resolved
+     * inside each call, allowing independent requests to reuse the same structure.
+     *
+     * @internal
+     */
+    public function toClosure(Closure $destination): Closure
+    {
+        return array_reduce(
+            array_reverse($this->pipes()),
+            $this->carry(),
+            $this->prepareDestination($destination)
+        );
     }
 
     /**
