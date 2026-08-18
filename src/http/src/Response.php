@@ -15,13 +15,13 @@ use Override;
 use RuntimeException;
 use Stringable;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
-use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 
 class Response extends SymfonyResponse
 {
     use Macroable {
         Macroable::__call as macroCall;
     }
+    use Concerns\PreparesResponse;
     use ResponseTrait;
 
     /**
@@ -30,17 +30,28 @@ class Response extends SymfonyResponse
     protected static ?ResponseHeaderBag $headerPrototype = null;
 
     /**
+     * Unix second represented by the prototype's Date header.
+     */
+    protected static int $headerPrototypeTimestamp = 0;
+
+    /**
      * Create a new HTTP response.
      *
      * @throws InvalidArgumentException
      */
     public function __construct(mixed $content = '', int $status = 200, array $headers = [])
     {
-        $bag = clone (static::$headerPrototype ??= new ResponseHeaderBag);
+        $timestamp = time();
 
-        // A cloned bag carries the prototype's timestamp. Refresh it before
-        // adding the given headers so a caller-supplied Date still wins.
-        $bag->set('Date', gmdate('D, d M Y H:i:s') . ' GMT');
+        if (static::$headerPrototype === null) {
+            static::$headerPrototype = new ResponseHeaderBag;
+            static::$headerPrototypeTimestamp = $timestamp;
+        } elseif (static::$headerPrototypeTimestamp !== $timestamp) {
+            static::$headerPrototype->set('Date', gmdate('D, d M Y H:i:s', $timestamp) . ' GMT');
+            static::$headerPrototypeTimestamp = $timestamp;
+        }
+
+        $bag = clone static::$headerPrototype;
 
         if ($headers !== []) {
             $bag->add($headers);
@@ -171,5 +182,6 @@ class Response extends SymfonyResponse
         static::flushMacros();
 
         static::$headerPrototype = null;
+        static::$headerPrototypeTimestamp = 0;
     }
 }

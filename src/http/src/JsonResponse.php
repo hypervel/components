@@ -15,11 +15,11 @@ use Override;
 use Stringable;
 use Symfony\Component\HttpFoundation\JsonResponse as BaseJsonResponse;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
-use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use TypeError;
 
 class JsonResponse extends BaseJsonResponse
 {
+    use Concerns\PreparesResponse;
     use ResponseTrait, Macroable {
         Macroable::__call as macroCall;
     }
@@ -28,6 +28,11 @@ class JsonResponse extends BaseJsonResponse
      * The pristine header bag cloned for responses that add no headers of their own.
      */
     protected static ?ResponseHeaderBag $headerPrototype = null;
+
+    /**
+     * Unix second represented by the prototype's Date header.
+     */
+    protected static int $headerPrototypeTimestamp = 0;
 
     /**
      * Create a new JSON response instance.
@@ -55,12 +60,17 @@ class JsonResponse extends BaseJsonResponse
         // skips it. SymfonyResponse::__construct is called rather than
         // parent::__construct because JsonResponse's signature only accepts an
         // array of headers, while Response's also accepts a prepared bag.
-        $bag = clone (static::$headerPrototype ??= new ResponseHeaderBag);
+        $timestamp = time();
 
-        // The bag stamps Date when it is constructed, so a clone carries the
-        // prototype's timestamp and has to be given the current one. Given
-        // headers are added after, so a caller supplying Date still wins.
-        $bag->set('Date', gmdate('D, d M Y H:i:s') . ' GMT');
+        if (static::$headerPrototype === null) {
+            static::$headerPrototype = new ResponseHeaderBag;
+            static::$headerPrototypeTimestamp = $timestamp;
+        } elseif (static::$headerPrototypeTimestamp !== $timestamp) {
+            static::$headerPrototype->set('Date', gmdate('D, d M Y H:i:s', $timestamp) . ' GMT');
+            static::$headerPrototypeTimestamp = $timestamp;
+        }
+
+        $bag = clone static::$headerPrototype;
 
         if ($headers !== []) {
             $bag->add($headers);
@@ -169,5 +179,6 @@ class JsonResponse extends BaseJsonResponse
         static::flushMacros();
 
         static::$headerPrototype = null;
+        static::$headerPrototypeTimestamp = 0;
     }
 }
