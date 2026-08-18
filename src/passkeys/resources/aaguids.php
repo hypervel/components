@@ -55,4 +55,6 @@ return [
     '5ca471bb-a56d-46ad-a496-67e70e9ed9fb' => 'Parcel',
     '45e3057e-b2f9-48ed-912f-9b901e153b16' => 'Uniqkey',
     '87f5ec51-f721-4feb-9fe4-be18c4971894' => 'PassCard',
+    '477b05cd-7f78-4fe7-b629-27247f296138' => 'WALLIX Vault',
+    '53e7a7a5-e75f-4d3d-9483-12fc779cdf23' => 'Password Depot',
 ];

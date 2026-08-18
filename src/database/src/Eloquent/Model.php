@@ -887,7 +887,6 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public static function onWriteConnection(): Builder
     {
-        // @phpstan-ignore return.type (useWritePdo returns $this, mixin type inference loses Builder)
         return static::query()->useWritePdo();
     }
 

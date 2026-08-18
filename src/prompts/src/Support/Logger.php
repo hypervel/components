@@ -9,6 +9,13 @@ use RuntimeException;
 class Logger
 {
     /**
+     * How long a write may wait for the renderer to accept output.
+     *
+     * This must remain well above the public render interval.
+     */
+    public const float DEFAULT_WRITE_TIMEOUT_SECONDS = 10.0;
+
+    /**
      * The first transport failure encountered while writing.
      */
     protected ?RuntimeException $transportFailure = null;
@@ -17,9 +24,13 @@ class Logger
      * Create a new Logger instance.
      *
      * @param null|resource $socket
+     * @param float $writeTimeout seconds a write may wait for the renderer to accept output
      */
-    public function __construct(protected string $identifier, protected $socket = null)
-    {
+    public function __construct(
+        protected string $identifier,
+        protected $socket = null,
+        protected float $writeTimeout = self::DEFAULT_WRITE_TIMEOUT_SECONDS,
+    ) {
     }
 
     /**
@@ -110,7 +121,7 @@ class Logger
 
         try {
             // Each protocol frame must be complete because stream writes may be partial.
-            Utils::writeAll($this->socket, $payload);
+            Utils::writeAll($this->socket, $payload, $this->writeTimeout);
         } catch (RuntimeException $exception) {
             $this->transportFailure ??= $exception;
             $this->socket = null;
