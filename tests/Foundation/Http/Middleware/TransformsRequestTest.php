@@ -12,7 +12,7 @@ use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
 class TransformsRequestTest extends TestCase
 {
-    public function testEmptyParameterBagIsNotReadOrReplaced()
+    public function testEmptyParameterBagIsNotReadOrReplaced(): void
     {
         $bag = new TrackingParameterBag;
 
@@ -22,7 +22,7 @@ class TransformsRequestTest extends TestCase
         $this->assertSame(0, $bag->replaceCalls);
     }
 
-    public function testNonEmptyParameterBagIsStillReadAndReplaced()
+    public function testNonEmptyParameterBagIsStillReadAndReplaced(): void
     {
         $bag = new TrackingParameterBag(['name' => 'Taylor']);
 
