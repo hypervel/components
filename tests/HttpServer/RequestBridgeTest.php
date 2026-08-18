@@ -12,7 +12,9 @@ use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionProperty;
 use Swoole\Http\Request as SwooleRequest;
+use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
 class RequestBridgeTest extends TestCase
 {
@@ -45,6 +47,8 @@ class RequestBridgeTest extends TestCase
         $request = RequestBridge::createFromSwoole($swooleRequest);
 
         $this->assertInstanceOf(Request::class, $request);
+        $this->assertSame('/users', (new ReflectionProperty(SymfonyRequest::class, 'pathInfo'))->getValue($request));
+        $this->assertNull((new ReflectionProperty(SymfonyRequest::class, 'method'))->getValue($request));
         $this->assertSame('GET', $request->getMethod());
         $this->assertSame('/users', $request->getPathInfo());
         $this->assertSame('1', $request->query->get('page'));
@@ -61,9 +65,38 @@ class RequestBridgeTest extends TestCase
 
         $request = RequestBridge::createFromSwoole($swooleRequest);
 
+        $this->assertNull((new ReflectionProperty(SymfonyRequest::class, 'method'))->getValue($request));
         $this->assertSame('POST', $request->getMethod());
         $this->assertSame('Taylor', $request->request->get('name'));
         $this->assertSame('taylor@example.com', $request->request->get('email'));
+    }
+
+    public function testPathInfoFallsBackWhenMiddlewareRewritesRequestUri(): void
+    {
+        $request = RequestBridge::createFromSwoole($this->createSwooleRequest(
+            server: ['request_method' => 'get', 'request_uri' => '/original'],
+            header: ['host' => 'example.com'],
+        ));
+
+        $request->server->set('REQUEST_URI', '/rewritten');
+
+        $this->assertSame('/rewritten', $request->getPathInfo());
+    }
+
+    public function testPathInfoFallsBackForFrontControllerServerParams(): void
+    {
+        $request = RequestBridge::createFromSwoole($this->createSwooleRequest(
+            server: [
+                'request_method' => 'get',
+                'request_uri' => '/index.php/users',
+                'script_name' => '/index.php',
+                'script_filename' => '/var/www/index.php',
+            ],
+            header: ['host' => 'example.com'],
+        ));
+
+        $this->assertNull((new ReflectionProperty(SymfonyRequest::class, 'pathInfo'))->getValue($request));
+        $this->assertSame('/users', $request->getPathInfo());
     }
 
     public function testCreateFromSwooleWithCookies(): void
@@ -151,6 +184,74 @@ class RequestBridgeTest extends TestCase
         $this->assertSame('Bearer token123', $request->headers->get('authorization'));
     }
 
+    #[DataProvider('authorizationHeaderProvider')]
+    public function testAuthorizationHeadersMatchSymfonyNormalization(string $authorization): void
+    {
+        $swooleRequest = $this->createSwooleRequest(
+            server: ['request_method' => 'get', 'request_uri' => '/'],
+            header: ['host' => 'example.com', 'authorization' => $authorization],
+        );
+
+        $request = RequestBridge::createFromSwoole($swooleRequest);
+        $expected = new Request(server: [
+            'HTTP_HOST' => 'example.com',
+            'HTTP_AUTHORIZATION' => $authorization,
+        ]);
+
+        $this->assertSame($expected->headers->all(), $request->headers->all());
+    }
+
+    public static function authorizationHeaderProvider(): iterable
+    {
+        yield 'basic' => ['Basic ' . base64_encode('user:password')];
+        yield 'digest' => ['Digest username="user"'];
+        yield 'bearer' => ['Bearer token'];
+    }
+
+    public function testServerBasicAuthorizationMatchesSymfonyNormalization(): void
+    {
+        $swooleRequest = $this->createSwooleRequest(
+            server: [
+                'request_method' => 'get',
+                'request_uri' => '/',
+                'php_auth_user' => 'server-user',
+                'php_auth_pw' => 'server-password',
+            ],
+            header: ['host' => 'example.com'],
+        );
+
+        $request = RequestBridge::createFromSwoole($swooleRequest);
+        $expected = new Request(server: [
+            'HTTP_HOST' => 'example.com',
+            'PHP_AUTH_USER' => 'server-user',
+            'PHP_AUTH_PW' => 'server-password',
+        ]);
+
+        $this->assertSame($expected->headers->all(), $request->headers->all());
+    }
+
+    public function testRedirectDigestAuthorizationMatchesSymfonyNormalization(): void
+    {
+        $authorization = 'Digest username="redirect-user"';
+        $swooleRequest = $this->createSwooleRequest(
+            server: [
+                'request_method' => 'get',
+                'request_uri' => '/',
+                'redirect_http_authorization' => $authorization,
+            ],
+            header: ['host' => 'example.com'],
+        );
+
+        $request = RequestBridge::createFromSwoole($swooleRequest);
+        $expected = new Request(server: [
+            'HTTP_HOST' => 'example.com',
+            'REDIRECT_HTTP_AUTHORIZATION' => $authorization,
+        ]);
+
+        $this->assertSame($expected->headers->all(), $request->headers->all());
+        $this->assertSame($authorization, $request->server->get('PHP_AUTH_DIGEST'));
+    }
+
     public function testMixedCaseAndUnknownHeadersUseGenericNormalization(): void
     {
         $swooleRequest = $this->createSwooleRequest(
@@ -170,7 +271,11 @@ class RequestBridgeTest extends TestCase
     public function testContentTypeAndContentLengthGetSpecialTreatment(): void
     {
         $swooleRequest = $this->createSwooleRequest(
-            server: ['request_method' => 'post', 'request_uri' => '/'],
+            server: [
+                'request_method' => 'post',
+                'request_uri' => '/',
+                'content_md5' => 'checksum',
+            ],
             header: [
                 'host' => 'example.com',
                 'content-type' => 'application/json',
@@ -187,6 +292,23 @@ class RequestBridgeTest extends TestCase
 
         // They should also be accessible via headers (HttpFoundation normalizes from server)
         $this->assertSame('application/json', $request->headers->get('content-type'));
+        $this->assertSame('checksum', $request->headers->get('content-md5'));
+    }
+
+    public function testCacheControlHeaderRetainsParsedDirectives(): void
+    {
+        $swooleRequest = $this->createSwooleRequest(
+            server: ['request_method' => 'get', 'request_uri' => '/'],
+            header: [
+                'host' => 'example.com',
+                'cache-control' => 'no-cache, max-age=60',
+            ],
+        );
+
+        $request = RequestBridge::createFromSwoole($swooleRequest);
+
+        $this->assertTrue($request->headers->hasCacheControlDirective('no-cache'));
+        $this->assertSame('60', $request->headers->getCacheControlDirective('max-age'));
     }
 
     #[DataProvider('requestUriProvider')]

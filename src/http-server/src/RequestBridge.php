@@ -33,6 +33,7 @@ class RequestBridge
 
         $server = static::normalizeTrailingSlash($server);
         $content = $swooleRequest->rawContent();
+        $headers = static::transformHeaders($swooleRequest->header ?? [], $server);
 
         return new Request(
             query: $swooleRequest->get ?? [],
@@ -41,8 +42,65 @@ class RequestBridge
             cookies: $swooleRequest->cookie ?? [],
             files: static::transformFiles($swooleRequest->files ?? []),
             server: $server,
-            content: $content === false ? null : $content
+            content: $content === false ? null : $content,
+            headers: $headers,
+            pathInfo: static::extractPathInfo($server),
         );
+    }
+
+    /**
+     * Build request headers directly while retaining Symfony's authorization aliases.
+     */
+    protected static function transformHeaders(array $headers, array &$server): RequestHeaderBag
+    {
+        $headerBag = new RequestHeaderBag($headers);
+
+        foreach (['CONTENT_TYPE', 'CONTENT_LENGTH', 'CONTENT_MD5'] as $name) {
+            if (! $headerBag->has($name) && isset($server[$name]) && $server[$name] !== '') {
+                $headerBag->set($name, $server[$name]);
+            }
+        }
+
+        if (isset($server['PHP_AUTH_USER'])) {
+            $headerBag->set('PHP_AUTH_USER', $server['PHP_AUTH_USER']);
+            $headerBag->set('PHP_AUTH_PW', $server['PHP_AUTH_PW'] ?? '');
+        } else {
+            $authorization = $server['HTTP_AUTHORIZATION']
+                ?? $server['REDIRECT_HTTP_AUTHORIZATION']
+                ?? null;
+
+            if ($authorization !== null && stripos($authorization, 'basic ') === 0) {
+                $credentials = explode(':', (string) base64_decode(substr($authorization, 6)), 2);
+
+                if (count($credentials) === 2) {
+                    [$user, $password] = $credentials;
+                    $headerBag->set('PHP_AUTH_USER', $user);
+                    $headerBag->set('PHP_AUTH_PW', $password);
+                }
+            } elseif ($authorization !== null
+                && empty($server['PHP_AUTH_DIGEST'])
+                && stripos($authorization, 'digest ') === 0
+            ) {
+                $headerBag->set('PHP_AUTH_DIGEST', $authorization);
+                $server['PHP_AUTH_DIGEST'] = $authorization;
+            } elseif ($authorization !== null && stripos($authorization, 'bearer ') === 0) {
+                $headerBag->set('AUTHORIZATION', $authorization);
+            }
+        }
+
+        if ($headerBag->has('AUTHORIZATION')) {
+            return $headerBag;
+        }
+
+        if ($headerBag->has('PHP_AUTH_USER')) {
+            $headerBag->set('AUTHORIZATION', 'Basic ' . base64_encode(
+                $headerBag->get('PHP_AUTH_USER') . ':' . $headerBag->get('PHP_AUTH_PW')
+            ));
+        } elseif ($headerBag->has('PHP_AUTH_DIGEST')) {
+            $headerBag->set('AUTHORIZATION', $headerBag->get('PHP_AUTH_DIGEST'));
+        }
+
+        return $headerBag;
     }
 
     /**
@@ -176,5 +234,33 @@ class RequestBridge
         }
 
         return $server;
+    }
+
+    /**
+     * Extract the raw path from the normalized Swoole request URI.
+     */
+    protected static function extractPathInfo(array $server): ?string
+    {
+        foreach (['SCRIPT_FILENAME', 'SCRIPT_NAME', 'PHP_SELF', 'ORIG_SCRIPT_NAME', 'UNENCODED_URL', 'ORIG_PATH_INFO'] as $name) {
+            if (! empty($server[$name])) {
+                return null;
+            }
+        }
+
+        $requestUri = $server['REQUEST_URI'] ?? null;
+
+        if (! is_string($requestUri)) {
+            return null;
+        }
+
+        if (($queryPosition = strpos($requestUri, '?')) !== false) {
+            $requestUri = substr($requestUri, 0, $queryPosition);
+        }
+
+        if ($requestUri === '') {
+            return '/';
+        }
+
+        return $requestUri[0] === '/' ? $requestUri : '/' . $requestUri;
     }
 }
