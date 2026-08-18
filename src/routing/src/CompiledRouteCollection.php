@@ -107,6 +107,9 @@ class CompiledRouteCollection extends AbstractRouteCollection
         $this->attributes = $attributes;
         $this->routes = new RouteCollection;
         $this->requestContextPrototype = new RequestContext;
+
+        // Symfony stores static/dynamic routes at top-level indexes 1/3,
+        // conditions at 4, and required schemes at index 3 of each route tuple.
         $this->requiresScheme = $this->compiledRoutesRequireScheme($compiled);
         $this->requiresFullRequestContext = ($compiled[4] ?? null) !== null;
         $this->hasPortConstraints = $this->compiledRoutesHavePortConstraints($attributes);

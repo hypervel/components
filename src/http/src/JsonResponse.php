@@ -60,6 +60,8 @@ class JsonResponse extends BaseJsonResponse
         // skips it. SymfonyResponse::__construct is called rather than
         // parent::__construct because JsonResponse's signature only accepts an
         // array of headers, while Response's also accepts a prepared bag.
+        // HTTP dates have one-second precision, so all responses created in the
+        // same second can clone one value. Caller headers are applied afterward.
         $timestamp = time();
 
         if (static::$headerPrototype === null) {

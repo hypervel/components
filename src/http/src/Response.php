@@ -41,6 +41,8 @@ class Response extends SymfonyResponse
      */
     public function __construct(mixed $content = '', int $status = 200, array $headers = [])
     {
+        // HTTP dates have one-second precision, so all responses created in the
+        // same second can clone one value. Caller headers are applied afterward.
         $timestamp = time();
 
         if (static::$headerPrototype === null) {

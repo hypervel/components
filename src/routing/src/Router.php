@@ -728,6 +728,8 @@ class Router implements BindingRegistrar, RegistrarContract
             return [];
         }
 
+        // Cache only the route's canonical list. Router overrides may return
+        // request-dependent middleware that must be described per dispatch.
         if ($middleware !== $route->resolvedMiddleware) {
             return array_map(
                 static fn (mixed $pipe): mixed => is_string($pipe) && ! is_callable($pipe)

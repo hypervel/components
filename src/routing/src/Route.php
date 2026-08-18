@@ -502,6 +502,8 @@ class Route
      */
     public function bindFromCompiledMatch(array $parameters, Request $request): static
     {
+        // A custom Route may override bind() semantics, so only the base class
+        // can safely reuse parameters produced by Symfony's compiled matcher.
         if ($this::class !== self::class) {
             return $this->bind($request);
         }

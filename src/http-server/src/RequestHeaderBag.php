@@ -7,7 +7,8 @@ namespace Hypervel\HttpServer;
 use Symfony\Component\HttpFoundation\HeaderBag;
 
 /**
- * Header bag optimized for the already-separated headers supplied by Swoole.
+ * Store Swoole's already-separated headers directly, avoiding HeaderBag::set()
+ * normalization for every header while still parsing Cache-Control once.
  *
  * @internal
  */

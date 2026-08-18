@@ -120,6 +120,8 @@ class RequestBridge
 
         // Swoole headers → HTTP_* format
         foreach ($headers as $key => $value) {
+            // Swoole normally supplies lowercase names. Map common headers
+            // without replace/uppercase allocations; retain the generic path.
             $httpKey = match ($key) {
                 'accept' => 'HTTP_ACCEPT',
                 'accept-encoding' => 'HTTP_ACCEPT_ENCODING',
@@ -241,6 +243,8 @@ class RequestBridge
      */
     protected static function extractPathInfo(array $server): ?string
     {
+        // Front-controller and IIS metadata affect Symfony's base-path rules;
+        // defer to its full path derivation whenever those inputs are present.
         foreach (['SCRIPT_FILENAME', 'SCRIPT_NAME', 'PHP_SELF', 'ORIG_SCRIPT_NAME', 'UNENCODED_URL', 'ORIG_PATH_INFO'] as $name) {
             if (! empty($server[$name])) {
                 return null;

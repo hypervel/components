@@ -8,7 +8,10 @@ use Override;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
- * Optimize preparation of the common Swoole HTTP response.
+ * Inline Symfony's side-effect-free common response preparation path.
+ *
+ * Cases that can mutate the body, cookies, or protocol-specific headers remain
+ * delegated to Symfony so the fast path does not narrow response behavior.
  */
 trait PreparesResponse
 {

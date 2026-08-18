@@ -84,6 +84,8 @@ class RouteParameterBinder
 
         $parameters = [];
 
+        // Preserve URI order without allocating array_flip() and
+        // array_intersect_key() intermediates for every route match.
         foreach ($parameterNames as $parameterName) {
             $value = $matches[$parameterName] ?? null;
 
