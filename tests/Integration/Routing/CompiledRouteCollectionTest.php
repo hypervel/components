@@ -392,6 +392,31 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame(['user' => '12', 'post' => '34'], $route->originalParameters());
     }
 
+    public function testCompiledMatchBindsEmptyParameterState(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/status', [
+                'uses' => 'FooController@index',
+                'as' => 'status',
+            ])
+        );
+
+        $route = $this->collection()->match(Request::create('/status', 'GET'));
+
+        $this->assertTrue($route->hasParameters());
+        $this->assertSame([], $route->parameters());
+        $this->assertSame([], $route->originalParameters());
+
+        $route->setParameter('runtime', 'value');
+
+        $this->assertSame(['runtime' => 'value'], $route->parameters());
+        $this->assertSame([], $route->originalParameters());
+
+        $route->forgetParameter('runtime');
+
+        $this->assertSame([], $route->parameters());
+    }
+
     public function testCompiledMatchUsesAnOverriddenRouteBindMethod(): void
     {
         $router = new BindTrackingRouter($this->app->make('events'), $this->app);

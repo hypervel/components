@@ -504,6 +504,21 @@ class RoutingRouteTest extends TestCase
         unset($_SERVER['__test.route_inject']);
     }
 
+    public function testZeroArgumentCallableRetainsExtraRouteArguments(): void
+    {
+        $router = $this->getRouter();
+        $arguments = null;
+
+        $router->get('foo/{value}', function () use (&$arguments) {
+            $arguments = func_get_args();
+
+            return 'hello';
+        });
+
+        $this->assertSame('hello', $router->dispatch(Request::create('foo/bar', 'GET'))->getContent());
+        $this->assertSame(['bar'], $arguments);
+    }
+
     public function testNullValuesCanBeInjectedIntoRoutes()
     {
         $container = new Container;

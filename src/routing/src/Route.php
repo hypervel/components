@@ -510,7 +510,11 @@ class Route
 
         $this->compileRoute();
 
-        $parameters = (new RouteParameterBinder($this))->parametersFromCompiledMatch($parameters);
+        // Keep the bound-empty context state, but avoid allocating a binder
+        // when the compiled matcher cannot have produced route parameters.
+        $parameters = $this->parameterNames() === [] && $this->defaults === []
+            ? []
+            : (new RouteParameterBinder($this))->parametersFromCompiledMatch($parameters);
 
         return $this->storeParameters($parameters);
     }
@@ -597,8 +601,10 @@ class Route
      */
     public function parameters(): array
     {
-        if (CoroutineContext::has($this->parametersContextKey())) {
-            return CoroutineContext::get($this->parametersContextKey());
+        $parameters = CoroutineContext::get($this->parametersContextKey());
+
+        if ($parameters !== null) {
+            return $parameters;
         }
 
         throw new LogicException('Route is not bound.');
@@ -611,8 +617,10 @@ class Route
      */
     public function originalParameters(): array
     {
-        if (CoroutineContext::has($this->originalParametersContextKey())) {
-            return CoroutineContext::get($this->originalParametersContextKey());
+        $parameters = CoroutineContext::get($this->originalParametersContextKey());
+
+        if ($parameters !== null) {
+            return $parameters;
         }
 
         throw new LogicException('Route is not bound.');
@@ -623,7 +631,11 @@ class Route
      */
     public function parametersWithoutNulls(): array
     {
-        return array_filter($this->parameters(), fn ($parameter) => ! is_null($parameter));
+        $parameters = $this->parameters();
+
+        return $parameters === []
+            ? []
+            : array_filter($parameters, fn ($parameter) => ! is_null($parameter));
     }
 
     /**
