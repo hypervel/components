@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Http;
 
+use Closure;
 use Hypervel\Config\Repository;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler;
@@ -499,6 +500,44 @@ class KernelTest extends TestCase
         $kernel->terminate($request, $response);
 
         $this->assertNull($kernel->rawRequestStartedAt());
+    }
+
+    public function testGlobalMiddlewarePipelineIsReusedWithoutCachingMiddlewareInstances(): void
+    {
+        $app = new Application;
+        $events = new Dispatcher($app);
+        $app->instance('events', $events);
+        $app->bootstrapWith([]);
+        $resolutions = 0;
+        $app->bind('test-middleware', function () use (&$resolutions): object {
+            ++$resolutions;
+
+            return new class {
+                public function handle(Request $request, Closure $next): Response
+                {
+                    return $next($request);
+                }
+            };
+        });
+        $router = m::mock(Router::class);
+        $router->shouldReceive('dispatch')->twice()->andReturn(new Response);
+        $kernel = new class($app, $router) extends Kernel {
+            public function reusablePipeline(): ?Closure
+            {
+                return $this->middlewarePipeline;
+            }
+        };
+        $kernel->setGlobalMiddleware(['test-middleware']);
+
+        $kernel->handle(Request::create('/first'));
+        $pipeline = $kernel->reusablePipeline();
+
+        $this->assertNotNull($pipeline);
+
+        $kernel->handle(Request::create('/second'));
+
+        $this->assertSame($pipeline, $kernel->reusablePipeline());
+        $this->assertSame(2, $resolutions);
     }
 
     public function testRequestStartedAtIsIsolatedBetweenConcurrentCoroutines(): void

@@ -94,6 +94,22 @@ class Kernel implements KernelContract
     protected array $terminableMiddleware = [];
 
     /**
+     * The global middleware stack represented by the reusable pipeline.
+     *
+     * @var array<int, class-string|string>
+     */
+    protected array $middlewarePipelineStack = [];
+
+    /**
+     * The reusable global middleware pipeline.
+     *
+     * The request is supplied to the compiled onion per invocation, and pipe
+     * descriptors resolve middleware inside that invocation. The closure can
+     * therefore be shared by concurrent requests without retaining either one.
+     */
+    protected ?Closure $middlewarePipeline = null;
+
+    /**
      * Context key for the current request's start time.
      *
      * Stored per-coroutine — a singleton Kernel handles concurrent requests
@@ -185,10 +201,18 @@ class Kernel implements KernelContract
             return ($this->dispatchToRouter())($request);
         }
 
-        return (new Pipeline($this->app))
-            ->send($request)
-            ->through($middleware)
-            ->then($this->dispatchToRouter());
+        // Compile lazily on first use, then rebuild if middleware configuration
+        // changes so the cached onion never retains a stale pipe list.
+        if ($this->middlewarePipeline === null
+            || $this->middlewarePipelineStack !== $middleware
+        ) {
+            $this->middlewarePipelineStack = $middleware;
+            $this->middlewarePipeline = (new Pipeline($this->app))
+                ->through($middleware)
+                ->toClosure($this->dispatchToRouter());
+        }
+
+        return ($this->middlewarePipeline)($request);
     }
 
     /**
