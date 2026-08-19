@@ -104,6 +104,24 @@ class RouteMiddlewareCachingTest extends RoutingTestCase
         $this->assertNull($route->middlewarePipeline);
     }
 
+    public function testGatherRouteMiddlewareOverrideRunsOnEveryDispatchForMiddlewarelessRoutes(): void
+    {
+        $container = new Container;
+        $container->bind(ControllerDispatcherContract::class, fn ($app) => new ControllerDispatcher($app));
+        $container->bind(CallableDispatcherContract::class, fn ($app) => new CallableDispatcher($app));
+        $container->instance(AppendedCountingMiddleware::class, $middleware = new AppendedCountingMiddleware);
+        $router = new AppendingMiddlewareRouter(new Dispatcher($container), $container);
+
+        // The route has no middleware of its own; the subclass appends one on
+        // top of the canonical (empty) list on every gather.
+        $router->get('foo', fn () => 'ok');
+
+        $this->assertSame('ok', $router->dispatch(Request::create('foo', 'GET'))->getContent());
+        $this->assertSame('ok', $router->dispatch(Request::create('foo', 'GET'))->getContent());
+
+        $this->assertSame(2, $middleware->runs);
+    }
+
     public function testRouterSubclassRebuildsReusablePipelineWhenMiddlewareChanges(): void
     {
         $container = new Container;
@@ -275,6 +293,26 @@ class DynamicMiddlewareRouter extends Router
     public function middlewareForRoute(Route $route): array
     {
         return $this->middlewareFor($route);
+    }
+}
+
+class AppendedCountingMiddleware
+{
+    public int $runs = 0;
+
+    public function handle(mixed $request, Closure $next): mixed
+    {
+        ++$this->runs;
+
+        return $next($request);
+    }
+}
+
+class AppendingMiddlewareRouter extends Router
+{
+    public function gatherRouteMiddleware(Route $route): array
+    {
+        return array_merge(parent::gatherRouteMiddleware($route), [AppendedCountingMiddleware::class]);
     }
 }
 

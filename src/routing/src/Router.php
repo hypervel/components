@@ -719,10 +719,6 @@ class Router implements BindingRegistrar, RegistrarContract
      */
     protected function middlewareFor(Route $route): array
     {
-        if ($route->resolvedMiddleware === []) {
-            return [];
-        }
-
         $disabled = $this->container->bound('middleware.disable')
             && $this->container->make('middleware.disable') === true;
 
@@ -730,6 +726,8 @@ class Router implements BindingRegistrar, RegistrarContract
             return [];
         }
 
+        // Never skip the gather: overrides may add middleware even when the
+        // route's own canonical list is empty, and a cached gather is cheap.
         $middleware = $this->gatherRouteMiddleware($route);
 
         if ($middleware === []) {
@@ -739,15 +737,20 @@ class Router implements BindingRegistrar, RegistrarContract
         // Cache only the route's canonical list. Router overrides may return
         // request-dependent middleware that must be described per dispatch.
         if ($middleware !== $route->resolvedMiddleware) {
-            return array_map(
-                static fn (mixed $pipe): mixed => is_string($pipe) && ! is_callable($pipe)
-                    ? PipeDescriptor::fromString($pipe)
-                    : $pipe,
-                $middleware
-            );
+            return $this->describeMiddleware($middleware);
         }
 
-        return $route->middlewareDescriptors ??= array_map(
+        return $route->middlewareDescriptors ??= $this->describeMiddleware($middleware);
+    }
+
+    /**
+     * Convert class-string middleware into immutable pipe descriptors.
+     *
+     * @return array<int, mixed>
+     */
+    protected function describeMiddleware(array $middleware): array
+    {
+        return array_map(
             static fn (mixed $pipe): mixed => is_string($pipe) && ! is_callable($pipe)
                 ? PipeDescriptor::fromString($pipe)
                 : $pipe,
