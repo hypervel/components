@@ -402,7 +402,8 @@ class Container implements ContainerContract
         $abstract = $this->getAlias($abstract);
 
         return CoroutineContext::has(self::SCOPED_CONTEXT_PREFIX . $abstract)
-            || (isset($this->instances[$abstract]) && $this->isScoped($abstract));
+            || ((isset($this->instances[$abstract]) || array_key_exists($abstract, $this->instances))
+                && $this->isScoped($abstract));
     }
 
     /**
