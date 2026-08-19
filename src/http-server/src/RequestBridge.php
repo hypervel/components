@@ -228,11 +228,53 @@ class RequestBridge
      */
     protected static function normalizeTrailingSlash(array $server): array
     {
-        if (isset($server['REQUEST_URI']) && $server['REQUEST_URI'] !== '/') {
-            $parts = explode('?', $server['REQUEST_URI'], 2);
-            $path = rtrim($parts[0], '/');
-            $server['REQUEST_URI'] = ($path === '' ? '/' : $path)
-                . (isset($parts[1]) ? '?' . $parts[1] : '');
+        if (! isset($server['REQUEST_URI']) || $server['REQUEST_URI'] === '/') {
+            return $server;
+        }
+
+        $requestUri = $server['REQUEST_URI'];
+
+        if ($requestUri === '') {
+            $server['REQUEST_URI'] = '/';
+
+            return $server;
+        }
+
+        // Trim the path component only: rtrimming the raw target would let a
+        // fragment hide a trailing slash and would eat the root slash of an
+        // absolute-form target such as "http://host/".
+        $pathEnd = strlen($requestUri);
+
+        if (($queryPosition = strpos($requestUri, '?')) !== false) {
+            $pathEnd = $queryPosition;
+        }
+
+        if (($fragmentPosition = strpos($requestUri, '#')) !== false && $fragmentPosition < $pathEnd) {
+            $pathEnd = $fragmentPosition;
+        }
+
+        $pathStart = 0;
+
+        if ($requestUri[0] !== '/') {
+            // Absolute-form: the path begins at the first slash after the
+            // authority. Without one there is no path component to trim.
+            $authorityStart = strpos($requestUri, '://');
+
+            if ($authorityStart === false
+                || ($pathStart = strpos($requestUri, '/', $authorityStart + 3)) === false
+                || $pathStart >= $pathEnd
+            ) {
+                return $server;
+            }
+        }
+
+        $path = substr($requestUri, $pathStart, $pathEnd - $pathStart);
+        $trimmedPath = rtrim($path, '/') ?: '/';
+
+        if ($trimmedPath !== $path) {
+            $server['REQUEST_URI'] = substr($requestUri, 0, $pathStart)
+                . $trimmedPath
+                . substr($requestUri, $pathEnd);
         }
 
         return $server;

@@ -125,6 +125,39 @@ class RequestBridgeTest extends TestCase
         $this->assertSame('/abs', $request->getPathInfo());
     }
 
+    public function testTrailingSlashIsTrimmedBeforeAFragment(): void
+    {
+        $request = RequestBridge::createFromSwoole($this->createSwooleRequest(
+            server: ['request_method' => 'get', 'request_uri' => '/path/#frag'],
+            header: ['host' => 'example.com'],
+        ));
+
+        $this->assertSame('/path#frag', $request->server->get('REQUEST_URI'));
+        $this->assertSame('/path', $request->getPathInfo());
+    }
+
+    public function testAbsoluteFormRootKeepsItsPath(): void
+    {
+        $request = RequestBridge::createFromSwoole($this->createSwooleRequest(
+            server: ['request_method' => 'get', 'request_uri' => 'http://example.com/'],
+            header: ['host' => 'example.com'],
+        ));
+
+        $this->assertSame('http://example.com/', $request->server->get('REQUEST_URI'));
+        $this->assertSame('/', $request->getPathInfo());
+    }
+
+    public function testAbsoluteFormTrailingSlashIsTrimmedOnThePathOnly(): void
+    {
+        $request = RequestBridge::createFromSwoole($this->createSwooleRequest(
+            server: ['request_method' => 'get', 'request_uri' => 'http://example.com/abs/'],
+            header: ['host' => 'example.com'],
+        ));
+
+        $this->assertSame('http://example.com/abs', $request->server->get('REQUEST_URI'));
+        $this->assertSame('/abs', $request->getPathInfo());
+    }
+
     public function testCreateFromSwooleWithCookies(): void
     {
         $swooleRequest = $this->createSwooleRequest(
