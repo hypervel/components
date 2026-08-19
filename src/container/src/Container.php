@@ -392,11 +392,17 @@ class Container implements ContainerContract
      *
      * Only the scoped resolution path writes this context key, so its presence
      * already implies the binding is scoped; singletons, auto-singletons and
-     * transient bindings never produce one.
+     * transient bindings never produce one. An instance() registration that
+     * replaced a scoped binding also counts: it supersedes the scoped lifetime
+     * during resolution — tests swap scoped services this way — so an existing
+     * instance must be reported as resolved rather than skipped.
      */
     public function resolvedScoped(string $abstract): bool
     {
-        return CoroutineContext::has(self::SCOPED_CONTEXT_PREFIX . $this->getAlias($abstract));
+        $abstract = $this->getAlias($abstract);
+
+        return CoroutineContext::has(self::SCOPED_CONTEXT_PREFIX . $abstract)
+            || (isset($this->instances[$abstract]) && $this->isScoped($abstract));
     }
 
     /**

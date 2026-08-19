@@ -30,6 +30,28 @@ class InvokeDeferredCallbacksTest extends TestCase
         $this->assertTrue($ran, 'defer() callback did not run through the middleware.');
     }
 
+    public function testItInvokesCallbacksWhenTheCollectionWasRestoredAsAnInstance(): void
+    {
+        $container = Container::setInstance(new Container);
+        $container->scoped(DeferredCallbackCollection::class);
+
+        // Simulate InteractsWithContainer::withDefer(): after withoutDefer()
+        // swapped the collection out, withDefer() restores it via instance(),
+        // which supersedes the scoped binding during resolution.
+        $original = $container->make(DeferredCallbackCollection::class);
+        $container->forgetInstance(DeferredCallbackCollection::class);
+        $container->instance(DeferredCallbackCollection::class, $original);
+
+        $ran = false;
+        defer(function () use (&$ran) {
+            $ran = true;
+        });
+
+        (new InvokeDeferredCallbacks)->terminate(new Request, new Response('', 200));
+
+        $this->assertTrue($ran, 'Deferred callbacks were skipped after the collection was restored via instance().');
+    }
+
     public function testItSkipsDeferredCallbacksOnFailedResponses(): void
     {
         $container = Container::setInstance(new Container);

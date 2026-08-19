@@ -719,6 +719,18 @@ class ContainerTest extends TestCase
         $this->assertTrue($container->resolvedScoped('stub'));
     }
 
+    public function testResolvedScopedSeesAnInstanceReplacingAScopedBinding(): void
+    {
+        $container = new Container;
+        $container->scoped(ContainerConcreteStub::class);
+
+        // instance() supersedes the scoped binding during resolution, so an
+        // existing instance counts as resolved for the current coroutine.
+        $container->instance(ContainerConcreteStub::class, new ContainerConcreteStub);
+
+        $this->assertTrue($container->resolvedScoped(ContainerConcreteStub::class));
+    }
+
     public function testResolvedScopedIsIsolatedBetweenCoroutines(): void
     {
         $container = new Container;
