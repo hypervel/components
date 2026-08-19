@@ -99,6 +99,32 @@ class RequestBridgeTest extends TestCase
         $this->assertSame('/users', $request->getPathInfo());
     }
 
+    public function testPathInfoFallsBackForRequestUrisWithFragments(): void
+    {
+        // Swoole passes 'GET /path#frag HTTP/1.1' through verbatim; Symfony's
+        // prepareRequestUri() strips the fragment before deriving the path.
+        $request = RequestBridge::createFromSwoole($this->createSwooleRequest(
+            server: ['request_method' => 'get', 'request_uri' => '/path#frag'],
+            header: ['host' => 'example.com'],
+        ));
+
+        $this->assertNull((new ReflectionProperty(SymfonyRequest::class, 'pathInfo'))->getValue($request));
+        $this->assertSame('/path', $request->getPathInfo());
+    }
+
+    public function testPathInfoFallsBackForAbsoluteFormRequestUris(): void
+    {
+        // RFC 7230 §5.3.2 requires servers to accept proxy-style absolute-form
+        // targets; Symfony's prepareRequestUri() keeps only the URL path.
+        $request = RequestBridge::createFromSwoole($this->createSwooleRequest(
+            server: ['request_method' => 'get', 'request_uri' => 'http://example.com/abs'],
+            header: ['host' => 'example.com'],
+        ));
+
+        $this->assertNull((new ReflectionProperty(SymfonyRequest::class, 'pathInfo'))->getValue($request));
+        $this->assertSame('/abs', $request->getPathInfo());
+    }
+
     public function testCreateFromSwooleWithCookies(): void
     {
         $swooleRequest = $this->createSwooleRequest(

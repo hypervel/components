@@ -257,14 +257,21 @@ class RequestBridge
             return null;
         }
 
-        if (($queryPosition = strpos($requestUri, '?')) !== false) {
-            $requestUri = substr($requestUri, 0, $queryPosition);
-        }
-
         if ($requestUri === '') {
             return '/';
         }
 
-        return $requestUri[0] === '/' ? $requestUri : '/' . $requestUri;
+        // Swoole passes the request target through verbatim. Symfony strips
+        // fragments and reduces proxy-style absolute-form targets (RFC 7230
+        // §5.3.2) to their path, so defer to its full derivation for both.
+        if ($requestUri[0] !== '/' || str_contains($requestUri, '#')) {
+            return null;
+        }
+
+        if (($queryPosition = strpos($requestUri, '?')) !== false) {
+            $requestUri = substr($requestUri, 0, $queryPosition);
+        }
+
+        return $requestUri;
     }
 }
