@@ -114,12 +114,16 @@ class RouteMiddlewareCachingTest extends RoutingTestCase
 
         // The route has no middleware of its own; the subclass appends one on
         // top of the canonical (empty) list on every gather.
-        $router->get('foo', fn () => 'ok');
+        $route = $router->get('foo', fn () => 'ok');
 
         $this->assertSame('ok', $router->dispatch(Request::create('foo', 'GET'))->getContent());
         $this->assertSame('ok', $router->dispatch(Request::create('foo', 'GET'))->getContent());
 
         $this->assertSame(2, $middleware->runs);
+
+        // Override-supplied middleware must never be frozen into the route's
+        // descriptor cache.
+        $this->assertNull($route->middlewareDescriptors);
     }
 
     public function testRouterSubclassRebuildsReusablePipelineWhenMiddlewareChanges(): void
