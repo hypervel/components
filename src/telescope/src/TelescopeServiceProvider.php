@@ -7,7 +7,6 @@ namespace Hypervel\Telescope;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
@@ -21,7 +20,7 @@ use Hypervel\Telescope\Watchers\CacheWatcher;
 use Hypervel\Telescope\Watchers\ClientRequestWatcher;
 use Hypervel\Telescope\Watchers\RedisWatcher;
 
-class TelescopeServiceProvider extends ServiceProvider implements ReloadsConfiguration
+class TelescopeServiceProvider extends ServiceProvider
 {
     /**
      * Bootstrap any package services.
@@ -133,30 +132,6 @@ class TelescopeServiceProvider extends ServiceProvider implements ReloadsConfigu
         $this->registerRedisEvents();
         $this->registerCacheEvents();
         $this->registerGuzzleHttpClientAspect();
-    }
-
-    /**
-     * Reload the worker configuration owned by the provider.
-     *
-     * Boot-only. Calling this while requests are running mutates shared worker
-     * state while concurrent coroutines may still use the previous configuration.
-     */
-    public function reloadConfiguration(): void
-    {
-        $config = $this->app->make(ConfigRepository::class);
-
-        foreach ([EntriesRepository::class, ClearableRepository::class, PrunableRepository::class] as $abstract) {
-            if (! $this->app->resolved($abstract)) {
-                continue;
-            }
-
-            $repository = $this->app->make($abstract);
-
-            if ($repository instanceof DatabaseEntriesRepository) {
-                $repository->setConnection($config->string('telescope.storage.database.connection'));
-                $repository->setChunkSize($config->integer('telescope.storage.database.chunk'));
-            }
-        }
     }
 
     /**
