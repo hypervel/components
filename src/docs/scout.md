@@ -573,6 +573,8 @@ use App\Models\Flight;
 'meilisearch' => [
     'host' => env('MEILISEARCH_HOST', 'http://localhost:7700'),
     'key' => env('MEILISEARCH_KEY', null),
+    'retries' => (int) env('MEILISEARCH_RETRIES', 3),
+    'initial_retry_delay_ms' => (int) env('MEILISEARCH_INITIAL_RETRY_DELAY_MS', 100),
     'index-settings' => [
         User::class => [
             'filterableAttributes'=> ['id', 'name', 'email'],

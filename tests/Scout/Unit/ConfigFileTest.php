@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Unit;
 
-use Hypervel\Support\Env;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -82,39 +81,11 @@ class ConfigFileTest extends TestCase
         string $environmentValue,
         int $expected,
     ): void {
-        $originalPutenv = getenv($environmentKey);
-        $originalServerExists = array_key_exists($environmentKey, $_SERVER);
-        $originalServer = $_SERVER[$environmentKey] ?? null;
-        $originalEnvExists = array_key_exists($environmentKey, $_ENV);
-        $originalEnv = $_ENV[$environmentKey] ?? null;
+        $config = $this->withEnvironmentValues([
+            $environmentKey => $environmentValue,
+        ], fn (): array => require dirname(__DIR__, 3) . '/src/scout/config/scout.php');
 
-        try {
-            unset($_SERVER[$environmentKey], $_ENV[$environmentKey]);
-            putenv("{$environmentKey}={$environmentValue}");
-            Env::flushRepository();
-
-            $config = require dirname(__DIR__, 3) . '/src/scout/config/scout.php';
-
-            $this->assertSame($expected, data_get($config, $configKey));
-        } finally {
-            $originalPutenv === false
-                ? putenv($environmentKey)
-                : putenv("{$environmentKey}={$originalPutenv}");
-
-            if ($originalServerExists) {
-                $_SERVER[$environmentKey] = $originalServer;
-            } else {
-                unset($_SERVER[$environmentKey]);
-            }
-
-            if ($originalEnvExists) {
-                $_ENV[$environmentKey] = $originalEnv;
-            } else {
-                unset($_ENV[$environmentKey]);
-            }
-
-            Env::flushRepository();
-        }
+        $this->assertSame($expected, data_get($config, $configKey));
     }
 
     /**
@@ -138,39 +109,11 @@ class ConfigFileTest extends TestCase
     #[DataProvider('booleanEnvironmentValues')]
     public function testBooleanEnvironmentValuesAreLoadedAsBooleans(string $environmentKey, string $configKey): void
     {
-        $originalPutenv = getenv($environmentKey);
-        $originalServerExists = array_key_exists($environmentKey, $_SERVER);
-        $originalServer = $_SERVER[$environmentKey] ?? null;
-        $originalEnvExists = array_key_exists($environmentKey, $_ENV);
-        $originalEnv = $_ENV[$environmentKey] ?? null;
+        $config = $this->withEnvironmentValues([
+            $environmentKey => '1',
+        ], fn (): array => require dirname(__DIR__, 3) . '/src/scout/config/scout.php');
 
-        try {
-            unset($_SERVER[$environmentKey], $_ENV[$environmentKey]);
-            putenv("{$environmentKey}=1");
-            Env::flushRepository();
-
-            $config = require dirname(__DIR__, 3) . '/src/scout/config/scout.php';
-
-            $this->assertTrue(data_get($config, $configKey));
-        } finally {
-            $originalPutenv === false
-                ? putenv($environmentKey)
-                : putenv("{$environmentKey}={$originalPutenv}");
-
-            if ($originalServerExists) {
-                $_SERVER[$environmentKey] = $originalServer;
-            } else {
-                unset($_SERVER[$environmentKey]);
-            }
-
-            if ($originalEnvExists) {
-                $_ENV[$environmentKey] = $originalEnv;
-            } else {
-                unset($_ENV[$environmentKey]);
-            }
-
-            Env::flushRepository();
-        }
+        $this->assertTrue(data_get($config, $configKey));
     }
 
     /**

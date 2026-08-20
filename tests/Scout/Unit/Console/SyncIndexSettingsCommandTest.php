@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Scout\Unit\Console;
 
 use Hypervel\Config\Repository;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Console\SyncIndexSettingsCommand;
@@ -24,15 +25,15 @@ class SyncIndexSettingsCommandTest extends TestCase
         $engine = new CollectionEngine;
 
         $manager = m::mock(EngineManager::class);
+        $manager->shouldReceive('getDefaultDriver')
+            ->once()
+            ->andReturn('collection');
         $manager->shouldReceive('engine')
             ->with('collection')
             ->once()
             ->andReturn($engine);
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('string')
-            ->with('scout.driver')
-            ->andReturn('collection');
 
         $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();
         $command->shouldReceive('option')
@@ -47,20 +48,36 @@ class SyncIndexSettingsCommandTest extends TestCase
         $this->assertSame(1, $result);
     }
 
+    public function testNullConfiguredDriverResolvesThroughTheManager(): void
+    {
+        $config = new Repository(['scout' => ['driver' => null]]);
+        $container = m::mock(Container::class);
+        $container->shouldReceive('make')->once()->with('config')->andReturn($config);
+        $manager = new EngineManager($container);
+
+        $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();
+        $command->shouldReceive('option')->with('driver')->andReturn(null);
+        $command->shouldReceive('error')
+            ->once()
+            ->with('The "null" engine does not support updating index settings.');
+
+        $this->assertSame(1, $command->handle($manager, $config));
+    }
+
     public function testSucceedsWithInfoMessageWhenNoIndexSettingsConfigured(): void
     {
         $engine = m::mock(Engine::class . ', ' . UpdatesIndexSettings::class);
 
         $manager = m::mock(EngineManager::class);
+        $manager->shouldReceive('getDefaultDriver')
+            ->once()
+            ->andReturn('meilisearch');
         $manager->shouldReceive('engine')
             ->with('meilisearch')
             ->once()
             ->andReturn($engine);
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('string')
-            ->with('scout.driver')
-            ->andReturn('meilisearch');
         $config->shouldReceive('array')
             ->with('scout.meilisearch.index-settings', [])
             ->andReturn([]);
@@ -86,15 +103,15 @@ class SyncIndexSettingsCommandTest extends TestCase
             ->with('test_posts', ['filterableAttributes' => ['status']]);
 
         $manager = m::mock(EngineManager::class);
+        $manager->shouldReceive('getDefaultDriver')
+            ->once()
+            ->andReturn('meilisearch');
         $manager->shouldReceive('engine')
             ->with('meilisearch')
             ->once()
             ->andReturn($engine);
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('string')
-            ->with('scout.driver')
-            ->andReturn('meilisearch');
         $config->shouldReceive('array')
             ->with('scout.meilisearch.index-settings', [])
             ->andReturn([
@@ -134,9 +151,9 @@ class SyncIndexSettingsCommandTest extends TestCase
                 'filterableAttributes' => ['__soft_deleted', 'tenant_id'],
             ]);
         $manager = m::mock(EngineManager::class);
+        $manager->shouldReceive('getDefaultDriver')->once()->andReturn('meilisearch');
         $manager->shouldReceive('engine')->with('meilisearch')->once()->andReturn($engine);
         $config = m::mock(Repository::class);
-        $config->shouldReceive('string')->with('scout.driver')->andReturn('meilisearch');
         $config->shouldReceive('array')
             ->with('scout.meilisearch.index-settings', [])
             ->andReturn([
@@ -230,15 +247,15 @@ class SyncIndexSettingsCommandTest extends TestCase
         $engine = m::mock(Engine::class . ', ' . UpdatesIndexSettings::class);
 
         $manager = m::mock(EngineManager::class);
+        $manager->shouldReceive('getDefaultDriver')
+            ->once()
+            ->andReturn('meilisearch');
         $manager->shouldReceive('engine')
             ->with('meilisearch')
             ->once()
             ->andReturn($engine);
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('string')
-            ->with('scout.driver')
-            ->andReturn('meilisearch');
         $config->shouldReceive('array')
             ->with('scout.meilisearch.index-settings', [])
             ->andReturn([]);
