@@ -57,7 +57,7 @@ class RoutingServiceProvider extends ServiceProvider implements ReloadsConfigura
         $config = $this->app->make('config');
         $url = $this->app->make('url');
 
-        $url->setRequest(Request::create($config->string('app.url')));
+        $url->setRequest(Request::create($config->get('app.url') ?? 'http://localhost'));
         $url->setAssetRoot($config->get('app.asset_url'));
         $url->forceHttps($config->boolean('app.force_https'));
     }
