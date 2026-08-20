@@ -77,6 +77,15 @@ class RedisIntegrationTest extends SentryTestCase
         $this->assertFalse($feature->isApplicable());
     }
 
+    public function testFeatureIsNotApplicableWhenRedisCommandsTracingIsOmitted(): void
+    {
+        $tracing = config()->array('sentry.tracing');
+        unset($tracing['redis_commands']);
+        config()->set('sentry.tracing', $tracing);
+
+        $this->assertFalse((new RedisFeature($this->app))->isApplicable());
+    }
+
     public function testRedisCommandCreatesSpanWhenParentSpanExists(): void
     {
         $this->setupMocks();

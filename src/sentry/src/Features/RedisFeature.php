@@ -33,7 +33,7 @@ class RedisFeature extends Feature
 
     public function isApplicable(): bool
     {
-        return $this->isTracingFeatureEnabled('redis_commands');
+        return $this->isTracingFeatureEnabled('redis_commands', false);
     }
 
     public function onBoot(): void
