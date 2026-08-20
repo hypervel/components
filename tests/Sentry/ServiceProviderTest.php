@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
-use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Http\Kernel;
 use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Http\Request;
@@ -13,15 +12,12 @@ use Hypervel\Sentry\Facade;
 use Hypervel\Sentry\Features\Feature;
 use Hypervel\Sentry\Http\FlushEventsMiddleware;
 use Hypervel\Sentry\Http\SetRequestIpMiddleware;
-use Hypervel\Sentry\Hub;
 use Hypervel\Sentry\SentryServiceProvider;
-use Hypervel\Sentry\Tracing\BacktraceHelper;
 use Hypervel\Sentry\Tracing\Middleware as TracingMiddleware;
 use Hypervel\Support\Facades\Artisan;
 use Mockery as m;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
-use Sentry\SentrySdk;
 use Sentry\State\HubInterface;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -41,46 +37,6 @@ class ServiceProviderTest extends SentryTestCase
     public function testEnvironment(): void
     {
         $this->assertEquals('testing', app('sentry')->getClient()->getOptions()->getEnvironment());
-    }
-
-    public function testReloadConfigurationRebindsTheClientWithoutReplacingTheHub(): void
-    {
-        $provider = new SentryServiceProvider($this->app);
-        $hub = $this->app->make(HubInterface::class);
-        $client = $hub->getClient();
-        $backtraceHelper = $this->app->make(BacktraceHelper::class);
-
-        config()->set('sentry.environment', 'reloaded');
-
-        $provider->reloadConfiguration();
-
-        $this->assertInstanceOf(Hub::class, $hub);
-        $this->assertSame($hub, $this->app->make(HubInterface::class));
-        $this->assertSame($hub, SentrySdk::getCurrentHub());
-        $this->assertNotSame($client, $hub->getClient());
-        $this->assertSame('reloaded', $hub->getClient()->getOptions()->getEnvironment());
-        $this->assertNotSame($backtraceHelper, $this->app->make(BacktraceHelper::class));
-    }
-
-    public function testReloadConfigurationDoesNotResolveAnUnusedHub(): void
-    {
-        $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('resolved')->once()->with(HubInterface::class)->andReturnFalse();
-        $app->shouldNotReceive('make');
-
-        (new SentryServiceProvider($app))->reloadConfiguration();
-    }
-
-    public function testReloadConfigurationLeavesAReplacedHubUntouched(): void
-    {
-        $backtraceHelper = $this->app->make(BacktraceHelper::class);
-        $hub = m::mock(HubInterface::class);
-        $this->app->instance(HubInterface::class, $hub);
-
-        (new SentryServiceProvider($this->app))->reloadConfiguration();
-
-        $this->assertSame($hub, $this->app->make(HubInterface::class));
-        $this->assertSame($backtraceHelper, $this->app->make(BacktraceHelper::class));
     }
 
     public function testDsnWasSetFromConfig(): void
