@@ -226,7 +226,10 @@ The `ttl` configuration option controls how long newly issued tokens remain vali
 ```php
 $ttl = env('JWT_TTL', 120);
 
-'ttl' => $ttl === null ? null : (int) $ttl,
+return [
+    // ...
+    'ttl' => $ttl === null ? null : (int) $ttl,
+];
 ```
 
 Set this value to `null` to issue tokens without an `exp` claim:
@@ -387,7 +390,10 @@ The `refresh_ttl` option also controls how long blacklist entries are retained. 
 ```php
 $refreshTtl = env('JWT_REFRESH_TTL', 20160);
 
-'refresh_ttl' => $refreshTtl === null ? null : (int) $refreshTtl,
+return [
+    // ...
+    'refresh_ttl' => $refreshTtl === null ? null : (int) $refreshTtl,
+];
 ```
 
 <a name="authenticating-requests"></a>
@@ -499,7 +505,10 @@ The refresh window is controlled by `refresh_ttl`, in minutes:
 ```php
 $refreshTtl = env('JWT_REFRESH_TTL', 20160);
 
-'refresh_ttl' => $refreshTtl === null ? null : (int) $refreshTtl,
+return [
+    // ...
+    'refresh_ttl' => $refreshTtl === null ? null : (int) $refreshTtl,
+];
 ```
 
 If `refresh_iat` is `false`, refreshed tokens keep the original `iat` claim. If `refresh_iat` is `true`, refreshed tokens receive a fresh `iat` claim:
