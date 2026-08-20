@@ -8,6 +8,7 @@ use Hypervel\Http\Middleware\TrustHosts;
 use Hypervel\Http\Request;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
 
 class TrustHostsTest extends TestCase
@@ -107,14 +108,21 @@ class TrustHostsTest extends TestCase
         $this->call('GET', 'http://evil.com/host');
     }
 
-    public function testMissingTrustedHostConfigurationFailsClosed(): void
+    #[DataProvider('missingApplicationUrls')]
+    public function testMissingTrustedHostConfigurationFailsClosed(?string $url): void
     {
-        config(['app.url' => '']);
+        config(['app.url' => $url]);
 
         $this->withoutExceptionHandling();
         $this->expectException(SuspiciousOperationException::class);
 
         $this->call('GET', 'http://evil.com/host');
+    }
+
+    public static function missingApplicationUrls(): iterable
+    {
+        yield 'null' => [null];
+        yield 'empty string' => [''];
     }
 
     public function testFlushStateClearsRequestAwareResolver(): void

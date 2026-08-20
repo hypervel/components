@@ -146,7 +146,7 @@ class ReverbServiceProvider extends ServiceProvider
         $config = $this->app->make('config');
         $reverbServer = $config->array('reverb.servers.reverb');
 
-        $servers = $config->array('server.servers', []);
+        $servers = $config->array('server.servers');
         /** @var array<string, mixed> $tlsConfiguration */
         $tlsConfiguration = $reverbServer['options']['tls'];
         $tls = TlsOptions::fromArray($tlsConfiguration);
@@ -155,7 +155,7 @@ class ReverbServiceProvider extends ServiceProvider
             'name' => 'reverb',
             'type' => ServerInterface::SERVER_WEBSOCKET,
             'host' => $reverbServer['host'],
-            'port' => (int) $reverbServer['port'],
+            'port' => $reverbServer['port'],
             'sock_type' => $tls->socketType(),
             'callbacks' => [
                 Event::ON_REQUEST => [HttpServer::class, 'onRequest'],
@@ -471,7 +471,7 @@ class ReverbServiceProvider extends ServiceProvider
 
             $webhooks = $app->webhooks();
 
-            if (! ($webhooks['batching']['enabled'] ?? false)) {
+            if (! $webhooks['batching']['enabled']) {
                 continue;
             }
 
@@ -549,7 +549,7 @@ class ReverbServiceProvider extends ServiceProvider
 
             $webhooks = $app->webhooks();
 
-            if (! ($webhooks['batching']['enabled'] ?? false)) {
+            if (! $webhooks['batching']['enabled']) {
                 continue;
             }
 

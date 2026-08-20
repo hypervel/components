@@ -7,6 +7,8 @@ namespace Hypervel\Tests\Sanctum;
 use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Hypervel\Cookie\Middleware\EncryptCookies;
+use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
@@ -215,6 +217,39 @@ class EnsureFrontendRequestsAreStatefulTest extends TestCase
             StartSession::class,
             AddQueuedCookiesToResponse::class,
             false,
+        ], array_slice($middleware, 1));
+    }
+
+    public function testNullCookieAndCsrfMiddlewareEntriesAreOmittedWithoutFallbacks(): void
+    {
+        config([
+            'sanctum.middleware' => [
+                'encrypt_cookies' => null,
+                'validate_csrf_token' => null,
+                'authenticate_session' => 'custom-authenticate-session',
+            ],
+        ]);
+
+        $middleware = (new EnsureFrontendRequestsAreStatefulFixture)->middleware();
+
+        $this->assertSame([
+            AddQueuedCookiesToResponse::class,
+            StartSession::class,
+            'custom-authenticate-session',
+        ], array_slice($middleware, 1));
+    }
+
+    public function testMissingMiddlewareMembersUseTheirDefaults(): void
+    {
+        config(['sanctum.middleware' => []]);
+
+        $middleware = (new EnsureFrontendRequestsAreStatefulFixture)->middleware();
+
+        $this->assertSame([
+            EncryptCookies::class,
+            AddQueuedCookiesToResponse::class,
+            StartSession::class,
+            PreventRequestForgery::class,
         ], array_slice($middleware, 1));
     }
 }

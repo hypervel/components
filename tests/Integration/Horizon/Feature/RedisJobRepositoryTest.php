@@ -7,10 +7,26 @@ namespace Hypervel\Tests\Integration\Horizon\Feature;
 use Exception;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\JobPayload;
+use Hypervel\Horizon\Repositories\RedisJobRepository;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 
 class RedisJobRepositoryTest extends IntegrationTestCase
 {
+    public function testOmittedRetentionSettingsUseRepositoryDefaults(): void
+    {
+        config()->set('horizon.trim', []);
+
+        $repository = $this->app->make(JobRepository::class);
+
+        $this->assertInstanceOf(RedisJobRepository::class, $repository);
+        $this->assertSame(RedisJobRepository::DEFAULT_RECENT_JOB_RETENTION, $repository->recentJobExpires);
+        $this->assertSame(60, $repository->pendingJobExpires);
+        $this->assertSame(60, $repository->completedJobExpires);
+        $this->assertSame(RedisJobRepository::DEFAULT_FAILED_JOB_RETENTION, $repository->failedJobExpires);
+        $this->assertSame($repository->failedJobExpires, $repository->recentFailedJobExpires);
+        $this->assertSame(RedisJobRepository::DEFAULT_MONITORED_JOB_RETENTION, $repository->monitoredJobExpires);
+    }
+
     public function testItCanFindAFailedJobByItsId()
     {
         $repository = $this->app->make(JobRepository::class);

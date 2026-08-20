@@ -50,6 +50,31 @@ class DefaultConfigurationTest extends TestCase
     }
 
     #[Test]
+    public function itNormalizesTheTestingConnectionForeignKeyEnvironmentValue(): void
+    {
+        $key = 'DB_FOREIGN_KEYS';
+        $hadOriginalValue = Env::has($key);
+        $originalValue = Env::get($key);
+
+        Env::forget($key);
+        Env::set($key, '0');
+
+        try {
+            (new TestbenchLoadConfiguration)->bootstrap($this->app);
+
+            $this->assertFalse(
+                $this->app->make('config')->boolean('database.connections.testing.foreign_key_constraints')
+            );
+        } finally {
+            Env::forget($key);
+
+            if ($hadOriginalValue) {
+                Env::set($key, (string) Env::encode($originalValue));
+            }
+        }
+    }
+
+    #[Test]
     public function itUsesTheCanonicalSqliteMemoryClassification(): void
     {
         $config = $this->app->make('config');
@@ -133,12 +158,16 @@ class DefaultConfigurationTest extends TestCase
             ['database', 'redis', 'swoole', 'worker-array'],
             array_keys($config->array('rate-limiter.stores')),
         );
+        $this->assertSame(app_id() . '_rate_limiter', $config->string('rate-limiter.prefix'));
     }
 
     #[Test]
     public function itPopulatesExpectedSessionDefaults(): void
     {
-        $this->assertSame(Env::has('TESTBENCH_PACKAGE_TESTER') ? 'cookie' : 'array', $this->app->make('config')->string('session.driver'));
+        $config = $this->app->make('config');
+
+        $this->assertSame(Env::has('TESTBENCH_PACKAGE_TESTER') ? 'cookie' : 'array', $config->string('session.driver'));
+        $this->assertSame(app_id() . '_session', $config->string('session.cookie'));
     }
 
     #[Test]

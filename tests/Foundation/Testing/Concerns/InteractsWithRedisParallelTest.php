@@ -9,6 +9,7 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Foundation\Testing\RedisTestConfiguration;
 use Hypervel\Foundation\Testing\RedisTestDatabases;
+use Hypervel\Redis\RedisConfig;
 use Hypervel\Support\Env;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
@@ -349,7 +350,7 @@ class InteractsWithRedisParallelTest extends TestCase
         $this->assertSame(6, $config->integer('database.redis.reverb.database'));
     }
 
-    public function testClusterSetupConfiguresEveryNamedConnectionFromClusterEnvironment(): void
+    public function testClusterSetupBuildsCompleteClusterRecordsFromEveryNamedConnection(): void
     {
         $this->setRedisEnvironmentValue('REDIS_HOST', 'standalone-redis');
         $this->setRedisEnvironmentValue(
@@ -369,9 +370,10 @@ class InteractsWithRedisParallelTest extends TestCase
         foreach (['default', 'cache', 'session', 'queue', 'reverb'] as $connectionName) {
             $connection = $config->array("database.redis.{$connectionName}");
 
-            $this->assertSame(0, $connection['database']);
-            $this->assertArrayNotHasKey('host', $connection);
-            $this->assertArrayNotHasKey('port', $connection);
+            foreach (['url', 'host', 'port', 'database', 'name', 'sentinel'] as $member) {
+                $this->assertArrayNotHasKey($member, $connection);
+            }
+
             $this->assertSame([
                 'enabled' => true,
                 'seeds' => [
@@ -380,13 +382,12 @@ class InteractsWithRedisParallelTest extends TestCase
                     'redis-cluster-3:6379',
                 ],
             ], $connection['cluster']);
+            $this->assertSame(
+                'tcp',
+                $this->app->make(RedisConfig::class)->connectionConfig($connectionName)['scheme'],
+            );
         }
 
-        $this->assertSame([
-            'enabled' => true,
-            'nodes' => ['redis-sentinel:26379'],
-            'master_name' => 'primary',
-        ], $config->array('database.redis.default.sentinel'));
         $this->assertTrue($harness->usesCluster());
         $this->assertSame(1, $harness->flushRedisCalls);
     }
@@ -413,8 +414,14 @@ class InteractsWithRedisParallelTest extends TestCase
         $this->assertSame(['enabled' => true, 'seeds' => ['redis-cluster-1:6379']], $connection['cluster']);
         $this->assertSame(['prefix' => ''], $connection['options']);
         $this->assertSame(3, $connection['pool']['max_connections']);
-        $this->assertArrayNotHasKey('host', $connection);
-        $this->assertArrayNotHasKey('port', $connection);
+
+        foreach (['url', 'host', 'port', 'database', 'name', 'sentinel'] as $member) {
+            $this->assertArrayNotHasKey($member, $connection);
+        }
+
+        $effectiveConnection = $this->app->make(RedisConfig::class)->connectionConfig($connectionName);
+        $this->assertSame('tls', $effectiveConnection['scheme']);
+        $this->assertSame(['prefix' => ''], $effectiveConnection['options']);
     }
 
     public function testSetupIgnoresMetadataAndNonConnectionConfiguration(): void

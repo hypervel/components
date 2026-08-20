@@ -5,12 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Features;
 
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Sentry\SdkCapabilities;
+use Hypervel\Sentry\SentryConfig;
 use Sentry\SentrySdk;
 
-/**
- * @internal
- */
 abstract class Feature
 {
     /**
@@ -92,7 +89,7 @@ abstract class Feature
      */
     protected function getUserConfig(): array
     {
-        return $this->container->make('config')->array('sentry', []);
+        return $this->container->make(SentryConfig::class)->all();
     }
 
     /**
@@ -155,7 +152,7 @@ abstract class Feature
         }
 
         return $this->canRecordSpans = $this->container
-            ->make(SdkCapabilities::class)
+            ->make(SentryConfig::class)
             ->canRecordSpans();
     }
 
@@ -169,7 +166,7 @@ abstract class Feature
         }
 
         return $this->canRecordBreadcrumbs = $this->container
-            ->make(SdkCapabilities::class)
+            ->make(SentryConfig::class)
             ->canRecordBreadcrumbs();
     }
 }

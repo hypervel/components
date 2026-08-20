@@ -70,7 +70,7 @@ class UniqueJobPayloadContext
     {
         return method_exists($job, 'uniqueVia')
             ? $job->uniqueVia()->getName()
-            : config('cache.default');
+            : config()->string('cache.default');
     }
 
     /**

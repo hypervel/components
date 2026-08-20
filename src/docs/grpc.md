@@ -617,7 +617,7 @@ use App\Grpc\Clients\GreeterClient;
 use Hypervel\Grpc\Client\RetryPolicy;
 
 $this->app->singleton(GreeterClient::class, fn () => new GreeterClient(
-    config('services.greeter.url'),
+    config()->string('services.greeter.url'),
     [
         'connect_timeout' => 3.0,
         'timeout' => 5.0,

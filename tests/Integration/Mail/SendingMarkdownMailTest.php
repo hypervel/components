@@ -40,6 +40,30 @@ class SendingMarkdownMailTest extends TestCase
             ->assertSeeInHtml('My basic content');
     }
 
+    public function testMarkdownMailRendersWithANullApplicationUrl(): void
+    {
+        config([
+            'app.name' => 'Example App',
+            'app.url' => null,
+        ]);
+
+        Mail::to('test@mail.com')->send(new MarkdownMessageLayoutMailable);
+
+        /** @var Email $email */
+        $email = $this->app->make('mailer')->getSymfonyTransport()->messages()[0]->getOriginalMessage();
+        $html = $email->getHtmlBody();
+        $text = $email->getTextBody();
+
+        $this->assertIsString($html);
+        $this->assertIsString($text);
+        $this->assertStringContainsString('My basic content', $html);
+        $this->assertStringContainsString('My basic content', $text);
+        $this->assertStringContainsString('Example App', $html);
+        $this->assertStringContainsString('Example App', $text);
+        $this->assertStringContainsString('<a href=""', $html);
+        $this->assertMatchesRegularExpression('/Example App:\s*(?:\r?\n|$)/', $text);
+    }
+
     public function testMailMayHaveSpecificTextView(): void
     {
         $mailable = new MarkdownBasicMailableWithTextView;
@@ -207,6 +231,23 @@ class MarkdownBasicMailable extends Mailable
     {
         return new Content(
             markdown: 'basic',
+        );
+    }
+}
+
+class MarkdownMessageLayoutMailable extends Mailable
+{
+    public function envelope(): Envelope
+    {
+        return new Envelope(
+            subject: 'My message title',
+        );
+    }
+
+    public function content(): Content
+    {
+        return new Content(
+            markdown: 'message-layout',
         );
     }
 }

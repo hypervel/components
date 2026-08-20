@@ -189,7 +189,7 @@ class SignalManager
      */
     protected function getQueue(): SplPriorityQueue
     {
-        $handlers = $this->config->array('signal.handlers', []);
+        $handlers = $this->config->array('signal.handlers');
 
         $queue = new SplPriorityQueue;
         foreach ($handlers as $handler => $priority) {

@@ -23,7 +23,7 @@ class UpgradeForTeamsCommand extends Command
      */
     public function handle(ConfigRepository $config): int
     {
-        if (! $config->boolean('permission.teams', false)) {
+        if (! $config->boolean('permission.teams')) {
             $this->error('Teams feature is disabled in your permission.php file.');
             $this->warn('Please enable the teams setting in your configuration.');
 

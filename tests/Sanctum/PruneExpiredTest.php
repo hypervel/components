@@ -14,6 +14,7 @@ use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class PruneExpiredTest extends TestCase
@@ -102,6 +103,24 @@ class PruneExpiredTest extends TestCase
             ->expectsOutputToContain('Expiration value not specified in configuration file.');
 
         $this->assertDatabaseHas('personal_access_tokens', ['name' => 'Test']);
+    }
+
+    public function testInvalidExpirationFailsBeforePruning(): void
+    {
+        config()->set('sanctum.expiration', '60');
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Configuration value for key [sanctum.expiration] must be an integer, string given.'
+        );
+
+        try {
+            $this->artisan('sanctum:prune-expired --hours=2');
+        } finally {
+            $this->assertSame([], DB::getQueryLog());
+        }
     }
 
     public function testCanDeleteExpiredTokensWithExpiresAtExpiration(): void

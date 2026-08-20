@@ -8,11 +8,11 @@ Keep the existing Swoole worker-replacement command and its pre-worker dotenv/co
 
 This is a selective reversion against the branch's merge base with `0.4`, not an inverse merge. Later `0.4` changes in the same files must remain intact. Independently useful fixes discovered during the original work must remain, with tests that describe their standalone contracts.
 
-## Pre-Merge Review Boundary
+## Synchronization Boundary
 
-Complete review and signoff of the reversion before synchronizing newer `0.4` changes. The current base has a known custom-Sentry configuration-root defect exposed by removing the duplicate log-level fallback; leave that Sentry slice unchanged and exclude it explicitly from pre-merge signoff. After the reviewed reversion is committed, merge `0.4`, preserve its complete root-aware Sentry configuration design, re-derive the Sentry reversion against that design, and rerun the full checkpoint and review.
+Preserve Sentry's complete root-aware configuration design while removing Sentry's reload hook, client rebinding, and mutation replay.
 
-After synchronizing `0.4`:
+When synchronizing later `0.4` work:
 
 1. Intersect files changed since the merge base with files touched by this reversion, then inspect every later edit in that intersection before writing its slice.
 2. Diff every deletion target across the same range. If later non-reload coverage was added, edit the file instead of deleting it.
@@ -148,7 +148,7 @@ Remove APIs added only to support those hooks:
 | Blade compiler | `reloadConfiguration()` and its reload-only normal-property reshaping |
 | Dump-source concern | `setCompiledViewPath()` |
 | JWT claim factory and manager | `reloadConfiguration()` methods and constructor delegation added for them |
-| Telescope database repository | reload-only setters/default constant and constructor delegation |
+| Telescope database repository | reload-only setters and constructor delegation; keep `DEFAULT_CHUNK_SIZE` as the canonical fallback for optional storage config |
 | Translator | `forgetLoadedGroups()` and permanent registered-line replay state |
 | Queue, Mail, Notification fakes | hook-only reset methods |
 
@@ -167,16 +167,13 @@ Delete these hook-only test files entirely after re-verifying each target agains
 - `tests/Concurrency/ConcurrencyServiceProviderTest.php`
 - `tests/Cookie/CookieServiceProviderTest.php`
 - `tests/Filesystem/FilesystemServiceProviderTest.php`
-- `tests/Hashing/HashingServiceProviderTest.php`
 - `tests/Log/LogServiceProviderTest.php`
-- `tests/Mail/MailServiceProviderTest.php`
 - `tests/Notifications/NotificationServiceProviderTest.php`
-- `tests/Permission/PermissionServiceProviderTest.php`
 - `tests/Server/ServerReloaderTest.php`
 - `tests/Session/SessionServiceProviderTest.php`
 - `tests/Translation/TranslationServiceProviderTest.php`
 
-In modified pre-existing test files, remove only hook/reset/replay cases and now-unused imports/helpers. Preserve all unrelated coverage and later `0.4` changes. This includes Auth, Password, Cache, Core worker startup, Database, Encryption, Horizon, Inertia, JWT, Queue, Rate Limiter, Reverb, Routing, Saloon, Scout, Sentry, Socialite, Telescope, Translation, View, manager, fake, and facade tests. In `HorizonConfigTest`, restore the normal `'config'` resolution expectation when `normalizeConfig()` stops using `ConfigMutationTracker`.
+In modified pre-existing test files, remove only hook/reset/replay cases and now-unused imports/helpers. Preserve all unrelated coverage and later `0.4` changes. This includes Auth, Password, Cache, Core worker startup, Database, Encryption, Hashing, Horizon, Inertia, JWT, Mail, Permission, Queue, Rate Limiter, Reverb, Routing, Saloon, Scout, Sentry, Socialite, Telescope, Translation, View, manager, fake, and facade tests. In `HorizonConfigTest`, restore the normal `'config'` resolution expectation when `normalizeConfig()` stops using `ConfigMutationTracker`.
 
 Retained fixes keep or gain focused regressions in their natural existing files:
 

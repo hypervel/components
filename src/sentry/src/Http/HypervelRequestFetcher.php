@@ -43,7 +43,7 @@ class HypervelRequestFetcher implements RequestFetcherInterface
      */
     protected function filterCookies(array $cookies): array
     {
-        $forbiddenCookies = [config('session.cookie'), 'remember_*', 'XSRF-TOKEN'];
+        $forbiddenCookies = [config()->string('session.cookie'), 'remember_*', 'XSRF-TOKEN'];
 
         $filtered = [];
         foreach ($cookies as $key => $value) {

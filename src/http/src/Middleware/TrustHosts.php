@@ -140,7 +140,13 @@ class TrustHosts
      */
     protected function allSubdomainsOfApplicationUrl(): ?string
     {
-        if ($host = parse_url($this->app->make('config')->string('app.url'), PHP_URL_HOST)) {
+        $url = $this->app->make('config')->get('app.url');
+
+        if ($url === null) {
+            return null;
+        }
+
+        if ($host = parse_url($url, PHP_URL_HOST)) {
             return '^(.+\.)?' . preg_quote($host) . '$';
         }
 

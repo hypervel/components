@@ -56,15 +56,9 @@ class DatabaseServiceProvider extends ServiceProvider
         $this->app->singleton('db.resolver', fn ($app) => $app->make(ConnectionResolver::class));
 
         $this->app->singleton('migration.repository', function ($app) {
-            $migrations = $app->make('config')->get('database.migrations');
-
-            $table = is_array($migrations)
-                ? ($migrations['table'] ?? 'migrations')
-                : $migrations;
-
             return new DatabaseMigrationRepository(
                 $app->make('db'),
-                $table,
+                $app->make('config')->string('database.migrations.table'),
             );
         });
 
@@ -161,7 +155,7 @@ class DatabaseServiceProvider extends ServiceProvider
         }
 
         $this->app->scoped(FakerGenerator::class, function ($app, $parameters) {
-            $locale = $parameters['locale'] ?? $app->make('config')->get('app.faker_locale', 'en_US');
+            $locale = $parameters['locale'] ?? $app->make('config')->string('app.faker_locale');
 
             return FakerFactory::create($locale);
         });

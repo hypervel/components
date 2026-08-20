@@ -89,13 +89,13 @@ class AssertableInertiaTest extends TestCase
         });
     }
 
-    public function testTheComponentExistsOnTheFilesystem(): void
+    public function testTheComponentExistsOnTheFilesystemWhenSettingIsOmitted(): void
     {
         $response = $this->makeMockRequest(
             Inertia::render('Fixtures/ExamplePage')
         );
 
-        config()->set('inertia.testing.ensure_pages_exist', true);
+        config()->set('inertia.testing', []);
         $response->assertInertia(function ($inertia) {
             $inertia->component('Fixtures/ExamplePage');
         });

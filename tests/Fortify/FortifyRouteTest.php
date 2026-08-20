@@ -57,7 +57,26 @@ class FortifyRouteTest extends TestCase
         $this->assertContains('throttle:5,1', $route->gatherMiddleware());
     }
 
+    public function testOmittedVerificationLimiterUsesTheDefault(): void
+    {
+        config(['fortify.limiters' => [
+            'login' => null,
+            'two-factor' => '5,1',
+            'passkeys' => null,
+        ]]);
+
+        require dirname(__DIR__, 2) . '/src/fortify/routes/routes.php';
+
+        $route = Route::getRoutes()->getByName('verification.send');
+
+        $this->assertNotNull($route);
+        $this->assertContains('throttle:6,1', $route->gatherMiddleware());
+    }
+
+    #[WithConfig('fortify.limiters.login', null)]
+    #[WithConfig('fortify.limiters.passkeys', null)]
     #[WithConfig('fortify.limiters.two-factor', '10,1')]
+    #[WithConfig('fortify.limiters.verification', '6,1')]
     public function testTwoFactorChallengeThrottleCanBeCustomized(): void
     {
         $route = Route::getRoutes()->getByName('two-factor.login.store');

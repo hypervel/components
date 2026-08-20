@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout\Engines;
 
-use Hypervel\Container\Container;
 use Hypervel\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginatorContract;
 use Hypervel\Contracts\Pagination\Paginator as PaginatorContract;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
@@ -345,7 +344,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
             true
         );
 
-        if ($usesSoftDeletes && $this->getConfig('soft_delete', false)) {
+        if ($usesSoftDeletes && config()->boolean('scout.soft_delete')) {
             /* @phpstan-ignore method.notFound (SoftDeletes adds this method via global scope) */
             return $query->withTrashed();
         }
@@ -520,15 +519,5 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
     {
         // No-op: The database table is the index.
         return null;
-    }
-
-    /**
-     * Get a Scout configuration value.
-     */
-    protected function getConfig(string $key, mixed $default = null): mixed
-    {
-        return Container::getInstance()
-            ->make('config')
-            ->get("scout.{$key}", $default);
     }
 }

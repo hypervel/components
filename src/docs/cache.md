@@ -1167,3 +1167,5 @@ To increase performance, you may disable cache events by setting the `events` co
     'events' => false,
 ],
 ```
+
+The failover store disables ordinary events on its outer repository by default because its backing repositories already dispatch them. The `CacheFailedOver` event is still dispatched when a backing store fails.

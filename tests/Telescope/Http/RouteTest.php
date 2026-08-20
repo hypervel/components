@@ -27,7 +27,7 @@ class RouteTest extends FeatureTestCase
     }
 
     #[DataProvider('telescopeIndexRoutesProvider')]
-    public function testRoute(string $endpoint, string $_entryType)
+    public function testRoute(string $endpoint, string $_entryType): void
     {
         $this->post($endpoint)
             ->assertSuccessful()
@@ -35,7 +35,7 @@ class RouteTest extends FeatureTestCase
     }
 
     #[DataProvider('telescopeIndexRoutesProvider')]
-    public function testSimpleListOfEntries(string $endpoint, string $entryType)
+    public function testSimpleListOfEntries(string $endpoint, string $entryType): void
     {
         $entry = EntryModelFactory::new()->create(['type' => $entryType]);
         $entry->refresh();
@@ -48,7 +48,7 @@ class RouteTest extends FeatureTestCase
             ->assertJsonExactFragment($entry->batch_id, 'entries.0.batch_id');
     }
 
-    public static function telescopeIndexRoutesProvider()
+    public static function telescopeIndexRoutesProvider(): array
     {
         return [
             'Mail' => ['/telescope/telescope-api/mail', EntryType::MAIL],
@@ -99,7 +99,7 @@ class RouteTest extends FeatureTestCase
         $this->assertNull($cache->get('telescope:pause-recording'));
     }
 
-    private function registerAssertJsonExactFragmentMacro()
+    private function registerAssertJsonExactFragmentMacro(): void
     {
         $assertion = function ($expected, $key) {
             $jsonResponse = $this->json(); // @phpstan-ignore-line
@@ -117,7 +117,7 @@ class RouteTest extends FeatureTestCase
         TestResponse::macro('assertJsonExactFragment', $assertion);
     }
 
-    public function testNamedRoute()
+    public function testNamedRoute(): void
     {
         $this->assertEquals(
             url(config('telescope.path')),

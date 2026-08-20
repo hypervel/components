@@ -64,10 +64,12 @@ class EventHandler
         private readonly Container $container,
         array $config,
     ) {
-        $this->recordSqlQueries = ($config['breadcrumbs']['sql_queries'] ?? true) === true;
-        $this->recordSqlBindings = ($config['breadcrumbs']['sql_bindings'] ?? false) === true;
-        $this->recordSqlTransactions = ($config['breadcrumbs']['sql_transactions'] ?? true) === true;
-        $this->recordLogs = ($config['breadcrumbs']['logs'] ?? true) === true;
+        $breadcrumbs = $config['breadcrumbs'];
+
+        $this->recordSqlQueries = $breadcrumbs['sql_queries'] === true;
+        $this->recordSqlBindings = $breadcrumbs['sql_bindings'] === true;
+        $this->recordSqlTransactions = $breadcrumbs['sql_transactions'] === true;
+        $this->recordLogs = $breadcrumbs['logs'] === true;
     }
 
     /**

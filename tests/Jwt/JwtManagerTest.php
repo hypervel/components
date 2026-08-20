@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Jwt;
 
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Foundation\Application;
 use Hypervel\Jwt\ClaimFactory;
 use Hypervel\Jwt\Contracts\BlacklistContract;
 use Hypervel\Jwt\Exceptions\JwtException;
@@ -14,6 +15,7 @@ use Hypervel\Jwt\Exceptions\TokenExpiredException;
 use Hypervel\Jwt\Exceptions\TokenInvalidException;
 use Hypervel\Jwt\JwtManager;
 use Hypervel\Jwt\Providers\Lcobucci;
+use Hypervel\Jwt\Providers\Provider;
 use Hypervel\Jwt\Validations\ExpiredClaim;
 use Hypervel\Jwt\Validations\NotBeforeClaim;
 use Hypervel\Jwt\Validations\RequiredClaims;
@@ -112,6 +114,39 @@ class JwtManagerTest extends TestCase
         $this->provider->shouldReceive('encode')->once()->with($payload)->andReturn($token);
 
         $this->assertSame($token, $this->createManager()->encode($payload));
+    }
+
+    public function testNullSecretSupportsAsymmetricSigning(): void
+    {
+        $application = new Application;
+        $application->instance('config', new Repository([
+            'jwt' => [
+                'blacklist_enabled' => false,
+                'driver' => 'lcobucci',
+                'providers' => [
+                    'jwt' => Lcobucci::class,
+                ],
+                'secret' => null,
+                'algo' => Provider::ALGO_RS256,
+                'keys' => [
+                    'private' => file_get_contents(__DIR__ . '/Fixtures/keys/id_rsa'),
+                    'public' => file_get_contents(__DIR__ . '/Fixtures/keys/id_rsa.pub'),
+                    'passphrase' => null,
+                ],
+            ],
+        ]));
+
+        $manager = new JwtManager($application, m::mock(ClaimFactory::class));
+        $token = $manager->encode([
+            'sub' => 1,
+            'iat' => $this->testNowTimestamp,
+            'custom' => 'value',
+        ]);
+        $payload = $manager->decode($token, validate: false);
+
+        $this->assertSame('1', $payload['sub']);
+        $this->assertSame($this->testNowTimestamp, $payload['iat']);
+        $this->assertSame('value', $payload['custom']);
     }
 
     public function testConstructorDoesNotResolveBlacklistWhenBlacklistIsDisabled(): void

@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Session;
 
 use BadMethodCallException;
 use Hypervel\Auth\AuthManager;
+use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
@@ -242,6 +243,13 @@ class SessionManagerTest extends TestCase
         Container::getInstance()->make('config')->set('auth.providers.users', [
             'driver' => 'eloquent',
             'model' => SessionManagerUserStub::class,
+            'cache' => [
+                'enabled' => false,
+                'store' => null,
+                'ttl' => 300,
+                'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
+                'tags' => null,
+            ],
         ]);
 
         $this->expectException(InvalidArgumentException::class);
@@ -259,6 +267,13 @@ class SessionManagerTest extends TestCase
         Container::getInstance()->make('config')->set('auth.providers.users', [
             'driver' => 'eloquent',
             'model' => SessionManagerUserStub::class,
+            'cache' => [
+                'enabled' => false,
+                'store' => null,
+                'ttl' => 300,
+                'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
+                'tags' => null,
+            ],
         ]);
         $user = new SessionManagerUserStub;
         $user->setAttribute('id', 42);

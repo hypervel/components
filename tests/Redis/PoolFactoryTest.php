@@ -169,12 +169,16 @@ class PoolFactoryTest extends TestCase
         $this->assertSame($replacement, $factory->getPool('default'));
     }
 
+    /**
+     * Mock a container with Redis pools.
+     */
     private function mockContainerWithPools(): m\MockInterface|ContainerContract
     {
         $connectionConfig = [
             'host' => 'localhost',
             'port' => 6379,
             'database' => 0,
+            'timeout' => null,
             'pool' => [
                 'min_connections' => 1,
                 'max_connections' => 10,

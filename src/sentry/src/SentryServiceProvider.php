@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry;
 
+use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -38,6 +39,7 @@ use Hypervel\Support\ServiceProvider;
 use Hypervel\View\Engines\EngineResolver;
 use Hypervel\View\Factory as ViewFactory;
 use InvalidArgumentException;
+use LogicException;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Sentry\ClientBuilder;
@@ -115,6 +117,19 @@ class SentryServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        if ($this->app->bound(SentryConfig::class)) {
+            throw new LogicException(sprintf(
+                'Sentry provider [%s] cannot be registered because another Sentry provider is already registered. Add [hypervel/sentry] to [extra.hypervel.dont-discover] before registering a custom provider, or remove the custom provider.',
+                static::class,
+            ));
+        }
+
+        $configRoot = static::$abstract;
+        $this->app->singleton(
+            SentryConfig::class,
+            fn () => new SentryConfig($this->app->make(ConfigRepository::class), $configRoot),
+        );
+
         $this->mergeConfigFrom(__DIR__ . '/../config/sentry.php', static::$abstract);
 
         $this->app->singleton(DebugFileLogger::class, function () {
@@ -137,8 +152,10 @@ class SentryServiceProvider extends ServiceProvider
      */
     protected function configureAndRegisterClient(): void
     {
+        $configRoot = static::$abstract;
+
         // ClientBuilder — fresh per resolution so each Hub gets a properly configured builder
-        $this->app->bind(ClientBuilder::class, function () {
+        $this->app->bind(ClientBuilder::class, function () use ($configRoot) {
             $basePath = base_path();
             $userConfig = $this->getUserConfig();
 
@@ -174,7 +191,7 @@ class SentryServiceProvider extends ServiceProvider
             $clientBuilder->setSdkVersion(Version::getSdkVersion());
 
             // Set the pooled transport for async sending via Swoole coroutines
-            $poolConfig = $this->app->make('config')->array('sentry.pool', []);
+            $poolConfig = $this->app->make('config')->array("{$configRoot}.pool");
             $transport = new HttpPoolTransport(
                 new Pool(
                     $clientBuilder->getOptions(),
@@ -196,7 +213,7 @@ class SentryServiceProvider extends ServiceProvider
             $userConfig = $this->getUserConfig();
 
             /** @var array<array-key, class-string>|callable $userIntegrationOption */
-            $userIntegrationOption = $userConfig['integrations'] ?? [];
+            $userIntegrationOption = $userConfig['integrations'];
 
             $userIntegrations = $this->resolveIntegrationsFromUserConfig(
                 is_array($userIntegrationOption) ? $userIntegrationOption : [],
@@ -305,11 +322,11 @@ class SentryServiceProvider extends ServiceProvider
 
             $handler->subscribe($dispatcher);
 
-            if (isset($userConfig['send_default_pii']) && $userConfig['send_default_pii'] !== false) {
+            if ($userConfig['send_default_pii'] === true) {
                 $handler->subscribeAuthEvents($dispatcher);
             }
 
-            if (isset($userConfig['enable_logs']) && $userConfig['enable_logs'] === true) {
+            if ($userConfig['enable_logs'] === true) {
                 $this->app->terminating(static function () {
                     Logs::getInstance()->flush();
                 });
@@ -344,14 +361,15 @@ class SentryServiceProvider extends ServiceProvider
      */
     protected function bootTracing(): void
     {
-        $tracingConfig = $this->getUserConfig()['tracing'] ?? [];
+        $tracingConfig = $this->getUserConfig()['tracing'];
 
         // Register the tracing middleware as scoped so each coroutine gets its own instance.
         // Per-request state ($transaction, $appSpan, $didRouteMatch) is isolated between concurrent requests.
         $this->app->scoped(
             TracingMiddleware::class,
             static fn () => new TracingMiddleware(
-                ($tracingConfig['continue_after_response'] ?? true) === true,
+                $tracingConfig['continue_after_response'] === true,
+                $tracingConfig['missing_routes'] === true,
             ),
         );
 
@@ -390,7 +408,7 @@ class SentryServiceProvider extends ServiceProvider
      */
     private function bindViewEngine(array $tracingConfig): void
     {
-        if (($tracingConfig['views'] ?? true) !== true) {
+        if ($tracingConfig['views'] !== true) {
             return;
         }
 
@@ -496,7 +514,7 @@ class SentryServiceProvider extends ServiceProvider
      */
     protected function registerFeatures(): void
     {
-        $features = $this->app->make('config')->array('sentry.features', []);
+        $features = $this->app->make('config')->array(static::$abstract . '.features');
 
         foreach ($features as $feature) {
             try {
@@ -517,7 +535,7 @@ class SentryServiceProvider extends ServiceProvider
     {
         $bootActive = $this->isActive();
 
-        $features = $this->app->make('config')->array('sentry.features', []);
+        $features = $this->app->make('config')->array(static::$abstract . '.features');
 
         foreach ($features as $feature) {
             try {
@@ -557,7 +575,8 @@ class SentryServiceProvider extends ServiceProvider
      */
     protected function registerLogChannels(): void
     {
-        $config = $this->app->make('config');
+        $config = $this->app->make(ConfigRepository::class);
+        $configRoot = static::$abstract;
 
         $logChannels = $config->array('logging.channels');
 
@@ -570,7 +589,7 @@ class SentryServiceProvider extends ServiceProvider
         if (! array_key_exists('sentry_logs', $logChannels)) {
             $config->set('logging.channels.sentry_logs', [
                 'driver' => 'sentry_logs',
-                'level' => $config->string('sentry.logs_channel_level'),
+                'level' => $config->string("{$configRoot}.logs_channel_level"),
             ]);
         }
     }
@@ -581,7 +600,7 @@ class SentryServiceProvider extends ServiceProvider
     protected function registerPublishing(): void
     {
         $this->publishes([
-            __DIR__ . '/../config/sentry.php' => config_path('sentry.php'),
+            __DIR__ . '/../config/sentry.php' => config_path(static::$abstract . '.php'),
         ], 'sentry-config');
     }
 
@@ -661,7 +680,7 @@ class SentryServiceProvider extends ServiceProvider
      */
     protected function hasDsnSet(): bool
     {
-        return $this->app->make(SdkCapabilities::class)->hasDsnSet();
+        return $this->app->make(SentryConfig::class)->hasDsnSet();
     }
 
     /**
@@ -669,7 +688,7 @@ class SentryServiceProvider extends ServiceProvider
      */
     protected function hasSpotlightEnabled(): bool
     {
-        return $this->app->make(SdkCapabilities::class)->hasSpotlightEnabled();
+        return $this->app->make(SentryConfig::class)->hasSpotlightEnabled();
     }
 
     /**
@@ -677,6 +696,6 @@ class SentryServiceProvider extends ServiceProvider
      */
     protected function getUserConfig(): array
     {
-        return $this->app->make('config')->array(static::$abstract);
+        return $this->app->make(SentryConfig::class)->all();
     }
 }

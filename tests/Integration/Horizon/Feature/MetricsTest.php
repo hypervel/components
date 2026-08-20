@@ -213,8 +213,11 @@ class MetricsTest extends IntegrationTestCase
         );
     }
 
-    public function testOnlyPast24SnapshotsAreRetained()
+    public function testOmittedRetentionSettingsKeepTheDefaultNumberOfSnapshots(): void
     {
+        config()->set('horizon.metrics.trim_snapshots', []);
+        $retention = 24;
+
         $stopwatch = m::mock(Stopwatch::class);
         $stopwatch->shouldReceive('start');
         $stopwatch->shouldReceive('forget');
@@ -233,13 +236,19 @@ class MetricsTest extends IntegrationTestCase
 
         // Check the job snapshots...
         $snapshots = resolve(MetricsRepository::class)->snapshotsForJob(Jobs\BasicJob::class);
-        $this->assertCount(24, $snapshots);
-        $this->assertSame(CarbonImmutable::now()->getTimestamp() - 1, $snapshots[23]->time);
+        $this->assertCount($retention, $snapshots);
+        $this->assertSame(
+            CarbonImmutable::now()->getTimestamp() - 1,
+            $snapshots[$retention - 1]->time,
+        );
 
         // Check the queue snapshots...
         $snapshots = resolve(MetricsRepository::class)->snapshotsForQueue('default');
-        $this->assertCount(24, $snapshots);
-        $this->assertSame(CarbonImmutable::now()->getTimestamp() - 1, $snapshots[23]->time);
+        $this->assertCount($retention, $snapshots);
+        $this->assertSame(
+            CarbonImmutable::now()->getTimestamp() - 1,
+            $snapshots[$retention - 1]->time,
+        );
 
         CarbonImmutable::setTestNow();
     }

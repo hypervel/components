@@ -25,6 +25,11 @@ use Throwable;
 class DatabaseEntriesRepository implements EntriesRepository, ClearableRepository, PrunableRepository, TerminableRepository
 {
     /**
+     * The default number of entries inserted at once.
+     */
+    public const int DEFAULT_CHUNK_SIZE = 1000;
+
+    /**
      * Context key for the per-request monitored tags cache.
      */
     protected const string MONITORED_TAGS_CONTEXT_KEY = '__telescope.monitored_tags';
@@ -37,7 +42,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
     /**
      * The number of entries that will be inserted at once into the database.
      */
-    protected int $chunkSize = 1000;
+    protected int $chunkSize = self::DEFAULT_CHUNK_SIZE;
 
     /**
      * Create a new database repository.

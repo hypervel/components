@@ -999,12 +999,12 @@ class RedisProxyTest extends TestCase
             fread($client, 1);
         });
         $pool = m::mock(RedisPool::class);
-        $pool->expects('getConfig')->andReturn([
+        $pool->expects('getConfig')->andReturn($this->standaloneConfig([
             'host' => $server->endpoint(),
             'port' => 6379,
             'timeout' => 2.5,
             'options' => ['prefix' => 'app:'],
-        ]);
+        ]));
         $pool->shouldNotReceive('get');
         $factory = m::mock(PoolFactory::class);
         $factory->expects('getPool')->with('default')->andReturn($pool);
@@ -1039,13 +1039,12 @@ class RedisProxyTest extends TestCase
 
         [$firstHost, $firstPort] = $servers[0]->hostAndPort();
         [$secondHost, $secondPort] = $servers[1]->hostAndPort();
-        $config = [
-            'sentinel' => ['enabled' => true],
+        $config = $this->sentinelConfig([
             'username' => '0',
             'password' => '0',
             'timeout' => 1.0,
             'options' => ['prefix' => 'sentinel:'],
-        ];
+        ]);
         $pool = m::mock(RedisPool::class);
         $pool->expects('getConfig')->twice()->andReturn($config);
         $pool->shouldNotReceive('get');
@@ -1086,7 +1085,7 @@ class RedisProxyTest extends TestCase
             fread($client, 1);
         });
         [$host, $port] = $server->hostAndPort();
-        $config = [
+        $config = $this->clusterConfig([
             'scheme' => 'tcp',
             'cluster' => [
                 'enabled' => true,
@@ -1095,7 +1094,7 @@ class RedisProxyTest extends TestCase
             'context' => [],
             'timeout' => 0.1,
             'options' => ['prefix' => 'cluster:'],
-        ];
+        ]);
         $connection = m::mock(PhpRedisClusterConnection::class);
         $connection->expects('getConnection')->andReturnSelf();
         $connection->expects('masters')->andReturn([
@@ -1153,7 +1152,7 @@ class RedisProxyTest extends TestCase
             fread($client, 1);
         });
         [$host, $port] = $server->hostAndPort();
-        $config = [
+        $config = $this->clusterConfig([
             'scheme' => 'tls',
             'context' => $clientOptions,
             'cluster' => [
@@ -1161,7 +1160,7 @@ class RedisProxyTest extends TestCase
                 'seeds' => ['tls://127.0.0.1:1'],
             ],
             'timeout' => 0.1,
-        ];
+        ]);
         $connection = m::mock(PhpRedisClusterConnection::class);
         $connection->expects('getConnection')->andReturnSelf();
         $connection->expects('masters')->andReturn([[$host, $port]]);
@@ -1191,13 +1190,13 @@ class RedisProxyTest extends TestCase
 
     public function testClusterSubscriberAggregatesEndpointFailures(): void
     {
-        $config = [
+        $config = $this->clusterConfig([
             'cluster' => [
                 'enabled' => true,
                 'seeds' => ['tcp://127.0.0.1:1'],
             ],
             'timeout' => 0.01,
-        ];
+        ]);
         $connection = m::mock(PhpRedisClusterConnection::class);
         $connection->expects('getConnection')->andReturnSelf();
         $connection->expects('masters')->andReturn([
@@ -1480,6 +1479,90 @@ class RedisProxyTest extends TestCase
         return $mockRedisConnection;
     }
 
+    /**
+     * Create a complete standalone Redis connection record.
+     */
+    private function standaloneConfig(array $overrides = []): array
+    {
+        return array_replace($this->baseConnectionConfig(), [
+            'url' => null,
+            'host' => '127.0.0.1',
+            'port' => 6379,
+            'database' => 0,
+            'name' => null,
+        ], $overrides);
+    }
+
+    /**
+     * Create a complete Sentinel Redis connection record.
+     */
+    private function sentinelConfig(array $overrides = []): array
+    {
+        return array_replace($this->baseConnectionConfig(), [
+            'database' => 0,
+            'name' => null,
+            'sentinel' => [
+                'enabled' => true,
+                'master_name' => 'primary',
+                'nodes' => ['tcp://127.0.0.1:26379'],
+                'username' => null,
+                'password' => null,
+                'timeout' => 1.0,
+                'read_timeout' => 1.0,
+                'context' => [],
+            ],
+        ], $overrides);
+    }
+
+    /**
+     * Create a complete Cluster Redis connection record.
+     */
+    private function clusterConfig(array $overrides = []): array
+    {
+        return array_replace($this->baseConnectionConfig(), [
+            'scheme' => 'tcp',
+            'cluster' => [
+                'enabled' => true,
+                'seeds' => ['tcp://127.0.0.1:7000'],
+            ],
+        ], $overrides);
+    }
+
+    /**
+     * Create the members shared by every Redis connection topology.
+     */
+    private function baseConnectionConfig(): array
+    {
+        return [
+            'scheme' => null,
+            'username' => null,
+            'password' => null,
+            'timeout' => 1.0,
+            'read_timeout' => 0.0,
+            'context' => [],
+            'options' => [],
+            'prefix' => null,
+            'events' => false,
+            'max_retries' => 3,
+            'backoff_algorithm' => 'decorrelated_jitter',
+            'backoff_base' => 100,
+            'backoff_cap' => 1000,
+            'pool' => [
+                'min_connections' => 1,
+                'max_connections' => 10,
+                'connect_timeout' => 10.0,
+                'wait_timeout' => 3.0,
+                'heartbeat' => -1.0,
+                'heartbeat_timeout' => 1.0,
+                'max_idle_time' => 60.0,
+                'max_lifetime' => -1.0,
+            ],
+        ];
+    }
+
+    /**
+     * Get a mocked Sentinel factory.
+     */
     private function sentinelFactory(): RedisSentinelFactory
     {
         return m::mock(RedisSentinelFactory::class);

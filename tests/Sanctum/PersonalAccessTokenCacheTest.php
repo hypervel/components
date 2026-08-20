@@ -162,6 +162,11 @@ class PersonalAccessTokenCacheTest extends TestCase
         $app->make('config')->set('sanctum.cache.store', '');
     }
 
+    protected function usePartialTokenCacheConfig(ApplicationContract $app): void
+    {
+        $app->make('config')->set('sanctum.cache', ['enabled' => true]);
+    }
+
     /**
      * Get the migrations to run for the test.
      */
@@ -755,6 +760,17 @@ class PersonalAccessTokenCacheTest extends TestCase
 
         $this->assertNull($defaultStore->get('sanctum:2'));
         $this->assertSame('zero', $zeroStore->get('sanctum:2'));
+    }
+
+    #[DefineEnvironment('usePartialTokenCacheConfig')]
+    public function testPartialTokenCacheConfigUsesPackageDefaults(): void
+    {
+        $token = $this->createToken();
+
+        $foundToken = PersonalAccessToken::findToken("{$token->id}|secret");
+
+        $this->assertInstanceOf(PersonalAccessToken::class, $foundToken);
+        $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
     }
 
     public function testUpdatingTokenForgetsTokenAndPositiveTokenableCacheEntries(): void

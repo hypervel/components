@@ -21,14 +21,15 @@ use Hypervel\Jwt\Contracts\StorageContract;
 use Hypervel\Jwt\Http\Parser\Cookie;
 use Hypervel\Jwt\Http\Parser\Parser;
 use Hypervel\Jwt\JwtGuard;
-use Hypervel\Jwt\JwtManager;
 use Hypervel\Jwt\JwtServiceProvider;
 use Hypervel\Jwt\Providers\Lcobucci;
 use Hypervel\Jwt\Storage\TaggedCache;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Testbench\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
+use ReflectionProperty;
 use RuntimeException;
 
 class JwtServiceProviderTest extends TestCase
@@ -61,6 +62,16 @@ class JwtServiceProviderTest extends TestCase
         $this->assertArrayNotHasKey('jwt.renew', $middleware);
         $this->assertArrayNotHasKey('jwt.auth', $middleware);
         $this->assertArrayNotHasKey('jwt.check', $middleware);
+    }
+
+    public function testShippedJwtGuardInheritsGlobalTtl(): void
+    {
+        $this->app->make('config')->set('jwt.ttl', 45);
+
+        /** @var JwtGuard $guard */
+        $guard = $this->app->make(AuthManager::class)->guard('jwt');
+
+        $this->assertSame(45, $guard->getTTL());
     }
 
     public function testGuardReceivesExplicitNullTtlAndDispatcher(): void
@@ -112,6 +123,22 @@ class JwtServiceProviderTest extends TestCase
         $guard = $authManager->guard('jwt');
 
         $this->assertSame(15, $guard->getTTL());
+    }
+
+    public function testGuardRejectsUnsupportedTtlValue(): void
+    {
+        $this->app->make('config')->set('auth.guards.customers', [
+            'driver' => 'jwt',
+            'provider' => 'users',
+            'ttl' => 'forever',
+        ]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'JWT TTL for auth guard [customers] must be an integer or null.'
+        );
+
+        $this->app->make(AuthManager::class)->guard('customers');
     }
 
     public function testTaggedCacheStorageUsesCacheStore(): void
@@ -320,23 +347,23 @@ class JwtServiceProviderTest extends TestCase
         $this->assertTrue($storage->foreverCalled);
     }
 
-    public function testOmittedStorageProviderUsesTheTaggedCacheDefault(): void
+    public function testProviderImplementationsUsePackageDefaultsWhenOmitted(): void
     {
         $config = $this->app->make('config');
-        $config->set('jwt.providers', ['jwt' => Lcobucci::class]);
-        $config->set('jwt.blacklist_enabled', true);
-
-        $repository = m::mock(CacheRepository::class);
-        $repository->shouldReceive('supportsTags')->once()->andReturnTrue();
-        $repository->shouldReceive('getStore')->once()->andReturn($this->taggableStore(TagMode::All));
-        $cache = m::mock();
-        $cache->shouldReceive('store')->once()->withNoArgs()->andReturn($repository);
-
-        $this->app->instance('cache', $cache);
+        $config->set('jwt.providers', []);
+        $config->set('jwt.secret', 'test-secret');
+        $config->set('jwt.blacklist_enabled', false);
         $this->app->forgetInstance(BlacklistContract::class);
         $this->app->forgetInstance('jwt');
 
-        $this->assertInstanceOf(JwtManager::class, $this->app->make('jwt'));
+        $manager = $this->app->make('jwt');
+        $blacklist = $this->app->make(BlacklistContract::class);
+
+        $this->assertInstanceOf(Lcobucci::class, $manager->driver());
+        $this->assertInstanceOf(
+            TaggedCache::class,
+            (new ReflectionProperty($blacklist, 'storage'))->getValue($blacklist),
+        );
     }
 
     protected function taggableStore(TagMode $mode): TaggableStore

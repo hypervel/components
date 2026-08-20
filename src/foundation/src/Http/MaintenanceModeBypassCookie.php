@@ -19,7 +19,7 @@ class MaintenanceModeBypassCookie
         return new Cookie('hypervel_maintenance', base64_encode(json_encode([
             'expires_at' => $expiresAt->getTimestamp(),
             'mac' => hash_hmac('sha256', (string) $expiresAt->getTimestamp(), $key),
-        ])), $expiresAt, config('session.path'), config('session.domain'));
+        ])), $expiresAt, config()->string('session.path'), config('session.domain'));
     }
 
     /**

@@ -72,8 +72,8 @@ class TinkerCommand extends Command
         $loader = ClassAliasAutoloader::register(
             $shell,
             $path,
-            $appConfig->get('tinker.alias', []),
-            $appConfig->get('tinker.dont_alias', [])
+            $appConfig->array('tinker.alias', []),
+            $appConfig->array('tinker.dont_alias', [])
         );
 
         if ($code = $this->option('execute')) {

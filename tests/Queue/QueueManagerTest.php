@@ -8,9 +8,11 @@ use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Encryption\Encrypter;
+use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\PoolManager;
+use Hypervel\Queue\ClearableQueuePoolProxy;
 use Hypervel\Queue\Connectors\ConnectorInterface;
 use Hypervel\Queue\Jobs\Job;
 use Hypervel\Queue\NullQueue;
@@ -18,6 +20,7 @@ use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\QueuePoolProxy;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class QueueManagerTest extends TestCase
 {
@@ -132,6 +135,46 @@ class QueueManagerTest extends TestCase
         $manager->addPoolable('bar');
 
         $this->assertInstanceOf(QueuePoolProxy::class, $manager->connection('foo'));
+    }
+
+    #[DataProvider('clearablePoolProxyDriverProvider')]
+    public function testBuiltInClearablePooledDriversResolveClearableProxies(
+        string $driver,
+        bool $poolableByDefault,
+    ): void {
+        $container = $this->getContainer();
+        $container->make('config')->set('queue.connections.foo', ['driver' => $driver]);
+        $manager = new QueueManager($container);
+
+        if (! $poolableByDefault) {
+            $manager->addPoolable($driver);
+        }
+
+        $connection = $manager->connection('foo');
+
+        $this->assertInstanceOf(ClearableQueuePoolProxy::class, $connection);
+        $this->assertInstanceOf(ClearableQueue::class, $connection);
+    }
+
+    public static function clearablePoolProxyDriverProvider(): array
+    {
+        return [
+            'database' => ['database', false],
+            'redis' => ['redis', false],
+            'sqs' => ['sqs', true],
+        ];
+    }
+
+    public function testDefaultPooledBeanstalkdConnectionRemainsNonClearable(): void
+    {
+        $container = $this->getContainer();
+        $container->make('config')->set('queue.connections.foo', ['driver' => 'beanstalkd']);
+        $manager = new QueueManager($container);
+
+        $connection = $manager->connection('foo');
+
+        $this->assertInstanceOf(QueuePoolProxy::class, $connection);
+        $this->assertNotInstanceOf(ClearableQueue::class, $connection);
     }
 
     public function testPoolableConnectionsConvergeByConstructionConfigAndApplyTheirOwnNames(): void

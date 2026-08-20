@@ -8,6 +8,7 @@ use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
+use Hypervel\Horizon\Repositories\RedisJobRepository;
 use Hypervel\Horizon\WaitTimeCalculator;
 use Hypervel\Tests\Integration\Horizon\ControllerTestCase;
 use Mockery as m;
@@ -55,8 +56,7 @@ class DashboardStatsControllerTest extends ControllerTestCase
 
         $config = $this->app->make('config');
 
-        $config->set('horizon.trim.recent_failed', 10080);
-        $config->set('horizon.trim.recent', 60);
+        $config->set('horizon.trim', ['failed' => 120]);
 
         $response = $this->actingAs(new Fakes\User)
             ->get('/horizon/api/stats');
@@ -71,8 +71,8 @@ class DashboardStatsControllerTest extends ControllerTestCase
             'queueWithMaxRuntime' => 'default',
             'queueWithMaxThroughput' => 'default',
             'periods' => [
-                'failedJobs' => 10080,
-                'recentJobs' => 60,
+                'failedJobs' => 120,
+                'recentJobs' => RedisJobRepository::DEFAULT_RECENT_JOB_RETENTION,
             ],
         ]);
     }

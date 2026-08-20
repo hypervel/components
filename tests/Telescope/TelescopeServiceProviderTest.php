@@ -7,7 +7,12 @@ namespace Hypervel\Tests\Telescope;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Telescope\Contracts\EntriesRepository;
+use Hypervel\Telescope\Storage\DatabaseEntriesRepository;
 use Hypervel\Telescope\Telescope;
+use Hypervel\Telescope\TelescopeServiceProvider;
+use InvalidArgumentException;
+use ReflectionProperty;
 
 class TelescopeServiceProviderTest extends FeatureTestCase
 {
@@ -82,5 +87,41 @@ class TelescopeServiceProviderTest extends FeatureTestCase
         Coroutine::join([$coroutineId]);
 
         $this->assertSame([true, 'selected'], $observed);
+    }
+
+    public function testRouteRegistrationRequiresStringPath(): void
+    {
+        config()->set('telescope.path', null);
+
+        $provider = new class($this->app) extends TelescopeServiceProvider {
+            public function registerRoutesForTest(): void
+            {
+                $this->registerRoutes();
+            }
+        };
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Configuration value for key [telescope.path] must be a string');
+
+        $provider->registerRoutesForTest();
+    }
+
+    public function testDatabaseRepositoryUsesDefaultChunkSizeWhenSettingIsOmitted(): void
+    {
+        $telescope = config()->array('telescope');
+
+        $this->assertSame(
+            DatabaseEntriesRepository::DEFAULT_CHUNK_SIZE,
+            $telescope['storage']['database']['chunk'],
+        );
+
+        unset($telescope['storage']['database']['chunk']);
+        config()->set('telescope', $telescope);
+        $this->app->forgetInstance(EntriesRepository::class);
+
+        $repository = $this->app->make(EntriesRepository::class);
+        $chunkSize = new ReflectionProperty(DatabaseEntriesRepository::class, 'chunkSize');
+
+        $this->assertSame(DatabaseEntriesRepository::DEFAULT_CHUNK_SIZE, $chunkSize->getValue($repository));
     }
 }

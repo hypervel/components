@@ -19,6 +19,7 @@ use Hypervel\Database\Eloquent\QueueEntityResolver;
 use Hypervel\Database\LostConnectionDetector;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Testbench\TestCase;
+use InvalidArgumentException;
 use PDOException;
 use RuntimeException;
 use Swoole\Constant;
@@ -26,6 +27,34 @@ use Throwable;
 
 class DatabaseServiceProviderTest extends TestCase
 {
+    public function testMigrationRepositoryUsesTheCurrentArrayConfiguration(): void
+    {
+        config(['database.migrations' => [
+            'table' => 'custom_migrations',
+        ]]);
+        $this->app->forgetInstance('migration.repository');
+
+        $repository = $this->app->make('migration.repository');
+        $repository->createRepository();
+
+        try {
+            $this->assertTrue($repository->repositoryExists());
+        } finally {
+            $repository->deleteRepository();
+        }
+    }
+
+    public function testMigrationRepositoryRejectsTheLegacyScalarConfiguration(): void
+    {
+        config(['database.migrations' => 'legacy_migrations']);
+        $this->app->forgetInstance('migration.repository');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('database.migrations.table');
+
+        $this->app->make('migration.repository');
+    }
+
     public function testConcurrencyErrorDetectorIsRegistered(): void
     {
         $this->assertInstanceOf(

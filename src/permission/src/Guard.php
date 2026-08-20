@@ -136,7 +136,7 @@ class Guard
      */
     protected static function guards(): array
     {
-        return self::config()->array('auth.guards', []);
+        return self::config()->array('auth.guards');
     }
 
     /**

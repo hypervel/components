@@ -35,7 +35,7 @@ class EloquentUserProviderCacheTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected const string DEFAULT_KEY_PREFIX = 'auth_users';
+    protected const string DEFAULT_KEY_PREFIX = EloquentUserProvider::DEFAULT_CACHE_PREFIX;
 
     protected CacheManager $realCacheManager;
 

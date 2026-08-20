@@ -45,8 +45,8 @@ class ModelObserver
      */
     public function __construct()
     {
-        $this->afterCommit = Config::boolean('scout.after_commit', false);
-        $this->usingSoftDeletes = Config::boolean('scout.soft_delete', false);
+        $this->afterCommit = Config::boolean('scout.after_commit');
+        $this->usingSoftDeletes = Config::boolean('scout.soft_delete');
     }
 
     /**

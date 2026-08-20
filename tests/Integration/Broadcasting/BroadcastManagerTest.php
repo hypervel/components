@@ -573,6 +573,17 @@ class BroadcastManagerTest extends TestCase
         $this->assertSame($replacementAbly, $manager->getAbly());
     }
 
+    public function testPublicPusherFactoryAcceptsAPartialRecord(): void
+    {
+        $manager = new BroadcastManager(new Container);
+
+        $this->assertInstanceOf(Pusher::class, $manager->pusher([
+            'key' => 'key',
+            'secret' => 'secret',
+            'app_id' => 'app',
+        ]));
+    }
+
     public function testPurgeInvalidatesCachedAndUncachedBroadcasterPoolsWhileForgetIsCacheOnly(): void
     {
         $app = $this->poolingApplication([

@@ -61,10 +61,10 @@ class ClientEventTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['client_event'],
-        ]);
+        ]));
 
         $this->channels()->findOrCreate('presence-test-channel');
 
@@ -161,10 +161,10 @@ class ClientEventTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['client_event'],
-        ]);
+        ]));
 
         $this->channels()->findOrCreate('test-channel');
 
@@ -299,10 +299,10 @@ class ClientEventTest extends ReverbTestCase
         Queue::fake();
 
         config()->set('reverb.apps.apps.0.accept_client_events_from', 'all');
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['client_event'],
-        ]);
+        ]));
 
         $connectionData = ['user_info' => ['name' => 'Taylor'], 'user_id' => '42'];
         $channelConnection = collect(static::factory(data: $connectionData))->first();

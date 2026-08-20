@@ -73,8 +73,10 @@ class DatabaseIntegrationTest extends SentryTestCase
     public function testSqlBindingsAreRecordedWhenEnabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.traces_sample_rate' => 1.0,
-            'sentry.tracing.sql_bindings' => true,
+            'sentry' => $this->sentryConfigWith([
+                'traces_sample_rate' => 1.0,
+                'tracing.sql_bindings' => true,
+            ]),
         ]);
 
         $span = $this->executeQueryAndRetrieveSpan(
@@ -89,8 +91,10 @@ class DatabaseIntegrationTest extends SentryTestCase
     public function testSqlBindingsAreRecordedWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.traces_sample_rate' => 1.0,
-            'sentry.tracing.sql_bindings' => false,
+            'sentry' => $this->sentryConfigWith([
+                'traces_sample_rate' => 1.0,
+                'tracing.sql_bindings' => false,
+            ]),
         ]);
 
         $span = $this->executeQueryAndRetrieveSpan(
@@ -105,9 +109,11 @@ class DatabaseIntegrationTest extends SentryTestCase
     public function testSqlOriginIsResolvedWhenEnabledAndOverTreshold(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.traces_sample_rate' => 1.0,
-            'sentry.tracing.sql_origin' => true,
-            'sentry.tracing.sql_origin_threshold_ms' => 10,
+            'sentry' => $this->sentryConfigWith([
+                'traces_sample_rate' => 1.0,
+                'tracing.sql_origin' => true,
+                'tracing.sql_origin_threshold_ms' => 10,
+            ]),
         ]);
 
         $span = $this->executeQueryAndRetrieveSpan('SELECT 1', [], 20);
@@ -118,8 +124,10 @@ class DatabaseIntegrationTest extends SentryTestCase
     public function testSqlOriginIsNotResolvedWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.traces_sample_rate' => 1.0,
-            'sentry.tracing.sql_origin' => false,
+            'sentry' => $this->sentryConfigWith([
+                'traces_sample_rate' => 1.0,
+                'tracing.sql_origin' => false,
+            ]),
         ]);
 
         $span = $this->executeQueryAndRetrieveSpan('SELECT 1');
@@ -130,9 +138,11 @@ class DatabaseIntegrationTest extends SentryTestCase
     public function testSqlOriginIsNotResolvedWhenUnderThreshold(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.traces_sample_rate' => 1.0,
-            'sentry.tracing.sql_origin' => true,
-            'sentry.tracing.sql_origin_threshold_ms' => 10,
+            'sentry' => $this->sentryConfigWith([
+                'traces_sample_rate' => 1.0,
+                'tracing.sql_origin' => true,
+                'tracing.sql_origin_threshold_ms' => 10,
+            ]),
         ]);
 
         $span = $this->executeQueryAndRetrieveSpan('SELECT 1', [], 5);
@@ -147,7 +157,7 @@ class DatabaseIntegrationTest extends SentryTestCase
     public function testQueryExecutedEventCreatesCorrectBreadcrumb(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.sql_bindings' => true,
+            'sentry' => $this->sentryConfigWith(['breadcrumbs.sql_bindings' => true]),
         ]);
 
         $dispatcher = $this->app->make(Dispatcher::class);
@@ -177,8 +187,10 @@ class DatabaseIntegrationTest extends SentryTestCase
     public function testQueryExecutedEventWithoutBindingsWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.sql_queries' => true,
-            'sentry.breadcrumbs.sql_bindings' => false,
+            'sentry' => $this->sentryConfigWith([
+                'breadcrumbs.sql_queries' => true,
+                'breadcrumbs.sql_bindings' => false,
+            ]),
         ]);
 
         $dispatcher = $this->app->make(Dispatcher::class);
@@ -259,7 +271,7 @@ class DatabaseIntegrationTest extends SentryTestCase
     public function testQueryExecutedEventIsIgnoredWhenFeatureDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.sql_queries' => false,
+            'sentry' => $this->sentryConfigWith(['breadcrumbs.sql_queries' => false]),
         ]);
 
         $dispatcher = $this->app->make(Dispatcher::class);
@@ -280,7 +292,7 @@ class DatabaseIntegrationTest extends SentryTestCase
     public function testTransactionEventIsIgnoredWhenFeatureDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.sql_transactions' => false,
+            'sentry' => $this->sentryConfigWith(['breadcrumbs.sql_transactions' => false]),
         ]);
 
         $dispatcher = $this->app->make(Dispatcher::class);
