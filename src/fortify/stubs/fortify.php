@@ -138,6 +138,8 @@ return [
     |--------------------------------------------------------------------------
     |
     | These values select the rate limiters used by Fortify's public endpoints.
+    | Email verification is always rate limited. Omitting its limiter uses
+    | six attempts per minute; the other endpoint limiters may be null.
     |
     */
 

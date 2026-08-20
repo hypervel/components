@@ -20,6 +20,17 @@ return [
     'prefix' => '',
     'domain' => null,
     'lowercase_usernames' => false,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Rate Limiters
+    |--------------------------------------------------------------------------
+    |
+    | Email verification is always rate limited. Omitting its limiter uses
+    | six attempts per minute; the other endpoint limiters may be null.
+    |
+    */
+
     'limiters' => [
         'login' => null,
         'two-factor' => '5,1',

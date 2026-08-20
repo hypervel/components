@@ -302,7 +302,7 @@ The published configuration sets those limiters to `login` and `passkeys`, and t
 
 The two-factor challenge submit route is throttled by default with `throttle:5,1`. You may set `fortify.limiters.two-factor` to a different throttle string or to a named limiter if your application needs custom keying.
 
-Email verification and resend routes allow six requests per minute by default. You may customize this with `fortify.limiters.verification`; omitting the setting keeps the default limit.
+Email verification and resend routes are always rate limited. They allow six requests per minute by default; omitting `fortify.limiters.verification` keeps this limit, while another throttle string or named limiter customizes it.
 
 ```php
 use Hypervel\Http\Request;
