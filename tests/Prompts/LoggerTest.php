@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Prompts;
 
 use Hypervel\Prompts\Support\Logger;
+use Hypervel\Prompts\Support\Utils;
 use Hypervel\Tests\TestCase;
 use ReflectionProperty;
+use RuntimeException;
 
 class LoggerTest extends TestCase
 {
@@ -84,8 +86,7 @@ class LoggerTest extends TestCase
     public function testNoReaderTimesOutAfterOneWindowFollowingAPartialWrite(): void
     {
         $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
-        stream_set_timeout($sockets[0], 1);
-        $logger = new Logger('abc123', $sockets[0]);
+        $logger = new Logger('abc123', $sockets[0], 1.0);
         $payload = str_repeat('x', 8 * 1024 * 1024);
         $startedAt = hrtime(true);
 
@@ -113,7 +114,6 @@ class LoggerTest extends TestCase
     public function testProgressingReaderMayExceedTheNoProgressWindow(): void
     {
         $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
-        stream_set_timeout($sockets[0], 1);
         $payload = str_repeat('x', 2 * 1024 * 1024);
         $pid = pcntl_fork();
 
@@ -137,7 +137,7 @@ class LoggerTest extends TestCase
 
         $this->assertGreaterThan(0, $pid);
         fclose($sockets[1]);
-        $logger = new Logger('abc123', $sockets[0]);
+        $logger = new Logger('abc123', $sockets[0], 1.0);
         $startedAt = hrtime(true);
         $logger->line($payload);
         fclose($sockets[0]);
@@ -148,6 +148,59 @@ class LoggerTest extends TestCase
         $this->assertNull($logger->transportFailure());
         $this->assertTrue(pcntl_wifexited($status));
         $this->assertSame(0, pcntl_wexitstatus($status));
+    }
+
+    public function testRestoresTheOriginalBlockingModeAfterATimedOutWrite(): void
+    {
+        $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+        $logger = new Logger('abc123', $sockets[0], 0.5);
+
+        try {
+            $logger->line(str_repeat('x', 1024 * 1024));
+
+            $this->assertNotNull($logger->transportFailure());
+            $this->assertTrue(stream_get_meta_data($sockets[0])['blocked']);
+        } finally {
+            fclose($sockets[0]);
+            fclose($sockets[1]);
+        }
+    }
+
+    public function testLeavesANonBlockingStreamNonBlocking(): void
+    {
+        $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+        stream_set_blocking($sockets[0], false);
+
+        try {
+            Utils::writeAll($sockets[0], "output\n", 0.5);
+
+            $this->assertFalse(stream_get_meta_data($sockets[0])['blocked']);
+
+            // A timed-out write must not silently hand back a blocking stream either.
+            try {
+                Utils::writeAll($sockets[0], str_repeat('x', 1024 * 1024), 0.5);
+            } catch (RuntimeException) {
+                // The timeout is the point of the payload; the mode is what matters here.
+            }
+
+            $this->assertFalse(stream_get_meta_data($sockets[0])['blocked']);
+        } finally {
+            fclose($sockets[0]);
+            fclose($sockets[1]);
+        }
+    }
+
+    public function testWritesAnEntirePayloadToAnInMemoryStream(): void
+    {
+        $stream = fopen('php://memory', 'w+');
+        $payload = str_repeat('prompt output ', 1024);
+
+        Utils::writeAll($stream, $payload);
+        rewind($stream);
+
+        $this->assertSame($payload, stream_get_contents($stream));
+
+        fclose($stream);
     }
 
     public function testDoesNotThrowWhenConstructedWithoutSocket(): void
