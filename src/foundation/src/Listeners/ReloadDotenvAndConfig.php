@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Listeners;
 
 use Hypervel\Config\Repository;
-use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Core\Events\BeforeWorkerStart;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\LoadConfiguration;
@@ -34,10 +33,6 @@ class ReloadDotenvAndConfig
         $config = $this->rebuildConfigRepository();
 
         $this->configMutationTracker->replay($config);
-
-        foreach ($this->container->getProviders(ReloadsConfiguration::class) as $provider) {
-            $provider->reloadConfiguration();
-        }
     }
 
     protected function reloadDotenv(): void
