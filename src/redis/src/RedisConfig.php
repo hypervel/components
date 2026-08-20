@@ -39,6 +39,8 @@ class RedisConfig
         $connectionConfig = $this->parseConnectionConfiguration($connectionConfig);
         $connectionConfig += [
             'scheme' => null,
+            'username' => null,
+            'password' => null,
             'timeout' => null,
             'read_timeout' => 0.0,
             'context' => [],
@@ -70,7 +72,10 @@ class RedisConfig
         if ((bool) ($connectionConfig['cluster']['enabled'] ?? false)) {
             $connectionConfig = $this->normalizeClusterConfiguration($name, $connectionConfig);
         } else {
-            $connectionConfig += ['name' => null];
+            $connectionConfig += [
+                'database' => 0,
+                'name' => null,
+            ];
         }
 
         $sharedOptions = $redisConfig['options'];

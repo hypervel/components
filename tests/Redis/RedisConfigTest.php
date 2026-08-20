@@ -19,13 +19,16 @@ class RedisConfigTest extends TestCase
         $config->shouldReceive('array')->with('database.redis')->andReturn([
             'client' => 'phpredis',
             'options' => ['prefix' => 'shared:'],
-            'default' => ['host' => '127.0.0.1', 'port' => 6379, 'database' => 0],
+            'default' => ['host' => '127.0.0.1', 'port' => 6379],
         ]);
 
         $connection = (new RedisConfig($config))->connectionConfig('default');
 
         $this->assertSame([
             'scheme' => null,
+            'username' => null,
+            'password' => null,
+            'database' => 0,
             'name' => null,
             'timeout' => null,
             'read_timeout' => 0.0,
@@ -40,6 +43,9 @@ class RedisConfigTest extends TestCase
             'pool' => [],
         ], [
             'scheme' => $connection['scheme'],
+            'username' => $connection['username'],
+            'password' => $connection['password'],
+            'database' => $connection['database'],
             'name' => $connection['name'],
             'timeout' => $connection['timeout'],
             'read_timeout' => $connection['read_timeout'],
@@ -289,7 +295,6 @@ class RedisConfigTest extends TestCase
         $config->shouldReceive('array')->with('database.redis')->andReturn([
             'options' => [],
             'clustered' => [
-                'database' => 0,
                 'cluster' => [
                     'enabled' => true,
                     'seeds' => ['127.0.0.1:7000', '127.0.0.1:7001'],
@@ -301,10 +306,13 @@ class RedisConfigTest extends TestCase
 
         $this->assertSame('tcp', $connection['scheme']);
         $this->assertSame([], $connection['context']);
+        $this->assertNull($connection['username']);
+        $this->assertNull($connection['password']);
         $this->assertSame(
             ['tcp://127.0.0.1:7000', 'tcp://127.0.0.1:7001'],
             $connection['cluster']['seeds'],
         );
+        $this->assertArrayNotHasKey('database', $connection);
         $this->assertArrayNotHasKey('name', $connection);
     }
 
@@ -487,7 +495,6 @@ class RedisConfigTest extends TestCase
         $config->shouldReceive('array')->with('database.redis')->andReturn([
             'options' => [],
             'sentinel' => [
-                'database' => 0,
                 'options' => [],
                 'sentinel' => [
                     'enabled' => true,
@@ -499,6 +506,10 @@ class RedisConfigTest extends TestCase
 
         $connection = (new RedisConfig($config))->connectionConfig('sentinel');
 
+        $this->assertNull($connection['username']);
+        $this->assertNull($connection['password']);
+        $this->assertSame(0, $connection['database']);
+        $this->assertNull($connection['name']);
         $this->assertSame('mymaster', $connection['sentinel']['master_name']);
         $this->assertNull($connection['sentinel']['username']);
         $this->assertNull($connection['sentinel']['password']);

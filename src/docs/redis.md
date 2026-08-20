@@ -73,7 +73,7 @@ You may configure your application's Redis settings via the `config/database.php
 
 Hypervel's default configuration also includes `cache`, `session`, `queue`, and `reverb` Redis connections. Each connection follows the same standalone shape as the `default` connection shown above.
 
-Each named connection selects a standalone, Sentinel, or Cluster topology. Every topology may omit `scheme`, `timeout`, `read_timeout`, `context`, `options`, `prefix`, `events`, `max_retries`, `backoff_algorithm`, `backoff_base`, `backoff_cap`, and `pool`. An omitted `read_timeout` uses `0.0`, `context` and per-connection `options` use empty arrays, and `events` is disabled. Standalone and Sentinel connections may also omit `name`.
+Each named connection selects a standalone, Sentinel, or Cluster topology. Every topology may omit `scheme`, `username`, `password`, `timeout`, `read_timeout`, `context`, `options`, `prefix`, `events`, `max_retries`, `backoff_algorithm`, `backoff_base`, `backoff_cap`, and `pool`. An omitted `read_timeout` uses `0.0`, `context` and per-connection `options` use empty arrays, and `events` is disabled. Standalone and Sentinel connections may also omit `database` to use database `0`, or omit `name`.
 
 For standalone and Sentinel connections, an omitted or null `name` disables `CLIENT SETNAME`. An omitted or null `timeout` uses the connection pool's `connect_timeout`, while an omitted or null `prefix` inherits the shared `redis.options.prefix` value. An omitted or null `scheme` leaves transport selection to the connection URL, stream context, or the default TCP transport. Cluster connections derive their transport from their seeds and context when `scheme` is omitted and do not have a client name.
 
