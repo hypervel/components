@@ -66,6 +66,8 @@ SENTRY_HYPERVEL_DSN=https://examplePublicKey@o0.ingest.sentry.io/0
 
 You may leave the DSN unset to disable event delivery while keeping the package installed, unless Spotlight is enabled.
 
+The `breadcrumbs` and `tracing` groups may be replaced with partial arrays. Omitted built-in members retain the defaults shown in the published configuration file, while application-defined SDK options remain unchanged.
+
 <a name="replacing-the-service-provider"></a>
 ### Replacing the Service Provider
 

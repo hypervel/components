@@ -14,6 +14,7 @@ use Hypervel\Sentry\Features\Feature;
 use Hypervel\Sentry\Http\FlushEventsMiddleware;
 use Hypervel\Sentry\Http\SetRequestIpMiddleware;
 use Hypervel\Sentry\Hub;
+use Hypervel\Sentry\SentryConfig;
 use Hypervel\Sentry\SentryServiceProvider;
 use Hypervel\Sentry\Tracing\BacktraceHelper;
 use Hypervel\Sentry\Tracing\Middleware as TracingMiddleware;
@@ -200,6 +201,30 @@ class ServiceProviderTest extends SentryTestCase
         $this->assertFalse($active->canRecordBreadcrumbsForTest());
     }
 
+    public function testPartialFeatureRecordsUseSharedOptionalDefaults(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.breadcrumbs' => [
+                'logs' => false,
+                'custom' => true,
+            ],
+            'sentry.tracing' => [
+                'sql_queries' => false,
+                'custom' => true,
+            ],
+        ]);
+
+        $config = (new InspectableSentryServiceProvider($this->app))->userConfigForTest();
+
+        $this->assertSame($this->app->make(SentryConfig::class)->all(), $config);
+        $this->assertFalse($config['breadcrumbs']['logs']);
+        $this->assertTrue($config['breadcrumbs']['cache']);
+        $this->assertTrue($config['breadcrumbs']['custom']);
+        $this->assertFalse($config['tracing']['sql_queries']);
+        $this->assertSame(100, $config['tracing']['sql_origin_threshold_ms']);
+        $this->assertTrue($config['tracing']['custom']);
+    }
+
     public function testSpotlightUrlRegistersTheGuzzleAspect(): void
     {
         $this->resetApplicationWithConfig([
@@ -263,6 +288,14 @@ class ServiceProviderTest extends SentryTestCase
 
 class InspectableSentryServiceProvider extends SentryServiceProvider
 {
+    /**
+     * Retrieve the user configuration for inspection.
+     */
+    public function userConfigForTest(): array
+    {
+        return $this->getUserConfig();
+    }
+
     /**
      * Register middleware for inspection.
      */

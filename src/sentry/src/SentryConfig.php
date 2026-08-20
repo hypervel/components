@@ -12,6 +12,37 @@ use Sentry\Options;
  */
 class SentryConfig
 {
+    private const array BREADCRUMB_DEFAULTS = [
+        'logs' => true,
+        'cache' => true,
+        'storage' => true,
+        'sql_queries' => true,
+        'sql_bindings' => false,
+        'sql_transactions' => true,
+        'queue_info' => true,
+        'command_info' => true,
+        'http_client_requests' => true,
+        'notifications' => true,
+    ];
+
+    private const array TRACING_DEFAULTS = [
+        'queue_job_transactions' => true,
+        'queue_jobs' => true,
+        'sql_queries' => true,
+        'sql_bindings' => false,
+        'sql_origin' => true,
+        'sql_origin_threshold_ms' => 100,
+        'views' => true,
+        'http_client_requests' => true,
+        'cache' => true,
+        'storage' => true,
+        'redis_commands' => false,
+        'redis_origin' => true,
+        'notifications' => true,
+        'missing_routes' => false,
+        'continue_after_response' => true,
+    ];
+
     /**
      * Create a new Sentry configuration reader.
      */
@@ -73,7 +104,13 @@ class SentryConfig
      */
     public function all(): array
     {
-        return $this->config->array($this->root);
+        $config = $this->config->array($this->root);
+        $config['breadcrumbs'] = $this->config->array($this->root . '.breadcrumbs', [])
+            + self::BREADCRUMB_DEFAULTS;
+        $config['tracing'] = $this->config->array($this->root . '.tracing', [])
+            + self::TRACING_DEFAULTS;
+
+        return $config;
     }
 
     /**

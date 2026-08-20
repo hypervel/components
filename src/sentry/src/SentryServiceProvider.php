@@ -735,6 +735,6 @@ class SentryServiceProvider extends ServiceProvider implements ReloadsConfigurat
      */
     protected function getUserConfig(): array
     {
-        return $this->app->make('config')->array(static::$abstract);
+        return $this->app->make(SentryConfig::class)->all();
     }
 }
