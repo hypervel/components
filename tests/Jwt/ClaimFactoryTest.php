@@ -199,33 +199,6 @@ class ClaimFactoryTest extends TestCase
         );
     }
 
-    public function testConfigurationCanBeReloaded(): void
-    {
-        $config = new Repository([
-            'jwt' => [
-                'issuer' => null,
-                'lock_subject' => false,
-            ],
-        ]);
-        $factory = new ClaimFactory($config);
-        $user = new ClaimFactoryUser(42);
-        $provider = new ClaimFactoryModelProvider(ClaimFactoryUser::class);
-
-        $claims = $factory->make($user, $provider, null);
-        $this->assertArrayNotHasKey('iss', $claims);
-        $this->assertArrayNotHasKey('prv', $claims);
-
-        $config->set([
-            'jwt.issuer' => 'https://api.example.test',
-            'jwt.lock_subject' => true,
-        ]);
-        $factory->reloadConfiguration();
-
-        $claims = $factory->make($user, $provider, null);
-        $this->assertSame('https://api.example.test', $claims['iss']);
-        $this->assertSame(hash('xxh128', ClaimFactoryUser::class), $claims['prv']);
-    }
-
     public function testFlushStateClearsModelHashCache(): void
     {
         $factory = $this->factory(['jwt' => ['issuer' => null, 'lock_subject' => true]]);

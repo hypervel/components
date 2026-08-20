@@ -15,10 +15,8 @@ use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Http\Request;
 use Hypervel\Jwt\Blacklist;
-use Hypervel\Jwt\ClaimFactory;
 use Hypervel\Jwt\Contracts\BlacklistContract;
 use Hypervel\Jwt\Contracts\ManagerContract;
-use Hypervel\Jwt\Contracts\ProviderContract;
 use Hypervel\Jwt\Contracts\StorageContract;
 use Hypervel\Jwt\Http\Parser\Cookie;
 use Hypervel\Jwt\Http\Parser\Parser;
@@ -31,7 +29,6 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
-use ReflectionProperty;
 use RuntimeException;
 
 class JwtServiceProviderTest extends TestCase
@@ -342,73 +339,6 @@ class JwtServiceProviderTest extends TestCase
         $this->assertInstanceOf(JwtManager::class, $this->app->make('jwt'));
     }
 
-    public function testReloadConfigurationRefreshesResolvedJwtServices(): void
-    {
-        $config = $this->app->make('config');
-        $config->set([
-            'jwt.issuer' => 'old-issuer',
-            'jwt.lock_subject' => false,
-            'jwt.blacklist_enabled' => false,
-            'jwt.driver' => 'reload-test',
-            'jwt.token' => 'old_token',
-            'jwt.parser' => [Cookie::class],
-            'jwt.providers.storage' => JwtServiceProviderCustomStorage::class,
-            'jwt.blacklist_grace_period' => 0,
-            'jwt.refresh_ttl' => 60,
-            'jwt.leeway' => 0,
-        ]);
-
-        $claimFactory = $this->app->make(ClaimFactory::class);
-        $parser = $this->app->make(Parser::class);
-        $manager = $this->app->make('jwt');
-        $manager->extend('reload-test', static fn (): ProviderContract => new JwtServiceProviderDriverStub);
-        $driver = $manager->driver();
-
-        $this->assertSame('old-token', $parser->parseToken(Request::create('/', 'GET', cookies: [
-            'old_token' => 'old-token',
-        ])));
-
-        $config->set([
-            'jwt.issuer' => 'new-issuer',
-            'jwt.lock_subject' => true,
-            'jwt.blacklist_enabled' => true,
-            'jwt.token' => 'new_token',
-        ]);
-
-        $this->app->getProvider(JwtServiceProvider::class)->reloadConfiguration();
-
-        $issuer = new ReflectionProperty(ClaimFactory::class, 'issuer');
-        $lockSubject = new ReflectionProperty(ClaimFactory::class, 'lockSubject');
-        $this->assertSame($claimFactory, $this->app->make(ClaimFactory::class));
-        $this->assertSame('new-issuer', $issuer->getValue($claimFactory));
-        $this->assertTrue($lockSubject->getValue($claimFactory));
-        $this->assertNotSame($parser, $this->app->make(Parser::class));
-        $this->assertSame('new-token', $this->app->make(Parser::class)->parseToken(Request::create('/', 'GET', cookies: [
-            'new_token' => 'new-token',
-        ])));
-        $this->assertSame($manager, $this->app->make(JwtManager::class));
-        $this->assertTrue($manager->hasBlacklistEnabled());
-        $this->assertNotSame($driver, $manager->driver());
-        $this->assertInstanceOf(Blacklist::class, $this->app->make(BlacklistContract::class));
-    }
-
-    public function testReloadConfigurationDoesNotResolveUnusedJwtServices(): void
-    {
-        $provider = $this->app->getProvider(JwtServiceProvider::class);
-
-        $this->assertFalse($this->app->resolved(ClaimFactory::class));
-        $this->assertFalse($this->app->resolved(Parser::class));
-        $this->assertFalse($this->app->resolved(BlacklistContract::class));
-        $this->assertFalse($this->app->resolved('jwt'));
-
-        $provider->reloadConfiguration();
-
-        $this->assertFalse($this->app->resolved(ClaimFactory::class));
-        $this->assertFalse($this->app->resolved(Parser::class));
-        $this->assertFalse($this->app->resolved(BlacklistContract::class));
-        $this->assertFalse($this->app->resolved('jwt'));
-    }
-
     protected function taggableStore(TagMode $mode): TaggableStore
     {
         /** @var TaggableStore $store */
@@ -417,19 +347,6 @@ class JwtServiceProviderTest extends TestCase
         $store->shouldReceive('getTagMode')->once()->andReturn($mode);
 
         return $store;
-    }
-}
-
-class JwtServiceProviderDriverStub implements ProviderContract
-{
-    public function encode(array $payload): string
-    {
-        return '';
-    }
-
-    public function decode(string $token): array
-    {
-        return [];
     }
 }
 

@@ -7,7 +7,6 @@ namespace Hypervel\Jwt;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Jwt\Console\JwtGenerateCertsCommand;
 use Hypervel\Jwt\Console\JwtSecretCommand;
 use Hypervel\Jwt\Contracts\BlacklistContract;
@@ -19,7 +18,7 @@ use Hypervel\Jwt\Storage\TaggedCache;
 use Hypervel\Support\ServiceProvider;
 use RuntimeException;
 
-class JwtServiceProvider extends ServiceProvider implements ReloadsConfiguration
+class JwtServiceProvider extends ServiceProvider
 {
     /**
      * Register the service provider.
@@ -97,30 +96,6 @@ class JwtServiceProvider extends ServiceProvider implements ReloadsConfiguration
             $this->publishes([
                 __DIR__ . '/../config/jwt.php' => config_path('jwt.php'),
             ], 'jwt-config');
-        }
-    }
-
-    /**
-     * Reload the worker configuration owned by the provider.
-     *
-     * Boot-only. Calling this while requests are running mutates shared worker
-     * state while concurrent coroutines may still use the previous configuration.
-     */
-    public function reloadConfiguration(): void
-    {
-        if ($this->app->resolved(ClaimFactory::class)) {
-            $this->app->make(ClaimFactory::class)->reloadConfiguration();
-        }
-
-        $this->app->forgetInstance(Parser::class);
-        $this->app->forgetInstance(BlacklistContract::class);
-
-        if ($this->app->resolved('jwt')) {
-            $manager = $this->app->make('jwt');
-
-            if ($manager instanceof JwtManager) {
-                $manager->reloadConfiguration();
-            }
         }
     }
 
