@@ -207,7 +207,7 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
         event($event);
 
         // Throw an exception if configured (useful for E2E testing)
-        if (config()->boolean('inertia.ssr.throw_on_error')) {
+        if (config()->boolean('inertia.ssr.throw_on_error', false)) {
             throw SsrException::fromEvent($event);
         }
     }
@@ -226,7 +226,7 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
 
         $enabled = $state->ssrDisabled !== null
             ? ! $this->resolveCallable($state->ssrDisabled)
-            : config()->boolean('inertia.ssr.enabled');
+            : config()->boolean('inertia.ssr.enabled', true);
 
         return $enabled && ! $this->inExceptArray($request);
     }
@@ -266,7 +266,7 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
      */
     protected function shouldEnsureBundleExists(): bool
     {
-        return config()->boolean('inertia.ssr.ensure_bundle_exists');
+        return config()->boolean('inertia.ssr.ensure_bundle_exists', true);
     }
 
     /**
@@ -283,7 +283,7 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
     public function getProductionUrl(string $path = '/'): string
     {
         $path = Str::start($path, '/');
-        $baseUrl = rtrim(config()->string('inertia.ssr.url'), '/');
+        $baseUrl = rtrim(config()->string('inertia.ssr.url', 'http://127.0.0.1:13714'), '/');
 
         return $baseUrl . $path;
     }
