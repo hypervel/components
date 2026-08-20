@@ -138,8 +138,8 @@ class ScoutServiceProvider extends ServiceProvider implements ReloadsConfigurati
             // and Typesense's which has num_retries). Add HTTP-level retry at
             // the Guzzle layer for parity, using MeilisearchRetryPolicy to
             // decide what to retry and how long to wait between attempts.
-            $maxRetries = $config->integer('scout.meilisearch.retries');
-            $baseDelayMs = $config->integer('scout.meilisearch.initial_retry_delay_ms');
+            $maxRetries = $config->integer('scout.meilisearch.retries', 3);
+            $baseDelayMs = $config->integer('scout.meilisearch.initial_retry_delay_ms', 100);
 
             if ($maxRetries > 0) {
                 $stack = HandlerStack::create();
@@ -152,7 +152,7 @@ class ScoutServiceProvider extends ServiceProvider implements ReloadsConfigurati
             // Swoole-unsafe PSR-18 implementation (e.g. Symfony's
             // CurlHttpClient). Mirrors the Typesense binding's defensive pattern.
             return new MeilisearchClient(
-                $config->string('scout.meilisearch.host'),
+                $config->string('scout.meilisearch.host', 'http://localhost:7700'),
                 $config->get('scout.meilisearch.key'),
                 new GuzzleClient($guzzleOptions),
             );

@@ -95,7 +95,7 @@ trait Searchable
 
         HasManyThrough::macro('searchable', function (?int $chunk = null): void {
             /** @var HasManyThrough $this */
-            $chunkSize = $chunk ?? config()->integer('scout.chunk.searchable');
+            $chunkSize = $chunk ?? config()->integer('scout.chunk.searchable', Scout::DEFAULT_CHUNK_SIZE);
 
             $this->chunkById($chunkSize, function (Collection $models): void {
                 /** @var Collection<int, Model&SearchableInterface> $models */
@@ -112,7 +112,7 @@ trait Searchable
 
         HasManyThrough::macro('unsearchable', function (?int $chunk = null): void {
             /** @var HasManyThrough $this */
-            $chunkSize = $chunk ?? config()->integer('scout.chunk.unsearchable');
+            $chunkSize = $chunk ?? config()->integer('scout.chunk.unsearchable', Scout::DEFAULT_CHUNK_SIZE);
 
             $this->chunkById($chunkSize, function (Collection $models): void {
                 /** @var Collection<int, Model&SearchableInterface> $models */
@@ -135,7 +135,7 @@ trait Searchable
             return;
         }
 
-        if (! Scout::isImporting() && config()->boolean('scout.queue.enabled')) {
+        if (! Scout::isImporting() && config()->boolean('scout.queue.enabled', false)) {
             $jobClass = Scout::$makeSearchableJob;
             $pendingDispatch = $jobClass::dispatch($models)
                 ->onConnection($models->first()->syncWithSearchUsing())
@@ -180,7 +180,7 @@ trait Searchable
             return;
         }
 
-        if (! Scout::isImporting() && config()->boolean('scout.queue.enabled')) {
+        if (! Scout::isImporting() && config()->boolean('scout.queue.enabled', false)) {
             $jobClass = Scout::$removeFromSearchJob;
             $pendingDispatch = $jobClass::dispatch($models)
                 ->onConnection($models->first()->syncWithSearchUsing())

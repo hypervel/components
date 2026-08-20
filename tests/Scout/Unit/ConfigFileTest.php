@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Unit;
 
+use Hypervel\Scout\Scout;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -58,20 +59,8 @@ class ConfigFileTest extends TestCase
 
         $this->assertFalse($config['after_commit']);
         $this->assertArrayNotHasKey('after_commit', $config['queue']);
-    }
-
-    public function testMeilisearchRetryDefaultsArePresentInConfigFile(): void
-    {
-        $config = require dirname(__DIR__, 3) . '/src/scout/config/scout.php';
-
-        $this->assertArrayHasKey('meilisearch', $config);
-        $this->assertIsArray($config['meilisearch']);
-
-        $this->assertArrayHasKey('retries', $config['meilisearch']);
-        $this->assertSame(3, $config['meilisearch']['retries']);
-
-        $this->assertArrayHasKey('initial_retry_delay_ms', $config['meilisearch']);
-        $this->assertSame(100, $config['meilisearch']['initial_retry_delay_ms']);
+        $this->assertSame(Scout::DEFAULT_CHUNK_SIZE, $config['chunk']['searchable']);
+        $this->assertSame(Scout::DEFAULT_CHUNK_SIZE, $config['chunk']['unsearchable']);
     }
 
     #[DataProvider('integerEnvironmentValues')]

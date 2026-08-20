@@ -94,7 +94,7 @@ Of course, if you customize the connection and queue that Scout jobs utilize, yo
 php artisan queue:work redis --queue=scout
 ```
 
-Each queue option may also be set via the `SCOUT_QUEUE`, `SCOUT_QUEUE_CONNECTION`, and `SCOUT_QUEUE_NAME` environment variables.
+Each queue option may also be set via the `SCOUT_QUEUE`, `SCOUT_QUEUE_CONNECTION`, and `SCOUT_QUEUE_NAME` environment variables. If the nested `enabled` option is omitted, Scout keeps its default deferred, non-queued indexing mode.
 
 #### Transaction-Safe Dispatch
 
@@ -168,6 +168,8 @@ SCOUT_DRIVER=meilisearch
 MEILISEARCH_HOST=http://127.0.0.1:7700
 MEILISEARCH_KEY=masterKey
 ```
+
+Omitting the Meilisearch host uses `http://localhost:7700`. Retry settings may also be omitted; Scout then retries transient failures three times with an initial 100-millisecond delay.
 
 For more information regarding Meilisearch, please consult the [Meilisearch documentation](https://docs.meilisearch.com/learn/getting_started/quick_start.html).
 
@@ -748,6 +750,8 @@ You may optionally control the chunk size, the ID range, and the destination que
 ```shell
 php artisan scout:queue-import "App\Models\Post" --chunk=500 --min=1000 --max=50000 --queue=imports
 ```
+
+Scout processes searchable and unsearchable records in chunks of 500 when their nested configuration members are omitted.
 
 Imports run in ascending key order by default. To process the range from the highest key to the lowest, pass `--order=desc`:
 

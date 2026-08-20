@@ -10,20 +10,22 @@ use Algolia\AlgoliaSearch\Http\GuzzleHttpClient;
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Psr7\Response;
 use Http\Client\Common\HttpMethodsClient;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Telescope\TelescopeTag;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Scout\Engines\Engine;
+use Hypervel\Scout\Engines\MeilisearchRetryPolicy;
 use Hypervel\Scout\ScoutServiceProvider;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Testbench\TestCase;
-use InvalidArgumentException;
 use Meilisearch\Client as MeilisearchClient;
+use Meilisearch\Exceptions\ApiException;
 use Meilisearch\Http\Client as MeilisearchHttpClient;
 use Mockery as m;
-use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Client\ClientInterface;
+use Psr\Http\Message\RequestInterface;
 use ReflectionProperty;
 use stdClass;
 use Typesense\Client as TypesenseClient;
@@ -237,8 +239,8 @@ class ScoutServiceProviderTest extends TestCase
         $this->assertInstanceOf(HandlerStack::class, $stack);
 
         $mock = new MockHandler([
-            new \GuzzleHttp\Psr7\Response(500, ['Content-Type' => 'application/json'], '{"message":"server error"}'),
-            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/json'], '{}'),
+            new Response(500, ['Content-Type' => 'application/json'], '{"message":"server error"}'),
+            new Response(200, ['Content-Type' => 'application/json'], '{}'),
         ]);
 
         $stack->setHandler($mock);
@@ -267,8 +269,8 @@ class ScoutServiceProviderTest extends TestCase
         $this->assertInstanceOf(HandlerStack::class, $stack);
 
         $mock = new MockHandler([
-            new \GuzzleHttp\Psr7\Response(500, ['Content-Type' => 'application/json'], '{"message":"server error"}'),
-            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/json'], '{}'),
+            new Response(500, ['Content-Type' => 'application/json'], '{"message":"server error"}'),
+            new Response(200, ['Content-Type' => 'application/json'], '{}'),
         ]);
 
         $stack->setHandler($mock);
@@ -277,7 +279,7 @@ class ScoutServiceProviderTest extends TestCase
 
         try {
             $adapter->post('/test', new stdClass);
-        } catch (\Meilisearch\Exceptions\ApiException $e) {
+        } catch (ApiException $e) {
             $thrown = $e;
         }
 
@@ -285,32 +287,59 @@ class ScoutServiceProviderTest extends TestCase
         $this->assertSame(1, $mock->count(), 'only the first response should be consumed when retries are disabled');
     }
 
-    #[DataProvider('requiredMeilisearchRetrySettings')]
-    public function testMeilisearchRetrySettingsAreRequired(string $member): void
+    public function testPartialMeilisearchConfigUsesShippedDefaults(): void
     {
-        $config = $this->app->make('config');
-        $meilisearch = $config->array('scout.meilisearch');
-        unset($meilisearch[$member]);
-        $config->set('scout.meilisearch', $meilisearch);
+        $shippedConfig = $this->withEnvironmentValues([
+            'MEILISEARCH_HOST' => null,
+            'MEILISEARCH_RETRIES' => null,
+            'MEILISEARCH_INITIAL_RETRY_DELAY_MS' => null,
+        ], fn (): array => require dirname(__DIR__, 3) . '/src/scout/config/scout.php');
+        $meilisearchConfig = $shippedConfig['meilisearch'];
+
+        $this->app->make('config')->set('scout.meilisearch', ['key' => null]);
         $this->app->forgetInstance(MeilisearchClient::class);
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage("Configuration value for key [scout.meilisearch.{$member}] must be an integer");
+        /** @var MeilisearchClient $client */
+        $client = $this->app->make(MeilisearchClient::class);
 
-        $this->app->make(MeilisearchClient::class);
-    }
+        /** @var MeilisearchHttpClient $adapter */
+        $adapter = (new ClassInvoker($client))->http;
+        /** @var GuzzleClient $psr18 */
+        $psr18 = (new ClassInvoker($adapter))->http;
+        /** @var HandlerStack $stack */
+        $stack = $psr18->getConfig('handler');
 
-    /**
-     * Provide required Meilisearch retry settings.
-     *
-     * @return array<string, array{string}>
-     */
-    public static function requiredMeilisearchRetrySettings(): array
-    {
-        return [
-            'retry count' => ['retries'],
-            'initial retry delay' => ['initial_retry_delay_ms'],
-        ];
+        $delays = [];
+        $requests = [];
+        $failure = static function (RequestInterface $request, array $options) use (&$delays, &$requests): Response {
+            $delays[] = $options['delay'] ?? null;
+            $requests[] = (string) $request->getUri();
+
+            return new Response(500, ['Content-Type' => 'application/json'], '{"message":"server error"}');
+        };
+        $mock = new MockHandler(array_fill(0, $meilisearchConfig['retries'] + 2, $failure));
+        $stack->setHandler($mock);
+        $thrown = null;
+
+        try {
+            $adapter->post('/test', new stdClass);
+        } catch (ApiException $exception) {
+            $thrown = $exception;
+        }
+
+        $expectedDelays = [null];
+
+        for ($attempt = 1; $attempt <= $meilisearchConfig['retries']; ++$attempt) {
+            $expectedDelays[] = MeilisearchRetryPolicy::nextDelayMs(
+                $attempt,
+                $meilisearchConfig['initial_retry_delay_ms'],
+            );
+        }
+
+        $this->assertNotNull($thrown);
+        $this->assertSame($meilisearchConfig['host'] . '/test', $requests[0]);
+        $this->assertSame($expectedDelays, $delays);
+        $this->assertSame(1, $mock->count());
     }
 
     public function testTypesenseClientHasScoutTelescopeTags(): void

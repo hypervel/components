@@ -37,7 +37,7 @@ class SearchableScope implements Scope
             /** @var Model&SearchableInterface $model */
             $model = $builder->getModel();
             $scoutKeyName = $model->getScoutKeyName();
-            $chunkSize = $chunk ?? config()->integer('scout.chunk.searchable');
+            $chunkSize = $chunk ?? config()->integer('scout.chunk.searchable', Scout::DEFAULT_CHUNK_SIZE);
 
             $builder->chunkById($chunkSize, function (Collection $models) {
                 /** @var EloquentCollection<int, Model> $models */
@@ -59,7 +59,7 @@ class SearchableScope implements Scope
             /** @var Model&SearchableInterface $model */
             $model = $builder->getModel();
             $scoutKeyName = $model->getScoutKeyName();
-            $chunkSize = $chunk ?? config()->integer('scout.chunk.unsearchable');
+            $chunkSize = $chunk ?? config()->integer('scout.chunk.unsearchable', Scout::DEFAULT_CHUNK_SIZE);
 
             $builder->chunkById($chunkSize, function (Collection $models) {
                 /** @var EloquentCollection<int, Model> $models */

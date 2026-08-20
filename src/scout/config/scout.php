@@ -43,7 +43,8 @@ return [
     | By default, Hypervel Scout uses Coroutine::defer() which executes
     | indexing at coroutine exit (in HTTP requests, typically after the
     | response is emitted). Set 'enabled' to true to use
-    | the queue system instead for durability and retries.
+    | the queue system instead for durability and retries. Omitting the
+    | enabled member keeps deferred, non-queued indexing.
     |
     */
 
@@ -90,6 +91,7 @@ return [
     | These options allow you to control the maximum chunk size when you are
     | mass importing data into the search engine. This allows you to fine
     | tune each of these chunk sizes based on the power of the servers.
+    | Omitted members use a chunk size of 500.
     |
     */
 
@@ -176,6 +178,7 @@ return [
     | Here you may configure your Meilisearch settings. Meilisearch is an open
     | source search engine with minimal configuration. Below, you can state
     | the host and key information for your own Meilisearch installation.
+    | Omitted host and retry members use the values shown below.
     |
     | See: https://www.meilisearch.com/docs/learn/configuration/instance_options
     |
