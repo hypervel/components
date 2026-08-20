@@ -204,6 +204,37 @@ class HandleExceptionsTest extends TestCase
         );
     }
 
+    public function testMissingDeprecationOptionsUseTheNullChannelWithoutATrace(): void
+    {
+        $logger = m::mock(LogManager::class);
+        $this->app->instance(LogManager::class, $logger);
+        $this->app->expects('runningUnitTests')->andReturn(false);
+        $this->app->expects('hasBeenBootstrapped')->andReturn(true);
+        $this->config->set('logging.deprecations', []);
+
+        $logger->expects('channel')->with('deprecations')->andReturnSelf();
+        $logger->expects('warning')->with(sprintf(
+            '%s in %s on line %s',
+            'Deprecated behavior',
+            __FILE__,
+            42,
+        ));
+
+        $this->handleExceptions()->handleDeprecationError(
+            'Deprecated behavior',
+            __FILE__,
+            42,
+        );
+
+        $this->assertSame(
+            [
+                'driver' => 'monolog',
+                'handler' => NullHandler::class,
+            ],
+            $this->config->get('logging.channels.deprecations'),
+        );
+    }
+
     #[DataProvider('invalidDeprecationConfigurationProvider')]
     public function testInvalidDeprecationConfigurationFailsLoudly(mixed $configuration, string $key): void
     {
@@ -229,9 +260,7 @@ class HandleExceptionsTest extends TestCase
     {
         return [
             'legacy scalar' => ['null', 'logging.deprecations'],
-            'missing channel' => [['trace' => false], 'logging.deprecations.channel'],
             'unknown channel' => [['channel' => 'missing', 'trace' => false], 'logging.channels.missing'],
-            'missing trace' => [['channel' => 'null'], 'logging.deprecations.trace'],
         ];
     }
 

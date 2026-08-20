@@ -10,7 +10,6 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Log\LogManager;
 use Hypervel\Support\Env;
-use InvalidArgumentException;
 use Monolog\Handler\NullHandler;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Runner\ErrorHandler;
@@ -87,7 +86,7 @@ class HandleExceptions
 
         $this->ensureDeprecationLoggerIsConfigured();
 
-        $trace = static::$app->make('config')->boolean('logging.deprecations.trace');
+        $trace = static::$app->make('config')->boolean('logging.deprecations.trace', false);
 
         with($logger->channel('deprecations'), function ($log) use ($message, $file, $line, $level, $trace) {
             if ($trace) {
@@ -126,7 +125,6 @@ class HandleExceptions
         }
 
         $options = $config->array('logging.deprecations');
-        $this->ensureDeprecationChannelIsDefined($options);
 
         $this->ensureNullLogDriverIsConfigured();
 
@@ -134,18 +132,6 @@ class HandleExceptions
         $driver = $options['channel'] ?? 'null';
 
         $config->set('logging.channels.deprecations', $config->array("logging.channels.{$driver}"));
-    }
-
-    /**
-     * Ensure the deprecation channel is defined.
-     */
-    protected function ensureDeprecationChannelIsDefined(array $options): void
-    {
-        if (! array_key_exists('channel', $options)) {
-            throw new InvalidArgumentException(
-                'Configuration value for key [logging.deprecations.channel] is not defined.'
-            );
-        }
     }
 
     /**

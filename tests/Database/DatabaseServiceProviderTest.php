@@ -32,7 +32,6 @@ class DatabaseServiceProviderTest extends TestCase
     {
         config(['database.migrations' => [
             'table' => 'custom_migrations',
-            'update_date_on_publish' => true,
         ]]);
         $this->app->forgetInstance('migration.repository');
 

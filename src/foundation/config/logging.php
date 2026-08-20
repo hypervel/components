@@ -32,6 +32,9 @@ return [
     | This option controls the log channel that should be used to log warnings
     | regarding deprecated PHP and library features. This allows you to get
     | your application ready for upcoming major versions of dependencies.
+    | Omitting the channel or setting it to null uses the null logger. An
+    | omitted trace setting disables stack traces; Testbench enables them so
+    | deprecation call sites remain visible during tests.
     |
     */
 
