@@ -13,8 +13,11 @@ return new class extends Migration {
      */
     public function up(): void
     {
+        $tableNames = config()->get('permission.table_names');
+
+        throw_if(! is_array($tableNames) || $tableNames === [], 'Error: config/permission.php not loaded. Run [php artisan config:clear] and try again.');
+
         $teams = config()->boolean('permission.teams');
-        $tableNames = config()->array('permission.table_names');
         $columnNames = config()->array('permission.column_names');
         $pivotRole = $columnNames['role_pivot_key'];
         $pivotRole ??= PermissionRegistrar::DEFAULT_ROLE_PIVOT_KEY;
@@ -23,7 +26,6 @@ return new class extends Migration {
         $teamForeignKey = $columnNames['team_foreign_key'];
         $modelMorphKey = $columnNames['model_morph_key'];
 
-        throw_if($tableNames === [], 'Error: config/permission.php not loaded. Run [php artisan config:clear] and try again.');
         throw_if($teams && $teamForeignKey === '', 'Error: team_foreign_key on config/permission.php not loaded. Run [php artisan config:clear] and try again.');
 
         Schema::create($tableNames['permissions'], static function (Blueprint $table): void {
@@ -127,9 +129,9 @@ return new class extends Migration {
      */
     public function down(): void
     {
-        $tableNames = config()->array('permission.table_names');
+        $tableNames = config()->get('permission.table_names');
 
-        throw_if($tableNames === [], 'Error: config/permission.php not found and defaults could not be merged. Please publish the package configuration before proceeding, or drop the tables manually.');
+        throw_if(! is_array($tableNames) || $tableNames === [], 'Error: config/permission.php not found and defaults could not be merged. Please publish the package configuration before proceeding, or drop the tables manually.');
 
         Schema::dropIfExists($tableNames['role_has_permissions']);
         Schema::dropIfExists($tableNames['model_has_roles']);

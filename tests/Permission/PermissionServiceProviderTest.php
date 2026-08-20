@@ -11,6 +11,7 @@ use Hypervel\Permission\DefaultTeamResolver;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\PermissionServiceProvider;
 use Hypervel\Testbench\TestCase;
+use RuntimeException;
 
 class PermissionServiceProviderTest extends TestCase
 {
@@ -54,5 +55,17 @@ class PermissionServiceProviderTest extends TestCase
         $this->assertNull($config['column_names']['role_pivot_key']);
         $this->assertNull($config['column_names']['permission_pivot_key']);
         $this->assertArrayNotHasKey('wildcard_permission', $config);
+    }
+
+    public function testMigrationReportsWhenPermissionConfigurationIsNotLoaded(): void
+    {
+        config(['permission.table_names' => null]);
+        $migration = require dirname(__DIR__, 2)
+            . '/src/permission/database/migrations/2025_07_02_000000_create_permission_tables.php';
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Error: config/permission.php not loaded.');
+
+        $migration->up();
     }
 }
