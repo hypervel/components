@@ -276,7 +276,9 @@ class CompiledRouteCollection extends AbstractRouteCollection
         $route = null;
 
         if ($this->supportsDirectStaticMatching) {
-            $staticRoutes = $this->compiled[1][$path] ?? (str_contains($path, '%') ? null : false);
+            $staticRoutes = str_contains($path, '%')
+                ? null
+                : ($this->compiled[1][$path] ?? false);
 
             if (is_array($staticRoutes)) {
                 $result = $this->matchDirectStaticRoute($method, $path, $staticRoutes);
@@ -389,8 +391,8 @@ class CompiledRouteCollection extends AbstractRouteCollection
      * Match an unconstrained exact path without constructing Symfony matcher state.
      *
      * Null means a static path existed but Symfony must resolve method or slash
-     * semantics. Encoded static paths use that fallback as well so dynamic
-     * requests pay only one preliminary hash lookup.
+     * semantics. Encoded paths never reach this method; the caller defers them
+     * to Symfony before the table lookup.
      *
      * @param array<int, array<int, mixed>> $routes
      * @return null|array<string, mixed>

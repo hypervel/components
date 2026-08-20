@@ -450,6 +450,28 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->collection()->match($request);
     }
 
+    public function testEncodedStaticLiteralsUseSymfonyMatchingSemantics(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/literal%20segment', [
+                'uses' => 'FooController@index',
+                'as' => 'encoded-literal',
+            ])
+        );
+
+        foreach ([$this->routeCollection, $this->collection()] as $routes) {
+            try {
+                $routes->match(Request::create('/literal%20segment', 'GET'));
+                $this->fail('Expected the raw encoded literal request to be rejected.');
+            } catch (NotFoundHttpException) {
+            }
+
+            $route = $routes->match(Request::create('/literal%2520segment', 'GET'));
+
+            $this->assertSame('encoded-literal', $route->getName());
+        }
+    }
+
     public function testStaticCompiledFallbackYieldsToDynamicNonFallbackRoute(): void
     {
         $this->routeCollection->add(
