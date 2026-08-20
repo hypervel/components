@@ -10,7 +10,6 @@ use Hypervel\Mail\MailServiceProvider;
 use Hypervel\Mail\Markdown;
 use Hypervel\Support\Facades\Mail;
 use Hypervel\Testbench\TestCase;
-use InvalidArgumentException;
 use ReflectionProperty;
 
 class MailServiceProviderTest extends TestCase
@@ -63,16 +62,14 @@ class MailServiceProviderTest extends TestCase
         $this->assertNotSame($mailer, $manager->mailer('first'));
     }
 
-    public function testMarkdownConfigurationRequiresEveryDeclaredMember(): void
+    public function testMarkdownConfigurationMayOmitConstructorOwnedOptions(): void
     {
-        config(['mail.markdown' => [
-            'theme' => 'default',
-            'paths' => [],
-        ]]);
+        config(['mail.markdown' => []]);
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Configuration value for key [mail.markdown.extensions]');
+        $markdown = $this->app->make(Markdown::class);
 
-        $this->app->make(Markdown::class);
+        $this->assertSame('default', (new ReflectionProperty(Markdown::class, 'theme'))->getValue($markdown));
+        $this->assertSame([], (new ReflectionProperty(Markdown::class, 'componentPaths'))->getValue($markdown));
+        $this->assertSame([], (new ReflectionProperty(Markdown::class, 'extensions'))->getValue());
     }
 }
