@@ -8,6 +8,7 @@ use Hypervel\Foundation\Bootstrap\HandleExceptions as FoundationHandleExceptions
 use Hypervel\Testbench\Bootstrap\HandleExceptions;
 use Hypervel\Testbench\Exceptions\DeprecatedException;
 use Hypervel\Tests\Testbench\TestCase;
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionMethod;
 use ReflectionProperty;
@@ -36,5 +37,38 @@ class DeprecatedExceptionTest extends TestCase
         } finally {
             $application->setValue(null, $previousApplication);
         }
+    }
+
+    #[Test]
+    public function itRequiresTheDeprecationChannelMember(): void
+    {
+        config([
+            'logging.channels.deprecations' => null,
+            'logging.deprecations' => ['trace' => false],
+        ]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Configuration value for key [logging.deprecations.channel] is not defined.');
+
+        (new ReflectionMethod(HandleExceptions::class, 'ensureDeprecationLoggerIsConfigured'))
+            ->invoke(new HandleExceptions);
+    }
+
+    #[Test]
+    public function itMapsANullDeprecationChannelToTheNullLogger(): void
+    {
+        config([
+            'logging.channels.deprecations' => null,
+            'logging.deprecations' => [
+                'channel' => null,
+                'trace' => false,
+            ],
+        ]);
+
+        (new ReflectionMethod(HandleExceptions::class, 'ensureDeprecationLoggerIsConfigured'))
+            ->invoke(new HandleExceptions);
+
+        $this->assertSame(config()->array('logging.channels.null'), config()->array('logging.channels.deprecations'));
+        $this->assertSame('deprecations', config()->string('logging.deprecations.channel'));
     }
 }

@@ -46,6 +46,8 @@ final class HandleExceptions extends \Hypervel\Foundation\Bootstrap\HandleExcept
         }
 
         $options = $config->array('logging.deprecations');
+        $this->ensureDeprecationChannelIsDefined($options);
+
         $driver = $options['channel'] ?? 'null';
         $trace = $config->boolean('logging.deprecations.trace');
 

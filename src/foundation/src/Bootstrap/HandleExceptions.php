@@ -126,12 +126,7 @@ class HandleExceptions
         }
 
         $options = $config->array('logging.deprecations');
-
-        if (! array_key_exists('channel', $options)) {
-            throw new InvalidArgumentException(
-                'Configuration value for key [logging.deprecations.channel] is not defined.'
-            );
-        }
+        $this->ensureDeprecationChannelIsDefined($options);
 
         $this->ensureNullLogDriverIsConfigured();
 
@@ -139,6 +134,18 @@ class HandleExceptions
         $driver = $options['channel'] ?? 'null';
 
         $config->set('logging.channels.deprecations', $config->array("logging.channels.{$driver}"));
+    }
+
+    /**
+     * Ensure the deprecation channel is defined.
+     */
+    protected function ensureDeprecationChannelIsDefined(array $options): void
+    {
+        if (! array_key_exists('channel', $options)) {
+            throw new InvalidArgumentException(
+                'Configuration value for key [logging.deprecations.channel] is not defined.'
+            );
+        }
     }
 
     /**
