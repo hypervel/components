@@ -37,7 +37,6 @@ namespace Hypervel\Support\Facades;
  * @method static string newComponentHash(string $component)
  * @method static void precompiler(callable $precompiler)
  * @method static \Hypervel\View\Compilers\BladeCompiler prepareStringsForCompilationUsing(callable $callback)
- * @method static void reloadConfiguration(string $cachePath, string $basePath, bool $shouldCache, string $compiledExtension, bool $shouldCheckTimestamps)
  * @method static string render(string $string, array $data = [], bool $deleteCachedView = false)
  * @method static string renderComponent(\Hypervel\View\Component $component)
  * @method static mixed sanitizeComponentAttribute(mixed $value)
