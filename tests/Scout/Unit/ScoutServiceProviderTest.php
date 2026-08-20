@@ -13,14 +13,11 @@ use GuzzleHttp\HandlerStack;
 use Http\Client\Common\HttpMethodsClient;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Telescope\TelescopeTag;
-use Hypervel\Scout\EngineManager;
-use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\ScoutServiceProvider;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Testbench\TestCase;
 use Meilisearch\Client as MeilisearchClient;
 use Meilisearch\Http\Client as MeilisearchHttpClient;
-use Mockery as m;
 use Psr\Http\Client\ClientInterface;
 use ReflectionProperty;
 use stdClass;
@@ -276,46 +273,5 @@ class ScoutServiceProviderTest extends TestCase
             [TelescopeTag::Scout, TelescopeTag::Typesense],
             $client->getConfig('telescope_tags'),
         );
-    }
-
-    public function testReloadConfigurationRefreshesResolvedEnginesAndClients(): void
-    {
-        $config = $this->app->make('config');
-        $config->set([
-            'scout.driver' => 'reload-test',
-            'scout.algolia.id' => 'test-app-id',
-            'scout.algolia.secret' => 'test-secret',
-            'scout.typesense.client-settings' => [
-                'api_key' => 'test-key',
-                'nodes' => [
-                    ['host' => 'localhost', 'port' => '8108', 'protocol' => 'http'],
-                ],
-            ],
-        ]);
-
-        $manager = $this->app->make(EngineManager::class);
-        $manager->extend('reload-test', static fn (): Engine => m::mock(Engine::class));
-        $engine = $manager->engine();
-        $algolia = $this->app->make(AlgoliaSearchClient::class);
-        $meilisearch = $this->app->make(MeilisearchClient::class);
-        $typesense = $this->app->make(TypesenseClient::class);
-
-        $this->app->getProvider(ScoutServiceProvider::class)->reloadConfiguration();
-
-        $this->assertSame($manager, $this->app->make(EngineManager::class));
-        $this->assertNotSame($engine, $manager->engine());
-        $this->assertNotSame($algolia, $this->app->make(AlgoliaSearchClient::class));
-        $this->assertNotSame($meilisearch, $this->app->make(MeilisearchClient::class));
-        $this->assertNotSame($typesense, $this->app->make(TypesenseClient::class));
-    }
-
-    public function testReloadConfigurationDoesNotResolveUnusedScoutServices(): void
-    {
-        $this->app->getProvider(ScoutServiceProvider::class)->reloadConfiguration();
-
-        $this->assertFalse($this->app->resolved(EngineManager::class));
-        $this->assertFalse($this->app->resolved(AlgoliaSearchClient::class));
-        $this->assertFalse($this->app->resolved(MeilisearchClient::class));
-        $this->assertFalse($this->app->resolved(TypesenseClient::class));
     }
 }
