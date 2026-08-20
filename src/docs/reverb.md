@@ -123,35 +123,37 @@ Each application may also define client connection options, allowed origins, con
 ```php
 $maxConnections = env('REVERB_APP_MAX_CONNECTIONS');
 
-'apps' => [
-    'provider' => 'config',
-
+return [
     'apps' => [
-        [
-            'app_id' => env('REVERB_APP_ID'),
-            'key' => env('REVERB_APP_KEY'),
-            'secret' => env('REVERB_APP_SECRET'),
-            'options' => [
-                'host' => env('REVERB_HOST'),
-                'port' => (int) env('REVERB_PORT', 443),
-                'scheme' => env('REVERB_SCHEME', 'https'),
-                'useTLS' => env('REVERB_SCHEME', 'https') === 'https',
-            ],
-            'allowed_origins' => ['*'],
-            'ping_interval' => (int) env('REVERB_APP_PING_INTERVAL', 60),
-            'activity_timeout' => (int) env('REVERB_APP_ACTIVITY_TIMEOUT', 30),
-            'max_connections' => $maxConnections === null ? null : (int) $maxConnections,
-            'max_message_size' => (int) env('REVERB_APP_MAX_MESSAGE_SIZE', 10_000),
-            'accept_client_events_from' => env('REVERB_APP_ACCEPT_CLIENT_EVENTS_FROM', 'members'),
-            'rate_limiting' => [
-                'enabled' => (bool) env('REVERB_APP_RATE_LIMIT_ENABLED', false),
-                'max_attempts' => (int) env('REVERB_APP_RATE_LIMIT_MAX_ATTEMPTS', 60),
-                'decay_seconds' => (int) env('REVERB_APP_RATE_LIMIT_DECAY_SECONDS', 60),
-                'terminate_on_limit' => (bool) env('REVERB_APP_RATE_LIMIT_TERMINATE_ON_LIMIT', false),
+        'provider' => 'config',
+
+        'apps' => [
+            [
+                'app_id' => env('REVERB_APP_ID'),
+                'key' => env('REVERB_APP_KEY'),
+                'secret' => env('REVERB_APP_SECRET'),
+                'options' => [
+                    'host' => env('REVERB_HOST'),
+                    'port' => (int) env('REVERB_PORT', 443),
+                    'scheme' => env('REVERB_SCHEME', 'https'),
+                    'useTLS' => env('REVERB_SCHEME', 'https') === 'https',
+                ],
+                'allowed_origins' => ['*'],
+                'ping_interval' => (int) env('REVERB_APP_PING_INTERVAL', 60),
+                'activity_timeout' => (int) env('REVERB_APP_ACTIVITY_TIMEOUT', 30),
+                'max_connections' => $maxConnections === null ? null : (int) $maxConnections,
+                'max_message_size' => (int) env('REVERB_APP_MAX_MESSAGE_SIZE', 10_000),
+                'accept_client_events_from' => env('REVERB_APP_ACCEPT_CLIENT_EVENTS_FROM', 'members'),
+                'rate_limiting' => [
+                    'enabled' => (bool) env('REVERB_APP_RATE_LIMIT_ENABLED', false),
+                    'max_attempts' => (int) env('REVERB_APP_RATE_LIMIT_MAX_ATTEMPTS', 60),
+                    'decay_seconds' => (int) env('REVERB_APP_RATE_LIMIT_DECAY_SECONDS', 60),
+                    'terminate_on_limit' => (bool) env('REVERB_APP_RATE_LIMIT_TERMINATE_ON_LIMIT', false),
+                ],
             ],
         ],
     ],
-],
+];
 ```
 
 When using the `config` application provider, omitting `activity_timeout` uses 30 seconds, omitting `options` uses an empty array, and omitting `rate_limiting` or `webhooks` disables that feature. A null `max_connections` value allows the application to accept an unlimited number of connections. Supplied rate-limiting and webhook records must include every member shown in their respective examples.
