@@ -368,7 +368,7 @@ class BroadcastManager implements BroadcastingFactoryContract
         return new PusherBroadcaster(
             $this->app,
             $this->pusher($config),
-            $config['jsonp'],
+            $config['jsonp'] ?? false,
         );
     }
 

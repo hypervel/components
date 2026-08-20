@@ -543,7 +543,6 @@ class BroadcastManagerTest extends TestCase
                 'app_id' => 'app',
                 'options' => ['host' => '127.0.0.1'],
                 'client_options' => [],
-                'jsonp' => false,
             ],
             'pusher' => [
                 'driver' => 'pusher',
