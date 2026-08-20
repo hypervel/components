@@ -24,11 +24,6 @@ class SendingMarkdownMailTest extends TestCase
             'mailers' => [
                 'array' => ['transport' => 'array'],
             ],
-            'markdown' => [
-                'theme' => 'default',
-                'paths' => [],
-                'extensions' => [],
-            ],
         ]);
 
         $app->make('view')->addNamespace('mail', __DIR__ . '/Fixtures')

@@ -11,7 +11,6 @@ use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
-use InvalidArgumentException;
 use Mockery as m;
 use WeakReference;
 
@@ -29,7 +28,6 @@ class SupportServiceProviderTest extends TestCase
 
         $config = new ConfigRepository([
             'database' => ['migrations' => [
-                'table' => 'migrations',
                 'update_date_on_publish' => true,
             ]],
         ]);
@@ -179,19 +177,18 @@ class SupportServiceProviderTest extends TestCase
         $this->assertContains('source/tagged/four', ServiceProvider::publishableMigrationPaths());
     }
 
-    public function testPublishesMigrationsRejectsAMissingUpdateDateSetting(): void
+    public function testPublishesMigrationsDoesNotUpdateDatesWhenSettingIsOmitted(): void
     {
         $config = new ConfigRepository([
-            'database' => ['migrations' => ['table' => 'migrations']],
+            'database' => ['migrations' => []],
         ]);
         $this->app->shouldReceive('make')->with('config')->andReturn($config);
         $serviceProvider = new ServiceProviderForTestingOne($this->app);
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('database.migrations.update_date_on_publish');
-
         (fn () => $this->publishesMigrations(['source' => 'destination']))
             ->call($serviceProvider);
+
+        $this->assertNotContains('source', ServiceProvider::publishableMigrationPaths());
     }
 
     public function testAllPathsAreReturnedWhenNoFilterIsSpecified()
