@@ -160,7 +160,7 @@ class SanctumServiceProvider extends ServiceProvider
 
         $config = $this->app->make(ConfigRepository::class);
 
-        if (! $config->boolean('sanctum.routes', true)) {
+        if (! $config->boolean('sanctum.routes')) {
             return;
         }
 

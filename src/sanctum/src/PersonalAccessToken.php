@@ -168,7 +168,7 @@ class PersonalAccessToken extends Model implements HasAbilities
 
         return $cache->rememberNullable(
             static::getCacheKey($id),
-            config()->get('sanctum.cache.ttl'),
+            config()->integer('sanctum.cache.ttl'),
             fn () => static::find($id)?->unsetRelation('tokenable')
         );
     }
@@ -198,7 +198,7 @@ class PersonalAccessToken extends Model implements HasAbilities
             $tokenable = $accessToken->getAttribute('tokenable');
 
             if ($tokenable instanceof Authenticatable) {
-                $cache->put($cacheKey, $tokenable, config()->get('sanctum.cache.ttl'));
+                $cache->put($cacheKey, $tokenable, config()->integer('sanctum.cache.ttl'));
             } else {
                 $tokenable = null;
             }
@@ -258,7 +258,7 @@ class PersonalAccessToken extends Model implements HasAbilities
             $cacheEnabled
             && $this->last_used_at !== null
             && $this->last_used_at->diffInSeconds($now)
-                < config()->get('sanctum.cache.last_used_at_update_interval')
+                < config()->integer('sanctum.cache.last_used_at_update_interval')
         ) {
             return;
         }
@@ -282,7 +282,7 @@ class PersonalAccessToken extends Model implements HasAbilities
             /** @var int|string $id */
             $id = $this->getKey();
             $snapshot = $this->withoutRelation('tokenable');
-            $ttl = config()->get('sanctum.cache.ttl');
+            $ttl = config()->integer('sanctum.cache.ttl');
 
             $this->settleCacheMutation(
                 fn () => static::getCache()->put(static::getCacheKey($id), $snapshot, $ttl)
