@@ -25,14 +25,12 @@ class RedisConnector implements ConnectorInterface
      */
     public function connect(array $config): Queue
     {
-        $connection = $config['connection'];
-
         return new RedisQueue(
             $this->redis,
             $config['queue'],
-            $connection ?? $this->connection,
-            $config['retry_after'],
-            $config['block_for'],
+            $config['connection'] ?? $this->connection,
+            $config['retry_after'] ?? RedisQueue::DEFAULT_RETRY_AFTER,
+            $config['block_for'] ?? null,
             Arr::get($config, 'after_commit', true),
             Arr::get($config, 'migration_batch_size', RedisQueue::DEFAULT_MIGRATION_BATCH_SIZE)
         );

@@ -11,7 +11,6 @@ use Hypervel\Contracts\Queue\IndexAwareQueue;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Redis\Factory as Redis;
-use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Redis\RedisConnection;
@@ -21,6 +20,8 @@ use Hypervel\Support\Str;
 
 class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAwareQueue
 {
+    public const int DEFAULT_RETRY_AFTER = 60;
+
     public const int DEFAULT_MIGRATION_BATCH_SIZE = -1;
 
     /**
@@ -49,7 +50,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
         protected Redis $redis,
         protected string $default = 'default',
         protected ?string $connection = null,
-        protected ?int $retryAfter = 60,
+        protected ?int $retryAfter = self::DEFAULT_RETRY_AFTER,
         protected ?int $blockFor = null,
         protected bool $dispatchAfterCommit = false,
         protected int $migrationBatchSize = self::DEFAULT_MIGRATION_BATCH_SIZE
@@ -254,9 +255,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
 
         $callback = function () use ($jobs, $data, $queue): void {
             foreach ($jobs as $job) {
-                $delay = is_object($job)
-                    ? $this->getAttributeValue($job, Delay::class, 'delay')
-                    : null;
+                $delay = $this->getJobDelay($job);
 
                 if ($delay !== null) {
                     $this->later($delay, $job, $data, $queue);

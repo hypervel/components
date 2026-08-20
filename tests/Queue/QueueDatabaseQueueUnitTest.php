@@ -31,9 +31,22 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use RuntimeException;
 use stdClass;
+use TypeError;
 
 class QueueDatabaseQueueUnitTest extends TestCase
 {
+    public function testRetryAfterMustBeAnInteger(): void
+    {
+        $this->expectException(TypeError::class);
+
+        new DatabaseQueue(
+            resolver: m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            retryAfter: null,
+        );
+    }
+
     public function testQueueNamesPreserveZeroAndDefaultEmptyString(): void
     {
         $queue = new TestDatabaseQueue(

@@ -45,9 +45,6 @@ class QueueBeanstalkdConnectorTest extends TestCase
             'host' => 'localhost',
             'port' => 11300,
             'queue' => 'default',
-            'retry_after' => 90,
-            'block_for' => 0,
-            'after_commit' => true,
         ];
     }
 

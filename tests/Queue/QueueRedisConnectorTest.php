@@ -17,10 +17,6 @@ class QueueRedisConnectorTest extends TestCase
     {
         $queue = (new RedisConnector(m::mock(Redis::class)))->connect([
             'queue' => 'default',
-            'connection' => 'queue',
-            'retry_after' => 90,
-            'block_for' => null,
-            'after_commit' => true,
         ]);
 
         $this->assertSame(RedisQueue::DEFAULT_MIGRATION_BATCH_SIZE, (new ClassInvoker($queue))->migrationBatchSize);
@@ -30,10 +26,6 @@ class QueueRedisConnectorTest extends TestCase
     {
         $queue = (new RedisConnector(m::mock(Redis::class)))->connect([
             'queue' => 'default',
-            'connection' => 'queue',
-            'retry_after' => 90,
-            'block_for' => null,
-            'after_commit' => true,
             'migration_batch_size' => 100,
         ]);
 

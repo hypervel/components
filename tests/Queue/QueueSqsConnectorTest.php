@@ -170,22 +170,8 @@ class QueueSqsConnectorTest extends TestCase
     protected function config(array $overrides = []): array
     {
         return [
-            'driver' => 'sqs',
-            'key' => null,
-            'secret' => null,
-            'token' => null,
-            'prefix' => 'https://sqs.us-east-1.amazonaws.com/account',
             'queue' => 'default',
-            'suffix' => null,
             'region' => 'us-east-1',
-            'after_commit' => false,
-            'overflow' => [
-                'enabled' => false,
-                'store' => null,
-                'always' => false,
-                'delete_after_processing' => true,
-                'flush_on_clear' => false,
-            ],
             ...$overrides,
         ];
     }

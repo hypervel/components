@@ -13,31 +13,28 @@ use Mockery as m;
 
 class RedisConnectorTest extends UnitTestCase
 {
-    public function testConnectUsesDefaultMigrationBatchSizeWhenOmitted(): void
+    public function testConnectUsesOptionalMemberDefaultsWhenOmitted(): void
     {
         $redis = m::mock(Redis::class);
-        $connector = new RedisConnector($redis);
+        $connector = new RedisConnector($redis, 'queue');
 
         $queue = $connector->connect([
             'queue' => 'default',
-            'connection' => 'queue',
-            'retry_after' => 90,
-            'block_for' => null,
-            'after_commit' => false,
         ]);
+        $properties = new ClassInvoker($queue);
 
         $this->assertInstanceOf(RedisQueue::class, $queue);
-        $this->assertSame(RedisQueue::DEFAULT_MIGRATION_BATCH_SIZE, (new ClassInvoker($queue))->migrationBatchSize);
+        $this->assertSame('queue', $properties->connection);
+        $this->assertSame(RedisQueue::DEFAULT_RETRY_AFTER, $properties->retryAfter);
+        $this->assertNull($properties->blockFor);
+        $this->assertTrue($properties->dispatchAfterCommit);
+        $this->assertSame(RedisQueue::DEFAULT_MIGRATION_BATCH_SIZE, $properties->migrationBatchSize);
     }
 
     public function testConnectUsesConfiguredMigrationBatchSize(): void
     {
         $queue = (new RedisConnector(m::mock(Redis::class)))->connect([
             'queue' => 'default',
-            'connection' => 'queue',
-            'retry_after' => 90,
-            'block_for' => null,
-            'after_commit' => false,
             'migration_batch_size' => 100,
         ]);
 

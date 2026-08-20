@@ -13,7 +13,6 @@ use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\Query\Builder;
-use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Jobs\DatabaseJob;
 use Hypervel\Queue\Jobs\DatabaseJobRecord;
 use Hypervel\Queue\Jobs\InspectedJob;
@@ -25,6 +24,8 @@ use Throwable;
 
 class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
 {
+    public const int DEFAULT_RETRY_AFTER = 60;
+
     /**
      * Create a new database queue instance.
      *
@@ -39,7 +40,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
         protected ?string $connection,
         protected string $table,
         protected string $default = 'default',
-        protected ?int $retryAfter = 60,
+        protected int $retryAfter = self::DEFAULT_RETRY_AFTER,
         protected bool $dispatchAfterCommit = false
     ) {
     }
@@ -335,9 +336,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     {
         return Collection::make($jobs)
             ->map(function (object|string $job) use ($data, $queue): array {
-                $delay = is_object($job)
-                    ? $this->getAttributeValue($job, Delay::class, 'delay')
-                    : null;
+                $delay = $this->getJobDelay($job);
 
                 return [
                     'job' => $job,

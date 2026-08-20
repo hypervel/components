@@ -14,15 +14,13 @@ class RedisConnector extends BaseConnector
      */
     public function connect(array $config): RedisQueue
     {
-        $connection = $config['connection'];
-
         return new RedisQueue(
             $this->redis,
             $config['queue'],
-            $connection ?? $this->connection,
-            $config['retry_after'],
-            $config['block_for'],
-            $config['after_commit'],
+            $config['connection'] ?? $this->connection,
+            $config['retry_after'] ?? RedisQueue::DEFAULT_RETRY_AFTER,
+            $config['block_for'] ?? null,
+            $config['after_commit'] ?? true,
             $config['migration_batch_size'] ?? RedisQueue::DEFAULT_MIGRATION_BATCH_SIZE,
         );
     }

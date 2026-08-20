@@ -164,7 +164,7 @@ The `queue:clear` command remains available for pooled SQS, Redis, and database 
 <a name="beanstalkd"></a>
 #### Beanstalkd
 
-The shipped Beanstalkd connection reads its host and port from `BEANSTALKD_QUEUE_HOST` and `BEANSTALKD_QUEUE_PORT`. The optional `timeout` setting controls the connection timeout in whole seconds; when omitted or null, Pheanstalk's own default is used.
+The shipped Beanstalkd connection reads its host and port from `BEANSTALKD_QUEUE_HOST` and `BEANSTALKD_QUEUE_PORT`. The optional `timeout` setting controls the connection timeout in whole seconds; when omitted or null, Pheanstalk's own default is used. Omitting `retry_after` uses Pheanstalk's 60-second time-to-run value, while omitting `block_for` disables blocking.
 
 <a name="database"></a>
 #### Database
@@ -177,12 +177,14 @@ php artisan make:queue-table
 php artisan migrate
 ```
 
+The `connection` setting may be omitted or null to use the default database connection. Omitting `retry_after` uses 60 seconds.
+
 <a name="redis"></a>
 #### Redis
 
 In order to use the `redis` queue driver, you should configure a Redis database connection in your `config/database.php` configuration file. Hypervel's Redis queue driver uses the Hypervel Redis component, which is powered by the PhpRedis extension.
 
-The optional `migration_batch_size` connection setting limits how many delayed or expired jobs are migrated to the primary queue in one pass. When omitted, Hypervel migrates all available jobs.
+The optional `migration_batch_size` connection setting limits how many delayed or expired jobs are migrated to the primary queue in one pass. When omitted, Hypervel migrates all available jobs. Omitting `connection` uses the default Redis connection, omitting `retry_after` uses 60 seconds, and omitting `block_for` disables blocking.
 
 <a name="redis-cluster"></a>
 ##### Redis Cluster

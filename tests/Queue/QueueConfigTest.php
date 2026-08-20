@@ -16,11 +16,14 @@ use Hypervel\Queue\Connectors\FailoverConnector;
 use Hypervel\Queue\Connectors\RedisConnector;
 use Hypervel\Queue\Connectors\SqsConnector;
 use Hypervel\Queue\Connectors\SyncConnector;
+use Hypervel\Queue\DatabaseQueue;
 use Hypervel\Queue\QueueManager;
+use Hypervel\Queue\RedisQueue;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Support\Env;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use Pheanstalk\Pheanstalk;
 
 class QueueConfigTest extends TestCase
 {
@@ -89,6 +92,37 @@ class QueueConfigTest extends TestCase
                 "The [{$name}] connector default does not match its shipped config.",
             );
         }
+    }
+
+    public function testConnectorOptionalMemberOmissionUsesOwnedDefaults(): void
+    {
+        $databaseQueue = (new DatabaseConnector(m::mock(ConnectionResolverInterface::class)))->connect([
+            'table' => 'jobs',
+            'queue' => 'default',
+        ]);
+        $databaseQueueProperties = new ClassInvoker($databaseQueue);
+
+        $this->assertNull($databaseQueueProperties->connection);
+        $this->assertSame(DatabaseQueue::DEFAULT_RETRY_AFTER, $databaseQueueProperties->retryAfter);
+
+        $beanstalkdQueue = (new BeanstalkdConnector)->connect([
+            'host' => 'localhost',
+            'port' => 11300,
+            'queue' => 'default',
+        ]);
+        $beanstalkdQueueProperties = new ClassInvoker($beanstalkdQueue);
+
+        $this->assertSame(Pheanstalk::DEFAULT_TTR, $beanstalkdQueueProperties->timeToRun);
+        $this->assertSame(0, $beanstalkdQueueProperties->blockFor);
+
+        $redisQueue = (new RedisConnector(m::mock(RedisFactory::class)))->connect([
+            'queue' => 'default',
+        ]);
+        $redisQueueProperties = new ClassInvoker($redisQueue);
+
+        $this->assertNull($redisQueueProperties->connection);
+        $this->assertSame(RedisQueue::DEFAULT_RETRY_AFTER, $redisQueueProperties->retryAfter);
+        $this->assertNull($redisQueueProperties->blockFor);
     }
 
     protected function loadConfig(): array

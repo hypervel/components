@@ -102,9 +102,7 @@ abstract class Queue
     public function bulk(array $jobs, mixed $data = '', ?string $queue = null): mixed
     {
         foreach ((array) $jobs as $job) {
-            $delay = is_object($job)
-                ? $this->getAttributeValue($job, Delay::class, 'delay')
-                : null;
+            $delay = $this->getJobDelay($job);
 
             if ($delay !== null) {
                 /* @phpstan-ignore-next-line */
@@ -116,6 +114,16 @@ abstract class Queue
         }
 
         return null;
+    }
+
+    /**
+     * Get the delay configured on the given job.
+     */
+    protected function getJobDelay(object|string $job): mixed
+    {
+        return is_object($job)
+            ? $this->getAttributeValue($job, Delay::class, 'delay')
+            : null;
     }
 
     /**
@@ -479,8 +487,8 @@ abstract class Queue
         }
 
         return static function () use ($uniqueLock, $debounceLock, $debounceOwner, $job): void {
-            // Failover invokes both releases as one cancellation callback, so preserve
-            // the transaction record's exception isolation inside that callback.
+            // Both locks share one transaction callback, so preserve the transaction
+            // record's exception isolation between releases.
             $exception = null;
 
             try {
