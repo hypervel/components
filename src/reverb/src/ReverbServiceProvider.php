@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Reverb;
 
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcher;
-use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Core\Events\AfterWorkerStart;
@@ -63,7 +62,7 @@ use RuntimeException;
 use Swoole\Table;
 use Throwable;
 
-class ReverbServiceProvider extends ServiceProvider implements ReloadsConfiguration
+class ReverbServiceProvider extends ServiceProvider
 {
     /**
      * Register any application services.
@@ -167,7 +166,6 @@ class ReverbServiceProvider extends ServiceProvider implements ReloadsConfigurat
             'settings' => $this->resolveServerSettings($tls),
         ];
 
-        // Replay the master snapshot; replacement workers cannot change the bound server topology.
         $config->set('server.servers', $servers);
     }
 
@@ -246,21 +244,6 @@ class ReverbServiceProvider extends ServiceProvider implements ReloadsConfigurat
         $this->registerPeriodicTasks();
         $this->registerPipeMessageListener();
         $this->registerShutdownHandler();
-    }
-
-    /**
-     * Reload the worker configuration owned by the provider.
-     *
-     * Boot-only. Calling this while requests are running mutates shared worker
-     * state while concurrent coroutines may still use the previous configuration.
-     */
-    public function reloadConfiguration(): void
-    {
-        if ($this->app->resolved(ApplicationManager::class)) {
-            $this->app->make(ApplicationManager::class)->forgetDrivers();
-        }
-
-        $this->app->forgetInstance(WebhookBatchBuffer::class);
     }
 
     /**
