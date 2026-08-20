@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
+use Hypervel\Sanctum\Sanctum;
 use Hypervel\Support\Env;
 use Hypervel\Tests\TestCase;
 
@@ -55,6 +56,11 @@ class SanctumConfigTest extends TestCase
 
         $this->assertTrue($config['routes']);
         $this->assertSame('sanctum', $config['prefix']);
+        $this->assertSame(Sanctum::DEFAULT_CACHE_TTL, $config['cache']['ttl']);
+        $this->assertSame(
+            Sanctum::DEFAULT_LAST_USED_AT_UPDATE_INTERVAL,
+            $config['cache']['last_used_at_update_interval'],
+        );
     }
 
     /**

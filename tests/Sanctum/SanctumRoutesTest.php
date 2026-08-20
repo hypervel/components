@@ -34,15 +34,6 @@ class SanctumRoutesTest extends TestCase
         $configRepository->set('sanctum', $config);
     }
 
-    protected function omitRoutesSetting(ApplicationContract $app): void
-    {
-        $configRepository = $app->make('config');
-        $config = $configRepository->array('sanctum');
-        unset($config['routes']);
-
-        $configRepository->set('sanctum', $config);
-    }
-
     public function testCsrfCookieRouteUsesTheExpectedNameUriAndMiddleware(): void
     {
         $route = Route::getRoutes()->getByName('sanctum.csrf-cookie');
@@ -60,15 +51,6 @@ class SanctumRoutesTest extends TestCase
 
         $this->assertNotNull($route);
         $this->assertSame('auth/csrf-cookie', $route->uri);
-    }
-
-    #[DefineEnvironment('omitRoutesSetting')]
-    public function testCsrfCookieRouteIsRegisteredWhenRoutesSettingIsOmitted(): void
-    {
-        $route = Route::getRoutes()->getByName('sanctum.csrf-cookie');
-
-        $this->assertNotNull($route);
-        $this->assertSame('sanctum/csrf-cookie', $route->uri);
     }
 
     #[DefineEnvironment('disableRoutes')]

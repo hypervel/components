@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Closure;
-use ErrorException;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Hypervel\Cookie\Middleware\EncryptCookies;
+use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Testbench\TestCase;
-use PHPUnit\Framework\Attributes\DataProvider;
 use TypeError;
 
 class EnsureFrontendRequestsAreStatefulTest extends TestCase
@@ -239,33 +239,18 @@ class EnsureFrontendRequestsAreStatefulTest extends TestCase
         ], array_slice($middleware, 1));
     }
 
-    #[DataProvider('middlewareMemberProvider')]
-    public function testMissingMiddlewareMembersFailInsteadOfSilentlyRemovingProtection(string $missingMember): void
+    public function testMissingMiddlewareMembersUseTheirDefaults(): void
     {
-        $middleware = [
-            'encrypt_cookies' => 'encrypt-cookies',
-            'validate_csrf_token' => 'validate-csrf-token',
-            'authenticate_session' => 'authenticate-session',
-        ];
-        unset($middleware[$missingMember]);
-        config(['sanctum.middleware' => $middleware]);
+        config(['sanctum.middleware' => []]);
 
-        $this->expectException(ErrorException::class);
-        $this->expectExceptionMessage('Undefined array key "' . $missingMember . '"');
+        $middleware = (new EnsureFrontendRequestsAreStatefulFixture)->middleware();
 
-        (new EnsureFrontendRequestsAreStatefulFixture)->middleware();
-    }
-
-    /**
-     * Provide required Sanctum middleware members.
-     */
-    public static function middlewareMemberProvider(): array
-    {
-        return [
-            'cookie encryption' => ['encrypt_cookies'],
-            'CSRF validation' => ['validate_csrf_token'],
-            'session authentication' => ['authenticate_session'],
-        ];
+        $this->assertSame([
+            EncryptCookies::class,
+            AddQueuedCookiesToResponse::class,
+            StartSession::class,
+            PreventRequestForgery::class,
+        ], array_slice($middleware, 1));
     }
 }
 

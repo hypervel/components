@@ -68,8 +68,9 @@ return [
     |
     | When authenticating your first-party SPA with Sanctum you may need to
     | customize some of the middleware Sanctum uses while processing the
-    | request. You may change the middleware below as required. Set an entry
-    | to null to omit that middleware from the stateful request pipeline.
+    | request. Omitted cookie-encryption and CSRF entries use Sanctum's
+    | defaults, while session authentication is omitted by default. Set any
+    | entry to null to remove that middleware from the request pipeline.
     |
     */
 
@@ -88,8 +89,9 @@ return [
     | performance. The last_used_at timestamp will be updated at the specified
     | interval instead of on every request to reduce database writes. The TTL
     | is the maximum time a cached tokenable identity may remain stale. A
-    | null store uses the default cache store. The update interval accepts
-    | zero to write the last-used timestamp after every authentication.
+    | null store uses the default cache store. The cache record may be omitted
+    | to disable caching. Its other members default to the values shown below.
+    | The update interval accepts zero to write after every authentication.
     |
     */
 

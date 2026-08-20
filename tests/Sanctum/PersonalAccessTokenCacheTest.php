@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\Repository as CacheRepository;
@@ -79,19 +78,10 @@ class PersonalAccessTokenCacheTest extends TestCase
                 'driver' => 'sanctum',
                 'provider' => 'users',
                 'session_guards' => [],
-                'passwords' => null,
-                'password_timeout' => null,
             ],
             'auth.providers.users' => [
                 'driver' => 'eloquent',
                 'model' => TestUser::class,
-                'cache' => [
-                    'enabled' => false,
-                    'store' => null,
-                    'ttl' => 300,
-                    'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
-                    'tags' => null,
-                ],
             ],
             'database.connections.sanctum_secondary' => [
                 'driver' => 'sqlite',
@@ -170,6 +160,11 @@ class PersonalAccessTokenCacheTest extends TestCase
     protected function useDefaultTokenCacheStoreFromEmptyName(ApplicationContract $app): void
     {
         $app->make('config')->set('sanctum.cache.store', '');
+    }
+
+    protected function usePartialTokenCacheConfig(ApplicationContract $app): void
+    {
+        $app->make('config')->set('sanctum.cache', ['enabled' => true]);
     }
 
     /**
@@ -765,6 +760,17 @@ class PersonalAccessTokenCacheTest extends TestCase
 
         $this->assertNull($defaultStore->get('sanctum:2'));
         $this->assertSame('zero', $zeroStore->get('sanctum:2'));
+    }
+
+    #[DefineEnvironment('usePartialTokenCacheConfig')]
+    public function testPartialTokenCacheConfigUsesPackageDefaults(): void
+    {
+        $token = $this->createToken();
+
+        $foundToken = PersonalAccessToken::findToken("{$token->id}|secret");
+
+        $this->assertInstanceOf(PersonalAccessToken::class, $foundToken);
+        $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
     }
 
     public function testUpdatingTokenForgetsTokenAndPositiveTokenableCacheEntries(): void
