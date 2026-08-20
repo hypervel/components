@@ -17,6 +17,7 @@ use Hypervel\Jwt\Http\Parser\InputSource;
 use Hypervel\Jwt\Http\Parser\Parser;
 use Hypervel\Jwt\Storage\TaggedCache;
 use Hypervel\Support\ServiceProvider;
+use InvalidArgumentException;
 use RuntimeException;
 
 class JwtServiceProvider extends ServiceProvider implements ReloadsConfiguration
@@ -131,14 +132,19 @@ class JwtServiceProvider extends ServiceProvider implements ReloadsConfiguration
     {
         $this->callAfterResolving(AuthManager::class, function (AuthManager $authManager) {
             $authManager->extend('jwt', function ($app, $name, $config) use ($authManager) {
-                /** @var null|int $ttl */
                 $ttl = array_key_exists('ttl', $config)
                     ? $config['ttl']
                     : $app->make('config')->get('jwt.ttl');
 
+                if (! is_int($ttl) && $ttl !== null) {
+                    throw new InvalidArgumentException(
+                        "JWT TTL for auth guard [{$name}] must be an integer or null."
+                    );
+                }
+
                 $guard = new JwtGuard(
                     name: $name,
-                    provider: $authManager->createUserProvider($config['provider'] ?? null),
+                    provider: $authManager->createUserProvider($config['provider']),
                     jwtManager: $app->make('jwt'),
                     claimFactory: $app->make(ClaimFactory::class),
                     parser: $app->make(Parser::class),

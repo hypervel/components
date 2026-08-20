@@ -41,6 +41,7 @@ use Hypervel\Support\ServiceProvider;
 use Hypervel\View\Engines\EngineResolver;
 use Hypervel\View\Factory as ViewFactory;
 use InvalidArgumentException;
+use LogicException;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Sentry\ClientBuilder;
@@ -119,6 +120,19 @@ class SentryServiceProvider extends ServiceProvider implements ReloadsConfigurat
      */
     public function register(): void
     {
+        if ($this->app->bound(SentryConfig::class)) {
+            throw new LogicException(sprintf(
+                'Sentry provider [%s] cannot be registered because another Sentry provider is already registered. Add [hypervel/sentry] to [extra.hypervel.dont-discover] before registering a custom provider, or remove the custom provider.',
+                static::class,
+            ));
+        }
+
+        $configRoot = static::$abstract;
+        $this->app->singleton(
+            SentryConfig::class,
+            fn () => new SentryConfig($this->app->make(ConfigRepository::class), $configRoot),
+        );
+
         $this->mergeConfigFrom(__DIR__ . '/../config/sentry.php', static::$abstract);
 
         $this->app->singleton(DebugFileLogger::class, function () {
@@ -163,8 +177,10 @@ class SentryServiceProvider extends ServiceProvider implements ReloadsConfigurat
      */
     protected function configureAndRegisterClient(): void
     {
+        $configRoot = static::$abstract;
+
         // ClientBuilder — fresh per resolution so each Hub gets a properly configured builder
-        $this->app->bind(ClientBuilder::class, function () {
+        $this->app->bind(ClientBuilder::class, function () use ($configRoot) {
             $basePath = base_path();
             $userConfig = $this->getUserConfig();
 
@@ -200,7 +216,7 @@ class SentryServiceProvider extends ServiceProvider implements ReloadsConfigurat
             $clientBuilder->setSdkVersion(Version::getSdkVersion());
 
             // Set the pooled transport for async sending via Swoole coroutines
-            $poolConfig = $this->app->make('config')->array('sentry.pool', []);
+            $poolConfig = $this->app->make('config')->array("{$configRoot}.pool");
             $transport = new HttpPoolTransport(
                 new Pool(
                     $clientBuilder->getOptions(),
@@ -245,7 +261,7 @@ class SentryServiceProvider extends ServiceProvider implements ReloadsConfigurat
         $userConfig = $this->getUserConfig();
 
         /** @var array<array-key, class-string>|callable $userIntegrationOption */
-        $userIntegrationOption = $userConfig['integrations'] ?? [];
+        $userIntegrationOption = $userConfig['integrations'];
 
         $userIntegrations = $this->resolveIntegrationsFromUserConfig(
             is_array($userIntegrationOption) ? $userIntegrationOption : [],
@@ -339,11 +355,11 @@ class SentryServiceProvider extends ServiceProvider implements ReloadsConfigurat
 
             $handler->subscribe($dispatcher);
 
-            if (isset($userConfig['send_default_pii']) && $userConfig['send_default_pii'] !== false) {
+            if ($userConfig['send_default_pii'] === true) {
                 $handler->subscribeAuthEvents($dispatcher);
             }
 
-            if (isset($userConfig['enable_logs']) && $userConfig['enable_logs'] === true) {
+            if ($userConfig['enable_logs'] === true) {
                 $this->app->terminating(static function () {
                     Logs::getInstance()->flush();
                 });
@@ -378,14 +394,15 @@ class SentryServiceProvider extends ServiceProvider implements ReloadsConfigurat
      */
     protected function bootTracing(): void
     {
-        $tracingConfig = $this->getUserConfig()['tracing'] ?? [];
+        $tracingConfig = $this->getUserConfig()['tracing'];
 
         // Register the tracing middleware as scoped so each coroutine gets its own instance.
         // Per-request state ($transaction, $appSpan, $didRouteMatch) is isolated between concurrent requests.
         $this->app->scoped(
             TracingMiddleware::class,
             static fn () => new TracingMiddleware(
-                ($tracingConfig['continue_after_response'] ?? true) === true,
+                $tracingConfig['continue_after_response'] === true,
+                $tracingConfig['missing_routes'] === true,
             ),
         );
 
@@ -424,7 +441,7 @@ class SentryServiceProvider extends ServiceProvider implements ReloadsConfigurat
      */
     private function bindViewEngine(array $tracingConfig): void
     {
-        if (($tracingConfig['views'] ?? true) !== true) {
+        if ($tracingConfig['views'] !== true) {
             return;
         }
 
@@ -530,7 +547,7 @@ class SentryServiceProvider extends ServiceProvider implements ReloadsConfigurat
      */
     protected function registerFeatures(): void
     {
-        $features = $this->app->make('config')->array('sentry.features', []);
+        $features = $this->app->make('config')->array(static::$abstract . '.features');
 
         foreach ($features as $feature) {
             try {
@@ -551,7 +568,7 @@ class SentryServiceProvider extends ServiceProvider implements ReloadsConfigurat
     {
         $bootActive = $this->isActive();
 
-        $features = $this->app->make('config')->array('sentry.features', []);
+        $features = $this->app->make('config')->array(static::$abstract . '.features');
 
         foreach ($features as $feature) {
             try {
@@ -592,12 +609,13 @@ class SentryServiceProvider extends ServiceProvider implements ReloadsConfigurat
     protected function registerLogChannels(): void
     {
         $config = $this->app->make(ConfigRepository::class);
+        $configRoot = static::$abstract;
 
         // Derived config can depend on the worker environment, so replay the operation after config reload rather than its master result.
         $this->app->make(ConfigMutationTracker::class)->applyAndRecord(
             $config,
-            static function (ConfigRepository $config): void {
-                $logChannels = $config->array('logging.channels', []);
+            static function (ConfigRepository $config) use ($configRoot): void {
+                $logChannels = $config->array('logging.channels');
 
                 if (! array_key_exists('sentry', $logChannels)) {
                     $config->set('logging.channels.sentry', [
@@ -608,7 +626,7 @@ class SentryServiceProvider extends ServiceProvider implements ReloadsConfigurat
                 if (! array_key_exists('sentry_logs', $logChannels)) {
                     $config->set('logging.channels.sentry_logs', [
                         'driver' => 'sentry_logs',
-                        'level' => $config->string('sentry.logs_channel_level', 'debug'),
+                        'level' => $config->string("{$configRoot}.logs_channel_level"),
                     ]);
                 }
             },
@@ -621,7 +639,7 @@ class SentryServiceProvider extends ServiceProvider implements ReloadsConfigurat
     protected function registerPublishing(): void
     {
         $this->publishes([
-            __DIR__ . '/../config/sentry.php' => config_path('sentry.php'),
+            __DIR__ . '/../config/sentry.php' => config_path(static::$abstract . '.php'),
         ], 'sentry-config');
     }
 
@@ -701,7 +719,7 @@ class SentryServiceProvider extends ServiceProvider implements ReloadsConfigurat
      */
     protected function hasDsnSet(): bool
     {
-        return $this->app->make(SdkCapabilities::class)->hasDsnSet();
+        return $this->app->make(SentryConfig::class)->hasDsnSet();
     }
 
     /**
@@ -709,7 +727,7 @@ class SentryServiceProvider extends ServiceProvider implements ReloadsConfigurat
      */
     protected function hasSpotlightEnabled(): bool
     {
-        return $this->app->make(SdkCapabilities::class)->hasSpotlightEnabled();
+        return $this->app->make(SentryConfig::class)->hasSpotlightEnabled();
     }
 
     /**
@@ -717,6 +735,6 @@ class SentryServiceProvider extends ServiceProvider implements ReloadsConfigurat
      */
     protected function getUserConfig(): array
     {
-        return $this->app->make('config')->array(static::$abstract);
+        return $this->app->make(SentryConfig::class)->all();
     }
 }

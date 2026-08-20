@@ -521,8 +521,8 @@ class RedisProxy implements ConnectionContract
                 $config,
                 $host,
                 $port,
-                $config['scheme'] ?? null,
-                $config['context'] ?? [],
+                $config['scheme'],
+                $config['context'],
             );
         }
 
@@ -530,9 +530,9 @@ class RedisProxy implements ConnectionContract
             return $this->createSubscriber(
                 $config,
                 $config['host'],
-                (int) $config['port'],
-                $config['scheme'] ?? null,
-                $config['context'] ?? [],
+                $config['port'],
+                $config['scheme'],
+                $config['context'],
             );
         }
 
@@ -582,8 +582,8 @@ class RedisProxy implements ConnectionContract
                     $config,
                     $master[0],
                     (int) $master[1],
-                    $config['scheme'] ?? null,
-                    $config['context'] ?? [],
+                    $config['scheme'],
+                    $config['context'],
                 );
             } catch (Throwable $exception) {
                 $failures[] = sprintf(
@@ -615,17 +615,17 @@ class RedisProxy implements ConnectionContract
         array $context,
     ): Subscriber {
         /** @var null|array|string $password */
-        $password = $config['password'] ?? null;
+        $password = $config['password'];
 
         /** @var null|string $username */
-        $username = $config['username'] ?? null;
+        $username = $config['username'];
 
         return new Subscriber(
             host: $host,
             port: $port,
             password: $password,
-            timeout: (float) ($config['timeout'] ?? 5.0),
-            prefix: (string) (($config['options'] ?? [])['prefix'] ?? ''),
+            timeout: $config['timeout'],
+            prefix: (string) ($config['options']['prefix'] ?? ''),
             username: $username,
             scheme: $scheme,
             context: $context,

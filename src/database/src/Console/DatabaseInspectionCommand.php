@@ -17,8 +17,8 @@ abstract class DatabaseInspectionCommand extends Command
      */
     protected function getConfigFromDatabase(?string $database): array
     {
-        $database ??= config('database.default');
+        $database ??= config()->string('database.default');
 
-        return Arr::except(config('database.connections.' . $database), ['password']);
+        return Arr::except(config()->array('database.connections.' . $database), ['password']);
     }
 }

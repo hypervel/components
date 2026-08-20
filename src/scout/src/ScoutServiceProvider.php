@@ -166,7 +166,7 @@ class ScoutServiceProvider extends ServiceProvider implements ReloadsConfigurati
     {
         $this->app->singleton(TypesenseClient::class, function () {
             $config = $this->app->make('config');
-            $settings = $config->array('scout.typesense.client-settings', []);
+            $settings = $config->array('scout.typesense.client-settings');
 
             // Explicitly inject Guzzle as the HTTP client so Typesense never
             // falls back to PSR-18 auto-discovery, which may resolve to

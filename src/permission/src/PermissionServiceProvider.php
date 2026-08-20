@@ -214,18 +214,16 @@ class PermissionServiceProvider extends ServiceProvider implements ReloadsConfig
      */
     protected function registerAbout(): void
     {
-        $features = [
-            'Teams' => 'teams',
-            'Wildcard Permissions' => 'enable_wildcard_permission',
-            'Passport Client Credentials' => 'use_passport_client_credentials',
-            'Denied Permissions' => null,
-        ];
-
         $config = $this->app->make('config');
 
-        AboutCommand::add('Hypervel Permissions', static function () use ($features, $config): array {
-            $enabledFeatures = Collection::make($features)
-                ->filter(fn (?string $feature): bool => $feature === null || $config->boolean("permission.{$feature}", false))
+        AboutCommand::add('Hypervel Permissions', static function () use ($config): array {
+            $enabledFeatures = Collection::make([
+                'Teams' => $config->boolean('permission.teams'),
+                'Wildcard Permissions' => $config->boolean('permission.enable_wildcard_permission', false),
+                'Passport Client Credentials' => $config->boolean('permission.use_passport_client_credentials', false),
+                'Denied Permissions' => true,
+            ])
+                ->filter()
                 ->keys();
 
             if (PermissionRegistrar::partitioningEnabled()) {

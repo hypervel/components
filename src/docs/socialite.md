@@ -399,7 +399,7 @@ use Hypervel\Socialite\Socialite;
 
 Socialite::extend('saml', function (Container $app) {
     return (new SamlProvider($app->make('request')))
-        ->withConfig($app->make('config')->get('services.saml'));
+        ->withConfig($app->make('config')->array('services.saml'));
 });
 ```
 

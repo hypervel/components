@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache\Redis\Console;
 
 use Hypervel\Cache\Redis\Console\BenchmarkCommand;
+use Hypervel\Cache\Redis\Exceptions\BenchmarkMemoryException;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Console\Command;
+use Hypervel\Console\OutputStyle;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -82,6 +84,18 @@ class BenchmarkCommandTest extends TestCase
         );
     }
 
+    public function testMemoryRecoveryGuidanceInheritsTheSharedPrefixWhenStorePrefixIsOmitted(): void
+    {
+        config()->set('cache.prefix', 'shared:');
+
+        $command = $this->createCommand();
+        $output = new BufferedOutput;
+        $command->setOutput(new OutputStyle(new ArrayInput([]), $output));
+        $command->exposedDisplayMemoryError(new BenchmarkMemoryException(1, 2, 50), 'redis');
+
+        $this->assertStringContainsString('redis-cli KEYS "shared:', $output->fetch());
+    }
+
     private function mockCacheStore(string $name): void
     {
         $store = m::mock(RedisStore::class);
@@ -115,5 +129,12 @@ class TestableBenchmarkCommand extends BenchmarkCommand
     public function storeName(): string
     {
         return $this->storeName;
+    }
+
+    public function exposedDisplayMemoryError(BenchmarkMemoryException $exception, string $storeName): void
+    {
+        $this->storeName = $storeName;
+
+        parent::displayMemoryError($exception);
     }
 }

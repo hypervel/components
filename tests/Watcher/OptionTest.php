@@ -193,6 +193,15 @@ class OptionTest extends TestCase
         $this->assertSame(2000, $option->getScanInterval());
     }
 
+    public function testShippedConfigMatchesSourceDefaults(): void
+    {
+        $config = require dirname(__DIR__, 2) . '/src/watcher/config/watcher.php';
+        $option = Option::fromConfig([], $this->tempDir);
+
+        $this->assertSame($option->getDriver(), $config['driver']);
+        $this->assertSame($option->getScanInterval(), $config['scan_interval']);
+    }
+
     public function testFromConfigUsesConfiguredScanInterval(): void
     {
         $option = Option::fromConfig(['scan_interval' => 1500], $this->tempDir);

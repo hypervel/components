@@ -118,7 +118,7 @@ To see how read / write connections should be configured, let's look at this exa
     ],
     'sticky' => true,
 
-    'port' => env('DB_PORT', 3306),
+    'port' => (int) env('DB_PORT', 3306),
     'database' => env('DB_DATABASE', 'hypervel'),
     'username' => env('DB_USERNAME', 'root'),
     'password' => env('DB_PASSWORD', ''),

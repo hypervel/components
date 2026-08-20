@@ -303,6 +303,15 @@ class EngineManagerTest extends TestCase
 
     public function testGetDefaultDriverReturnsNullWhenNotConfigured(): void
     {
+        $container = $this->createMockContainer([]);
+
+        $manager = new EngineManager($container);
+
+        $this->assertSame('null', $manager->getDefaultDriver());
+    }
+
+    public function testGetDefaultDriverReturnsNullWhenConfiguredAsPhpNull(): void
+    {
         $container = $this->createMockContainer(['driver' => null]);
 
         $manager = new EngineManager($container);
@@ -331,8 +340,8 @@ class EngineManagerTest extends TestCase
         $configService->shouldReceive('get')
             ->with('scout.driver', m::any())
             ->andReturn($config['driver'] ?? null);
-        $configService->shouldReceive('get')
-            ->with('scout.soft_delete', m::any())
+        $configService->shouldReceive('boolean')
+            ->with('scout.soft_delete')
             ->andReturn($config['soft_delete'] ?? false);
 
         $container->shouldReceive('make')
@@ -350,10 +359,10 @@ class EngineManagerTest extends TestCase
         $configService->shouldReceive('get')
             ->with('scout.driver', m::any())
             ->andReturn($config['driver'] ?? null);
-        $configService->shouldReceive('get')
-            ->with('scout.soft_delete', m::any())
+        $configService->shouldReceive('boolean')
+            ->with('scout.soft_delete')
             ->andReturn($config['soft_delete'] ?? false);
-        $configService->shouldReceive('get')
+        $configService->shouldReceive('integer')
             ->with('scout.typesense.max_total_results', m::any())
             ->andReturn($config['max_total_results'] ?? 1000);
 
@@ -372,11 +381,11 @@ class EngineManagerTest extends TestCase
         $configService->shouldReceive('get')
             ->with('scout.driver', m::any())
             ->andReturn($config['driver'] ?? null);
-        $configService->shouldReceive('get')
-            ->with('scout.soft_delete', m::any())
+        $configService->shouldReceive('boolean')
+            ->with('scout.soft_delete')
             ->andReturn($config['soft_delete'] ?? false);
-        $configService->shouldReceive('get')
-            ->with('scout.identify', m::any())
+        $configService->shouldReceive('boolean')
+            ->with('scout.identify')
             ->andReturn($config['identify'] ?? false);
 
         $container->shouldReceive('make')

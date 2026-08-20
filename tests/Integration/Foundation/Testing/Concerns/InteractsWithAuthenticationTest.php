@@ -30,6 +30,8 @@ class InteractsWithAuthenticationTest extends TestCase
         $app->make('config')->set('auth.guards.api', [
             'driver' => 'token',
             'provider' => 'users',
+            'passwords' => null,
+            'password_timeout' => null,
             'hash' => false,
         ]);
     }
@@ -204,6 +206,9 @@ class InteractsWithAuthenticationTest extends TestCase
             ->set('auth.guards.secondary', [
                 'driver' => 'session',
                 'provider' => 'users',
+                'passwords' => null,
+                'password_timeout' => null,
+                'remember' => null,
             ]);
 
         Route::post('logout-web', function (Request $request) {

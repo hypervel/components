@@ -98,15 +98,22 @@ class RedisTestConfiguration
                 );
             }
 
-            $connection['database'] = $database;
-
             if ($usesCluster) {
-                unset($connection['host'], $connection['port']);
+                unset(
+                    $connection['url'],
+                    $connection['host'],
+                    $connection['port'],
+                    $connection['database'],
+                    $connection['name'],
+                    $connection['sentinel'],
+                );
 
                 $connection['cluster'] = [
                     'enabled' => true,
                     'seeds' => $clusterSeeds,
                 ];
+            } else {
+                $connection['database'] = $database;
             }
 
             $config->set("database.redis.{$name}", $connection);

@@ -151,10 +151,8 @@ trait DatabaseTruncation
      */
     protected function exceptTables(ConnectionInterface $connection, ?string $connectionName): array
     {
-        $migrations = $this->app->make('config')->get('database.migrations');
-
-        $migrationsTable = is_array($migrations) ? ($migrations['table'] ?? 'migrations') : $migrations;
-        $migrationsTable = $connection->getTablePrefix() . $migrationsTable;
+        $migrationsTable = $connection->getTablePrefix()
+            . $this->app->make('config')->string('database.migrations.table');
 
         return property_exists($this, 'exceptTables') && is_array($this->exceptTables)
             ? array_merge(

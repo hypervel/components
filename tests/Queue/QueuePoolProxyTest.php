@@ -12,11 +12,14 @@ use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Queue\ClearableQueue;
+use Hypervel\Contracts\Queue\IndexAwareQueue;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolOptions;
+use Hypervel\Queue\ClearableQueuePoolProxy;
 use Hypervel\Queue\Jobs\BeanstalkdJob;
 use Hypervel\Queue\Jobs\Job;
 use Hypervel\Queue\Jobs\SqsJob;
@@ -129,16 +132,17 @@ class QueuePoolProxyTest extends TestCase
         $this->assertFalse($pools->has($proxy->getPoolName()));
     }
 
-    public function testPopPinsTheQueueUntilTheJobTerminates(): void
+    public function testPopDoesNotForwardTheQueueIndexToAnOrdinaryConnectionAndPinsItUntilTheJobTerminates(): void
     {
         $job = new QueuePoolProxyTestJob(m::mock(ContainerContract::class));
         $queue = new QueuePoolProxyTestQueue($job);
         [$proxy, $pools] = $this->proxy(fn () => $queue);
         $proxy->setConnectionName('logical');
 
-        $popped = $proxy->pop('jobs');
+        $popped = $proxy->pop('jobs', 2);
         $this->assertSame($job, $popped);
         $this->assertSame('logical', $queue->getConnectionName());
+        $this->assertSame(['jobs'], $queue->lastPopArguments);
 
         $pool = $pools->get($proxy->getPoolName());
         $this->assertSame(1, $pool->getBorrowedObjectNumber());
@@ -146,6 +150,35 @@ class QueuePoolProxyTest extends TestCase
 
         $popped->delete();
 
+        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+        $this->assertSame(1, $pool->getObjectNumberInPool());
+    }
+
+    public function testPopForwardsTheQueueIndexToAnAwareConnection(): void
+    {
+        $queue = new QueuePoolProxyTestIndexAwareQueue;
+        [$proxy, $pools] = $this->proxy(fn () => $queue);
+
+        $this->assertNull($proxy->pop('jobs', 2));
+        $this->assertSame(['jobs', 2], $queue->lastIndexedPop);
+
+        $pool = $pools->get($proxy->getPoolName());
+        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+        $this->assertSame(1, $pool->getObjectNumberInPool());
+    }
+
+    public function testClearUsesOneBorrowAndReleasesItImmediately(): void
+    {
+        $queue = new QueuePoolProxyTestClearableQueue;
+        [$proxy, $pools] = $this->proxy(
+            fn () => $queue,
+            proxyClass: ClearableQueuePoolProxy::class,
+        );
+        /** @var ClearableQueuePoolProxy $proxy */
+        $this->assertSame(3, $proxy->clear('jobs'));
+        $this->assertSame('jobs', $queue->lastClearedQueue);
+
+        $pool = $pools->get($proxy->getPoolName());
         $this->assertSame(0, $pool->getBorrowedObjectNumber());
         $this->assertSame(1, $pool->getObjectNumberInPool());
     }
@@ -356,6 +389,7 @@ class QueuePoolProxyTest extends TestCase
     /**
      * Create a queue proxy with an isolated pool registry.
      *
+     * @param class-string<QueuePoolProxy> $proxyClass
      * @return array{QueuePoolProxy, PoolManager}
      */
     protected function proxy(
@@ -363,6 +397,7 @@ class QueuePoolProxyTest extends TestCase
         ?Closure $releaseCallback = null,
         ?ExceptionHandler $handler = null,
         string $resourceType = 'queue-test',
+        string $proxyClass = QueuePoolProxy::class,
     ): array {
         $container = new Container;
         $container->instance(ContainerContract::class, $container);
@@ -381,7 +416,7 @@ class QueuePoolProxyTest extends TestCase
         );
 
         return [
-            new QueuePoolProxy($definition, $resolver, $pools, $releaseCallback),
+            new $proxyClass($definition, $resolver, $pools, $releaseCallback),
             $pools,
         ];
     }
@@ -389,6 +424,9 @@ class QueuePoolProxyTest extends TestCase
 
 class QueuePoolProxyTestQueue extends BaseQueue implements QueueContract
 {
+    /** @var list<null|int|string> */
+    public array $lastPopArguments = [];
+
     public function __construct(
         public ?JobContract $job = null,
         public ?Throwable $popException = null,
@@ -490,6 +528,8 @@ class QueuePoolProxyTestQueue extends BaseQueue implements QueueContract
 
     public function pop(?string $queue = null): ?JobContract
     {
+        $this->lastPopArguments = func_get_args();
+
         if ($this->popException !== null) {
             throw $this->popException;
         }
@@ -515,6 +555,31 @@ class QueuePoolProxyTestQueue extends BaseQueue implements QueueContract
     public function hasAfterCommitDispatcher(): bool
     {
         return $this->afterCommitDispatcher !== null;
+    }
+}
+
+class QueuePoolProxyTestIndexAwareQueue extends QueuePoolProxyTestQueue implements IndexAwareQueue
+{
+    /** @var null|array{null|string, int} */
+    public ?array $lastIndexedPop = null;
+
+    public function pop(?string $queue = null, int $index = 0): ?JobContract
+    {
+        $this->lastIndexedPop = [$queue, $index];
+
+        return parent::pop($queue);
+    }
+}
+
+class QueuePoolProxyTestClearableQueue extends QueuePoolProxyTestQueue implements ClearableQueue
+{
+    public ?string $lastClearedQueue = null;
+
+    public function clear(?string $queue): int
+    {
+        $this->lastClearedQueue = $queue;
+
+        return 3;
     }
 }
 

@@ -19,6 +19,12 @@ class RedisJobRepository implements JobRepository
 {
     use UsesClusterAwarePipeline;
 
+    public const int DEFAULT_RECENT_JOB_RETENTION = 60;
+
+    public const int DEFAULT_FAILED_JOB_RETENTION = 10_080;
+
+    public const int DEFAULT_MONITORED_JOB_RETENTION = 10_080;
+
     /**
      * The keys stored on the job hashes.
      */
@@ -64,12 +70,12 @@ class RedisJobRepository implements JobRepository
     public function __construct(
         public Redis $redis
     ) {
-        $this->recentJobExpires = (int) config('horizon.trim.recent', 60);
-        $this->pendingJobExpires = (int) config('horizon.trim.pending', 60);
-        $this->completedJobExpires = (int) config('horizon.trim.completed', 60);
-        $this->failedJobExpires = (int) config('horizon.trim.failed', 10080);
-        $this->recentFailedJobExpires = (int) config('horizon.trim.recent_failed', $this->failedJobExpires);
-        $this->monitoredJobExpires = (int) config('horizon.trim.monitored', 10080);
+        $this->recentJobExpires = config()->integer('horizon.trim.recent', self::DEFAULT_RECENT_JOB_RETENTION);
+        $this->pendingJobExpires = config()->integer('horizon.trim.pending', 60);
+        $this->completedJobExpires = config()->integer('horizon.trim.completed', 60);
+        $this->failedJobExpires = config()->integer('horizon.trim.failed', self::DEFAULT_FAILED_JOB_RETENTION);
+        $this->recentFailedJobExpires = config()->integer('horizon.trim.recent_failed', $this->failedJobExpires);
+        $this->monitoredJobExpires = config()->integer('horizon.trim.monitored', self::DEFAULT_MONITORED_JOB_RETENTION);
     }
 
     /**

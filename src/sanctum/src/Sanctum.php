@@ -15,6 +15,10 @@ use function Hypervel\Support\enum_value;
 
 class Sanctum
 {
+    public const int DEFAULT_CACHE_TTL = 300;
+
+    public const int DEFAULT_LAST_USED_AT_UPDATE_INTERVAL = 300;
+
     /** @var class-string<PersonalAccessToken> */
     protected const string DEFAULT_PERSONAL_ACCESS_TOKEN_MODEL = PersonalAccessToken::class;
 

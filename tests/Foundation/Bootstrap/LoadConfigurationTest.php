@@ -12,6 +12,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\LoadConfiguration;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use ReflectionClass;
 use RuntimeException;
 
@@ -37,16 +38,6 @@ class LoadConfigurationTest extends TestCase
             Closure::class,
             (new ReflectionClass($app))->getProperty('environmentResolver')->getValue($app)
         );
-    }
-
-    public function testDontLoadBaseConfiguration(): void
-    {
-        $app = new Application;
-        $app->dontMergeFrameworkConfiguration();
-
-        (new LoadConfiguration)->bootstrap($app);
-
-        $this->assertNull($app->make('config')->get('app.name'));
     }
 
     public function testLoadsConfigurationInIsolation(): void
@@ -117,17 +108,44 @@ class LoadConfigurationTest extends TestCase
 
     public function testDontMergeFrameworkConfigurationSkipsAllBaseConfigs(): void
     {
-        $app = new Application;
+        $app = new Application(__DIR__ . '/../Fixtures');
+        $app->useConfigPath(__DIR__ . '/../Fixtures/config');
         $app->dontMergeFrameworkConfiguration();
 
         (new LoadConfiguration)->bootstrap($app);
 
-        // No base config should be present (app has no config dir with files)
         $config = $app->make('config');
 
+        $this->assertSame('bar', $config->string('app.foo'));
+        $this->assertSame('overwrite', $config->string('cache.default'));
+        $this->assertSame('overwrite', $config->string('database.default'));
+        $this->assertNull($config->get('app.name'));
         $this->assertNull($config->get('auth'));
-        $this->assertNull($config->get('cache'));
-        $this->assertNull($config->get('database'));
+        $this->assertNull($config->get('session'));
+        $this->assertNull($config->get('view'));
+    }
+
+    public function testDontMergeFrameworkConfigurationRequiresApplicationEnvironment(): void
+    {
+        $app = new Application;
+        $app->dontMergeFrameworkConfiguration();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Configuration value for key [app.env] must be a string, NULL given.');
+
+        (new LoadConfiguration)->bootstrap($app);
+    }
+
+    public function testCachedConfigurationRequiresApplicationTimezone(): void
+    {
+        LoadConfiguration::alwaysUse(fn (): array => [
+            'app' => ['env' => 'testing'],
+        ]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Configuration value for key [app.timezone] must be a string, NULL given.');
+
+        (new LoadConfiguration)->bootstrap(new Application);
     }
 
     public function testAppConfigOverridesBaseConfigValues(): void

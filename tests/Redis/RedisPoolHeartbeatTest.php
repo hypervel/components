@@ -472,10 +472,11 @@ class RedisPoolHeartbeatTest extends TestCase
      */
     protected function createPool(array $poolOptions = [], string $poolClass = InspectableRedisPool::class, array $config = []): InspectableRedisPool
     {
-        $connectionConfig = array_replace_recursive([
+        $connectionConfig = array_replace([
             'host' => '127.0.0.1',
             'port' => 6379,
             'database' => 0,
+            'timeout' => null,
             'cluster' => ['enabled' => false],
             'pool' => [
                 'min_connections' => 1,

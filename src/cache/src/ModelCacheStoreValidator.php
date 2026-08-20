@@ -117,7 +117,7 @@ class ModelCacheStoreValidator
     {
         $connection = $store->getContext()->connectionName();
         /** @var array<array-key, mixed> $options */
-        $options = $this->redisConfig->connectionConfig($connection)['options'] ?? [];
+        $options = $this->redisConfig->connectionConfig($connection)['options'];
         $serializer = Redis::SERIALIZER_NONE;
 
         foreach ($options as $option => $value) {

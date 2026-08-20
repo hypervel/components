@@ -15,6 +15,7 @@ use Hypervel\Telescope\Contracts\PrunableRepository;
 use Hypervel\Telescope\Storage\DatabaseEntriesRepository;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\TelescopeServiceProvider;
+use InvalidArgumentException;
 use Mockery as m;
 use ReflectionProperty;
 
@@ -91,6 +92,43 @@ class TelescopeServiceProviderTest extends FeatureTestCase
         Coroutine::join([$coroutineId]);
 
         $this->assertSame([true, 'selected'], $observed);
+    }
+
+    public function testRouteRegistrationRequiresStringPath(): void
+    {
+        config()->set('telescope.path', null);
+
+        $provider = new class($this->app) extends TelescopeServiceProvider {
+            public function registerRoutesForTest(): void
+            {
+                $this->registerRoutes();
+            }
+        };
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Configuration value for key [telescope.path] must be a string');
+
+        $provider->registerRoutesForTest();
+    }
+
+    public function testReloadConfigurationUsesDefaultChunkSizeWhenSettingIsOmitted(): void
+    {
+        $repository = $this->app->make(EntriesRepository::class);
+        $telescope = config()->array('telescope');
+
+        $this->assertSame(
+            DatabaseEntriesRepository::DEFAULT_CHUNK_SIZE,
+            $telescope['storage']['database']['chunk'],
+        );
+
+        unset($telescope['storage']['database']['chunk']);
+        config()->set('telescope', $telescope);
+
+        (new TelescopeServiceProvider($this->app))->reloadConfiguration();
+
+        $chunkSize = new ReflectionProperty(DatabaseEntriesRepository::class, 'chunkSize');
+
+        $this->assertSame(DatabaseEntriesRepository::DEFAULT_CHUNK_SIZE, $chunkSize->getValue($repository));
     }
 
     public function testReloadConfigurationUpdatesEveryResolvedDatabaseRepositoryInPlace(): void

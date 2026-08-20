@@ -206,17 +206,17 @@ You may enable the cache per Eloquent provider in your application's `config/aut
         'driver' => 'eloquent',
         'model' => env('AUTH_MODEL', App\Models\User::class),
         'cache' => [
-            'enabled' => env('AUTH_USERS_CACHE_ENABLED', false),
-            'store' => env('AUTH_USERS_CACHE_STORE'),
-            'ttl' => (int) env('AUTH_USERS_CACHE_TTL', 300),
-            'prefix' => env('AUTH_USERS_CACHE_PREFIX', 'auth_users'),
+            'enabled' => (bool) env('AUTH_USER_CACHE_ENABLED', false),
+            'store' => env('AUTH_USER_CACHE_STORE'),
+            'ttl' => (int) env('AUTH_USER_CACHE_TTL', 300),
+            'prefix' => env('AUTH_USER_CACHE_PREFIX', 'auth_user'),
             'tags' => null,
         ],
     ],
 ],
 ```
 
-The `ttl` value is expressed in seconds and must be a positive integer.
+Omitting the `cache` record or setting it to `null` disables caching. Within a supplied record, omitted members use the displayed defaults: caching remains disabled, the default cache store is used for 300 seconds under the `auth_user` prefix, and no tags are applied. The `ttl` value must be a positive integer.
 
 Hypervel automatically allows configured provider models and its standard Eloquent collection and pivot classes to be restored from the cache. If your cached user contains application-owned relations, custom collections or pivots, or other nested objects, declare those classes from a service provider:
 
@@ -242,15 +242,15 @@ Providers constructed directly and not represented in `auth.providers` must also
 When `store` is `null`, Hypervel uses your default cache store. For a single Redis-backed deployment, you may enable the cache like this:
 
 ```ini
-AUTH_USERS_CACHE_ENABLED=true
-AUTH_USERS_CACHE_STORE=redis
+AUTH_USER_CACHE_ENABLED=true
+AUTH_USER_CACHE_STORE=redis
 ```
 
 For high-concurrency deployments, Hypervel's default `stack` cache store layers a short-lived Swoole Table cache over Redis. This keeps hot authenticated-user reads in local shared memory for a few seconds while Redis remains the shared backing store:
 
 ```ini
-AUTH_USERS_CACHE_ENABLED=true
-AUTH_USERS_CACHE_STORE=stack
+AUTH_USER_CACHE_ENABLED=true
+AUTH_USER_CACHE_STORE=stack
 ```
 
 Supported stores are `redis`, `database`, `file`, `storage`, `swoole`, and stacks containing only supported stores. Stack layers are validated recursively. The `array`, `worker-array`, `null`, `session`, and `failover` stores are rejected. Failover is unsuitable because an unavailable primary can retain a stale identity and serve it after recovery.
@@ -264,7 +264,7 @@ Auth cache configuration is read during process startup and must not be changed 
 <a name="user-lookup-cache-custom-keys"></a>
 #### Custom Cache Keys
 
-The default cache key format is `{prefix}:{user-model-fqcn}:{identifier}`, such as `auth_users:App\Models\User:42`. Including the model class prevents collisions when different guards use different user models.
+The default cache key format is `{prefix}:{user-model-fqcn}:{identifier}`, such as `auth_user:App\Models\User:42`. Including the model class prevents collisions when different guards use different user models.
 
 If the same user identifier can resolve to different records based on request-scoped application state, you may register a cache key resolver in a service provider:
 
@@ -324,7 +324,7 @@ If the selected guard does not use an Eloquent user provider, or if caching is d
 <a name="user-lookup-cache-bulk-invalidation"></a>
 #### Bulk Invalidation
 
-If you need to clear many cached users at once, use a dedicated cache store for auth, point `AUTH_USERS_CACHE_STORE` at that store, and flush it:
+If you need to clear many cached users at once, use a dedicated cache store for auth, point `AUTH_USER_CACHE_STORE` at that store, and flush it:
 
 ```php
 use Hypervel\Support\Facades\Cache;
@@ -352,7 +352,7 @@ For narrower bulk flushes, configure a Redis cache store in `any` tag mode and a
             'enabled' => true,
             'store' => 'auth',
             'ttl' => 300,
-            'prefix' => 'auth_users',
+            'prefix' => 'auth_user',
             'tags' => ['auth_users'],
         ],
     ],
@@ -404,7 +404,7 @@ Cache::store('auth')->tags(['workspace:' . CurrentWorkspace::id()])->flush();
 If you instantiate `EloquentUserProvider` yourself, the provider exposes lower-level cache APIs:
 
 ```php
-public function enableCache(?string $storeName, int $ttl = 300, ?string $prefix = 'auth_users', ?array $tags = null): static;
+public function enableCache(?string $storeName, int $ttl = 300, ?string $prefix = 'auth_user', ?array $tags = null): static;
 public function isCacheEnabled(): bool;
 public function clearUserCache(mixed $identifier): void;
 
@@ -645,7 +645,7 @@ if (Auth::guard('admin')->attempt($credentials)) {
 
 Many web applications provide a "remember me" checkbox on their login form. If you would like to provide "remember me" functionality in your application, you may pass a boolean value as the second argument to the `attempt` method.
 
-When this value is `true`, Hypervel will keep the user authenticated indefinitely or until they manually logout. Your `users` table must include the string `remember_token` column, which will be used to store the "remember me" token. The `users` table migration included with new Hypervel applications already includes this column:
+When this value is `true`, Hypervel will keep the user authenticated until the "remember me" cookie expires or they manually log out. By default, the cookie is valid for 400 days. Your `users` table must include the string `remember_token` column, which will be used to store the "remember me" token. The `users` table migration included with new Hypervel applications already includes this column:
 
 ```php
 use Hypervel\Support\Facades\Auth;
@@ -653,6 +653,18 @@ use Hypervel\Support\Facades\Auth;
 if (Auth::attempt(['email' => $email, 'password' => $password], $remember)) {
     // The user is being remembered...
 }
+```
+
+You may customize the cookie lifetime for a session guard using the `remember` option in your application's `config/auth.php` configuration file. The value is expressed in minutes. If this option is omitted or `null`, Hypervel uses the built-in 400-day lifetime. For example, the following configuration uses a 30-day lifetime:
+
+```php
+'guards' => [
+    'web' => [
+        'driver' => 'session',
+        'provider' => 'users',
+        'remember' => 60 * 24 * 30,
+    ],
+],
 ```
 
 If your application offers "remember me" functionality, you may use the `viaRemember`  method to determine if the currently authenticated user was authenticated using the "remember me" cookie:
@@ -679,7 +691,7 @@ use Hypervel\Support\Facades\Auth;
 Auth::login($user);
 ```
 
-You may pass a boolean value as the second argument to the `login` method. This value indicates if "remember me" functionality is desired for the authenticated session. Remember, this means that the session will be authenticated indefinitely or until the user manually logs out of the application:
+You may pass a boolean value as the second argument to the `login` method. This value indicates if "remember me" functionality is desired for the authenticated session. The user will remain authenticated until the "remember me" cookie expires or they manually log out of the application:
 
 ```php
 Auth::login($user, $remember = true);
@@ -700,7 +712,7 @@ To authenticate a user using their database record's primary key, you may use th
 Auth::loginUsingId(1);
 ```
 
-You may pass a boolean value to the `remember` argument of the `loginUsingId` method. This value indicates if "remember me" functionality is desired for the authenticated session. Remember, this means that the session will be authenticated indefinitely or until the user manually logs out of the application:
+You may pass a boolean value to the `remember` argument of the `loginUsingId` method. This value indicates if "remember me" functionality is desired for the authenticated session. The user will remain authenticated until the "remember me" cookie expires or they manually log out of the application:
 
 ```php
 Auth::loginUsingId(1, remember: true);
@@ -831,7 +843,7 @@ While building your application, you may occasionally have actions that should r
 <a name="password-confirmation-configuration"></a>
 ### Configuration
 
-After confirming their password, a user will not be asked to confirm their password again for three hours. However, you may configure the length of time before the user is re-prompted for their password by changing the value of the `password_timeout` configuration value within your application's `config/auth.php` configuration file. Password confirmation is scoped to the current guard, so confirming under one guard never satisfies the `password.confirm` middleware under another guard. Individual guards may override the timeout with a `password_timeout` key in their guard configuration.
+After confirming their password, a user will not be asked to confirm their password again for three hours. However, you may configure the length of time before the user is re-prompted for their password by changing the value of the `password_timeout` configuration value within your application's `config/auth.php` configuration file. Password confirmation is scoped to the current guard, so confirming under one guard never satisfies the `password.confirm` middleware under another guard. Individual guards may override the timeout with a `password_timeout` key in their guard configuration. If the guard option is omitted or `null`, the application-wide timeout is used.
 
 <a name="password-confirmation-routing"></a>
 ### Routing

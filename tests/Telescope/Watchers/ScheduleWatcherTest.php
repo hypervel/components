@@ -170,9 +170,11 @@ class ScheduleWatcherTest extends FeatureTestCase
         $this->assertCount(0, $this->loadTelescopeEntries());
     }
 
-    public function testFiniteTaskCoroutinesStoreDistinctBatchesBeforeTheirParentExits(): void
+    public function testOmittedDeferSettingStoresDistinctBatchesFromFiniteTaskCoroutines(): void
     {
-        config()->set('telescope.defer', true);
+        $config = config()->array('telescope');
+        unset($config['defer']);
+        config()->set('telescope', $config);
         Telescope::stopRecording();
         CoroutineContext::forget(Telescope::BATCH_ID_CONTEXT_KEY);
 

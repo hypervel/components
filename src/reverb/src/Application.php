@@ -7,6 +7,16 @@ namespace Hypervel\Reverb;
 class Application
 {
     /**
+     * The default application activity timeout in seconds.
+     */
+    public const int DEFAULT_ACTIVITY_TIMEOUT = 30;
+
+    /**
+     * The default client-event sender policy.
+     */
+    public const string DEFAULT_ACCEPT_CLIENT_EVENTS_FROM = 'members';
+
+    /**
      * Create a new application instance.
      */
     public function __construct(
@@ -18,11 +28,59 @@ class Application
         protected array $allowedOrigins,
         protected int $maxMessageSize,
         protected ?int $maxConnections = null,
-        protected string $acceptClientEventsFrom = 'members',
+        protected string $acceptClientEventsFrom = self::DEFAULT_ACCEPT_CLIENT_EVENTS_FROM,
         protected ?array $rateLimiting = null,
         protected array $options = [],
         protected array $webhooks = [],
     ) {
+        if ($this->rateLimiting !== null) {
+            $this->rateLimiting += [
+                'enabled' => false,
+                'max_attempts' => 60,
+                'decay_seconds' => 60,
+                'terminate_on_limit' => false,
+            ];
+
+            $this->rateLimiting['enabled'] = (bool) $this->rateLimiting['enabled'];
+            $this->rateLimiting['max_attempts'] = (int) $this->rateLimiting['max_attempts'];
+            $this->rateLimiting['decay_seconds'] = (int) $this->rateLimiting['decay_seconds'];
+            $this->rateLimiting['terminate_on_limit'] = (bool) $this->rateLimiting['terminate_on_limit'];
+        }
+
+        if ($this->webhooks !== []) {
+            $this->webhooks += [
+                'url' => null,
+                'events' => [],
+                'headers' => [],
+                'filter' => [],
+                'subscription_count' => false,
+                'disconnect_smoothing_ms' => 3000,
+                'timeout' => 5,
+                'retries' => 3,
+                'retry_delay' => 1,
+                'batching' => [],
+            ];
+            $this->webhooks['filter'] += [
+                'channel_name_starts_with' => null,
+                'channel_name_ends_with' => null,
+            ];
+            $this->webhooks['batching'] += [
+                'enabled' => false,
+                'max_events' => 50,
+                'max_delay_ms' => 250,
+                'max_payload_bytes' => 262_144,
+            ];
+
+            $this->webhooks['subscription_count'] = (bool) $this->webhooks['subscription_count'];
+            $this->webhooks['disconnect_smoothing_ms'] = (int) $this->webhooks['disconnect_smoothing_ms'];
+            $this->webhooks['timeout'] = (int) $this->webhooks['timeout'];
+            $this->webhooks['retries'] = (int) $this->webhooks['retries'];
+            $this->webhooks['retry_delay'] = (int) $this->webhooks['retry_delay'];
+            $this->webhooks['batching']['enabled'] = (bool) $this->webhooks['batching']['enabled'];
+            $this->webhooks['batching']['max_events'] = (int) $this->webhooks['batching']['max_events'];
+            $this->webhooks['batching']['max_delay_ms'] = (int) $this->webhooks['batching']['max_delay_ms'];
+            $this->webhooks['batching']['max_payload_bytes'] = (int) $this->webhooks['batching']['max_payload_bytes'];
+        }
     }
 
     /**
@@ -120,7 +178,7 @@ class Application
      */
     public function usesRateLimiting(): bool
     {
-        return ($this->rateLimiting['enabled'] ?? false) === true;
+        return $this->rateLimiting !== null && $this->rateLimiting['enabled'];
     }
 
     /**
@@ -144,11 +202,20 @@ class Application
      */
     public function hasWebhooks(): bool
     {
-        return ! empty($this->webhooks['url']);
+        if ($this->webhooks === []) {
+            return false;
+        }
+
+        $url = $this->webhooks['url'];
+
+        return $url !== null && $url !== '';
     }
 
     /**
      * Convert the application to an array.
+     *
+     * This is the Pusher client configuration shape, not the complete
+     * application constructor or configuration record.
      *
      * @return array<string, mixed>
      */

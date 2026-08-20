@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 use Hypervel\Fortify\Features;
 
+/** @var null|string $appUrl */
+$appUrl = config('app.url');
+$defaultRelyingPartyId = $appUrl === null ? null : parse_url($appUrl, PHP_URL_HOST);
+$defaultAllowedOrigins = $appUrl === null ? [] : [$appUrl];
+
 return [
     'middleware' => ['web'],
     'guard' => null,
@@ -15,10 +20,22 @@ return [
     'prefix' => '',
     'domain' => null,
     'lowercase_usernames' => false,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Rate Limiters
+    |--------------------------------------------------------------------------
+    |
+    | Email verification is always rate limited. Omitting its limiter uses
+    | six attempts per minute; the other endpoint limiters may be null.
+    |
+    */
+
     'limiters' => [
         'login' => null,
         'two-factor' => '5,1',
         'passkeys' => null,
+        'verification' => '6,1',
     ],
     'paths' => [
         'login' => null,
@@ -70,11 +87,22 @@ return [
         'email-verification' => null,
         'password-reset' => null,
     ],
+    /*
+    |--------------------------------------------------------------------------
+    | Passkeys
+    |--------------------------------------------------------------------------
+    |
+    | These settings connect Fortify to Hypervel's passkey support. A null
+    | relying party ID or user handle secret, and an empty origins list, are
+    | rejected when a WebAuthn operation first needs the corresponding value.
+    |
+    */
+
     'passkeys' => [
-        'relying_party_id' => env('PASSKEYS_RELYING_PARTY_ID', parse_url(config('app.url'), PHP_URL_HOST)),
-        'allowed_origins' => env_array('PASSKEYS_ALLOWED_ORIGINS', [config('app.url')]),
+        'relying_party_id' => env('PASSKEYS_RELYING_PARTY_ID', $defaultRelyingPartyId),
+        'allowed_origins' => env_array('PASSKEYS_ALLOWED_ORIGINS', $defaultAllowedOrigins),
         'user_handle_secret' => env('PASSKEYS_USER_HANDLE_SECRET', config('app.key')),
-        'timeout' => (int) env('PASSKEYS_TIMEOUT', 60000),
+        'timeout' => (int) env('PASSKEYS_TIMEOUT', 60_000),
     ],
     'features' => [
         Features::registration(),

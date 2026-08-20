@@ -41,6 +41,19 @@ class SaloonServiceProviderTest extends TestCase
         ], $this->app->make(Factory::class)->getConnectionConfig('saloon'));
     }
 
+    public function testOmittedFixtureSettingsUsePackageDefaults(): void
+    {
+        $fixturePath = base_path('tests/Fixtures/Saloon');
+        $this->assertSame($fixturePath, config()->string('saloon.fixtures.path'));
+
+        config()->set('saloon.fixtures', []);
+
+        $manager = $this->app->make(SaloonManager::class);
+
+        $this->assertSame($fixturePath, $manager->getFixturePath());
+        $this->assertFalse($manager->throwsOnMissingFixtures());
+    }
+
     public function testProviderReloadsConnectionOptionsAndHandler(): void
     {
         $factory = $this->app->make(Factory::class);

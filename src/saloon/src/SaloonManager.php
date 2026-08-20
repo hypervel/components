@@ -409,7 +409,11 @@ class SaloonManager
      */
     public function getFixturePath(): string
     {
-        return $this->fixturePath ?? $this->config->string('saloon.fixtures.path');
+        return $this->fixturePath
+            ?? $this->config->string(
+                'saloon.fixtures.path',
+                static fn (): string => base_path('tests/Fixtures/Saloon'),
+            );
     }
 
     /**
@@ -431,7 +435,7 @@ class SaloonManager
     public function throwsOnMissingFixtures(): bool
     {
         return $this->throwOnMissingFixtures
-            ?? $this->config->boolean('saloon.fixtures.throw_on_missing');
+            ?? $this->config->boolean('saloon.fixtures.throw_on_missing', false);
     }
 
     /**

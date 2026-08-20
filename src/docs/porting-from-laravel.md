@@ -250,7 +250,7 @@ class CourierServiceProvider extends ServiceProvider
         );
 
         $this->app->singleton(Courier::class, fn ($app) => new Courier(
-            $app->make('config')->get('courier')
+            $app->make('config')->array('courier')
         ));
     }
 
@@ -312,9 +312,11 @@ Hypervel service providers may override the `isEnabled` method to opt out of reg
  */
 public function isEnabled(): bool
 {
-    return (bool) config('courier.enabled');
+    return config()->boolean('courier.enabled', false);
 }
 ```
+
+Hypervel calls `isEnabled` before the provider's `register` method. Configuration merged by that provider is not available yet, so this method may only read configuration already loaded by the application or framework. The fallback above is intentional because an unpublished package option may be absent.
 
 <a name="deferred-providers"></a>
 ### Deferred Providers
@@ -451,6 +453,14 @@ protected function mergeableOptions(string $name): array
 }
 ```
 
+Start from Hypervel's shipped configuration files and reapply your application overrides. Fixed nested arrays are complete values. Collections such as `connections`, `stores`, and `guards` merge by entry name, but an application entry replaces the complete framework entry with the same name. Carry over required members; documented optional members may be omitted.
+
+When porting Laravel configuration, pay particular attention to these current differences:
+
+- Hypervel password broker records explicitly declare their `database` or `cache` driver.
+- Hypervel's shipped background, deferred, Beanstalkd, SQS, Redis, and failover queues dispatch after commit by default; sync and database do not. A copied Laravel queue config restores Laravel's before-commit behavior. Beanstalkd records also require `port`. See the [queue guide](/docs/{{version}}/queues).
+- The scheduling cache store is configured through `cache.schedule_store` and `SCHEDULE_CACHE_STORE`. Laravel's older `SCHEDULE_CACHE_DRIVER` name is not supported.
+
 Application code should keep request-specific values in the request, session, context, or coroutine context instead of changing config values while the server is running.
 
 <a name="other-api-differences"></a>
@@ -507,7 +517,7 @@ Database connections are persistent, pooled worker resources. Define every conne
 
 Hypervel's Redis integration uses the PhpRedis extension exclusively. Its default `config/database.php` file does not contain a `client` option or `REDIS_CLIENT` environment variable. Remove those Laravel settings when porting configuration. A copied `client` option with any value other than `phpredis` is rejected; Predis is not supported.
 
-Laravel's top-level `database.redis.clusters` configuration is also rejected. Configure Redis Cluster by adding a `cluster` array to a named Redis connection. See the [Redis configuration](/docs/{{version}}/redis#configuration) and [cluster documentation](/docs/{{version}}/redis#clusters).
+Laravel's top-level `database.redis.clusters` configuration is also rejected. Each Hypervel Redis connection selects its standalone, Sentinel, or Cluster topology within the named connection, so begin with the matching Hypervel example instead of adapting Laravel's connection shape. Optional advanced members use their documented defaults when omitted. Hypervel does not support Laravel's `retry_interval` setting; configure retries with `max_retries`, `backoff_algorithm`, `backoff_base`, and `backoff_cap`. Configure Redis Cluster by adding a `cluster` array to a named Redis connection. See the [Redis configuration](/docs/{{version}}/redis#configuration) and [cluster documentation](/docs/{{version}}/redis#clusters).
 
 <a name="cache"></a>
 ### Cache

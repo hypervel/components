@@ -29,7 +29,7 @@ class VerifyEmailNotificationTest extends TestCase
         $this->assertSame(now()->addMinutes(90)->getTimestamp(), $this->expiresAt($url));
     }
 
-    public function testVerificationUrlUsesFallbackWhenNestedSettingIsOmitted(): void
+    public function testVerificationUrlUsesDefaultExpiryWhenSettingIsOmitted(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::create(2026, 8, 5, 12));
         config(['auth.verification' => []]);

@@ -236,7 +236,11 @@ class AuthServiceProvider extends ServiceProvider implements ReloadsConfiguratio
 
             $cache = $provider['cache'] ?? null;
 
-            if (! is_array($cache) || empty($cache['enabled'])) {
+            if ($cache === null) {
+                continue;
+            }
+
+            if (! ($cache['enabled'] ?? false)) {
                 continue;
             }
 
@@ -258,8 +262,7 @@ class AuthServiceProvider extends ServiceProvider implements ReloadsConfiguratio
                 );
             }
 
-            // Keep this fallback aligned with CreatesUserProviders::createEloquentProvider().
-            $ttl = $cache['ttl'] ?? 300;
+            $ttl = $cache['ttl'] ?? EloquentUserProvider::DEFAULT_CACHE_TTL;
 
             if (! is_int($ttl) || $ttl <= 0) {
                 throw new InvalidArgumentException(

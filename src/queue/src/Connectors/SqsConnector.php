@@ -20,25 +20,44 @@ class SqsConnector implements ConnectorInterface
     {
         $config = $this->getDefaultConfiguration($config);
 
-        if ($credentials = $this->resolveCredentialProvider($config)) {
-            $config['credentials'] = $credentials;
-        } elseif (! empty($config['key']) && ! empty($config['secret'])) {
-            $config['credentials'] = Arr::only($config, ['key', 'secret']);
+        $key = $config['key'];
+        $secret = $config['secret'];
+        $token = $config['token'];
+        $credentials = $config['credentials'];
 
-            if (! empty($config['token'])) {
-                $config['credentials']['token'] = $config['token'];
+        if (($resolvedCredentials = $this->resolveCredentialProvider($config)) !== null) {
+            $config['credentials'] = $resolvedCredentials;
+        } elseif ($credentials === null && empty($key) !== empty($secret)) {
+            throw new InvalidArgumentException('The SQS access key and secret must be configured together.');
+        } elseif ($credentials === null && ! empty($key) && ! empty($secret)) {
+            $config['credentials'] = ['key' => $key, 'secret' => $secret];
+
+            if (! empty($token)) {
+                $config['credentials']['token'] = $token;
             }
         }
 
+        // The queue token is an AWS session credential, while the SDK's
+        // top-level token option is an unrelated bearer token.
+        $clientConfig = Arr::except($config, [
+            'driver',
+            'queue',
+            'prefix',
+            'suffix',
+            'after_commit',
+            'key',
+            'secret',
+            'token',
+            'overflow',
+        ]);
+
         return new SqsQueue(
-            new SqsClient(
-                Arr::except($config, ['token', 'overflow'])
-            ),
+            new SqsClient($clientConfig),
             $config['queue'],
-            $config['prefix'] ?? '',
-            $config['suffix'] ?? '',
-            $config['after_commit'] ?? false,
-            $config['overflow'] ?? [],
+            $config['prefix'],
+            $config['suffix'],
+            $config['after_commit'],
+            $config['overflow'],
         );
     }
 
@@ -49,7 +68,7 @@ class SqsConnector implements ConnectorInterface
      */
     protected function resolveCredentialProvider(array $config): mixed
     {
-        $credentials = $config['credentials'] ?? null;
+        $credentials = $config['credentials'];
 
         $provider = is_array($credentials) ? ($credentials['provider'] ?? null) : $credentials;
 
@@ -75,12 +94,23 @@ class SqsConnector implements ConnectorInterface
      */
     protected function getDefaultConfiguration(array $config): array
     {
-        return array_merge([
+        return [
+            'key' => null,
+            'secret' => null,
+            'token' => null,
+            'credentials' => null,
+            'after_commit' => true,
+            'overflow' => [],
             'version' => 'latest',
+            ...$config,
+            // Shipped env-backed values may be null, while SqsQueue requires strings.
+            'prefix' => $config['prefix'] ?? '',
+            'suffix' => $config['suffix'] ?? '',
             'http' => [
                 'timeout' => 60,
                 'connect_timeout' => 60,
+                ...($config['http'] ?? []),
             ],
-        ], $config);
+        ];
     }
 }

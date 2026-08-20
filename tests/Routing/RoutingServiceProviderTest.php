@@ -90,5 +90,11 @@ class RoutingServiceProviderTest extends TestCase
 
         $this->assertSame('http://second.example/image.png', $url->asset('image.png'));
         $this->assertSame('http://second.example/path', $url->to('path'));
+
+        config(['app.url' => null]);
+
+        $provider->reloadConfiguration();
+
+        $this->assertSame('http://localhost/path', $url->to('path'));
     }
 }

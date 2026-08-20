@@ -61,7 +61,7 @@ class RiakServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(Connection::class, function (Application $app) {
-            return new Connection(config('riak'));
+            return new Connection(config()->array('riak'));
         });
     }
 }
@@ -253,9 +253,11 @@ You may prevent a service provider from being registered or booted by overriding
  */
 public function isEnabled(): bool
 {
-    return (bool) config('modules.riak.enabled');
+    return config()->boolean('modules.riak.enabled', false);
 }
 ```
+
+Hypervel calls `isEnabled` before the provider's `register` method, so configuration merged by that provider is not available yet. You may read configuration that the application or framework has already loaded. When an unpublished package option is intentionally optional, as in the example above, provide its fallback here.
 
 When this method returns `false`, the provider's `register` and `boot` methods will not be called, its `bindings` and `singletons` properties will not be processed, and the provider will not be marked as loaded.
 

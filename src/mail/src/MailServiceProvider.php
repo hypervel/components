@@ -61,13 +61,10 @@ class MailServiceProvider extends ServiceProvider implements ReloadsConfiguratio
         }
 
         $this->app->singleton(Markdown::class, function ($app) {
-            $config = $app->make('config');
-
-            return new Markdown($app->make('view'), [
-                'theme' => $config->string('mail.markdown.theme', 'default'),
-                'paths' => $config->array('mail.markdown.paths', []),
-                'extensions' => $config->array('mail.markdown.extensions', []),
-            ]);
+            return new Markdown(
+                $app->make('view'),
+                $app->make('config')->array('mail.markdown', []),
+            );
         });
     }
 }

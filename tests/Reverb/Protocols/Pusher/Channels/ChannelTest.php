@@ -282,11 +282,11 @@ class ChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => [],
             'subscription_count' => true,
-        ]);
+        ]));
 
         $this->subscribeConnection('test-channel');
 
@@ -303,12 +303,12 @@ class ChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => [],
             'subscription_count' => true,
             'disconnect_smoothing_ms' => 0,
-        ]);
+        ]));
 
         $connection1 = $this->subscribeConnection('test-channel');
         $connection2 = $this->subscribeConnection('test-channel');
@@ -330,11 +330,11 @@ class ChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => [],
-            // subscription_count not set — defaults to false
-        ]);
+            'subscription_count' => false,
+        ]));
 
         $this->subscribeConnection('test-channel');
 
@@ -347,11 +347,11 @@ class ChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => [],
             'subscription_count' => true,
-        ]);
+        ]));
 
         $this->subscribeConnection('presence-test', ['user_id' => '1', 'user_info' => ['name' => 'Test']]);
 
@@ -364,11 +364,11 @@ class ChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => [],
             'subscription_count' => true,
-        ]);
+        ]));
 
         $this->subscribeConnection('presence-cache-test', ['user_id' => '1', 'user_info' => ['name' => 'Test']]);
 
@@ -381,11 +381,11 @@ class ChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => [],
             'subscription_count' => true,
-        ]);
+        ]));
 
         $this->subscribeConnection('private-test');
 
@@ -398,11 +398,11 @@ class ChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => [],
             'subscription_count' => true,
-        ]);
+        ]));
 
         $this->subscribeConnection('cache-test');
 
@@ -417,11 +417,11 @@ class ChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['channel_vacated'],
             'disconnect_smoothing_ms' => 3000,
-        ]);
+        ]));
 
         $connection = $this->subscribeConnection('test-channel');
         Queue::fake();
@@ -440,11 +440,11 @@ class ChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['channel_vacated'],
             'disconnect_smoothing_ms' => 3000,
-        ]);
+        ]));
 
         $connection = $this->subscribeConnection('test-channel');
         Queue::fake();
@@ -465,11 +465,11 @@ class ChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['channel_occupied', 'channel_vacated'],
             'disconnect_smoothing_ms' => 3000,
-        ]);
+        ]));
 
         // Subscribe, then disconnect (sets smoothing marker + defers vacated)
         $connection = $this->subscribeConnection('test-channel');
@@ -491,11 +491,11 @@ class ChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['channel_occupied'],
             'disconnect_smoothing_ms' => 3000,
-        ]);
+        ]));
 
         // First subscribe — no prior disconnect, no smoothing marker
         $this->subscribeConnection('test-channel');
@@ -509,11 +509,11 @@ class ChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['channel_occupied'],
             'disconnect_smoothing_ms' => 3000,
-        ]);
+        ]));
 
         // Simulate a marker set by another worker's disconnect
         // (no local timer — cancelChannelVacated will return false)
@@ -534,11 +534,11 @@ class ChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['channel_occupied', 'channel_vacated'],
             'disconnect_smoothing_ms' => 3000,
-        ]);
+        ]));
 
         // Set marker (simulating another worker's disconnect)
         $sharedState = $this->app->make(SharedState::class);
@@ -568,11 +568,11 @@ class ChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => [],
             'subscription_count' => true,
-        ]);
+        ]));
 
         // Mock SharedState to return count >100 and lock already held
         $sharedState = m::mock(SharedState::class);
@@ -603,11 +603,11 @@ class ChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => [],
             'subscription_count' => true,
-        ]);
+        ]));
 
         // Mock SharedState to return count >100 and lock acquired
         $sharedState = m::mock(SharedState::class);

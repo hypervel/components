@@ -86,10 +86,10 @@ class HandleExceptions
 
         $this->ensureDeprecationLoggerIsConfigured();
 
-        $options = static::$app->make('config')->get('logging.deprecations') ?? [];
+        $trace = static::$app->make('config')->boolean('logging.deprecations.trace', false);
 
-        with($logger->channel('deprecations'), function ($log) use ($message, $file, $line, $level, $options) {
-            if ($options['trace'] ?? false) {
+        with($logger->channel('deprecations'), function ($log) use ($message, $file, $line, $level, $trace) {
+            if ($trace) {
                 $log->warning((string) new ErrorException($message, 0, $level, $file, $line));
             } else {
                 $log->warning(sprintf(
@@ -124,15 +124,14 @@ class HandleExceptions
             return;
         }
 
+        $options = $config->array('logging.deprecations');
+
         $this->ensureNullLogDriverIsConfigured();
 
-        if (is_array($options = $config->get('logging.deprecations'))) {
-            $driver = $options['channel'] ?? 'null';
-        } else {
-            $driver = $options ?? 'null';
-        }
+        // A declared null channel deliberately selects the null logger.
+        $driver = $options['channel'] ?? 'null';
 
-        $config->set('logging.channels.deprecations', $config->get("logging.channels.{$driver}"));
+        $config->set('logging.channels.deprecations', $config->array("logging.channels.{$driver}"));
     }
 
     /**

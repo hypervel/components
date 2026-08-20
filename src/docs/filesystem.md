@@ -101,10 +101,13 @@ AWS_ACCESS_KEY_ID=<your-key-id>
 AWS_SECRET_ACCESS_KEY=<your-secret-access-key>
 AWS_DEFAULT_REGION=us-east-1
 AWS_BUCKET=<your-bucket-name>
+AWS_ROOT=
 AWS_USE_PATH_STYLE_ENDPOINT=false
 ```
 
-For convenience, these environment variables match the naming convention used by the AWS CLI.
+The credential variables use the AWS SDK's standard names, while the region follows the AWS CLI convention. The remaining `AWS_*` values configure this S3 disk and work with any compatible service.
+
+The optional `AWS_ROOT` value scopes the disk to a key prefix within the bucket. When it is empty, the disk operates from the bucket root.
 
 <a name="ftp-driver-configuration"></a>
 #### FTP Driver Configuration
@@ -125,7 +128,7 @@ Hypervel's Flysystem integrations work great with FTP; however, a sample configu
     'password' => env('FTP_PASSWORD'),
 
     // Optional FTP Settings...
-    // 'port' => env('FTP_PORT', 21),
+    // 'port' => (int) env('FTP_PORT', 21),
     // 'root' => env('FTP_ROOT'),
     // 'passive' => true,
     // 'ssl' => true,
@@ -165,7 +168,7 @@ Hypervel's Flysystem integrations work great with SFTP; however, a sample config
     // 'hostFingerprint' => env('SFTP_HOST_FINGERPRINT'),
     // 'maxTries' => 4,
     // 'passphrase' => env('SFTP_PASSPHRASE'),
-    // 'port' => env('SFTP_PORT', 22),
+    // 'port' => (int) env('SFTP_PORT', 22),
     // 'root' => env('SFTP_ROOT', ''),
     // 'timeout' => 30,
     // 'useAgent' => true,
@@ -349,11 +352,13 @@ Dynamic scoped filesystems fail closed when the resolved prefix is empty. Pass `
 
 By default, your application's `filesystems` configuration file contains a disk configuration for the `s3` disk. In addition to using this disk to interact with [Amazon S3](https://aws.amazon.com/s3/), you may use it to interact with any S3-compatible file storage service such as [RustFS](https://github.com/rustfs/rustfs), [DigitalOcean Spaces](https://www.digitalocean.com/products/spaces/), [Vultr Object Storage](https://www.vultr.com/products/object-storage/), [Cloudflare R2](https://www.cloudflare.com/developer-platform/products/r2/), or [Hetzner Cloud Storage](https://www.hetzner.com/storage/object-storage/).
 
-Typically, after updating the disk's credentials to match the credentials of the service you are planning to use, you only need to update the value of the `endpoint` configuration option. This option's value is typically defined via the `AWS_ENDPOINT` environment variable:
+Typically, after updating the disk's credentials to match the credentials of the service you are planning to use, you will need to update the value of the `endpoint` configuration option. This option's value is typically defined via the `AWS_ENDPOINT` environment variable:
 
 ```php
 'endpoint' => env('AWS_ENDPOINT', 'https://rustfs:9000'),
 ```
+
+Some S3-compatible services also require path-style URLs or a provider-specific region. Configure `AWS_USE_PATH_STYLE_ENDPOINT` and `AWS_DEFAULT_REGION` according to your storage provider's requirements.
 
 <a name="obtaining-disk-instances"></a>
 ## Obtaining Disk Instances
@@ -676,6 +681,17 @@ If you wish, you may define the `throw` option within your filesystem disk's con
     'driver' => 'local',
     // ...
     'throw' => true,
+],
+```
+
+When `throw` is `false`, you may set the `report` option to `true` to report the underlying Flysystem exception through your application's exception handler while preserving the method's normal failure return value:
+
+```php
+'public' => [
+    'driver' => 'local',
+    // ...
+    'throw' => false,
+    'report' => true,
 ],
 ```
 

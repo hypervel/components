@@ -61,4 +61,15 @@ class MailServiceProviderTest extends TestCase
         $this->assertSame([$mailable], $fake->sent(Mailable::class)->all());
         $this->assertNotSame($mailer, $manager->mailer('first'));
     }
+
+    public function testMarkdownConfigurationMayOmitConstructorOwnedOptions(): void
+    {
+        config(['mail.markdown' => []]);
+
+        $markdown = $this->app->make(Markdown::class);
+
+        $this->assertSame('default', (new ReflectionProperty(Markdown::class, 'theme'))->getValue($markdown));
+        $this->assertSame([], (new ReflectionProperty(Markdown::class, 'componentPaths'))->getValue($markdown));
+        $this->assertSame([], (new ReflectionProperty(Markdown::class, 'extensions'))->getValue());
+    }
 }
