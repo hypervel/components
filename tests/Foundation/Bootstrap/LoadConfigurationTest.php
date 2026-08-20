@@ -136,6 +136,18 @@ class LoadConfigurationTest extends TestCase
         (new LoadConfiguration)->bootstrap($app);
     }
 
+    public function testCachedConfigurationRequiresApplicationTimezone(): void
+    {
+        LoadConfiguration::alwaysUse(fn (): array => [
+            'app' => ['env' => 'testing'],
+        ]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Configuration value for key [app.timezone] must be a string, NULL given.');
+
+        (new LoadConfiguration)->bootstrap(new Application);
+    }
+
     public function testAppConfigOverridesBaseConfigValues(): void
     {
         $app = new Application(__DIR__ . '/../Fixtures');

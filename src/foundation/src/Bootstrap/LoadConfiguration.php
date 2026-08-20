@@ -221,7 +221,7 @@ class LoadConfiguration
         $config = [];
 
         foreach (Finder::create()->files()->name('*.php')->in(__DIR__ . '/../../config') as $file) {
-            $config[basename($file->getRealPath(), '.php')] = require $file->getRealPath();
+            $config[basename($file->getRealPath(), '.php')] = (fn () => require $file->getRealPath())();
         }
 
         return $config;
