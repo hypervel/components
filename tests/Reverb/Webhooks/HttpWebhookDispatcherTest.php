@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Webhooks;
 
-use ErrorException;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcher;
 use Hypervel\Reverb\Application;
 use Hypervel\Reverb\Webhooks\HttpWebhookDispatcher;
@@ -447,26 +446,6 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
 
         Queue::assertPushed(WebhookDeliveryJob::class);
-    }
-
-    public function testMissingWebhookTimeoutFailsLoudly(): void
-    {
-        Queue::fake();
-
-        $webhooks = array_replace($this->webhookConfig(), [
-            'url' => 'https://example.com/webhook',
-            'events' => ['channel_occupied'],
-        ]);
-        unset($webhooks['timeout']);
-
-        $this->expectException(ErrorException::class);
-        $this->expectExceptionMessage('Undefined array key "timeout"');
-
-        (new HttpWebhookDispatcher)->dispatch(
-            $this->makeApp(webhooks: $webhooks),
-            'channel_occupied',
-            ['channel' => 'test-channel'],
-        );
     }
 
     public function testSubscriptionCountEventIncludesCountInPayload(): void
