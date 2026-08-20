@@ -202,7 +202,7 @@ Build complete, long-term solutions, not MVPs or local workarounds. A broad chan
 These rules apply to all code, including ported code.
 
 - Always use typed getters for values with one non-null type. Only use `get()` when null, union, or mixed values are meaningful. Add a test for any supported null behavior.
-- Cast environment-backed booleans and numbers in config files; if `null` is supported, cast only non-null values. Consumers must not repeat those casts. When a factory accepts raw configuration records, normalize each record once at that boundary.
+- Cast environment-backed booleans and numbers in config files; if `null` is supported, cast only non-null values. Consumers must not repeat those casts. When a factory accepts raw configuration records, normalize types and documented optional defaults once at that boundary; never supply missing required members.
 - Required settings live in shipped config and must not have a code-level fallback, so missing or misspelled keys fail loudly.
 - Intentionally optional settings keep one owning fallback and remain discoverable in config or feature documentation. Document what omission or null means.
 - Framework and package defaults are shallow-merged with application config. `mergeableOptions()` is only for named groups such as connections or stores: application entries replace matching defaults, while other default entries remain. Other nested arrays are replaced as a whole.
