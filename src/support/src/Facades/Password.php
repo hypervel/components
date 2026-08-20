@@ -8,7 +8,6 @@ use Hypervel\Contracts\Auth\PasswordBroker;
 
 /**
  * @method static \Hypervel\Contracts\Auth\PasswordBroker broker(\UnitEnum|string|null $name = null)
- * @method static \Hypervel\Auth\Passwords\PasswordBrokerManager forgetBrokers()
  * @method static string getDefaultDriver()
  * @method static void refreshEventDispatcher(\Hypervel\Contracts\Events\Dispatcher $events)
  * @method static string|null resolveBrokerNameForGuard(\UnitEnum|string $guard)

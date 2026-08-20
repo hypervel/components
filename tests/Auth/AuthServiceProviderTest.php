@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Auth;
 
 use Closure;
-use Hypervel\Auth\AuthManager;
 use Hypervel\Auth\AuthServiceProvider;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\ModelCacheStoreValidator;
@@ -30,23 +29,6 @@ use Swoole\Server as SwooleServer;
 
 class AuthServiceProviderTest extends TestCase
 {
-    public function testReloadConfigurationClearsResolvedGuardsWithoutResolvingUnusedManager(): void
-    {
-        $application = m::mock(Application::class);
-        $manager = m::mock(AuthManager::class);
-        $application->shouldReceive('resolved')->once()->with('auth')->andReturnTrue();
-        $application->shouldReceive('make')->once()->with('auth')->andReturn($manager);
-        $manager->shouldReceive('forgetGuards')->once()->andReturnSelf();
-
-        (new AuthServiceProvider($application))->reloadConfiguration();
-
-        $unusedApplication = m::mock(Application::class);
-        $unusedApplication->shouldReceive('resolved')->once()->with('auth')->andReturnFalse();
-        $unusedApplication->shouldNotReceive('make');
-
-        (new AuthServiceProvider($unusedApplication))->reloadConfiguration();
-    }
-
     public function testBootContributesEnabledConfiguredEloquentModelsAndFrameworkContainers(): void
     {
         $config = new ConfigRepository([
