@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
+use Hypervel\Config\Repository;
 use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;
+use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisSentinelFactory;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -14,6 +16,53 @@ use RuntimeException;
 
 class RedisSentinelFactoryTest extends TestCase
 {
+    public function testResolveMasterAcceptsDocumentedMinimalSentinelConfiguration(): void
+    {
+        $sentinel = m::mock(RedisSentinel::class);
+        $sentinel->expects('getMasterAddrByName')
+            ->with('primary')
+            ->andReturn(['10.0.0.1', 6380]);
+        $factory = new class($sentinel) extends RedisSentinelFactory {
+            public array $createdWith = [];
+
+            public function __construct(private RedisSentinel $sentinel)
+            {
+            }
+
+            public function create(array $options = []): RedisSentinel
+            {
+                $this->createdWith[] = $options;
+
+                return $this->sentinel;
+            }
+        };
+        $config = (new RedisConfig(new Repository([
+            'database' => [
+                'redis' => [
+                    'options' => [],
+                    'default' => [
+                        'username' => null,
+                        'password' => null,
+                        'database' => 0,
+                        'sentinel' => [
+                            'enabled' => true,
+                            'nodes' => ['127.0.0.1:26379'],
+                            'master_name' => 'primary',
+                        ],
+                    ],
+                ],
+            ],
+        ])))->connectionConfig('default');
+
+        $this->assertSame(['10.0.0.1', 6380], $factory->resolveMaster($config));
+        $this->assertSame([
+            'host' => '127.0.0.1',
+            'port' => 26379,
+            'connectTimeout' => 0.0,
+            'readTimeout' => 0.0,
+        ], $factory->createdWith[0]);
+    }
+
     public function testResolveMasterFallsBackAcrossNodesAndUsesSentinelSettings(): void
     {
         $first = m::mock(RedisSentinel::class);

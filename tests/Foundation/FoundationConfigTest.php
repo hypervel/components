@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
+use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Foundation\Application;
+use Hypervel\Pool\PoolOption;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Testbench\TestCase;
 use Swoole\Constant;
@@ -187,6 +189,52 @@ class FoundationConfigTest extends TestCase
                 $effectiveConnection['options']['prefix'],
             );
         }
+    }
+
+    public function testRedisOmissionDefaultsMatchShippedDefaults(): void
+    {
+        $databaseConfig = $this->withEnvironmentValues([
+            'REDIS_MAX_RETRIES' => null,
+            'REDIS_BACKOFF_ALGORITHM' => null,
+            'REDIS_BACKOFF_BASE' => null,
+            'REDIS_BACKOFF_CAP' => null,
+            'REDIS_MIN_CONNECTIONS' => null,
+            'REDIS_MAX_CONNECTIONS' => null,
+            'REDIS_HEARTBEAT' => null,
+            'REDIS_HEARTBEAT_TIMEOUT' => null,
+            'REDIS_MAX_IDLE_TIME' => null,
+            'REDIS_MAX_LIFETIME' => null,
+        ], function (): array {
+            return require dirname(__DIR__, 2) . '/src/foundation/config/database.php';
+        });
+        $shippedConnection = $databaseConfig['redis']['default'];
+        $effectiveConnection = (new RedisConfig(new Repository([
+            'database' => [
+                'redis' => [
+                    'options' => [],
+                    'custom' => [
+                        'host' => 'localhost',
+                        'port' => 6379,
+                    ],
+                ],
+            ],
+        ])))->connectionConfig('custom');
+
+        foreach (['max_retries', 'backoff_algorithm', 'backoff_base', 'backoff_cap'] as $option) {
+            $this->assertSame($shippedConnection[$option], $effectiveConnection[$option]);
+        }
+
+        $pool = new PoolOption;
+        $shippedPool = $shippedConnection['pool'];
+
+        $this->assertSame($shippedPool['min_connections'], $pool->getMinConnections());
+        $this->assertSame($shippedPool['max_connections'], $pool->getMaxConnections());
+        $this->assertSame($shippedPool['connect_timeout'], $pool->getConnectTimeout());
+        $this->assertSame($shippedPool['wait_timeout'], $pool->getWaitTimeout());
+        $this->assertSame($shippedPool['heartbeat'], $pool->getHeartbeat());
+        $this->assertSame($shippedPool['heartbeat_timeout'], $pool->getHeartbeatTimeout());
+        $this->assertSame($shippedPool['max_idle_time'], $pool->getMaxIdleTime());
+        $this->assertSame($shippedPool['max_lifetime'], $pool->getMaxLifetime());
     }
 
     public function testShippedFilesystemDisksDeclareVisibilityAndFailurePolicy(): void

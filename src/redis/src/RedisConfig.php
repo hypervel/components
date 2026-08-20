@@ -45,7 +45,25 @@ class RedisConfig
             'options' => [],
             'prefix' => null,
             'events' => false,
+            'max_retries' => 3,
+            'backoff_algorithm' => 'decorrelated_jitter',
+            'backoff_base' => 100,
+            'backoff_cap' => 1000,
+            'pool' => [],
         ];
+
+        $sentinelConfig = $connectionConfig['sentinel'] ?? null;
+
+        if (is_array($sentinelConfig) && ($sentinelConfig['enabled'] ?? false)) {
+            $sentinelConfig += [
+                'username' => null,
+                'password' => null,
+                'timeout' => 0.0,
+                'read_timeout' => 0.0,
+                'context' => [],
+            ];
+            $connectionConfig['sentinel'] = $sentinelConfig;
+        }
 
         $this->validateConnectionConfig($name, $connectionConfig);
 

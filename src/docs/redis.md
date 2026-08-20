@@ -73,7 +73,7 @@ You may configure your application's Redis settings via the `config/database.php
 
 Hypervel's default configuration also includes `cache`, `session`, `queue`, and `reverb` Redis connections. Each connection follows the same standalone shape as the `default` connection shown above.
 
-Each named connection selects a standalone, Sentinel, or Cluster topology. Every topology may omit `scheme`, `timeout`, `read_timeout`, `context`, `options`, `prefix`, and `events`; they default to `null`, `null`, `0.0`, an empty array, an empty array, `null`, and `false`, respectively. Standalone and Sentinel connections may also omit `name`, which defaults to `null`.
+Each named connection selects a standalone, Sentinel, or Cluster topology. Every topology may omit `scheme`, `timeout`, `read_timeout`, `context`, `options`, `prefix`, `events`, `max_retries`, `backoff_algorithm`, `backoff_base`, `backoff_cap`, and `pool`. An omitted `read_timeout` uses `0.0`, `context` and per-connection `options` use empty arrays, and `events` is disabled. Standalone and Sentinel connections may also omit `name`.
 
 For standalone and Sentinel connections, an omitted or null `name` disables `CLIENT SETNAME`. An omitted or null `timeout` uses the connection pool's `connect_timeout`, while an omitted or null `prefix` inherits the shared `redis.options.prefix` value. An omitted or null `scheme` leaves transport selection to the connection URL, stream context, or the default TCP transport. Cluster connections derive their transport from their seeds and context when `scheme` is omitted and do not have a client name.
 
@@ -126,6 +126,8 @@ The `max_retries`, `backoff_algorithm`, `backoff_base`, and `backoff_cap` member
 ```
 
 These settings control PhpRedis' native connection retry behavior. Hypervel applies the complete retry policy to every connection before issuing commands. Hypervel does not replay a failed command because Redis may already have committed it before the failure became visible to the client.
+
+When omitted, `max_retries` uses `3`, `backoff_algorithm` uses `decorrelated_jitter`, `backoff_base` uses `100`, and `backoff_cap` uses `1000`. The environment variables shown above only apply to connection records that declare these settings.
 
 <a name="unix-socket-connections"></a>
 #### Unix Socket Connections
@@ -220,34 +222,15 @@ Redis Sentinel provides high availability for Redis by monitoring your Redis mas
     'username' => env('REDIS_USERNAME'),
     'password' => env('REDIS_PASSWORD'),
     'database' => (int) env('REDIS_DB', 0),
-    'max_retries' => (int) env('REDIS_MAX_RETRIES', 3),
-    'backoff_algorithm' => env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter'),
-    'backoff_base' => (int) env('REDIS_BACKOFF_BASE', 100),
-    'backoff_cap' => (int) env('REDIS_BACKOFF_CAP', 1000),
-    'pool' => [
-        'min_connections' => (int) env('REDIS_MIN_CONNECTIONS', 1),
-        'max_connections' => (int) env('REDIS_MAX_CONNECTIONS', 10),
-        'connect_timeout' => 10.0,
-        'wait_timeout' => 3.0,
-        'heartbeat' => (float) env('REDIS_HEARTBEAT', -1),
-        'heartbeat_timeout' => (float) env('REDIS_HEARTBEAT_TIMEOUT', 1.0),
-        'max_idle_time' => (float) env('REDIS_MAX_IDLE_TIME', 60),
-        'max_lifetime' => (float) env('REDIS_MAX_LIFETIME', -1),
-    ],
     'sentinel' => [
         'enabled' => true,
         'master_name' => env('REDIS_SENTINEL_MASTER', 'mymaster'),
         'nodes' => explode(',', env('REDIS_SENTINEL_NODES', '127.0.0.1:26379')),
-        'username' => env('REDIS_SENTINEL_USERNAME'),
-        'password' => env('REDIS_SENTINEL_PASSWORD'),
-        'timeout' => 5.0,
-        'read_timeout' => 5.0,
-        'context' => [],
     ],
 ],
 ```
 
-When Sentinel is enabled, Hypervel asks Sentinel for the current master address and then connects to that Redis master. The `username` and `password` values in the `sentinel` array authenticate with Sentinel itself. Redis authentication still uses the connection's top-level `username` and `password` values. The nested `timeout`, `read_timeout`, and `context` values configure Sentinel discovery, while optional top-level values configure the resolved Redis connection.
+When Sentinel is enabled, Hypervel asks Sentinel for the current master address and then connects to that Redis master. You may add `username` and `password` to the `sentinel` array to authenticate with Sentinel itself; Redis authentication still uses the connection's top-level values. Optional nested `timeout` and `read_timeout` values default to `0.0`, while `context` defaults to an empty array.
 
 Sentinel nodes may use `tcp://` or `tls://` schemes. IPv6 addresses must use brackets, including when TLS is enabled:
 
@@ -287,6 +270,8 @@ Hypervel pools Redis connections so commands can reuse established sockets acros
     ],
 ],
 ```
+
+When the `pool` array is omitted, Hypervel uses a managed-connection floor of one and allows up to 10 connections, with 10-second connection, three-second wait, and 60-second idle timeouts. Heartbeats and maximum-lifetime recycling are disabled, and the heartbeat timeout is one second. The environment variables shown above only apply to connection records that declare a `pool` array.
 
 The `min_connections` option controls how far trimming excess idle connections may reduce the total managed connection count. It is not an idle-count invariant or a guaranteed total minimum, and it does not prewarm or automatically replenish the pool. The caller that first needs each new connection pays its connection-establishment cost, and the pool may have zero idle connections under load. Lifecycle-expired or unhealthy connections and explicit discards can reduce the managed count below `min_connections`; failed connection creation can leave it below that value. None is automatically replenished. The `max_connections` option caps the number of connections the worker may open. The `connect_timeout` option controls how long Hypervel will wait while opening a new Redis connection. The `wait_timeout` option controls how long a coroutine may wait for a pooled connection to become available. The `heartbeat` option controls how often Hypervel validates idle connections in the worker pool; set this value to `-1` to disable background heartbeats. The `heartbeat_timeout` option controls how long a heartbeat ping may run before the connection is discarded. The `max_idle_time` option controls how long an idle connection may remain reusable while the total managed count is above `min_connections`, and the `max_lifetime` option controls the upper bound for how long a pooled connection generation may live before it is recycled while idle or before it is reused; Hypervel assigns each generation an effective lifetime between 90-100% of this value to avoid synchronized reconnects. Set `max_lifetime` to `-1` to disable lifetime recycling.
 

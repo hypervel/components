@@ -33,6 +33,11 @@ class RedisConfigTest extends TestCase
             'options' => ['prefix' => 'shared:'],
             'prefix' => null,
             'events' => false,
+            'max_retries' => 3,
+            'backoff_algorithm' => 'decorrelated_jitter',
+            'backoff_base' => 100,
+            'backoff_cap' => 1000,
+            'pool' => [],
         ], [
             'scheme' => $connection['scheme'],
             'name' => $connection['name'],
@@ -42,6 +47,11 @@ class RedisConfigTest extends TestCase
             'options' => $connection['options'],
             'prefix' => $connection['prefix'],
             'events' => $connection['events'],
+            'max_retries' => $connection['max_retries'],
+            'backoff_algorithm' => $connection['backoff_algorithm'],
+            'backoff_base' => $connection['backoff_base'],
+            'backoff_cap' => $connection['backoff_cap'],
+            'pool' => $connection['pool'],
         ]);
         $this->assertArrayNotHasKey('retry_interval', $connection);
     }
@@ -471,7 +481,7 @@ class RedisConfigTest extends TestCase
         (new RedisConfig($config))->connectionConfig('clustered');
     }
 
-    public function testConnectionConfigAcceptsSentinelConnectionWithoutHostAndPort(): void
+    public function testConnectionConfigNormalizesOptionalSentinelSettings(): void
     {
         $config = m::mock(Repository::class);
         $config->shouldReceive('array')->with('database.redis')->andReturn([
@@ -490,6 +500,11 @@ class RedisConfigTest extends TestCase
         $connection = (new RedisConfig($config))->connectionConfig('sentinel');
 
         $this->assertSame('mymaster', $connection['sentinel']['master_name']);
+        $this->assertNull($connection['sentinel']['username']);
+        $this->assertNull($connection['sentinel']['password']);
+        $this->assertSame(0.0, $connection['sentinel']['timeout']);
+        $this->assertSame(0.0, $connection['sentinel']['read_timeout']);
+        $this->assertSame([], $connection['sentinel']['context']);
     }
 
     public function testConnectionConfigThrowsWhenSentinelEnabledWithoutNodes(): void
