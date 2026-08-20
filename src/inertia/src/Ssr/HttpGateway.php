@@ -65,8 +65,8 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
         }
 
         return self::$ssrClient ??= new Client([
-            'connect_timeout' => config()->integer('inertia.ssr.connect_timeout'),
-            'timeout' => config()->integer('inertia.ssr.timeout'),
+            'connect_timeout' => config()->integer('inertia.ssr.connect_timeout', 2),
+            'timeout' => config()->integer('inertia.ssr.timeout', 5),
             'cookies' => false,
             'http_errors' => false,
         ]);
@@ -334,7 +334,7 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
     private function armTransportBackoff(): void
     {
         self::$ssrUnavailableUntil = microtime(true)
-            + config()->float('inertia.ssr.backoff');
+            + config()->float('inertia.ssr.backoff', 5.0);
     }
 
     /**

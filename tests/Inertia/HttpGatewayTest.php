@@ -913,6 +913,29 @@ class HttpGatewayTest extends TestCase
         // Verify the client is memoized (same instance on second call)
         $this->assertSame($client, $method->invoke($gateway));
     }
+
+    public function testPartialSsrConfigUsesTransportDefaults(): void
+    {
+        $shippedConfig = $this->withEnvironmentValues([
+            'INERTIA_SSR_CONNECT_TIMEOUT' => null,
+            'INERTIA_SSR_TIMEOUT' => null,
+            'INERTIA_SSR_BACKOFF' => null,
+        ], fn (): array => require dirname(__DIR__, 2) . '/src/inertia/config/inertia.php');
+        config(['inertia.ssr' => []]);
+        HttpGateway::flushState();
+
+        $gateway = new HttpGateway;
+        $client = (new ReflectionMethod($gateway, 'ssrClient'))->invoke($gateway);
+
+        $this->assertSame($shippedConfig['ssr']['connect_timeout'], $client->getConfig('connect_timeout'));
+        $this->assertSame($shippedConfig['ssr']['timeout'], $client->getConfig('timeout'));
+
+        $startedAt = microtime(true);
+        (new ReflectionMethod($gateway, 'armTransportBackoff'))->invoke($gateway);
+        $unavailableUntil = (new ReflectionProperty(HttpGateway::class, 'ssrUnavailableUntil'))->getValue();
+
+        $this->assertEqualsWithDelta($startedAt + $shippedConfig['ssr']['backoff'], $unavailableUntil, 0.1);
+    }
 }
 
 class HotFileRemovedHttpGateway extends HttpGateway
