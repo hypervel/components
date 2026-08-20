@@ -43,7 +43,7 @@ class SaloonServiceProviderTest extends TestCase
 
     public function testOmittedFixtureSettingsUsePackageDefaults(): void
     {
-        $fixturePath = base_path(SaloonManager::DEFAULT_FIXTURE_PATH);
+        $fixturePath = base_path('tests/Fixtures/Saloon');
         $this->assertSame($fixturePath, config()->string('saloon.fixtures.path'));
 
         config()->set('saloon.fixtures', []);

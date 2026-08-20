@@ -40,8 +40,6 @@ use UnitEnum;
 
 class SaloonManager
 {
-    public const string DEFAULT_FIXTURE_PATH = 'tests/Fixtures/Saloon';
-
     /**
      * The middleware applied to every Saloon request.
      */
@@ -414,7 +412,7 @@ class SaloonManager
         return $this->fixturePath
             ?? $this->config->string(
                 'saloon.fixtures.path',
-                static fn (): string => base_path(self::DEFAULT_FIXTURE_PATH),
+                static fn (): string => base_path('tests/Fixtures/Saloon'),
             );
     }
 
