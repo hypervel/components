@@ -426,7 +426,7 @@ class BroadcastManager implements BroadcastingFactoryContract
     {
         /** @var RedisFactory $redis */
         $redis = $this->app->make('redis');
-        $connectionName = $config['connection'];
+        $connectionName = $config['connection'] ?? 'default';
         $redisConfig = $this->app->make(RedisConfig::class)->connectionConfig($connectionName);
 
         return new RedisBroadcaster(

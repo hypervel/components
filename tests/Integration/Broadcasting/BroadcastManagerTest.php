@@ -307,19 +307,15 @@ class BroadcastManagerTest extends TestCase
         array $connectionConfig,
         string $expectedPrefix,
     ): void {
-        $redisConfig = config()->array('database.redis');
-        $redisConfig['options'] = $sharedOptions;
-        $redisConfig['broadcasting'] = array_replace(
-            $redisConfig['default'],
-            [
+        config()->set('database.redis', [
+            'client' => 'phpredis',
+            'options' => $sharedOptions,
+            'broadcasting' => array_merge([
                 'host' => '127.0.0.1',
                 'port' => 6379,
                 'database' => 0,
-            ],
-            $connectionConfig,
-        );
-
-        config()->set('database.redis', $redisConfig);
+            ], $connectionConfig),
+        ]);
         config()->set('broadcasting.connections.redis-test', [
             'driver' => 'redis',
             'connection' => 'broadcasting',
@@ -542,7 +538,6 @@ class BroadcastManagerTest extends TestCase
                 'secret' => 'secret',
                 'app_id' => 'app',
                 'options' => ['host' => '127.0.0.1'],
-                'client_options' => [],
             ],
             'pusher' => [
                 'driver' => 'pusher',
@@ -550,8 +545,6 @@ class BroadcastManagerTest extends TestCase
                 'secret' => 'secret',
                 'app_id' => 'app',
                 'options' => ['host' => '127.0.0.1'],
-                'client_options' => [],
-                'jsonp' => false,
             ],
             'ably' => [
                 'driver' => 'ably',
@@ -723,7 +716,6 @@ class BroadcastManagerTest extends TestCase
                 'connections' => [
                     'failing' => [
                         'driver' => 'redis',
-                        'connection' => 'default',
                     ],
                 ],
             ],
