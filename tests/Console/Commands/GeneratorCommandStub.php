@@ -75,6 +75,14 @@ class GeneratorCommandStub extends GeneratorCommand
     }
 
     /**
+     * Expose viewPath() for testing.
+     */
+    public function exposedViewPath(string $path = ''): string
+    {
+        return $this->viewPath($path);
+    }
+
+    /**
      * Expose replaceFile() for testing.
      */
     public function exposedReplaceFile(string $path, string $contents): void

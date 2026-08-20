@@ -496,7 +496,8 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
      */
     protected function viewPath(string $path = ''): string
     {
-        $views = $this->hypervel->make('config')->array('view.paths')[0];
+        $views = $this->hypervel->make('config')->array('view.paths')[0]
+            ?? $this->hypervel->basePath('resources/views');
 
         return $views . ($path ? DIRECTORY_SEPARATOR . $path : $path);
     }
