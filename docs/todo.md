@@ -37,6 +37,11 @@
 
 - Remove trailer-stream one-chunk lookahead once the minimum supported Swoole release includes [swoole-src#6124](https://github.com/swoole/swoole-src/pull/6124). Current releases send an empty `END_STREAM` DATA frame before trailer HEADERS when `end()` receives no body after `write()`, so `ResponseBridge` retains the final chunk for `end($chunk)` and delays delivery by one chunk. Once fixed, raise the `ext-swoole` constraint, write every chunk immediately, emit trailers, call bare `end()`, invert the deterministic bridge ordering tests, and add real gRPC incremental-delivery coverage.
 
+## Routing
+
+- Correct `CompiledRouteCollection`'s 405 method aggregation when cached routes and routes added at runtime share a path but allow different methods. If the compiled matcher rejects the request method, the dynamic collection's `MethodNotAllowedHttpException` currently replaces the compiled matcher's allowed-method set, so the response's `Allow` header omits methods supplied by the cached routes. Laravel has the same catch structure, but Hypervel should retain, merge, and de-duplicate both method sets before producing the 405 response. Add focused coverage with cached and dynamic methods in both registration directions, including GET/HEAD behavior.
+- Handle pathless absolute-form request targets in `RequestBridge`. Symfony leaves `http://example.com` as the request URI and derives `/http://example.com` as its path; with a query it can also append the query twice. The absolute-form grammar permits an empty path and servers must accept absolute-form requests ([RFC 9112 section 3.2.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.2)), while an empty HTTP(S) path is normally equivalent to `/` except for OPTIONS ([RFC 9110 section 4.2.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.3)). Normalize pathless HTTP(S) targets before Symfony derives the path, preserve the query exactly once, and add explicit GET and OPTIONS coverage alongside host, port, and query variants.
+
 ## Watcher
 
 - Consolidate the two find-based watcher drivers while adding deletion detection:
