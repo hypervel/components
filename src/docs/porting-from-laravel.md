@@ -453,14 +453,12 @@ protected function mergeableOptions(string $name): array
 }
 ```
 
-Start from Hypervel's shipped configuration files and reapply your application overrides. Fixed nested arrays are complete values. Collections such as `connections`, `stores`, and `guards` merge by entry name, but an application entry replaces the complete framework entry with the same name. Hypervel does not silently supply missing required members from source-code defaults; deliberately optional settings use their documented defaults when omitted. Applications that call `dontMergeFrameworkConfiguration()` must still define `app.env` and `app.timezone`, which are required during bootstrap. The public `Cache::build()`, `Storage::build()`, `Log::build()`, and `Mail::build()` APIs still accept partial runtime records, as do Auth's public guard creators for values also defaulted by the constructed guard.
+Start from Hypervel's shipped configuration files and reapply your application overrides. Fixed nested arrays are complete values. Collections such as `connections`, `stores`, and `guards` merge by entry name, but an application entry replaces the complete framework entry with the same name. Carry over required members; documented optional members may be omitted.
 
 When porting Laravel configuration, pay particular attention to these current differences:
 
-- Hypervel's shipped Eloquent auth provider includes an optional `cache` block; omitting it disables provider caching. Password brokers explicitly declare their `driver`.
-- Hypervel's shipped background, deferred, Beanstalkd, SQS, Redis, and failover queues dispatch after commit by default; sync and database do not. Beanstalkd records require `port`, while the SQS AWS session `token` is optional. Advanced Beanstalkd, SQS SDK, Redis migration, and file failed-job settings remain optional as documented in the [queue guide](/docs/{{version}}/queues).
-- Scout's Meilisearch configuration declares `retries` and `initial_retry_delay_ms`, while Fortify's limiter configuration declares `verification`.
-- `database.migrations` is an array containing `table` and `update_date_on_publish`, and `logging.deprecations` is an array containing `channel` and `trace`.
+- Hypervel password broker records explicitly declare their `database` or `cache` driver.
+- Hypervel's shipped background, deferred, Beanstalkd, SQS, Redis, and failover queues dispatch after commit by default; sync and database do not. A copied Laravel queue config restores Laravel's before-commit behavior. Beanstalkd records also require `port`. See the [queue guide](/docs/{{version}}/queues).
 - The scheduling cache store is configured through `cache.schedule_store` and `SCHEDULE_CACHE_STORE`. Laravel's older `SCHEDULE_CACHE_DRIVER` name is not supported.
 
 Application code should keep request-specific values in the request, session, context, or coroutine context instead of changing config values while the server is running.
