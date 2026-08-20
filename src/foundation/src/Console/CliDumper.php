@@ -50,15 +50,13 @@ class CliDumper extends BaseCliDumper
      * Boot-only. Registers a process-wide VarDumper handler for the worker
      * lifetime.
      */
-    public static function register(string $basePath, string $compiledViewPath): static
+    public static function register(string $basePath, string $compiledViewPath): void
     {
         $cloner = tap(new VarCloner)->addCasters(ReflectionCaster::UNSET_CLOSURE_FILE_INFO); // @phpstan-ignore method.notFound (tap proxy __call)
 
         $dumper = new static(new ConsoleOutput, $basePath, $compiledViewPath);
 
         VarDumper::setHandler(fn ($value) => $dumper->dumpWithSource($cloner->cloneVar($value)));
-
-        return $dumper;
     }
 
     /**
@@ -107,6 +105,9 @@ class CliDumper extends BaseCliDumper
         );
     }
 
+    /**
+     * Determine if the output supports colors.
+     */
     protected function supportsColors(): bool
     {
         return $this->output->isDecorated();
