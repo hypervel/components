@@ -101,17 +101,7 @@ class Pipeline implements PipelineContract
      */
     public function then(Closure $destination): mixed
     {
-        $pipeline = $this->toClosure($destination);
-
-        try {
-            return $this->withinTransaction !== false
-                ? $this->getContainer()->make('db')->connection($this->withinTransaction)->transaction(fn () => $pipeline($this->passable))
-                : $pipeline($this->passable);
-        } finally {
-            if ($this->finally) {
-                ($this->finally)($this->passable);
-            }
-        }
+        return ($this->toClosure($destination))($this->passable);
     }
 
     /**
@@ -120,16 +110,29 @@ class Pipeline implements PipelineContract
      * The returned closure receives its passable per invocation. Immutable pipe
      * descriptors stay in the onion while their middleware instances are resolved
      * inside each call, allowing independent requests to reuse the same structure.
+     * Transaction and finally callbacks are also applied per invocation.
      *
      * @internal
      */
     public function toClosure(Closure $destination): Closure
     {
-        return array_reduce(
+        $pipeline = array_reduce(
             array_reverse($this->pipes()),
             $this->carry(),
             $this->prepareDestination($destination)
         );
+
+        return function (mixed $passable) use ($pipeline): mixed {
+            try {
+                return $this->withinTransaction !== false
+                    ? $this->getContainer()->make('db')->connection($this->withinTransaction)->transaction(fn () => $pipeline($passable))
+                    : $pipeline($passable);
+            } finally {
+                if ($this->finally) {
+                    ($this->finally)($passable);
+                }
+            }
+        };
     }
 
     /**

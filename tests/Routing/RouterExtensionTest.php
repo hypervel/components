@@ -50,21 +50,29 @@ class RouterExtensionTest extends RoutingTestCase
         $this->assertSame(2, $middleware->runs);
     }
 
-    public function testSubclassRouteDispatchReusesItsPipeline(): void
+    public function testSubclassRouteDispatchReusesItsPipelineAndRunsExecutionHooksPerRequest(): void
     {
         $container = new Container;
         $middleware = new RouterTestMiddleware;
         $container->instance(RouterTestMiddleware::class, $middleware);
         $router = $this->router($container);
-        $router->get('hooked', static fn (): string => 'route')
+        $router->recordPipelineFinalizations = true;
+        $route = $router->get('hooked', static fn (): string => 'route')
             ->middleware(RouterTestMiddleware::class);
+        $firstRequest = Request::create('/hooked', 'GET');
+        $secondRequest = Request::create('/hooked', 'GET');
 
-        $this->assertSame('route', $router->dispatch(Request::create('/hooked', 'GET'))->getContent());
-        $this->assertSame('route', $router->dispatch(Request::create('/hooked', 'GET'))->getContent());
+        $this->assertSame('route', $router->dispatch($firstRequest)->getContent());
+        $pipeline = $route->middlewarePipeline;
+        $this->assertNotNull($pipeline);
 
+        $this->assertSame('route', $router->dispatch($secondRequest)->getContent());
+
+        $this->assertSame($pipeline, $route->middlewarePipeline);
         $this->assertSame(1, $router->pipelineCreations);
         $this->assertSame(2, $router->middlewareResolutions);
         $this->assertSame(2, $middleware->runs);
+        $this->assertSame([$firstRequest, $secondRequest], $router->finalizedRequests);
     }
 
     public function testMiddlewareOverrideCanRetainRequiredMiddlewareWhenUserMiddlewareIsDisabled(): void
@@ -267,6 +275,11 @@ class TrackingRouter extends Router
 
     public int $requiredMiddlewareRuns = 0;
 
+    public bool $recordPipelineFinalizations = false;
+
+    /** @var Request[] */
+    public array $finalizedRequests = [];
+
     public function referencesController(mixed $action): bool
     {
         return $this->actionReferencesController($action);
@@ -276,7 +289,15 @@ class TrackingRouter extends Router
     {
         ++$this->pipelineCreations;
 
-        return parent::newPipeline();
+        $pipeline = parent::newPipeline();
+
+        if ($this->recordPipelineFinalizations) {
+            $pipeline->finally(function (Request $request): void {
+                $this->finalizedRequests[] = $request;
+            });
+        }
+
+        return $pipeline;
     }
 
     protected function middlewareFor(Route $route): array

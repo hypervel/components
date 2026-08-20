@@ -155,8 +155,8 @@ class Route
     /**
      * The reusable route middleware pipeline.
      *
-     * It captures only the onion structure; each invocation supplies its own
-     * request and resolves descriptor middleware without caching the instance.
+     * Each invocation supplies its own request, resolves descriptor middleware
+     * without caching the instance, and applies the pipeline's execution hooks.
      */
     public ?Closure $middlewarePipeline = null;
 

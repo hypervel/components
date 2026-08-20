@@ -317,6 +317,57 @@ class PipelineTest extends TestCase
         $this->assertSame('foo:second', $pipeline('foo'));
     }
 
+    public function testCompiledClosureAppliesFinallyToEveryInvocation(): void
+    {
+        $finalized = [];
+        $pipeline = (new Pipeline(new Container))
+            ->finally(function (mixed $value) use (&$finalized): void {
+                $finalized[] = $value;
+            })
+            ->toClosure(fn (string $value): string => $value . ':processed');
+
+        $this->assertSame('first:processed', $pipeline('first'));
+        $this->assertSame('second:processed', $pipeline('second'));
+        $this->assertSame(['first', 'second'], $finalized);
+    }
+
+    public function testCompiledClosureAppliesFinallyWhenAnInvocationThrows(): void
+    {
+        $exception = new Exception('Failed: request');
+        $finalized = [];
+        $pipeline = (new Pipeline(new Container))
+            ->finally(function (mixed $value) use (&$finalized): void {
+                $finalized[] = $value;
+            })
+            ->toClosure(static fn (string $value): never => throw $exception);
+
+        try {
+            $pipeline('request');
+            $this->fail('Expected the compiled pipeline to throw.');
+        } catch (Exception $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertSame(['request'], $finalized);
+    }
+
+    public function testCompiledClosureAppliesTransactionToEveryInvocation(): void
+    {
+        $container = new Container;
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('transaction')->twice()->andReturnUsing(fn (callable $callback) => $callback());
+        $manager = m::mock(DatabaseManager::class);
+        $manager->shouldReceive('connection')->twice()->with(null)->andReturn($connection);
+        $container->instance('db', $manager);
+
+        $pipeline = (new Pipeline($container))
+            ->withinTransaction()
+            ->toClosure(fn (string $value): string => $value . ':processed');
+
+        $this->assertSame('first:processed', $pipeline('first'));
+        $this->assertSame('second:processed', $pipeline('second'));
+    }
+
     public function testPipelineViaDispatchesPerMethodForTheSamePipeClass(): void
     {
         $container = new Container;
