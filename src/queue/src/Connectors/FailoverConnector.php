@@ -8,6 +8,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\FailoverQueue;
 use Hypervel\Queue\QueueManager;
+use Hypervel\Support\Arr;
 
 class FailoverConnector implements ConnectorInterface
 {
@@ -29,7 +30,7 @@ class FailoverConnector implements ConnectorInterface
             $this->manager,
             $this->events,
             $config['connections'],
-            $config['after_commit'],
+            Arr::get($config, 'after_commit', true),
         );
     }
 }

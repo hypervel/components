@@ -6,6 +6,7 @@ namespace Hypervel\Queue\Connectors;
 
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\BeanstalkdQueue;
+use Hypervel\Support\Arr;
 use Pheanstalk\Pheanstalk;
 use Pheanstalk\Values\Timeout;
 
@@ -21,7 +22,7 @@ class BeanstalkdConnector implements ConnectorInterface
             $config['queue'],
             $config['retry_after'],
             $config['block_for'],
-            $config['after_commit']
+            Arr::get($config, 'after_commit', true)
         );
     }
 

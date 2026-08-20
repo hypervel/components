@@ -7,6 +7,7 @@ namespace Hypervel\Queue\Connectors;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Queue\RedisQueue;
+use Hypervel\Support\Arr;
 
 class RedisConnector implements ConnectorInterface
 {
@@ -32,8 +33,8 @@ class RedisConnector implements ConnectorInterface
             $connection ?? $this->connection,
             $config['retry_after'],
             $config['block_for'],
-            $config['after_commit'],
-            $config['migration_batch_size'] ?? RedisQueue::DEFAULT_MIGRATION_BATCH_SIZE
+            Arr::get($config, 'after_commit', true),
+            Arr::get($config, 'migration_batch_size', RedisQueue::DEFAULT_MIGRATION_BATCH_SIZE)
         );
     }
 }

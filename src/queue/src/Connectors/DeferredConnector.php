@@ -7,6 +7,7 @@ namespace Hypervel\Queue\Connectors;
 use Closure;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\DeferredQueue;
+use Hypervel\Support\Arr;
 
 class DeferredConnector implements ConnectorInterface
 {
@@ -23,7 +24,7 @@ class DeferredConnector implements ConnectorInterface
      */
     public function connect(array $config): Queue
     {
-        return (new DeferredQueue($config['after_commit']))
+        return (new DeferredQueue(Arr::get($config, 'after_commit', true)))
             ->setExceptionCallback($this->exceptionCallback);
     }
 }

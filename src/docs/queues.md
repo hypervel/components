@@ -192,7 +192,7 @@ If your Redis queue connection uses a [Redis Cluster](https://redis.io/docs/late
 ```php
 'redis' => [
     'driver' => 'redis',
-    'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+    'connection' => env('REDIS_QUEUE_CONNECTION', 'queue'),
     'queue' => env('REDIS_QUEUE', 'default'),
     'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
     'block_for' => null,
@@ -212,7 +212,7 @@ Adjusting this value based on your queue load can be more efficient than continu
 ```php
 'redis' => [
     'driver' => 'redis',
-    'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+    'connection' => env('REDIS_QUEUE_CONNECTION', 'queue'),
     'queue' => env('REDIS_QUEUE', 'default'),
     'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
     'block_for' => 5,

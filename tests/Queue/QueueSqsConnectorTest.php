@@ -20,11 +20,16 @@ class QueueSqsConnectorTest extends TestCase
 {
     public function testConnectSucceedsWhenOptionalSdkConfigurationIsOmitted(): void
     {
-        $connector = new SqsConnector;
-
-        $queue = $connector->connect($this->config());
+        $queue = (new SqsConnector)->connect([
+            'queue' => 'default',
+            'region' => 'us-east-1',
+        ]);
 
         $this->assertInstanceOf(SqsQueue::class, $queue);
+        $this->assertSame('', (new ClassInvoker($queue))->prefix);
+        $this->assertSame('', (new ClassInvoker($queue))->suffix);
+        $this->assertTrue((new ClassInvoker($queue))->dispatchAfterCommit);
+        $this->assertSame([], (new ClassInvoker($queue))->overflowStorage);
     }
 
     public function testDefaultConfigurationPreservesIndividualHttpOverridesAndOptions(): void
@@ -37,6 +42,13 @@ class QueueSqsConnectorTest extends TestCase
         ]);
 
         $this->assertNull($config['credentials']);
+        $this->assertNull($config['key']);
+        $this->assertNull($config['secret']);
+        $this->assertNull($config['token']);
+        $this->assertSame('', $config['prefix']);
+        $this->assertSame('', $config['suffix']);
+        $this->assertTrue($config['after_commit']);
+        $this->assertSame([], $config['overflow']);
         $this->assertSame('latest', $config['version']);
         $this->assertSame([
             'timeout' => 15,
@@ -134,7 +146,7 @@ class QueueSqsConnectorTest extends TestCase
         ]);
     }
 
-    public function testOverflowOptionsArePassedToTheQueueButNotTheAwsClient(): void
+    public function testQueueOnlyOptionsAreNotPassedToTheAwsClient(): void
     {
         $overflow = [
             'enabled' => true,
@@ -149,7 +161,10 @@ class QueueSqsConnectorTest extends TestCase
         ]));
 
         $this->assertSame($overflow, (new ClassInvoker($queue))->overflowStorage);
-        $this->assertNull($queue->getSqs()->getConfig('overflow'));
+
+        foreach (['driver', 'queue', 'prefix', 'suffix', 'after_commit', 'key', 'secret', 'token', 'overflow'] as $option) {
+            $this->assertNull($queue->getSqs()->getConfig($option));
+        }
     }
 
     protected function config(array $overrides = []): array

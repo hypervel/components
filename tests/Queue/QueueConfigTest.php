@@ -5,8 +5,22 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Closure;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Redis\Factory as RedisFactory;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Queue\Connectors\BackgroundConnector;
+use Hypervel\Queue\Connectors\BeanstalkdConnector;
+use Hypervel\Queue\Connectors\DatabaseConnector;
+use Hypervel\Queue\Connectors\DeferredConnector;
+use Hypervel\Queue\Connectors\FailoverConnector;
+use Hypervel\Queue\Connectors\RedisConnector;
+use Hypervel\Queue\Connectors\SqsConnector;
+use Hypervel\Queue\Connectors\SyncConnector;
+use Hypervel\Queue\QueueManager;
+use Hypervel\Support\ClassInvoker;
 use Hypervel\Support\Env;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 
 class QueueConfigTest extends TestCase
 {
@@ -44,6 +58,37 @@ class QueueConfigTest extends TestCase
 
         $this->assertArrayNotHasKey('path', $config['failed']);
         $this->assertArrayNotHasKey('limit', $config['failed']);
+    }
+
+    public function testConnectorAfterCommitOmissionDefaultsMatchShippedConnections(): void
+    {
+        $connections = $this->loadConfig()['connections'];
+
+        foreach ($connections as $name => $connection) {
+            $connector = match ($name) {
+                'sync' => new SyncConnector,
+                'background' => new BackgroundConnector,
+                'deferred' => new DeferredConnector,
+                'database' => new DatabaseConnector(m::mock(ConnectionResolverInterface::class)),
+                'beanstalkd' => new BeanstalkdConnector,
+                'sqs' => new SqsConnector,
+                'redis' => new RedisConnector(m::mock(RedisFactory::class)),
+                'failover' => new FailoverConnector(
+                    m::mock(QueueManager::class),
+                    m::mock(Dispatcher::class),
+                ),
+            };
+            $constructionConfig = $connection;
+            unset($constructionConfig['after_commit'], $constructionConfig['pool']);
+
+            $queue = $connector->connect($constructionConfig);
+
+            $this->assertSame(
+                $connection['after_commit'],
+                (new ClassInvoker($queue))->dispatchAfterCommit,
+                "The [{$name}] connector default does not match its shipped config.",
+            );
+        }
     }
 
     protected function loadConfig(): array

@@ -7,6 +7,7 @@ namespace Hypervel\Queue\Connectors;
 use Closure;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\BackgroundQueue;
+use Hypervel\Support\Arr;
 
 class BackgroundConnector implements ConnectorInterface
 {
@@ -23,7 +24,7 @@ class BackgroundConnector implements ConnectorInterface
      */
     public function connect(array $config): Queue
     {
-        return (new BackgroundQueue($config['after_commit']))
+        return (new BackgroundQueue(Arr::get($config, 'after_commit', true)))
             ->setExceptionCallback($this->exceptionCallback);
     }
 }

@@ -6,6 +6,7 @@ namespace Hypervel\Queue\Connectors;
 
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\SyncQueue;
+use Hypervel\Support\Arr;
 
 class SyncConnector implements ConnectorInterface
 {
@@ -14,6 +15,6 @@ class SyncConnector implements ConnectorInterface
      */
     public function connect(array $config): Queue
     {
-        return new SyncQueue($config['after_commit']);
+        return new SyncQueue(Arr::get($config, 'after_commit', false));
     }
 }

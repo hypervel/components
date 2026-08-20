@@ -24,7 +24,6 @@ class SqsConnector implements ConnectorInterface
         $secret = $config['secret'];
         $token = $config['token'];
         $credentials = $config['credentials'];
-        $suffix = $config['suffix'];
 
         if (($resolvedCredentials = $this->resolveCredentialProvider($config)) !== null) {
             $config['credentials'] = $resolvedCredentials;
@@ -40,13 +39,23 @@ class SqsConnector implements ConnectorInterface
 
         // The queue token is an AWS session credential, while the SDK's
         // top-level token option is an unrelated bearer token.
-        $clientConfig = Arr::except($config, ['token', 'overflow']);
+        $clientConfig = Arr::except($config, [
+            'driver',
+            'queue',
+            'prefix',
+            'suffix',
+            'after_commit',
+            'key',
+            'secret',
+            'token',
+            'overflow',
+        ]);
 
         return new SqsQueue(
             new SqsClient($clientConfig),
             $config['queue'],
             $config['prefix'],
-            $suffix ?? '',
+            $config['suffix'],
             $config['after_commit'],
             $config['overflow'],
         );
@@ -86,9 +95,17 @@ class SqsConnector implements ConnectorInterface
     protected function getDefaultConfiguration(array $config): array
     {
         return [
+            'key' => null,
+            'secret' => null,
+            'token' => null,
             'credentials' => null,
+            'after_commit' => true,
+            'overflow' => [],
             'version' => 'latest',
             ...$config,
+            // Shipped env-backed values may be null, while SqsQueue requires strings.
+            'prefix' => $config['prefix'] ?? '',
+            'suffix' => $config['suffix'] ?? '',
             'http' => [
                 'timeout' => 60,
                 'connect_timeout' => 60,
