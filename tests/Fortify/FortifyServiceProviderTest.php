@@ -90,7 +90,7 @@ class FortifyServiceProviderTest extends TestCase
 
         $config = require dirname(__DIR__, 2) . '/src/fortify/config/fortify.php';
 
-        $this->assertSame(Fortify::DEFAULT_VERIFICATION_LIMITER, $config['limiters']['verification']);
+        $this->assertSame('6,1', $config['limiters']['verification']);
         $this->assertSame(Passkeys::DEFAULT_TIMEOUT, $config['passkeys']['timeout']);
     }
 

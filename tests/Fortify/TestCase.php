@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Fortify;
 
-use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Contracts\Config\Repository as Config;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Schema\Blueprint;
@@ -42,53 +41,19 @@ abstract class TestCase extends TestbenchTestCase
             'app.name' => 'Hypervel Test',
             'app.url' => 'https://example.test',
             'auth.defaults.guard' => 'web',
-            'auth.guards.web' => [
-                'driver' => 'session',
-                'provider' => 'users',
-                'passwords' => 'users',
-            ],
-            'auth.guards.admin' => [
-                'driver' => 'session',
-                'provider' => 'admins',
-                'passwords' => 'admins',
-            ],
-            'auth.providers.users' => [
-                'driver' => 'eloquent',
-                'model' => $userModel,
-                'cache' => [
-                    'enabled' => false,
-                    'store' => null,
-                    'ttl' => 300,
-                    'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
-                    'tags' => null,
-                ],
-            ],
-            'auth.providers.admins' => [
-                'driver' => 'eloquent',
-                'model' => Admin::class,
-                'cache' => [
-                    'enabled' => false,
-                    'store' => null,
-                    'ttl' => 300,
-                    'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
-                    'tags' => null,
-                ],
-            ],
+            'auth.guards.web' => ['driver' => 'session', 'provider' => 'users', 'passwords' => 'users'],
+            'auth.guards.admin' => ['driver' => 'session', 'provider' => 'admins', 'passwords' => 'admins'],
+            'auth.providers.users' => ['driver' => 'eloquent', 'model' => $userModel],
+            'auth.providers.admins' => ['driver' => 'eloquent', 'model' => Admin::class],
             'auth.passwords.users' => [
                 'driver' => 'database',
                 'provider' => 'users',
                 'table' => 'password_reset_tokens',
-                'connection' => null,
-                'expire' => 60,
-                'throttle' => 60,
             ],
             'auth.passwords.admins' => [
                 'driver' => 'database',
                 'provider' => 'admins',
                 'table' => 'admin_password_reset_tokens',
-                'connection' => null,
-                'expire' => 60,
-                'throttle' => 60,
             ],
             'database.default' => 'testing',
             'fortify.home' => '/home',

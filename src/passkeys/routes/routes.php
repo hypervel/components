@@ -5,7 +5,6 @@ declare(strict_types=1);
 use Hypervel\Passkeys\Http\Controllers\PasskeyConfirmationController;
 use Hypervel\Passkeys\Http\Controllers\PasskeyLoginController;
 use Hypervel\Passkeys\Http\Controllers\PasskeyRegistrationController;
-use Hypervel\Passkeys\Passkeys;
 use Hypervel\Support\Facades\Route;
 
 $groupMiddleware = config()->array('passkeys.middleware');
@@ -19,7 +18,7 @@ Route::group(['middleware' => $groupMiddleware], function () {
     $managementMiddleware = array_values(array_filter(config()->array('passkeys.management_middleware')));
 
     $middleware = function (string ...$middleware): array {
-        $throttle = config('passkeys.throttle', Passkeys::DEFAULT_THROTTLE);
+        $throttle = config('passkeys.throttle', 'throttle:6,1');
 
         return array_values(array_filter([...$middleware, $throttle]));
     };

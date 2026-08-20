@@ -18,8 +18,6 @@ class Passkeys
 {
     public const int DEFAULT_TIMEOUT = 60_000;
 
-    public const string DEFAULT_THROTTLE = 'throttle:6,1';
-
     private const string DEFAULT_PASSKEY_MODEL = Passkey::class;
 
     private const bool DEFAULT_REGISTERS_ROUTES = true;

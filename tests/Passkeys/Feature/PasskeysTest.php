@@ -40,7 +40,7 @@ class PasskeysTest extends TestCase
         $config = require dirname(__DIR__, 3) . '/src/passkeys/config/passkeys.php';
 
         $this->assertSame(Passkeys::DEFAULT_TIMEOUT, $config['timeout']);
-        $this->assertSame(Passkeys::DEFAULT_THROTTLE, $config['throttle']);
+        $this->assertSame('throttle:6,1', $config['throttle']);
     }
 
     public function testOmittedTimeoutAndRedirectUseTheirDefaults(): void

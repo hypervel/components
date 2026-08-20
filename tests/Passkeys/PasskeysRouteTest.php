@@ -8,7 +8,6 @@ use Hypervel\Auth\Middleware\Authenticate;
 use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
 use Hypervel\Auth\Middleware\RequirePassword;
 use Hypervel\Auth\Middleware\UseGuard;
-use Hypervel\Passkeys\Passkeys;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\Attributes\WithConfig;
 
@@ -83,7 +82,7 @@ class PasskeysRouteTest extends TestCase
             $route = Route::getRoutes()->getByName($routeName);
 
             $this->assertNotNull($route);
-            $this->assertContains(Passkeys::DEFAULT_THROTTLE, $route->middleware());
+            $this->assertContains('throttle:6,1', $route->middleware());
         }
     }
 }
