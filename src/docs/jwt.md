@@ -373,6 +373,8 @@ The blacklist uses the configured storage provider:
 ],
 ```
 
+If the provider members are omitted, Hypervel uses `Lcobucci` for token encoding and decoding and `TaggedCache` for blacklist storage.
+
 The default tagged-cache storage requires your default cache store to support tags. Both all-mode and any-mode tagged stores are supported. When using any-mode tags, blacklist entries are written through tags but read and removed by a private plain-key prefix.
 
 If your cache store does not support tags, implement `Hypervel\Jwt\Contracts\StorageContract` and configure your implementation using `jwt.providers.storage`.

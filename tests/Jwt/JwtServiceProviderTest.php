@@ -350,18 +350,23 @@ class JwtServiceProviderTest extends TestCase
         $this->assertTrue($storage->foreverCalled);
     }
 
-    public function testStorageProviderIsRequired(): void
+    public function testProviderImplementationsUsePackageDefaultsWhenOmitted(): void
     {
         $config = $this->app->make('config');
-        $config->set('jwt.providers', ['jwt' => Lcobucci::class]);
-        $config->set('jwt.blacklist_enabled', true);
+        $config->set('jwt.providers', []);
+        $config->set('jwt.secret', 'test-secret');
+        $config->set('jwt.blacklist_enabled', false);
         $this->app->forgetInstance(BlacklistContract::class);
         $this->app->forgetInstance('jwt');
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Configuration value for key [jwt.providers.storage] must be a string');
+        $manager = $this->app->make('jwt');
+        $blacklist = $this->app->make(BlacklistContract::class);
 
-        $this->app->make('jwt');
+        $this->assertInstanceOf(Lcobucci::class, $manager->driver());
+        $this->assertInstanceOf(
+            TaggedCache::class,
+            (new ReflectionProperty($blacklist, 'storage'))->getValue($blacklist),
+        );
     }
 
     public function testReloadConfigurationRefreshesResolvedJwtServices(): void

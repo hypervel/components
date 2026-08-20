@@ -57,7 +57,7 @@ class JwtServiceProvider extends ServiceProvider implements ReloadsConfiguration
         $this->app->singleton(BlacklistContract::class, function ($app) {
             $config = $app->make('config');
 
-            $storageClass = $config->string('jwt.providers.storage');
+            $storageClass = $config->string('jwt.providers.storage', TaggedCache::class);
             $storage = match ($storageClass) {
                 TaggedCache::class => new TaggedCache($this->cacheStoreForJwtBlacklist(
                     $app,

@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Jwt;
 
 use Hypervel\Jwt\Http\Parser\AuthHeaders;
 use Hypervel\Jwt\Http\Parser\InputSource;
+use Hypervel\Jwt\JwtGuard;
 use Hypervel\Jwt\Validations\ExpiredClaim;
 use Hypervel\Jwt\Validations\IssuedAtClaim;
 use Hypervel\Jwt\Validations\IssuerClaim;
@@ -15,6 +16,13 @@ use Hypervel\Tests\TestCase;
 
 class JwtConfigTest extends TestCase
 {
+    public function testTtlMatchesTheGuardDefault(): void
+    {
+        $config = require dirname(__DIR__, 2) . '/src/jwt/config/jwt.php';
+
+        $this->assertSame(JwtGuard::DEFAULT_TTL, $config['ttl']);
+    }
+
     public function testBlacklistGracePeriodIsLoadedAsIntegerFromEnvironment(): void
     {
         $originalValues = $this->setEnvironmentVariables([

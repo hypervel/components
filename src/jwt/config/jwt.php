@@ -295,7 +295,8 @@ return [
     | Providers
     |--------------------------------------------------------------------------
     |
-    | Specify the various providers used throughout the package.
+    | Specify the various providers used throughout the package. Omitted
+    | members use the implementations shown below.
     |
     */
 

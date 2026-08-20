@@ -34,6 +34,8 @@ class JwtGuard implements Guard
     use GuardHelpers;
     use Macroable;
 
+    public const int DEFAULT_TTL = 120;
+
     protected const string GUARD_CONTEXT_KEY_PREFIX = '__auth.guards.';
 
     private const string NO_EXPIRY = '__jwt.ttl.no_expiry';
@@ -60,8 +62,7 @@ class JwtGuard implements Guard
         protected ClaimFactory $claimFactory,
         protected Parser $parser,
         protected Container $app,
-        // Keep the direct-construction default aligned with config/jwt.php.
-        protected ?int $ttl = 120,
+        protected ?int $ttl = self::DEFAULT_TTL,
     ) {
         $this->provider = $provider;
     }
