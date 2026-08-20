@@ -423,6 +423,34 @@ class AuthManagerTest extends TestCase
         $this->assertFalse($provider->isCacheEnabled());
     }
 
+    #[DataProvider('optionalEloquentProviderCacheProvider')]
+    public function testEloquentUserProviderCacheMayBeOmittedOrNull(array $providerConfig): void
+    {
+        $this->app->make('config')->set('auth.providers.uncached', $providerConfig);
+
+        $provider = (new AuthManager($this->app))->createUserProvider('uncached');
+
+        $this->assertInstanceOf(EloquentUserProvider::class, $provider);
+        $this->assertFalse($provider->isCacheEnabled());
+    }
+
+    /**
+     * Provide Eloquent user provider records without cache configuration.
+     */
+    public static function optionalEloquentProviderCacheProvider(): iterable
+    {
+        yield 'omitted' => [[
+            'driver' => 'eloquent',
+            'model' => AuthManagerCacheUserStub::class,
+        ]];
+
+        yield 'null' => [[
+            'driver' => 'eloquent',
+            'model' => AuthManagerCacheUserStub::class,
+            'cache' => null,
+        ]];
+    }
+
     public function testCompleteEloquentUserProviderCacheRecordEnablesCaching(): void
     {
         $this->app->make('config')->set('auth.providers.cached', [
@@ -452,38 +480,23 @@ class AuthManagerTest extends TestCase
         $this->assertTrue($provider->isCacheEnabled());
     }
 
-    #[DataProvider('incompleteEloquentProviderCacheProvider')]
-    public function testEloquentUserProviderRequiresCompleteCacheRecord(array $provider, string $member): void
+    public function testEnabledEloquentUserProviderCacheRequiresACompleteRecord(): void
     {
-        $this->app->make('config')->set('auth.providers.incomplete', $provider);
+        $this->app->make('config')->set('auth.providers.incomplete', [
+            'driver' => 'eloquent',
+            'model' => AuthManagerCacheUserStub::class,
+            'cache' => [
+                'enabled' => true,
+                'ttl' => 300,
+                'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
+                'tags' => null,
+            ],
+        ]);
 
         $this->expectException(ErrorException::class);
-        $this->expectExceptionMessage("Undefined array key \"{$member}\"");
+        $this->expectExceptionMessage('Undefined array key "store"');
 
         (new AuthManager($this->app))->createUserProvider('incomplete');
-    }
-
-    /**
-     * Provide incomplete Eloquent user provider cache records.
-     */
-    public static function incompleteEloquentProviderCacheProvider(): array
-    {
-        return [
-            'missing cache block' => [[
-                'driver' => 'eloquent',
-                'model' => AuthManagerCacheUserStub::class,
-            ], 'cache'],
-            'missing nullable store' => [[
-                'driver' => 'eloquent',
-                'model' => AuthManagerCacheUserStub::class,
-                'cache' => [
-                    'enabled' => true,
-                    'ttl' => 300,
-                    'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
-                    'tags' => null,
-                ],
-            ], 'store'],
-        ];
     }
 
     #[DataProvider('invalidCacheTtlProvider')]

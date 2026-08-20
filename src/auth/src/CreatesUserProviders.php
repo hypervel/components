@@ -100,9 +100,9 @@ trait CreatesUserProviders
     protected function createEloquentProvider(array $config): EloquentUserProvider
     {
         $provider = new EloquentUserProvider($this->app->make('hash'), $config['model']);
-        $cache = $config['cache'];
+        $cache = $config['cache'] ?? null;
 
-        if ($cache['enabled']) {
+        if ($cache !== null && $cache['enabled']) {
             $ttl = $cache['ttl'];
 
             if (! is_int($ttl) || $ttl <= 0) {

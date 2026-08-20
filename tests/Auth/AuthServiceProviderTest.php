@@ -149,6 +149,15 @@ class AuthServiceProviderTest extends TestCase
             'auth' => [
                 'providers' => [
                     'users' => $this->cachedProvider(AuthProviderUser::class, enabled: false),
+                    'uncached' => [
+                        'driver' => 'eloquent',
+                        'model' => AuthProviderUser::class,
+                    ],
+                    'null-cache' => [
+                        'driver' => 'eloquent',
+                        'model' => AuthProviderUser::class,
+                        'cache' => null,
+                    ],
                     'custom' => [
                         'driver' => 'custom',
                     ],

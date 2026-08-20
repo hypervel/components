@@ -234,7 +234,11 @@ class AuthServiceProvider extends ServiceProvider implements ReloadsConfiguratio
                 continue;
             }
 
-            $cache = $provider['cache'];
+            $cache = $provider['cache'] ?? null;
+
+            if ($cache === null) {
+                continue;
+            }
 
             if (! $cache['enabled']) {
                 continue;
