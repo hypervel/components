@@ -323,7 +323,7 @@ function settings(Repository $config): array
 }
 ```
 
-The available methods are `string`, `integer`, `float`, `boolean`, `array`, and `collection`. When a key is missing or contains the wrong type, Hypervel will throw an `InvalidArgumentException` that names the full configuration key.
+The available methods are `string`, `integer`, `float`, `boolean`, `array`, and `collection`. When no default is supplied, a missing key or wrong type causes Hypervel to throw an `InvalidArgumentException` that names the full configuration key.
 
 Some configuration values intentionally allow null or more than one type. You should retrieve these values using `get()` or the direct `config('key')` form. For example, a missing or null editor disables source links:
 
