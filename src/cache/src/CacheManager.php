@@ -472,19 +472,6 @@ class CacheManager implements FactoryContract
     }
 
     /**
-     * Forget all resolved cache drivers.
-     *
-     * Boot or tests only. Mutates the singleton's store cache; concurrent
-     * coroutines may already hold stores that next resolution will replace.
-     */
-    public function forgetDrivers(): static
-    {
-        $this->stores = [];
-
-        return $this;
-    }
-
-    /**
      * Disconnect the given driver and remove from local cache.
      *
      * Boot or tests only. Mutates the singleton's store cache; concurrent
@@ -540,10 +527,9 @@ class CacheManager implements FactoryContract
      * Register classes that cache stores may unserialize.
      *
      * Boot-only. The resolver contributes to the worker-lifetime cache policy
-     * and is evaluated after every provider has booted: at application boot
-     * completion in console processes or after configuration reload in each
-     * Swoole worker. An earlier cache read evaluates the current contributions
-     * without memoizing them.
+     * and is evaluated at application boot completion in console processes or
+     * after the worker configuration is rebuilt in Swoole workers. An earlier
+     * cache read evaluates the current contributions without memoizing them.
      *
      * @param Closure(): array<array-key, class-string> $resolver
      *
