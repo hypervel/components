@@ -42,13 +42,15 @@ use function Hypervel\Support\enum_value;
 
 class PermissionRegistrar
 {
-    public const int DEFAULT_CACHE_EXPIRATION_SECONDS = 86400;
-
     public const string DEFAULT_ROLE_PIVOT_KEY = 'role_id';
 
     public const string DEFAULT_PERMISSION_PIVOT_KEY = 'permission_id';
 
+    public const string DEFAULT_TEAM_FOREIGN_KEY = 'team_id';
+
     public const array DEFAULT_CACHE_COLUMN_NAMES_EXCEPT = ['created_at', 'updated_at', 'deleted_at'];
+
+    public const string ROLE_CATALOG_CACHE_KEY = 'hypervel.permission.cache.roles';
 
     public const string MODEL_ROLES_CACHE_KEY_PREFIX = 'hypervel.permission.cache.model.roles';
 
@@ -256,21 +258,30 @@ class PermissionRegistrar
         $this->teamClass = $teamClass;
         $this->teamResolver = $this->app->make($teamResolverClass);
 
-        $this->cacheExpirationTime = $this->config->integer(
-            'permission.cache.expiration_seconds',
-            self::DEFAULT_CACHE_EXPIRATION_SECONDS,
-        );
+        $this->cacheExpirationTime = $this->config->integer('permission.cache.expiration_seconds', 86400);
         $this->teams = $this->config->boolean('permission.teams');
-        $this->teamsKey = $this->config->string('permission.column_names.team_foreign_key');
+        $this->teamsKey = $this->config->string(
+            'permission.column_names.team_foreign_key',
+            self::DEFAULT_TEAM_FOREIGN_KEY,
+        );
 
-        $this->cacheKey = $this->config->string('permission.cache.keys.roles');
-        $this->modelRolesCacheKeyPrefix = $this->config->string('permission.cache.keys.model_roles');
-        $this->modelPermissionsCacheKeyPrefix = $this->config->string('permission.cache.keys.model_permissions');
-        $this->modelCacheTokenKey = $this->config->string('permission.cache.keys.model_token');
+        $this->cacheKey = $this->config->string('permission.cache.keys.roles', self::ROLE_CATALOG_CACHE_KEY);
+        $this->modelRolesCacheKeyPrefix = $this->config->string(
+            'permission.cache.keys.model_roles',
+            self::MODEL_ROLES_CACHE_KEY_PREFIX,
+        );
+        $this->modelPermissionsCacheKeyPrefix = $this->config->string(
+            'permission.cache.keys.model_permissions',
+            self::MODEL_PERMISSIONS_CACHE_KEY_PREFIX,
+        );
+        $this->modelCacheTokenKey = $this->config->string(
+            'permission.cache.keys.model_token',
+            self::MODEL_CACHE_TOKEN_KEY,
+        );
 
         $columnNames = $this->config->array('permission.column_names');
-        $pivotRole = $columnNames['role_pivot_key'];
-        $pivotPermission = $columnNames['permission_pivot_key'];
+        $pivotRole = $columnNames['role_pivot_key'] ?? self::DEFAULT_ROLE_PIVOT_KEY;
+        $pivotPermission = $columnNames['permission_pivot_key'] ?? self::DEFAULT_PERMISSION_PIVOT_KEY;
         $this->pivotRole = is_string($pivotRole) && $pivotRole !== ''
             ? $pivotRole
             : self::DEFAULT_ROLE_PIVOT_KEY;

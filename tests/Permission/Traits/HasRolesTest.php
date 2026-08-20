@@ -700,9 +700,6 @@ class HasRolesTest extends TestCase
         config()->set('auth.guards.0', [
             'driver' => 'session',
             'provider' => 'users',
-            'passwords' => null,
-            'password_timeout' => null,
-            'remember' => null,
         ]);
 
         $user = User::create(['email' => 'zero-guard@test.com']);
@@ -719,9 +716,6 @@ class HasRolesTest extends TestCase
         config()->set('auth.guards.0', [
             'driver' => 'session',
             'provider' => 'users',
-            'passwords' => null,
-            'password_timeout' => null,
-            'remember' => null,
         ]);
 
         $user = User::create(['email' => 'zero-role-checks@test.com']);

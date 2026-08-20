@@ -27,16 +27,10 @@ class ConfigTest extends TestCase
             'auth.guards.web' => [
                 'driver' => 'session',
                 'provider' => 'users',
-                'passwords' => 'users',
-                'password_timeout' => null,
-                'remember' => null,
             ],
             'auth.guards.admin' => [
                 'driver' => 'session',
                 'provider' => 'admins',
-                'passwords' => null,
-                'password_timeout' => null,
-                'remember' => null,
             ],
         ]);
     }

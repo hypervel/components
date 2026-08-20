@@ -19,11 +19,11 @@ return new class extends Migration {
 
         $teams = config()->boolean('permission.teams');
         $columnNames = config()->array('permission.column_names');
-        $pivotRole = $columnNames['role_pivot_key'];
-        $pivotRole ??= PermissionRegistrar::DEFAULT_ROLE_PIVOT_KEY;
-        $pivotPermission = $columnNames['permission_pivot_key'];
-        $pivotPermission ??= PermissionRegistrar::DEFAULT_PERMISSION_PIVOT_KEY;
-        $teamForeignKey = $columnNames['team_foreign_key'];
+        $pivotRole = $columnNames['role_pivot_key'] ?? PermissionRegistrar::DEFAULT_ROLE_PIVOT_KEY;
+        $pivotPermission = $columnNames['permission_pivot_key'] ?? PermissionRegistrar::DEFAULT_PERMISSION_PIVOT_KEY;
+        $teamForeignKey = array_key_exists('team_foreign_key', $columnNames)
+            ? $columnNames['team_foreign_key']
+            : PermissionRegistrar::DEFAULT_TEAM_FOREIGN_KEY;
         $modelMorphKey = $columnNames['model_morph_key'];
 
         throw_if($teams && $teamForeignKey === '', 'Error: team_foreign_key on config/permission.php not loaded. Run [php artisan config:clear] and try again.');
@@ -121,7 +121,7 @@ return new class extends Migration {
 
         app('cache')
             ->store($cacheStore !== 'default' ? $cacheStore : null)
-            ->forget(config()->string('permission.cache.keys.roles'));
+            ->forget(config()->string('permission.cache.keys.roles', PermissionRegistrar::ROLE_CATALOG_CACHE_KEY));
     }
 
     /**

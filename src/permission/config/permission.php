@@ -61,7 +61,8 @@ return [
 
     'column_names' => [
         /*
-         * Set these pivot keys to null to use role_id and permission_id.
+         * Set these pivot keys to null, or omit them, to use role_id and
+         * permission_id. An omitted team key uses team_id.
          */
         'role_pivot_key' => null,
         'permission_pivot_key' => null,
@@ -138,6 +139,7 @@ return [
     |
     | Permission data is cached for 24 hours by default. The named cache keys
     | separate catalog and assignment data so each can be invalidated precisely.
+    | Omitted key members use the package names shown below.
     | Column exclusions reduce the serialized catalog without hiding required
     | model, partition, or team columns.
     |

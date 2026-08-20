@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Integration;
 
-use ErrorException;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Permission\Contracts\Permission as PermissionContract;
 use Hypervel\Permission\Contracts\Role as RoleContract;
@@ -19,7 +18,6 @@ use Hypervel\Tests\Permission\Fixtures\Models\Permission as TestPermission;
 use Hypervel\Tests\Permission\Fixtures\Models\Role as TestRole;
 use Hypervel\Tests\Permission\TestCase;
 use InvalidArgumentException;
-use PHPUnit\Framework\Attributes\DataProvider;
 
 class PermissionRegistrarTest extends TestCase
 {
@@ -275,7 +273,7 @@ class PermissionRegistrarTest extends TestCase
         $this->assertNull($registrar->getTeamClass());
         $this->assertNull(Config::defaultModel());
         $this->assertSame('team-a', $registrar->getPermissionsTeamId());
-        $this->assertSame(PermissionRegistrar::DEFAULT_CACHE_EXPIRATION_SECONDS, $registrar->cacheExpirationTime);
+        $this->assertSame(86400, $registrar->cacheExpirationTime);
         $this->assertSame($this->app->make('cache')->store()->getStore(), $registrar->getCacheStore());
 
         $role = $this->app->make(RoleContract::class)::findByName('testRole');
@@ -297,25 +295,27 @@ class PermissionRegistrarTest extends TestCase
         $this->assertSame(PermissionRegistrar::DEFAULT_PERMISSION_PIVOT_KEY, $registrar->pivotPermission);
     }
 
-    #[DataProvider('requiredPivotKeyProvider')]
-    public function testInitializeCacheRequiresPivotKeys(string $missingKey): void
+    public function testInitializeCacheUsesOptionalSchemaAndCacheKeyDefaults(): void
     {
-        $columnNames = config()->array('permission.column_names');
-        unset($columnNames[$missingKey]);
-        config()->set('permission.column_names', $columnNames);
+        $permissionConfig = config()->array('permission');
+        unset(
+            $permissionConfig['column_names']['role_pivot_key'],
+            $permissionConfig['column_names']['permission_pivot_key'],
+            $permissionConfig['column_names']['team_foreign_key'],
+            $permissionConfig['cache']['keys']['roles'],
+            $permissionConfig['cache']['keys']['model_roles'],
+            $permissionConfig['cache']['keys']['model_permissions'],
+            $permissionConfig['cache']['keys']['model_token'],
+        );
+        config()->set('permission', $permissionConfig);
 
-        $this->expectException(ErrorException::class);
-        $this->expectExceptionMessage(sprintf('Undefined array key "%s"', $missingKey));
+        $registrar = $this->app->make(PermissionRegistrar::class);
+        $registrar->initializeCache();
 
-        $this->app->make(PermissionRegistrar::class)->initializeCache();
-    }
-
-    public static function requiredPivotKeyProvider(): array
-    {
-        return [
-            'role pivot key' => ['role_pivot_key'],
-            'permission pivot key' => ['permission_pivot_key'],
-        ];
+        $this->assertSame(PermissionRegistrar::DEFAULT_ROLE_PIVOT_KEY, $registrar->pivotRole);
+        $this->assertSame(PermissionRegistrar::DEFAULT_PERMISSION_PIVOT_KEY, $registrar->pivotPermission);
+        $this->assertSame(PermissionRegistrar::DEFAULT_TEAM_FOREIGN_KEY, $registrar->teamsKey);
+        $this->assertSame(PermissionRegistrar::ROLE_CATALOG_CACHE_KEY, $registrar->getCacheKey());
     }
 
     public function testInitializeCacheRejectsRequiredDefaultModelColumns(): void
