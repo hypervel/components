@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Auth;
 use Closure;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Auth\AuthServiceProvider;
-use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\ModelCacheStoreValidator;
 use Hypervel\Config\Repository as ConfigRepository;
@@ -59,7 +58,6 @@ class AuthServiceProviderTest extends TestCase
                     'database' => [
                         'driver' => 'database',
                         'table' => 'users',
-                        'connection' => null,
                     ],
                     'malformed',
                 ],
@@ -101,7 +99,11 @@ class AuthServiceProviderTest extends TestCase
         $config = new ConfigRepository([
             'auth' => [
                 'providers' => [
-                    0 => $this->cachedProvider(AuthProviderUser::class),
+                    0 => [
+                        'driver' => 'eloquent',
+                        'model' => AuthProviderUser::class,
+                        'cache' => ['enabled' => true],
+                    ],
                     '' => $this->cachedProvider(AuthProviderAdmin::class, store: 'redis'),
                 ],
             ],
@@ -424,9 +426,6 @@ class AuthServiceProviderTest extends TestCase
             'cache' => [
                 'enabled' => $enabled,
                 'store' => $store,
-                'ttl' => 300,
-                'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
-                'tags' => null,
             ],
         ];
     }

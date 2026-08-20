@@ -6,6 +6,7 @@ namespace Hypervel\Auth\Notifications;
 
 use Closure;
 use Hypervel\Auth\Passwords\PasswordBroker;
+use Hypervel\Auth\Passwords\PasswordBrokerManager;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Config\Repository as ConfigContract;
@@ -94,7 +95,7 @@ class ResetPassword extends Notification
             ?? Password::getDefaultDriver();
 
         return Container::getInstance()->make(ConfigContract::class)
-            ->integer("auth.passwords.{$broker}.expire");
+            ->integer("auth.passwords.{$broker}.expire", PasswordBrokerManager::DEFAULT_EXPIRE_MINUTES);
     }
 
     /**

@@ -47,7 +47,7 @@ The password reset driver defines where password reset data will be stored. Hype
 
 </div>
 
-A database broker requires its driver, provider, table, expiry, and throttle settings. You may also define a `connection` to store password reset tokens on a specific database connection. If this option is omitted or `null`, Hypervel uses the default database connection:
+A database broker requires its driver, provider, and table settings. The optional `expire` and `throttle` settings default to 60 minutes and zero seconds when omitted. The example below explicitly limits token generation to once per minute. You may also define a `connection` to store password reset tokens on a specific database connection. If this option is omitted or `null`, Hypervel uses the default database connection:
 
 ```php
 'passwords' => [
@@ -85,7 +85,7 @@ There is also a cache driver available for handling password resets, which does 
 ],
 ```
 
-If the `store` option is omitted or `null`, Hypervel uses the default cache store. To prevent a call to `artisan cache:clear` from flushing your password reset data, specify a separate cache store with the `store` configuration key. The value should correspond to a store configured in your `config/cache.php` configuration file.
+The cache driver uses the same optional expiry and throttle defaults. If the `store` option is omitted or `null`, Hypervel uses the default cache store. To prevent a call to `artisan cache:clear` from flushing your password reset data, specify a separate cache store with the `store` configuration key. The value should correspond to a store configured in your `config/cache.php` configuration file.
 
 <a name="model-preparation"></a>
 ### Model Preparation

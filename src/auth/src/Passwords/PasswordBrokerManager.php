@@ -20,6 +20,8 @@ use function Hypervel\Support\enum_value;
  */
 class PasswordBrokerManager implements FactoryContract
 {
+    public const int DEFAULT_EXPIRE_MINUTES = 60;
+
     /**
      * The coroutine context key holding the per-request default broker override.
      */
@@ -91,21 +93,24 @@ class PasswordBrokerManager implements FactoryContract
             $key = base64_decode(substr($key, 7));
         }
 
+        $expire = $config['expire'] ?? self::DEFAULT_EXPIRE_MINUTES;
+        $throttle = $config['throttle'] ?? 0;
+
         return match ($config['driver']) {
             'cache' => new CacheTokenRepository(
                 $this->app->make('cache')->store($config['store'] ?? null),
                 $this->app->make('hash'),
                 $key,
-                $config['expire'] * 60,
-                $config['throttle'],
+                $expire * 60,
+                $throttle,
             ),
             'database' => new DatabaseTokenRepository(
                 $this->app->make('db')->connection($config['connection'] ?? null),
                 $this->app->make('hash'),
                 $config['table'],
                 $key,
-                $config['expire'] * 60,
-                $config['throttle'],
+                $expire * 60,
+                $throttle,
             ),
             default => throw new InvalidArgumentException(
                 "Password resetter driver [{$config['driver']}] is not defined."

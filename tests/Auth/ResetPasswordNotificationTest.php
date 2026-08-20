@@ -6,18 +6,16 @@ namespace Hypervel\Tests\Auth;
 
 use Hypervel\Auth\Notifications\ResetPassword;
 use Hypervel\Auth\Passwords\PasswordBroker;
+use Hypervel\Auth\Passwords\PasswordBrokerManager;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
-use InvalidArgumentException;
 
 #[WithConfig('auth.passwords.admins', [
     'driver' => 'database',
     'provider' => 'users',
     'table' => 'admin_password_reset_tokens',
-    'connection' => null,
     'expire' => 15,
-    'throttle' => 60,
 ])]
 class ResetPasswordNotificationTest extends TestCase
 {
@@ -63,23 +61,18 @@ class ResetPasswordNotificationTest extends TestCase
         );
     }
 
-    public function testExpiryFailsWhenBrokerSettingIsOmitted(): void
+    public function testOmittedBrokerExpiryUsesTheBrokerDefault(): void
     {
         config()->set('auth.passwords.admins', [
             'driver' => 'database',
             'provider' => 'users',
             'table' => 'admin_password_reset_tokens',
-            'connection' => null,
-            'throttle' => 60,
         ]);
         CoroutineContext::set(PasswordBroker::SENDING_BROKER_CONTEXT_KEY, 'admins');
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
-            'Configuration value for key [auth.passwords.admins.expire] must be an integer, NULL given.'
-        );
+        $notification = new ResetPassword('token');
 
-        new ResetPassword('token');
+        $this->assertSame(PasswordBrokerManager::DEFAULT_EXPIRE_MINUTES, $notification->expireMinutes);
     }
 
     /**

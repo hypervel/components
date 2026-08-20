@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Auth;
 
 use Hypervel\Auth\EloquentUserProvider;
+use Hypervel\Auth\Passwords\PasswordBrokerManager;
 use Hypervel\Support\Env;
 use Hypervel\Tests\TestCase;
 
@@ -24,10 +25,14 @@ class AuthConfigTest extends TestCase
         $this->assertSame(600, $config['providers']['users']['cache']['ttl']);
     }
 
-    public function testUserCachePrefixMatchesTheProviderDefault(): void
+    public function testUserCacheDefaultsMatchTheProviderDefaults(): void
     {
         $config = $this->loadConfigWithEnvironmentValue('AUTH_USER_CACHE_PREFIX', null);
 
+        $this->assertSame(
+            EloquentUserProvider::DEFAULT_CACHE_TTL,
+            $config['providers']['users']['cache']['ttl'],
+        );
         $this->assertSame(
             EloquentUserProvider::DEFAULT_CACHE_PREFIX,
             $config['providers']['users']['cache']['prefix'],
@@ -39,6 +44,16 @@ class AuthConfigTest extends TestCase
         $config = $this->loadConfigWithEnvironmentValue('AUTH_PASSWORD_TIMEOUT', '300');
 
         $this->assertSame(300, $config['password_timeout']);
+    }
+
+    public function testPasswordBrokerExpiryMatchesTheManagerDefault(): void
+    {
+        $config = $this->loadConfigWithEnvironmentValue('AUTH_USER_CACHE_PREFIX', null);
+
+        $this->assertSame(
+            PasswordBrokerManager::DEFAULT_EXPIRE_MINUTES,
+            $config['passwords']['users']['expire'],
+        );
     }
 
     public function testVerificationExpiryIsLoadedAsIntegerFromEnvironment(): void

@@ -104,7 +104,8 @@ return [
             |
             | Caches retrieveById() lookups across requests. Disabled by
             | default. Credential and token lookups are never cached
-            | (security).
+            | (security). The record may be omitted; omitted members use the
+            | defaults shown below.
             |
             | Supported stores: 'redis', 'database', 'file', 'storage',
             | 'swoole', and stacks containing only supported stores. Array,
@@ -182,11 +183,15 @@ return [
     | generating more password reset tokens. This prevents the user from
     | quickly generating a very large amount of password reset tokens.
     |
-    | Database brokers require "driver", "provider", "table", "expire", and
-    | "throttle". An optional "connection" selects the database connection
-    | used for reset tokens; omission or null uses the default connection.
-    | Cache brokers replace "table" with an optional "store" member; omission
-    | or null uses the default cache store.
+    | Database brokers require "driver", "provider", and "table". An optional
+    | "connection" selects the database connection used for reset tokens;
+    | omission or null uses the default connection. Cache brokers replace
+    | "table" with an optional "store" member; omission or null uses the
+    | default cache store.
+    |
+    | The optional "expire" and "throttle" members default to 60 minutes and
+    | zero seconds. This example explicitly limits token generation to once
+    | per minute.
     |
     */
 

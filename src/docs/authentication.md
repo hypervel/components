@@ -216,7 +216,7 @@ You may enable the cache per Eloquent provider in your application's `config/aut
 ],
 ```
 
-The `ttl` value is expressed in seconds and must be a positive integer.
+Omitting the `cache` record or setting it to `null` disables caching. Within a supplied record, omitted members use the displayed defaults: caching remains disabled, the default cache store is used for 300 seconds under the `auth_user` prefix, and no tags are applied. The `ttl` value must be a positive integer.
 
 Hypervel automatically allows configured provider models and its standard Eloquent collection and pivot classes to be restored from the cache. If your cached user contains application-owned relations, custom collections or pivots, or other nested objects, declare those classes from a service provider:
 

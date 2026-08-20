@@ -451,17 +451,13 @@ class AuthManagerTest extends TestCase
         ]];
     }
 
-    public function testCompleteEloquentUserProviderCacheRecordEnablesCaching(): void
+    public function testPartialEloquentUserProviderCacheUsesProviderDefaults(): void
     {
         $this->app->make('config')->set('auth.providers.cached', [
             'driver' => 'eloquent',
             'model' => AuthManagerCacheUserStub::class,
             'cache' => [
                 'enabled' => true,
-                'store' => null,
-                'ttl' => 300,
-                'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
-                'tags' => null,
             ],
         ]);
         $repository = m::mock(CacheRepository::class);
@@ -478,25 +474,16 @@ class AuthManagerTest extends TestCase
 
         $this->assertInstanceOf(EloquentUserProvider::class, $provider);
         $this->assertTrue($provider->isCacheEnabled());
-    }
-
-    public function testEnabledEloquentUserProviderCacheRequiresACompleteRecord(): void
-    {
-        $this->app->make('config')->set('auth.providers.incomplete', [
-            'driver' => 'eloquent',
-            'model' => AuthManagerCacheUserStub::class,
-            'cache' => [
-                'enabled' => true,
-                'ttl' => 300,
-                'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
-                'tags' => null,
-            ],
-        ]);
-
-        $this->expectException(ErrorException::class);
-        $this->expectExceptionMessage('Undefined array key "store"');
-
-        (new AuthManager($this->app))->createUserProvider('incomplete');
+        $this->assertNull((new ReflectionProperty($provider, 'cacheStoreName'))->getValue($provider));
+        $this->assertSame(
+            EloquentUserProvider::DEFAULT_CACHE_TTL,
+            (new ReflectionProperty($provider, 'cacheTtl'))->getValue($provider),
+        );
+        $this->assertSame(
+            EloquentUserProvider::DEFAULT_CACHE_PREFIX,
+            (new ReflectionProperty($provider, 'cachePrefix'))->getValue($provider),
+        );
+        $this->assertNull((new ReflectionProperty($provider, 'cacheTags'))->getValue($provider));
     }
 
     #[DataProvider('invalidCacheTtlProvider')]
@@ -509,10 +496,7 @@ class AuthManagerTest extends TestCase
                     'model' => AuthManagerCacheUserStub::class,
                     'cache' => [
                         'enabled' => true,
-                        'store' => null,
                         'ttl' => $ttl,
-                        'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
-                        'tags' => null,
                     ],
                 ],
             ],
@@ -901,24 +885,12 @@ class AuthManagerTest extends TestCase
                 'users' => [
                     'driver' => 'eloquent',
                     'model' => AuthManagerCacheUserStub::class,
-                    'cache' => [
-                        'enabled' => true,
-                        'store' => 'web-store',
-                        'ttl' => 300,
-                        'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
-                        'tags' => null,
-                    ],
+                    'cache' => ['enabled' => true, 'store' => 'web-store'],
                 ],
                 'admins' => [
                     'driver' => 'eloquent',
                     'model' => AuthManagerCacheAdminStub::class,
-                    'cache' => [
-                        'enabled' => true,
-                        'store' => 'admin-store',
-                        'ttl' => 300,
-                        'prefix' => 'admin_users',
-                        'tags' => null,
-                    ],
+                    'cache' => ['enabled' => true, 'store' => 'admin-store', 'prefix' => 'admin_users'],
                 ],
             ],
         ]));
@@ -968,13 +940,7 @@ class AuthManagerTest extends TestCase
                 'users' => [
                     'driver' => 'eloquent',
                     'model' => AuthManagerCacheUserStub::class,
-                    'cache' => [
-                        'enabled' => true,
-                        'store' => 'web-store',
-                        'ttl' => 300,
-                        'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
-                        'tags' => null,
-                    ],
+                    'cache' => ['enabled' => true, 'store' => 'web-store'],
                 ],
             ],
         ]));
@@ -1012,13 +978,7 @@ class AuthManagerTest extends TestCase
                 'users' => [
                     'driver' => 'eloquent',
                     'model' => AuthManagerCacheUserStub::class,
-                    'cache' => [
-                        'enabled' => true,
-                        'store' => 'redis',
-                        'ttl' => 300,
-                        'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
-                        'tags' => null,
-                    ],
+                    'cache' => ['enabled' => true, 'store' => 'redis'],
                 ],
             ],
         ]));

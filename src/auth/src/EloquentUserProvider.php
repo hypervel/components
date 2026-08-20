@@ -19,6 +19,8 @@ use SensitiveParameter;
 
 class EloquentUserProvider implements UserProvider
 {
+    public const int DEFAULT_CACHE_TTL = 300;
+
     public const string DEFAULT_CACHE_PREFIX = 'auth_user';
 
     /**
@@ -274,7 +276,7 @@ class EloquentUserProvider implements UserProvider
      */
     public function enableCache(
         ?string $storeName,
-        int $ttl = 300,
+        int $ttl = self::DEFAULT_CACHE_TTL,
         ?string $prefix = self::DEFAULT_CACHE_PREFIX,
         ?array $tags = null,
     ): static {

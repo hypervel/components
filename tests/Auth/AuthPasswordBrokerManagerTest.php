@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth;
 
+use Hypervel\Auth\Passwords\DatabaseTokenRepository;
 use Hypervel\Auth\Passwords\PasswordBroker as PasswordBrokerImplementation;
 use Hypervel\Auth\Passwords\PasswordBrokerManager;
 use Hypervel\Cache\Repository as CacheRepository;
@@ -19,6 +20,7 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionProperty;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -274,9 +276,6 @@ class AuthPasswordBrokerManagerTest extends TestCase
                         'driver' => 'database',
                         'provider' => 'admins',
                         'table' => 'admin_password_reset_tokens',
-                        'connection' => null,
-                        'expire' => 60,
-                        'throttle' => 60,
                     ],
                 ],
             ],
@@ -310,9 +309,6 @@ class AuthPasswordBrokerManagerTest extends TestCase
                         'driver' => 'database',
                         'provider' => 'zero',
                         'table' => 'zero_password_reset_tokens',
-                        'connection' => null,
-                        'expire' => 60,
-                        'throttle' => 60,
                     ],
                 ],
             ],
@@ -360,6 +356,47 @@ class AuthPasswordBrokerManagerTest extends TestCase
         );
     }
 
+    public function testBrokerUsesDefaultExpiryAndThrottleWhenOmitted(): void
+    {
+        $container = $this->makeContainer([
+            'app' => [
+                'key' => 'base64:' . base64_encode(str_repeat('a', 32)),
+            ],
+            'auth' => [
+                'timebox_duration' => 200000,
+                'passwords' => [
+                    'users' => [
+                        'driver' => 'database',
+                        'provider' => 'users',
+                        'table' => 'password_reset_tokens',
+                    ],
+                ],
+            ],
+        ]);
+        $container->instance('auth', $auth = m::mock());
+        $container->instance('db', $database = m::mock());
+        $container->instance('hash', m::mock(Hasher::class));
+
+        $auth->shouldReceive('createUserProvider')
+            ->once()
+            ->with('users')
+            ->andReturn(m::mock(UserProvider::class));
+        $database->shouldReceive('connection')
+            ->once()
+            ->with(null)
+            ->andReturn(m::mock(ConnectionInterface::class));
+
+        $broker = (new PasswordBrokerManager($container))->broker('users');
+        $repository = (new ReflectionProperty($broker, 'tokens'))->getValue($broker);
+
+        $this->assertInstanceOf(DatabaseTokenRepository::class, $repository);
+        $this->assertSame(
+            PasswordBrokerManager::DEFAULT_EXPIRE_MINUTES * 60,
+            (new ReflectionProperty($repository, 'expires'))->getValue($repository),
+        );
+        $this->assertSame(0, (new ReflectionProperty($repository, 'throttle'))->getValue($repository));
+    }
+
     #[DataProvider('defaultCacheStoreProvider')]
     public function testCacheBrokerUsesDefaultStore(array $broker): void
     {
@@ -401,8 +438,6 @@ class AuthPasswordBrokerManagerTest extends TestCase
         $broker = [
             'driver' => 'cache',
             'provider' => 'users',
-            'expire' => 60,
-            'throttle' => 60,
         ];
 
         return [
@@ -422,8 +457,6 @@ class AuthPasswordBrokerManagerTest extends TestCase
                     'users' => [
                         'driver' => 'unknown',
                         'provider' => 'users',
-                        'expire' => 60,
-                        'throttle' => 60,
                     ],
                 ],
             ],
@@ -493,9 +526,6 @@ class AuthPasswordBrokerManagerTest extends TestCase
                         'driver' => 'database',
                         'provider' => 'users',
                         'table' => 'password_reset_tokens',
-                        'connection' => null,
-                        'expire' => 60,
-                        'throttle' => 60,
                     ],
                 ],
             ],

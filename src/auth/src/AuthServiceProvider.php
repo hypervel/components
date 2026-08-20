@@ -240,7 +240,7 @@ class AuthServiceProvider extends ServiceProvider implements ReloadsConfiguratio
                 continue;
             }
 
-            if (! $cache['enabled']) {
+            if (! ($cache['enabled'] ?? false)) {
                 continue;
             }
 
@@ -254,7 +254,7 @@ class AuthServiceProvider extends ServiceProvider implements ReloadsConfiguratio
                 );
             }
 
-            $store = $cache['store'];
+            $store = $cache['store'] ?? null;
 
             if (! is_string($store) && $store !== null) {
                 throw new InvalidArgumentException(
@@ -262,7 +262,7 @@ class AuthServiceProvider extends ServiceProvider implements ReloadsConfiguratio
                 );
             }
 
-            $ttl = $cache['ttl'];
+            $ttl = $cache['ttl'] ?? EloquentUserProvider::DEFAULT_CACHE_TTL;
 
             if (! is_int($ttl) || $ttl <= 0) {
                 throw new InvalidArgumentException(
@@ -270,7 +270,7 @@ class AuthServiceProvider extends ServiceProvider implements ReloadsConfiguratio
                 );
             }
 
-            $tags = $cache['tags'];
+            $tags = $cache['tags'] ?? null;
 
             if ($tags !== null && (! is_array($tags)
                 || ! array_all($tags, static fn (mixed $tag): bool => is_string($tag)))) {
