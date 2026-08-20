@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail;
 
-use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Support\ServiceProvider;
 
-class MailServiceProvider extends ServiceProvider implements ReloadsConfiguration
+class MailServiceProvider extends ServiceProvider
 {
     /**
      * Register the service provider.
@@ -16,21 +15,6 @@ class MailServiceProvider extends ServiceProvider implements ReloadsConfiguratio
     {
         $this->registerIlluminateMailer();
         $this->registerMarkdownRenderer();
-    }
-
-    /**
-     * Reload configuration-derived worker state.
-     *
-     * Boot-only. Request-time use clears shared mailers and Markdown settings
-     * while concurrent coroutines may still be using the previous objects.
-     */
-    public function reloadConfiguration(): void
-    {
-        if ($this->app->resolved('mail.manager')) {
-            $this->app->make('mail.manager')->forgetMailers();
-        }
-
-        $this->app->forgetInstance(Markdown::class);
     }
 
     /**
