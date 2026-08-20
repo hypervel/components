@@ -132,9 +132,9 @@ class FoundationConfigTest extends TestCase
         $this->assertFalse($config['connections']['sqs']['overflow']['flush_on_clear']);
     }
 
-    public function testShippedRedisConnectionsDeclareRequiredMembersAndUseOptionalDefaults(): void
+    public function testShippedRedisConnectionsExposeCanonicalSettingsAndUseOptionalDefaults(): void
     {
-        $requiredMembers = [
+        $visibleMembers = [
             'url',
             'host',
             'username',
@@ -158,7 +158,7 @@ class FoundationConfigTest extends TestCase
             'prefix',
             'events',
         ];
-        $requiredPoolMembers = [
+        $visiblePoolMembers = [
             'min_connections',
             'max_connections',
             'connect_timeout',
@@ -174,8 +174,8 @@ class FoundationConfigTest extends TestCase
         foreach (['default', 'cache', 'session', 'queue', 'reverb'] as $name) {
             $connection = config()->array("database.redis.{$name}");
 
-            $this->assertSame([], array_diff($requiredMembers, array_keys($connection)));
-            $this->assertSame([], array_diff($requiredPoolMembers, array_keys($connection['pool'])));
+            $this->assertSame([], array_diff($visibleMembers, array_keys($connection)));
+            $this->assertSame([], array_diff($visiblePoolMembers, array_keys($connection['pool'])));
             $this->assertSame([], array_intersect($omittedMembers, array_keys($connection)));
 
             $effectiveConnection = $redisConfig->connectionConfig($name);
