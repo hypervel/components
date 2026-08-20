@@ -7,10 +7,8 @@ namespace Hypervel\Tests\Horizon;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Configuration\ConfigMutationTracker;
-use Hypervel\Horizon\Console\SnapshotCommand;
 use Hypervel\Horizon\HorizonServiceProvider;
 use Hypervel\Horizon\Repositories\RedisJobRepository;
-use Hypervel\Horizon\Repositories\RedisMetricsRepository;
 use Hypervel\Support\Env;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Tests\TestCase;
@@ -28,17 +26,17 @@ class HorizonConfigTest extends TestCase
         $this->assertSame(['web'], $config['middleware']);
         $this->assertSame([
             'recent' => RedisJobRepository::DEFAULT_RECENT_JOB_RETENTION,
-            'pending' => RedisJobRepository::DEFAULT_PENDING_JOB_RETENTION,
-            'completed' => RedisJobRepository::DEFAULT_COMPLETED_JOB_RETENTION,
+            'pending' => 60,
+            'completed' => 60,
             'recent_failed' => RedisJobRepository::DEFAULT_FAILED_JOB_RETENTION,
             'failed' => RedisJobRepository::DEFAULT_FAILED_JOB_RETENTION,
             'monitored' => RedisJobRepository::DEFAULT_MONITORED_JOB_RETENTION,
         ], $config['trim']);
         $this->assertSame([
-            'job' => RedisMetricsRepository::DEFAULT_JOB_SNAPSHOT_RETENTION,
-            'queue' => RedisMetricsRepository::DEFAULT_QUEUE_SNAPSHOT_RETENTION,
+            'job' => 24,
+            'queue' => 24,
         ], $config['metrics']['trim_snapshots']);
-        $this->assertSame(SnapshotCommand::DEFAULT_SNAPSHOT_LOCK_SECONDS, $config['metrics']['snapshot_lock']);
+        $this->assertSame(300, $config['metrics']['snapshot_lock']);
         $this->assertFalse($config['fast_termination']);
         $this->assertSame(64, $config['memory_limit']);
         $this->assertNull($config['env']);

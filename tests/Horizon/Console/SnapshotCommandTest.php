@@ -26,7 +26,7 @@ class SnapshotCommandTest extends TestCase
         $lock = m::mock(Lock::class);
         $lock->shouldReceive('get')->once()->with(
             'metrics:snapshot',
-            SnapshotCommand::DEFAULT_SNAPSHOT_LOCK_SECONDS - 30,
+            270,
         )->andReturnFalse();
 
         $this->app->make(SnapshotCommand::class)->handle(
@@ -44,7 +44,7 @@ class SnapshotCommandTest extends TestCase
         $lock = m::mock(Lock::class);
         $lock->shouldReceive('get')->once()->with(
             'metrics:snapshot',
-            SnapshotCommand::DEFAULT_SNAPSHOT_LOCK_SECONDS - 30,
+            270,
         )->andReturnFalse();
 
         $this->app->make(SnapshotCommand::class)->handle(

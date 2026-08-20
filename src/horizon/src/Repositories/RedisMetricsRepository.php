@@ -15,10 +15,6 @@ use Hypervel\Support\CarbonImmutable;
 
 class RedisMetricsRepository implements MetricsRepository
 {
-    public const int DEFAULT_JOB_SNAPSHOT_RETENTION = 24;
-
-    public const int DEFAULT_QUEUE_SNAPSHOT_RETENTION = 24;
-
     /**
      * Create a new repository instance.
      */
@@ -234,7 +230,7 @@ class RedisMetricsRepository implements MetricsRepository
             0,
             -abs(1 + config()->integer(
                 'horizon.metrics.trim_snapshots.job',
-                self::DEFAULT_JOB_SNAPSHOT_RETENTION,
+                24,
             ))
         );
     }
@@ -262,7 +258,7 @@ class RedisMetricsRepository implements MetricsRepository
             0,
             -abs(1 + config()->integer(
                 'horizon.metrics.trim_snapshots.queue',
-                self::DEFAULT_QUEUE_SNAPSHOT_RETENTION,
+                24,
             ))
         );
     }

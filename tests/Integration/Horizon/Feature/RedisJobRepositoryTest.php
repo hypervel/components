@@ -20,8 +20,8 @@ class RedisJobRepositoryTest extends IntegrationTestCase
 
         $this->assertInstanceOf(RedisJobRepository::class, $repository);
         $this->assertSame(RedisJobRepository::DEFAULT_RECENT_JOB_RETENTION, $repository->recentJobExpires);
-        $this->assertSame(RedisJobRepository::DEFAULT_PENDING_JOB_RETENTION, $repository->pendingJobExpires);
-        $this->assertSame(RedisJobRepository::DEFAULT_COMPLETED_JOB_RETENTION, $repository->completedJobExpires);
+        $this->assertSame(60, $repository->pendingJobExpires);
+        $this->assertSame(60, $repository->completedJobExpires);
         $this->assertSame(RedisJobRepository::DEFAULT_FAILED_JOB_RETENTION, $repository->failedJobExpires);
         $this->assertSame($repository->failedJobExpires, $repository->recentFailedJobExpires);
         $this->assertSame(RedisJobRepository::DEFAULT_MONITORED_JOB_RETENTION, $repository->monitoredJobExpires);
