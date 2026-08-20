@@ -457,8 +457,8 @@ Start from Hypervel's shipped configuration files and reapply your application o
 
 When porting Laravel configuration, pay particular attention to these current differences:
 
-- Eloquent auth providers include their complete `cache` block, and password brokers explicitly declare their `driver`.
-- Hypervel's shipped background, deferred, Beanstalkd, SQS, Redis, and failover queues dispatch after commit by default; sync and database do not. Beanstalkd records require `port`, while SQS records require the nullable AWS session `token`. Advanced Beanstalkd, SQS SDK, Redis migration, and file failed-job settings remain optional as documented in the [queue guide](/docs/{{version}}/queues).
+- Hypervel's shipped Eloquent auth provider includes an optional `cache` block; omitting it disables provider caching. Password brokers explicitly declare their `driver`.
+- Hypervel's shipped background, deferred, Beanstalkd, SQS, Redis, and failover queues dispatch after commit by default; sync and database do not. Beanstalkd records require `port`, while the SQS AWS session `token` is optional. Advanced Beanstalkd, SQS SDK, Redis migration, and file failed-job settings remain optional as documented in the [queue guide](/docs/{{version}}/queues).
 - Scout's Meilisearch configuration declares `retries` and `initial_retry_delay_ms`, while Fortify's limiter configuration declares `verification`.
 - `database.migrations` is an array containing `table` and `update_date_on_publish`, and `logging.deprecations` is an array containing `channel` and `trace`.
 - The scheduling cache store is configured through `cache.schedule_store` and `SCHEDULE_CACHE_STORE`. Laravel's older `SCHEDULE_CACHE_DRIVER` name is not supported.
