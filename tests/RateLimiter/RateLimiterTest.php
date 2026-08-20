@@ -8,6 +8,7 @@ use Hypervel\RateLimiter\DatabaseStore;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\Limiter;
 use Hypervel\RateLimiter\RateLimiter;
+use Hypervel\RateLimiter\SwooleStore;
 use Hypervel\RateLimiter\WorkerArrayStore;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Support\Facades\RateLimiter as RateLimiterFacade;
@@ -245,6 +246,18 @@ class RateLimiterTest extends TestCase
 
         $this->assertInstanceOf(DatabaseStore::class, $store);
         $this->assertNull((new ClassInvoker($store))->connectionName);
+    }
+
+    public function testSwooleStoreMayOmitTheMemoryLimitBuffer(): void
+    {
+        $config = config()->array('rate-limiter.stores.swoole');
+        unset($config['memory_limit_buffer']);
+        config(['rate-limiter.stores.swoole-default' => $config]);
+
+        $store = $this->app->make(RateLimiter::class)->store('swoole-default')->getStore();
+
+        $this->assertInstanceOf(SwooleStore::class, $store);
+        $this->assertSame(0.05, (new ClassInvoker($store))->memoryLimitBuffer);
     }
 
     #[DataProvider('invalidStoreConfigurations')]

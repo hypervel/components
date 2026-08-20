@@ -246,7 +246,7 @@ class RateLimiter extends MultipleInstanceManager
     protected function createSwooleDriver(array $config): Store
     {
         $name = $config['name'] ?? null;
-        $memoryLimitBuffer = $config['memory_limit_buffer'];
+        $memoryLimitBuffer = $config['memory_limit_buffer'] ?? 0.05;
 
         if (! is_string($name) || $name === '') {
             throw new InvalidArgumentException(
