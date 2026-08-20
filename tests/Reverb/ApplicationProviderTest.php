@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb;
 
-use ErrorException;
 use Hypervel\Reverb\Application;
 use Hypervel\Reverb\ApplicationManager;
 use Hypervel\Reverb\ConfigApplicationProvider;
@@ -55,25 +54,25 @@ class ApplicationProviderTest extends ReverbTestCase
                 'max_message_size' => '10000',
                 'max_connections' => '100',
                 'accept_client_events_from' => 'members',
-                'rate_limiting' => array_replace($application['rate_limiting'], [
+                'rate_limiting' => [
                     'enabled' => '1',
                     'max_attempts' => '120',
                     'decay_seconds' => '30',
                     'terminate_on_limit' => '0',
-                ]),
-                'webhooks' => array_replace($application['webhooks'], [
+                ],
+                'webhooks' => [
                     'subscription_count' => '1',
                     'disconnect_smoothing_ms' => '1500',
                     'timeout' => '10',
                     'retries' => '5',
                     'retry_delay' => '2',
-                    'batching' => array_replace($application['webhooks']['batching'], [
+                    'batching' => [
                         'enabled' => '1',
                         'max_events' => '100',
                         'max_delay_ms' => '500',
                         'max_payload_bytes' => '524288',
-                    ]),
-                ]),
+                    ],
+                ],
             ]),
         ]));
 
@@ -110,6 +109,8 @@ class ApplicationProviderTest extends ReverbTestCase
         $application = config()->array('reverb.apps.apps.0');
         unset(
             $application['activity_timeout'],
+            $application['max_connections'],
+            $application['accept_client_events_from'],
             $application['options'],
             $application['rate_limiting'],
             $application['webhooks'],
@@ -119,6 +120,8 @@ class ApplicationProviderTest extends ReverbTestCase
         $app = $provider->findByKey('reverb-key');
 
         $this->assertSame(Application::DEFAULT_ACTIVITY_TIMEOUT, $app->activityTimeout());
+        $this->assertNull($app->maxConnections());
+        $this->assertSame(Application::DEFAULT_ACCEPT_CLIENT_EVENTS_FROM, $app->acceptClientEventsFrom());
         $this->assertSame([], $app->options());
         $this->assertNull($app->rateLimiting());
         $this->assertFalse($app->usesRateLimiting());
@@ -126,17 +129,41 @@ class ApplicationProviderTest extends ReverbTestCase
         $this->assertFalse($app->hasWebhooks());
     }
 
-    public function testMissingAcceptClientEventsFromFailsLoudly(): void
+    public function testPartialRateLimitingAndWebhookRecordsUseTheirDefaults(): void
     {
         $application = config()->array('reverb.apps.apps.0');
-        unset($application['accept_client_events_from']);
+        $application['rate_limiting'] = ['enabled' => '1'];
+        $application['webhooks'] = ['url' => 'https://example.com/webhook'];
 
         $provider = new ConfigApplicationProvider(collect([$application]));
+        $app = $provider->findByKey('reverb-key');
 
-        $this->expectException(ErrorException::class);
-        $this->expectExceptionMessage('Undefined array key "accept_client_events_from"');
-
-        $provider->findByKey('reverb-key');
+        $this->assertSame([
+            'enabled' => true,
+            'max_attempts' => 60,
+            'decay_seconds' => 60,
+            'terminate_on_limit' => false,
+        ], $app->rateLimiting());
+        $this->assertSame([
+            'url' => 'https://example.com/webhook',
+            'events' => [],
+            'headers' => [],
+            'filter' => [
+                'channel_name_starts_with' => null,
+                'channel_name_ends_with' => null,
+            ],
+            'subscription_count' => false,
+            'disconnect_smoothing_ms' => 3000,
+            'timeout' => 5,
+            'retries' => 3,
+            'retry_delay' => 1,
+            'batching' => [
+                'enabled' => false,
+                'max_events' => 50,
+                'max_delay_ms' => 250,
+                'max_payload_bytes' => 262_144,
+            ],
+        ], $app->webhooks());
     }
 
     public function testNullAndBlankWebhookUrlsDisableWebhooks(): void

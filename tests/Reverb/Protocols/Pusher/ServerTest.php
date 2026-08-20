@@ -24,7 +24,6 @@ use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
-use Throwable;
 
 class ServerTest extends ReverbTestCase
 {
@@ -875,39 +874,33 @@ class ServerTest extends ReverbTestCase
         $this->assertTrue($connection->wasTerminated);
     }
 
-    public function testEnabledRateLimitingRequiresDecaySeconds(): void
+    public function testEnabledPartialRateLimitingUsesItsDefaults(): void
     {
         config()->set('reverb.apps.apps.0.rate_limiting', [
             'enabled' => true,
             'max_attempts' => 1,
-            'terminate_on_limit' => false,
         ]);
 
-        $exceptionHandler = m::mock(ExceptionHandler::class);
-        $exceptionHandler->shouldReceive('report')
-            ->once()
-            ->with(m::on(static fn (Throwable $exception): bool => str_contains(
-                $exception->getMessage(),
-                'Undefined array key "decay_seconds"',
-            )));
-        $this->app->instance(ExceptionHandler::class, $exceptionHandler);
-
         $connection = new FakeConnection;
-        $this->server->message(
-            $connection,
-            json_encode([
-                'event' => 'pusher:subscribe',
-                'data' => ['channel' => 'test-channel'],
-            ])
-        );
+
+        foreach (['test-channel', 'test-channel-overflow'] as $channel) {
+            $this->server->message(
+                $connection,
+                json_encode([
+                    'event' => 'pusher:subscribe',
+                    'data' => ['channel' => $channel],
+                ])
+            );
+        }
 
         $connection->assertReceived([
             'event' => 'pusher:error',
             'data' => json_encode([
-                'code' => 4200,
-                'message' => 'Invalid message format',
+                'code' => 4301,
+                'message' => 'Rate limit exceeded',
             ]),
         ]);
+        $this->assertFalse($connection->wasTerminated);
     }
 
     public function testAllowsUnlimitedMessagesWhenNoRateLimitIsConfigured(): void

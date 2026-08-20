@@ -62,6 +62,10 @@ class ConfigFileTest extends TestCase
             $this->assertSame(500, $config['apps']['apps'][0]['webhooks']['batching']['max_delay_ms']);
             $this->assertSame(524288, $config['apps']['apps'][0]['webhooks']['batching']['max_payload_bytes']);
             $this->assertSame(Application::DEFAULT_ACTIVITY_TIMEOUT, $config['apps']['apps'][0]['activity_timeout']);
+            $this->assertSame(
+                Application::DEFAULT_ACCEPT_CLIENT_EVENTS_FROM,
+                $config['apps']['apps'][0]['accept_client_events_from'],
+            );
         });
     }
 }

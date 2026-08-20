@@ -156,7 +156,7 @@ return [
 ];
 ```
 
-When using the `config` application provider, omitting `activity_timeout` uses 30 seconds, omitting `options` uses an empty array, and omitting `rate_limiting` or `webhooks` disables that feature. A null `max_connections` value allows the application to accept an unlimited number of connections. Supplied rate-limiting and webhook records must include every member shown in their respective examples.
+When using the `config` application provider, omitting `activity_timeout` uses 30 seconds, omitting `max_connections` allows unlimited connections, omitting `accept_client_events_from` uses `members`, and omitting `options` uses an empty array. Omitting `rate_limiting` or `webhooks` disables that feature. A null `max_connections` value also allows unlimited connections.
 
 The `accept_client_events_from` option controls which connections may send client events. The default value, `members`, allows client events from connections subscribed to the target private or presence channel. You may use `all` to allow client events from any connection, or any other value to disable client events.
 
@@ -171,7 +171,7 @@ The `max_message_size` option limits the size of each WebSocket message sent by 
 ],
 ```
 
-The `rate_limiting` option limits messages received from each connected client, including Pusher protocol messages such as `pusher:subscribe` and `pusher:ping`. Rate limiting is applied only when `enabled` is `true`. Each connection may send up to `max_attempts` messages during the configured `decay_seconds` period. When this limit is exceeded, Reverb returns error code 4301. Setting `terminate_on_limit` to `true` sends the error and then terminates the connection.
+The `rate_limiting` option limits messages received from each connected client, including Pusher protocol messages such as `pusher:subscribe` and `pusher:ping`. Rate limiting is applied only when `enabled` is `true`. Each connection may send up to `max_attempts` messages during the configured `decay_seconds` period. When this limit is exceeded, Reverb returns error code 4301. Setting `terminate_on_limit` to `true` sends the error and then terminates the connection. Within a supplied rate-limiting record, omitted members default to disabled, 60 attempts, a 60-second decay period, and no forced disconnect.
 
 <a name="ssl"></a>
 ### SSL
@@ -367,7 +367,7 @@ To enable webhooks, configure a webhook URL and the events you would like to rec
 
 The `events` array acts as an allowlist. If the array is empty, Reverb will send all supported webhook events except `subscription_count`. The `subscription_count` event is controlled by its own configuration option and does not need to be listed in the `events` array. The `disconnect_smoothing_ms` option delays `channel_vacated` and `member_removed` webhooks after a disconnect so brief reconnects do not produce unnecessary remove / add webhook pairs.
 
-A null or empty `url` disables webhooks. A null `channel_name_starts_with` or `channel_name_ends_with` value disables filtering on that side of the channel name.
+A null, empty, or omitted `url` disables webhooks. Omitted `events` and `headers` use empty arrays, while omitted channel filters use null and match any channel. Subscription-count delivery defaults to disabled and disconnect smoothing defaults to 3,000 milliseconds. Delivery defaults to a five-second timeout, three retries, and a one-second retry delay. An omitted batching record disables batching and uses limits of 50 events, 250 milliseconds, and 262,144 bytes when batching is later enabled.
 
 <a name="delivery-and-signing"></a>
 ### Delivery and Signing

@@ -12,10 +12,12 @@ class Application
     public const int DEFAULT_ACTIVITY_TIMEOUT = 30;
 
     /**
+     * The default client-event sender policy.
+     */
+    public const string DEFAULT_ACCEPT_CLIENT_EVENTS_FROM = 'members';
+
+    /**
      * Create a new application instance.
-     *
-     * Rate limiting must be null or a complete record. Webhooks must be an
-     * empty array or a complete record.
      */
     public function __construct(
         protected string $id,
@@ -26,12 +28,19 @@ class Application
         protected array $allowedOrigins,
         protected int $maxMessageSize,
         protected ?int $maxConnections = null,
-        protected string $acceptClientEventsFrom = 'members',
+        protected string $acceptClientEventsFrom = self::DEFAULT_ACCEPT_CLIENT_EVENTS_FROM,
         protected ?array $rateLimiting = null,
         protected array $options = [],
         protected array $webhooks = [],
     ) {
         if ($this->rateLimiting !== null) {
+            $this->rateLimiting += [
+                'enabled' => false,
+                'max_attempts' => 60,
+                'decay_seconds' => 60,
+                'terminate_on_limit' => false,
+            ];
+
             $this->rateLimiting['enabled'] = (bool) $this->rateLimiting['enabled'];
             $this->rateLimiting['max_attempts'] = (int) $this->rateLimiting['max_attempts'];
             $this->rateLimiting['decay_seconds'] = (int) $this->rateLimiting['decay_seconds'];
@@ -39,6 +48,29 @@ class Application
         }
 
         if ($this->webhooks !== []) {
+            $this->webhooks += [
+                'url' => null,
+                'events' => [],
+                'headers' => [],
+                'filter' => [],
+                'subscription_count' => false,
+                'disconnect_smoothing_ms' => 3000,
+                'timeout' => 5,
+                'retries' => 3,
+                'retry_delay' => 1,
+                'batching' => [],
+            ];
+            $this->webhooks['filter'] += [
+                'channel_name_starts_with' => null,
+                'channel_name_ends_with' => null,
+            ];
+            $this->webhooks['batching'] += [
+                'enabled' => false,
+                'max_events' => 50,
+                'max_delay_ms' => 250,
+                'max_payload_bytes' => 262_144,
+            ];
+
             $this->webhooks['subscription_count'] = (bool) $this->webhooks['subscription_count'];
             $this->webhooks['disconnect_smoothing_ms'] = (int) $this->webhooks['disconnect_smoothing_ms'];
             $this->webhooks['timeout'] = (int) $this->webhooks['timeout'];
