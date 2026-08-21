@@ -59,17 +59,17 @@ class PackageMetadataTest extends TestCase
     {
         $connectionDocblock = (new ReflectionClass(RedisConnection::class))->getDocComment();
         $this->assertIsString($connectionDocblock);
-        $this->assertStringContainsString('@method array|false|Redis keys(string $pattern)', $connectionDocblock);
+        $this->assertStringContainsString('@method array|false|Redis|RedisCluster keys(string $pattern)', $connectionDocblock);
         $this->assertStringContainsString(
-            '@method false|int|Redis lInsert(string $key, string $pos, mixed $pivot, mixed $value)',
+            '@method false|int|Redis|RedisCluster lInsert(string $key, string $pos, mixed $pivot, mixed $value)',
             $connectionDocblock,
         );
 
         $facadeDocblock = (new ReflectionClass(Redis::class))->getDocComment();
         $this->assertIsString($facadeDocblock);
-        $this->assertStringContainsString('@method static array|false|\Redis keys(string $pattern)', $facadeDocblock);
+        $this->assertStringContainsString('@method static array|false|\Redis|\RedisCluster keys(string $pattern)', $facadeDocblock);
         $this->assertStringContainsString(
-            '@method static false|int|\Redis lInsert(string $key, string $pos, mixed $pivot, mixed $value)',
+            '@method static false|int|\Redis|\RedisCluster lInsert(string $key, string $pos, mixed $pivot, mixed $value)',
             $facadeDocblock,
         );
     }

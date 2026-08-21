@@ -38,6 +38,10 @@ class PhpRedisConnection extends RedisConnection
      */
     public function reconnect(): bool
     {
+        $database = $this->connection instanceof Redis && $this->connection->isConnected()
+            ? $this->connection->getDBNum()
+            : ($this->database ?? $this->config['database']);
+
         $sentinel = $this->config['sentinel']['enabled'] ?? false;
 
         $redis = $sentinel
@@ -56,9 +60,10 @@ class PhpRedisConnection extends RedisConnection
             );
         }
 
-        $database = $this->database ?? $this->config['database'];
-        if ($database > 0) {
-            $redis->select($database);
+        if ($database > 0 && $redis->select($database) !== true) {
+            throw new ConnectionException(
+                "Failed to select Redis database [{$database}] on connection [{$this->getName()}]."
+            );
         }
 
         $name = $this->config['name'];
@@ -67,6 +72,7 @@ class PhpRedisConnection extends RedisConnection
         }
 
         $this->connection = $redis;
+        $this->database = $database;
         $this->markReconnected();
 
         if ($this->config['events'] && $this->container->bound('events')) {

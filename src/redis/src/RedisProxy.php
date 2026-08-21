@@ -8,6 +8,7 @@ use BadMethodCallException;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Redis\Connection as ConnectionContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Redis\Events\CommandExecuted;
@@ -75,7 +76,6 @@ class RedisProxy implements ConnectionContract
         'reconnect',
         'release',
         'safescan',
-        'setdatabase',
         'setoption',
         'shouldtransform',
     ];
@@ -232,10 +232,15 @@ class RedisProxy implements ConnectionContract
             $commandException = $throwable;
 
             try {
-                if ($connection->getEventDispatcher()?->hasListeners(CommandFailed::class)) {
+                $dispatcher = $connection->getEventDispatcher();
+
+                if ($dispatcher?->hasListeners(CommandFailed::class)) {
                     $time = round((hrtime(true) / 1e9 - $start) * 1000, 2);
-                    $connection->getEventDispatcher()->dispatch(
-                        new CommandFailed($name, $arguments, $throwable, $connection, $time)
+                    $this->dispatchCommandEvent(
+                        $dispatcher,
+                        new CommandFailed($name, $arguments, $throwable, $connection, $time),
+                        $connection,
+                        $hasContextConnection,
                     );
                 }
             } catch (Throwable $throwable) {
@@ -245,10 +250,15 @@ class RedisProxy implements ConnectionContract
 
         if ($commandException === null) {
             try {
-                if ($connection->getEventDispatcher()?->hasListeners(CommandExecuted::class)) {
+                $dispatcher = $connection->getEventDispatcher();
+
+                if ($dispatcher?->hasListeners(CommandExecuted::class)) {
                     $time = round((hrtime(true) / 1e9 - $start) * 1000, 2);
-                    $connection->getEventDispatcher()->dispatch(
-                        new CommandExecuted($name, $arguments, $time, $connection)
+                    $this->dispatchCommandEvent(
+                        $dispatcher,
+                        new CommandExecuted($name, $arguments, $time, $connection),
+                        $connection,
+                        $hasContextConnection,
                     );
                 }
             } catch (Throwable $throwable) {
@@ -261,10 +271,6 @@ class RedisProxy implements ConnectionContract
                 // Connection is already in context, don't release
             } elseif ($commandException === null && $this->shouldUseSameConnection($command)) {
                 // On success with same-connection command: store in context for reuse
-                if ($command === 'select' && array_key_exists(0, $arguments)) {
-                    $connection->setDatabase((int) $arguments[0]);
-                }
-
                 CoroutineContext::set($this->getContextKey(), $connection);
 
                 $coroutineId = Coroutine::id();
@@ -301,6 +307,34 @@ class RedisProxy implements ConnectionContract
         }
 
         return $result;
+    }
+
+    /**
+     * Dispatch a command event against its owning connection.
+     */
+    private function dispatchCommandEvent(
+        Dispatcher $dispatcher,
+        CommandExecuted|CommandFailed $event,
+        RedisConnection $connection,
+        bool $hasContextConnection,
+    ): void {
+        if ($hasContextConnection) {
+            $dispatcher->dispatch($event);
+
+            return;
+        }
+
+        $contextKey = $this->getContextKey();
+
+        // Synchronous listeners reuse the leased wrapper instead of deadlocking on a reentrant pool checkout.
+        // Nested commands retain Laravel's event semantics, including recursion from an unconditional same-command listener.
+        CoroutineContext::set($contextKey, $connection);
+
+        try {
+            $dispatcher->dispatch($event);
+        } finally {
+            CoroutineContext::forget($contextKey);
+        }
     }
 
     /**

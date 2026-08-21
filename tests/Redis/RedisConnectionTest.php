@@ -28,6 +28,7 @@ use Redis;
 use RedisCluster;
 use RedisClusterException;
 use RedisException;
+use ReflectionProperty;
 use RuntimeException;
 use TypeError;
 
@@ -60,6 +61,35 @@ class RedisConnectionTest extends TestCase
         $this->assertFalse($connection->getShouldTransform());
     }
 
+    public function testSuccessfulAtomicSelectTracksTheAppliedDatabase(): void
+    {
+        $redis = m::mock(Redis::class);
+        $redis->expects('select')->with(2)->andReturnTrue();
+        $connection = $this->mockRedisConnection();
+        $connection->setActiveConnection($redis);
+
+        $this->assertTrue($connection->__call('SELECT', [2]));
+        $this->assertSame(
+            2,
+            (new ReflectionProperty(RedisConnection::class, 'database'))->getValue($connection),
+        );
+    }
+
+    public function testFailedAndQueuedSelectResultsAreNotTrackedAsApplied(): void
+    {
+        $redis = m::mock(Redis::class);
+        $redis->expects('select')->with(2)->andReturnFalse();
+        $redis->expects('select')->with(3)->andReturnSelf();
+        $connection = $this->mockRedisConnection();
+        $connection->setActiveConnection($redis);
+        $database = new ReflectionProperty(RedisConnection::class, 'database');
+
+        $this->assertFalse($connection->__call('select', [2]));
+        $this->assertNull($database->getValue($connection));
+        $this->assertSame($redis, $connection->__call('select', [3]));
+        $this->assertNull($database->getValue($connection));
+    }
+
     public function testReleaseResetsDatabaseToConfiguredDefault(): void
     {
         $pool = $this->getMockedPool();
@@ -68,7 +98,10 @@ class RedisConnectionTest extends TestCase
         $redis = m::mock(Redis::class);
         $redis->shouldReceive('select')->once()->with(1)->andReturn(true);
         $redis->shouldReceive('select')->once()->with(1)->andReturn(true);
+        $redis->expects('select')->with(2)->andReturnTrue();
         $redis->shouldReceive('getMode')->once()->andReturn(Redis::ATOMIC);
+        $redis->expects('isConnected')->andReturnTrue();
+        $redis->expects('getDBNum')->andReturn(2);
 
         $redis->shouldReceive('setOption')->andReturnTrue();
 
@@ -88,8 +121,44 @@ class RedisConnectionTest extends TestCase
             }
         };
 
-        $connection->setDatabase(2);
+        $connection->__call('select', [2]);
         $connection->release();
+    }
+
+    public function testReleaseRestoresTheNativeDatabaseWithoutTrackedSelection(): void
+    {
+        $pool = $this->getMockedPool();
+        $pool->expects('release')->with(m::type(RedisConnection::class));
+        $redis = m::mock(Redis::class);
+        $redis->expects('getMode')->andReturn(Redis::ATOMIC);
+        $redis->expects('isConnected')->andReturnTrue();
+        $redis->expects('getDBNum')->andReturn(2);
+        $redis->expects('select')->with(0)->andReturnTrue();
+        $connection = $this->mockRedisConnection(pool: $pool);
+        $connection->setActiveConnection($redis);
+
+        $connection->release();
+
+        $this->assertNull(
+            (new ReflectionProperty(RedisConnection::class, 'database'))->getValue($connection),
+        );
+    }
+
+    public function testReleaseInvalidatesDisconnectedStandaloneConnectionWithoutInspectingItsDatabase(): void
+    {
+        $pool = $this->getMockedPool();
+        $pool->expects('release')->with(m::type(RedisConnection::class));
+        $redis = m::mock(Redis::class);
+        $redis->expects('getMode')->andReturn(Redis::ATOMIC);
+        $redis->expects('isConnected')->andReturnFalse();
+        $redis->shouldNotReceive('getDBNum');
+        $redis->shouldNotReceive('select');
+        $connection = $this->mockRedisConnection(pool: $pool);
+        $connection->setActiveConnection($redis);
+
+        $connection->release();
+
+        $this->assertTrue($connection->isInvalidForTest());
     }
 
     public function testReleaseDiscardsAConnectionInMultiMode(): void
@@ -212,6 +281,7 @@ class RedisConnectionTest extends TestCase
         $redis = m::mock(Redis::class);
         $redis->expects('watch')->with('key')->andReturnTrue();
         $redis->expects('getMode')->andReturn(Redis::ATOMIC);
+        $redis->expects('isConnected')->twice()->andReturnFalse();
         $redis->shouldReceive('setOption')->andReturnTrue();
 
         $connection = new class($this->getContainer(), $pool, $this->standaloneConfig(), $redis) extends PhpRedisConnection {
@@ -255,10 +325,23 @@ class RedisConnectionTest extends TestCase
         $pool = $this->getMockedPool();
         $pool->expects('release')->with(m::type(RedisConnection::class));
         $redis = m::mock(Redis::class);
+        $redis->expects('select')
+            ->with(2)
+            ->globally()
+            ->ordered()
+            ->andReturnTrue();
         $redis->expects('getMode')
             ->globally()
             ->ordered()
             ->andReturn(Redis::ATOMIC);
+        $redis->expects('isConnected')
+            ->globally()
+            ->ordered()
+            ->andReturnTrue();
+        $redis->expects('getDBNum')
+            ->globally()
+            ->ordered()
+            ->andReturn(2);
         $redis->expects('select')
             ->with(0)
             ->globally()
@@ -266,7 +349,7 @@ class RedisConnectionTest extends TestCase
             ->andReturnTrue();
         $connection = $this->mockRedisConnection(pool: $pool, options: ['database' => 0]);
         $connection->setActiveConnection($redis);
-        $connection->setDatabase(2);
+        $connection->__call('select', [2]);
 
         $connection->release();
     }
@@ -290,25 +373,77 @@ class RedisConnectionTest extends TestCase
         $this->assertTrue($connection->isInvalidForTest());
     }
 
-    public function testDatabaseRestoreFailureInvalidatesAndReleasesConnection(): void
+    #[DataProvider('databaseRestoreFailureProvider')]
+    public function testDatabaseRestoreFailureClosesTheNativeGenerationBeforeReconnect(string $failureMode): void
     {
         $pool = $this->getMockedPool();
+        $pool->shouldReceive('getName')->andReturn('default');
         $pool->expects('release')->with(m::type(RedisConnection::class));
-        $redis = m::mock(Redis::class);
-        $redis->expects('getMode')->andReturn(Redis::ATOMIC);
-        $redis->expects('select')->with(0)->andThrow(new RuntimeException('Select failed.'));
-        $connection = new class($this->getContainer(), $pool, $this->standaloneConfig()) extends PhpRedisConnectionStub {
+        $logger = m::mock(StdoutLoggerInterface::class);
+        $logger->expects('log')->with(
+            LogLevel::CRITICAL,
+            m::on(static fn (string $message): bool => str_starts_with($message, 'Release connection failed, caused by ')),
+        );
+        $container = $this->getContainer();
+        $container->instance(StdoutLoggerInterface::class, $logger);
+        $oldRedis = m::mock(Redis::class);
+        $newRedis = m::mock(Redis::class);
+        $this->expectDefaultConnectionOptions($oldRedis);
+        $this->expectDefaultConnectionOptions($newRedis);
+        $oldRedis->expects('select')->with(2)->andReturnTrue();
+        $oldRedis->expects('getMode')->andReturn(Redis::ATOMIC);
+        $oldRedis->expects('isConnected')->andReturnTrue();
+        $oldRedis->expects('getDBNum')->once()->andReturn(2);
+        $restore = $oldRedis->expects('select')->with(0);
+
+        if ($failureMode === 'false') {
+            $restore->andReturnFalse();
+        } else {
+            $restore->andThrow(new RuntimeException('Select failed.'));
+        }
+
+        $oldRedis->expects('close')->andReturnTrue();
+        $newRedis->shouldNotReceive('select');
+        $connection = new class($container, $pool, $this->standaloneConfig(), [$oldRedis, $newRedis]) extends PhpRedisConnection {
+            /**
+             * @param Redis[] $clients
+             */
+            public function __construct(
+                ContainerContract $container,
+                PoolInterface $pool,
+                array $config,
+                private array $clients,
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            protected function createRedis(array $config): Redis
+            {
+                return array_shift($this->clients);
+            }
+
             public function isInvalidForTest(): bool
             {
                 return $this->invalid;
             }
         };
-        $connection->setActiveConnection($redis);
-        $connection->setDatabase(2);
+        $connection->__call('select', [2]);
 
         $connection->release();
 
         $this->assertTrue($connection->isInvalidForTest());
+        $this->assertNull($connection->client());
+        $this->assertSame($connection, $connection->getActiveConnection());
+        $this->assertSame($newRedis, $connection->client());
+        $this->assertFalse($connection->isInvalidForTest());
+    }
+
+    public static function databaseRestoreFailureProvider(): array
+    {
+        return [
+            'false result' => ['false'],
+            'exception' => ['exception'],
+        ];
     }
 
     public function testReportingFailureCannotPreventQueueingModeDiscard(): void
@@ -354,7 +489,9 @@ class RedisConnectionTest extends TestCase
     {
         $pool = $this->getMockedPool();
         $redis = m::mock(Redis::class);
-        $redis->shouldReceive('select')->once()->with(2)->andReturn(true);
+        $redis->shouldReceive('select')->twice()->with(2)->andReturn(true);
+        $redis->expects('isConnected')->andReturnTrue();
+        $redis->expects('getDBNum')->andReturn(2);
 
         $redis->shouldReceive('setOption')->andReturnTrue();
 
@@ -374,8 +511,159 @@ class RedisConnectionTest extends TestCase
             }
         };
 
-        $connection->setDatabase(2);
+        $connection->__call('select', [2]);
         $connection->reconnect();
+    }
+
+    public function testReconnectCarriesTheConnectedNativeClientsActualDatabaseAcrossAReplacement(): void
+    {
+        $pool = $this->getMockedPool();
+        $oldRedis = m::mock(Redis::class);
+        $newRedis = m::mock(Redis::class);
+        $secondNewRedis = m::mock(Redis::class);
+        $this->expectDefaultConnectionOptions($oldRedis);
+        $this->expectDefaultConnectionOptions($newRedis);
+        $this->expectDefaultConnectionOptions($secondNewRedis);
+        $oldRedis->expects('isConnected')->andReturnTrue();
+        $oldRedis->expects('getDBNum')->andReturn(2);
+        $newRedis->expects('select')->with(2)->andReturnTrue();
+        $newRedis->expects('isConnected')->andReturnFalse();
+        $newRedis->shouldNotReceive('getDBNum');
+        $secondNewRedis->expects('select')->with(2)->andReturnTrue();
+
+        $connection = new class($this->getContainer(), $pool, $this->standaloneConfig(), [$oldRedis, $newRedis, $secondNewRedis]) extends PhpRedisConnection {
+            /**
+             * @param Redis[] $clients
+             */
+            public function __construct(
+                ContainerContract $container,
+                PoolInterface $pool,
+                array $config,
+                private array $clients,
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            protected function createRedis(array $config): Redis
+            {
+                return array_shift($this->clients);
+            }
+        };
+
+        $connection->reconnect();
+        $connection->reconnect();
+
+        $this->assertSame($secondNewRedis, $connection->client());
+    }
+
+    public function testReconnectRejectsARefusedDatabaseBeforePublishingTheNewClient(): void
+    {
+        $pool = $this->getMockedPool();
+        $pool->expects('getName')->andReturn('default');
+        $oldRedis = m::mock(Redis::class);
+        $newRedis = m::mock(Redis::class);
+        $this->expectDefaultConnectionOptions($oldRedis);
+        $this->expectDefaultConnectionOptions($newRedis);
+        $oldRedis->expects('select')->with(2)->andReturnTrue();
+        $oldRedis->expects('isConnected')->andReturnTrue();
+        $oldRedis->expects('getDBNum')->andReturn(2);
+        $newRedis->expects('select')->with(2)->andReturnFalse();
+        $connection = new class($this->getContainer(), $pool, $this->standaloneConfig(['database' => 2]), [$oldRedis, $newRedis]) extends PhpRedisConnection {
+            /**
+             * @param Redis[] $clients
+             */
+            public function __construct(
+                ContainerContract $container,
+                PoolInterface $pool,
+                array $config,
+                private array $clients,
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            protected function createRedis(array $config): Redis
+            {
+                return array_shift($this->clients);
+            }
+
+            public function isInvalidForTest(): bool
+            {
+                return $this->invalid;
+            }
+        };
+        $connection->invalidate();
+        $exception = null;
+
+        try {
+            $connection->reconnect();
+        } catch (ConnectionException $exception) {
+        }
+
+        $this->assertInstanceOf(ConnectionException::class, $exception);
+        $this->assertSame('Failed to select Redis database [2] on connection [default].', $exception->getMessage());
+        $this->assertSame($oldRedis, $connection->client());
+        $this->assertTrue($connection->isInvalidForTest());
+    }
+
+    public function testReconnectToDatabaseZeroDoesNotIssueSelect(): void
+    {
+        $redis = m::mock(Redis::class);
+        $this->expectDefaultConnectionOptions($redis);
+        $redis->shouldNotReceive('select');
+        $connection = new class($this->getContainer(), $this->getMockedPool(), $this->standaloneConfig(), $redis) extends PhpRedisConnection {
+            public function __construct(
+                ContainerContract $container,
+                PoolInterface $pool,
+                array $config,
+                private Redis $redis,
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            protected function createRedis(array $config): Redis
+            {
+                return $this->redis;
+            }
+        };
+
+        $this->assertSame($redis, $connection->client());
+    }
+
+    public function testReconnectDoesNotInspectADisconnectedClientAndUsesTrackedSelection(): void
+    {
+        $pool = $this->getMockedPool();
+        $oldRedis = m::mock(Redis::class);
+        $newRedis = m::mock(Redis::class);
+        $this->expectDefaultConnectionOptions($oldRedis);
+        $this->expectDefaultConnectionOptions($newRedis);
+        $oldRedis->expects('select')->with(2)->andReturnTrue();
+        $oldRedis->expects('isConnected')->andReturnFalse();
+        $oldRedis->shouldNotReceive('getDBNum');
+        $newRedis->expects('select')->with(2)->andReturnTrue();
+
+        $connection = new class($this->getContainer(), $pool, $this->standaloneConfig(), [$oldRedis, $newRedis]) extends PhpRedisConnection {
+            /**
+             * @param Redis[] $clients
+             */
+            public function __construct(
+                ContainerContract $container,
+                PoolInterface $pool,
+                array $config,
+                private array $clients,
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            protected function createRedis(array $config): Redis
+            {
+                return array_shift($this->clients);
+            }
+        };
+
+        $this->assertTrue($connection->__call('select', [2]));
+        $connection->reconnect();
+
+        $this->assertSame($newRedis, $connection->client());
     }
 
     public function testSentinelResolvedMasterUsesStandaloneDataConnectionSettings(): void
@@ -582,6 +870,24 @@ class RedisConnectionTest extends TestCase
         $this->assertSame($redis, $result);
     }
 
+    public function testQueueingModePreservesNativeSetOptionsAndRawQueuedReturn(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+        $redis = m::mock(Redis::class);
+
+        $redis->shouldReceive('getMode')->once()->andReturn(Redis::MULTI);
+        $redis->shouldReceive('set')
+            ->once()
+            ->with('key', 'value', ['GET', 'EX' => 600])
+            ->andReturnSelf();
+
+        $connection->setActiveConnection($redis);
+
+        $result = $connection->__call('set', ['key', 'value', ['GET', 'EX' => 600]]);
+
+        $this->assertSame($redis, $result);
+    }
+
     public function testQueueingModeReshapesHmsetArgumentsButPreservesRawQueuedReturn(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
@@ -741,6 +1047,10 @@ class RedisConnectionTest extends TestCase
         $redis = m::mock(Redis::class);
 
         $redis->shouldReceive('getMode')->once()->andReturn(Redis::ATOMIC);
+        $redis->shouldReceive('set')
+            ->once()
+            ->with('key', 'value', 600)
+            ->andThrow(new TypeError('Invalid native Redis argument.'));
         $connection->setActiveConnection($redis);
 
         $this->expectException(TypeError::class);
@@ -963,6 +1273,23 @@ class RedisConnectionTest extends TestCase
         $this->assertEquals($value, $result);
     }
 
+    public function testGetPreservesDecodedValues(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+        $object = (object) ['name' => 'Hypervel'];
+
+        foreach ([['nested' => true], $object, 42] as $index => $value) {
+            $key = "key-{$index}";
+            $connection->getConnection()
+                ->shouldReceive('get')
+                ->with($key)
+                ->once()
+                ->andReturn($value);
+
+            $this->assertSame($value, $connection->__call('get', [$key]));
+        }
+    }
+
     public function testMget(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
@@ -976,6 +1303,19 @@ class RedisConnectionTest extends TestCase
         $result = $connection->__call('mget', [['key1', 'key2', 'key3']]);
 
         $this->assertEquals(['value1', null, 'value3'], $result);
+    }
+
+    public function testMgetPreservesWholeCallFailure(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        $connection->getConnection()
+            ->shouldReceive('mGet')
+            ->with(['key1', 'key2'])
+            ->once()
+            ->andReturnFalse();
+
+        $this->assertFalse($connection->__call('mget', [['key1', 'key2']]));
     }
 
     public function testMgetReturnsAnEmptyArrayWithoutCallingRedisForEmptyKeys(): void
@@ -999,6 +1339,57 @@ class RedisConnectionTest extends TestCase
         $result = $connection->__call('set', ['key', 'value', 'EX', 3600, 'NX']);
 
         $this->assertTrue($result);
+    }
+
+    public function testSetAcceptsNativeOptionsAndPreservesDecodedPreviousValues(): void
+    {
+        foreach ([['version' => 1], 42, (object) ['version' => 1]] as $previous) {
+            $server = new RespServer;
+            $serialized = serialize($previous);
+            $server->start(static function ($client) use ($serialized): void {
+                $argumentCount = (int) substr((string) fgets($client), 1);
+
+                for ($index = 0; $index < $argumentCount; ++$index) {
+                    $length = (int) substr((string) fgets($client), 1);
+                    RespServer::readExact($client, $length + 2);
+                }
+
+                fwrite($client, '$' . strlen($serialized) . "\r\n{$serialized}\r\n");
+            });
+            [$host, $port] = $server->hostAndPort();
+            $redis = new Redis;
+
+            try {
+                $this->assertTrue($redis->connect($host, $port));
+                $this->assertTrue($redis->setOption(Redis::OPT_SERIALIZER, Redis::SERIALIZER_PHP));
+                $connection = $this->mockRedisConnection(transform: true);
+                $connection->setActiveConnection($redis);
+
+                $this->assertEquals(
+                    $previous,
+                    $connection->__call('set', ['key', ['version' => 2], ['GET', 'EX' => 3600]]),
+                );
+            } finally {
+                $redis->close();
+                $server->wait();
+            }
+        }
+    }
+
+    public function testSetPreservesBooleanNativeResults(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        foreach ([true, false] as $index => $result) {
+            $key = "key-{$index}";
+            $connection->getConnection()
+                ->shouldReceive('set')
+                ->with($key, 'value', ['GET'])
+                ->once()
+                ->andReturn($result);
+
+            $this->assertSame($result, $connection->__call('set', [$key, 'value', ['GET']]));
+        }
     }
 
     public function testSetnxAcceptsNonStringValues(): void
@@ -1044,6 +1435,19 @@ class RedisConnectionTest extends TestCase
         $result = $connection->__call('hmget', ['hash', 'field1', 'field2']);
 
         $this->assertEquals(['value1', 'value2'], $result);
+    }
+
+    public function testHmgetPreservesWholeCallFailure(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        $connection->getConnection()
+            ->shouldReceive('hMGet')
+            ->with('hash', ['field1', 'field2'])
+            ->once()
+            ->andReturnFalse();
+
+        $this->assertFalse($connection->__call('hmget', ['hash', ['field1', 'field2']]));
     }
 
     public function testHmset(): void
@@ -1298,6 +1702,25 @@ class RedisConnectionTest extends TestCase
         $this->assertEquals(2, $result);
     }
 
+    public function testZaddPreservesIncrementScoreAndFailure(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        $connection->getConnection()
+            ->shouldReceive('zAdd')
+            ->with('sortedset', ['INCR'], 1.5, 'member')
+            ->once()
+            ->andReturn(2.5);
+        $connection->getConnection()
+            ->shouldReceive('zAdd')
+            ->with('sortedset', ['XX'], 1.5, 'missing')
+            ->once()
+            ->andReturnFalse();
+
+        $this->assertSame(2.5, $connection->__call('zadd', ['sortedset', 'INCR', 1.5, 'member']));
+        $this->assertFalse($connection->__call('zadd', ['sortedset', 'XX', 1.5, 'missing']));
+    }
+
     public function testZaddWithArray(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
@@ -1326,6 +1749,19 @@ class RedisConnectionTest extends TestCase
         $result = $connection->__call('zrangebyscore', ['sortedset', '1', '5', ['limit' => ['offset' => 0, 'count' => 10]]]);
 
         $this->assertEquals(['member1', 'member2'], $result);
+    }
+
+    public function testZrangebyscorePreservesFailure(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        $connection->getConnection()
+            ->shouldReceive('zRangeByScore')
+            ->with('sortedset', '1', '5', [])
+            ->once()
+            ->andReturnFalse();
+
+        $this->assertFalse($connection->__call('zrangebyscore', ['sortedset', '1', '5']));
     }
 
     public function testFlushdbAsync(): void
@@ -1386,6 +1822,32 @@ class RedisConnectionTest extends TestCase
         $result = $connection->__call('zinterstore', ['output', ['set1', 'set2'], ['weights' => [1, 2], 'aggregate' => 'max']]);
 
         $this->assertEquals(3, $result);
+    }
+
+    public function testZinterstorePreservesFailure(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        $connection->getConnection()
+            ->shouldReceive('zinterstore')
+            ->with('output', ['set1', 'set2'], null, 'sum')
+            ->once()
+            ->andReturnFalse();
+
+        $this->assertFalse($connection->__call('zinterstore', ['output', ['set1', 'set2']]));
+    }
+
+    public function testZunionstorePreservesFailure(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        $connection->getConnection()
+            ->shouldReceive('zunionstore')
+            ->with('output', ['set1', 'set2'], null, 'sum')
+            ->once()
+            ->andReturnFalse();
+
+        $this->assertFalse($connection->__call('zunionstore', ['output', ['set1', 'set2']]));
     }
 
     public function testZunionstoreSimple(): void
@@ -1509,6 +1971,19 @@ class RedisConnectionTest extends TestCase
         $result = $connection->__call('zrevrangebyscore', ['zset', '+inf', '-inf', ['limit' => ['offset' => 0, 'count' => 5]]]);
 
         $this->assertEquals(['member2', 'member1'], $result);
+    }
+
+    public function testZrevrangebyscorePreservesFailure(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        $connection->getConnection()
+            ->shouldReceive('zRevRangeByScore')
+            ->with('zset', '+inf', '-inf', [])
+            ->once()
+            ->andReturnFalse();
+
+        $this->assertFalse($connection->__call('zrevrangebyscore', ['zset', '+inf', '-inf']));
     }
 
     public function testZinterstoreDefaultsAggregate(): void
@@ -2609,6 +3084,7 @@ class RedisConnectionTest extends TestCase
         $pool = $this->getMockedPool();
         $redis = m::mock(Redis::class);
         $redis->shouldReceive('select')->andReturn(true);
+        $redis->expects('isConnected')->andReturnFalse();
 
         $redis->shouldReceive('setOption')->andReturnTrue();
 
