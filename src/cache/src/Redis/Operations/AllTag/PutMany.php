@@ -8,8 +8,6 @@ use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
 
-use function Hypervel\Support\now;
-
 /**
  * Store multiple items in the cache with all tag tracking.
  *
@@ -59,7 +57,7 @@ class PutMany
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($values, $seconds, $tagIds, $namespace): bool {
             $prefix = $this->context->prefix();
-            $score = now()->addSeconds($seconds)->getTimestamp();
+            $score = $this->context->expirationScore($seconds);
             $ttl = max(1, $seconds);
 
             // Prepare all data up front
@@ -106,7 +104,7 @@ class PutMany
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($values, $seconds, $tagIds, $namespace): bool {
             $prefix = $this->context->prefix();
-            $score = now()->addSeconds($seconds)->getTimestamp();
+            $score = $this->context->expirationScore($seconds);
             $ttl = max(1, $seconds);
 
             // Prepare all data up front

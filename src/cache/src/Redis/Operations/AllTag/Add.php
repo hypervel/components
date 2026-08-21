@@ -8,8 +8,6 @@ use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
 
-use function Hypervel\Support\now;
-
 /**
  * Store an item in the cache if it doesn't exist, with all tag tracking.
  *
@@ -60,7 +58,7 @@ class Add
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds) {
             $prefix = $this->context->prefix();
-            $score = now()->addSeconds($seconds)->getTimestamp();
+            $score = $this->context->expirationScore($seconds);
 
             // Pipeline the ZADD operations for tag tracking
             if (! empty($tagIds)) {
@@ -94,7 +92,7 @@ class Add
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds) {
             $prefix = $this->context->prefix();
-            $score = now()->addSeconds($seconds)->getTimestamp();
+            $score = $this->context->expirationScore($seconds);
 
             // ZADD to each tag's sorted set (sequential - cross-slot)
             foreach ($tagIds as $tagId) {

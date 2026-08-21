@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 /**
@@ -19,6 +20,8 @@ class AddTest extends RedisCacheTestCase
      */
     public function testAddWithTagsReturnsTrueWhenKeyAdded(): void
     {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+
         $connection = $this->mockConnection();
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
@@ -26,7 +29,7 @@ class AddTest extends RedisCacheTestCase
         // ZADD for tag with TTL score
         $connection->shouldReceive('zadd')
             ->once()
-            ->with('prefix:_all:tag:users:entries', now()->timestamp + 60, 'mykey')
+            ->with('prefix:_all:tag:users:entries', 1061, 'mykey')
             ->andReturn($connection);
 
         $connection->shouldReceive('exec')
@@ -84,11 +87,13 @@ class AddTest extends RedisCacheTestCase
      */
     public function testAddWithMultipleTags(): void
     {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+
         $connection = $this->mockConnection();
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $expectedScore = now()->timestamp + 120;
+        $expectedScore = 1121;
 
         // ZADD for each tag
         $connection->shouldReceive('zadd')
@@ -153,6 +158,8 @@ class AddTest extends RedisCacheTestCase
      */
     public function testAddInClusterModeUsesSequentialCommands(): void
     {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+
         [$store, , $connection] = $this->createClusterStore();
 
         // Should NOT use pipeline in cluster mode
@@ -161,7 +168,7 @@ class AddTest extends RedisCacheTestCase
         // Sequential ZADD
         $connection->shouldReceive('zadd')
             ->once()
-            ->with('prefix:_all:tag:users:entries', now()->timestamp + 60, 'mykey')
+            ->with('prefix:_all:tag:users:entries', 1061, 'mykey')
             ->andReturn(1);
 
         // SET NX EX for atomic add
@@ -185,12 +192,14 @@ class AddTest extends RedisCacheTestCase
      */
     public function testAddInClusterModeReturnsFalseWhenKeyExists(): void
     {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+
         [$store, , $connection] = $this->createClusterStore();
 
         // Sequential ZADD (still happens even if key exists)
         $connection->shouldReceive('zadd')
             ->once()
-            ->with('prefix:_all:tag:users:entries', now()->timestamp + 60, 'mykey')
+            ->with('prefix:_all:tag:users:entries', 1061, 'mykey')
             ->andReturn(1);
 
         // SET NX returns false when key exists (RedisCluster return type is string|bool)

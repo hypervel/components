@@ -8,8 +8,6 @@ use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
 
-use function Hypervel\Support\now;
-
 /**
  * Store an item in the cache with all tag tracking.
  *
@@ -58,7 +56,7 @@ class Put
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds): bool {
             $prefix = $this->context->prefix();
-            $score = now()->addSeconds($seconds)->getTimestamp();
+            $score = $this->context->expirationScore($seconds);
             $serialized = $this->serialization->serialize($connection, $value);
 
             $pipeline = $connection->pipeline();
@@ -88,7 +86,7 @@ class Put
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds): bool {
             $prefix = $this->context->prefix();
-            $score = now()->addSeconds($seconds)->getTimestamp();
+            $score = $this->context->expirationScore($seconds);
             $serialized = $this->serialization->serialize($connection, $value);
 
             // ZADD to each tag's sorted set (sequential - cross-slot)

@@ -7,8 +7,6 @@ namespace Hypervel\Cache\Redis\Operations\AllTag;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
 
-use function Hypervel\Support\now;
-
 /**
  * Adjust the expiration time of a tagged cache item and its tag entries.
  *
@@ -54,7 +52,7 @@ class Touch
                 return false;
             }
 
-            $score = now()->addSeconds($seconds)->getTimestamp();
+            $score = $this->context->expirationScore($seconds);
 
             foreach ($tagIds as $tagId) {
                 $connection->zadd($prefix . $tagId, $score, $key);
@@ -81,7 +79,7 @@ class Touch
 
             $args = [
                 $seconds,
-                now()->addSeconds($seconds)->getTimestamp(),
+                $this->context->expirationScore($seconds),
                 $key,
             ];
 

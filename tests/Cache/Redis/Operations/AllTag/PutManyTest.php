@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 /**
@@ -11,6 +12,13 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
  */
 class PutManyTest extends RedisCacheTestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+    }
+
     /**
      * @test
      */
@@ -20,7 +28,7 @@ class PutManyTest extends RedisCacheTestCase
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $expectedScore = now()->timestamp + 60;
+        $expectedScore = 1061;
 
         // Variadic ZADD: one command with all members for the tag
         // Format: key, score1, member1, score2, member2, ...
@@ -65,7 +73,7 @@ class PutManyTest extends RedisCacheTestCase
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $expectedScore = now()->timestamp + 120;
+        $expectedScore = 1121;
 
         // Variadic ZADD for each tag (one command per tag, all keys as members)
         $connection->shouldReceive('zadd')
@@ -159,7 +167,7 @@ class PutManyTest extends RedisCacheTestCase
         // Should NOT use pipeline in cluster mode
         $connection->shouldNotReceive('pipeline');
 
-        $expectedScore = now()->timestamp + 60;
+        $expectedScore = 1061;
 
         // Variadic ZADD: one command with all members for the tag
         // This works in cluster because all members go to ONE sorted set (one slot)
@@ -318,7 +326,7 @@ class PutManyTest extends RedisCacheTestCase
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $expectedScore = now()->timestamp + 30;
+        $expectedScore = 1031;
 
         // Custom prefix should be used
         $connection->shouldReceive('zadd')
@@ -359,7 +367,7 @@ class PutManyTest extends RedisCacheTestCase
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $expectedScore = now()->timestamp + 60;
+        $expectedScore = 1061;
 
         // Variadic ZADD for first tag with all keys
         $connection->shouldReceive('zadd')
@@ -412,7 +420,7 @@ class PutManyTest extends RedisCacheTestCase
     {
         [$store, , $connection] = $this->createClusterStore();
 
-        $expectedScore = now()->timestamp + 60;
+        $expectedScore = 1061;
 
         // Variadic ZADD for each tag (different slots, separate commands)
         $connection->shouldReceive('zadd')
@@ -479,7 +487,7 @@ class PutManyTest extends RedisCacheTestCase
     {
         [$store, , $connection] = $this->createClusterStore();
 
-        $expectedScore = now()->timestamp + 60;
+        $expectedScore = 1061;
 
         $connection->shouldReceive('zadd')
             ->once()
