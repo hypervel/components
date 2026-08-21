@@ -101,27 +101,18 @@ class Dispatcher implements DispatcherContract
     protected array $interfaceListeners = [];
 
     /**
-     * The cached wildcard listeners.
+     * The prepared event listeners keyed by registered event name.
      *
      * @var array<string, array<int, Closure>>
      */
-    protected array $wildcardsCache = [];
+    protected array $preparedListeners = [];
 
     /**
-     * The cached prepared listeners.
-     */
-    protected array $listenersCache = [];
-
-    /**
-     * The cached hasListeners results.
+     * The prepared wildcard listeners keyed by registered pattern.
      *
-     * Avoids repeated wildcard scanning in hasListeners() when called
-     * from hot paths like Router event guards. Cleared whenever the
-     * listener set changes (listen, forget, wildcard registration).
-     *
-     * @var array<string, bool>
+     * @var array<string, array<int, Closure>>
      */
-    protected array $hasListenersCache = [];
+    protected array $preparedWildcardListeners = [];
 
     /**
      * The registered event observers.
@@ -138,18 +129,18 @@ class Dispatcher implements DispatcherContract
     protected array $observerWildcards = [];
 
     /**
-     * The cached wildcard observers.
+     * The prepared event observers keyed by registered event name.
      *
      * @var array<string, array<int, Closure>>
      */
-    protected array $observerWildcardsCache = [];
+    protected array $preparedObservers = [];
 
     /**
-     * The cached prepared observers.
+     * The prepared wildcard observers keyed by registered pattern.
      *
      * @var array<string, array<int, Closure>>
      */
-    protected array $observersCache = [];
+    protected array $preparedWildcardObservers = [];
 
     /**
      * The queue resolver instance.
@@ -215,6 +206,7 @@ class Dispatcher implements DispatcherContract
                 $this->setupWildcardListen($event, $listener);
             } else {
                 $this->listeners[$event][] = $listener;
+                unset($this->preparedListeners[$event]);
 
                 // Track interface keys so hasListeners() and getListeners() know
                 // whether interface resolution is worth entering. This autoloads
@@ -225,9 +217,6 @@ class Dispatcher implements DispatcherContract
                 }
             }
         }
-
-        $this->listenersCache = [];
-        $this->hasListenersCache = [];
     }
 
     /**
@@ -236,10 +225,7 @@ class Dispatcher implements DispatcherContract
     protected function setupWildcardListen(string $event, array|object|string $listener): void
     {
         $this->wildcards[$event][] = $listener;
-
-        $this->wildcardsCache = [];
-        $this->listenersCache = [];
-        $this->hasListenersCache = [];
+        unset($this->preparedWildcardListeners[$event]);
     }
 
     /**
@@ -264,11 +250,9 @@ class Dispatcher implements DispatcherContract
                 $this->setupWildcardObserver($event, $observer);
             } else {
                 $this->observers[$event][] = $observer;
+                unset($this->preparedObservers[$event]);
             }
         }
-
-        $this->observersCache = [];
-        $this->observerWildcardsCache = [];
     }
 
     /**
@@ -277,9 +261,7 @@ class Dispatcher implements DispatcherContract
     protected function setupWildcardObserver(string $event, array|object|string $observer): void
     {
         $this->observerWildcards[$event][] = $observer;
-
-        $this->observerWildcardsCache = [];
-        $this->observersCache = [];
+        unset($this->preparedWildcardObservers[$event]);
     }
 
     /**
@@ -287,11 +269,7 @@ class Dispatcher implements DispatcherContract
      */
     public function hasListeners(string $eventName): bool
     {
-        if (isset($this->hasListenersCache[$eventName])) {
-            return $this->hasListenersCache[$eventName];
-        }
-
-        return $this->hasListenersCache[$eventName] = isset($this->listeners[$eventName])
+        return isset($this->listeners[$eventName])
             || isset($this->wildcards[$eventName])
             || $this->hasWildcardListeners($eventName)
             || $this->hasInterfaceListeners($eventName);
@@ -320,8 +298,9 @@ class Dispatcher implements DispatcherContract
             return false;
         }
 
-        foreach (class_implements($eventName) as $interface) {
-            if (isset($this->listeners[$interface])) {
+        // The guard only needs a boolean, while resolution keeps class_implements() to preserve Laravel's listener order.
+        foreach ($this->interfaceListeners as $interface => $registered) {
+            if (is_a($eventName, $interface, true)) {
                 return true;
             }
         }
@@ -581,20 +560,16 @@ class Dispatcher implements DispatcherContract
      */
     public function getListeners(string $eventName): array
     {
-        if (isset($this->listenersCache[$eventName])) {
-            return $this->listenersCache[$eventName];
+        $listeners = $this->prepareListeners($eventName);
+        $wildcardListeners = $this->getWildcardListeners($eventName);
+
+        if ($wildcardListeners !== []) {
+            array_push($listeners, ...$wildcardListeners);
         }
 
-        $listeners = array_merge(
-            $this->prepareListeners($eventName),
-            $this->wildcardsCache[$eventName] ?? $this->getWildcardListeners($eventName)
-        );
-
-        $listeners = $this->shouldResolveInterfaceListeners($eventName)
+        return $this->shouldResolveInterfaceListeners($eventName)
             ? $this->addInterfaceListeners($eventName, $listeners)
             : $listeners;
-
-        return $this->listenersCache[$eventName] = $listeners;
     }
 
     /**
@@ -606,13 +581,29 @@ class Dispatcher implements DispatcherContract
 
         foreach ($this->wildcards as $key => $listeners) {
             if (Str::is($key, $eventName)) {
-                foreach ($listeners as $listener) {
-                    $wildcards[] = $this->makeListener($listener, true);
-                }
+                array_push($wildcards, ...$this->prepareWildcardListeners($key));
             }
         }
 
-        return $this->wildcardsCache[$eventName] = $wildcards;
+        return $wildcards;
+    }
+
+    /**
+     * Prepare the listeners for a registered wildcard pattern.
+     *
+     * @return Closure[]
+     */
+    protected function prepareWildcardListeners(string $eventName): array
+    {
+        if (! isset($this->preparedWildcardListeners[$eventName])) {
+            $this->preparedWildcardListeners[$eventName] = [];
+
+            foreach ($this->wildcards[$eventName] as $listener) {
+                $this->preparedWildcardListeners[$eventName][] = $this->makeListener($listener, true);
+            }
+        }
+
+        return $this->preparedWildcardListeners[$eventName];
     }
 
     /**
@@ -621,10 +612,8 @@ class Dispatcher implements DispatcherContract
     protected function addInterfaceListeners(string $eventName, array $listeners = []): array
     {
         foreach (class_implements($eventName) as $interface) {
-            if (isset($this->listeners[$interface])) {
-                foreach ($this->prepareListeners($interface) as $names) {
-                    $listeners = array_merge($listeners, (array) $names);
-                }
+            if (isset($this->interfaceListeners[$interface])) {
+                array_push($listeners, ...$this->prepareListeners($interface));
             }
         }
 
@@ -638,13 +627,19 @@ class Dispatcher implements DispatcherContract
      */
     protected function prepareListeners(string $eventName): array
     {
-        $listeners = [];
-
-        foreach ($this->listeners[$eventName] ?? [] as $listener) {
-            $listeners[] = $this->makeListener($listener);
+        if (! isset($this->listeners[$eventName])) {
+            return [];
         }
 
-        return $listeners;
+        if (! isset($this->preparedListeners[$eventName])) {
+            $this->preparedListeners[$eventName] = [];
+
+            foreach ($this->listeners[$eventName] as $listener) {
+                $this->preparedListeners[$eventName][] = $this->makeListener($listener);
+            }
+        }
+
+        return $this->preparedListeners[$eventName];
     }
 
     /**
@@ -652,16 +647,14 @@ class Dispatcher implements DispatcherContract
      */
     public function getObservers(string $eventName): array
     {
-        if (isset($this->observersCache[$eventName])) {
-            return $this->observersCache[$eventName];
+        $observers = $this->prepareObservers($eventName);
+        $wildcardObservers = $this->getWildcardObservers($eventName);
+
+        if ($wildcardObservers !== []) {
+            array_push($observers, ...$wildcardObservers);
         }
 
-        $observers = array_merge(
-            $this->prepareObservers($eventName),
-            $this->observerWildcardsCache[$eventName] ?? $this->getWildcardObservers($eventName)
-        );
-
-        return $this->observersCache[$eventName] = $observers;
+        return $observers;
     }
 
     /**
@@ -671,13 +664,19 @@ class Dispatcher implements DispatcherContract
      */
     protected function prepareObservers(string $eventName): array
     {
-        $observers = [];
-
-        foreach ($this->observers[$eventName] ?? [] as $observer) {
-            $observers[] = $this->makeObserver($observer);
+        if (! isset($this->observers[$eventName])) {
+            return [];
         }
 
-        return $observers;
+        if (! isset($this->preparedObservers[$eventName])) {
+            $this->preparedObservers[$eventName] = [];
+
+            foreach ($this->observers[$eventName] as $observer) {
+                $this->preparedObservers[$eventName][] = $this->makeObserver($observer);
+            }
+        }
+
+        return $this->preparedObservers[$eventName];
     }
 
     /**
@@ -689,13 +688,29 @@ class Dispatcher implements DispatcherContract
 
         foreach ($this->observerWildcards as $key => $observers) {
             if (Str::is($key, $eventName)) {
-                foreach ($observers as $observer) {
-                    $wildcards[] = $this->makeObserver($observer);
-                }
+                array_push($wildcards, ...$this->prepareWildcardObservers($key));
             }
         }
 
-        return $this->observerWildcardsCache[$eventName] = $wildcards;
+        return $wildcards;
+    }
+
+    /**
+     * Prepare the observers for a registered wildcard pattern.
+     *
+     * @return Closure[]
+     */
+    protected function prepareWildcardObservers(string $eventName): array
+    {
+        if (! isset($this->preparedWildcardObservers[$eventName])) {
+            $this->preparedWildcardObservers[$eventName] = [];
+
+            foreach ($this->observerWildcards[$eventName] as $observer) {
+                $this->preparedWildcardObservers[$eventName][] = $this->makeObserver($observer);
+            }
+        }
+
+        return $this->preparedWildcardObservers[$eventName];
     }
 
     /**
@@ -1003,26 +1018,21 @@ class Dispatcher implements DispatcherContract
     public function forget(string $event): void
     {
         if (str_contains($event, '*')) {
-            unset($this->wildcards[$event], $this->observerWildcards[$event]);
+            unset(
+                $this->wildcards[$event],
+                $this->observerWildcards[$event],
+                $this->preparedWildcardListeners[$event],
+                $this->preparedWildcardObservers[$event],
+            );
         } else {
-            unset($this->listeners[$event], $this->observers[$event], $this->interfaceListeners[$event]);
+            unset(
+                $this->listeners[$event],
+                $this->observers[$event],
+                $this->interfaceListeners[$event],
+                $this->preparedListeners[$event],
+                $this->preparedObservers[$event],
+            );
         }
-
-        foreach ($this->wildcardsCache as $key => $listeners) {
-            if (Str::is($event, $key)) {
-                unset($this->wildcardsCache[$key]);
-            }
-        }
-
-        foreach ($this->observerWildcardsCache as $key => $observers) {
-            if (Str::is($event, $key)) {
-                unset($this->observerWildcardsCache[$key]);
-            }
-        }
-
-        $this->listenersCache = [];
-        $this->hasListenersCache = [];
-        $this->observersCache = [];
     }
 
     /**
