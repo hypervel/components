@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Socialite;
 use Hypervel\Config\Repository;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
 use Hypervel\Socialite\Contracts\Factory;
@@ -18,7 +17,6 @@ use Hypervel\Socialite\Two\GithubProvider;
 use Hypervel\Socialite\Two\GitlabProvider;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Socialite\Fixtures\OAuthTwoTestProviderStub;
-use Mockery as m;
 use ReflectionProperty;
 use Swoole\Coroutine\Channel;
 
@@ -67,38 +65,6 @@ class SocialiteManagerTest extends TestCase
         ));
 
         $this->assertSame($manager->driver('custom'), $factory->driver('custom'));
-    }
-
-    public function testProviderReloadClearsDriversButPreservesTheManagerAndCustomCreators(): void
-    {
-        $manager = $this->app->make(SocialiteManager::class);
-        $manager->extend('custom', static fn (Container $container) => new OAuthTwoTestProviderStub(
-            $container->make('request'),
-            'client_id',
-            'client_secret',
-            'redirect'
-        ));
-        $originalGithub = $manager->driver('github');
-        $originalCustom = $manager->driver('custom');
-
-        config()->set('services.github.client_id', 'reloaded-client-id');
-
-        (new SocialiteServiceProvider($this->app))->reloadConfiguration();
-
-        $reloadedGithub = $manager->driver('github')->stateless();
-        $this->assertSame($manager, $this->app->make(SocialiteManager::class));
-        $this->assertNotSame($originalGithub, $reloadedGithub);
-        $this->assertNotSame($originalCustom, $manager->driver('custom'));
-        $this->assertStringContainsString('client_id=reloaded-client-id', $reloadedGithub->redirect()->getTargetUrl());
-    }
-
-    public function testProviderReloadDoesNotResolveAnUnusedManager(): void
-    {
-        $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('resolved')->once()->with(SocialiteManager::class)->andReturnFalse();
-        $app->shouldNotReceive('make');
-
-        (new SocialiteServiceProvider($app))->reloadConfiguration();
     }
 
     public function testGitlabDriverUsesConfiguredHost(): void

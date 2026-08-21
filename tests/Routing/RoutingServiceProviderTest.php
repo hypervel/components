@@ -5,11 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Routing;
 
 use Hypervel\Http\Request;
-use Hypervel\Routing\RoutingServiceProvider;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Testbench\TestCase;
 use InvalidArgumentException;
-use ReflectionClass;
 
 class RoutingServiceProviderTest extends TestCase
 {
@@ -54,47 +52,5 @@ class RoutingServiceProviderTest extends TestCase
         $this->app->instance('request', $replacement);
 
         $this->assertSame($original, $url->getRequest());
-    }
-
-    public function testReloadConfigurationUpdatesRetainedUrlGeneratorInBothHttpsDirections(): void
-    {
-        $url = $this->app->make('url');
-        $provider = $this->app->getProvider(RoutingServiceProvider::class);
-        $reflection = new ReflectionClass($url);
-        $routes = $reflection->getProperty('routes')->getValue($url);
-
-        config([
-            'app.url' => 'http://refreshed.example',
-            'app.asset_url' => 'https://assets.example',
-            'app.force_https' => true,
-        ]);
-
-        $provider->reloadConfiguration();
-
-        $this->assertSame($url, $this->app->make('url'));
-        $this->assertSame($routes, $reflection->getProperty('routes')->getValue($url));
-        $this->assertSame(
-            'http://refreshed.example',
-            $reflection->getProperty('request')->getValue($url)->root(),
-        );
-        $this->assertSame('https://assets.example/image.png', $url->asset('image.png'));
-        $this->assertSame('https://refreshed.example/path', $url->to('path'));
-
-        config([
-            'app.url' => 'http://second.example',
-            'app.asset_url' => null,
-            'app.force_https' => false,
-        ]);
-
-        $provider->reloadConfiguration();
-
-        $this->assertSame('http://second.example/image.png', $url->asset('image.png'));
-        $this->assertSame('http://second.example/path', $url->to('path'));
-
-        config(['app.url' => null]);
-
-        $provider->reloadConfiguration();
-
-        $this->assertSame('http://localhost/path', $url->to('path'));
     }
 }

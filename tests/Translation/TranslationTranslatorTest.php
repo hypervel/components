@@ -18,6 +18,7 @@ use Hypervel\Translation\MessageSelector;
 use Hypervel\Translation\Translator;
 use InvalidArgumentException;
 use Mockery as m;
+use RuntimeException;
 use stdClass;
 use TypeError;
 
@@ -237,68 +238,62 @@ class TranslationTranslatorTest extends TestCase
         $this->assertSame('registered', $translator->get('messages.override'));
     }
 
-    public function testRegisteredLinesReplayInCallOrder(): void
+    public function testLinesAddedBeforeLoadingAreAppliedInCallOrder(): void
     {
         $translator = new Translator(new ArrayLoader, 'en');
 
         $translator->addLines(['messages.parent.child' => 'first'], 'en');
         $translator->addLines(['messages.parent' => 'replacement'], 'en');
         $translator->addLines(['messages.parent.child' => 'last'], 'en');
-        $translator->forgetLoadedGroups();
 
         $this->assertSame(['child' => 'last'], $translator->array('messages.parent'));
     }
 
-    public function testNamespacedRegisteredLinesSurviveLoadedGroupRefresh(): void
+    public function testPendingLinesRemainWhenLoadingFails(): void
     {
-        $loader = (new ArrayLoader)->addMessages('en', 'messages', [
-            'file' => 'before refresh',
-            'override' => 'before refresh',
-        ], 'package');
+        $exception = new RuntimeException('Unable to load translations.');
+        $attempts = 0;
+        $loader = m::mock(Loader::class);
+        $loader->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([]);
+        $loader->shouldReceive('load')->twice()->with('en', 'messages', '*')->andReturnUsing(
+            static function () use (&$attempts, $exception): array {
+                if (++$attempts === 1) {
+                    throw $exception;
+                }
+
+                return ['file' => 'from file'];
+            }
+        );
         $translator = new Translator($loader, 'en');
+        $translator->addLines(['messages.added' => 'registered'], 'en');
 
-        $translator->addLines([
-            'messages.registered' => 'registered',
-            'messages.override' => 'registered',
-        ], 'en', 'package');
+        $thrown = null;
 
-        $this->assertSame('before refresh', $translator->get('package::messages.file'));
+        try {
+            $translator->get('messages.added');
+            $this->fail('Expected the loader exception to be thrown.');
+        } catch (RuntimeException $thrownException) {
+            $thrown = $thrownException;
+        }
 
-        $loader->addMessages('en', 'messages', [
-            'file' => 'after refresh',
-            'override' => 'after refresh',
-        ], 'package');
-        $translator->forgetLoadedGroups();
-
-        $this->assertSame('after refresh', $translator->get('package::messages.file'));
-        $this->assertSame('registered', $translator->get('package::messages.registered'));
-        $this->assertSame('registered', $translator->get('package::messages.override'));
+        $this->assertSame($exception, $thrown);
+        $this->assertSame('from file', $translator->get('messages.file'));
+        $this->assertSame('registered', $translator->get('messages.added'));
     }
 
-    public function testJsonRegisteredLinesSurviveLoadedGroupRefresh(): void
+    public function testSetLoadedClearsPendingLines(): void
     {
-        $loader = (new ArrayLoader)->addMessages('en', '*', [
-            'Message' => 'before refresh',
-            'Override' => 'before refresh',
+        $translator = new Translator(new ArrayLoader, 'en');
+        $translator->addLines(['messages.added' => 'registered'], 'en');
+        $translator->setLoaded([
+            '*' => [
+                'other' => [
+                    'en' => [],
+                ],
+            ],
         ]);
-        $translator = new Translator($loader, 'en');
 
-        $translator->addLines([
-            '*.Registered' => 'registered',
-            '*.Override' => 'registered',
-        ], 'en');
-
-        $this->assertSame('before refresh', $translator->get('Message'));
-
-        $loader->addMessages('en', '*', [
-            'Message' => 'after refresh',
-            'Override' => 'after refresh',
-        ]);
-        $translator->forgetLoadedGroups();
-
-        $this->assertSame('after refresh', $translator->get('Message'));
-        $this->assertSame('registered', $translator->get('Registered'));
-        $this->assertSame('registered', $translator->get('Override'));
+        $this->assertSame('messages.added', $translator->get('messages.added'));
     }
 
     public function testChoiceMethodProperlyLoadsAndRetrievesItemForAnInt(): void

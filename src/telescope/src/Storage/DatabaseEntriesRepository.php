@@ -49,30 +49,11 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
      */
     public function __construct(string $connection, ?int $chunkSize = null)
     {
-        $this->setConnection($connection);
-        $this->setChunkSize($chunkSize);
-    }
-
-    /**
-     * Set the database connection name.
-     *
-     * Boot-only. Request-time use changes shared worker configuration while
-     * concurrent coroutines may still be using the previous connection.
-     */
-    public function setConnection(string $connection): void
-    {
         $this->connection = $connection;
-    }
 
-    /**
-     * Set the database insertion chunk size.
-     *
-     * Boot-only. Request-time use changes shared worker configuration while
-     * concurrent coroutines may still be using the previous chunk size.
-     */
-    public function setChunkSize(?int $chunkSize): void
-    {
-        $this->chunkSize = $chunkSize ?: self::DEFAULT_CHUNK_SIZE;
+        if ($chunkSize) {
+            $this->chunkSize = $chunkSize;
+        }
     }
 
     /**

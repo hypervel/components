@@ -82,10 +82,9 @@ class WorkerStartCallbackTest extends TestCase
         $dispatcher->shouldReceive('dispatch')
             ->once()
             ->with(m::type(BeforeWorkerStart::class))
-            ->andReturnUsing(function () use ($config, $logger): void {
+            ->andReturnUsing(function () use ($config): void {
                 $config->set('app.stdout_log.level', [LogLevel::INFO]);
                 $config->set('app.stdout_log.format', 'json');
-                $logger->reloadConfiguration();
             });
         $dispatcher->shouldReceive('dispatch')->once()->with(m::type(MainWorkerStart::class));
         $dispatcher->shouldReceive('dispatch')->once()->with(m::type(AfterWorkerStart::class));

@@ -25,7 +25,6 @@ use function Hypervel\Support\enum_value;
  * @method static \Hypervel\Filesystem\FilesystemManager extend(string $driver, \Closure $callback, bool $poolable = false)
  * @method static void flushState()
  * @method static \Hypervel\Filesystem\FilesystemManager forgetDisk(array|string $disk)
- * @method static \Hypervel\Filesystem\FilesystemManager forgetDisks()
  * @method static string getDefaultDriver()
  * @method static array getPoolables()
  * @method static \Closure|null getReleaseCallback(string $driver)

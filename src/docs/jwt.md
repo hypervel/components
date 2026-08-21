@@ -86,7 +86,7 @@ php artisan jwt:generate-certs
 The command writes the generated certificates to `storage/certs` by default and updates `JWT_ALGO`, `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY`, and `JWT_PASSPHRASE` in your `.env` file.
 
 > [!WARNING]
-> Reload or restart every long-running application process before issuing tokens with the new certificate pair. You may reload server workers using the `php artisan server:reload` command. Other long-running processes, such as queue workers and custom server processes, must be restarted separately.
+> Restart the server and every other long-running application process, including queue workers and custom server processes, before issuing tokens with the new certificate pair. The `php artisan server:reload` command only replaces server workers and is not sufficient.
 
 You may customize the algorithm and key options:
 

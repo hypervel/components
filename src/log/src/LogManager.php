@@ -623,19 +623,6 @@ class LogManager implements LoggerInterface
     }
 
     /**
-     * Forget all resolved log channels.
-     *
-     * Boot or tests only. Mutates the singleton's channel cache; concurrent
-     * coroutines may already hold channels that next resolution will replace.
-     */
-    public function forgetChannels(): static
-    {
-        $this->channels = [];
-
-        return $this;
-    }
-
-    /**
      * Parse the driver name.
      */
     protected function parseDriver(?string $driver): ?string

@@ -9,7 +9,6 @@ use Hypervel\Cache\CacheManager;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
-use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Foundation\Console\AboutCommand;
 use Hypervel\Permission\Commands\AssignRoleCommand;
 use Hypervel\Permission\Commands\CacheResetCommand;
@@ -30,7 +29,7 @@ use Hypervel\View\Compilers\BladeCompiler;
 
 use function Hypervel\Support\enum_value;
 
-class PermissionServiceProvider extends ServiceProvider implements ReloadsConfiguration
+class PermissionServiceProvider extends ServiceProvider
 {
     /**
      * Register any package services.
@@ -71,19 +70,6 @@ class PermissionServiceProvider extends ServiceProvider implements ReloadsConfig
 
         // Laravel Octane reset listeners are not ported. Hypervel stores transient team
         // state in CoroutineContext and keeps permission cache freshness in the cache layer.
-    }
-
-    /**
-     * Reload the worker configuration owned by the provider.
-     *
-     * Boot-only. Calling this while requests are running mutates shared worker
-     * state while concurrent coroutines may still use the previous configuration.
-     */
-    public function reloadConfiguration(): void
-    {
-        if ($this->app->resolved(PermissionRegistrar::class)) {
-            $this->app->make(PermissionRegistrar::class)->initializeCache();
-        }
     }
 
     /**

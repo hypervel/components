@@ -12,7 +12,6 @@ use Mockery;
  * @method static \Hypervel\Contracts\Cache\Repository driver(\UnitEnum|string|null $driver = null)
  * @method static \Hypervel\Cache\CacheManager extend(string $driver, \Closure $callback)
  * @method static \Hypervel\Cache\CacheManager forgetDriver(\UnitEnum|array|string|null $name = null)
- * @method static \Hypervel\Cache\CacheManager forgetDrivers()
  * @method static string getDefaultDriver()
  * @method static void handleUnserializableClassUsing(callable|null $callback)
  * @method static \Hypervel\Contracts\Cache\Repository memo(\UnitEnum|string|null $driver = null)

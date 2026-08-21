@@ -264,13 +264,9 @@ Logging outgoing broadcasts is configured separately. Set the optional `log` set
 <a name="restarting"></a>
 ### Restarting
 
-Since Reverb runs inside Hypervel's long-running Swoole server, changes to your code will not be reflected until the server is reloaded:
+Since Reverb runs inside Hypervel's long-running Swoole server, changes to your code will not be reflected until the full server process is restarted. Use your process monitor or deployment platform to restart the server.
 
-```shell
-php artisan server:reload
-```
-
-When workers exit during a reload, Reverb gracefully drains active WebSocket connections, disconnects its Redis scaling subscriber when scaling is enabled, and flushes pending webhook batches before the worker stops.
+When workers exit during a server restart, Reverb gracefully drains active WebSocket connections, disconnects its Redis scaling subscriber when scaling is enabled, and flushes pending webhook batches before the worker stops.
 
 <a name="monitoring"></a>
 ## Monitoring

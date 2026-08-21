@@ -44,15 +44,13 @@ class HtmlDumper extends BaseHtmlDumper
      * Boot-only. Registers a process-wide VarDumper handler for the worker
      * lifetime.
      */
-    public static function register(string $basePath, string $compiledViewPath): static
+    public static function register(string $basePath, string $compiledViewPath): void
     {
         $cloner = tap(new VarCloner)->addCasters(ReflectionCaster::UNSET_CLOSURE_FILE_INFO); // @phpstan-ignore method.notFound (tap proxy __call)
 
         $dumper = new static($basePath, $compiledViewPath);
 
         VarDumper::setHandler(fn ($value) => $dumper->dumpWithSource($cloner->cloneVar($value)));
-
-        return $dumper;
     }
 
     /**

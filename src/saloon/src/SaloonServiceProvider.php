@@ -7,7 +7,6 @@ namespace Hypervel\Saloon;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Http\Client\Factory as HttpFactory;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Saloon\Console\Commands\ListCommand;
@@ -20,7 +19,7 @@ use Hypervel\Saloon\Http\RequestOptionValidator;
 use Hypervel\Saloon\Http\Sender;
 use Hypervel\Support\ServiceProvider;
 
-class SaloonServiceProvider extends ServiceProvider implements ReloadsConfiguration
+class SaloonServiceProvider extends ServiceProvider
 {
     /**
      * Register the package services.
@@ -45,31 +44,6 @@ class SaloonServiceProvider extends ServiceProvider implements ReloadsConfigurat
      */
     public function boot(HttpFactory $httpFactory, ConfigRepository $config): void
     {
-        $this->registerHttpConnection($httpFactory, $config);
-        $this->registerConsoleResources();
-    }
-
-    /**
-     * Reload configuration-derived worker state.
-     *
-     * Boot-only. Request-time use replaces the shared connection preset and
-     * discards its transport handler, so subsequent requests rebuild warmed
-     * keep-alive, DNS, and TLS session state.
-     */
-    public function reloadConfiguration(): void
-    {
-        // boot() method-injects the factory, so it is already resolved here.
-        $this->registerHttpConnection(
-            $this->app->make(HttpFactory::class),
-            $this->app->make(ConfigRepository::class),
-        );
-    }
-
-    /**
-     * Register the configured HTTP connection.
-     */
-    protected function registerHttpConnection(HttpFactory $httpFactory, ConfigRepository $config): void
-    {
         $connection = $config->string('saloon.connection.name');
         $options = $config->array('saloon.connection.options');
 
@@ -79,6 +53,8 @@ class SaloonServiceProvider extends ServiceProvider implements ReloadsConfigurat
             $connection,
             $options,
         );
+
+        $this->registerConsoleResources();
     }
 
     /**

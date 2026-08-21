@@ -4,18 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
+use Hypervel\Config\Repository;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Foundation\Application;
 use Hypervel\Queue\BackgroundQueue;
 use Hypervel\Queue\DeferredQueue;
 use Hypervel\Queue\Failed\DatabaseFailedJobProvider;
 use Hypervel\Queue\Failed\DatabaseUuidFailedJobProvider;
 use Hypervel\Queue\Failed\FileFailedJobProvider;
 use Hypervel\Queue\Failed\NullFailedJobProvider;
-use Hypervel\Queue\NullQueue;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\QueueServiceProvider;
-use Hypervel\Queue\SyncQueue;
-use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -25,43 +25,25 @@ use RuntimeException;
 
 class QueueServiceProviderTest extends TestCase
 {
-    public function testReloadConfigurationRebuildsConnectionsWithExceptionReporting(): void
+    public function testBackgroundAndDeferredConnectionsAreLazyAndReportExceptions(): void
     {
         $handler = m::mock(ExceptionHandler::class);
         $handler->shouldReceive('report')->twice()->with(m::type(RuntimeException::class));
         $this->app->instance(ExceptionHandler::class, $handler);
-        config([
-            'queue.default' => 'sync',
-            'queue.failed.driver' => 'null',
-        ]);
+
         $manager = $this->app->make('queue');
+
+        $this->assertSame($manager, $this->app->make(QueueManager::class));
         $this->assertFalse($manager->connected('background'));
         $this->assertFalse($manager->connected('deferred'));
-        $connection = $this->app->make('queue.connection');
-        $failedJobs = $this->app->make('queue.failer');
+
         $background = $manager->connection('background');
         $deferred = $manager->connection('deferred');
-        $this->assertInstanceOf(SyncQueue::class, $connection);
-        $this->assertInstanceOf(NullFailedJobProvider::class, $failedJobs);
-
-        config([
-            'queue.default' => 'null',
-            'queue.failed.driver' => 'file',
-        ]);
-        $this->app->getProvider(QueueServiceProvider::class)->reloadConfiguration();
-
-        $refreshedBackground = $manager->connection('background');
-        $refreshedDeferred = $manager->connection('deferred');
-        $this->assertSame($manager, $this->app->make(QueueManager::class));
-        $this->assertNotSame($background, $refreshedBackground);
-        $this->assertNotSame($deferred, $refreshedDeferred);
-        $this->assertInstanceOf(NullQueue::class, $this->app->make('queue.connection'));
-        $this->assertInstanceOf(FileFailedJobProvider::class, $this->app->make('queue.failer'));
 
         $backgroundCallback = (new ReflectionProperty(BackgroundQueue::class, 'exceptionCallback'))
-            ->getValue($refreshedBackground);
+            ->getValue($background);
         $deferredCallback = (new ReflectionProperty(DeferredQueue::class, 'exceptionCallback'))
-            ->getValue($refreshedDeferred);
+            ->getValue($deferred);
 
         $this->assertIsCallable($backgroundCallback);
         $this->assertIsCallable($deferredCallback);
@@ -69,18 +51,35 @@ class QueueServiceProviderTest extends TestCase
         $deferredCallback(new RuntimeException('Deferred failed.'));
     }
 
-    public function testReloadConfigurationPreservesQueueFakeAndRefreshesItsWrappedManager(): void
+    public function testBackgroundAndDeferredConnectionsAllowNoExceptionReporter(): void
     {
-        $manager = $this->app->make('queue');
-        $background = $manager->connection('background');
-        $fake = Queue::fake(['queued-job']);
-        $fake->push('queued-job');
+        $originalContainer = Container::getInstance();
 
-        $this->app->getProvider(QueueServiceProvider::class)->reloadConfiguration();
+        try {
+            $application = new Application;
+            $application->instance('config', new Repository([
+                'queue' => [
+                    'connections' => [
+                        'background' => ['driver' => 'background'],
+                        'deferred' => ['driver' => 'deferred'],
+                    ],
+                ],
+            ]));
+            (new QueueServiceProvider($application))->register();
 
-        $this->assertSame($fake, Queue::getFacadeRoot());
-        $this->assertSame(['queued-job'], $fake->pushed('queued-job')->all());
-        $this->assertNotSame($background, $manager->connection('background'));
+            $manager = $application->make('queue');
+
+            $this->assertNull(
+                (new ReflectionProperty(BackgroundQueue::class, 'exceptionCallback'))
+                    ->getValue($manager->connection('background')),
+            );
+            $this->assertNull(
+                (new ReflectionProperty(DeferredQueue::class, 'exceptionCallback'))
+                    ->getValue($manager->connection('deferred')),
+            );
+        } finally {
+            Container::setInstance($originalContainer);
+        }
     }
 
     #[DataProvider('failedJobProviders')]

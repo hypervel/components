@@ -7,11 +7,10 @@ namespace Hypervel\Bus;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Bus\QueueingDispatcher as QueueingDispatcherContract;
-use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
 use Hypervel\Support\ServiceProvider;
 
-class BusServiceProvider extends ServiceProvider implements ReloadsConfiguration
+class BusServiceProvider extends ServiceProvider
 {
     /**
      * Register the service provider.
@@ -35,18 +34,6 @@ class BusServiceProvider extends ServiceProvider implements ReloadsConfiguration
             DispatcherContract::class,
             QueueingDispatcherContract::class,
         );
-    }
-
-    /**
-     * Reload configuration-derived worker state.
-     *
-     * Boot-only. Request-time use replaces shared batch repositories while
-     * concurrent coroutines may still hold the previous instances.
-     */
-    public function reloadConfiguration(): void
-    {
-        $this->app->forgetInstance(BatchRepository::class);
-        $this->app->forgetInstance(DatabaseBatchRepository::class);
     }
 
     /**

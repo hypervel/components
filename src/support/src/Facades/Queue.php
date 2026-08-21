@@ -18,7 +18,6 @@ use Hypervel\Support\Testing\Fakes\QueueFake;
  * @method static void exceptionOccurred(mixed $callback)
  * @method static void extend(string $driver, \Closure $resolver)
  * @method static void failing(mixed $callback)
- * @method static \Hypervel\Queue\QueueManager forgetConnections()
  * @method static \Hypervel\Contracts\Container\Container getApplication()
  * @method static string getDefaultDriver()
  * @method static string getName(string|null $connection = null)

@@ -63,42 +63,6 @@ class RateLimiterTest extends TestCase
         $this->assertNotSame($resolved, $manager->store('worker-array'));
     }
 
-    public function testForgettingResolvedStoresPreservesRegisteredConfiguration(): void
-    {
-        config([
-            'rate-limiter.stores.custom' => [
-                'driver' => 'custom',
-            ],
-        ]);
-
-        $manager = $this->app->make(RateLimiter::class);
-        $callback = static fn (): Limit => Limit::perMinute(1)->by('user');
-        $scopeCalls = [];
-        $created = 0;
-        $manager->extend('custom', static function () use (&$created): WorkerArrayStore {
-            ++$created;
-
-            return new WorkerArrayStore;
-        });
-        $manager->for('api', $callback, 'custom');
-        $manager->resolveKeyScopeUsing(static function (string $name) use (&$scopeCalls): string {
-            $scopeCalls[] = $name;
-
-            return 'tenant:7';
-        });
-        $store = $manager->store('custom');
-
-        $manager->forgetInstances();
-
-        $refreshedStore = $manager->store('custom');
-        $this->assertNotSame($store, $refreshedStore);
-        $this->assertSame(2, $created);
-        $this->assertSame($callback, $manager->limiter('api'));
-        $this->assertSame('custom', $manager->limiterStore('api'));
-        $this->assertTrue($refreshedStore->consume($callback(), 'api')->allowed());
-        $this->assertSame(['api'], $scopeCalls);
-    }
-
     public function testNamedLimiterStoresAreRegisteredAndNormalized(): void
     {
         $manager = $this->app->make(RateLimiter::class);

@@ -6,10 +6,9 @@ namespace Hypervel\Broadcasting;
 
 use Hypervel\Contracts\Broadcasting\Broadcaster as BroadcasterContract;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
-use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Support\ServiceProvider;
 
-class BroadcastServiceProvider extends ServiceProvider implements ReloadsConfiguration
+class BroadcastServiceProvider extends ServiceProvider
 {
     /**
      * Register the service provider.
@@ -24,20 +23,5 @@ class BroadcastServiceProvider extends ServiceProvider implements ReloadsConfigu
             BroadcastManager::class,
             BroadcastingFactory::class
         );
-    }
-
-    /**
-     * Reload configuration-derived worker state.
-     *
-     * Boot-only. Request-time use clears shared broadcast connections while
-     * concurrent coroutines may still be using them.
-     */
-    public function reloadConfiguration(): void
-    {
-        if ($this->app->resolved(BroadcastManager::class)) {
-            $this->app->make(BroadcastManager::class)->forgetDrivers();
-        }
-
-        $this->app->forgetInstance(BroadcasterContract::class);
     }
 }

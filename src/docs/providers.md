@@ -6,7 +6,6 @@
     - [Merging Configuration](#merging-configuration)
     - [The Boot Method](#the-boot-method)
     - [Service Providers and Long-Running Workers](#service-providers-and-long-running-workers)
-    - [Reloading Worker Configuration](#reloading-worker-configuration)
     - [Conditionally Loading Providers](#conditionally-loading-providers)
     - [Advanced Provider APIs](#advanced-provider-apis)
 - [Registering Providers](#registering-providers)
@@ -204,43 +203,6 @@ public function boot(ResponseFactory $response): void
 Hypervel applications run in long-lived Swoole worker processes. The server application registers and boots its service providers before these workers are forked, so provider properties and singleton state are inherited and may be reused by every request handled by a worker.
 
 For this reason, you should not store request-specific state, such as the current user, tenant, request, or response, on a service provider property or singleton service. Store request-specific state in the request, [context](/docs/{{version}}/context), or the lower-level [coroutine context](/docs/{{version}}/coroutine-context).
-
-<a name="reloading-worker-configuration"></a>
-### Reloading Worker Configuration
-
-When the server is reloaded, Hypervel reloads the environment and configuration before each replacement worker begins accepting work. Framework and package providers then refresh the long-lived services they own that were created from the previous configuration.
-
-If your application provider creates a long-lived service from configuration, it may implement the `ReloadsConfiguration` contract. For example, the following provider discards a resolved connection so the next resolution uses the current configuration:
-
-```php
-<?php
-
-namespace App\Providers;
-
-use App\Services\Riak\Connection;
-use Hypervel\Contracts\Foundation\ReloadsConfiguration;
-use Hypervel\Support\ServiceProvider;
-
-class RiakServiceProvider extends ServiceProvider implements ReloadsConfiguration
-{
-    /**
-     * Reload the worker configuration owned by the provider.
-     *
-     * Boot-only. Calling this while requests are running mutates shared worker
-     * state while concurrent coroutines may still use the previous configuration.
-     */
-    public function reloadConfiguration(): void
-    {
-        $this->app->forgetInstance(Connection::class);
-    }
-}
-```
-
-If another shared service keeps a reference to the object, update the existing object instead of forgetting it.
-
-Application provider hooks run after framework and discovered package provider hooks. The `register` and `boot` methods still run only during the server application's initial bootstrap. Worker startup events run after configuration has been refreshed and should be used for work that must happen in every new worker.
-
-For more information about reloading workers and changes that require a full restart, see the [deployment documentation](/docs/{{version}}/deployment#reloading-services).
 
 <a name="conditionally-loading-providers"></a>
 ### Conditionally Loading Providers

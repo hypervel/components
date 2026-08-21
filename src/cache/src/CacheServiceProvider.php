@@ -13,12 +13,11 @@ use Hypervel\Cache\Listeners\CreateSwooleTable;
 use Hypervel\Cache\Listeners\RegisterSwooleMaintenanceTimers;
 use Hypervel\Cache\Redis\Console\BenchmarkCommand;
 use Hypervel\Cache\Redis\Console\DoctorCommand;
-use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Core\Events\BeforeServerStart;
 use Hypervel\Support\ServiceProvider;
 
-class CacheServiceProvider extends ServiceProvider implements ReloadsConfiguration
+class CacheServiceProvider extends ServiceProvider
 {
     /**
      * Register the service provider.
@@ -38,21 +37,6 @@ class CacheServiceProvider extends ServiceProvider implements ReloadsConfigurati
             PruneDbExpiredCommand::class,
             PruneStaleTagsCommand::class,
         ]);
-    }
-
-    /**
-     * Reload configuration-derived worker state.
-     *
-     * Boot-only. Request-time use clears shared cache stores while concurrent
-     * coroutines may still be using them.
-     */
-    public function reloadConfiguration(): void
-    {
-        if ($this->app->resolved('cache')) {
-            $this->app->make('cache')->forgetDrivers();
-        }
-
-        $this->app->forgetInstance('cache.store');
     }
 
     /**
@@ -80,7 +64,7 @@ class CacheServiceProvider extends ServiceProvider implements ReloadsConfigurati
             return;
         }
 
-        // Worker configuration is reloaded during BeforeWorkerStart.
+        // Finalize after BeforeWorkerStart rebuilds the worker configuration.
         $events->listen(AfterWorkerStart::class, function (AfterWorkerStart $event): void {
             $this->app->make(CacheManager::class)->finalizeSerializableClasses();
         });
