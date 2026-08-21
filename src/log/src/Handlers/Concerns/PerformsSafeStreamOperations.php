@@ -42,101 +42,120 @@ trait PerformsSafeStreamOperations
     /**
      * Write a record while preserving Monolog's single reopen retry.
      */
-    protected function writeStreamSafely(LogRecord $record, bool $retrying = false): void
+    protected function writeStreamSafely(LogRecord $record): void
     {
-        if (! $retrying && $this->hasStreamInodeChanged()) {
-            $this->closeStreamSafely();
-            $this->writeStreamSafely($record, true);
+        $contents = (string) $record->formatted;
+        $length = strlen($contents);
+        $retried = false;
 
-            return;
-        }
-
-        if (! is_resource($this->stream)) {
-            $url = $this->url;
-
-            if ($url === null || $url === '') {
-                throw new LogicException(
-                    'Missing stream url, the stream can not be opened. This may be caused by a premature call to close().'
-                    . Utils::getRecordMessageForException($record)
-                );
+        while (true) {
+            // Closing clears the saved inode, so reopening establishes one new baseline.
+            if ($this->hasStreamInodeChanged()) {
+                $this->closeStreamSafely();
             }
 
-            $this->createStreamDirectory($url);
-            try {
-                $stream = fopen($url, $this->fileOpenMode);
-            } catch (Throwable) {
-                $stream = false;
-            }
+            if (! is_resource($this->stream)) {
+                $url = $this->url;
 
-            if (! is_resource($stream)) {
-                $this->stream = null;
+                if ($url === null || $url === '') {
+                    throw new LogicException(
+                        'Missing stream url, the stream can not be opened. This may be caused by a premature call to close().'
+                        . Utils::getRecordMessageForException($record)
+                    );
+                }
 
-                throw new UnexpectedValueException(
-                    sprintf(
-                        'The stream or file "%s" could not be opened using mode "%s".',
-                        $url,
-                        $this->fileOpenMode
-                    ) . Utils::getRecordMessageForException($record)
-                );
-            }
-
-            if ($this->filePermission !== null) {
+                $this->createStreamDirectory($url);
                 try {
-                    chmod($url, $this->filePermission);
+                    $stream = fopen($url, $this->fileOpenMode);
                 } catch (Throwable) {
-                    // File permissions are best-effort, matching Monolog.
+                    $stream = false;
+                }
+
+                if (! is_resource($stream)) {
+                    $this->stream = null;
+
+                    throw new UnexpectedValueException(
+                        sprintf(
+                            'The stream or file "%s" could not be opened using mode "%s".',
+                            $url,
+                            $this->fileOpenMode
+                        ) . Utils::getRecordMessageForException($record)
+                    );
+                }
+
+                if ($this->filePermission !== null) {
+                    try {
+                        chmod($url, $this->filePermission);
+                    } catch (Throwable) {
+                        // File permissions are best-effort, matching Monolog.
+                    }
+                }
+
+                stream_set_chunk_size($stream, $this->streamChunkSize);
+                $this->stream = $stream;
+                $this->safeInodeUrl = $this->getStreamInode();
+            }
+
+            $stream = $this->stream;
+            $locked = false;
+
+            if ($this->useLocking) {
+                try {
+                    $locked = flock($stream, LOCK_EX);
+                } catch (Throwable) {
+                    // Locking is best-effort, matching Monolog.
                 }
             }
 
-            stream_set_chunk_size($stream, $this->streamChunkSize);
-            $this->stream = $stream;
-            $this->safeInodeUrl = $this->getStreamInode();
-        }
+            $offset = 0;
 
-        $stream = $this->stream;
-        $locked = false;
-
-        if ($this->useLocking) {
             try {
-                $locked = flock($stream, LOCK_EX);
-            } catch (Throwable) {
-                // Locking is best-effort, matching Monolog.
-            }
-        }
+                while ($offset < $length) {
+                    try {
+                        $written = fwrite(
+                            $stream,
+                            $offset === 0 ? $contents : substr($contents, $offset),
+                        );
+                    } catch (Throwable) {
+                        $written = false;
+                    }
 
-        try {
-            try {
-                $written = fwrite($stream, (string) $record->formatted);
-            } catch (Throwable) {
-                $written = false;
-            }
-        } finally {
-            if ($locked) {
-                try {
-                    flock($stream, LOCK_UN);
-                } catch (Throwable) {
-                    // Unlocking is best-effort, matching Monolog.
+                    if ($written === false || $written === 0) {
+                        break;
+                    }
+
+                    $offset += $written;
+                }
+            } finally {
+                if ($locked) {
+                    try {
+                        flock($stream, LOCK_UN);
+                    } catch (Throwable) {
+                        // Unlocking is best-effort, matching Monolog.
+                    }
                 }
             }
+
+            if ($offset === $length) {
+                return;
+            }
+
+            // Replaying a positive prefix would duplicate part of the log record.
+            if ($offset === 0 && ! $retried && $this->url !== null && $this->url !== 'php://memory') {
+                $retried = true;
+                $this->closeStreamSafely();
+
+                continue;
+            }
+
+            throw new UnexpectedValueException(
+                sprintf(
+                    'Writing to the log %s failed%s.',
+                    $this->url === null ? 'stream' : sprintf('file "%s"', $this->url),
+                    $offset === 0 ? '' : sprintf(' after %d of %d bytes', $offset, $length),
+                ) . Utils::getRecordMessageForException($record)
+            );
         }
-
-        if ($written !== false) {
-            return;
-        }
-
-        if (! $retrying && $this->url !== null && $this->url !== 'php://memory') {
-            $this->closeStreamSafely();
-            $this->writeStreamSafely($record, true);
-
-            return;
-        }
-
-        throw new UnexpectedValueException(
-            sprintf(
-                'Writing to the log %s failed.',
-                $this->url === null ? 'stream' : sprintf('file "%s"', $this->url)
-            ) . Utils::getRecordMessageForException($record)
-        );
     }
 
     private function createStreamDirectory(string $url): void
