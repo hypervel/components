@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis\Console;
 
-use Exception;
 use Hypervel\Cache\Redis\Console\Concerns\DetectsRedisStore;
 use Hypervel\Cache\Redis\Console\Doctor\CheckResult;
 use Hypervel\Cache\Redis\Console\Doctor\Checks\AddOperationsCheck;
@@ -33,12 +32,14 @@ use Hypervel\Cache\Redis\Console\Doctor\Checks\TaggedOperationsCheck;
 use Hypervel\Cache\Redis\Console\Doctor\Checks\TaggedRememberCheck;
 use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Cache\Repository;
 use Hypervel\Console\Command;
 use Hypervel\Console\Prohibitable;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Redis\RedisConnection;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
+use Throwable;
 
 #[AsCommand(name: 'cache:redis-doctor')]
 class DoctorCommand extends Command
@@ -62,6 +63,9 @@ class DoctorCommand extends Command
 
     /** @var list<string> */
     private array $failures = [];
+
+    /** @var list<string> */
+    private array $cleanupFailures = [];
 
     /**
      * Unique prefix to prevent collision with production data.
@@ -93,7 +97,7 @@ class DoctorCommand extends Command
         }
 
         // Validate that the store is using redis driver
-        /** @var \Hypervel\Cache\Repository $repository */
+        /** @var Repository $repository */
         $repository = $this->hypervel->make(CacheContract::class)->store($storeName);
         $store = $repository->getStore();
 
@@ -110,7 +114,7 @@ class DoctorCommand extends Command
         $this->info('Checking System Requirements...');
         $this->newLine();
 
-        return $store->getContext()->withConnection(function (RedisConnection $redis) use ($repository, $store, $storeName, $tagMode) {
+        return $store->getContext()->withConnection(function (RedisConnection $redis) use ($repository, $store, $storeName, $tagMode): int {
             if (! $this->runEnvironmentChecks($storeName, $store, $tagMode, $redis)) {
                 return self::FAILURE;
             }
@@ -142,7 +146,9 @@ class DoctorCommand extends Command
 
             $this->displaySummary();
 
-            return $this->testsFailed === 0 ? self::SUCCESS : self::FAILURE;
+            return $this->testsFailed === 0 && $this->cleanupFailures === []
+                ? self::SUCCESS
+                : self::FAILURE;
         });
     }
 
@@ -335,8 +341,11 @@ class DoctorCommand extends Command
                     $this->line('  Tag Mode: <fg=cyan>' . $store->getTagMode()->value . '</>');
                 }
             }
-        } catch (Exception) {
-            $this->line('  Service: <fg=red>Connection failed</>');
+        } catch (Throwable $exception) {
+            $this->line(
+                '  Service: <fg=red>Connection failed ('
+                . $exception::class . '): ' . $exception->getMessage() . '</>'
+            );
         }
 
         $this->newLine(2);
@@ -347,6 +356,9 @@ class DoctorCommand extends Command
      */
     protected function cleanup(DoctorContext $context, bool $silent = false): void
     {
+        $phase = $silent ? 'Preflight cleanup' : 'Cleanup';
+        $cleanupFailureCount = count($this->cleanupFailures);
+
         if (! $silent) {
             $this->newLine();
             $this->info('Cleaning up test data...');
@@ -362,10 +374,12 @@ class DoctorCommand extends Command
         ];
 
         foreach ($testTags as $tag) {
+            $prefixedTag = $context->prefixed($tag);
+
             try {
-                $context->cache->tags([$context->prefixed($tag)])->flush();
-            } catch (Exception) {
-                // Ignore cleanup errors
+                $context->cache->tags([$prefixedTag])->flush();
+            } catch (Throwable $exception) {
+                $this->recordCleanupFailure("{$phase}: flush tag '{$prefixedTag}'", $exception);
             }
         }
 
@@ -373,19 +387,19 @@ class DoctorCommand extends Command
         foreach ($context->getCacheValuePatterns(self::TEST_PREFIX) as $pattern) {
             try {
                 $this->flushKeysByPattern($context->store, $pattern);
-            } catch (Exception) {
-                // Ignore cleanup errors
+            } catch (Throwable $exception) {
+                $this->recordCleanupFailure("{$phase}: flush cache keys matching '{$pattern}'", $exception);
             }
         }
 
         // Delete tag storage structures for dynamically-created test tags
-        // Uses patterns for BOTH modes to ensure complete cleanup regardless of current mode
+        // Uses patterns for both modes to ensure complete cleanup regardless of current mode
         // e.g., tagA-{random}, tagB-{random} from SharedTagFlushCheck
         foreach ($context->getTagStoragePatterns(self::TEST_PREFIX) as $pattern) {
             try {
                 $this->flushKeysByPattern($context->store, $pattern);
-            } catch (Exception) {
-                // Ignore cleanup errors
+            } catch (Throwable $exception) {
+                $this->recordCleanupFailure("{$phase}: flush tag storage matching '{$pattern}'", $exception);
             }
         }
 
@@ -397,7 +411,7 @@ class DoctorCommand extends Command
                 $members = $context->redis->zRange($registryKey, 0, -1);
                 $testMembers = array_filter(
                     $members,
-                    fn ($m) => str_starts_with($m, self::TEST_PREFIX)
+                    fn (string $member): bool => str_starts_with($member, self::TEST_PREFIX)
                 );
                 if (! empty($testMembers)) {
                     $context->redis->zrem($registryKey, ...$testMembers);
@@ -406,14 +420,25 @@ class DoctorCommand extends Command
                 if ($context->redis->zCard($registryKey) === 0) {
                     $context->redis->del($registryKey);
                 }
-            } catch (Exception) {
-                // Ignore cleanup errors
+            } catch (Throwable $exception) {
+                $this->recordCleanupFailure("{$phase}: clean tag registry", $exception);
             }
         }
 
-        if (! $silent) {
+        if (! $silent && count($this->cleanupFailures) === $cleanupFailureCount) {
             $this->info('Cleanup complete.');
         }
+    }
+
+    /**
+     * Record and report a cleanup failure.
+     */
+    private function recordCleanupFailure(string $operation, Throwable $exception): void
+    {
+        $failure = $operation . ' failed (' . $exception::class . '): ' . $exception->getMessage();
+
+        $this->cleanupFailures[] = $failure;
+        $this->error($failure);
     }
 
     /**
@@ -445,6 +470,15 @@ class DoctorCommand extends Command
             }
         }
 
+        if ($this->cleanupFailures !== []) {
+            $this->newLine();
+            $this->error('Cleanup failures:');
+
+            foreach ($this->cleanupFailures as $failure) {
+                $this->error("  - {$failure}");
+            }
+        }
+
         $this->info('═══════════════════════════════════════════════════════════════');
     }
 
@@ -464,7 +498,7 @@ class DoctorCommand extends Command
     private function flushKeysByPattern(RedisStore $store, string $pattern): void
     {
         $store->getContext()->withConnection(
-            fn (RedisConnection $connection) => $connection->flushByPattern($pattern)
+            fn (RedisConnection $connection): int => $connection->flushByPattern($pattern)
         );
     }
 }
