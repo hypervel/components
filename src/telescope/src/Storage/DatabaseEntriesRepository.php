@@ -69,13 +69,13 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
             ->all();
 
         return new EntryResult(
-            $entry->uuid, // @phpstan-ignore-line
+            $entry->uuid,
             null,
-            $entry->batch_id, // @phpstan-ignore-line
-            $entry->type, // @phpstan-ignore-line
-            $entry->family_hash, // @phpstan-ignore-line
-            $entry->content, // @phpstan-ignore-line
-            $entry->created_at, // @phpstan-ignore-line
+            $entry->batch_id,
+            $entry->type,
+            $entry->family_hash,
+            $entry->content,
+            $entry->created_at,
             $tags
         );
     }
@@ -106,9 +106,9 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
     }
 
     /**
-     * Counts the occurences of an exception.
+     * Count the occurrences of an exception.
      */
-    protected function countExceptionOccurences(IncomingEntry $exception): int
+    protected function countExceptionOccurrences(IncomingEntry $exception): int
     {
         return $this->table('telescope_entries')
             ->where('type', EntryType::EXCEPTION)
@@ -187,7 +187,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
 
             $families
                 ->each(function ($family, $familyHash) use (&$occurrences, &$lastUuids): void {
-                    $occurrences[$familyHash] = $this->countExceptionOccurences($family->first());
+                    $occurrences[$familyHash] = $this->countExceptionOccurrences($family->first());
                     $lastUuids[$familyHash] = $family->last()->uuid;
                 });
 
@@ -255,7 +255,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
     {
         try {
             $this->table('telescope_entries_tags')->insert($tags);
-        } catch (UniqueConstraintViolationException $e) {
+        } catch (UniqueConstraintViolationException) {
             // Ignore tags that already exist...
         }
     }
@@ -309,7 +309,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
                         ];
                     })->toArray()
                 );
-            } catch (UniqueConstraintViolationException $e) {
+            } catch (UniqueConstraintViolationException) {
                 // Ignore tags that already exist...
             }
         }
@@ -345,7 +345,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
     {
         try {
             $this->setMonitorTags($this->monitoring());
-        } catch (Throwable $e) {
+        } catch (Throwable) {
             $this->setMonitorTags([]);
         }
     }
