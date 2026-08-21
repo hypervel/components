@@ -96,7 +96,6 @@ class AsCollection implements Castable
             $map = $map[0] . '@' . $map[1];
         }
 
-        // @phpstan-ignore argument.type (implode handles null gracefully for serialization format)
         return static::class . ':' . implode(',', [$class, $map]);
     }
 }

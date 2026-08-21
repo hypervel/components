@@ -218,7 +218,6 @@ class ModelInspector
      */
     protected function getEvents(Model $model): BaseCollection
     {
-        // @phpstan-ignore return.type (values() resets keys to int, PHPStan doesn't track this)
         return (new BaseCollection($model->dispatchesEvents()))
             ->map(fn (string $class, string $event) => [
                 'event' => $event,
@@ -342,7 +341,6 @@ class ModelInspector
      */
     protected function getCastsWithDates(Model $model): BaseCollection
     {
-        // @phpstan-ignore return.type (flip() makes column names the keys, PHPStan doesn't track this)
         return (new BaseCollection($model->getDates()))
             ->filter()
             ->flip()
