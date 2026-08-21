@@ -63,6 +63,37 @@ class RedisQueueTest extends TestCase
         $this->assertSame(3, $this->redisConnection()->zcard("{$redisKey}:reserved"));
     }
 
+    public function testFractionalDelayedAndReservedJobsDoNotMigrateEarly(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+        $default = $this->defaultQueueName();
+        $this->setQueue($default, retryAfter: 1);
+        $job = new RedisQueueIntegrationTestJob(10);
+
+        $this->queue->later(1, $job);
+
+        $redisKey = $this->getQueueRedisKey($default);
+        $delayed = $this->redisConnection()->zrangebyscore("{$redisKey}:delayed", -INF, INF, ['withscores' => true]);
+        $this->assertSame(1002.0, (float) reset($delayed));
+
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1001.900000'));
+
+        $this->assertNull($this->queue->pop());
+
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1002.000000'));
+
+        $reservedJob = $this->queue->pop();
+        $this->assertInstanceOf(RedisJob::class, $reservedJob);
+
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1002.900000'));
+
+        $this->assertNull($this->queue->pop());
+
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1003.000000'));
+
+        $this->assertInstanceOf(RedisJob::class, $this->queue->pop());
+    }
+
     public function testPopProperlyPopsJobOffOfRedis(): void
     {
         $default = $this->defaultQueueName();
@@ -89,7 +120,7 @@ class RedisQueueTest extends TestCase
         $reservedJob = array_key_first($result);
         $score = (int) $result[$reservedJob];
         $this->assertLessThanOrEqual($score, $before + 60);
-        $this->assertGreaterThanOrEqual($score, $after + 60);
+        $this->assertGreaterThanOrEqual($score, $after + 61);
         $this->assertEquals($job, unserialize(json_decode($reservedJob)->data->command));
     }
 
@@ -192,7 +223,7 @@ class RedisQueueTest extends TestCase
         $reservedJob = array_key_first($result);
         $score = (int) $result[$reservedJob];
         $this->assertLessThanOrEqual($score, $before + 60);
-        $this->assertGreaterThanOrEqual($score, $after + 60);
+        $this->assertGreaterThanOrEqual($score, $after + 61);
         $this->assertEquals($job, unserialize(json_decode($reservedJob)->data->command));
     }
 
@@ -325,7 +356,7 @@ class RedisQueueTest extends TestCase
         $reservedJob = array_key_first($result);
         $score = (int) $result[$reservedJob];
         $this->assertLessThanOrEqual($score, $before + 30);
-        $this->assertGreaterThanOrEqual($score, $after + 30);
+        $this->assertGreaterThanOrEqual($score, $after + 31);
         $this->assertEquals($job, unserialize(json_decode($reservedJob)->data->command));
     }
 
@@ -352,7 +383,7 @@ class RedisQueueTest extends TestCase
         $score = (int) $results[$payload];
 
         $this->assertGreaterThanOrEqual($before + 1000, $score);
-        $this->assertLessThanOrEqual($after + 1000, $score);
+        $this->assertLessThanOrEqual($after + 1001, $score);
 
         $decoded = json_decode($payload);
 

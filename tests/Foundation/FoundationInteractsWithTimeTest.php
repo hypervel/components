@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
+use DateInterval;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithTime;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
+use Hypervel\Support\InteractsWithTime as SupportInteractsWithTime;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 
@@ -109,5 +111,60 @@ class FoundationInteractsWithTimeTest extends TestCase
         }
 
         $this->assertFalse(Carbon::hasTestNow());
+    }
+
+    public function testSupportRuntimeFormatterUsesMillisecondsBelowOneSecond(): void
+    {
+        $formatter = new SupportInteractsWithTimeTestFixture;
+
+        $this->assertSame('125.00ms', $formatter->runTimeForHumans(10.0, 10.125));
+    }
+
+    public function testSupportRuntimeFormatterCascadesLongerDurations(): void
+    {
+        $formatter = new SupportInteractsWithTimeTestFixture;
+
+        $this->assertSame('1m 5s', $formatter->runTimeForHumans(10.0, 75.0));
+    }
+
+    public function testFutureIntegerDeadlinesRoundUpWithoutDelayingImmediateOrPastValues(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+        $formatter = new SupportInteractsWithTimeTestFixture;
+
+        $this->assertSame(1002, $formatter->availableAt(1));
+        $this->assertSame(1000, $formatter->availableAt());
+        $this->assertSame(1000, $formatter->availableAt(0));
+        $this->assertSame(999, $formatter->availableAt(-1));
+    }
+
+    public function testFutureIntervalDeadlinesRoundUpWithoutDelayingZeroOrInvertedIntervals(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+        $formatter = new SupportInteractsWithTimeTestFixture;
+        $invertedInterval = new DateInterval('PT1S');
+        $invertedInterval->invert = 1;
+
+        $this->assertSame(1002, $formatter->availableAt(new DateInterval('PT1S')));
+        $this->assertSame(1000, $formatter->availableAt(new DateInterval('PT0S')));
+        $this->assertSame(999, $formatter->availableAt($invertedInterval));
+    }
+
+    public function testFutureAbsoluteDeadlinesRoundUpWhilePastAndWholeSecondValuesRemainExact(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+        $formatter = new SupportInteractsWithTimeTestFixture;
+
+        $this->assertSame(1002, $formatter->availableAt(CarbonImmutable::createFromTimestampUTC('1001.100000')));
+        $this->assertSame(999, $formatter->availableAt(CarbonImmutable::createFromTimestampUTC('999.900000')));
+        $this->assertSame(1002, $formatter->availableAt(CarbonImmutable::createFromTimestampUTC('1002.000000')));
+    }
+}
+
+class SupportInteractsWithTimeTestFixture
+{
+    use SupportInteractsWithTime {
+        availableAt as public;
+        runTimeForHumans as public;
     }
 }

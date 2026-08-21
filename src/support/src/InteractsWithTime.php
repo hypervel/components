@@ -30,9 +30,15 @@ trait InteractsWithTime
     {
         $delay = $this->parseDateInterval($delay);
 
-        return $delay instanceof DateTimeInterface
-            ? $delay->getTimestamp()
-            : Date::now()->addSeconds($delay)->getTimestamp();
+        $now = Date::now();
+
+        $target = $delay instanceof DateTimeInterface
+            ? Date::instance($delay)
+            : $now->addSeconds($delay);
+
+        return $target > $now
+            ? $target->ceilSecond()->getTimestamp()
+            : $target->getTimestamp();
     }
 
     /**
