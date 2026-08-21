@@ -762,7 +762,9 @@ if (! Mutex::unlock('reports', timeout: 1.0)) {
 }
 ```
 
-You may clear the mutex for a key using the `clear` method:
+The mutex does not track coroutine ownership. Each successful `lock` call must be matched by exactly one `unlock` call from the coroutine that acquired it.
+
+The `clear` method closes the current mutex channel and cancels any waiting acquisitions. Use it only to explicitly cancel and reset a key, not for normal release:
 
 ```php
 Mutex::clear('reports');
