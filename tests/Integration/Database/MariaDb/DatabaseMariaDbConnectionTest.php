@@ -26,7 +26,7 @@ class DatabaseMariaDbConnectionTest extends MariaDbTestCase
     protected function afterRefreshingDatabase(): void
     {
         if (! Schema::hasTable(self::TABLE)) {
-            Schema::create(self::TABLE, function (Blueprint $table) {
+            Schema::create(self::TABLE, function (Blueprint $table): void {
                 $table->json(self::JSON_COL)->nullable();
                 $table->float(self::FLOAT_COL)->nullable();
             });
@@ -39,7 +39,7 @@ class DatabaseMariaDbConnectionTest extends MariaDbTestCase
     }
 
     #[DataProvider('floatComparisonsDataProvider')]
-    public function testJsonFloatComparison($value, $operator, $shouldMatch)
+    public function testJsonFloatComparison(float $value, string $operator, bool $shouldMatch): void
     {
         DB::table(self::TABLE)->insert([self::JSON_COL => '{"rank":' . self::FLOAT_VAL . '}']);
 
@@ -50,7 +50,12 @@ class DatabaseMariaDbConnectionTest extends MariaDbTestCase
         );
     }
 
-    public static function floatComparisonsDataProvider()
+    /**
+     * Provide JSON float comparisons.
+     *
+     * @return list<array{0: float, 1: string, 2: bool}>
+     */
+    public static function floatComparisonsDataProvider(): array
     {
         return [
             [0.2, '=', true],
@@ -65,15 +70,15 @@ class DatabaseMariaDbConnectionTest extends MariaDbTestCase
         ];
     }
 
-    public function testFloatValueStoredCorrectly()
+    public function testFloatValueStoredCorrectly(): void
     {
         DB::table(self::TABLE)->insert([self::FLOAT_COL => self::FLOAT_VAL]);
 
-        $this->assertEquals(self::FLOAT_VAL, DB::table(self::TABLE)->value(self::FLOAT_COL));
+        $this->assertSame(self::FLOAT_VAL, DB::table(self::TABLE)->value(self::FLOAT_COL));
     }
 
     #[DataProvider('jsonWhereNullDataProvider')]
-    public function testJsonWhereNull($expected, $key, array $value = ['value' => 123])
+    public function testJsonWhereNull(bool $expected, string $key, array $value = ['value' => 123]): void
     {
         DB::table(self::TABLE)->insert([self::JSON_COL => json_encode($value)]);
 
@@ -81,14 +86,19 @@ class DatabaseMariaDbConnectionTest extends MariaDbTestCase
     }
 
     #[DataProvider('jsonWhereNullDataProvider')]
-    public function testJsonWhereNotNull($expected, $key, array $value = ['value' => 123])
+    public function testJsonWhereNotNull(bool $expected, string $key, array $value = ['value' => 123]): void
     {
         DB::table(self::TABLE)->insert([self::JSON_COL => json_encode($value)]);
 
         $this->assertSame(! $expected, DB::table(self::TABLE)->whereNotNull(self::JSON_COL . '->' . $key)->exists());
     }
 
-    public static function jsonWhereNullDataProvider()
+    /**
+     * Provide JSON null comparisons.
+     *
+     * @return array<string, array{0: bool, 1: string, 2?: array<array-key, mixed>}>
+     */
+    public static function jsonWhereNullDataProvider(): array
     {
         return [
             'key not exists' => [true, 'invalid'],
@@ -110,7 +120,7 @@ class DatabaseMariaDbConnectionTest extends MariaDbTestCase
         ];
     }
 
-    public function testJsonPathUpdate()
+    public function testJsonPathUpdate(): void
     {
         DB::table(self::TABLE)->insert([
             [self::JSON_COL => '{"foo":["bar"]}'],
@@ -123,7 +133,7 @@ class DatabaseMariaDbConnectionTest extends MariaDbTestCase
     }
 
     #[DataProvider('jsonContainsKeyDataProvider')]
-    public function testWhereJsonContainsKey($count, $column)
+    public function testWhereJsonContainsKey(int $count, string $column): void
     {
         DB::table(self::TABLE)->insert([
             ['json_col' => '{"foo":{"bar":["baz"]}}'],
@@ -136,7 +146,12 @@ class DatabaseMariaDbConnectionTest extends MariaDbTestCase
         $this->assertSame($count, DB::table(self::TABLE)->whereJsonContainsKey($column)->count());
     }
 
-    public static function jsonContainsKeyDataProvider()
+    /**
+     * Provide JSON paths and their expected match counts.
+     *
+     * @return array<string, array{0: int, 1: string}>
+     */
+    public static function jsonContainsKeyDataProvider(): array
     {
         return [
             'string key' => [4, 'json_col->foo'],
