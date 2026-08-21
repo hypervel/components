@@ -574,8 +574,6 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
      */
     public function setCollection(Collection $collection): static
     {
-        // The receiver's templates are rebound by @phpstan-this-out only after this assignment.
-        /* @phpstan-ignore assign.propertyType */
         $this->items = $collection;
 
         return $this;

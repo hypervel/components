@@ -91,7 +91,6 @@ abstract class HasOneOrManyThrough extends Relation
 
         $localValue = $this->farParent[$this->localKey];
 
-        // @phpstan-ignore argument.type (Builder<*> vs Builder<TRelatedModel>)
         $this->performJoin($query);
 
         if (static::shouldAddConstraints()) {
@@ -223,7 +222,6 @@ abstract class HasOneOrManyThrough extends Relation
         try {
             return $this->getQuery()->withSavepointIfNeeded(fn () => $this->create(array_merge($attributes, value($values))));
         } catch (UniqueConstraintViolationException $exception) {
-            // @phpstan-ignore return.type (generic type lost through where()->first() chain)
             return $this->useWritePdo()->where($attributes)->first() ?? throw $exception;
         }
     }
@@ -622,7 +620,6 @@ abstract class HasOneOrManyThrough extends Relation
             return $this->getRelationExistenceQueryForThroughSelfRelation($query, $parentQuery, $columns);
         }
 
-        // @phpstan-ignore argument.type (Builder<*> vs Builder<TRelatedModel>)
         $this->performJoin($query);
 
         // @phpstan-ignore return.type (fluent query methods return the Eloquent builder at runtime)

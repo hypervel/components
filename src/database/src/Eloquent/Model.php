@@ -1928,7 +1928,6 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         $builderClass = static::$resolvedBuilderClasses[static::class]
             ??= $this->resolveCustomBuilderClass();
 
-        // @phpstan-ignore function.alreadyNarrowedType (defensive: validates custom builder class at runtime)
         if ($builderClass && is_subclass_of($builderClass, Builder::class)) {
             return new $builderClass($query);
         }
@@ -2075,7 +2074,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         return $this->setKeysForSelectQuery($this->newQueryWithoutScopes())
             ->useWritePdo()
-            ->with(is_string($with) ? func_get_args() : $with) // @phpstan-ignore method.notFound (Eloquent __call forwarding)
+            ->with(is_string($with) ? func_get_args() : $with)
             ->first();
     }
 
@@ -2858,7 +2857,6 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         if (version_compare(PHP_VERSION, '8.4.0', '>=')) {
             foreach ((new ReflectionClass($this))->getProperties() as $property) {
-                // @phpstan-ignore method.notFound (PHP 8.4+ only, guarded by version check)
                 if ($property->hasHooks()) {
                     unset($keys[$property->getName()]);
                 }

@@ -57,6 +57,9 @@ class PooledConnection implements PoolConnectionInterface
 
     protected ?Dispatcher $dispatcher = null;
 
+    /**
+     * Create a new pooled connection instance.
+     */
     public function __construct(
         protected Container $container,
         protected DbPool $pool,

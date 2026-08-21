@@ -196,7 +196,6 @@ abstract class Relation implements BuilderContract
             throw new MultipleRecordsFoundException($count);
         }
 
-        // @phpstan-ignore return.type (Collection::first() generic type lost; count check above ensures non-null)
         return $result->first();
     }
 
@@ -468,7 +467,6 @@ abstract class Relation implements BuilderContract
     protected static function buildMorphMapFromModels(?array $models = null): ?array
     {
         if (is_null($models) || ! array_is_list($models)) {
-            // @phpstan-ignore return.type (returns the keyed array unchanged)
             return $models;
         }
 

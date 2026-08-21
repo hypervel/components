@@ -28,6 +28,7 @@ use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\SystemInfo;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
+use Throwable;
 
 #[AsCommand(name: 'cache:redis-benchmark')]
 class BenchmarkCommand extends Command
@@ -141,6 +142,7 @@ class BenchmarkCommand extends Command
 
         $cacheManager = $this->hypervel->make(CacheContract::class);
         $context = $this->createContext($config, $cacheManager);
+        $cleanupFailed = false;
 
         try {
             // Run Benchmark(s)
@@ -152,17 +154,23 @@ class BenchmarkCommand extends Command
                 $tagMode = $tagModeOption ?? $store->getTagMode()->value;
                 $this->runSuiteWithRuns($tagMode, $context, $runs);
             }
-        } catch (BenchmarkMemoryException $e) {
-            $this->displayMemoryError($e);
+        } catch (BenchmarkMemoryException $exception) {
+            $this->displayMemoryError($exception);
 
             return self::FAILURE;
+        } finally {
+            $this->newLine();
+            $this->info('Cleaning up benchmark data...');
+
+            try {
+                $context->cleanup();
+            } catch (Throwable $exception) {
+                $cleanupFailed = true;
+                $this->error('Benchmark cleanup failed (' . $exception::class . '): ' . $exception->getMessage());
+            }
         }
 
-        $this->newLine();
-        $this->info('Cleaning up benchmark data...');
-        $context->cleanup();
-
-        return self::SUCCESS;
+        return $cleanupFailed ? self::FAILURE : self::SUCCESS;
     }
 
     /**
@@ -228,8 +236,8 @@ class BenchmarkCommand extends Command
 
             // Test connection
             $cacheManager->store($this->storeName)->get('test');
-        } catch (Exception $e) {
-            $this->error("Could not connect to Redis store '{$this->storeName}': " . $e->getMessage());
+        } catch (Exception $exception) {
+            $this->error("Could not connect to Redis store '{$this->storeName}': " . $exception->getMessage());
 
             return false;
         }
@@ -520,8 +528,11 @@ class BenchmarkCommand extends Command
 
                 $this->line('  Tag Mode: <fg=cyan>' . $store->getTagMode()->value . '</>');
             }
-        } catch (Exception) {
-            // Silently skip if Redis connection fails
+        } catch (Throwable $exception) {
+            $this->line(
+                '  Cache Service: <fg=red>Connection failed ('
+                . $exception::class . '): ' . $exception->getMessage() . '</>'
+            );
         }
 
         $this->newLine();
@@ -551,17 +562,17 @@ class BenchmarkCommand extends Command
     /**
      * Display memory exhaustion error with recovery guidance.
      */
-    protected function displayMemoryError(BenchmarkMemoryException $e): void
+    protected function displayMemoryError(BenchmarkMemoryException $exception): void
     {
         $config = $this->hypervel->make('config');
 
         $this->newLine();
         $this->error('Benchmark aborted due to memory constraints.');
         $this->newLine();
-        $this->line($e->getMessage());
+        $this->line($exception->getMessage());
         $this->newLine();
-        $this->warn('Cleanup skipped to avoid further memory exhaustion.');
-        $this->line('   After fixing memory issues, clean up leftover benchmark keys:');
+        $this->warn('Automatic cleanup will run next.');
+        $this->line('   If benchmark keys remain, clean them up after fixing the memory issue:');
         $this->newLine();
         $this->line('   Option 1 - Clear all cache (simple):');
         $this->line('   <fg=cyan>php artisan cache:clear ' . $this->storeName . '</>');

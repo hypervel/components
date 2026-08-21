@@ -28,7 +28,7 @@ class ScheduleTestCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): void
     {
         $commands = $this->hypervel->make(Schedule::class)->events();
 
@@ -45,11 +45,13 @@ class ScheduleTestCommand extends Command
         }
 
         if (empty($commandNames)) {
-            return $this->info('No scheduled commands have been defined.'); // @phpstan-ignore method.void
+            $this->components->info('No scheduled commands have been defined.');
+
+            return;
         }
 
         if (! empty($name = $this->option('name'))) {
-            $matches = array_filter($commandNames, function ($commandName) use ($name) {
+            $matches = array_filter($commandNames, function (string $commandName) use ($name): bool {
                 return trim(preg_replace('/^php artisan /', '', $commandName)) === $name;
             });
 
@@ -98,7 +100,7 @@ class ScheduleTestCommand extends Command
     {
         if (count($commandNames) !== count(array_unique($commandNames))) {
             // Some commands (likely closures) have the same name, append unique indexes to each one...
-            $uniqueCommandNames = array_map(function ($index, $value) {
+            $uniqueCommandNames = array_map(function (int $index, string $value): string {
                 return "{$value} [{$index}]";
             }, array_keys($commandNames), $commandNames);
 

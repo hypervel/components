@@ -28,6 +28,9 @@ class StoreContext
 
     private readonly TagKeyBuilder $tagKeyBuilder;
 
+    /**
+     * Create a new store context instance.
+     */
     public function __construct(
         private readonly RedisFactory $redis,
         private readonly string $connectionName,
@@ -154,7 +157,7 @@ class StoreContext
     public function optPrefix(): string
     {
         return $this->withConnection(
-            fn (RedisConnection $connection) => (string) $connection->getOption(Redis::OPT_PREFIX)
+            fn (RedisConnection $connection): string => (string) $connection->getOption(Redis::OPT_PREFIX)
         );
     }
 

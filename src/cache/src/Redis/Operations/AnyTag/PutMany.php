@@ -232,7 +232,7 @@ class PutMany
 
                     $fields = array_fill_keys($keys, StoreContext::TAG_FIELD_VALUE);
 
-                    $pipeline->hsetex($tagHashKey, $fields, ['EX' => $ttl]); // @phpstan-ignore method.nonObject (phpredis pipeline() returns Redis)
+                    $pipeline->hsetex($tagHashKey, $fields, ['EX' => $ttl]);
                 }
 
                 // Update Registry in batch

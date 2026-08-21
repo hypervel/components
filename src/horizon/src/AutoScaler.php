@@ -68,8 +68,8 @@ class AutoScaler
             });
 
             return [$queue => [
-                'size' => $queues->sum('size'), // @phpstan-ignore argument.unresolvableType
-                'time' => $queues->sum('time'), // @phpstan-ignore argument.unresolvableType
+                'size' => $queues->sum('size'),
+                'time' => $queues->sum('time'),
             ]];
         });
     }

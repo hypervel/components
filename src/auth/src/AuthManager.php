@@ -278,7 +278,7 @@ class AuthManager implements FactoryContract
             return;
         }
 
-        $provider = $guardInstance->getProvider(); /* @phpstan-ignore method.notFound (getProvider() is on GuardHelpers trait, not the Guard contract) */
+        $provider = $guardInstance->getProvider();
 
         if ($provider instanceof EloquentUserProvider) {
             $provider->clearUserCache($identifier);
@@ -408,7 +408,7 @@ class AuthManager implements FactoryContract
 
             $keys = [
                 ...$keys,
-                ...$guard->getAuthContextKeys(), /* @phpstan-ignore method.notFound */
+                ...$guard->getAuthContextKeys(),
             ];
         }
 

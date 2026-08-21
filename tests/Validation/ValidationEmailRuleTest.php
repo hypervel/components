@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
-use Hypervel\Support\Arr;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
@@ -24,7 +23,7 @@ class ValidationEmailRuleTest extends TestCase
     {
         parent::setUp();
 
-        $this->app->singleton('translator', function () {
+        $this->app->singleton('translator', function (): Translator {
             $translator = new Translator(
                 new ArrayLoader,
                 'en'
@@ -38,7 +37,7 @@ class ValidationEmailRuleTest extends TestCase
         });
     }
 
-    public function testBasic()
+    public function testBasic(): void
     {
         $this->fails(
             Email::default(),
@@ -55,13 +54,13 @@ class ValidationEmailRuleTest extends TestCase
         $this->fails(
             Email::default(),
             12345,
-            [Email::class]
+            ['The ' . self::ATTRIBUTE_REPLACED . ' must be a valid email address.']
         );
 
         $this->fails(
             Rule::email(),
             12345,
-            [Email::class]
+            ['The ' . self::ATTRIBUTE_REPLACED . ' must be a valid email address.']
         );
 
         $this->passes(
@@ -84,63 +83,93 @@ class ValidationEmailRuleTest extends TestCase
             ['taylor@laravel.com'],
         );
 
-        $this->passes(Email::default(), null);
+        $this->fails(
+            Email::default(),
+            null,
+            ['The ' . self::ATTRIBUTE_REPLACED . ' must be a valid email address.']
+        );
 
-        $this->passes(Rule::email(), null);
+        $this->fails(
+            Rule::email(),
+            null,
+            ['The ' . self::ATTRIBUTE_REPLACED . ' must be a valid email address.']
+        );
+
+        $validator = new Validator(
+            resolve('translator'),
+            [self::ATTRIBUTE => null],
+            [self::ATTRIBUTE => ['nullable', Rule::email()]]
+        );
+
+        $this->assertTrue($validator->passes());
+        $this->assertSame([], $validator->messages()->toArray());
     }
 
     /**
-     * @param mixed $rule
-     * @param array|string $values
-     * @param array $expectedMessages
-     * @param null|string $customValidationMessage
+     * Assert that values fail the email rule.
+     *
+     * @param null|int|list<string>|string $values
+     * @param list<string> $expectedMessages
      */
-    protected function fails($rule, $values, $expectedMessages, $customValidationMessage = null)
-    {
+    protected function fails(
+        Email $rule,
+        array|int|string|null $values,
+        array $expectedMessages,
+        ?string $customValidationMessage = null
+    ): void {
         $this->assertValidationRules($rule, $values, false, $expectedMessages, $customValidationMessage);
     }
 
     /**
-     * @param mixed $rule
-     * @param array|string $values
-     * @param bool $expectToPass
-     * @param array $expectedMessages
-     * @param null|string $customValidationMessage
+     * Assert an email rule's result and messages.
+     *
+     * @param null|int|list<string>|string $values
+     * @param list<string> $expectedMessages
      */
-    protected function assertValidationRules($rule, $values, $expectToPass, $expectedMessages = [], $customValidationMessage = null)
-    {
-        $values = Arr::wrap($values);
+    protected function assertValidationRules(
+        Email $rule,
+        array|int|string|null $values,
+        bool $expectToPass,
+        array $expectedMessages = [],
+        ?string $customValidationMessage = null
+    ): void {
+        $values = is_array($values) ? $values : [$values];
 
         $translator = resolve('translator');
 
         foreach ($values as $value) {
-            $v = new Validator(
+            $validator = new Validator(
                 $translator,
                 [self::ATTRIBUTE => $value],
-                [self::ATTRIBUTE => is_object($rule) ? clone $rule : $rule],
+                [self::ATTRIBUTE => clone $rule],
                 $customValidationMessage ? [self::ATTRIBUTE . '.email' => $customValidationMessage] : []
             );
 
-            $this->assertSame($expectToPass, $v->passes(), 'Expected email input ' . $value . ' to ' . ($expectToPass ? 'pass' : 'fail') . '.');
+            $this->assertSame(
+                $expectToPass,
+                $validator->passes(),
+                'Expected email input ' . var_export($value, true) . ' to ' . ($expectToPass ? 'pass' : 'fail') . '.'
+            );
 
             $this->assertSame(
                 $expectToPass ? [] : [self::ATTRIBUTE => $expectedMessages],
-                $v->messages()->toArray(),
-                'Expected different message for email input ' . $value,
+                $validator->messages()->toArray(),
+                'Expected different message for email input ' . var_export($value, true),
             );
         }
     }
 
     /**
-     * @param mixed $rule
-     * @param array|string $values
+     * Assert that values pass the email rule.
+     *
+     * @param null|int|list<string>|string $values
      */
-    protected function passes($rule, $values)
+    protected function passes(Email $rule, array|int|string|null $values): void
     {
         $this->assertValidationRules($rule, $values, true);
     }
 
-    public function testRfcCompliantStrict()
+    public function testRfcCompliantStrict(): void
     {
         $emailThatFailsBothNonStrictButFailsInStrict = 'username@sub..example.com';
         $emailThatPassesNonStrictButFailsInStrict = '"has space"@example.com';
@@ -181,8 +210,37 @@ class ValidationEmailRuleTest extends TestCase
         );
     }
 
+    public function testStrict(): void
+    {
+        $emailThatFailsInStrict = 'username@sub..example.com';
+        $emailThatPassesNonStrictButFailsInStrict = '"has space"@example.com';
+        $emailThatPassesInStrict = 'plainaddress@example.com';
+
+        $this->fails(
+            (new Email)->strict(),
+            $emailThatPassesNonStrictButFailsInStrict,
+            ['The ' . self::ATTRIBUTE_REPLACED . ' must be a valid email address.']
+        );
+
+        $this->fails(
+            Rule::email()->strict(),
+            $emailThatFailsInStrict,
+            ['The ' . self::ATTRIBUTE_REPLACED . ' must be a valid email address.']
+        );
+
+        $this->passes(
+            (new Email)->strict(),
+            $emailThatPassesInStrict
+        );
+
+        $this->passes(
+            Rule::email()->strict(),
+            $emailThatPassesInStrict
+        );
+    }
+
     #[RequiresPhpExtension('intl')]
-    public function testValidateMxRecord()
+    public function testValidateMxRecord(): void
     {
         $this->fails(
             (new Email)->validateMxRecord(),
@@ -208,7 +266,7 @@ class ValidationEmailRuleTest extends TestCase
     }
 
     #[RequiresPhpExtension('Intl')]
-    public function testPreventSpoofing()
+    public function testPreventSpoofing(): void
     {
         $this->fails(
             (new Email)->preventSpoofing(),
@@ -256,7 +314,7 @@ class ValidationEmailRuleTest extends TestCase
         );
     }
 
-    public function testWithNativeValidation()
+    public function testWithNativeValidation(): void
     {
         $this->fails(
             (new Email)->withNativeValidation(),
@@ -281,7 +339,7 @@ class ValidationEmailRuleTest extends TestCase
         );
     }
 
-    public function testWithNativeValidationAllowUnicode()
+    public function testWithNativeValidationAllowUnicode(): void
     {
         $this->fails(
             (new Email)->withNativeValidation(allowUnicode: true),
@@ -316,7 +374,7 @@ class ValidationEmailRuleTest extends TestCase
         );
     }
 
-    public function testRfcCompliantNonStrict()
+    public function testRfcCompliantNonStrict(): void
     {
         $this->fails(
             (new Email)->rfcCompliant(),
@@ -374,7 +432,7 @@ class ValidationEmailRuleTest extends TestCase
     #[TestWith(['a@[IPv6:2001:db8::1]'])] // Domain-literal with normal IPv6
     #[TestWith(['user@[IPv6:::]'])] // invalid shorthand IPv6
     #[TestWith(['"ab\(c"@example.com'])]
-    public function testEmailsThatPassOnRfcCompliantButFailOnStrict($email)
+    public function testEmailsThatPassOnRfcCompliantButFailOnStrict(string $email): void
     {
         $this->passes(
             Rule::email()->rfcCompliant(),
@@ -403,7 +461,7 @@ class ValidationEmailRuleTest extends TestCase
     #[TestWith(['a@b.c'])]
     #[TestWith(['user@xn--bcher-kva.example'])]
     #[TestWith(['user@bücher.example'])]
-    public function testEmailsThatPassOnBothRfcCompliantAndStrict($email)
+    public function testEmailsThatPassOnBothRfcCompliantAndStrict(string $email): void
     {
         $this->passes(
             Rule::email()->rfcCompliant(),
@@ -433,7 +491,7 @@ class ValidationEmailRuleTest extends TestCase
     #[TestWith(['"unescaped"quote@example.com'])]
     #[TestWith(['https://example.com'])]
     #[TestWith(['with\escape@example.com'])]
-    public function testEmailsThatFailOnBothRfcCompliantAndStrict($email)
+    public function testEmailsThatFailOnBothRfcCompliantAndStrict(string $email): void
     {
         $this->fails(
             Rule::email()->rfcCompliant(),
@@ -463,7 +521,7 @@ class ValidationEmailRuleTest extends TestCase
     #[TestWith(['a@b.c'])] // Minimal email
     #[TestWith(['user@xn--bcher-kva.example'])] // Punycode domain (bücher)
     #[TestWith(['user@bücher.example'])] // Unicode domain
-    public function testEmailsThatPassOnBothRfcCompliantAndRfcCompliantStrict($email)
+    public function testEmailsThatPassOnBothRfcCompliantAndRfcCompliantStrict(string $email): void
     {
         $this->passes(
             Rule::email()->rfcCompliant(),
@@ -478,7 +536,7 @@ class ValidationEmailRuleTest extends TestCase
 
     #[TestWith(['déjà@example.com'])]
     #[TestWith(['测试@example.com'])]
-    public function testEmailsThatFailWithNativeValidationAsciiPassUnicode($email)
+    public function testEmailsThatFailWithNativeValidationAsciiPassUnicode(string $email): void
     {
         $this->fails(
             Rule::email()->withNativeValidation(),
@@ -499,7 +557,7 @@ class ValidationEmailRuleTest extends TestCase
     #[TestWith(['пример@пример.рф'])] // Cyrillic domain
     #[TestWith(['例子@例子.公司'])] // Chinese domain
     #[TestWith(['name@123.123.123.123'])] // Numeric domain
-    public function testEmailsThatFailOnBothWithNativeValidationAsciiAndUnicode($email)
+    public function testEmailsThatFailOnBothWithNativeValidationAsciiAndUnicode(string $email): void
     {
         $this->fails(
             Rule::email()->withNativeValidation(),
@@ -519,7 +577,7 @@ class ValidationEmailRuleTest extends TestCase
     #[TestWith(['joe_smith@example.org'])]
     #[TestWith(['user@[IPv6:2001:db8:1ff::a0b:dbd0]'])]
     #[TestWith(['test@xn--bcher-kva.com'])] // Punycode for bücher.com
-    public function testEmailsThatPassBothWithNativeValidationAsciiAndUnicode($email)
+    public function testEmailsThatPassBothWithNativeValidationAsciiAndUnicode(string $email): void
     {
         $this->passes(
             Rule::email()->withNativeValidation(),
@@ -543,7 +601,7 @@ class ValidationEmailRuleTest extends TestCase
     #[TestWith(['пример@пример.рф'])] // Cyrillic local and domain
     #[TestWith(['例子@例子.公司'])] // Chinese local and domain
     #[TestWith(['name@123.123.123.123'])] // Numeric domain
-    public function testEmailsThatFailWithNativeValidationAsciiPassRfcCompliant($email)
+    public function testEmailsThatFailWithNativeValidationAsciiPassRfcCompliant(string $email): void
     {
         $this->fails(
             Rule::email()->withNativeValidation(),
@@ -578,7 +636,7 @@ class ValidationEmailRuleTest extends TestCase
     #[TestWith(['user@[IPv6:::1]'])] // IPv6 domain with unusual short form
     #[TestWith(['a@[IPv6:2001:db8::1]'])] // IPv6 domain normal form
     #[TestWith(['user@[IPv6:2001:db8:1ff::a0b:dbd0]'])] // Fully expanded IPv6
-    public function testEmailsThatPassWithNativeValidationAndRfcCompliant($email)
+    public function testEmailsThatPassWithNativeValidationAndRfcCompliant(string $email): void
     {
         $this->passes(
             Rule::email()->withNativeValidation(),
@@ -600,7 +658,7 @@ class ValidationEmailRuleTest extends TestCase
     #[TestWith([' space@domain.com'])] // Leading space in local part
     #[TestWith(['user@domain:port.com'])] // Colon in domain (mimics a port)
     #[TestWith(['username@domain-with-hyphen-.com'])] // Trailing hyphen in domain
-    public function testEmailsThatFailWithNativeValidationAndRfcCompliant($email)
+    public function testEmailsThatFailWithNativeValidationAndRfcCompliant(string $email): void
     {
         $this->fails(
             Rule::email()->withNativeValidation(),
@@ -623,7 +681,7 @@ class ValidationEmailRuleTest extends TestCase
     #[TestWith(['user@[IPv6:2001:db8::1]'])] // Domain-literal with normal IPv6
     #[TestWith(['user@[IPv6:2001:db8:1ff::a0b:dbd0]'])] // Domain-literal with full IPv6 address
     #[TestWith(['"ab\(c"@example.com'])] // Quoted local part with escaped character
-    public function testEmailsThatPassNativeValidationFailRfcCompliantStrict($email)
+    public function testEmailsThatPassNativeValidationFailRfcCompliantStrict(string $email): void
     {
         $this->passes(
             Rule::email()->withNativeValidation(),
@@ -640,7 +698,7 @@ class ValidationEmailRuleTest extends TestCase
     #[TestWith(['пример@пример.рф'])] // Unicode domain in Cyrillic script
     #[TestWith(['例子@例子.公司'])] // Unicode domain in Chinese script
     #[TestWith(['name@123.123.123.123'])] // IP address in domain part
-    public function testEmailsThatFailNativeValidationPassRfcCompliantStrict($email)
+    public function testEmailsThatFailNativeValidationPassRfcCompliantStrict(string $email): void
     {
         $this->fails(
             Rule::email()->withNativeValidation(),
@@ -657,7 +715,7 @@ class ValidationEmailRuleTest extends TestCase
     #[TestWith(['user@example.com'])] // Simple, valid email
     #[TestWith(['joe.smith+dev@example.co.uk'])] // Plus-tagged email with subdomain TLD
     #[TestWith(['user!#$%&\'*+/=?^_`{|}~@example.com'])] // Unusual valid characters in local part
-    public function testEmailsThatPassBothNativeValidationAndRfcCompliantStrict($email)
+    public function testEmailsThatPassBothNativeValidationAndRfcCompliantStrict(string $email): void
     {
         $this->passes(
             Rule::email()->withNativeValidation(),
@@ -682,7 +740,7 @@ class ValidationEmailRuleTest extends TestCase
     #[TestWith(['some((double))comment@example.com'])] // Nested comment in local part
     #[TestWith(['"test\\\"quote"@example.com'])] // Escaped quote in quoted local part
     #[TestWith(['" leading.space"@example.com'])] // Leading space in quoted local part
-    public function testEmailsThatFailBothNativeValidationAndRfcCompliantStrict($email)
+    public function testEmailsThatFailBothNativeValidationAndRfcCompliantStrict(string $email): void
     {
         $this->fails(
             Rule::email()->withNativeValidation(),
@@ -698,7 +756,7 @@ class ValidationEmailRuleTest extends TestCase
     }
 
     #[RequiresPhpExtension('intl')]
-    public function testCombiningRules()
+    public function testCombiningRules(): void
     {
         $this->passes(
             (new Email)->rfcCompliant(strict: true)->preventSpoofing(),
@@ -769,9 +827,9 @@ class ValidationEmailRuleTest extends TestCase
         );
     }
 
-    public function testMacro()
+    public function testMacro(): void
     {
-        Email::macro('laravelEmployee', function () {
+        Email::macro('laravelEmployee', function (): Email {
             return static::default()->rules('ends_with:@laravel.com');
         });
 
@@ -799,7 +857,7 @@ class ValidationEmailRuleTest extends TestCase
     }
 
     #[RequiresPhpExtension('Intl')]
-    public function testItCanSetDefaultUsing()
+    public function testItCanSetDefaultUsing(): void
     {
         $this->assertInstanceOf(Email::class, Email::default());
 
@@ -810,7 +868,7 @@ class ValidationEmailRuleTest extends TestCase
             $spoofingEmail
         );
 
-        Email::defaults(function () {
+        Email::defaults(function (): Email {
             return (new Email)->preventSpoofing();
         });
 
@@ -820,7 +878,7 @@ class ValidationEmailRuleTest extends TestCase
             ['The ' . self::ATTRIBUTE_REPLACED . ' must be a valid email address.']
         );
 
-        Email::defaults(function () {
+        Email::defaults(function (): Email {
             return Rule::email()->rfcCompliant();
         });
 
@@ -829,7 +887,7 @@ class ValidationEmailRuleTest extends TestCase
             $spoofingEmail
         );
 
-        Email::defaults(function () {
+        Email::defaults(function (): Email {
             return Rule::email()->preventSpoofing();
         });
 
@@ -841,9 +899,9 @@ class ValidationEmailRuleTest extends TestCase
     }
 
     #[RequiresPhpExtension('Intl')]
-    public function testValidationMessages()
+    public function testValidationMessages(): void
     {
-        Email::defaults(function () {
+        Email::defaults(function (): Email {
             return Rule::email()->preventSpoofing();
         });
 

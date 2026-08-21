@@ -1574,10 +1574,10 @@ class QueryBuilder extends EloquentBuilder
                 // Set the intended parent without scheduling a tree action.
                 static::assignRepairNode(
                     $model,
-                    $model->getLft(), /* @phpstan-ignore method.notFound */
-                    $model->getRgt(), /* @phpstan-ignore method.notFound */
+                    $model->getLft(),
+                    $model->getRgt(),
                     $parentId,
-                    $model->getDepth(), /* @phpstan-ignore method.notFound */
+                    $model->getDepth(),
                 );
 
                 unset($existing[$key]);
@@ -1586,11 +1586,11 @@ class QueryBuilder extends EloquentBuilder
             foreach ([
                 'children',
                 $keyName,
-                $model->getParentIdName(), /* @phpstan-ignore method.notFound */
-                $model->getLftName(), /* @phpstan-ignore method.notFound */
-                $model->getRgtName(), /* @phpstan-ignore method.notFound */
-                $model->getDepthName(), /* @phpstan-ignore method.notFound */
-                ...array_keys($model->getNestedSetScope()), /* @phpstan-ignore method.notFound */
+                $model->getParentIdName(),
+                $model->getLftName(),
+                $model->getRgtName(),
+                $model->getDepthName(),
+                ...array_keys($model->getNestedSetScope()),
             ] as $ownedAttribute) {
                 unset($itemData[$ownedAttribute]);
             }

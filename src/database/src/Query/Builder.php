@@ -3847,11 +3847,9 @@ class Builder implements BuilderContract
     public function incrementEach(array $columns, array $extra = []): int
     {
         foreach ($columns as $column => $amount) {
-            // @phpstan-ignore function.alreadyNarrowedType (runtime validation for user input)
             if (! is_numeric($amount)) {
                 throw new InvalidArgumentException("Non-numeric value passed as increment amount for column: '{$column}'.");
             }
-            // @phpstan-ignore function.alreadyNarrowedType (runtime validation - user could pass indexed array)
             if (! is_string($column)) {
                 throw new InvalidArgumentException('Non-associative array passed to incrementEach method.');
             }

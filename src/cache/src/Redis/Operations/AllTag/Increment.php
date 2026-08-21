@@ -23,6 +23,9 @@ class Increment
      */
     private const int FOREVER_SCORE = -1;
 
+    /**
+     * Create a new increment operation instance.
+     */
     public function __construct(
         private readonly StoreContext $context,
     ) {
@@ -50,7 +53,7 @@ class Increment
      */
     private function executePipeline(string $key, int $value, array $tagIds): int|false
     {
-        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tagIds) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tagIds): int|false {
             $prefix = $this->context->prefix();
 
             $pipeline = $connection->pipeline();
@@ -79,7 +82,7 @@ class Increment
      */
     private function executeCluster(string $key, int $value, array $tagIds): int|false
     {
-        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tagIds) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tagIds): int|false {
             $prefix = $this->context->prefix();
 
             // ZADD NX to each tag's sorted set (sequential - cross-slot)

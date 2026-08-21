@@ -78,7 +78,7 @@ class BroadcastNotificationCreated implements ShouldBroadcast
     public function broadcastWith(): array
     {
         if (method_exists($this->notification, 'broadcastWith')) {
-            return $this->notification->broadcastWith(); /* @phpstan-ignore-line */
+            return $this->notification->broadcastWith();
         }
 
         return array_merge($this->data, [
@@ -93,7 +93,7 @@ class BroadcastNotificationCreated implements ShouldBroadcast
     public function broadcastType(): string
     {
         return method_exists($this->notification, 'broadcastType')
-            ? $this->notification->broadcastType() /* @phpstan-ignore-line */
+            ? $this->notification->broadcastType()
             : get_class($this->notification);
     }
 
@@ -103,7 +103,7 @@ class BroadcastNotificationCreated implements ShouldBroadcast
     public function broadcastAs(): string
     {
         return method_exists($this->notification, 'broadcastAs')
-            ? $this->notification->broadcastAs() /* @phpstan-ignore-line */
+            ? $this->notification->broadcastAs()
             : __CLASS__;
     }
 }

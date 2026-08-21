@@ -481,7 +481,6 @@ class SentryServiceProvider extends ServiceProvider
      */
     protected function registerCoroutineContextPropagation(): void
     {
-        /* @phpstan-ignore-next-line */
         Coroutine::afterCreated(function (): void {
             $parentId = Coroutine::parentId();
             $stack = CoroutineContext::get(Hub::CONTEXT_STACK_KEY)

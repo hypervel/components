@@ -55,7 +55,6 @@ class ClaimFactory
         ];
 
         if ($this->lockSubject && method_exists($provider, 'getModel')) {
-            /* @phpstan-ignore-next-line method.notFound */
             $claims['prv'] = $this->subjectModelHash($provider->getModel());
         }
 
@@ -128,7 +127,6 @@ class ClaimFactory
             return true;
         }
 
-        /* @phpstan-ignore-next-line method.notFound */
         $model = $provider->getModel();
 
         return isset($payload['prv'])

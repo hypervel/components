@@ -70,7 +70,7 @@ class DescendantsRelation extends BaseRelation
             $maximumRgt = null;
 
             foreach ($group as $model) {
-                $rgt = $model->getRgt(); /* @phpstan-ignore method.notFound */
+                $rgt = $model->getRgt();
 
                 if ($rgt !== null && $maximumRgt !== null && $rgt <= $maximumRgt) {
                     continue;

@@ -541,10 +541,8 @@ class MailManager implements FactoryContract
      */
     protected function createMailgunTransport(array $config): TransportInterface
     {
-        /* @phpstan-ignore-next-line */
         $factory = new MailgunTransportFactory(null, $this->getHttpClient($config));
 
-        /* @phpstan-ignore-next-line */
         return $factory->create(new Dsn(
             'mailgun+' . $config['scheme'],
             $config['endpoint'],
@@ -635,8 +633,6 @@ class MailManager implements FactoryContract
 
     /**
      * Get a configured Symfony HTTP client instance.
-     *
-     * @phpstan-ignore-next-line
      */
     protected function getHttpClient(array $config): ?HttpClientInterface
     {
@@ -647,7 +643,6 @@ class MailManager implements FactoryContract
             $maxHostConnections = Arr::pull($options, 'max_host_connections', 6);
             $maxPendingPushes = Arr::pull($options, 'max_pending_pushes', 50);
 
-            /* @phpstan-ignore-next-line */
             return HttpClient::create($options, $maxHostConnections, $maxPendingPushes);
         }
 

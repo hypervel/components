@@ -34,6 +34,9 @@ class Timer
 
     private static int $round = 0;
 
+    /**
+     * Create a new timer instance.
+     */
     public function __construct(private ?LoggerInterface $logger = null)
     {
     }

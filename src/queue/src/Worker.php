@@ -862,15 +862,11 @@ class Worker
             return;
         }
 
-        /* @phpstan-ignore-next-line */
         if (! $this->cache->get('job-exceptions:' . $uuid)) {
-            /* @phpstan-ignore-next-line */
             $this->cache->put('job-exceptions:' . $uuid, 0, CarbonImmutable::now()->addDay());
         }
 
-        /* @phpstan-ignore-next-line */
         if ($maxExceptions <= $this->cache->increment('job-exceptions:' . $uuid)) {
-            /* @phpstan-ignore-next-line */
             $this->cache->forget('job-exceptions:' . $uuid);
 
             $this->failJob($job, $e);

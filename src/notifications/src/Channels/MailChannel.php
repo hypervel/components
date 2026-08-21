@@ -137,7 +137,6 @@ class MailChannel
     {
         $this->addressMessage($mailMessage, $notifiable, $notification, $message);
 
-        /* @phpstan-ignore-next-line */
         $mailMessage->subject($message->subject ?: Str::title(
             Str::snake(class_basename($notification), ' ')
         ));

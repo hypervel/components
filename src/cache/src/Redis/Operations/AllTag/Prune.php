@@ -8,7 +8,6 @@ use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\Operations\SafeScan;
 use Hypervel\Redis\PhpRedis;
 use Hypervel\Redis\RedisConnection;
-use Redis;
 
 /**
  * Prune stale and orphaned entries from all tag sorted sets.
@@ -48,13 +47,13 @@ class Prune
      */
     public function execute(int $scanCount = self::DEFAULT_SCAN_COUNT): array
     {
-        return $this->context->withConnection(function (RedisConnection $connection) use ($scanCount) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($scanCount): array {
             $pattern = $this->context->tagScanPattern();
             $optPrefix = $this->context->optPrefix();
             $prefix = $this->context->prefix();
             $now = time();
 
-            $stats = [
+            $statistics = [
                 'tags_scanned' => 0,
                 'stale_entries_removed' => 0,
                 'entries_checked' => 0,
@@ -66,25 +65,25 @@ class Prune
             $safeScan = new SafeScan($connection, $optPrefix);
 
             foreach ($safeScan->execute($pattern, $scanCount) as $tagKey) {
-                ++$stats['tags_scanned'];
+                ++$statistics['tags_scanned'];
 
                 // Step 1: Remove TTL-expired entries (stale by time)
                 $staleRemoved = $connection->zRemRangeByScore($tagKey, '0', (string) $now);
-                $stats['stale_entries_removed'] += is_int($staleRemoved) ? $staleRemoved : 0;
+                $statistics['stale_entries_removed'] += is_int($staleRemoved) ? $staleRemoved : 0;
 
                 // Step 2: Remove orphaned entries (cache key doesn't exist)
                 $orphanResult = $this->removeOrphanedEntries($connection, $tagKey, $prefix, $scanCount);
-                $stats['entries_checked'] += $orphanResult['checked'];
-                $stats['orphans_removed'] += $orphanResult['removed'];
+                $statistics['entries_checked'] += $orphanResult['checked'];
+                $statistics['orphans_removed'] += $orphanResult['removed'];
 
                 // Step 3: Delete if empty
                 if ($connection->zCard($tagKey) === 0) {
                     $connection->del($tagKey);
-                    ++$stats['empty_sets_deleted'];
+                    ++$statistics['empty_sets_deleted'];
                 }
             }
 
-            return $stats;
+            return $statistics;
         });
     }
 

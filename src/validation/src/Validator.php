@@ -417,7 +417,6 @@ class Validator implements ValidatorContract
     {
         if (is_array($callback) && ! is_callable($callback)) {
             foreach ($callback as $rule) {
-                /* @phpstan-ignore-next-line */
                 $this->after(method_exists($rule, 'after') ? $rule->after(...) : $rule);
             }
 
@@ -872,7 +871,7 @@ class Validator implements ValidatorContract
         // used by getExtraConditions / DatabasePresenceVerifier::addConditions
         $normalizedWheres = [];
         foreach ($wheres as $where) {
-            if (is_array($where) && isset($where['column'], $where['value'])) { // @phpstan-ignore function.alreadyNarrowedType (runtime guard — native type is array, not typed array shape)
+            if (is_array($where) && isset($where['column'], $where['value'])) {
                 $normalizedWheres[$where['column']] = $where['value'];
             }
         }
@@ -2067,7 +2066,6 @@ class Validator implements ValidatorContract
     {
         [$class, $method] = Str::parseCallback($callback, 'validate');
 
-        /* @phpstan-ignore-next-line */
         return $this->container->make($class)
             ->{$method}(...array_values($parameters));
     }

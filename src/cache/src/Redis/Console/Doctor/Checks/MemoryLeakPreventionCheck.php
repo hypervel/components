@@ -17,11 +17,17 @@ use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
  */
 final class MemoryLeakPreventionCheck implements CheckInterface
 {
+    /**
+     * Get the human-readable name of this check.
+     */
     public function name(): string
     {
         return 'Memory Leak Prevention';
     }
 
+    /**
+     * Run the check and return results.
+     */
     public function run(DoctorContext $context): CheckResult
     {
         $result = new CheckResult;
@@ -35,6 +41,9 @@ final class MemoryLeakPreventionCheck implements CheckInterface
         return $result;
     }
 
+    /**
+     * Test leak prevention in any-tag mode.
+     */
     private function testAnyMode(DoctorContext $context, CheckResult $result): void
     {
         // Create item with short TTL
@@ -68,6 +77,9 @@ final class MemoryLeakPreventionCheck implements CheckInterface
         );
     }
 
+    /**
+     * Test leak prevention in all-tags mode.
+     */
     private function testAllMode(DoctorContext $context, CheckResult $result): void
     {
         // Create item with future TTL

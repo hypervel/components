@@ -345,7 +345,6 @@ class Middleware
     public function getMiddlewareGroups(): array
     {
         $middleware = [
-            /* @phpstan-ignore arrayValues.list */
             'web' => array_values(array_filter([
                 \Hypervel\Cookie\Middleware\EncryptCookies::class,
                 \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,

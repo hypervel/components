@@ -94,7 +94,6 @@ class JobWatcher extends Watcher
             return;
         }
 
-        /* @phpstan-ignore-next-line */
         $uuid = $event->job->payload()['telescope_uuid'] ?? null;
 
         if (! $uuid) {
@@ -116,7 +115,6 @@ class JobWatcher extends Watcher
             $update
         )->removeTags(['failed']));
 
-        /* @phpstan-ignore-next-line */
         $this->updateBatch($event->job->payload());
     }
 
@@ -130,7 +128,6 @@ class JobWatcher extends Watcher
         }
 
         try {
-            /* @phpstan-ignore-next-line */
             $uuid = $event->job->payload()['telescope_uuid'] ?? null;
         } catch (InvalidPayloadException) {
             return;
@@ -160,7 +157,6 @@ class JobWatcher extends Watcher
             $update
         )->addTags(['failed']));
 
-        /* @phpstan-ignore-next-line */
         $this->updateBatch($event->job->payload());
     }
 

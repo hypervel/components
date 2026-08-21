@@ -881,7 +881,7 @@ class Str
         $length = $length - $password->count();
 
         return $password->merge($options->pipe(
-            fn ($c) => Collection::times($length, fn () => $c[random_int(0, $c->count() - 1)]) // @phpstan-ignore argument.type, return.type
+            fn ($c) => Collection::times($length, fn () => $c[random_int(0, $c->count() - 1)])
         ))->shuffle()->implode('');
     }
 
@@ -1015,7 +1015,7 @@ class Str
     {
         try {
             return (string) $value;
-        } catch (Throwable) { // @phpstan-ignore catch.neverThrown (__toString can throw)
+        } catch (Throwable) {
             return $fallback;
         }
     }
@@ -1245,7 +1245,6 @@ class Str
                 $hyphenatedWords = explode('-', $lowercaseWord);
 
                 $hyphenatedWords = array_map(function ($part) use ($minorWords) {
-                    // @phpstan-ignore smallerOrEqual.alwaysTrue (defensive check)
                     return (in_array($part, $minorWords) && mb_strlen($part) <= 3)
                         ? $part
                         : mb_strtoupper(mb_substr($part, 0, 1)) . mb_substr($part, 1);
@@ -1254,7 +1253,7 @@ class Str
                 $words[$i] = implode('-', $hyphenatedWords);
             } else {
                 if (in_array($lowercaseWord, $minorWords)
-                    && mb_strlen($lowercaseWord) <= 3 // @phpstan-ignore smallerOrEqual.alwaysTrue
+                    && mb_strlen($lowercaseWord) <= 3
                     && ! ($i === 0 || in_array(mb_substr($words[$i - 1], -1), $endPunctuation))) {
                     $words[$i] = $lowercaseWord;
                 } else {

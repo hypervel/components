@@ -442,7 +442,7 @@ class EloquentUserProvider implements UserProvider
         $effectiveTags = $this->effectiveCacheTags();
 
         if ($effectiveTags === []) {
-            return $this->cache; /* @phpstan-ignore return.type */
+            return $this->cache;
         }
 
         return $this->cache->tags($effectiveTags); /* @phpstan-ignore method.notFound (tags() is on Repository concrete, not the Repository contract) */

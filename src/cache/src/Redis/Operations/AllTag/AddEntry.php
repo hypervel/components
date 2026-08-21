@@ -21,6 +21,9 @@ use function Hypervel\Support\now;
  */
 class AddEntry
 {
+    /**
+     * Create a new add-entry operation instance.
+     */
     public function __construct(
         private readonly StoreContext $context,
     ) {
@@ -64,7 +67,7 @@ class AddEntry
      */
     private function executePipeline(string $key, int $score, array $tagIds, ?string $updateWhen): void
     {
-        $this->context->withConnection(function (RedisConnection $connection) use ($key, $score, $tagIds, $updateWhen) {
+        $this->context->withConnection(function (RedisConnection $connection) use ($key, $score, $tagIds, $updateWhen): void {
             $prefix = $this->context->prefix();
             $pipeline = $connection->pipeline();
 
@@ -92,7 +95,7 @@ class AddEntry
      */
     private function executeCluster(string $key, int $score, array $tagIds, ?string $updateWhen): void
     {
-        $this->context->withConnection(function (RedisConnection $connection) use ($key, $score, $tagIds, $updateWhen) {
+        $this->context->withConnection(function (RedisConnection $connection) use ($key, $score, $tagIds, $updateWhen): void {
             $prefix = $this->context->prefix();
 
             foreach ($tagIds as $tagId) {

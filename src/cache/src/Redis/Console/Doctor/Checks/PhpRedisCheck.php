@@ -25,11 +25,17 @@ final class PhpRedisCheck implements EnvironmentCheckInterface
     ) {
     }
 
+    /**
+     * Get the human-readable name of this check.
+     */
     public function name(): string
     {
         return 'PHPRedis Extension';
     }
 
+    /**
+     * Run the check and return results.
+     */
     public function run(): CheckResult
     {
         $result = new CheckResult;
@@ -45,15 +51,18 @@ final class PhpRedisCheck implements EnvironmentCheckInterface
         $result->assert(true, "PHPRedis extension is installed (v{$this->installedVersion})");
 
         $requiredVersion = $this->requiredVersion();
-        $versionOk = version_compare($this->installedVersion, $requiredVersion, '>=');
+        $versionIsSupported = version_compare($this->installedVersion, $requiredVersion, '>=');
         $result->assert(
-            $versionOk,
+            $versionIsSupported,
             'PHPRedis version >= ' . $requiredVersion
         );
 
         return $result;
     }
 
+    /**
+     * Get details about how to fix a failed check.
+     */
     public function getFixInstructions(): ?string
     {
         if (! extension_loaded('redis')) {
