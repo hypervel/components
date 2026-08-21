@@ -22,6 +22,9 @@ use function Hypervel\Support\now;
  */
 class Put
 {
+    /**
+     * Create a new put operation instance.
+     */
     public function __construct(
         private readonly StoreContext $context,
         private readonly Serialization $serialization,
@@ -53,7 +56,7 @@ class Put
      */
     private function executePipeline(string $key, mixed $value, int $seconds, array $tagIds): bool
     {
-        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds): bool {
             $prefix = $this->context->prefix();
             $score = now()->addSeconds($seconds)->getTimestamp();
             $serialized = $this->serialization->serialize($connection, $value);
@@ -83,7 +86,7 @@ class Put
      */
     private function executeCluster(string $key, mixed $value, int $seconds, array $tagIds): bool
     {
-        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds): bool {
             $prefix = $this->context->prefix();
             $score = now()->addSeconds($seconds)->getTimestamp();
             $serialized = $this->serialization->serialize($connection, $value);

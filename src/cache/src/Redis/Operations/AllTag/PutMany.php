@@ -18,6 +18,9 @@ use function Hypervel\Support\now;
  */
 class PutMany
 {
+    /**
+     * Create a new put-many operation instance.
+     */
     public function __construct(
         private readonly StoreContext $context,
         private readonly Serialization $serialization,
@@ -54,12 +57,12 @@ class PutMany
      */
     private function executePipeline(array $values, int $seconds, array $tagIds, string $namespace): bool
     {
-        return $this->context->withConnection(function (RedisConnection $connection) use ($values, $seconds, $tagIds, $namespace) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($values, $seconds, $tagIds, $namespace): bool {
             $prefix = $this->context->prefix();
             $score = now()->addSeconds($seconds)->getTimestamp();
             $ttl = max(1, $seconds);
 
-            // Prepare all data upfront
+            // Prepare all data up front
             $preparedEntries = [];
             foreach ($values as $key => $value) {
                 $namespacedKey = $namespace . $key;
@@ -73,12 +76,12 @@ class PutMany
             // Batch ZADD: one command per tag with all cache keys as members
             // ZADD format: key, score1, member1, score2, member2, ...
             foreach ($tagIds as $tagId) {
-                $zaddArgs = [];
+                $zaddArguments = [];
                 foreach ($namespacedKeys as $key) {
-                    $zaddArgs[] = $score;
-                    $zaddArgs[] = $key;
+                    $zaddArguments[] = $score;
+                    $zaddArguments[] = $key;
                 }
-                $pipeline->zadd($prefix . $tagId, ...$zaddArgs);
+                $pipeline->zadd($prefix . $tagId, ...$zaddArguments);
             }
 
             // Then all SETEXs
@@ -96,17 +99,17 @@ class PutMany
      * Execute using sequential commands for Redis Cluster.
      *
      * Uses variadic ZADD to batch all cache keys into a single command per tag.
-     * This is safe in cluster mode because variadic ZADD targets ONE sorted set key,
+     * This is safe in cluster mode because variadic ZADD targets one sorted set key,
      * which resides in a single slot.
      */
     private function executeCluster(array $values, int $seconds, array $tagIds, string $namespace): bool
     {
-        return $this->context->withConnection(function (RedisConnection $connection) use ($values, $seconds, $tagIds, $namespace) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($values, $seconds, $tagIds, $namespace): bool {
             $prefix = $this->context->prefix();
             $score = now()->addSeconds($seconds)->getTimestamp();
             $ttl = max(1, $seconds);
 
-            // Prepare all data upfront
+            // Prepare all data up front
             $preparedEntries = [];
             foreach ($values as $key => $value) {
                 $namespacedKey = $namespace . $key;
@@ -116,20 +119,19 @@ class PutMany
             $namespacedKeys = array_keys($preparedEntries);
 
             // Batch ZADD: one command per tag with all cache keys as members
-            // Each tag's sorted set is in ONE slot, so variadic ZADD works in cluster
+            // Each tag's sorted set is in one slot, so variadic ZADD works in cluster
             foreach ($tagIds as $tagId) {
-                $zaddArgs = [];
+                $zaddArguments = [];
                 foreach ($namespacedKeys as $key) {
-                    $zaddArgs[] = $score;
-                    $zaddArgs[] = $key;
+                    $zaddArguments[] = $score;
+                    $zaddArguments[] = $key;
                 }
-                $connection->zadd($prefix . $tagId, ...$zaddArgs);
+                $connection->zadd($prefix . $tagId, ...$zaddArguments);
             }
 
             // Then all SETEXs
             $allSucceeded = true;
             foreach ($preparedEntries as $namespacedKey => $serialized) {
-                // @phpstan-ignore booleanNot.alwaysTrue (setex can fail in edge cases)
                 if (! $connection->setex($prefix . $namespacedKey, $ttl, $serialized)) {
                     $allSucceeded = false;
                 }

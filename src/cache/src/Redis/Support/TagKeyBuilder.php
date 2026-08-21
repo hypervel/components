@@ -9,12 +9,14 @@ use Hypervel\Cache\TagMode;
 /**
  * Builds Redis-internal tag storage key names.
  *
- * The key formats here are Redis implementation details that were
- * previously methods on the TagMode enum. Moved out so the enum stays
- * purely semantic.
+ * Keeping key formats here centralizes Redis implementation details while
+ * allowing the TagMode enum to remain purely semantic.
  */
 class TagKeyBuilder
 {
+    /**
+     * Create a new tag key builder instance.
+     */
     public function __construct(
         private readonly TagMode $mode,
         private readonly string $prefix,

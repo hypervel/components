@@ -21,6 +21,9 @@ class Forever
 {
     private const int FOREVER_SCORE = -1;
 
+    /**
+     * Create a new forever operation instance.
+     */
     public function __construct(
         private readonly StoreContext $context,
         private readonly Serialization $serialization,
@@ -49,7 +52,7 @@ class Forever
      */
     private function executePipeline(string $key, mixed $value, array $tagIds): bool
     {
-        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tagIds) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tagIds): bool {
             $prefix = $this->context->prefix();
             $serialized = $this->serialization->serialize($connection, $value);
 
@@ -75,7 +78,7 @@ class Forever
      */
     private function executeCluster(string $key, mixed $value, array $tagIds): bool
     {
-        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tagIds) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tagIds): bool {
             $prefix = $this->context->prefix();
             $serialized = $this->serialization->serialize($connection, $value);
 

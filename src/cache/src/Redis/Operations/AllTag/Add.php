@@ -24,6 +24,9 @@ use function Hypervel\Support\now;
  */
 class Add
 {
+    /**
+     * Create a new add operation instance.
+     */
     public function __construct(
         private readonly StoreContext $context,
         private readonly Serialization $serialization,

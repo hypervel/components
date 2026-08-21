@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis\Operations\AllTag;
 
+use Generator;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\PhpRedis;
 use Hypervel\Redis\RedisConnection;
@@ -11,6 +12,9 @@ use Hypervel\Support\LazyCollection;
 
 class GetEntries
 {
+    /**
+     * Create a new get-entries operation instance.
+     */
     public function __construct(
         private readonly StoreContext $context,
     ) {
@@ -27,7 +31,7 @@ class GetEntries
         $context = $this->context;
         $prefix = $this->context->prefix();
 
-        return new LazyCollection(function () use ($context, $prefix, $tagIds) {
+        return new LazyCollection(function () use ($context, $prefix, $tagIds): Generator {
             foreach ($tagIds as $tagId) {
                 $cursor = PhpRedis::initialScanCursor();
                 $seen = [];

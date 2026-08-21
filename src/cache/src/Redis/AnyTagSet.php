@@ -36,7 +36,7 @@ class AnyTagSet extends TagSet
     /**
      * Get the hash key for a tag.
      *
-     * Delegates to StoreContext which delegates to TagMode (single source of truth).
+     * Delegates to StoreContext and its shared TagKeyBuilder source of truth.
      * Format: "{prefix}_any:tag:{tag}:entries"
      */
     public function tagHashKey(string $name): string
@@ -78,7 +78,7 @@ class AnyTagSet extends TagSet
     /**
      * Flush all tags in this set.
      *
-     * Deletes all cache items that have ANY of the specified tags
+     * Deletes all cache items that have any of the specified tags
      * (union semantics), along with their reverse indexes and tag hashes.
      */
     public function flush(): void
