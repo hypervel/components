@@ -291,7 +291,7 @@ class Application
     protected function hasConfiguredEnvironmentVariable(string $key): bool
     {
         foreach ($this->config['env'] as $environmentVariable) {
-            if (! is_string($environmentVariable)) { /* @phpstan-ignore function.alreadyNarrowedType */
+            if (! is_string($environmentVariable)) {
                 continue;
             }
 
