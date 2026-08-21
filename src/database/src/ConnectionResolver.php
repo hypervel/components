@@ -48,6 +48,9 @@ class ConnectionResolver implements ConnectionResolverInterface
      */
     protected array $nonCoroutineConnections = [];
 
+    /**
+     * Create a new connection resolver instance.
+     */
     public function __construct(
         protected Container $container
     ) {
