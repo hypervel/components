@@ -110,16 +110,6 @@ class ArrayStore extends AbstractArrayStore
     }
 
     /**
-     * Get the lock record for the given name.
-     *
-     * @return null|array{owner: ?string, expiresAt: ?CarbonImmutable}
-     */
-    public function getLockRecord(string $name): ?array
-    {
-        return $this->getLockRecords()[$name] ?? null;
-    }
-
-    /**
      * Store the lock record for the given name.
      *
      * @param array{owner: ?string, expiresAt: ?CarbonImmutable} $record
