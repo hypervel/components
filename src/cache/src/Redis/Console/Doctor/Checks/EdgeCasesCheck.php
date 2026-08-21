@@ -14,11 +14,17 @@ use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
  */
 final class EdgeCasesCheck implements CheckInterface
 {
+    /**
+     * Get the human-readable name of this check.
+     */
     public function name(): string
     {
         return 'Edge Cases';
     }
 
+    /**
+     * Run the check and return results.
+     */
     public function run(DoctorContext $context): CheckResult
     {
         $result = new CheckResult;

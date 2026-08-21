@@ -11,15 +11,21 @@ use Redis;
 /**
  * Verifies that cleanup properly removes all test data.
  *
- * This check runs AFTER cleanup to ensure no test keys remain in Redis.
+ * This check runs after cleanup to ensure no test keys remain in Redis.
  */
 final class CleanupVerificationCheck implements CheckInterface
 {
+    /**
+     * Get the human-readable name of this check.
+     */
     public function name(): string
     {
         return 'Cleanup Verification';
     }
 
+    /**
+     * Run the check and return results.
+     */
     public function run(DoctorContext $context): CheckResult
     {
         $result = new CheckResult;
@@ -102,7 +108,7 @@ final class CleanupVerificationCheck implements CheckInterface
 
         return array_filter(
             $members,
-            fn ($m) => str_starts_with($m, $testPrefix)
+            fn (string $member): bool => str_starts_with($member, $testPrefix)
         );
     }
 }

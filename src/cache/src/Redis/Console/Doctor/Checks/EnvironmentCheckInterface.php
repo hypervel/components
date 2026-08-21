@@ -10,7 +10,7 @@ use Hypervel\Cache\Redis\Console\Doctor\CheckResult;
  * Interface for environment/requirement checks.
  *
  * Environment checks verify system requirements (PHP extensions, Redis version, etc.)
- * and run BEFORE the full DoctorContext is created. They fail fast if requirements
+ * and run before the full DoctorContext is created. They fail fast if requirements
  * aren't met, preventing functional checks from running.
  */
 interface EnvironmentCheckInterface

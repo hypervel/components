@@ -15,11 +15,17 @@ use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
  */
 final class FlushBehaviorCheck implements CheckInterface
 {
+    /**
+     * Get the human-readable name of this check.
+     */
     public function name(): string
     {
         return 'Flush Behavior Semantics';
     }
 
+    /**
+     * Run the check and return results.
+     */
     public function run(DoctorContext $context): CheckResult
     {
         $result = new CheckResult;
@@ -33,9 +39,12 @@ final class FlushBehaviorCheck implements CheckInterface
         return $result;
     }
 
+    /**
+     * Test flush behavior in any-tag mode.
+     */
     private function testAnyMode(DoctorContext $context, CheckResult $result): void
     {
-        // Setup items with different tag combinations
+        // Set up items with different tag combinations
         $context->cache->tags([$context->prefixed('color:red'), $context->prefixed('color:blue')])->put($context->prefixed('flush:purple'), 'purple', 60);
         $context->cache->tags([$context->prefixed('color:red'), $context->prefixed('color:yellow')])->put($context->prefixed('flush:orange'), 'orange', 60);
         $context->cache->tags([$context->prefixed('color:blue'), $context->prefixed('color:yellow')])->put($context->prefixed('flush:green'), 'green', 60);
@@ -60,13 +69,16 @@ final class FlushBehaviorCheck implements CheckInterface
         $result->assert(
             $context->cache->get($context->prefixed('flush:green')) === null
             && $context->cache->get($context->prefixed('flush:blue')) === null,
-            'Flushing multiple tags removes items with ANY of those tags'
+            'Flushing multiple tags removes items with any of those tags'
         );
     }
 
+    /**
+     * Test flush behavior in all-tags mode.
+     */
     private function testAllMode(DoctorContext $context, CheckResult $result): void
     {
-        // Setup items with different tag combinations
+        // Set up items with different tag combinations
         $redTag = $context->prefixed('color:red');
         $blueTag = $context->prefixed('color:blue');
         $yellowTag = $context->prefixed('color:yellow');
@@ -97,7 +109,7 @@ final class FlushBehaviorCheck implements CheckInterface
             'Flushing one tag removes all items tracked in that tag ZSET'
         );
 
-        // Flush multiple tags - removes items tracked in ANY of those ZSETs
+        // Flush multiple tags - removes items tracked in any of those ZSETs
         $context->cache->tags([$blueTag, $yellowTag])->flush();
 
         $greenGone = $context->cache->tags($greenTags)->get($context->prefixed('flush:green')) === null;
@@ -105,7 +117,7 @@ final class FlushBehaviorCheck implements CheckInterface
 
         $result->assert(
             $greenGone && $blueGone,
-            'Flushing multiple tags removes items tracked in ANY of those ZSETs'
+            'Flushing multiple tags removes items tracked in any of those ZSETs'
         );
     }
 }
