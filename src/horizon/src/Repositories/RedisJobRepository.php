@@ -519,7 +519,7 @@ class RedisJobRepository implements JobRepository
             $this->keys
         );
 
-        $job = is_array($attributes) && $attributes[0] !== null // @phpstan-ignore function.alreadyNarrowedType (Redis hmget can return false at runtime despite PHPDoc)
+        $job = is_array($attributes) && $attributes[0] !== null
             ? (object) array_combine($this->keys, $attributes)
             : null;
 
@@ -603,7 +603,6 @@ class RedisJobRepository implements JobRepository
      */
     public function deleteFailed(string $id): int
     {
-        /* @phpstan-ignore-next-line */
         return $this->connection()->zrem('failed_jobs', $id) !== 1
             ? 0
             : $this->connection()->del($id);

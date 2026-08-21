@@ -84,12 +84,12 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
                 ->username($fromName)
                 ->text($text)
                 ->headerBlock($title)
-                ->sectionBlock(function (SectionBlock $block) use ($content): void { // @phpstan-ignore-line
+                ->sectionBlock(function (SectionBlock $block) use ($content): void {
                     $block->text($content);
                 });
         }
 
-        return (new SlackMessage) // @phpstan-ignore-line
+        return (new SlackMessage)
             ->from($fromName)
             ->to(Horizon::$slackChannel)
             ->error()

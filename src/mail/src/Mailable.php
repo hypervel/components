@@ -1570,7 +1570,6 @@ class Mailable implements MailableContract, Renderable
             return;
         }
 
-        /* @phpstan-ignore-next-line */
         $attachments = $this->attachments();
 
         Collection::make(is_object($attachments) ? [$attachments] : $attachments)

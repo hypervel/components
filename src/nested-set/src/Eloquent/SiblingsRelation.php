@@ -105,7 +105,7 @@ class SiblingsRelation extends BaseRelation
         foreach ($models as $model) {
             $scope = $this->scopeKey($model);
             $groups[$scope]['model'] ??= $model;
-            $parentId = $model->getParentId(); /* @phpstan-ignore method.notFound */
+            $parentId = $model->getParentId();
 
             if ($parentId === null) {
                 $groups[$scope]['has_root'] = true;
@@ -116,12 +116,12 @@ class SiblingsRelation extends BaseRelation
 
         foreach ($groups as $group) {
             $query->orWhere(function (QueryBuilder $query) use ($group) {
-                $group['model']->applyNestedSetScope($query); /* @phpstan-ignore method.notFound */
+                $group['model']->applyNestedSetScope($query);
 
                 $query->where(function (QueryBuilder $query) use ($group) {
                     $parents = array_values($group['parents'] ?? []);
                     $hasRoot = $group['has_root'] ?? false;
-                    $parentIdName = $group['model']->getParentIdName(); /* @phpstan-ignore method.notFound */
+                    $parentIdName = $group['model']->getParentIdName();
                     $qualifiedParentIdName = $group['model']->qualifyColumn($parentIdName);
 
                     if ($parents !== []) {

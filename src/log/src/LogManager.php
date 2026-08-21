@@ -159,7 +159,7 @@ class LogManager implements LoggerInterface
             $underlyingLogger = $logger->getLogger();
 
             if (method_exists($underlyingLogger, 'pushProcessor')) {
-                $underlyingLogger->pushProcessor($this->makeContextProcessor()); // @phpstan-ignore method.notFound
+                $underlyingLogger->pushProcessor($this->makeContextProcessor());
             }
 
             if ($cache) {
