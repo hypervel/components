@@ -26,14 +26,14 @@ class ScheduleTestCommandTest extends TestCase
         Artisan::registerCommand(new BarCommandStub);
     }
 
-    public function testRunNoDefinedCommands()
+    public function testRunNoDefinedCommands(): void
     {
         $this->artisan(ScheduleTestCommand::class)
             ->assertSuccessful()
             ->expectsOutputToContain('No scheduled commands have been defined.');
     }
 
-    public function testRunNoMatchingCommand()
+    public function testRunNoMatchingCommand(): void
     {
         $this->schedule->command(BarCommandStub::class);
 
@@ -42,7 +42,7 @@ class ScheduleTestCommandTest extends TestCase
             ->expectsOutputToContain('No matching scheduled command found.');
     }
 
-    public function testRunUsingNameOption()
+    public function testRunUsingNameOption(): void
     {
         $this->schedule->command(BarCommandStub::class)->name('bar-command');
         $this->schedule->job(BarJobStub::class);
@@ -79,7 +79,7 @@ class ScheduleTestCommandTest extends TestCase
         $this->assertTrue($callbackRan);
     }
 
-    public function testRunUsingChoices()
+    public function testRunUsingChoices(): void
     {
         $this->schedule->command(BarCommandStub::class)->name('bar-command');
         $this->schedule->job(BarJobStub::class);
@@ -103,14 +103,14 @@ class BarCommandStub extends Command
 
     protected string $description = 'This is the description of the command.';
 
-    public function handle()
+    public function handle(): void
     {
     }
 }
 
 class BarJobStub
 {
-    public function __invoke()
+    public function __invoke(): void
     {
     }
 }
