@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Coroutine;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Coroutine\Exceptions\ChildUnwindTimeoutException;
+use Hypervel\Coroutine\Exceptions\ChildTerminationTimeoutException;
 use Hypervel\Coroutine\Exceptions\WaitTimeoutException;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Engine\Channel;
@@ -394,7 +394,7 @@ class WaiterTest extends TestCase
 
         $exception = $outcome->pop(0.01);
 
-        $this->assertInstanceOf(ChildUnwindTimeoutException::class, $exception);
+        $this->assertInstanceOf(ChildTerminationTimeoutException::class, $exception);
         $this->assertSame(
             'Channel wait failed, reason: Timed out for 0.002 s and child coroutine did not terminate within 0.001 s',
             $exception->getMessage(),

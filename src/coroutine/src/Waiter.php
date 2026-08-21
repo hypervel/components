@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Coroutine;
 
 use Closure;
-use Hypervel\Coroutine\Exceptions\ChildUnwindTimeoutException;
+use Hypervel\Coroutine\Exceptions\ChildTerminationTimeoutException;
 use Hypervel\Coroutine\Exceptions\ExceptionThrower;
 use Hypervel\Coroutine\Exceptions\WaitTimeoutException;
 use Hypervel\Engine\Channel;
@@ -42,7 +42,7 @@ class Waiter
      * @param bool $waitForChildTermination Wait without a limit when a cancelled child exceeds the cleanup allowance
      * @return TReturn
      * @throws WaitTimeoutException When the wait times out
-     * @throws ChildUnwindTimeoutException When a cancelled child outlives the cleanup allowance in strict mode
+     * @throws ChildTerminationTimeoutException When a cancelled child outlives the cleanup allowance in strict mode
      */
     public function wait(
         Closure $closure,
@@ -85,7 +85,7 @@ class Waiter
                 Coroutine::join([$childCoroutineId]);
 
                 // The wait already timed out, so discard any result produced during the extended unwind.
-                throw new ChildUnwindTimeoutException(sprintf(
+                throw new ChildTerminationTimeoutException(sprintf(
                     'Channel wait failed, reason: Timed out for %s s and child coroutine did not terminate within %s s',
                     $timeout,
                     $this->pushTimeout,

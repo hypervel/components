@@ -4,6 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Coroutine\Exceptions;
 
-class ChildUnwindTimeoutException extends WaitTimeoutException
+class ChildTerminationTimeoutException extends WaitTimeoutException
 {
 }
