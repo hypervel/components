@@ -6,6 +6,8 @@ namespace Hypervel\Coroutine;
 
 use Closure;
 use Hypervel\Container\Container;
+use Hypervel\Coroutine\Exceptions\ChildTerminationTimeoutException;
+use Hypervel\Coroutine\Exceptions\WaitTimeoutException;
 use RuntimeException;
 use Swoole\Runtime;
 
@@ -32,13 +34,20 @@ function parallel(array $callables, int $concurrent = 0, bool|array $copyContext
  * @param array<string>|bool $copyContext When set, parent coroutine context is copied to the child.
  *                                        false = fresh context (default), true or empty array = copy all keys, non-empty array = copy listed keys only.
  *                                        Object values are shared by reference unless they implement Hypervel\Context\ReplicableContext.
+ * @param bool $waitForChildTermination Wait without a limit when a cancelled child exceeds the cleanup allowance
  * @return TReturn
+ * @throws WaitTimeoutException When the wait times out
+ * @throws ChildTerminationTimeoutException When a cancelled child outlives the cleanup allowance in strict mode
  */
-function wait(Closure $closure, ?float $timeout = null, bool|array $copyContext = false): mixed
-{
+function wait(
+    Closure $closure,
+    ?float $timeout = null,
+    bool|array $copyContext = false,
+    bool $waitForChildTermination = false,
+): mixed {
     return Container::getInstance()
         ->make(Waiter::class)
-        ->wait($closure, $timeout, $copyContext);
+        ->wait($closure, $timeout, $copyContext, $waitForChildTermination);
 }
 
 /**
