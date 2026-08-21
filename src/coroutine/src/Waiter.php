@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Coroutine;
 
 use Closure;
+use Hypervel\Coroutine\Exceptions\ChildUnwindTimeoutException;
 use Hypervel\Coroutine\Exceptions\ExceptionThrower;
 use Hypervel\Coroutine\Exceptions\WaitTimeoutException;
 use Hypervel\Engine\Channel;
@@ -38,11 +39,17 @@ class Waiter
      * @param array<string>|bool $copyContext When set, parent coroutine context is copied to the child.
      *                                        false = fresh context (default), true or empty array = copy all keys, non-empty array = copy listed keys only.
      *                                        Object values are shared by reference unless they implement Hypervel\Context\ReplicableContext.
+     * @param bool $waitForChildTermination Wait without a limit when a cancelled child exceeds the cleanup allowance
      * @return TReturn
      * @throws WaitTimeoutException When the wait times out
+     * @throws ChildUnwindTimeoutException When a cancelled child outlives the cleanup allowance in strict mode
      */
-    public function wait(Closure $closure, ?float $timeout = null, bool|array $copyContext = false): mixed
-    {
+    public function wait(
+        Closure $closure,
+        ?float $timeout = null,
+        bool|array $copyContext = false,
+        bool $waitForChildTermination = false,
+    ): mixed {
         if ($timeout === null) {
             $timeout = $this->popTimeout;
         }
@@ -71,6 +78,19 @@ class Waiter
             // then give the child a bounded interval to unwind and run deferred cleanup.
             EngineCoroutine::cancelById($childCoroutineId, throwException: true);
             Coroutine::join([$childCoroutineId], $this->pushTimeout);
+
+            // A false join may mean either timeout or a missing coroutine, so only
+            // existence proves that the child survived the cleanup allowance.
+            if ($waitForChildTermination && Coroutine::exists($childCoroutineId)) {
+                Coroutine::join([$childCoroutineId]);
+
+                // The wait already timed out, so discard any result produced during the extended unwind.
+                throw new ChildUnwindTimeoutException(sprintf(
+                    'Channel wait failed, reason: Timed out for %s s and child coroutine did not terminate within %s s',
+                    $timeout,
+                    $this->pushTimeout,
+                ));
+            }
 
             throw new WaitTimeoutException(sprintf('Channel wait failed, reason: Timed out for %s s', $timeout));
         }
