@@ -45,15 +45,12 @@ parameters:
     # Framework traits provided for userland - not used internally but intentionally available
     - '#Trait Hypervel\\[A-Za-z\\\\]+ is used zero times and is not analysed\.#'
 
-    # Fluent class uses magic __get/__set/__call for dynamic properties and methods (ColumnDefinition, IndexDefinition, etc.)
+    # Schema definitions use Fluent's dynamic properties; Fluent and ForeignIdColumnDefinition also expose dynamic methods.
     - '#Access to an undefined property Hypervel\\Support\\Fluent::\$#'
     - '#Access to an undefined property Hypervel\\Database\\Schema\\ColumnDefinition::\$#'
     - '#Access to an undefined property Hypervel\\Database\\Schema\\IndexDefinition::\$#'
     - '#Access to an undefined property Hypervel\\Database\\Schema\\ForeignKeyDefinition::\$#'
     - '#Call to an undefined method Hypervel\\Support\\Fluent::#'
-    - '#Call to an undefined method Hypervel\\Database\\Schema\\ColumnDefinition::#'
-    - '#Call to an undefined method Hypervel\\Database\\Schema\\IndexDefinition::#'
-    - '#Call to an undefined method Hypervel\\Database\\Schema\\ForeignKeyDefinition::#'
     - '#Access to an undefined property Hypervel\\Database\\Schema\\ForeignIdColumnDefinition::\$#'
     - '#Call to an undefined method Hypervel\\Database\\Schema\\ForeignIdColumnDefinition::#'
 
@@ -67,7 +64,6 @@ parameters:
     # Generic template type limitations - PHPStan can't resolve methods through generic TModel/TRelatedModel
     - '#Call to an undefined method TModel of Hypervel\\Database\\Eloquent\\Model::#'
     - '#Call to an undefined method TRelatedModel of Hypervel\\Database\\Eloquent\\Model::#'
-    - '#Call to an undefined method TPivotModel of Hypervel\\Database\\Eloquent\\Relations\\Pivot::#'
 
     # Deep generic template limitations - PHPStan can't fully resolve complex generic type relationships
     - identifier: generics.lessTypes
@@ -93,10 +89,6 @@ parameters:
     # PHPStan sees Builder return type but the actual return is $this (the Relation)
     - message: '#should return \$this\(Hypervel\\Database\\Eloquent\\Relations\\.+\) but returns Hypervel\\Database\\(Query|Eloquent)\\Builder#'
       path: src/database/*
-
-    # Collection template covariance - specific array shapes are subtypes of array<string, mixed>
-    # but Collection<TValue> is invariant, so PHPStan rejects the more specific return type
-    - message: '#should return Hypervel\\Support\\Collection<.+, array<.+>> but returns Hypervel\\Support\\Collection<.+, array\{#'
 
     # BelongsToMany pivot intersection type - PHPDoc uses object{pivot: ...}&TRelatedModel
     # to document that models get a pivot property attached, but PHPStan can't track dynamic attachment
