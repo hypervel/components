@@ -387,7 +387,7 @@ class DataTableRenderer extends Renderer implements Scrolling
             $dataLines = array_map(fn ($line, $index) => match ($index) {
                 $visualPos => preg_replace('/.$/', $this->cyan('┃'), $this->pad($line, $innerWidth)) ?? '',
                 default => preg_replace('/.$/', $this->gray('│'), $this->pad($line, $innerWidth)) ?? '',
-            }, array_values($dataLines), range(0, $numVisual - 1)); // @phpstan-ignore arrayValues.list
+            }, array_values($dataLines), range(0, $numVisual - 1));
         }
 
         return $dataLines;

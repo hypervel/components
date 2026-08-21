@@ -44,10 +44,10 @@ class Progress extends Prompt
     public function __construct(public string $label, public int|iterable $steps, public string $hint = '')
     {
         if ($this->steps instanceof Traversable && ! is_countable($this->steps)) {
-            $this->steps = iterator_to_array($this->steps, false); // @phpstan-ignore assign.propertyType (PHPStan cannot preserve the generic iterable property type after materialization.)
+            $this->steps = iterator_to_array($this->steps, false);
         }
 
-        $this->total = match (true) { // @phpstan-ignore assign.propertyType (PHPStan does not follow the normalized iterable through the match.)
+        $this->total = match (true) {
             is_int($this->steps) => $this->steps,
             is_countable($this->steps) => count($this->steps),
             default => throw new InvalidArgumentException('Unable to count steps.'),

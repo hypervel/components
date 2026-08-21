@@ -53,7 +53,7 @@ class Pool
         call_user_func($this->callback, $this);
 
         foreach ($this->pendingProcesses as $pendingProcess) {
-            if (! $pendingProcess instanceof PendingProcess) { // @phpstan-ignore instanceof.alwaysTrue (defensive validation)
+            if (! $pendingProcess instanceof PendingProcess) {
                 throw new InvalidArgumentException('Process pool must only contain pending processes.');
             }
         }
