@@ -282,7 +282,7 @@ class HandleExceptions
         if (class_exists(ErrorHandler::class)) {
             $instance = ErrorHandler::instance();
 
-            if ((fn () => $this->enabled ?? false)->call($instance)) { // @phpstan-ignore nullCoalesce.property, if.alwaysFalse (Closure::call() rebinds $this to ErrorHandler; phpstan can't model this)
+            if ((fn () => $this->enabled ?? false)->call($instance)) { // @phpstan-ignore nullCoalesce.property (Closure::call() rebinds $this to ErrorHandler; PHPStan cannot model this)
                 $instance->disable();
                 $instance->enable($testCase);
             }

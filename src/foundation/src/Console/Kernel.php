@@ -503,8 +503,8 @@ class Kernel implements KernelContract
         $this->app->instance(ApplicationContract::class, $this->artisan);
 
         if ($this->symfonyDispatcher instanceof EventDispatcher) {
-            $this->artisan->setDispatcher($this->symfonyDispatcher); /* @phpstan-ignore-line */
-            $this->artisan->setSignalsToDispatchEvent(); /* @phpstan-ignore-line */
+            $this->artisan->setDispatcher($this->symfonyDispatcher);
+            $this->artisan->setSignalsToDispatchEvent();
         }
 
         return $this->artisan;
