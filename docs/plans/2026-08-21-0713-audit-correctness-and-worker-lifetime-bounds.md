@@ -2,7 +2,7 @@
 
 ## Objective
 
-Correct the confirmed non-watcher findings from the 0.4 audit without changing Laravel-compatible APIs, adding material hot-path machinery, or documenting behavior the repository does not ship. The finished code should have truthful Redis result contracts, reentrant Redis command events, connection-owned database tracking, correct secondary Swoole settings, event preparation keyed only by finite registrations, bounded-work reclamation of expired worker-local cache state, whole-second deadlines that never shorten requested lifetimes, self-reclaiming mutex channels, accurate scheduler timing, robust diagnostics and stream writes, and no premature Boost installation instructions.
+Correct the confirmed non-watcher findings from the 0.4 audit without changing Laravel-compatible APIs, adding material hot-path machinery, or documenting behavior the repository does not ship. The finished code should have truthful Redis result contracts, reentrant Redis command events, connection-owned database tracking, correct secondary Swoole settings, event preparation keyed only by finite registrations, bounded-work reclamation of expired worker-local cache state, whole-second deadlines that never shorten requested lifetimes, self-reclaiming mutex channels, deadlock-free database rate-limiter initialization, accurate scheduler timing, robust diagnostics and stream writes, and no premature Boost installation instructions.
 
 This plan targets branch `fix/audit-correctness-follow-up` from 0.4 commit `88190e640498`. Research references are the local Laravel checkout at `a659f095965b`, phpredis at `777f7377674a`, Swoole at `8e8c49915ca5`, and the installed PHP 8.4.23 / phpredis 6.3.0 / Swoole 6.2.2 runtime.
 
@@ -18,6 +18,7 @@ This plan targets branch `fix/audit-correctness-follow-up` from 0.4 commit `8819
 - `Hypervel\RateLimiter\WorkerArrayStore` is not a defect. Its tests-only scope, per-worker isolation, and retention of expired untouched keys are explicit in shipped config and documentation; Reverb owns and clears its per-connection keys. It will not gain production-oriented pruning machinery.
 - Eloquent mutator keys remain semantic model/schema identifiers. Arbitrary growth requires arbitrary request strings to be used as model attributes, while replacing one `StrCache` call would leave the parallel negative mutator maps unchanged. No Eloquent metadata redesign will be added for application code that passes unfiltered input to an unguarded model.
 - `Hypervel\Cache\WorkerArrayStore` deliberately retains live and forever values across requests, but abandoned TTL-expired values and locks are dead state. Reclamation will perform fixed work per explicitly requested record write, never work proportional to existing store size. There will be no whole-map sweep, cadence, cap, eviction, expiry index, timer, coroutine, lifecycle hook, or new configuration.
+- Database rate-limiter mutations will retain the existing one-transaction path for established rows. A non-SQLite cold miss will release its missing-row lock before a second transaction uses a parameterized key-only upsert to create or exclusively lock the row through calculation and write. PostgreSQL mutations will reject explicitly configured isolation levels other than the documented `READ COMMITTED`; no query or cached state will be added for that check. There will be no unconditional hot-path upsert, retry backoff, application lock, isolation-level mutation, unlocked seed window, or unbounded initialization loop.
 - A future instant stored with whole-second precision must round upward so it never occurs before the requested duration or absolute deadline. Immediate, past, and zero-duration values retain their current floor. This is one shared time conversion plus direct storage-boundary uses, not a clock service or per-package timing mechanism.
 - Mutex release will reclaim only a quiescent channel that is still the exact channel published for the key. It will not add owner tracking, reference counts, a wrapper entry type, producer introspection, polling, or cleanup timers.
 - Stream completion loops stop on `false` or zero progress. They will not poll readiness, sleep, spin, or add asynchronous buffering.
@@ -40,6 +41,7 @@ This plan targets branch `fix/audit-correctness-follow-up` from 0.4 commit `8819
 | Cache array-store expiry | Prevent expired-value revival and reclaim abandoned expired worker-local values/locks with bounded work |
 | Whole-second future deadlines | Round up future cache, queue, credential, and client deadlines; preserve immediate/past behavior and precise monotonic Worker time |
 | Coroutine mutex channel retention | Reclaim quiescent channels after successful release without disturbing waiter handoff |
+| Database rate-limiter first-use deadlock | Release missing-row locks before a cold-only upsert transaction owns initialization and mutation continuously |
 | Scheduler seconds labelled as milliseconds | Reuse `InteractsWithTime` |
 | Database assertion JSON failures | Use the two deliberate tolerant-encoding flags and restore Laravel's Unicode option |
 | Fake HTTP sink writes/rewinds | Complete partial writes and rewind only seekable sinks |
@@ -646,6 +648,62 @@ Edit `src/boost/README.md` to remove the now-invalid installation documentation 
 
 Do not add a placeholder command, service provider, fake package test, or partial MCP/tool roster. After deletion, search all tracked Markdown outside historical plans/TODO handoffs and assert no shipped documentation mentions `boost:install` or claims the tooling exists.
 
+## 14. Make database rate-limiter first use deadlock-free
+
+### Root cause
+
+`DatabaseStore::stateForUpdate()` currently performs `SELECT ... FOR UPDATE`, `INSERT IGNORE`, and a second locking read in one transaction when a row is missing. Under InnoDB REPEATABLE READ, concurrent callers can all hold compatible locks on the same missing primary-key gap and then deadlock when their inserts request insert-intention locks. Immediate retries can recreate the cycle until `attempts: 3` is exhausted and a production limiter mutation throws. MariaDB 11.8 reproduced the CI failure under the unchanged ten-coroutine fixed-window test, and MariaDB 10.11 reproduced the two-transaction lock cycle directly. The relevant source and tests predate this branch.
+
+Laravel does not own this sequence: its cache-backed limiter seeds a database-cache counter before the later locking increment transaction. The correction belongs to Hypervel's dedicated database limiter.
+
+### Source changes
+
+Edit `src/rate-limiter/src/DatabaseStore.php`:
+
+- resolve the connection once in each public mutation, rename `ensureOutsideTransaction()` to `ensureCanMutate()`, and keep the active-transaction check first before any transaction;
+- when the connection driver is PostgreSQL, read its in-memory `isolation_level` configuration and throw `InvalidArgumentException` naming the connection unless the value is null or a case-insensitive `read committed`. Apply this to all five mutation methods, including `clear()` and `pruneExpired()`, while leaving read-only `inspect()` available. Do not coerce non-string values, trim malformed values, query `SHOW transaction_isolation`, or inspect server-side defaults outside Hypervel's connection configuration;
+- add one generic internal mutation helper shared by `consume()`, `block()`, and `recordFailure()`, with a result template bounded to `LimitResult|CooldownResult|BackoffResult` so each public method retains its exact inferred return type;
+- run the existing locking transaction first. When state exists, invoke the calculation/write callback immediately, preserving the established-row statements, locks, three-attempt retry policy, and server-time ordering;
+- on a non-SQLite miss, return the helper's private `null` sentinel and commit that read-only transaction before issuing an insert. This releases InnoDB's missing-row gap lock and starts initialization in a new transaction;
+- run exactly one second transaction whose first statement is a cold-only no-op upsert. Use the associative update form so MySQL does not emit its deprecated `VALUES()` function or depend on the optional `use_upsert_alias` connection setting:
+
+```php
+$connection->table($this->table)->upsert(
+    $this->emptyStateRow($key),
+    'key',
+    ['key' => $key],
+);
+```
+
+- in that same second transaction, retain `findStateForUpdate()` and its `lockForUpdate()` call, observe server time once, calculate, and write. The upsert either inserts the row or performs a no-op update that acquires its exclusive lock; `clear()` and `pruneExpired()` therefore order before the upsert or after the mutation commit and cannot remove a temporary seed between initialization and use;
+- retain the invariant exception when the post-upsert locking read is absent, with one short WHY comment explaining that the transaction already created or exclusively locked the row;
+- return the shared key plus zeroed state columns from one protected accessor used by both SQLite insertion and the non-SQLite upsert, so every driver initializes from the same state literal;
+- keep SQLite's current insert-first transaction unchanged because `FOR UPDATE` is ignored and the insert acquires its database writer lock;
+- rewrite the old insert-first/duplicate-shared-lock comments so they describe the final two-phase cold path accurately.
+
+Do not add an unconditional upsert to established-key mutations, a bare autocommit seed, a cold retry loop or cap, a retry delay, an application mutex, a session-isolation change, or driver-specific raw SQL. The cold-only upsert adds no database statement and only the private sentinel branch to the established-row hot path; the PostgreSQL contract guard is an in-memory driver/config comparison. A cold key pays one additional transaction boundary while retaining the same state-query count; contended first use avoids repeated deadlock rollbacks.
+
+### Tests and verification
+
+Update `tests/RateLimiter/DatabaseStoreTest.php` deterministically:
+
+- established non-SQLite state uses one locking mutation transaction and never upserts;
+- missing MySQL/MariaDB/PostgreSQL state completes the miss transaction before the second transaction starts;
+- the second transaction contains the associative key-only upsert, locked read, server clock, and write in that order;
+- the upsert's update list contains only the key and cannot overwrite an existing limiter value;
+- SQLite retains insert-ignore before its locking read in one transaction;
+- the miss round never reads the server clock;
+- explicit PostgreSQL `READ COMMITTED` reaches the normal mutation path, while `REPEATABLE READ` and non-string isolation configuration fail before transaction or SQL work;
+- an unset PostgreSQL isolation level follows the normal default `READ COMMITTED` mutation path;
+- every mutation method, including `clear()` and `pruneExpired()`, rejects an explicitly unsupported PostgreSQL isolation level, while MySQL/MariaDB `REPEATABLE READ` remains accepted;
+- all five mutation methods reject an already-active transaction before any limiter SQL.
+
+Keep both shared integration regressions unchanged: fixed-window and sliding-window concurrent first use must admit exactly configured capacity without test retries, reduced concurrency, or relaxed assertions.
+
+Keep the PostgreSQL integration subclass at its default `READ COMMITTED` configuration. PostgreSQL aborts contended same-row updates at stronger isolation levels rather than safely queueing them, so the documented connection requirement is enforced before any mutation instead of adding retry or locking machinery for an unsupported mode.
+
+Run the unit file, all four database-store integration variants, repeated MariaDB 11.8 contention that reproduced the failure, MySQL contention, and PostgreSQL at its documented default `READ COMMITTED`. No timing-dependent competing-pruner test is needed because the deterministic same-transaction ordering assertion proves the deletion window is closed.
+
 ## Implementation order and verification
 
 Follow tests-first development within each slice and edit one file at a time as required by `AGENTS.md`:
@@ -662,6 +720,7 @@ Follow tests-first development within each slice and edit one file at a time as 
 10. HTTP fake sink completion/seekability.
 11. Log stream completion/retry behavior.
 12. Boost documentation and TODO cleanup.
+13. Database rate-limiter cold-key initialization ordering.
 
 For each slice, add/adjust the focused test first, observe the intended failure where practical, implement, and rerun that file. Use at least these focused commands after the slice is complete:
 
@@ -680,6 +739,11 @@ composer test -- tests/Foundation/FoundationInteractsWithDatabaseTest.php
 composer test -- tests/Http/HttpClientTest.php
 composer test -- tests/Log/StreamHandlerTest.php
 composer --working-dir=src/boost validate --strict
+composer test -- tests/RateLimiter/DatabaseStoreTest.php
+bin/run-database-tests.sh mariadb --filter=DatabaseStoreTest
+bin/run-database-tests.sh mysql --filter=DatabaseStoreTest
+bin/run-database-tests.sh pgsql --filter=DatabaseStoreTest
+bin/run-database-tests.sh sqlite --filter=DatabaseStoreTest
 ```
 
 Redis integration tests are opt-in through the copied `.env`; if the configured service is unavailable, retain deterministic unit coverage and report the skipped environmental verification rather than weakening assertions. The real Swoole test requires the repository floor, 6.2.2.
@@ -706,4 +770,5 @@ After all focused suites pass:
 - All database constraint diagnostics return useful strings for malformed data and preserve Laravel's Unicode formatting.
 - Fake HTTP sinks and log handlers either write every byte exactly once or fail deterministically; neither spins nor closes caller resources.
 - Shipped docs contain no Boost installation command until the package implements it, while TODOs accurately describe remaining future work.
+- Established database limiter rows retain their current hot path; a non-SQLite cold miss releases its missing-row lock before one transaction initializes, locks, calculates, and writes without an unlocked seed window or exhausted deadlock retries. Every mutation rejects explicitly unsupported PostgreSQL isolation configuration before opening a transaction.
 - No watcher implementation/config/docs/tests change in this branch, no Laravel API is broken, and the full repository quality gate passes.
