@@ -575,16 +575,10 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
 
     /**
      * Forget all of the resolved mailer instances.
-     *
-     * Boot or tests only. This is cache-only: pooled transports on the wrapped
-     * manager remain shared resources until purged or reclaimed by their idle TTL.
      */
     public function forgetMailers(): static
     {
         $this->currentMailer = null;
-
-        // Calls not handled by the fake are forwarded to this manager.
-        $this->manager->forgetMailers();
 
         return $this;
     }

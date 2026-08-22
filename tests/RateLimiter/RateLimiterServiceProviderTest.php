@@ -10,7 +10,6 @@ use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Core\Events\BeforeServerStart;
 use Hypervel\RateLimiter\Listeners\InitializeSwooleTables;
 use Hypervel\RateLimiter\Listeners\RegisterPruneTimer;
-use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\RateLimiter\RateLimiterServiceProvider;
 use Hypervel\Support\DefaultProviders;
 use Hypervel\Tests\TestCase;
@@ -19,26 +18,6 @@ use Swoole\Server as SwooleServer;
 
 class RateLimiterServiceProviderTest extends TestCase
 {
-    public function testReloadConfigurationForgetsResolvedStores(): void
-    {
-        $manager = m::mock(RateLimiter::class);
-        $manager->shouldReceive('forgetInstances')->once()->andReturnSelf();
-        $application = m::mock(Application::class);
-        $application->shouldReceive('resolved')->once()->with(RateLimiter::class)->andReturnTrue();
-        $application->shouldReceive('make')->once()->with(RateLimiter::class)->andReturn($manager);
-
-        (new RateLimiterServiceProvider($application))->reloadConfiguration();
-    }
-
-    public function testReloadConfigurationDoesNotResolveAnUnusedManager(): void
-    {
-        $application = m::mock(Application::class);
-        $application->shouldReceive('resolved')->once()->with(RateLimiter::class)->andReturnFalse();
-        $application->shouldNotReceive('make');
-
-        (new RateLimiterServiceProvider($application))->reloadConfiguration();
-    }
-
     public function testRateLimiterIsARequiredFrameworkProvider(): void
     {
         $this->assertContains(

@@ -17,6 +17,22 @@ use Symfony\Component\Console\Tester\CommandTester;
 
 class GeneratorCommandTest extends TestCase
 {
+    public function testViewPathUsesTheConventionalDirectoryWhenConfiguredPathsAreEmpty(): void
+    {
+        config(['view.paths' => []]);
+        $command = new GeneratorCommandStub;
+        $command->setHypervel($this->app);
+
+        $this->assertSame(
+            $this->app->basePath('resources/views/mail'),
+            $command->exposedViewPath('mail'),
+        );
+
+        config(['view.paths' => ['/custom/views']]);
+
+        $this->assertSame('/custom/views/mail', $command->exposedViewPath('mail'));
+    }
+
     public function testGetPathWithRelativePath(): void
     {
         $command = new GeneratorCommandStub;

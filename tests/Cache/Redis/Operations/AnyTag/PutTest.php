@@ -68,6 +68,37 @@ class PutTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
+    public function testPutNormalizesExpiringMetadataInClusterMode(): void
+    {
+        [$redis, , $connection] = $this->createClusterStore(tagMode: 'any');
+        $startedAt = time();
+
+        $connection->shouldReceive('smembers')->once()->with('prefix:foo:_any:tags')->andReturn([]);
+        $connection->shouldReceive('setex')->once()->with('prefix:foo', 1, serialize('bar'))->andReturn(true);
+        $connection->shouldReceive('multi')->once()->andReturnSelf();
+        $connection->shouldReceive('del')->once()->with('prefix:foo:_any:tags')->andReturnSelf();
+        $connection->shouldReceive('sadd')->once()->with('prefix:foo:_any:tags', 'users')->andReturnSelf();
+        $connection->shouldReceive('expire')->once()->with('prefix:foo:_any:tags', 1)->andReturnSelf();
+        $connection->shouldReceive('exec')->once()->andReturn([]);
+        $connection->shouldReceive('hsetex')
+            ->once()
+            ->with('prefix:_any:tag:users:entries', ['foo' => '1'], ['EX' => 1])
+            ->andReturn(1);
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->withArgs(function (string $key, array $options, int $expiresAt, string $tag) use ($startedAt): bool {
+                $this->assertSame('prefix:_any:tag:registry', $key);
+                $this->assertSame(['GT'], $options);
+                $this->assertGreaterThan($startedAt, $expiresAt);
+                $this->assertSame('users', $tag);
+
+                return true;
+            })
+            ->andReturn(1);
+
+        $this->assertTrue($redis->anyTagOps()->put()->execute('foo', 'bar', -60, ['users']));
+    }
+
     /**
      * @test
      */

@@ -80,9 +80,11 @@ The `single` and `daily` channels have three optional configuration options: `bu
 | ------------ | ----------------------------------------------------------------------------- | ------- |
 | `bubble`     | Indicates if messages should bubble up to other channels after being handled. | `true`  |
 | `locking`    | Attempt to lock the log file before writing to it.                            | `false` |
-| `permission` | The log file's permissions.                                                   | `0644`  |
+| `permission` | The permissions applied to newly created log files.                           | `null`  |
 
 </div>
+
+When `permission` is `null`, the operating system determines the log file's permissions.
 
 Additionally, the retention policy for the `daily` channel can be configured via the `LOG_DAILY_DAYS` environment variable or by setting the `days` configuration option.
 
@@ -102,9 +104,29 @@ The default `papertrail` channel is a `monolog` channel that uses Monolog's `Sys
 <a name="configuring-the-slack-channel"></a>
 #### Configuring the Slack Channel
 
-The `slack` channel requires a `url` configuration option. This value may be defined via the `LOG_SLACK_WEBHOOK_URL` environment variable. This URL should match a URL for an [incoming webhook](https://slack.com/apps/A0F7XDUAZ-incoming-webhooks) that you have configured for your Slack team.
+The `slack` channel requires a `url` configuration option. This value may be defined via the `LOG_SLACK_WEBHOOK_URL` environment variable. The URL may point to a [Slack incoming webhook](https://api.slack.com/messaging/webhooks) or a compatible service such as [Mattermost](https://developers.mattermost.com/integrate/webhooks/incoming/).
 
 By default, Slack will only receive logs at the `critical` level and above; however, you can adjust this using the `LOG_LEVEL` environment variable or by modifying the `level` configuration option within your Slack log channel's configuration array.
+
+<div class="overflow-auto">
+
+| Name                   | Description                                                                      | Default            |
+| ---------------------- | -------------------------------------------------------------------------------- | ------------------ |
+| `url`                  | The incoming webhook URL.                                                        | Required           |
+| `level`                | The minimum level that will be sent to the webhook.                              | `critical`         |
+| `username`             | The webhook username and attachment footer.                                      | Application name   |
+| `emoji`                | The webhook icon and attachment footer icon.                                     | `:boom:`           |
+| `channel`              | An optional destination override for compatible services.                        | `null`             |
+| `attachment`           | Whether to format messages as attachments instead of plain text.                 | `true`             |
+| `short`                | Whether to use the compact attachment layout.                                    | `false`            |
+| `context`              | Whether to include the record's context and extra data in its attachment.         | `true`             |
+| `exclude_fields`       | Dot-notated context and extra fields to exclude from the message.                 | `[]`               |
+| `bubble`               | Whether messages should bubble to later handlers after they have been handled.   | `true`             |
+| `replace_placeholders` | Whether placeholders in the message should be replaced using its context values. | `true`             |
+
+</div>
+
+Slack always uses the channel, username, and icon associated with the webhook. Mattermost uses its configured channel by default, but may honor these overrides when permitted by the server.
 
 <a name="configuring-the-standard-output-channels"></a>
 #### Configuring the Standard Output Channels
@@ -123,7 +145,7 @@ PHP, Hypervel, and other libraries often notify their users that some of their f
 ```php
 'deprecations' => [
     'channel' => env('LOG_DEPRECATIONS_CHANNEL', 'null'),
-    'trace' => env('LOG_DEPRECATIONS_TRACE', false),
+    'trace' => (bool) env('LOG_DEPRECATIONS_TRACE', false),
 ],
 
 'channels' => [

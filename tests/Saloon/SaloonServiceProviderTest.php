@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Saloon;
 use GuzzleHttp\TransportSharing;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Http\Client\Factory;
-use Hypervel\Saloon\Exceptions\PendingRequestException;
 use Hypervel\Saloon\Facades\Saloon;
 use Hypervel\Saloon\SaloonManager;
 use Hypervel\Saloon\SaloonServiceProvider;
@@ -41,62 +40,17 @@ class SaloonServiceProviderTest extends TestCase
         ], $this->app->make(Factory::class)->getConnectionConfig('saloon'));
     }
 
-    public function testProviderReloadsConnectionOptionsAndHandler(): void
+    public function testOmittedFixtureSettingsUsePackageDefaults(): void
     {
-        $factory = $this->app->make(Factory::class);
-        $oldHandler = $factory->getConnectionHandler('saloon');
-        $options = [
-            'connect_timeout' => 5,
-            'timeout' => 15,
-            'transport_sharing' => TransportSharing::HANDLER_PREFER,
-        ];
-        config()->set('saloon.connection.options', $options);
+        $fixturePath = base_path('tests/Fixtures/Saloon');
+        $this->assertSame($fixturePath, config()->string('saloon.fixtures.path'));
 
-        $provider = $this->app->getProvider(SaloonServiceProvider::class);
-        $this->assertInstanceOf(SaloonServiceProvider::class, $provider);
-        $provider->reloadConfiguration();
+        config()->set('saloon.fixtures', []);
 
-        $this->assertSame($options, $factory->getConnectionConfig('saloon'));
-        $this->assertNotSame($oldHandler, $factory->getConnectionHandler('saloon'));
-    }
+        $manager = $this->app->make(SaloonManager::class);
 
-    public function testProviderRegistersChangedConnectionNameWithoutRemovingApplicationPreset(): void
-    {
-        $factory = $this->app->make(Factory::class);
-        $applicationOptions = ['timeout' => 60];
-        $saloonOptions = ['timeout' => 15];
-        $factory->registerConnection('saloon', $applicationOptions);
-        config()->set('saloon.connection.name', 'saloon-refreshed');
-        config()->set('saloon.connection.options', $saloonOptions);
-
-        $provider = $this->app->getProvider(SaloonServiceProvider::class);
-        $this->assertInstanceOf(SaloonServiceProvider::class, $provider);
-        $provider->reloadConfiguration();
-
-        $this->assertSame($applicationOptions, $factory->getConnectionConfig('saloon'));
-        $this->assertSame($saloonOptions, $factory->getConnectionConfig('saloon-refreshed'));
-    }
-
-    public function testProviderRejectsInvalidReloadedOptionsBeforeChangingConnection(): void
-    {
-        $factory = $this->app->make(Factory::class);
-        $originalOptions = $factory->getConnectionConfig('saloon');
-        config()->set('saloon.connection.options', ['headers' => ['X-Test' => 'value']]);
-
-        $provider = $this->app->getProvider(SaloonServiceProvider::class);
-        $this->assertInstanceOf(SaloonServiceProvider::class, $provider);
-
-        try {
-            $provider->reloadConfiguration();
-            $this->fail('Expected invalid reloaded Saloon options to be rejected.');
-        } catch (PendingRequestException $exception) {
-            $this->assertSame(
-                'The [headers] option cannot be set in HTTP connection [saloon]; use the Saloon request API instead.',
-                $exception->getMessage(),
-            );
-        }
-
-        $this->assertSame($originalOptions, $factory->getConnectionConfig('saloon'));
+        $this->assertSame($fixturePath, $manager->getFixturePath());
+        $this->assertFalse($manager->throwsOnMissingFixtures());
     }
 
     public function testProviderPublishesConfigurationAndGeneratorStubs(): void

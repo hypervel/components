@@ -20,9 +20,8 @@ class SyncTestbenchCachedRoutes
         $router = $app->make('router');
         $routeFiles = glob($app->basePath(join_paths('routes', 'testbench-*.php'))) ?: [];
 
-        /* @phpstan-ignore argument.type */
         (new Collection($routeFiles))
-            ->each(static function ($routeFile) use ($app, $router) { // @phpstan-ignore closure.unusedUse, closure.unusedUse
+            ->each(static function ($routeFile) use ($app, $router) {
                 // Required route files inherit both application and router scope from this loader.
                 require $routeFile;
             });

@@ -7,7 +7,6 @@ namespace Hypervel\Telescope;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
@@ -21,7 +20,7 @@ use Hypervel\Telescope\Watchers\CacheWatcher;
 use Hypervel\Telescope\Watchers\ClientRequestWatcher;
 use Hypervel\Telescope\Watchers\RedisWatcher;
 
-class TelescopeServiceProvider extends ServiceProvider implements ReloadsConfiguration
+class TelescopeServiceProvider extends ServiceProvider
 {
     /**
      * Bootstrap any package services.
@@ -33,7 +32,7 @@ class TelescopeServiceProvider extends ServiceProvider implements ReloadsConfigu
             $this->registerPublishing();
         }
 
-        if (! config('telescope.enabled')) {
+        if (! config()->boolean('telescope.enabled')) {
             return;
         }
 
@@ -42,7 +41,6 @@ class TelescopeServiceProvider extends ServiceProvider implements ReloadsConfigu
 
         Telescope::start($this->app);
         Telescope::listenForStorageOpportunities($this->app);
-        /* @phpstan-ignore-next-line */
         Coroutine::afterCreated(function () {
             $keys = [
                 Telescope::SHOULD_RECORD_CONTEXT_KEY => false,
@@ -66,8 +64,8 @@ class TelescopeServiceProvider extends ServiceProvider implements ReloadsConfigu
     protected function registerRoutes(): void
     {
         Route::domain(config('telescope.domain'))
-            ->middleware(config('telescope.middleware', []))
-            ->prefix(config('telescope.path'))
+            ->middleware(config()->array('telescope.middleware'))
+            ->prefix(config()->string('telescope.path'))
             ->namespace('Hypervel\Telescope\Http\Controllers')
             ->group(__DIR__ . '/../routes/web.php');
     }
@@ -126,37 +124,13 @@ class TelescopeServiceProvider extends ServiceProvider implements ReloadsConfigu
         $this->registerPrePackageUninstallListener();
         $this->registerStorageDriver();
 
-        if (! config('telescope.enabled')) {
+        if (! config()->boolean('telescope.enabled')) {
             return;
         }
 
         $this->registerRedisEvents();
         $this->registerCacheEvents();
         $this->registerGuzzleHttpClientAspect();
-    }
-
-    /**
-     * Reload the worker configuration owned by the provider.
-     *
-     * Boot-only. Calling this while requests are running mutates shared worker
-     * state while concurrent coroutines may still use the previous configuration.
-     */
-    public function reloadConfiguration(): void
-    {
-        $config = $this->app->make(ConfigRepository::class);
-
-        foreach ([EntriesRepository::class, ClearableRepository::class, PrunableRepository::class] as $abstract) {
-            if (! $this->app->resolved($abstract)) {
-                continue;
-            }
-
-            $repository = $this->app->make($abstract);
-
-            if ($repository instanceof DatabaseEntriesRepository) {
-                $repository->setConnection($config->string('telescope.storage.database.connection'));
-                $repository->setChunkSize($config->integer('telescope.storage.database.chunk'));
-            }
-        }
     }
 
     /**
@@ -210,7 +184,7 @@ class TelescopeServiceProvider extends ServiceProvider implements ReloadsConfigu
      */
     protected function registerStorageDriver(): void
     {
-        $driver = config('telescope.driver');
+        $driver = config()->string('telescope.driver');
 
         if (method_exists($this, $method = 'register' . ucfirst($driver) . 'Driver')) {
             $this->{$method}();
@@ -245,7 +219,10 @@ class TelescopeServiceProvider extends ServiceProvider implements ReloadsConfigu
 
         $this->app->when(DatabaseEntriesRepository::class)
             ->needs('$chunkSize')
-            ->give(fn () => $config->integer('telescope.storage.database.chunk'));
+            ->give(fn () => $config->integer(
+                'telescope.storage.database.chunk',
+                DatabaseEntriesRepository::DEFAULT_CHUNK_SIZE,
+            ));
     }
 
     /**

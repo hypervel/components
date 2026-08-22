@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
-use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Http\Kernel;
 use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Http\Request;
@@ -13,15 +12,14 @@ use Hypervel\Sentry\Facade;
 use Hypervel\Sentry\Features\Feature;
 use Hypervel\Sentry\Http\FlushEventsMiddleware;
 use Hypervel\Sentry\Http\SetRequestIpMiddleware;
-use Hypervel\Sentry\Hub;
+use Hypervel\Sentry\SentryConfig;
 use Hypervel\Sentry\SentryServiceProvider;
-use Hypervel\Sentry\Tracing\BacktraceHelper;
 use Hypervel\Sentry\Tracing\Middleware as TracingMiddleware;
 use Hypervel\Support\Facades\Artisan;
+use LogicException;
 use Mockery as m;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
-use Sentry\SentrySdk;
 use Sentry\State\HubInterface;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -38,49 +36,19 @@ class ServiceProviderTest extends SentryTestCase
         $this->assertInstanceOf(HubInterface::class, app('sentry'));
     }
 
+    public function testRegisteringASecondProviderFails(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            'Sentry provider [' . ConflictingSentryServiceProvider::class . '] cannot be registered because another Sentry provider is already registered. Add [hypervel/sentry] to [extra.hypervel.dont-discover] before registering a custom provider, or remove the custom provider.'
+        );
+
+        $this->app->register(ConflictingSentryServiceProvider::class);
+    }
+
     public function testEnvironment(): void
     {
         $this->assertEquals('testing', app('sentry')->getClient()->getOptions()->getEnvironment());
-    }
-
-    public function testReloadConfigurationRebindsTheClientWithoutReplacingTheHub(): void
-    {
-        $provider = new SentryServiceProvider($this->app);
-        $hub = $this->app->make(HubInterface::class);
-        $client = $hub->getClient();
-        $backtraceHelper = $this->app->make(BacktraceHelper::class);
-
-        config()->set('sentry.environment', 'reloaded');
-
-        $provider->reloadConfiguration();
-
-        $this->assertInstanceOf(Hub::class, $hub);
-        $this->assertSame($hub, $this->app->make(HubInterface::class));
-        $this->assertSame($hub, SentrySdk::getCurrentHub());
-        $this->assertNotSame($client, $hub->getClient());
-        $this->assertSame('reloaded', $hub->getClient()->getOptions()->getEnvironment());
-        $this->assertNotSame($backtraceHelper, $this->app->make(BacktraceHelper::class));
-    }
-
-    public function testReloadConfigurationDoesNotResolveAnUnusedHub(): void
-    {
-        $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('resolved')->once()->with(HubInterface::class)->andReturnFalse();
-        $app->shouldNotReceive('make');
-
-        (new SentryServiceProvider($app))->reloadConfiguration();
-    }
-
-    public function testReloadConfigurationLeavesAReplacedHubUntouched(): void
-    {
-        $backtraceHelper = $this->app->make(BacktraceHelper::class);
-        $hub = m::mock(HubInterface::class);
-        $this->app->instance(HubInterface::class, $hub);
-
-        (new SentryServiceProvider($this->app))->reloadConfiguration();
-
-        $this->assertSame($hub, $this->app->make(HubInterface::class));
-        $this->assertSame($backtraceHelper, $this->app->make(BacktraceHelper::class));
     }
 
     public function testDsnWasSetFromConfig(): void
@@ -177,12 +145,40 @@ class ServiceProviderTest extends SentryTestCase
         $this->assertFalse($inactive->canRecordSpansForTest());
         $this->assertFalse($inactive->canRecordBreadcrumbsForTest());
 
+        config()->set('sentry.spotlight', '0');
+
+        $this->assertFalse((new InspectableSentryFeature($this->app))->canRecordSpansForTest());
+
         config()->set('sentry.spotlight', 'http://localhost:8969/stream');
         config()->set('sentry.max_breadcrumbs', 0);
 
         $active = new InspectableSentryFeature($this->app);
         $this->assertTrue($active->canRecordSpansForTest());
         $this->assertFalse($active->canRecordBreadcrumbsForTest());
+    }
+
+    public function testPartialFeatureRecordsUseSharedOptionalDefaults(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.breadcrumbs' => [
+                'logs' => false,
+                'custom' => true,
+            ],
+            'sentry.tracing' => [
+                'sql_queries' => false,
+                'custom' => true,
+            ],
+        ]);
+
+        $config = (new InspectableSentryServiceProvider($this->app))->userConfigForTest();
+
+        $this->assertSame($this->app->make(SentryConfig::class)->all(), $config);
+        $this->assertFalse($config['breadcrumbs']['logs']);
+        $this->assertTrue($config['breadcrumbs']['cache']);
+        $this->assertTrue($config['breadcrumbs']['custom']);
+        $this->assertFalse($config['tracing']['sql_queries']);
+        $this->assertSame(100, $config['tracing']['sql_origin_threshold_ms']);
+        $this->assertTrue($config['tracing']['custom']);
     }
 
     public function testSpotlightUrlRegistersTheGuzzleAspect(): void
@@ -228,10 +224,13 @@ class ServiceProviderTest extends SentryTestCase
 
     public function testTracingMiddlewareHonorsDisabledAfterResponseContinuation(): void
     {
+        $tracingConfig = config()->array('sentry.tracing');
+        $tracingConfig['continue_after_response'] = false;
+        $tracingConfig['missing_routes'] = true;
+
         $this->resetApplicationWithConfig([
             'sentry.traces_sample_rate' => 1.0,
-            'sentry.tracing.continue_after_response' => false,
-            'sentry.tracing.missing_routes' => true,
+            'sentry.tracing' => $tracingConfig,
         ]);
         $middleware = $this->app->make(TracingMiddleware::class);
         $request = Request::create('/test', 'GET');
@@ -245,6 +244,14 @@ class ServiceProviderTest extends SentryTestCase
 
 class InspectableSentryServiceProvider extends SentryServiceProvider
 {
+    /**
+     * Retrieve the user configuration for inspection.
+     */
+    public function userConfigForTest(): array
+    {
+        return $this->getUserConfig();
+    }
+
     /**
      * Register middleware for inspection.
      */
@@ -268,6 +275,11 @@ class InspectableSentryServiceProvider extends SentryServiceProvider
     {
         $this->bootFeatures();
     }
+}
+
+class ConflictingSentryServiceProvider extends SentryServiceProvider
+{
+    public static string $abstract = 'custom-sentry';
 }
 
 class InspectableSentryFeature extends Feature

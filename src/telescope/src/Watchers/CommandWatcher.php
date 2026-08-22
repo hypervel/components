@@ -34,9 +34,9 @@ class CommandWatcher extends Watcher
 
         Telescope::recordCommand(IncomingEntry::make([
             'command' => $command->getName(),
-            'exit_code' => (fn () => $this->exitCode)->call($command), /* @phpstan-ignore-line */
-            'arguments' => (fn () => $this->input->getArguments())->call($command), /* @phpstan-ignore-line */
-            'options' => (fn () => $this->input->getOptions())->call($command), /* @phpstan-ignore-line */
+            'exit_code' => (fn () => $this->exitCode)->call($command),
+            'arguments' => (fn () => $this->input->getArguments())->call($command),
+            'options' => (fn () => $this->input->getOptions())->call($command),
         ]));
     }
 

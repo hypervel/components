@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\RateLimiter;
 
+use Hypervel\RateLimiter\DatabaseStore;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\Limiter;
 use Hypervel\RateLimiter\RateLimiter;
+use Hypervel\RateLimiter\SwooleStore;
 use Hypervel\RateLimiter\WorkerArrayStore;
+use Hypervel\Support\ClassInvoker;
 use Hypervel\Support\Facades\RateLimiter as RateLimiterFacade;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
@@ -58,42 +61,6 @@ class RateLimiterTest extends TestCase
 
         $this->assertSame($manager, $manager->forgetInstance('worker-array'));
         $this->assertNotSame($resolved, $manager->store('worker-array'));
-    }
-
-    public function testForgettingResolvedStoresPreservesRegisteredConfiguration(): void
-    {
-        config([
-            'rate-limiter.stores.custom' => [
-                'driver' => 'custom',
-            ],
-        ]);
-
-        $manager = $this->app->make(RateLimiter::class);
-        $callback = static fn (): Limit => Limit::perMinute(1)->by('user');
-        $scopeCalls = [];
-        $created = 0;
-        $manager->extend('custom', static function () use (&$created): WorkerArrayStore {
-            ++$created;
-
-            return new WorkerArrayStore;
-        });
-        $manager->for('api', $callback, 'custom');
-        $manager->resolveKeyScopeUsing(static function (string $name) use (&$scopeCalls): string {
-            $scopeCalls[] = $name;
-
-            return 'tenant:7';
-        });
-        $store = $manager->store('custom');
-
-        $manager->forgetInstances();
-
-        $refreshedStore = $manager->store('custom');
-        $this->assertNotSame($store, $refreshedStore);
-        $this->assertSame(2, $created);
-        $this->assertSame($callback, $manager->limiter('api'));
-        $this->assertSame('custom', $manager->limiterStore('api'));
-        $this->assertTrue($refreshedStore->consume($callback(), 'api')->allowed());
-        $this->assertSame(['api'], $scopeCalls);
     }
 
     public function testNamedLimiterStoresAreRegisteredAndNormalized(): void
@@ -228,6 +195,33 @@ class RateLimiterTest extends TestCase
         $this->expectExceptionMessage('must return an instance of [Hypervel\RateLimiter\Contracts\Store]');
 
         $manager->store('invalid');
+    }
+
+    public function testDatabaseStoreMayOmitTheConnection(): void
+    {
+        config([
+            'rate-limiter.stores.database-default' => [
+                'driver' => 'database',
+                'table' => 'rate_limits',
+            ],
+        ]);
+
+        $store = $this->app->make(RateLimiter::class)->store('database-default')->getStore();
+
+        $this->assertInstanceOf(DatabaseStore::class, $store);
+        $this->assertNull((new ClassInvoker($store))->connectionName);
+    }
+
+    public function testSwooleStoreMayOmitTheMemoryLimitBuffer(): void
+    {
+        $config = config()->array('rate-limiter.stores.swoole');
+        unset($config['memory_limit_buffer']);
+        config(['rate-limiter.stores.swoole-default' => $config]);
+
+        $store = $this->app->make(RateLimiter::class)->store('swoole-default')->getStore();
+
+        $this->assertInstanceOf(SwooleStore::class, $store);
+        $this->assertSame(0.05, (new ClassInvoker($store))->memoryLimitBuffer);
     }
 
     #[DataProvider('invalidStoreConfigurations')]

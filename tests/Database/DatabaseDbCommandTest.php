@@ -11,6 +11,7 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputInterface;
+use UnexpectedValueException;
 
 class DatabaseDbCommandTest extends TestCase
 {
@@ -104,6 +105,14 @@ class DatabaseDbCommandTest extends TestCase
         ]);
 
         $this->assertSame('write-host', $connection['host']);
+    }
+
+    public function testUnknownConnectionUsesTheCommandSpecificError(): void
+    {
+        $this->expectException(UnexpectedValueException::class);
+        $this->expectExceptionMessage('Invalid database connection [missing].');
+
+        $this->getConnection([], ['connection' => 'missing']);
     }
 
     public function testUrlConfigIsParsedBeforeReadWriteMerge(): void

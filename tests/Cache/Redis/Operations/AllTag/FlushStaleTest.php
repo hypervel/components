@@ -133,6 +133,27 @@ class FlushStaleTest extends RedisCacheTestCase
         $operation->execute(['_all:tag:users:entries']);
     }
 
+    public function testFlushStaleDoesNotReachCeiledScoreBeforeRequestedLifetime(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+
+        $connection = $this->mockConnection();
+        $store = $this->createStore($connection);
+
+        $this->assertSame(1002, $store->getContext()->expirationScore(1));
+
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1001.900000'));
+
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->shouldReceive('zRemRangeByScore')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', '0', '1001')
+            ->andReturn($connection);
+        $connection->shouldReceive('exec')->once();
+
+        (new FlushStale($store->getContext()))->execute(['_all:tag:users:entries']);
+    }
+
     /**
      * @test
      */

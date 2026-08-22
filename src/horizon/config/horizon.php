@@ -12,7 +12,7 @@ return [
     |
     | This name appears in notifications and in the Horizon UI. Unique names
     | can be useful while running multiple instances of Horizon within an
-    | application, allowing you to identify the Horizon you're viewing.
+    | application. An omitted, null, or empty name uses the application name.
     |
     */
 
@@ -24,8 +24,8 @@ return [
     |--------------------------------------------------------------------------
     |
     | This is the subdomain where Horizon will be accessible from. If this
-    | setting is null, Horizon will reside under the same domain as the
-    | application. Otherwise, this value will serve as the subdomain.
+    | setting is omitted or null, Horizon will reside under the same domain
+    | as the application. Otherwise, this value will serve as the subdomain.
     |
     */
 
@@ -36,10 +36,10 @@ return [
     | Horizon Path
     |--------------------------------------------------------------------------
     |
-    | This is the URI path where Horizon will be accessible from. Feel free
-    | to change this path to anything you like. The proxy path prefixes it
-    | when Horizon is served from a subdirectory behind a reverse proxy, so
-    | the dashboard can still reach its own internal API.
+    | These required values define how Horizon is reached. The path registers
+    | Horizon's application routes. The proxy path prefixes browser requests
+    | when a reverse proxy strips an external subdirectory before forwarding
+    | them to Hypervel. Use an empty proxy path when no prefix is needed.
     |
     */
 
@@ -95,7 +95,8 @@ return [
     |
     | This option allows you to configure when the LongWaitDetected event
     | will be fired. Every connection / queue combination may have its
-    | own, unique threshold (in seconds) before this event is fired.
+    | own threshold in seconds. Unlisted combinations use 60 seconds,
+    | while a threshold of zero disables the event for that queue.
     |
     */
 
@@ -109,8 +110,9 @@ return [
     |--------------------------------------------------------------------------
     |
     | Here you can configure for how long (in minutes) you desire Horizon to
-    | persist the recent and failed jobs. Typically, recent jobs are kept
-    | for one hour while all failed jobs are stored for an entire week.
+    | persist the recent and failed jobs. Omitted recent, pending, and
+    | completed values use one hour. Failed and monitored values use one
+    | week, while recent_failed inherits the effective failed value.
     |
     */
 
@@ -131,6 +133,7 @@ return [
     | Silencing a job will instruct Horizon to not place the job in the list
     | of completed jobs within the Horizon dashboard. This setting may be
     | used to fully remove any noisy jobs from the completed jobs list.
+    | Omitted class and tag lists are treated as empty.
     |
     */
 
@@ -148,9 +151,9 @@ return [
     |--------------------------------------------------------------------------
     |
     | Here you can configure how many snapshots should be kept to display in
-    | the metrics graph. This works with the `horizon:snapshot` schedule to
-    | define retention. The snapshot lock prevents overlapping
-    | `horizon:snapshot` runs and should match their interval in seconds.
+    | the metrics graph. Omitted job and queue values retain 24 snapshots.
+    | The snapshot lock prevents overlapping `horizon:snapshot` runs and
+    | defaults to 300 seconds when omitted.
     |
     */
 
@@ -192,12 +195,27 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Horizon Environment
+    |--------------------------------------------------------------------------
+    |
+    | This advanced override selects which provisioning environment Horizon
+    | uses independently of the application environment. Omit it or set it
+    | to null to inherit app.env. The horizon command's --environment option
+    | takes precedence over both settings.
+    |
+    */
+
+    'env' => env('HORIZON_ENV'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Queue Worker Configuration
     |--------------------------------------------------------------------------
     |
     | Here you may define the queue worker settings used by your application
     | in all environments. These supervisors and settings handle all your
     | queued jobs and will be provisioned by Horizon during deployment.
+    | Omitting defaults applies no shared supervisor options.
     |
     */
 

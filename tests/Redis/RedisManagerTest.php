@@ -323,12 +323,13 @@ class RedisManagerTest extends TestCase
      */
     private function createRedisConfig(array $validNames): RedisConfig
     {
-        $configData = [];
+        $configData = ['options' => []];
         foreach ($validNames as $name) {
             $configData[$name] = [
                 'host' => 'localhost',
                 'port' => 6379,
                 'database' => 0,
+                'options' => [],
             ];
         }
 

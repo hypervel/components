@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Auth\Authenticatable as AuthenticatableTrait;
+use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -75,10 +76,15 @@ class GuardTest extends TestCase
                 'driver' => 'sanctum',
                 'provider' => 'users',
                 'session_guards' => ['web'],
+                'passwords' => null,
+                'password_timeout' => null,
             ],
             'auth.guards.web' => [
                 'driver' => 'session',
                 'provider' => 'users',
+                'passwords' => 'users',
+                'password_timeout' => null,
+                'remember' => null,
             ],
             'auth.providers.users.model' => TestUser::class,
             'auth.providers.users.driver' => 'eloquent',
@@ -486,6 +492,8 @@ class GuardTest extends TestCase
         $this->app->make('config')->set('auth.guards.sanctum', [
             'driver' => 'sanctum',
             'provider' => 'users',
+            'passwords' => null,
+            'password_timeout' => null,
         ]);
         $this->app->make('auth')->forgetGuards();
 
@@ -531,6 +539,8 @@ class GuardTest extends TestCase
             'driver' => 'sanctum',
             'provider' => 'users',
             'session_guards' => [],
+            'passwords' => null,
+            'password_timeout' => null,
         ]);
         $this->app->make('auth')->forgetGuards();
 
@@ -548,6 +558,13 @@ class GuardTest extends TestCase
         $config->set('auth.providers.admins', [
             'driver' => 'eloquent',
             'model' => SanctumTestUser::class,
+            'cache' => [
+                'enabled' => false,
+                'store' => null,
+                'ttl' => 300,
+                'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
+                'tags' => null,
+            ],
         ]);
         $config->set('auth.guards.web.provider', 'admins');
         $this->app->make('auth')->forgetGuards();
@@ -578,6 +595,9 @@ class GuardTest extends TestCase
         $config->set('auth.guards.admin', [
             'driver' => 'session',
             'provider' => 'users',
+            'passwords' => 'users',
+            'password_timeout' => null,
+            'remember' => null,
         ]);
         $config->set('auth.guards.sanctum.session_guards', ['admin', 'web']);
         $this->app->make('auth')->forgetGuards();

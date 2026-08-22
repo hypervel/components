@@ -45,8 +45,16 @@ abstract class TestCase extends TestbenchTestCase
             'auth.guards.admin' => ['driver' => 'session', 'provider' => 'admins', 'passwords' => 'admins'],
             'auth.providers.users' => ['driver' => 'eloquent', 'model' => $userModel],
             'auth.providers.admins' => ['driver' => 'eloquent', 'model' => Admin::class],
-            'auth.passwords.users' => ['provider' => 'users', 'table' => 'password_reset_tokens'],
-            'auth.passwords.admins' => ['provider' => 'admins', 'table' => 'admin_password_reset_tokens'],
+            'auth.passwords.users' => [
+                'driver' => 'database',
+                'provider' => 'users',
+                'table' => 'password_reset_tokens',
+            ],
+            'auth.passwords.admins' => [
+                'driver' => 'database',
+                'provider' => 'admins',
+                'table' => 'admin_password_reset_tokens',
+            ],
             'database.default' => 'testing',
             'fortify.home' => '/home',
         ]);

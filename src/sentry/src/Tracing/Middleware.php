@@ -51,6 +51,7 @@ class Middleware
      */
     public function __construct(
         private readonly bool $continueAfterResponse = true,
+        private readonly bool $traceMissingRoutes = false,
     ) {
     }
 
@@ -288,7 +289,7 @@ class Middleware
      */
     private function shouldRouteBeIgnored(): bool
     {
-        return ! $this->didRouteMatch && config('sentry.tracing.missing_routes', false) === false;
+        return ! $this->didRouteMatch && ! $this->traceMissingRoutes;
     }
 
     /**

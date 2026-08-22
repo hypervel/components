@@ -31,12 +31,22 @@ return [
     | users are actually retrieved out of your database or other storage
     | system used by the application. Typically, Eloquent is utilized.
     |
-    | Guards that send password reset links declare their broker with
-    | the "passwords" key, referencing an entry in the passwords array.
+    | Guards that send password reset links declare their broker with the
+    | "passwords" key, referencing an entry in the passwords array. Guards
+    | that do not select a default password broker may omit this key.
     | Sanctum guards declare the session guards they trust for first-party
     | SPA requests with the "session_guards" key; set it to an empty array
-    | for bearer-token-only APIs. Guards may also override the password
-    | confirmation window with a "password_timeout" key.
+    | for bearer-token-only APIs. Guards may set "password_timeout" to a
+    | lifetime in seconds; omission or null inherits the application-wide
+    | password confirmation window. Session guards may set "remember" to a
+    | lifetime in minutes; omission or null keeps the built-in lifetime. JWT
+    | guards may set "ttl" to an integer number of minutes or null for
+    | non-expiring tokens; omission inherits the global jwt.ttl value.
+    |
+    | Token guards require "provider". The optional "input_key", "storage_key",
+    | and "hash" members retain TokenGuard's public factory defaults when
+    | omitted. Request and custom guards may use a null provider when their
+    | implementation does not retrieve users through a provider.
     |
     | Supported by default: "session". Install hypervel/sanctum to use
     | the "sanctum" guard, and hypervel/jwt to use the "jwt" guard
@@ -48,6 +58,8 @@ return [
             'driver' => 'session',
             'provider' => 'users',
             'passwords' => 'users',
+            // 'password_timeout' => 60 * 60,
+            // 'remember' => 60 * 24 * 30,
         ],
         'sanctum' => [
             'driver' => 'sanctum',
@@ -75,6 +87,9 @@ return [
     |
     | Supported: "database", "eloquent"
     |
+    | Database providers require a "table". An optional "connection" selects
+    | the database connection; omission or null uses the default connection.
+    |
     */
 
     'providers' => [
@@ -89,7 +104,8 @@ return [
             |
             | Caches retrieveById() lookups across requests. Disabled by
             | default. Credential and token lookups are never cached
-            | (security).
+            | (security). The record may be omitted; omitted members use the
+            | defaults shown below.
             |
             | Supported stores: 'redis', 'database', 'file', 'storage',
             | 'swoole', and stacks containing only supported stores. Array,
@@ -120,13 +136,19 @@ return [
             |
             */
             'cache' => [
-                'enabled' => env('AUTH_USERS_CACHE_ENABLED', false),
-                'store' => env('AUTH_USERS_CACHE_STORE'),
-                'ttl' => (int) env('AUTH_USERS_CACHE_TTL', 300),
-                'prefix' => env('AUTH_USERS_CACHE_PREFIX', 'auth_users'),
+                'enabled' => (bool) env('AUTH_USER_CACHE_ENABLED', false),
+                'store' => env('AUTH_USER_CACHE_STORE'),
+                'ttl' => (int) env('AUTH_USER_CACHE_TTL', 300),
+                'prefix' => env('AUTH_USER_CACHE_PREFIX', 'auth_user'),
                 'tags' => null,
             ],
         ],
+
+        // 'users' => [
+        //     'driver' => 'database',
+        //     'table' => 'users',
+        //     'connection' => null,
+        // ],
     ],
 
     /*
@@ -161,10 +183,21 @@ return [
     | generating more password reset tokens. This prevents the user from
     | quickly generating a very large amount of password reset tokens.
     |
+    | Database brokers require "driver", "provider", and "table". An optional
+    | "connection" selects the database connection used for reset tokens;
+    | omission or null uses the default connection. Cache brokers replace
+    | "table" with an optional "store" member; omission or null uses the
+    | default cache store.
+    |
+    | The optional "expire" and "throttle" members default to 60 minutes and
+    | zero seconds. This example explicitly limits token generation to once
+    | per minute.
+    |
     */
 
     'passwords' => [
         'users' => [
+            'driver' => 'database',
             'provider' => 'users',
             'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens'),
             'expire' => 60,

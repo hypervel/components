@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Session;
 
-use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Support\ServiceProvider;
 
-class SessionServiceProvider extends ServiceProvider implements ReloadsConfiguration
+class SessionServiceProvider extends ServiceProvider
 {
     /**
      * Register the service provider.
@@ -20,25 +19,6 @@ class SessionServiceProvider extends ServiceProvider implements ReloadsConfigura
         $this->commands([
             Console\SessionTableCommand::class,
         ]);
-    }
-
-    /**
-     * Reload configuration-derived worker state.
-     *
-     * Boot-only. Request-time use replaces shared session state while
-     * concurrent coroutines may still hold the previous store.
-     */
-    public function reloadConfiguration(): void
-    {
-        if ($this->app->resolved('session')) {
-            $this->app->make('session')->forgetDrivers();
-        }
-
-        $this->app->forgetInstance('session.store');
-
-        if ($this->app->resolved('redirect')) {
-            $this->app->make('redirect')->setSession($this->app->make('session.store'));
-        }
     }
 
     /**

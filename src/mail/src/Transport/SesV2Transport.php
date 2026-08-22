@@ -74,7 +74,7 @@ class SesV2Transport extends AbstractTransport implements Stringable
 
             throw new TransportException(
                 sprintf('Request to AWS SES V2 API failed. Reason: %s.', $reason),
-                is_int($e->getCode()) ? $e->getCode() : 0, // @phpstan-ignore function.alreadyNarrowedType
+                is_int($e->getCode()) ? $e->getCode() : 0,
                 $e
             );
         }

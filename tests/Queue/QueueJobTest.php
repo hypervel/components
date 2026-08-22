@@ -142,7 +142,8 @@ class QueueJobTest extends TestCase
         $this->assertTrue($job->isDeleted());
     }
 
-    public function testBatchRollbackFailurePreservesTimeoutForFailedJobCleanup(): void
+    #[DataProvider('failedJobDatabases')]
+    public function testBatchRollbackFailurePreservesTimeoutForFailedJobCleanup(?string $databaseName): void
     {
         $job = new QueueJobPayloadStub(json_encode([
             'uuid' => 'job-uuid',
@@ -159,7 +160,7 @@ class QueueJobTest extends TestCase
         $config = new ConfigRepository([
             'queue' => [
                 'failed' => [
-                    'database' => 'sqlite',
+                    'database' => $databaseName,
                     'driver' => 'database',
                 ],
             ],
@@ -167,7 +168,7 @@ class QueueJobTest extends TestCase
         $connection = m::mock(ConnectionInterface::class);
         $connection->shouldReceive('rollBack')->once()->with(0);
         $database = m::mock(ConnectionResolverInterface::class);
-        $database->shouldReceive('connection')->once()->with('sqlite')->andReturn($connection);
+        $database->shouldReceive('connection')->once()->with($databaseName)->andReturn($connection);
 
         $events = m::mock(Dispatcher::class);
         $events->shouldReceive('dispatch')
@@ -189,6 +190,14 @@ class QueueJobTest extends TestCase
         $job->setConnectionName('redis');
 
         $job->fail($timeout);
+    }
+
+    public static function failedJobDatabases(): array
+    {
+        return [
+            'named connection' => ['sqlite'],
+            'default connection' => [null],
+        ];
     }
 
     protected function capturePayloadException(Job $job): InvalidPayloadException

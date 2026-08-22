@@ -56,6 +56,8 @@ class SimpleGuardTest extends TestCase
                 'driver' => 'sanctum',
                 'provider' => 'users',
                 'session_guards' => ['web'],
+                'passwords' => null,
+                'password_timeout' => null,
             ],
             'auth.providers.users.model' => TestUser::class,
             'auth.providers.users.driver' => 'eloquent',

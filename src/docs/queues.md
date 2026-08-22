@@ -75,7 +75,7 @@ While building your web application, you may have some tasks, such as parsing an
 
 Hypervel queues provide a unified queueing API across a variety of different queue backends, such as [Amazon SQS](https://aws.amazon.com/sqs/), [Redis](https://redis.io), or even a relational database.
 
-Hypervel's queue configuration options are stored in your application's `config/queue.php` configuration file. In this file, you will find connection configurations for each of the queue drivers that are included with the framework, including the database, [Amazon SQS](https://aws.amazon.com/sqs/), [Redis](https://redis.io), and [Beanstalkd](https://beanstalkd.github.io/) drivers, as well as synchronous, background, and deferred drivers that execute jobs within the current worker process. A `null` queue driver is also included which discards queued jobs.
+Hypervel's queue configuration options are stored in your application's `config/queue.php` configuration file. In this file, you will find connection configurations for each of the queue drivers that are included with the framework, including the database, [Amazon SQS](https://aws.amazon.com/sqs/), [Redis](https://redis.io), [Beanstalkd](https://beanstalkd.github.io/), and failover drivers, as well as synchronous, background, and deferred drivers that execute jobs within the current worker process. A `null` queue driver is also included which discards queued jobs.
 
 > [!NOTE]
 > Hypervel Horizon is a beautiful dashboard and configuration system for your Redis powered queues. Check out the full [Horizon documentation](/docs/{{version}}/horizon) for more information.
@@ -122,9 +122,19 @@ Configure a connection pool inside its queue connection definition:
     'driver' => 'sqs',
     'key' => env('AWS_ACCESS_KEY_ID'),
     'secret' => env('AWS_SECRET_ACCESS_KEY'),
-    'prefix' => env('SQS_PREFIX'),
+    'token' => env('AWS_SESSION_TOKEN'),
+    'prefix' => env('SQS_PREFIX', 'https://sqs.us-east-1.amazonaws.com/your-account-id'),
     'queue' => env('SQS_QUEUE', 'default'),
+    'suffix' => env('SQS_SUFFIX'),
     'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
+    'after_commit' => true,
+    'overflow' => [
+        'enabled' => (bool) env('SQS_OVERFLOW_ENABLED', false),
+        'store' => env('SQS_OVERFLOW_STORE'),
+        'always' => false,
+        'delete_after_processing' => true,
+        'flush_on_clear' => (bool) env('SQS_OVERFLOW_FLUSH_ON_CLEAR', false),
+    ],
     'pool' => [
         'min_retained_objects' => 1,
         'max_objects' => 10,
@@ -136,14 +146,25 @@ Configure a connection pool inside its queue connection definition:
 ],
 ```
 
+Hypervel uses a complete `key` and `secret` pair when both are configured, including the optional `token` as a temporary AWS session credential. When both static values are null, the AWS SDK's default credential chain is used. Configure both static values together.
+
+The optional `credentials` setting takes precedence and may contain an AWS credential value or a supported `ecs` or `instance` provider. If you supply callable or object credentials, set `pool.fingerprint` because these values cannot form an automatic pool identity. The optional `version` setting defaults to `latest`. Within the optional `http` array, `timeout` and `connect_timeout` each default to 60 seconds, and additional AWS SDK HTTP options are preserved.
+
 `min_retained_objects` is an idle-trimming floor and does not eagerly connect. `max_objects` should be at least the maximum number of jobs a worker may process concurrently: a popped SQS or Beanstalkd job keeps its connection leased until `delete()`, `release()`, or `bury()` finishes. Backend failures discard the leased connection so a potentially desynchronized client is never returned to the pool.
 
 Automatic identities are sufficient for scalar and array connector configuration. Use `pool.name` for an explicit readable identity and `pool.fingerprint` when custom connector input contains an object, closure, or resource. Reusing an explicit name with a different driver, fingerprint, or normalized options fails immediately.
 
 `Queue::purge($name)` evicts the cached connection wrapper and closes its current pool. Existing jobs retain their old connection lease through their terminal backend operation; the connection is destroyed when that lease finishes. The next manager resolution creates a fresh pool.
 
+The `queue:clear` command remains available for pooled SQS, Redis, and database connections. When making a custom clearable driver poolable, extend `QueueManager` and map that driver to `ClearableQueuePoolProxy` in the protected `$poolProxyClasses` property.
+
 <a name="driver-prerequisites"></a>
 ### Driver Notes and Prerequisites
+
+<a name="beanstalkd"></a>
+#### Beanstalkd
+
+The shipped Beanstalkd connection reads its host and port from `BEANSTALKD_QUEUE_HOST` and `BEANSTALKD_QUEUE_PORT`. The optional `timeout` setting controls the connection timeout in whole seconds; when omitted or null, Pheanstalk's own default is used. Omitting `retry_after` uses Pheanstalk's 60-second time-to-run value, while omitting `block_for` disables blocking.
 
 <a name="database"></a>
 #### Database
@@ -156,10 +177,14 @@ php artisan make:queue-table
 php artisan migrate
 ```
 
+The `connection` setting may be omitted or null to use the default database connection. Omitting `retry_after` uses 60 seconds.
+
 <a name="redis"></a>
 #### Redis
 
 In order to use the `redis` queue driver, you should configure a Redis database connection in your `config/database.php` configuration file. Hypervel's Redis queue driver uses the Hypervel Redis component, which is powered by the PhpRedis extension.
+
+The optional `migration_batch_size` connection setting limits how many delayed or expired jobs are migrated to the primary queue in one pass. When omitted, Hypervel migrates all available jobs. Omitting `connection` uses the default Redis connection, omitting `retry_after` uses 60 seconds, and omitting `block_for` disables blocking.
 
 <a name="redis-cluster"></a>
 ##### Redis Cluster
@@ -169,11 +194,11 @@ If your Redis queue connection uses a [Redis Cluster](https://redis.io/docs/late
 ```php
 'redis' => [
     'driver' => 'redis',
-    'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+    'connection' => env('REDIS_QUEUE_CONNECTION', 'queue'),
     'queue' => env('REDIS_QUEUE', 'default'),
-    'retry_after' => env('REDIS_QUEUE_RETRY_AFTER', 90),
+    'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
     'block_for' => null,
-    'after_commit' => false,
+    'after_commit' => true,
 ],
 ```
 
@@ -189,11 +214,11 @@ Adjusting this value based on your queue load can be more efficient than continu
 ```php
 'redis' => [
     'driver' => 'redis',
-    'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+    'connection' => env('REDIS_QUEUE_CONNECTION', 'queue'),
     'queue' => env('REDIS_QUEUE', 'default'),
-    'retry_after' => env('REDIS_QUEUE_RETRY_AFTER', 90),
+    'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
     'block_for' => 5,
-    'after_commit' => false,
+    'after_commit' => true,
 ],
 ```
 
@@ -203,25 +228,15 @@ Adjusting this value based on your queue load can be more efficient than continu
 <a name="sqs-overflow-storage"></a>
 #### SQS Overflow Storage
 
-Amazon SQS limits the maximum size of a queued message payload. If you need to dispatch jobs with payloads that may exceed this limit, you may configure Hypervel to store oversized SQS payloads in a cache store and send a pointer through SQS instead. To enable this feature, add an `overflow` array to your SQS queue connection configuration:
+Amazon SQS limits the maximum size of a queued message payload. If you need to dispatch jobs with payloads that may exceed this limit, you may configure Hypervel to store oversized SQS payloads in a cache store and send a pointer through SQS instead. To enable this feature, replace the `overflow` member inside your existing SQS connection with the following array:
 
 ```php
-'sqs' => [
-    'driver' => 'sqs',
-    'key' => env('AWS_ACCESS_KEY_ID'),
-    'secret' => env('AWS_SECRET_ACCESS_KEY'),
-    'prefix' => env('SQS_PREFIX', 'https://sqs.us-east-1.amazonaws.com/your-account-id'),
-    'queue' => env('SQS_QUEUE', 'default'),
-    'suffix' => env('SQS_SUFFIX'),
-    'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
-    'after_commit' => false,
-    'overflow' => [
-        'enabled' => env('SQS_OVERFLOW_ENABLED', false),
-        'store' => env('SQS_OVERFLOW_STORE'),
-        'always' => false,
-        'delete_after_processing' => true,
-        'flush_on_clear' => env('SQS_OVERFLOW_FLUSH_ON_CLEAR', false),
-    ],
+'overflow' => [
+    'enabled' => (bool) env('SQS_OVERFLOW_ENABLED', false),
+    'store' => env('SQS_OVERFLOW_STORE'),
+    'always' => false,
+    'delete_after_processing' => true,
+    'flush_on_clear' => (bool) env('SQS_OVERFLOW_FLUSH_ON_CLEAR', false),
 ],
 ```
 
@@ -1340,7 +1355,9 @@ When the `after_commit` option is `true`, you may dispatch jobs within database 
 
 If a transaction is rolled back due to an exception that occurs during the transaction, the jobs that were dispatched during that transaction will be discarded.
 
-After-commit work is associated with the most recently started open transaction and runs once it and every transaction enclosing it on the same connection have committed. It does not wait for transactions on other connections. If a job depends on work across connections, dispatch it only after the other dependencies have committed or while the transaction that will commit last remains open.
+Hypervel's shipped configuration enables this behavior for the background, deferred, Beanstalkd, SQS, Redis, and failover connections. The sync and database connections keep it disabled. For the database driver, this allows the job row to participate in the same transaction as the data it depends on. If the queue table uses a different database connection from that data, enable `after_commit` so the job is not visible before the data commits.
+
+After-commit work is associated with the most recently started open transaction and runs once it and every transaction enclosing it on the same connection have committed. Ordinary queue connections do not wait for transactions on other connections. If a job depends on work across connections, dispatch it only after the other dependencies have committed or while the transaction that will commit last remains open. The failover connection is an exception: it waits for every applicable transaction.
 
 > [!NOTE]
 > Setting the `after_commit` configuration option to `true` will also cause any queued event listeners, mailables, notifications, and broadcast events to be dispatched after the open parent database transactions have committed.
@@ -1993,18 +2010,22 @@ $user->notify($invoicePaid);
 
 The `failover` queue driver provides automatic failover functionality when pushing jobs to the queue. If the primary queue connection of the `failover` configuration fails for any reason, Hypervel will automatically attempt to push the job to the next configured connection in the list. This is particularly useful for ensuring high availability in production environments where queue reliability is critical.
 
-To configure a failover queue connection, add a connection that uses the `failover` driver and provide an array of connection names to attempt in order:
+To configure a failover queue connection, specify the `failover` driver and provide an array of connection names to attempt in order. Hypervel includes the following connection by default:
 
 ```php
 'failover' => [
     'driver' => 'failover',
     'connections' => [
-        'redis',
         'database',
-        'sync',
+        'deferred',
     ],
+    'after_commit' => true,
 ],
 ```
+
+With `after_commit` enabled, Hypervel waits until every applicable database transaction has committed before attempting the primary connection. A rollback discards the pending job. This keeps an after-commit primary failure inside the failover chain so the next connection is attempted. The database job insert therefore occurs after the business transaction instead of participating in it, and the default deferred fallback runs in-process at the end of the coroutine.
+
+If you disable the failover connection's `after_commit` setting, each child connection uses its own transaction policy. A failure from a child that defers its dispatch may then occur after the failover attempt has returned and cannot activate the next child. A job's `afterCommit()` or `beforeCommit()` choice overrides the connection setting. Integer delays begin when the post-commit attempt is made, while absolute date and time delays retain their original target.
 
 Once you have configured a connection that uses the `failover` driver, you will need to set the failover connection as your default queue connection in your application's `.env` file to make use of the failover functionality:
 
@@ -2012,10 +2033,9 @@ Once you have configured a connection that uses the `failover` driver, you will 
 QUEUE_CONNECTION=failover
 ```
 
-Next, start at least one worker for each connection in your failover connection list:
+Next, start a worker for each child connection that uses an external worker. With the default connection list, only the database child needs one:
 
 ```bash
-php artisan queue:work redis
 php artisan queue:work database
 ```
 
@@ -2596,7 +2616,7 @@ In addition to running multiple worker processes, Hypervel workers can process m
 php artisan queue:work --concurrency=10
 ```
 
-If the `--concurrency` option is not provided, Hypervel will use the `queue.concurrency_number` configuration value, which may be configured via the `QUEUE_CONCURRENCY_NUMBER` environment variable.
+If the `--concurrency` option is not provided, Hypervel will use the `queue.concurrency` configuration value, which may be configured via the `QUEUE_CONCURRENCY` environment variable.
 
 Coroutine concurrency does not make CPU-bound jobs faster. If your jobs spend most of their time performing CPU-heavy work, you should run additional worker processes instead.
 

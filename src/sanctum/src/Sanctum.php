@@ -15,6 +15,10 @@ use function Hypervel\Support\enum_value;
 
 class Sanctum
 {
+    public const int DEFAULT_CACHE_TTL = 300;
+
+    public const int DEFAULT_LAST_USED_AT_UPDATE_INTERVAL = 300;
+
     /** @var class-string<PersonalAccessToken> */
     protected const string DEFAULT_PERSONAL_ACCESS_TOKEN_MODEL = PersonalAccessToken::class;
 
@@ -96,7 +100,6 @@ class Sanctum
             $token->shouldReceive('can')->andReturn(true);
         } else {
             $expectation = $token->shouldReceive('can');
-            // @phpstan-ignore method.notFound (A named shouldReceive() returns an expectation, not HigherOrderMessage.)
             $expectation->andReturnUsing(function (UnitEnum|string $ability) use ($abilities): bool {
                 return in_array(enum_value($ability), $abilities, true);
             });
@@ -105,9 +108,7 @@ class Sanctum
         // @phpstan-ignore method.notFound (The documented HasApiTokens trait provides this method.)
         $user->withAccessToken($token);
 
-        // @phpstan-ignore property.notFound (Eloquent and compatible authenticatables expose this testing flag.)
         if (isset($user->wasRecentlyCreated) && $user->wasRecentlyCreated) {
-            // @phpstan-ignore property.notFound (Eloquent and compatible authenticatables expose this testing flag.)
             $user->wasRecentlyCreated = false;
         }
 

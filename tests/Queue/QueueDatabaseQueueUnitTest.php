@@ -21,6 +21,7 @@ use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\InvalidPayloadException;
+use Hypervel\Queue\Jobs\DatabaseJobRecord;
 use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Queue\Queue;
 use Hypervel\Support\CarbonImmutable;
@@ -31,9 +32,22 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use RuntimeException;
 use stdClass;
+use TypeError;
 
 class QueueDatabaseQueueUnitTest extends TestCase
 {
+    public function testRetryAfterMustBeAnInteger(): void
+    {
+        $this->expectException(TypeError::class);
+
+        new DatabaseQueue(
+            resolver: m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            retryAfter: null,
+        );
+    }
+
     public function testQueueNamesPreserveZeroAndDefaultEmptyString(): void
     {
         $queue = new TestDatabaseQueue(
@@ -94,10 +108,11 @@ class QueueDatabaseQueueUnitTest extends TestCase
         ];
     }
 
-    public function testDelayedPushProperlyPushesJobOntoDatabase(): void
+    #[DataProvider('delayedJobDeadlineProvider')]
+    public function testDelayedPushNeverRunsBeforeRequestedDeadline(DateInterval|DateTimeInterface|int $delay): void
     {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
         $now = CarbonImmutable::now();
-        CarbonImmutable::setTestNow($now);
 
         $uuid = Str::uuid();
 
@@ -108,7 +123,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             connection: null,
             table: 'table',
             default: 'default',
-            currentTime: 1732502704,
+            currentTime: 1000,
         );
         $queue->setContainer($container = m::spy(Container::class));
         $connection = m::mock(ConnectionInterface::class);
@@ -117,17 +132,26 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
         $query->shouldReceive('insertGetId')->once()->andReturnUsing(function ($array) use ($uuid, $now) {
             $this->assertSame('default', $array['queue']);
-            $this->assertSame(json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'delay' => 10]), $array['payload']);
+            $this->assertSame(json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'delay' => 1]), $array['payload']);
             $this->assertEquals(0, $array['attempts']);
             $this->assertNull($array['reserved_at']);
-            $this->assertIsInt($array['available_at']);
+            $this->assertSame(1002, $array['available_at']);
 
             return 1;
         });
 
-        $queue->later(10, 'foo', ['data']);
+        $queue->later($delay, 'foo', ['data']);
 
         $container->shouldHaveReceived('bound')->with('events')->twice();
+    }
+
+    public static function delayedJobDeadlineProvider(): array
+    {
+        return [
+            'integer' => [1],
+            'interval' => [new DateInterval('PT1S')],
+            'absolute date' => [CarbonImmutable::createFromTimestampUTC('1001.100000')],
+        ];
     }
 
     public function testPushIncludesBatchIdInPayloadForBatchableJob()
@@ -457,6 +481,16 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $record = $queue->buildDatabaseRecord('queue', 'any_payload', 0);
         $this->assertArrayHasKey('payload', $record);
         $this->assertArrayHasKey('payload', array_slice($record, -1, 1, true));
+    }
+
+    public function testReservedTimestampRoundsUpAtFractionalSecond(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+        $record = (object) ['attempts' => 0, 'reserved_at' => null];
+        $job = new DatabaseJobRecord($record);
+
+        $this->assertSame(1001, $job->touch());
+        $this->assertSame(1001, $record->reserved_at);
     }
 
     public function testPendingJobs(): void

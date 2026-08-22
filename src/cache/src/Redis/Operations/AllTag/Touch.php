@@ -7,8 +7,6 @@ namespace Hypervel\Cache\Redis\Operations\AllTag;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
 
-use function Hypervel\Support\now;
-
 /**
  * Adjust the expiration time of a tagged cache item and its tag entries.
  *
@@ -30,10 +28,13 @@ class Touch
     /**
      * Execute the touch operation.
      *
+     * @param int $seconds TTL in seconds; values below one are stored for one second
      * @param array<string> $tagIds Array of tag identifiers
      */
     public function execute(string $key, int $seconds, array $tagIds): bool
     {
+        $seconds = max(1, $seconds);
+
         if ($this->context->isCluster()) {
             return $this->executeCluster($key, $seconds, $tagIds);
         }
@@ -48,13 +49,12 @@ class Touch
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $seconds, $tagIds) {
             $prefix = $this->context->prefix();
-            $seconds = max(1, $seconds);
 
             if (! $connection->expire($prefix . $key, $seconds)) {
                 return false;
             }
 
-            $score = now()->addSeconds($seconds)->getTimestamp();
+            $score = $this->context->expirationScore($seconds);
 
             foreach ($tagIds as $tagId) {
                 $connection->zadd($prefix . $tagId, $score, $key);
@@ -70,8 +70,6 @@ class Touch
     private function executeUsingLua(string $key, int $seconds, array $tagIds): bool
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $seconds, $tagIds) {
-            $seconds = max(1, $seconds);
-
             // Static tag ZSET keys belong in KEYS so phpredis applies
             // OPT_PREFIX; ARGV-built keys are only for dynamic Lua paths.
             $keys = [
@@ -81,7 +79,7 @@ class Touch
 
             $args = [
                 $seconds,
-                now()->addSeconds($seconds)->getTimestamp(),
+                $this->context->expirationScore($seconds),
                 $key,
             ];
 

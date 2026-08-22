@@ -45,6 +45,21 @@ class QueueManager implements FactoryContract, MonitorContract
     protected array $poolables = ['beanstalkd', 'sqs'];
 
     /**
+     * The pool proxy classes for drivers with supplemental queue capabilities.
+     *
+     * Proxy selection occurs by driver name before lazy resolution. A subclass must
+     * update this map for a custom clearable driver or a non-clearable replacement
+     * of a mapped built-in driver.
+     *
+     * @var array<string, class-string<QueuePoolProxy>>
+     */
+    protected array $poolProxyClasses = [
+        'database' => ClearableQueuePoolProxy::class,
+        'redis' => ClearableQueuePoolProxy::class,
+        'sqs' => ClearableQueuePoolProxy::class,
+    ];
+
+    /**
      * Create a new queue manager instance.
      */
     public function __construct(
@@ -299,7 +314,7 @@ class QueueManager implements FactoryContract, MonitorContract
                 $config['driver'],
                 $resolver,
                 $this->poolDefinition($config['driver'], $config['pool'] ?? [], $constructionConfig),
-                QueuePoolProxy::class,
+                $this->poolProxyClasses[$config['driver']] ?? QueuePoolProxy::class,
             );
 
             return $proxy->setConnectionName($name);
@@ -392,19 +407,6 @@ class QueueManager implements FactoryContract, MonitorContract
         return $connection === null || $connection === ''
             ? $this->getDefaultDriver()
             : $connection;
-    }
-
-    /**
-     * Forget all resolved queue connections.
-     *
-     * Boot or tests only. Mutates the singleton's connection cache; concurrent
-     * coroutines may already hold connections that next resolution will replace.
-     */
-    public function forgetConnections(): static
-    {
-        $this->connections = [];
-
-        return $this;
     }
 
     /**

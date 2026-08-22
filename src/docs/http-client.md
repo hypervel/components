@@ -899,8 +899,6 @@ Each pending request constructs one cookie jar and reuses it only across that re
 
 Calling `registerConnection()` or `setConnectionConfig()` again invalidates the connection's cached low-level handler. Subsequent requests lazily create a handler from the new configuration, while in-flight requests safely finish on their existing handler reference.
 
-Connections registered only in the `boot` method keep their original options when the server is reloaded. If a connection uses configuration that may change, implement `ReloadsConfiguration` on the provider and register the connection again from its `reloadConfiguration` method. Application provider hooks run after framework and package hooks, so your application remains the final authority for a shared connection name when it re-registers that connection. To learn more, see [reloading worker configuration](/docs/{{version}}/providers#reloading-worker-configuration).
-
 <a name="macros"></a>
 ## Macros
 

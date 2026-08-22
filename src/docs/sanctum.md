@@ -175,17 +175,19 @@ Token caching is disabled by default. You may enable and configure it in your ap
 
 ```php
 'cache' => [
-    'enabled' => env('SANCTUM_CACHE_ENABLED', false),
+    'enabled' => (bool) env('SANCTUM_CACHE_ENABLED', false),
     'store' => env('SANCTUM_CACHE_STORE'),
     'ttl' => (int) env('SANCTUM_CACHE_TTL', 300),
     'prefix' => env('SANCTUM_CACHE_PREFIX', 'sanctum'),
     'last_used_at_update_interval' => filter_var(
-        env('SANCTUM_LAST_USED_UPDATE_INTERVAL', 300),
+        env('SANCTUM_LAST_USED_AT_UPDATE_INTERVAL', 300),
         FILTER_VALIDATE_INT,
         FILTER_NULL_ON_FAILURE,
     ),
 ],
 ```
+
+The cache record and each of its members are optional. Omitting the record disables caching. When caching is enabled, omitted members use the default cache store, a 300-second TTL, the `sanctum` prefix, and a 300-second last-used update interval.
 
 When caching is enabled, Sanctum adds the selected personal access token model, Eloquent models used by configured Sanctum guard providers, and Hypervel's standard Eloquent collection and pivot classes to the cache class policy automatically. Declare custom-provider morph targets, nested `$with` relations, custom collections or pivots, and other application-owned objects from a service provider:
 
@@ -514,7 +516,7 @@ public function boot(): void
     EnsureFrontendRequestsAreStateful::resolveStatefulDomainsUsing(function (Request $request): array {
         $tenant = app(TenantResolver::class)->forRequest($request);
 
-        return $tenant ? [$tenant->domain] : config('sanctum.stateful_domains', []);
+        return $tenant ? [$tenant->domain] : config()->array('sanctum.stateful_domains');
     });
 }
 ```
@@ -550,6 +552,8 @@ use Hypervel\Foundation\Configuration\Middleware;
     $middleware->statefulApi();
 })
 ```
+
+The entries in `sanctum.middleware` are optional. Omitting cookie encryption or CSRF validation uses Sanctum's default middleware, while session authentication is omitted by default. Set any entry to `null` to remove that middleware from the stateful request pipeline.
 
 <a name="cors-and-cookies"></a>
 #### CORS and Cookies

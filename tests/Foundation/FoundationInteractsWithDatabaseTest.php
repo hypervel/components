@@ -226,7 +226,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $builder->shouldReceive('where')->with(['title' => 'Spark', 'name' => 'Laravel'])->once()->andReturnSelf();
         $builder->shouldReceive('where')->with(['title' => 'Forge', 'name' => 'Laravel'])->once()->andReturnSelf();
         $builder->shouldReceive('whereNotNull')->with('deleted_at')->twice()->andReturnSelf();
-        $builder->shouldReceive('count')->twice()->andReturn(1);
+        $builder->shouldReceive('exists')->twice()->andReturnTrue();
 
         $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
 
@@ -242,7 +242,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $builder->shouldReceive('where')->with(['title' => 'Spark', 'name' => 'Laravel'])->once()->andReturnSelf();
         $builder->shouldReceive('where')->with(['title' => 'Forge', 'name' => 'Laravel'])->once()->andReturnSelf();
         $builder->shouldReceive('whereNull')->with('deleted_at')->twice()->andReturnSelf();
-        $builder->shouldReceive('count')->twice()->andReturn(1);
+        $builder->shouldReceive('exists')->twice()->andReturnTrue();
 
         $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
 
@@ -257,7 +257,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $builder = m::mock(Builder::class);
         $builder->shouldReceive('where')->with($this->data)->twice()->andReturnSelf();
         $builder->shouldReceive('whereNotNull')->with('removed_at')->twice()->andReturnSelf();
-        $builder->shouldReceive('count')->twice()->andReturn(1);
+        $builder->shouldReceive('exists')->twice()->andReturnTrue();
 
         $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
         $this->connection->shouldReceive('table')->with('orders')->andReturn($builder);
@@ -270,7 +270,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $builder = m::mock(Builder::class);
         $builder->shouldReceive('where')->with($this->data)->twice()->andReturnSelf();
         $builder->shouldReceive('whereNull')->with('removed_at')->twice()->andReturnSelf();
-        $builder->shouldReceive('count')->twice()->andReturn(1);
+        $builder->shouldReceive('exists')->twice()->andReturnTrue();
 
         $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
         $this->connection->shouldReceive('table')->with('orders')->andReturn($builder);

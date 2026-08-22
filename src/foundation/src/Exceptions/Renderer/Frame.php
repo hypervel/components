@@ -74,7 +74,7 @@ class Frame
     {
         return match (true) {
             ! isset($this->frame['file']) => '[internal function]',
-            ! is_string($this->frame['file']) => '[unknown file]', // @phpstan-ignore booleanNot.alwaysFalse (defensive, matches Laravel)
+            ! is_string($this->frame['file']) => '[unknown file]',
             default => str_replace($this->basePath . DIRECTORY_SEPARATOR, '', $this->frame['file']),
         };
     }
@@ -119,7 +119,7 @@ class Frame
      */
     public function args(): array
     {
-        if (! isset($this->frame['args']) || ! is_array($this->frame['args']) || count($this->frame['args']) === 0) { // @phpstan-ignore booleanNot.alwaysFalse (defensive, no native type enforcement)
+        if (! isset($this->frame['args']) || ! is_array($this->frame['args']) || count($this->frame['args']) === 0) {
             return [];
         }
 

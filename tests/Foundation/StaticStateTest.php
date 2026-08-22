@@ -56,7 +56,13 @@ class StaticStateTest extends TestCase
 
     public function testLoadConfigurationFlushStateClearsAlwaysUseConfig(): void
     {
-        LoadConfiguration::alwaysUse(fn () => ['app' => ['name' => 'Static Test']]);
+        LoadConfiguration::alwaysUse(fn () => [
+            'app' => [
+                'name' => 'Static Test',
+                'env' => 'testing',
+                'timezone' => 'UTC',
+            ],
+        ]);
 
         $app = new Application;
         (new LoadConfiguration)->bootstrap($app);

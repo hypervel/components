@@ -12,7 +12,6 @@ use Hypervel\Core\Events\BeforeServerFork;
 use Hypervel\Core\Events\BeforeWorkerStart;
 use Hypervel\Core\Events\TaskTerminated;
 use Hypervel\Database\ConcurrencyErrorDetector;
-use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\DatabaseServiceProvider;
 use Hypervel\Database\DetectsConcurrencyErrors;
 use Hypervel\Database\DetectsLostConnections;
@@ -20,6 +19,7 @@ use Hypervel\Database\Eloquent\QueueEntityResolver;
 use Hypervel\Database\LostConnectionDetector;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Testbench\TestCase;
+use InvalidArgumentException;
 use PDOException;
 use RuntimeException;
 use Swoole\Constant;
@@ -27,26 +27,32 @@ use Throwable;
 
 class DatabaseServiceProviderTest extends TestCase
 {
-    public function testReloadConfigurationRebuildsTheConnectionResolverFromCurrentConfiguration(): void
+    public function testMigrationRepositoryUsesTheCurrentArrayConfiguration(): void
     {
-        config(['database.default' => 'first']);
-        $resolver = $this->app->make('db.resolver');
-        $directResolver = $this->app->make(ConnectionResolver::class);
+        config(['database.migrations' => [
+            'table' => 'custom_migrations',
+        ]]);
+        $this->app->forgetInstance('migration.repository');
 
-        $this->assertNotSame($resolver, $directResolver);
-        $this->assertSame('first', $resolver->getDefaultConnection());
-        $this->assertSame('first', $directResolver->getDefaultConnection());
+        $repository = $this->app->make('migration.repository');
+        $repository->createRepository();
 
-        config(['database.default' => 'second']);
-        $this->app->getProvider(DatabaseServiceProvider::class)->reloadConfiguration();
+        try {
+            $this->assertTrue($repository->repositoryExists());
+        } finally {
+            $repository->deleteRepository();
+        }
+    }
 
-        $refreshedResolver = $this->app->make('db.resolver');
-        $refreshedDirectResolver = $this->app->make(ConnectionResolver::class);
-        $this->assertNotSame($resolver, $refreshedResolver);
-        $this->assertNotSame($directResolver, $refreshedDirectResolver);
-        $this->assertNotSame($refreshedResolver, $refreshedDirectResolver);
-        $this->assertSame('second', $refreshedResolver->getDefaultConnection());
-        $this->assertSame('second', $refreshedDirectResolver->getDefaultConnection());
+    public function testMigrationRepositoryRejectsTheLegacyScalarConfiguration(): void
+    {
+        config(['database.migrations' => 'legacy_migrations']);
+        $this->app->forgetInstance('migration.repository');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('database.migrations.table');
+
+        $this->app->make('migration.repository');
     }
 
     public function testConcurrencyErrorDetectorIsRegistered(): void

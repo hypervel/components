@@ -295,7 +295,6 @@ class MultiExecTest extends TestCase
         $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('getConnection')->andReturn($connection);
         $connection->shouldReceive('getEventDispatcher')->andReturnNull();
-        $connection->shouldReceive('setDatabase')->andReturnNull();
         $connection->shouldReceive('shouldTransform')->andReturnSelf();
 
         // Forward method calls to the phpRedis mock

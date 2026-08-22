@@ -459,6 +459,19 @@ If the timeout is reached, Hypervel cancels the child by throwing `Swoole\Corout
 
 Code that catches the cancellation and keeps running may remain active after this 10-second cleanup period.
 
+If the waiting code must not continue while the child remains active, pass `waitForChildTermination: true`:
+
+```php
+$result = wait(function () {
+    // ...
+}, timeout: 2.0, waitForChildTermination: true);
+```
+
+The requested timeout still cancels the child. If the child stops within the cleanup period, `wait` throws `WaitTimeoutException` as usual. If the child remains active after that period, `wait` continues waiting until it exits and then throws `ChildTerminationTimeoutException`. This exception extends `WaitTimeoutException`, so an existing catch for `WaitTimeoutException` handles both cases.
+
+> [!WARNING]
+> Waiting for child termination has no secondary timeout. A child that catches cancellation and does not finish can keep the waiting coroutine blocked indefinitely.
+
 You may also use the `Waiter` class directly:
 
 ```php
@@ -470,6 +483,8 @@ $result = $waiter->wait(function () {
     return 'done';
 });
 ```
+
+The `Waiter::wait` method accepts the same `waitForChildTermination` argument as the helper.
 
 <a name="wait-groups"></a>
 ### Wait Groups
@@ -747,7 +762,9 @@ if (! Mutex::unlock('reports', timeout: 1.0)) {
 }
 ```
 
-You may clear the mutex for a key using the `clear` method:
+The mutex does not track coroutine ownership. Each successful `lock` call must be matched by exactly one `unlock` call from the coroutine that acquired it.
+
+The `clear` method closes the current mutex channel and cancels any waiting acquisitions. Use it only to explicitly cancel and reset a key, not for normal release:
 
 ```php
 Mutex::clear('reports');

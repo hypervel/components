@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Reverb;
 
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcher;
-use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Core\Events\AfterWorkerStart;
@@ -63,7 +62,7 @@ use RuntimeException;
 use Swoole\Table;
 use Throwable;
 
-class ReverbServiceProvider extends ServiceProvider implements ReloadsConfiguration
+class ReverbServiceProvider extends ServiceProvider
 {
     /**
      * Register any application services.
@@ -147,7 +146,7 @@ class ReverbServiceProvider extends ServiceProvider implements ReloadsConfigurat
         $config = $this->app->make('config');
         $reverbServer = $config->array('reverb.servers.reverb');
 
-        $servers = $config->array('server.servers', []);
+        $servers = $config->array('server.servers');
         /** @var array<string, mixed> $tlsConfiguration */
         $tlsConfiguration = $reverbServer['options']['tls'];
         $tls = TlsOptions::fromArray($tlsConfiguration);
@@ -156,7 +155,7 @@ class ReverbServiceProvider extends ServiceProvider implements ReloadsConfigurat
             'name' => 'reverb',
             'type' => ServerInterface::SERVER_WEBSOCKET,
             'host' => $reverbServer['host'],
-            'port' => (int) $reverbServer['port'],
+            'port' => $reverbServer['port'],
             'sock_type' => $tls->socketType(),
             'callbacks' => [
                 Event::ON_REQUEST => [HttpServer::class, 'onRequest'],
@@ -167,7 +166,6 @@ class ReverbServiceProvider extends ServiceProvider implements ReloadsConfigurat
             'settings' => $this->resolveServerSettings($tls),
         ];
 
-        // Replay the master snapshot; replacement workers cannot change the bound server topology.
         $config->set('server.servers', $servers);
     }
 
@@ -246,21 +244,6 @@ class ReverbServiceProvider extends ServiceProvider implements ReloadsConfigurat
         $this->registerPeriodicTasks();
         $this->registerPipeMessageListener();
         $this->registerShutdownHandler();
-    }
-
-    /**
-     * Reload the worker configuration owned by the provider.
-     *
-     * Boot-only. Calling this while requests are running mutates shared worker
-     * state while concurrent coroutines may still use the previous configuration.
-     */
-    public function reloadConfiguration(): void
-    {
-        if ($this->app->resolved(ApplicationManager::class)) {
-            $this->app->make(ApplicationManager::class)->forgetDrivers();
-        }
-
-        $this->app->forgetInstance(WebhookBatchBuffer::class);
     }
 
     /**
@@ -488,7 +471,7 @@ class ReverbServiceProvider extends ServiceProvider implements ReloadsConfigurat
 
             $webhooks = $app->webhooks();
 
-            if (! ($webhooks['batching']['enabled'] ?? false)) {
+            if (! $webhooks['batching']['enabled']) {
                 continue;
             }
 
@@ -566,7 +549,7 @@ class ReverbServiceProvider extends ServiceProvider implements ReloadsConfigurat
 
             $webhooks = $app->webhooks();
 
-            if (! ($webhooks['batching']['enabled'] ?? false)) {
+            if (! $webhooks['batching']['enabled']) {
                 continue;
             }
 

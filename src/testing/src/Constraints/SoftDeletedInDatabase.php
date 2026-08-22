@@ -34,7 +34,7 @@ class SoftDeletedInDatabase extends Constraint
         return $this->database->table($table)
             ->where($this->data)
             ->whereNotNull($this->deletedAtColumn)
-            ->count() > 0;
+            ->exists();
     }
 
     /**
@@ -68,7 +68,10 @@ class SoftDeletedInDatabase extends Constraint
             return 'The table is empty';
         }
 
-        $description = 'Found: ' . json_encode($results, JSON_PRETTY_PRINT);
+        $description = 'Found: ' . json_encode(
+            $results,
+            JSON_PRETTY_PRINT | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR,
+        );
 
         if ($query->count() > $this->show) {
             $description .= sprintf(' and %s others', $query->count() - $this->show);
@@ -82,6 +85,6 @@ class SoftDeletedInDatabase extends Constraint
      */
     public function toString(): string
     {
-        return json_encode($this->data);
+        return json_encode($this->data, JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR);
     }
 }

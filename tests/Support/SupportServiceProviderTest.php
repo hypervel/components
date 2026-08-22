@@ -27,7 +27,9 @@ class SupportServiceProviderTest extends TestCase
         $this->app = $app = m::mock(Application::class)->makePartial();
 
         $config = new ConfigRepository([
-            'database' => ['migrations' => ['update_date_on_publish' => true]],
+            'database' => ['migrations' => [
+                'update_date_on_publish' => true,
+            ]],
         ]);
         $app->shouldReceive('make')->with('config')->andReturn($config)->byDefault();
 
@@ -173,6 +175,20 @@ class SupportServiceProviderTest extends TestCase
             ->call($serviceProvider);
 
         $this->assertContains('source/tagged/four', ServiceProvider::publishableMigrationPaths());
+    }
+
+    public function testPublishesMigrationsDoesNotUpdateDatesWhenSettingIsOmitted(): void
+    {
+        $config = new ConfigRepository([
+            'database' => ['migrations' => []],
+        ]);
+        $this->app->shouldReceive('make')->with('config')->andReturn($config);
+        $serviceProvider = new ServiceProviderForTestingOne($this->app);
+
+        (fn () => $this->publishesMigrations(['source' => 'destination']))
+            ->call($serviceProvider);
+
+        $this->assertNotContains('source', ServiceProvider::publishableMigrationPaths());
     }
 
     public function testAllPathsAreReturnedWhenNoFilterIsSpecified()

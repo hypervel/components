@@ -86,7 +86,7 @@ php artisan jwt:generate-certs
 The command writes the generated certificates to `storage/certs` by default and updates `JWT_ALGO`, `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY`, and `JWT_PASSPHRASE` in your `.env` file.
 
 > [!WARNING]
-> Reload or restart every long-running application process before issuing tokens with the new certificate pair. You may reload server workers using the `php artisan server:reload` command. Other long-running processes, such as queue workers and custom server processes, must be restarted separately.
+> Restart the server and every other long-running application process, including queue workers and custom server processes, before issuing tokens with the new certificate pair. The `php artisan server:reload` command only replaces server workers and is not sufficient.
 
 You may customize the algorithm and key options:
 
@@ -224,7 +224,12 @@ After registering the driver, you may select it using the `driver` configuration
 The `ttl` configuration option controls how long newly issued tokens remain valid, in minutes:
 
 ```php
-'ttl' => env('JWT_TTL', 120),
+$ttl = env('JWT_TTL', 120);
+
+return [
+    // ...
+    'ttl' => $ttl === null ? null : (int) $ttl,
+];
 ```
 
 Set this value to `null` to issue tokens without an `exp` claim:
@@ -233,7 +238,7 @@ Set this value to `null` to issue tokens without an `exp` claim:
 'ttl' => null,
 ```
 
-You may also configure a different TTL per guard:
+JWT guards inherit the global `jwt.ttl` value when their guard configuration omits the `ttl` option. You may set a guard's `ttl` to an integer to override that value in minutes, or to `null` to issue non-expiring tokens from that guard:
 
 ```php
 'guards' => [
@@ -251,6 +256,8 @@ You may also configure a different TTL per guard:
 ],
 ```
 
+The global `jwt.ttl` option accepts an integer or `null`.
+
 For one token-producing operation, use `setTTL`:
 
 ```php
@@ -267,7 +274,7 @@ The override is cleared after the token is generated.
 Subject locking is enabled by default:
 
 ```php
-'lock_subject' => env('JWT_LOCK_SUBJECT', true),
+'lock_subject' => (bool) env('JWT_LOCK_SUBJECT', true),
 ```
 
 When subject locking is enabled and the user provider exposes its model class, JWT adds a provider hash to each token. This prevents a token issued for one provider model from authenticating against another provider model that happens to have the same ID.
@@ -353,7 +360,7 @@ If your application uses timestamp validations and your servers have small clock
 The JWT blacklist lets the package invalidate tokens before they naturally expire:
 
 ```php
-'blacklist_enabled' => env('JWT_BLACKLIST_ENABLED', false),
+'blacklist_enabled' => (bool) env('JWT_BLACKLIST_ENABLED', false),
 ```
 
 Blacklisting is disabled by default. When enabled, newly issued tokens include a `jti` claim and authenticated blacklist checks require cache access. Enable it when your application needs server-side token invalidation.
@@ -366,6 +373,8 @@ The blacklist uses the configured storage provider:
 ],
 ```
 
+If the provider members are omitted, Hypervel uses `Lcobucci` for token encoding and decoding and `TaggedCache` for blacklist storage.
+
 The default tagged-cache storage requires your default cache store to support tags. Both all-mode and any-mode tagged stores are supported. When using any-mode tags, blacklist entries are written through tags but read and removed by a private plain-key prefix.
 
 If your cache store does not support tags, implement `Hypervel\Jwt\Contracts\StorageContract` and configure your implementation using `jwt.providers.storage`.
@@ -375,13 +384,18 @@ If the blacklist store uses a cache stack or any node-local tier, a revoked toke
 You may configure a grace period for concurrent requests that are using the same token while a refresh is in progress:
 
 ```php
-'blacklist_grace_period' => env('JWT_BLACKLIST_GRACE_PERIOD', 0),
+'blacklist_grace_period' => (int) env('JWT_BLACKLIST_GRACE_PERIOD', 0),
 ```
 
 The `refresh_ttl` option also controls how long blacklist entries are retained. When the refresh lifetime is `null`, revocations for refreshable tokens are retained forever:
 
 ```php
-'refresh_ttl' => env('JWT_REFRESH_TTL', 20160),
+$refreshTtl = env('JWT_REFRESH_TTL', 20160);
+
+return [
+    // ...
+    'refresh_ttl' => $refreshTtl === null ? null : (int) $refreshTtl,
+];
 ```
 
 <a name="authenticating-requests"></a>
@@ -491,13 +505,18 @@ Do not protect the refresh route with `auth:api`. Refresh must be able to read a
 The refresh window is controlled by `refresh_ttl`, in minutes:
 
 ```php
-'refresh_ttl' => env('JWT_REFRESH_TTL', 20160),
+$refreshTtl = env('JWT_REFRESH_TTL', 20160);
+
+return [
+    // ...
+    'refresh_ttl' => $refreshTtl === null ? null : (int) $refreshTtl,
+];
 ```
 
 If `refresh_iat` is `false`, refreshed tokens keep the original `iat` claim. If `refresh_iat` is `true`, refreshed tokens receive a fresh `iat` claim:
 
 ```php
-'refresh_iat' => env('JWT_REFRESH_IAT', false),
+'refresh_iat' => (bool) env('JWT_REFRESH_IAT', false),
 ```
 
 You may force the old token to remain blacklisted forever when blacklist is enabled:

@@ -13,17 +13,53 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 class RedisConfigTest extends TestCase
 {
-    public function testConnectionConfigAcceptsPhpRedisClient(): void
+    public function testConnectionConfigAppliesOptionalStandaloneDefaults(): void
     {
         $config = m::mock(Repository::class);
         $config->shouldReceive('array')->with('database.redis')->andReturn([
             'client' => 'phpredis',
-            'default' => ['host' => '127.0.0.1', 'port' => 6379, 'database' => 0],
+            'options' => ['prefix' => 'shared:'],
+            'default' => ['host' => '127.0.0.1', 'port' => 6379],
         ]);
 
         $connection = (new RedisConfig($config))->connectionConfig('default');
 
-        $this->assertSame('127.0.0.1', $connection['host']);
+        $this->assertSame([
+            'scheme' => null,
+            'username' => null,
+            'password' => null,
+            'database' => 0,
+            'name' => null,
+            'timeout' => null,
+            'read_timeout' => 0.0,
+            'context' => [],
+            'options' => ['prefix' => 'shared:'],
+            'prefix' => null,
+            'events' => false,
+            'max_retries' => 3,
+            'backoff_algorithm' => 'decorrelated_jitter',
+            'backoff_base' => 100,
+            'backoff_cap' => 1000,
+            'pool' => [],
+        ], [
+            'scheme' => $connection['scheme'],
+            'username' => $connection['username'],
+            'password' => $connection['password'],
+            'database' => $connection['database'],
+            'name' => $connection['name'],
+            'timeout' => $connection['timeout'],
+            'read_timeout' => $connection['read_timeout'],
+            'context' => $connection['context'],
+            'options' => $connection['options'],
+            'prefix' => $connection['prefix'],
+            'events' => $connection['events'],
+            'max_retries' => $connection['max_retries'],
+            'backoff_algorithm' => $connection['backoff_algorithm'],
+            'backoff_base' => $connection['backoff_base'],
+            'backoff_cap' => $connection['backoff_cap'],
+            'pool' => $connection['pool'],
+        ]);
+        $this->assertArrayNotHasKey('retry_interval', $connection);
     }
 
     public function testConnectionConfigRejectsUnsupportedClient(): void
@@ -168,10 +204,12 @@ class RedisConfigTest extends TestCase
     {
         $config = m::mock(Repository::class);
         $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'options' => [],
             'default' => [
                 'host' => '127.0.0.1',
                 'port' => 6379,
                 'events' => true,
+                'options' => [],
             ],
         ]);
         $redisConfig = new RedisConfig($config);
@@ -189,9 +227,11 @@ class RedisConfigTest extends TestCase
     {
         $config = m::mock(Repository::class);
         $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'options' => [],
             'default' => [
                 'host' => '127.0.0.1',
                 'port' => 6379,
+                'options' => [],
             ],
         ]);
         $redisConfig = new RedisConfig($config);
@@ -231,12 +271,30 @@ class RedisConfigTest extends TestCase
         (new RedisConfig($config))->connectionConfig('default');
     }
 
+    public function testNullConnectionPrefixInheritsSharedPrefix(): void
+    {
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'options' => ['prefix' => 'shared:'],
+            'default' => [
+                'host' => '127.0.0.1',
+                'port' => 6379,
+                'options' => ['scan' => 1],
+                'prefix' => null,
+            ],
+        ]);
+
+        $connection = (new RedisConfig($config))->connectionConfig('default');
+
+        $this->assertSame(['prefix' => 'shared:', 'scan' => 1], $connection['options']);
+    }
+
     public function testConnectionConfigAcceptsClusterConnectionWithoutHostAndPort(): void
     {
         $config = m::mock(Repository::class);
         $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'options' => [],
             'clustered' => [
-                'database' => 0,
                 'cluster' => [
                     'enabled' => true,
                     'seeds' => ['127.0.0.1:7000', '127.0.0.1:7001'],
@@ -248,10 +306,14 @@ class RedisConfigTest extends TestCase
 
         $this->assertSame('tcp', $connection['scheme']);
         $this->assertSame([], $connection['context']);
+        $this->assertNull($connection['username']);
+        $this->assertNull($connection['password']);
         $this->assertSame(
             ['tcp://127.0.0.1:7000', 'tcp://127.0.0.1:7001'],
             $connection['cluster']['seeds'],
         );
+        $this->assertArrayNotHasKey('database', $connection);
+        $this->assertArrayNotHasKey('name', $connection);
     }
 
     public function testConnectionConfigThrowsWhenClusterEnabledWithoutSeeds(): void
@@ -295,8 +357,10 @@ class RedisConfigTest extends TestCase
     {
         $config = m::mock(Repository::class);
         $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'options' => [],
             'clustered' => [
                 'scheme' => 'tls',
+                'options' => [],
                 'cluster' => [
                     'enabled' => true,
                     'seeds' => ['127.0.0.1:7000'],
@@ -315,7 +379,9 @@ class RedisConfigTest extends TestCase
     {
         $config = m::mock(Repository::class);
         $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'options' => [],
             'clustered' => [
+                'options' => [],
                 'cluster' => [
                     'enabled' => true,
                     'seeds' => ['ssl://127.0.0.1:7000', '127.0.0.1:7001'],
@@ -337,8 +403,10 @@ class RedisConfigTest extends TestCase
         $context = ['ssl' => ['verify_peer' => true]];
         $config = m::mock(Repository::class);
         $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'options' => [],
             'clustered' => [
                 'context' => $context,
+                'options' => [],
                 'cluster' => [
                     'enabled' => true,
                     'seeds' => ['127.0.0.1:7000'],
@@ -421,12 +489,13 @@ class RedisConfigTest extends TestCase
         (new RedisConfig($config))->connectionConfig('clustered');
     }
 
-    public function testConnectionConfigAcceptsSentinelConnectionWithoutHostAndPort(): void
+    public function testConnectionConfigNormalizesOptionalSentinelSettings(): void
     {
         $config = m::mock(Repository::class);
         $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'options' => [],
             'sentinel' => [
-                'database' => 0,
+                'options' => [],
                 'sentinel' => [
                     'enabled' => true,
                     'nodes' => ['tcp://127.0.0.1:26379'],
@@ -437,7 +506,16 @@ class RedisConfigTest extends TestCase
 
         $connection = (new RedisConfig($config))->connectionConfig('sentinel');
 
+        $this->assertNull($connection['username']);
+        $this->assertNull($connection['password']);
+        $this->assertSame(0, $connection['database']);
+        $this->assertNull($connection['name']);
         $this->assertSame('mymaster', $connection['sentinel']['master_name']);
+        $this->assertNull($connection['sentinel']['username']);
+        $this->assertNull($connection['sentinel']['password']);
+        $this->assertSame(0.0, $connection['sentinel']['timeout']);
+        $this->assertSame(0.0, $connection['sentinel']['read_timeout']);
+        $this->assertSame([], $connection['sentinel']['context']);
     }
 
     public function testConnectionConfigThrowsWhenSentinelEnabledWithoutNodes(): void
@@ -513,6 +591,7 @@ class RedisConfigTest extends TestCase
             'options' => [],
             'default' => [
                 'url' => 'redis://myuser:secret@redis.example.com:6380/3',
+                'options' => [],
             ],
         ]);
 
@@ -522,7 +601,7 @@ class RedisConfigTest extends TestCase
         $this->assertSame(6380, $connectionConfig['port']);
         $this->assertSame('myuser', $connectionConfig['username']);
         $this->assertSame('secret', $connectionConfig['password']);
-        $this->assertSame('3', $connectionConfig['database']);
+        $this->assertSame(3, $connectionConfig['database']);
     }
 
     public function testConnectionConfigUrlOverridesExplicitValues(): void
@@ -535,6 +614,7 @@ class RedisConfigTest extends TestCase
                 'host' => 'confighost',
                 'port' => 6379,
                 'database' => 0,
+                'options' => [],
             ],
         ]);
 
@@ -542,7 +622,7 @@ class RedisConfigTest extends TestCase
 
         $this->assertSame('urlhost', $connectionConfig['host']);
         $this->assertSame(6380, $connectionConfig['port']);
-        $this->assertSame('2', $connectionConfig['database']);
+        $this->assertSame(2, $connectionConfig['database']);
     }
 
     public function testConnectionConfigWithoutUrlPreservesExplicitValues(): void
@@ -554,6 +634,7 @@ class RedisConfigTest extends TestCase
                 'host' => '127.0.0.1',
                 'port' => 6379,
                 'database' => 0,
+                'options' => [],
             ],
         ]);
 
@@ -564,18 +645,39 @@ class RedisConfigTest extends TestCase
         $this->assertSame(0, $connectionConfig['database']);
     }
 
+    public function testConnectionConfigNormalizesExplicitStringDatabase(): void
+    {
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'options' => [],
+            'default' => [
+                'host' => '127.0.0.1',
+                'port' => 6379,
+                'database' => '4',
+                'options' => [],
+            ],
+        ]);
+
+        $connectionConfig = (new RedisConfig($config))->connectionConfig('default');
+
+        $this->assertSame(4, $connectionConfig['database']);
+    }
+
     public function testConnectionConfigAcceptsUrlOnlyConnection(): void
     {
         $config = m::mock(Repository::class);
         $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'options' => [],
             'default' => [
                 'url' => 'redis://127.0.0.1:6379/0',
+                'options' => [],
             ],
         ]);
 
         $connection = (new RedisConfig($config))->connectionConfig('default');
 
         $this->assertSame('127.0.0.1', $connection['host']);
+        $this->assertSame(0, $connection['database']);
     }
 
     public function testConnectionConfigThrowsWhenClusterAndSentinelBothEnabled(): void

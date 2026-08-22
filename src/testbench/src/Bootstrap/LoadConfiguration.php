@@ -29,7 +29,7 @@ class LoadConfiguration extends BaseLoadConfiguration
             $config->set('database.connections.testing', [
                 'driver' => 'sqlite',
                 'database' => ':memory:',
-                'foreign_key_constraints' => Env::get('DB_FOREIGN_KEYS', false),
+                'foreign_key_constraints' => (bool) Env::get('DB_FOREIGN_KEYS', false),
             ]);
         }
 

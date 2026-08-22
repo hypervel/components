@@ -14,6 +14,9 @@ use Hypervel\Cache\Redis\Console\Doctor\CheckResult;
  */
 final class CacheStoreCheck implements EnvironmentCheckInterface
 {
+    /**
+     * Create a new cache store check instance.
+     */
     public function __construct(
         private readonly string $storeName,
         private readonly string $driver,
@@ -21,11 +24,17 @@ final class CacheStoreCheck implements EnvironmentCheckInterface
     ) {
     }
 
+    /**
+     * Get the human-readable name of this check.
+     */
     public function name(): string
     {
         return 'Cache Store Configuration';
     }
 
+    /**
+     * Run the check and return results.
+     */
     public function run(): CheckResult
     {
         $result = new CheckResult;
@@ -49,6 +58,9 @@ final class CacheStoreCheck implements EnvironmentCheckInterface
         return $result;
     }
 
+    /**
+     * Get details about how to fix a failed check.
+     */
     public function getFixInstructions(): ?string
     {
         if ($this->driver !== 'redis') {

@@ -302,6 +302,8 @@ The published configuration sets those limiters to `login` and `passkeys`, and t
 
 The two-factor challenge submit route is throttled by default with `throttle:5,1`. You may set `fortify.limiters.two-factor` to a different throttle string or to a named limiter if your application needs custom keying.
 
+Email verification and resend routes are always rate limited. They allow six requests per minute by default; omitting `fortify.limiters.verification` keeps this limit, while another throttle string or named limiter customizes it.
+
 ```php
 use Hypervel\Http\Request;
 use Hypervel\RateLimiter\Limit;
@@ -447,13 +449,26 @@ Passkey registration and deletion routes require [password confirmation](#passwo
 Fortify bridges these settings into the standalone Passkeys package:
 
 ```php
-'passkeys' => [
-    'relying_party_id' => env('PASSKEYS_RELYING_PARTY_ID', parse_url(config('app.url'), PHP_URL_HOST)),
-    'allowed_origins' => env_array('PASSKEYS_ALLOWED_ORIGINS', [config('app.url')]),
-    'user_handle_secret' => env('PASSKEYS_USER_HANDLE_SECRET', config('app.key')),
-    'timeout' => (int) env('PASSKEYS_TIMEOUT', 60000),
-],
+/** @var null|string $appUrl */
+$appUrl = config('app.url');
+$defaultRelyingPartyId = $appUrl === null ? null : parse_url($appUrl, PHP_URL_HOST);
+$defaultAllowedOrigins = $appUrl === null ? [] : [$appUrl];
+
+return [
+    // ...
+
+    'passkeys' => [
+        'relying_party_id' => env('PASSKEYS_RELYING_PARTY_ID', $defaultRelyingPartyId),
+        'allowed_origins' => env_array('PASSKEYS_ALLOWED_ORIGINS', $defaultAllowedOrigins),
+        'user_handle_secret' => env('PASSKEYS_USER_HANDLE_SECRET', config('app.key')),
+        'timeout' => (int) env('PASSKEYS_TIMEOUT', 60000),
+    ],
+];
 ```
+
+Each passkey member may be omitted. Fortify then uses these same application-derived identity values and a 60-second WebAuthn timeout. Explicit null or empty identity values remain explicit and are rejected when a WebAuthn operation first needs them; a configured timeout must be a positive integer.
+
+When your application has no canonical `app.url`, configure `PASSKEYS_RELYING_PARTY_ID` and `PASSKEYS_ALLOWED_ORIGINS` explicitly. Fortify will still boot without them, but a WebAuthn operation will reject the missing values when it first needs them.
 
 Set `PASSKEYS_ALLOWED_ORIGINS` to a comma-separated list when WebAuthn ceremonies should be accepted from more than one origin, such as `https://example.com,https://www.example.com`.
 
@@ -714,7 +729,15 @@ php artisan vendor:publish --tag=passkeys-migrations
 php artisan migrate
 ```
 
-Standalone routes use `passkeys.guard`, `passkeys.middleware`, `passkeys.management_middleware`, `passkeys.throttle`, and `passkeys.redirect`.
+Standalone routes use the following configuration options:
+
+| Option | Description |
+| --- | --- |
+| `guard` | The guard selected for standalone routes. An omitted or null value uses the current request guard. |
+| `middleware` | The required middleware applied to every standalone route. |
+| `management_middleware` | The required additional middleware applied when creating or deleting passkeys. |
+| `throttle` | The throttle middleware applied to passkey endpoints. Omission uses `throttle:6,1`; null disables throttling. |
+| `redirect` | The successful login destination used when no intended URL exists. Omission uses `/`. |
 
 Call `Passkeys::ignoreRoutes()` during boot before registering your own endpoints:
 

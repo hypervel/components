@@ -356,9 +356,12 @@ class RedisPoolHeartbeatTest extends TestCase
             $this->assertInstanceOf(HeartbeatRedisConnection::class, $connection);
 
             $redis = m::mock(Redis::class);
+            $redis->expects('select')->once()->with(2)->andReturnTrue();
+            $redis->expects('isConnected')->andReturnTrue();
+            $redis->expects('getDBNum')->andReturn(2);
             $redis->shouldReceive('select')->once()->with(0)->andThrow(new RuntimeException('select failed'));
             $connection->setNativeClientForTest($redis);
-            $connection->setDatabase(2);
+            $connection->__call('select', [2]);
 
             $connection->release();
 
@@ -472,10 +475,11 @@ class RedisPoolHeartbeatTest extends TestCase
      */
     protected function createPool(array $poolOptions = [], string $poolClass = InspectableRedisPool::class, array $config = []): InspectableRedisPool
     {
-        $connectionConfig = array_replace_recursive([
+        $connectionConfig = array_replace([
             'host' => '127.0.0.1',
             'port' => 6379,
             'database' => 0,
+            'timeout' => null,
             'cluster' => ['enabled' => false],
             'pool' => [
                 'min_connections' => 1,
@@ -576,7 +580,10 @@ class HeartbeatRedisConnection extends RedisConnection
 
     public function reconnect(): bool
     {
-        $this->connection = m::mock(Redis::class)->shouldIgnoreMissing();
+        $redis = m::mock(Redis::class)->shouldIgnoreMissing();
+        $redis->shouldReceive('isConnected')->andReturnTrue();
+        $redis->shouldReceive('getDBNum')->andReturn($this->config['database']);
+        $this->connection = $redis;
         ++$this->reconnectCount;
         $this->markReconnected();
 

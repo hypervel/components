@@ -9,6 +9,7 @@ use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Factory as QueueManager;
+use Hypervel\Contracts\Queue\IndexAwareQueue;
 use Hypervel\Contracts\Queue\Interruptible;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
@@ -534,8 +535,9 @@ class Worker
     protected function getNextJob(QueueContract $connection, string $queue): ?JobContract
     {
         $popJobCallback = function ($queue, $index = 0) use ($connection) {
-            /** @var RedisQueue $connection */
-            return $connection->pop($queue, $index);
+            return $connection instanceof IndexAwareQueue
+                ? $connection->pop($queue, $index)
+                : $connection->pop($queue);
         };
 
         $this->raiseBeforeJobPopEvent($connection->getConnectionName(), $queue);
@@ -860,15 +862,11 @@ class Worker
             return;
         }
 
-        /* @phpstan-ignore-next-line */
         if (! $this->cache->get('job-exceptions:' . $uuid)) {
-            /* @phpstan-ignore-next-line */
             $this->cache->put('job-exceptions:' . $uuid, 0, CarbonImmutable::now()->addDay());
         }
 
-        /* @phpstan-ignore-next-line */
         if ($maxExceptions <= $this->cache->increment('job-exceptions:' . $uuid)) {
-            /* @phpstan-ignore-next-line */
             $this->cache->forget('job-exceptions:' . $uuid);
 
             $this->failJob($job, $e);

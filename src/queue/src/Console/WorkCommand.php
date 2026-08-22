@@ -145,7 +145,7 @@ class WorkCommand extends Command
     protected function gatherWorkerOptions(): WorkerOptions
     {
         $concurrency = $this->option('concurrency') === null
-            ? max(1, $this->config->integer('queue.concurrency_number'))
+            ? max(1, $this->config->integer('queue.concurrency'))
             : max(1, (int) $this->option('concurrency'));
 
         return new WorkerOptions(

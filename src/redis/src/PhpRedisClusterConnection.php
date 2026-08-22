@@ -52,7 +52,7 @@ class PhpRedisClusterConnection extends PhpRedisConnection
         $this->connection = $redis;
         $this->markReconnected();
 
-        if (($this->config['events'] ?? false) && $this->container->bound('events')) {
+        if ($this->config['events'] && $this->container->bound('events')) {
             $this->eventDispatcher = $this->container->make('events');
         }
 
@@ -281,17 +281,17 @@ class PhpRedisClusterConnection extends PhpRedisConnection
         try {
             $parameters = [
                 null,
-                $this->config['cluster']['seeds'] ?? [],
-                $this->config['timeout'] ?? 0.0,
-                $this->config['read_timeout'] ?? 0.0,
+                $this->config['cluster']['seeds'],
+                $this->config['timeout'],
+                $this->config['read_timeout'],
                 false,
                 $this->formatClusterPassword(),
             ];
 
-            if (($this->config['scheme'] ?? 'tcp') === 'tls') {
+            if ($this->config['scheme'] === 'tls') {
                 // RedisCluster needs the context argument to carry TLS to endpoints discovered after bootstrapping.
                 $parameters[] = $this->normalizeClusterContext(
-                    $this->config['context'] ?? []
+                    $this->config['context']
                 );
             }
 
@@ -327,8 +327,8 @@ class PhpRedisClusterConnection extends PhpRedisConnection
      */
     protected function formatClusterPassword(): mixed
     {
-        $password = $this->config['password'] ?? null;
-        $username = $this->config['username'] ?? null;
+        $password = $this->config['password'];
+        $username = $this->config['username'];
 
         return $username !== null && $username !== '' && is_string($password)
             ? [$username, $password]

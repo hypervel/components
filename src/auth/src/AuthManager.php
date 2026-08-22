@@ -122,7 +122,7 @@ class AuthManager implements FactoryContract
 
         $guard = new SessionGuard(
             $name,
-            $this->createUserProvider($config['provider'] ?? null),
+            $this->createUserProvider($config['provider']),
             $this->app->make('session.store'),
             $this->app,
             rehashOnLogin: $repository->boolean('hashing.rehash_on_login'),
@@ -152,9 +152,10 @@ class AuthManager implements FactoryContract
         // The token guard implements a basic API token based guard implementation
         // that takes an API token field from the request and matches it to the
         // user in the database or another persistence layer where users are.
+        // Keep the public factory defaults aligned with TokenGuard's constructor.
         return new TokenGuard(
             $name,
-            $this->createUserProvider($config['provider'] ?? null),
+            $this->createUserProvider($config['provider']),
             $this->app,
             $config['input_key'] ?? 'api_token',
             $config['storage_key'] ?? 'api_token',
@@ -277,7 +278,7 @@ class AuthManager implements FactoryContract
             return;
         }
 
-        $provider = $guardInstance->getProvider(); /* @phpstan-ignore method.notFound (getProvider() is on GuardHelpers trait, not the Guard contract) */
+        $provider = $guardInstance->getProvider();
 
         if ($provider instanceof EloquentUserProvider) {
             $provider->clearUserCache($identifier);
@@ -407,7 +408,7 @@ class AuthManager implements FactoryContract
 
             $keys = [
                 ...$keys,
-                ...$guard->getAuthContextKeys(), /* @phpstan-ignore method.notFound */
+                ...$guard->getAuthContextKeys(),
             ];
         }
 

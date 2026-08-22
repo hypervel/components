@@ -178,7 +178,6 @@ class RedisProxyTest extends TestCase
     {
         $connection = $this->mockConnection();
         $connection->shouldReceive('select')->once()->with(1)->andReturn(true);
-        $connection->shouldReceive('setDatabase')->once()->with(1);
         // Connection is released via defer() at end of coroutine
         $connection->shouldReceive('release')->once();
 
@@ -194,7 +193,6 @@ class RedisProxyTest extends TestCase
     {
         $connection = $this->mockConnection();
         $connection->shouldReceive('select')->once()->with(0)->andReturn(true);
-        $connection->shouldReceive('setDatabase')->once()->with(0);
         $connection->shouldReceive('release')->once();
 
         $redis = $this->createRedis($connection);
@@ -331,7 +329,6 @@ class RedisProxyTest extends TestCase
 
         $selectedConnection = $this->mockConnection();
         $selectedConnection->shouldReceive('select')->once()->with(2)->andReturn(true);
-        $selectedConnection->shouldReceive('setDatabase')->once()->with(2);
         $selectedConnection->shouldReceive('get')->once()->with('xxxx')->andReturn('db:2 name:get argument:xxxx');
         $selectedConnection->shouldReceive('release')->once();
 
@@ -522,6 +519,69 @@ class RedisProxyTest extends TestCase
         $redis->get('key');
     }
 
+    public function testSuccessEventTemporarilyPublishesTheOwnedConnection(): void
+    {
+        $dispatcher = m::mock(Dispatcher::class);
+        $connection = $this->createMockRedisConnection('get', 'value', eventDispatcher: $dispatcher);
+        $dispatcher->expects('hasListeners')->with(CommandExecuted::class)->andReturnTrue();
+        $dispatcher->expects('dispatch')
+            ->with(m::type(CommandExecuted::class))
+            ->andReturnUsing(function () use ($connection): void {
+                $this->assertSame(
+                    $connection,
+                    CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'),
+                );
+            });
+        $connection->expects('release');
+
+        $this->assertSame('value', $this->createRedis($connection)->get('key'));
+        $this->assertFalse(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+    }
+
+    public function testSuccessEventPreservesAPreExistingContextConnection(): void
+    {
+        $dispatcher = m::mock(Dispatcher::class);
+        $connection = $this->createMockRedisConnection('get', 'value', eventDispatcher: $dispatcher);
+        $dispatcher->expects('hasListeners')->with(CommandExecuted::class)->andReturnTrue();
+        $dispatcher->expects('dispatch')
+            ->with(m::type(CommandExecuted::class))
+            ->andReturnUsing(function () use ($connection): void {
+                $this->assertSame(
+                    $connection,
+                    CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'),
+                );
+            });
+        $connection->shouldNotReceive('release');
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+
+        $this->assertSame('value', $this->createRedis($connection)->get('key'));
+        $this->assertSame(
+            $connection,
+            CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'),
+        );
+    }
+
+    public function testSuccessEventCanRunANestedCommandOnTheOwnedConnection(): void
+    {
+        $dispatcher = m::mock(Dispatcher::class);
+        $connection = $this->createMockRedisConnection('get', 'outer', eventDispatcher: $dispatcher);
+        $connection->expects('set')->with('nested', 'value')->andReturnTrue();
+        $connection->expects('release');
+        $dispatcher->expects('hasListeners')
+            ->twice()
+            ->with(CommandExecuted::class)
+            ->andReturn(true, false);
+        $redis = $this->createRedis($connection);
+        $dispatcher->expects('dispatch')
+            ->with(m::type(CommandExecuted::class))
+            ->andReturnUsing(function () use ($redis): void {
+                $this->assertTrue($redis->set('nested', 'value'));
+            });
+
+        $this->assertSame('outer', $redis->get('outer'));
+        $this->assertFalse(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+    }
+
     public function testEventDispatchedOnErrorWithExceptionInfo(): void
     {
         $expectedException = new Exception('Redis error');
@@ -556,6 +616,83 @@ class RedisProxyTest extends TestCase
         }
     }
 
+    public function testFailureEventTemporarilyPublishesTheOwnedConnection(): void
+    {
+        $commandException = new RuntimeException('Command failed.');
+        $dispatcher = m::mock(Dispatcher::class);
+        $connection = $this->createMockRedisConnection('get', exception: $commandException, eventDispatcher: $dispatcher);
+        $dispatcher->expects('hasListeners')->with(CommandFailed::class)->andReturnTrue();
+        $dispatcher->expects('dispatch')
+            ->with(m::type(CommandFailed::class))
+            ->andReturnUsing(function () use ($connection): void {
+                $this->assertSame(
+                    $connection,
+                    CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'),
+                );
+            });
+        $connection->expects('release');
+
+        try {
+            $this->createRedis($connection)->get('key');
+            $this->fail('Expected the command failure to propagate.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($commandException, $throwable);
+        }
+
+        $this->assertFalse(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+    }
+
+    public function testFailureEventCanRunANestedCommandOnTheOwnedConnection(): void
+    {
+        $commandException = new RuntimeException('Command failed.');
+        $dispatcher = m::mock(Dispatcher::class);
+        $connection = $this->createMockRedisConnection('get', exception: $commandException, eventDispatcher: $dispatcher);
+        $connection->expects('set')->with('nested', 'recovered')->andReturnTrue();
+        $connection->expects('release');
+        $dispatcher->expects('hasListeners')->with(CommandFailed::class)->andReturnTrue();
+        $dispatcher->expects('hasListeners')->with(CommandExecuted::class)->andReturnFalse();
+        $redis = $this->createRedis($connection);
+        $dispatcher->expects('dispatch')
+            ->with(m::type(CommandFailed::class))
+            ->andReturnUsing(function () use ($redis): void {
+                $this->assertTrue($redis->set('nested', 'recovered'));
+            });
+
+        try {
+            $redis->get('outer');
+            $this->fail('Expected the outer command failure to propagate.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($commandException, $throwable);
+        }
+
+        $this->assertFalse(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+    }
+
+    public function testMultiListenerQueuesNestedCommandsOnTheOwnedTransaction(): void
+    {
+        $transaction = m::mock(PhpRedis::class);
+        $dispatcher = m::mock(Dispatcher::class);
+        $connection = $this->createMockRedisConnection('multi', $transaction, eventDispatcher: $dispatcher);
+        $connection->expects('set')->with('nested', 'queued')->andReturn($transaction);
+        $connection->expects('release');
+        $dispatcher->expects('hasListeners')
+            ->twice()
+            ->with(CommandExecuted::class)
+            ->andReturn(true, false);
+        $redis = $this->createRedis($connection);
+        $dispatcher->expects('dispatch')
+            ->with(m::type(CommandExecuted::class))
+            ->andReturnUsing(function () use ($redis, $transaction): void {
+                $this->assertSame($transaction, $redis->set('nested', 'queued'));
+            });
+
+        $this->assertSame($transaction, $redis->multi());
+        $this->assertSame(
+            $connection,
+            CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'),
+        );
+    }
+
     public function testThrowingSuccessListenerStillReleasesOrdinaryConnection(): void
     {
         $eventException = new RuntimeException('Success listener failed.');
@@ -571,6 +708,8 @@ class RedisProxyTest extends TestCase
         } catch (RuntimeException $throwable) {
             $this->assertSame($eventException, $throwable);
         }
+
+        $this->assertFalse(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
     }
 
     public function testThrowingSuccessListenerDoesNotSkipSameConnectionHandoff(): void
@@ -613,6 +752,8 @@ class RedisProxyTest extends TestCase
         } catch (RuntimeException $throwable) {
             $this->assertSame($eventException, $throwable);
         }
+
+        $this->assertFalse(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
     }
 
     public function testCommandFailureRemainsPrimaryOverCleanupFailure(): void
@@ -713,7 +854,14 @@ class RedisProxyTest extends TestCase
 
     public function testRegularCommandDoesNotStoreConnectionInContext(): void
     {
-        $mockRedisConnection = $this->createMockRedisConnection();
+        $mockRedisConnection = $this->mockConnection();
+        $mockRedisConnection->expects('get')
+            ->with('key')
+            ->andReturnUsing(function (): string {
+                $this->assertFalse(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+
+                return 'value';
+            });
         $mockRedisConnection->shouldReceive('release')->once();
 
         $redis = $this->createRedis($mockRedisConnection);
@@ -999,12 +1147,12 @@ class RedisProxyTest extends TestCase
             fread($client, 1);
         });
         $pool = m::mock(RedisPool::class);
-        $pool->expects('getConfig')->andReturn([
+        $pool->expects('getConfig')->andReturn($this->standaloneConfig([
             'host' => $server->endpoint(),
             'port' => 6379,
             'timeout' => 2.5,
             'options' => ['prefix' => 'app:'],
-        ]);
+        ]));
         $pool->shouldNotReceive('get');
         $factory = m::mock(PoolFactory::class);
         $factory->expects('getPool')->with('default')->andReturn($pool);
@@ -1039,13 +1187,12 @@ class RedisProxyTest extends TestCase
 
         [$firstHost, $firstPort] = $servers[0]->hostAndPort();
         [$secondHost, $secondPort] = $servers[1]->hostAndPort();
-        $config = [
-            'sentinel' => ['enabled' => true],
+        $config = $this->sentinelConfig([
             'username' => '0',
             'password' => '0',
             'timeout' => 1.0,
             'options' => ['prefix' => 'sentinel:'],
-        ];
+        ]);
         $pool = m::mock(RedisPool::class);
         $pool->expects('getConfig')->twice()->andReturn($config);
         $pool->shouldNotReceive('get');
@@ -1086,7 +1233,7 @@ class RedisProxyTest extends TestCase
             fread($client, 1);
         });
         [$host, $port] = $server->hostAndPort();
-        $config = [
+        $config = $this->clusterConfig([
             'scheme' => 'tcp',
             'cluster' => [
                 'enabled' => true,
@@ -1095,7 +1242,7 @@ class RedisProxyTest extends TestCase
             'context' => [],
             'timeout' => 0.1,
             'options' => ['prefix' => 'cluster:'],
-        ];
+        ]);
         $connection = m::mock(PhpRedisClusterConnection::class);
         $connection->expects('getConnection')->andReturnSelf();
         $connection->expects('masters')->andReturn([
@@ -1153,7 +1300,7 @@ class RedisProxyTest extends TestCase
             fread($client, 1);
         });
         [$host, $port] = $server->hostAndPort();
-        $config = [
+        $config = $this->clusterConfig([
             'scheme' => 'tls',
             'context' => $clientOptions,
             'cluster' => [
@@ -1161,7 +1308,7 @@ class RedisProxyTest extends TestCase
                 'seeds' => ['tls://127.0.0.1:1'],
             ],
             'timeout' => 0.1,
-        ];
+        ]);
         $connection = m::mock(PhpRedisClusterConnection::class);
         $connection->expects('getConnection')->andReturnSelf();
         $connection->expects('masters')->andReturn([[$host, $port]]);
@@ -1191,13 +1338,13 @@ class RedisProxyTest extends TestCase
 
     public function testClusterSubscriberAggregatesEndpointFailures(): void
     {
-        $config = [
+        $config = $this->clusterConfig([
             'cluster' => [
                 'enabled' => true,
                 'seeds' => ['tcp://127.0.0.1:1'],
             ],
             'timeout' => 0.01,
-        ];
+        ]);
         $connection = m::mock(PhpRedisClusterConnection::class);
         $connection->expects('getConnection')->andReturnSelf();
         $connection->expects('masters')->andReturn([
@@ -1480,6 +1627,90 @@ class RedisProxyTest extends TestCase
         return $mockRedisConnection;
     }
 
+    /**
+     * Create a complete standalone Redis connection record.
+     */
+    private function standaloneConfig(array $overrides = []): array
+    {
+        return array_replace($this->baseConnectionConfig(), [
+            'url' => null,
+            'host' => '127.0.0.1',
+            'port' => 6379,
+            'database' => 0,
+            'name' => null,
+        ], $overrides);
+    }
+
+    /**
+     * Create a complete Sentinel Redis connection record.
+     */
+    private function sentinelConfig(array $overrides = []): array
+    {
+        return array_replace($this->baseConnectionConfig(), [
+            'database' => 0,
+            'name' => null,
+            'sentinel' => [
+                'enabled' => true,
+                'master_name' => 'primary',
+                'nodes' => ['tcp://127.0.0.1:26379'],
+                'username' => null,
+                'password' => null,
+                'timeout' => 1.0,
+                'read_timeout' => 1.0,
+                'context' => [],
+            ],
+        ], $overrides);
+    }
+
+    /**
+     * Create a complete Cluster Redis connection record.
+     */
+    private function clusterConfig(array $overrides = []): array
+    {
+        return array_replace($this->baseConnectionConfig(), [
+            'scheme' => 'tcp',
+            'cluster' => [
+                'enabled' => true,
+                'seeds' => ['tcp://127.0.0.1:7000'],
+            ],
+        ], $overrides);
+    }
+
+    /**
+     * Create the members shared by every Redis connection topology.
+     */
+    private function baseConnectionConfig(): array
+    {
+        return [
+            'scheme' => null,
+            'username' => null,
+            'password' => null,
+            'timeout' => 1.0,
+            'read_timeout' => 0.0,
+            'context' => [],
+            'options' => [],
+            'prefix' => null,
+            'events' => false,
+            'max_retries' => 3,
+            'backoff_algorithm' => 'decorrelated_jitter',
+            'backoff_base' => 100,
+            'backoff_cap' => 1000,
+            'pool' => [
+                'min_connections' => 1,
+                'max_connections' => 10,
+                'connect_timeout' => 10.0,
+                'wait_timeout' => 3.0,
+                'heartbeat' => -1.0,
+                'heartbeat_timeout' => 1.0,
+                'max_idle_time' => 60.0,
+                'max_lifetime' => -1.0,
+            ],
+        ];
+    }
+
+    /**
+     * Get a mocked Sentinel factory.
+     */
     private function sentinelFactory(): RedisSentinelFactory
     {
         return m::mock(RedisSentinelFactory::class);

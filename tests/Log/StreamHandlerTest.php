@@ -9,6 +9,7 @@ use Hypervel\Engine\Channel;
 use Hypervel\Log\Handlers\RotatingFileHandler;
 use Hypervel\Log\Handlers\StreamHandler;
 use Hypervel\Tests\TestCase;
+use Monolog\Formatter\LineFormatter;
 use Monolog\Logger;
 use UnexpectedValueException;
 
@@ -116,6 +117,102 @@ class StreamHandlerTest extends TestCase
         $this->assertStringContainsString('retry me', LogStreamWrapper::$written);
     }
 
+    public function testPartialWritesCompleteTheFormattedRecordExactlyOnce(): void
+    {
+        LogStreamWrapper::$maximumWriteLength = 3;
+        $handler = new StreamHandler(self::STREAM_SCHEME . '://partial');
+        $handler->setFormatter(new LineFormatter('%message%'));
+
+        (new Logger('test', [$handler]))->info('complete record');
+
+        $this->assertGreaterThan(1, LogStreamWrapper::$writeCount);
+        $this->assertSame('complete record', LogStreamWrapper::$written);
+    }
+
+    public function testFailureAfterAPositivePrefixDoesNotRetryOrDuplicateThePrefix(): void
+    {
+        LogStreamWrapper::$failAfterBytes = 6;
+        $handler = new StreamHandler(self::STREAM_SCHEME . '://prefix-failure');
+        $handler->setFormatter(new LineFormatter('%message%'));
+
+        try {
+            (new Logger('test', [$handler]))->info('prefix failure');
+            $this->fail('Expected the log write to fail.');
+        } catch (UnexpectedValueException $exception) {
+            $this->assertStringContainsString(
+                'Writing to the log file "' . self::STREAM_SCHEME . '://prefix-failure" failed after 6 of 14 bytes.',
+                $exception->getMessage(),
+            );
+        }
+
+        $this->assertSame(1, LogStreamWrapper::$openCount);
+        $this->assertSame('prefix', LogStreamWrapper::$written);
+    }
+
+    public function testLockIsHeldOnceAcrossPartialWrites(): void
+    {
+        LogStreamWrapper::$maximumWriteLength = 2;
+        $handler = new StreamHandler(self::STREAM_SCHEME . '://locked', useLocking: true);
+        $handler->setFormatter(new LineFormatter('%message%'));
+
+        (new Logger('test', [$handler]))->info('locked record');
+
+        $this->assertSame([LOCK_EX, LOCK_UN], LogStreamWrapper::$lockOperations);
+        $this->assertSame('locked record', LogStreamWrapper::$written);
+    }
+
+    public function testInodeRefreshDoesNotConsumeTheWriteFailureRetry(): void
+    {
+        $url = self::STREAM_SCHEME . '://inode-refresh';
+        $handler = new StreamHandler($url);
+        $handler->setFormatter(new LineFormatter('%message%'));
+        $logger = new Logger('test', [$handler]);
+
+        $logger->info('first');
+
+        LogStreamWrapper::$inode = 2;
+        clearstatcache(true, $url);
+        $logger->info('second');
+
+        LogStreamWrapper::$inode = 3;
+        LogStreamWrapper::$zeroWritesRemaining = 1;
+        clearstatcache(true, $url);
+        $logger->info('third');
+
+        $this->assertSame(4, LogStreamWrapper::$openCount);
+        $this->assertSame(1, substr_count(LogStreamWrapper::$written, 'first'));
+        $this->assertSame(1, substr_count(LogStreamWrapper::$written, 'second'));
+        $this->assertSame(1, substr_count(LogStreamWrapper::$written, 'third'));
+    }
+
+    public function testCallerOwnedNonblockingResourceFailsWithoutClosingOrReplaying(): void
+    {
+        LogStreamWrapper::$failAfterBytes = 6;
+        $resource = fopen(self::STREAM_SCHEME . '://caller-resource', 'w');
+        $this->assertTrue(stream_set_blocking($resource, false));
+        $handler = new StreamHandler($resource);
+        $handler->setFormatter(new LineFormatter('%message%'));
+
+        try {
+            try {
+                (new Logger('test', [$handler]))->info('caller failure');
+                $this->fail('Expected the log write to fail.');
+            } catch (UnexpectedValueException $exception) {
+                $this->assertStringContainsString(
+                    'Writing to the log stream failed after 6 of 14 bytes.',
+                    $exception->getMessage(),
+                );
+            }
+
+            $handler->close();
+
+            $this->assertTrue(is_resource($resource));
+            $this->assertSame('caller', LogStreamWrapper::$written);
+        } finally {
+            fclose($resource);
+        }
+    }
+
     public function testDirectoryCreationFailureThrowsDeterministically(): void
     {
         $file = tempnam(sys_get_temp_dir(), 'hypervel-log-parent-');
@@ -182,11 +279,24 @@ class LogStreamWrapper
 
     public static bool $failFirstWrite = false;
 
+    public static ?int $maximumWriteLength = null;
+
+    public static ?int $failAfterBytes = null;
+
+    public static int $zeroWritesRemaining = 0;
+
+    public static int $inode = 1;
+
     public static int $openCount = 0;
 
     public static int $writeCount = 0;
 
     public static string $written = '';
+
+    /**
+     * @var list<int>
+     */
+    public static array $lockOperations = [];
 
     public mixed $context;
 
@@ -197,9 +307,14 @@ class LogStreamWrapper
         self::$failOpenAfterYield = false;
         self::$failOpen = false;
         self::$failFirstWrite = false;
+        self::$maximumWriteLength = null;
+        self::$failAfterBytes = null;
+        self::$zeroWritesRemaining = 0;
+        self::$inode = 1;
         self::$openCount = 0;
         self::$writeCount = 0;
         self::$written = '';
+        self::$lockOperations = [];
     }
 
     public function stream_open(string $path, string $mode, int $options, ?string &$openedPath): bool
@@ -228,9 +343,41 @@ class LogStreamWrapper
             return false;
         }
 
+        if (self::$zeroWritesRemaining > 0) {
+            --self::$zeroWritesRemaining;
+
+            return 0;
+        }
+
+        if (self::$failAfterBytes !== null) {
+            $remaining = self::$failAfterBytes - strlen(self::$written);
+
+            if ($remaining <= 0) {
+                return 0;
+            }
+
+            $data = substr($data, 0, $remaining);
+        }
+
+        if (self::$maximumWriteLength !== null) {
+            $data = substr($data, 0, self::$maximumWriteLength);
+        }
+
         self::$written .= $data;
 
         return strlen($data);
+    }
+
+    public function stream_lock(int $operation): bool
+    {
+        self::$lockOperations[] = $operation;
+
+        return true;
+    }
+
+    public function stream_set_option(int $option, int $argumentOne, ?int $argumentTwo): bool
+    {
+        return true;
     }
 
     public function stream_close(): void
@@ -261,7 +408,7 @@ class LogStreamWrapper
     {
         return [
             'dev' => 0,
-            'ino' => 1,
+            'ino' => self::$inode,
             'mode' => 0100666,
             'nlink' => 1,
             'uid' => 0,

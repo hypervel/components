@@ -108,7 +108,7 @@ After publishing Telescope's configuration, its primary configuration file will 
 If desired, you may disable Telescope's data collection entirely using the `enabled` configuration option:
 
 ```php
-'enabled' => env('TELESCOPE_ENABLED', true),
+'enabled' => (bool) env('TELESCOPE_ENABLED', true),
 ```
 
 <a name="data-pruning"></a>
@@ -328,7 +328,7 @@ Some watchers also allow you to provide additional customization options:
 ```php
 'watchers' => [
     Watchers\QueryWatcher::class => [
-        'enabled' => env('TELESCOPE_QUERY_WATCHER', true),
+        'enabled' => (bool) env('TELESCOPE_QUERY_WATCHER', true),
         'slow' => 100,
     ],
     // ...
@@ -353,7 +353,7 @@ The command watcher records the arguments, options, exit code, and output whenev
 ```php
 'watchers' => [
     Watchers\CommandWatcher::class => [
-        'enabled' => env('TELESCOPE_COMMAND_WATCHER', true),
+        'enabled' => (bool) env('TELESCOPE_COMMAND_WATCHER', true),
         'ignore' => ['key:generate'],
     ],
     // ...
@@ -383,7 +383,7 @@ The gate watcher records the data and result of [gate and policy](/docs/{{versio
 ```php
 'watchers' => [
     Watchers\GateWatcher::class => [
-        'enabled' => env('TELESCOPE_GATE_WATCHER', true),
+        'enabled' => (bool) env('TELESCOPE_GATE_WATCHER', true),
         'ignore_abilities' => ['viewNova'],
     ],
     // ...
@@ -402,11 +402,11 @@ You may ignore specific hosts or limit the recorded request and response payload
 ```php
 'watchers' => [
     Watchers\ClientRequestWatcher::class => [
-        'enabled' => env('TELESCOPE_CLIENT_REQUEST_WATCHER', true),
+        'enabled' => (bool) env('TELESCOPE_CLIENT_REQUEST_WATCHER', true),
         'ignore_hosts' => [],
-        'request_size_limit' => env('TELESCOPE_HTTP_CLIENT_REQUEST_SIZE_LIMIT', 64),
-        'response_size_limit' => env('TELESCOPE_HTTP_CLIENT_RESPONSE_SIZE_LIMIT', 64),
-        'truncate_oversized' => env('TELESCOPE_HTTP_CLIENT_TRUNCATE_OVERSIZED', false),
+        'request_size_limit' => (int) env('TELESCOPE_HTTP_CLIENT_REQUEST_SIZE_LIMIT', 64),
+        'response_size_limit' => (int) env('TELESCOPE_HTTP_CLIENT_RESPONSE_SIZE_LIMIT', 64),
+        'truncate_oversized' => (bool) env('TELESCOPE_HTTP_CLIENT_TRUNCATE_OVERSIZED', false),
     ],
 
     // ...
@@ -430,7 +430,7 @@ By default, Telescope will only record logs at the `error` level and above. Howe
 ```php
 'watchers' => [
     Watchers\LogWatcher::class => [
-        'enabled' => env('TELESCOPE_LOG_WATCHER', true),
+        'enabled' => (bool) env('TELESCOPE_LOG_WATCHER', true),
         'level' => 'debug',
     ],
 
@@ -451,7 +451,7 @@ The model watcher records model changes whenever an Eloquent [model event](/docs
 ```php
 'watchers' => [
     Watchers\ModelWatcher::class => [
-        'enabled' => env('TELESCOPE_MODEL_WATCHER', true),
+        'enabled' => (bool) env('TELESCOPE_MODEL_WATCHER', true),
         'events' => ['eloquent.created*', 'eloquent.updated*'],
     ],
     // ...
@@ -463,7 +463,7 @@ If you would like to record the number of models hydrated during a given request
 ```php
 'watchers' => [
     Watchers\ModelWatcher::class => [
-        'enabled' => env('TELESCOPE_MODEL_WATCHER', true),
+        'enabled' => (bool) env('TELESCOPE_MODEL_WATCHER', true),
         'hydrations' => true,
     ],
     // ...
@@ -483,7 +483,7 @@ The query watcher records the raw SQL, bindings, and execution time for all quer
 ```php
 'watchers' => [
     Watchers\QueryWatcher::class => [
-        'enabled' => env('TELESCOPE_QUERY_WATCHER', true),
+        'enabled' => (bool) env('TELESCOPE_QUERY_WATCHER', true),
         'slow' => 50,
     ],
     // ...
@@ -503,7 +503,7 @@ The Reverb watcher records [Reverb](/docs/{{version}}/reverb) WebSocket events s
 ```php
 'watchers' => [
     Watchers\ReverbWatcher::class => [
-        'enabled' => env('TELESCOPE_REVERB_WATCHER', true),
+        'enabled' => (bool) env('TELESCOPE_REVERB_WATCHER', true),
         'events' => [
             'connection_established',
             'connection_closed',
@@ -511,7 +511,7 @@ The Reverb watcher records [Reverb](/docs/{{version}}/reverb) WebSocket events s
             'channel_removed',
             'connection_pruned',
         ],
-        'message_size_limit' => env('TELESCOPE_REVERB_MESSAGE_SIZE_LIMIT', 64),
+        'message_size_limit' => (int) env('TELESCOPE_REVERB_MESSAGE_SIZE_LIMIT', 64),
     ],
 
     // ...
@@ -530,8 +530,8 @@ The request watcher records the request, headers, session, and response data ass
 ```php
 'watchers' => [
     Watchers\RequestWatcher::class => [
-        'enabled' => env('TELESCOPE_REQUEST_WATCHER', true),
-        'size_limit' => env('TELESCOPE_RESPONSE_SIZE_LIMIT', 64),
+        'enabled' => (bool) env('TELESCOPE_REQUEST_WATCHER', true),
+        'size_limit' => (int) env('TELESCOPE_RESPONSE_SIZE_LIMIT', 64),
         'ignore_http_methods' => [],
         'ignore_status_codes' => [],
     ],

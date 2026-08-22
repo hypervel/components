@@ -24,6 +24,8 @@ use function Hypervel\Support\enum_value;
 
 class ClientRequestWatcher extends Watcher
 {
+    protected const int DEFAULT_REQUEST_SIZE_LIMIT = 64;
+
     /**
      * Register the watcher.
      *
@@ -227,7 +229,7 @@ class ClientRequestWatcher extends Watcher
         return $this->formatStructuredPayload(
             $payload,
             Telescope::$hiddenRequestParameters,
-            ($this->options['request_size_limit'] ?? 64) * 1024,
+            ($this->options['request_size_limit'] ?? self::DEFAULT_REQUEST_SIZE_LIMIT) * 1024,
         );
     }
 
@@ -268,7 +270,7 @@ class ClientRequestWatcher extends Watcher
                 $stream->rewind();
             }
 
-            $sizeLimit = ($this->options['request_size_limit'] ?? 64) * 1024;
+            $sizeLimit = ($this->options['request_size_limit'] ?? self::DEFAULT_REQUEST_SIZE_LIMIT) * 1024;
 
             if (! $truncate && $stream->getSize() >= $sizeLimit) {
                 return 'Purged By Telescope';

@@ -69,7 +69,7 @@ class DbCommand extends Command
     public function getConnection(): array
     {
         $config = $this->hypervel->make('config');
-        $connectionName = $this->argument('connection') ?? $config->string('database.default', 'default');
+        $connectionName = $this->argument('connection') ?? $config->string('database.default');
         $connection = $config->array("database.connections.{$connectionName}", []);
 
         if (empty($connection)) {

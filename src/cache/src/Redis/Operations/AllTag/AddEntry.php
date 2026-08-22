@@ -7,8 +7,6 @@ namespace Hypervel\Cache\Redis\Operations\AllTag;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
 
-use function Hypervel\Support\now;
-
 /**
  * Adds a cache key reference to all tag sorted sets.
  *
@@ -21,6 +19,9 @@ use function Hypervel\Support\now;
  */
 class AddEntry
 {
+    /**
+     * Create a new add-entry operation instance.
+     */
     public function __construct(
         private readonly StoreContext $context,
     ) {
@@ -47,7 +48,7 @@ class AddEntry
         // Convert TTL to timestamp score:
         // - If TTL > 0: timestamp when this entry expires
         // - If TTL <= 0: -1 to indicate "forever" (won't be cleaned by ZREMRANGEBYSCORE)
-        $score = $ttl > 0 ? now()->addSeconds($ttl)->getTimestamp() : -1;
+        $score = $ttl > 0 ? $this->context->expirationScore($ttl) : -1;
 
         // Cluster mode: RedisCluster doesn't support pipeline, and tags
         // may be in different slots requiring sequential commands
@@ -64,7 +65,7 @@ class AddEntry
      */
     private function executePipeline(string $key, int $score, array $tagIds, ?string $updateWhen): void
     {
-        $this->context->withConnection(function (RedisConnection $connection) use ($key, $score, $tagIds, $updateWhen) {
+        $this->context->withConnection(function (RedisConnection $connection) use ($key, $score, $tagIds, $updateWhen): void {
             $prefix = $this->context->prefix();
             $pipeline = $connection->pipeline();
 
@@ -92,7 +93,7 @@ class AddEntry
      */
     private function executeCluster(string $key, int $score, array $tagIds, ?string $updateWhen): void
     {
-        $this->context->withConnection(function (RedisConnection $connection) use ($key, $score, $tagIds, $updateWhen) {
+        $this->context->withConnection(function (RedisConnection $connection) use ($key, $score, $tagIds, $updateWhen): void {
             $prefix = $this->context->prefix();
 
             foreach ($tagIds as $tagId) {

@@ -176,7 +176,7 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
 
         $serializedValues = [];
 
-        $expiration = $this->getTime() + $seconds;
+        $expiration = $this->availableAt($seconds);
 
         foreach ($values as $key => $value) {
             $serializedValues[] = [
@@ -203,7 +203,7 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
 
         $key = $this->prefix . $key;
         $value = $this->serialize($value);
-        $expiration = $this->getTime() + $seconds;
+        $expiration = $this->availableAt($seconds);
 
         return $this->table()->insertOrIgnore(compact('key', 'value', 'expiration')) > 0;
     }
@@ -316,10 +316,12 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
      */
     public function touch(string $key, int $seconds): bool
     {
+        $now = $this->getTime();
+
         return (bool) $this->table()
             ->where('key', '=', $this->getPrefix() . $key)
-            ->where('expiration', '>', $now = $this->getTime())
-            ->update(['expiration' => $now + $seconds]);
+            ->where('expiration', '>', $now)
+            ->update(['expiration' => $this->availableAt($seconds)]);
     }
 
     /**

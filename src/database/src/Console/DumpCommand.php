@@ -76,9 +76,7 @@ class DumpCommand extends Command
      */
     protected function schemaState(Connection $connection): mixed
     {
-        $migrations = Config::get('database.migrations', 'migrations');
-
-        $migrationTable = is_array($migrations) ? ($migrations['table'] ?? 'migrations') : $migrations;
+        $migrationTable = Config::string('database.migrations.table');
 
         if ($this->option('without-migration-data')) {
             $migrationTable = null;

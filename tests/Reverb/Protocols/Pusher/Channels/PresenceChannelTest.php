@@ -180,11 +180,11 @@ class PresenceChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['member_added', 'member_removed'],
             'disconnect_smoothing_ms' => 0,
-        ]);
+        ]));
 
         $channel = $this->channels()->findOrCreate('presence-test-channel');
         $data = json_encode(['user_info' => ['name' => 'Zero'], 'user_id' => 0]);
@@ -265,11 +265,11 @@ class PresenceChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['member_removed'],
             'disconnect_smoothing_ms' => 3000,
-        ]);
+        ]));
 
         $channel = $this->channels()->findOrCreate('presence-test-channel');
         $data = json_encode(['user_info' => ['name' => 'Test'], 'user_id' => '1']);
@@ -299,11 +299,11 @@ class PresenceChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['member_removed'],
             'disconnect_smoothing_ms' => 3000,
-        ]);
+        ]));
 
         $channel = $this->channels()->findOrCreate('presence-test-channel');
         $data = json_encode(['user_info' => ['name' => 'Test'], 'user_id' => '1']);
@@ -334,11 +334,11 @@ class PresenceChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['member_added', 'member_removed'],
             'disconnect_smoothing_ms' => 3000,
-        ]);
+        ]));
 
         $channel = $this->channels()->findOrCreate('presence-test-channel');
         $data = json_encode(['user_info' => ['name' => 'Test'], 'user_id' => '1']);
@@ -376,11 +376,11 @@ class PresenceChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['member_added', 'member_removed'],
             'disconnect_smoothing_ms' => 3000,
-        ]);
+        ]));
 
         $channel = $this->channels()->findOrCreate('presence-test-channel');
         $data = json_encode(['user_info' => ['name' => 'Test'], 'user_id' => '1']);
@@ -425,11 +425,11 @@ class PresenceChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['member_added'],
             'disconnect_smoothing_ms' => 3000,
-        ]);
+        ]));
 
         // Simulate a marker set by another worker's disconnect
         $sharedState = $this->app->make(SharedState::class);
@@ -454,11 +454,11 @@ class PresenceChannelTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['member_added', 'member_removed'],
             'disconnect_smoothing_ms' => 3000,
-        ]);
+        ]));
 
         // Set marker (simulating another worker's disconnect)
         $sharedState = $this->app->make(SharedState::class);

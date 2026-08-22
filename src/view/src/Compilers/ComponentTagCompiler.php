@@ -138,9 +138,8 @@ class ComponentTagCompiler
 
     /**
      * Set a bound attribute for the current component.
-     * @param mixed $attribute
      */
-    protected function setBoundAttribute($attribute): void
+    protected function setBoundAttribute(string $attribute): void
     {
         $boundAttributes = CoroutineContext::get(self::BOUND_ATTRIBUTES_CONTEXT_KEY, []);
         $boundAttributes[$attribute] = true;
@@ -149,6 +148,8 @@ class ComponentTagCompiler
 
     /**
      * Get the bound attributes for the current component.
+     *
+     * @return array<string, true>
      */
     protected function getBoundAttributes(): array
     {
@@ -326,9 +327,9 @@ class ComponentTagCompiler
                         : $component;
 
                 if (! is_null($guess = match (true) {
-                    $viewFactory->exists($guess = $path['prefixHash'] . $delimiter . $formattedComponent) => $guess,  // @phpstan-ignore variable.undefined
-                    $viewFactory->exists($guess = $path['prefixHash'] . $delimiter . $formattedComponent . '.index') => $guess,  // @phpstan-ignore variable.undefined
-                    $viewFactory->exists($guess = $path['prefixHash'] . $delimiter . $formattedComponent . '.' . Str::afterLast($formattedComponent, '.')) => $guess,  // @phpstan-ignore variable.undefined
+                    $viewFactory->exists($guess = $path['prefixHash'] . $delimiter . $formattedComponent) => $guess,
+                    $viewFactory->exists($guess = $path['prefixHash'] . $delimiter . $formattedComponent . '.index') => $guess,
+                    $viewFactory->exists($guess = $path['prefixHash'] . $delimiter . $formattedComponent . '.' . Str::afterLast($formattedComponent, '.')) => $guess,
                     default => null,
                 })) {
                     return $guess;

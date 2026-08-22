@@ -19,6 +19,10 @@ use SensitiveParameter;
 
 class EloquentUserProvider implements UserProvider
 {
+    public const int DEFAULT_CACHE_TTL = 300;
+
+    public const string DEFAULT_CACHE_PREFIX = 'auth_user';
+
     /**
      * The callback used to build the identifier segment of cache keys.
      *
@@ -256,7 +260,7 @@ class EloquentUserProvider implements UserProvider
      * by name on invalidation and avoid holding strong references.
      *
      * A null or empty-string prefix is normalized to the feature default
-     * ('auth_users') so misconfiguration does not create hard-to-read keys
+     * ('auth_user') so misconfiguration does not create hard-to-read keys
      * with a leading colon.
      *
      * The store is validated before any instance state is mutated, so a
@@ -272,8 +276,8 @@ class EloquentUserProvider implements UserProvider
      */
     public function enableCache(
         ?string $storeName,
-        int $ttl = 300,
-        ?string $prefix = 'auth_users',
+        int $ttl = self::DEFAULT_CACHE_TTL,
+        ?string $prefix = self::DEFAULT_CACHE_PREFIX,
         ?array $tags = null,
     ): static {
         if ($ttl <= 0) {
@@ -304,7 +308,7 @@ class EloquentUserProvider implements UserProvider
         $this->cache = $cache;
         $this->cacheStoreName = $storeName;
         $this->cacheTtl = $ttl;
-        $this->cachePrefix = $prefix === null || $prefix === '' ? 'auth_users' : $prefix;
+        $this->cachePrefix = $prefix === null || $prefix === '' ? self::DEFAULT_CACHE_PREFIX : $prefix;
 
         $this->registerCacheInvalidationEvents();
 
@@ -438,7 +442,7 @@ class EloquentUserProvider implements UserProvider
         $effectiveTags = $this->effectiveCacheTags();
 
         if ($effectiveTags === []) {
-            return $this->cache; /* @phpstan-ignore return.type */
+            return $this->cache;
         }
 
         return $this->cache->tags($effectiveTags); /* @phpstan-ignore method.notFound (tags() is on Repository concrete, not the Repository contract) */

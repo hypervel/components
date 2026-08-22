@@ -24,7 +24,7 @@ class PhpRedisClusterConnectionStub extends PhpRedisClusterConnection
     public function __construct(?Container $container = null, ?PoolInterface $pool = null, array $config = [])
     {
         if ($container !== null && $pool !== null) {
-            // Call grandparent to merge config without reconnecting
+            // Call the grandparent to store config without reconnecting.
             \Hypervel\Redis\RedisConnection::__construct($container, $pool, $config);
         }
         // Skip reconnect() — tests inject connections via setActiveConnection()
@@ -75,7 +75,7 @@ class PhpRedisClusterConnectionStub extends PhpRedisClusterConnection
     }
 
     /**
-     * Get the merged connection configuration.
+     * Get the connection configuration.
      *
      * @return array<string, mixed>
      */

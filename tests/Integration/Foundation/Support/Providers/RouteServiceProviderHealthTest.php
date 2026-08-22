@@ -37,8 +37,11 @@ class RouteServiceProviderHealthTest extends TestCase
 
     public function testItCanLoadHealthPage(): void
     {
+        config(['app.name' => null]);
+
         $this->get('/up')
             ->assertOk()
+            ->assertSee('<title>Hypervel</title>', false)
             ->assertSee('Application up');
     }
 

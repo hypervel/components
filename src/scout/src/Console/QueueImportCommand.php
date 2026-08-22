@@ -11,6 +11,7 @@ use Hypervel\Scout\Console\Traits\ResolvesScoutModelClass;
 use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Exceptions\ScoutException;
 use Hypervel\Scout\Jobs\MakeRangeSearchable;
+use Hypervel\Scout\Scout;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 /**
@@ -49,7 +50,10 @@ class QueueImportCommand extends Command
         /** @var Model&SearchableInterface $model */
         $model = new $class;
 
-        $chunk = max(1, (int) ($this->option('chunk') ?? $config->integer('scout.chunk.searchable', 500)));
+        $chunk = max(1, (int) ($this->option('chunk') ?? $config->integer(
+            'scout.chunk.searchable',
+            Scout::DEFAULT_CHUNK_SIZE,
+        )));
         $queueName = $this->option('queue') ?? $model->syncWithSearchUsingQueue();
         $connection = $model->syncWithSearchUsing();
         $order = (string) $this->option('order');

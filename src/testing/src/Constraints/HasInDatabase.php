@@ -46,7 +46,7 @@ class HasInDatabase extends Constraint
         return sprintf(
             "a row in the table [%s] matches the attributes %s.\n\n%s",
             $table,
-            $this->toString(JSON_PRETTY_PRINT),
+            $this->toString(JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
             $this->getAdditionalInfo($table)
         );
     }
@@ -67,7 +67,10 @@ class HasInDatabase extends Constraint
         )->select(array_keys($this->data))->limit($this->show)->get();
 
         if ($similarResults->isNotEmpty()) {
-            $description = 'Found similar results: ' . json_encode($similarResults, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+            $description = 'Found similar results: ' . json_encode(
+                $similarResults,
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR,
+            );
         } else {
             $query = $this->database->table($table);
 
@@ -77,7 +80,10 @@ class HasInDatabase extends Constraint
                 return 'The table is empty';
             }
 
-            $description = 'Found: ' . json_encode($results, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+            $description = 'Found: ' . json_encode(
+                $results,
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR,
+            );
         }
 
         if ($query->count() > $this->show) {
@@ -98,6 +104,9 @@ class HasInDatabase extends Constraint
             $output[$key] = $data instanceof Expression ? $data->getValue($this->database->getQueryGrammar()) : $data;
         }
 
-        return json_encode($output ?? [], (int) $options);
+        return json_encode(
+            $output ?? [],
+            (int) $options | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR,
+        );
     }
 }

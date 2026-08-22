@@ -109,7 +109,7 @@ class SearchPromptRenderer extends Renderer implements Scrolling
         }
 
         return implode(PHP_EOL, $this->scrollbar(
-            array_values(array_map(function ($label, $key) use ($prompt) { // @phpstan-ignore arrayValues.list
+            array_values(array_map(function ($label, $key) use ($prompt) {
                 $label = $this->truncate($label, $prompt->terminal()->cols() - 10);
 
                 $index = array_search($key, array_keys($prompt->matches()));

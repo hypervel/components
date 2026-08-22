@@ -7,6 +7,7 @@ namespace Hypervel\Queue\Connectors;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Queue\DatabaseQueue;
+use Hypervel\Support\Arr;
 
 class DatabaseConnector implements ConnectorInterface
 {
@@ -28,8 +29,8 @@ class DatabaseConnector implements ConnectorInterface
             $config['connection'] ?? null,
             $config['table'],
             $config['queue'],
-            $config['retry_after'] ?? 60,
-            $config['after_commit'] ?? false
+            $config['retry_after'] ?? DatabaseQueue::DEFAULT_RETRY_AFTER,
+            Arr::get($config, 'after_commit', false)
         );
     }
 }

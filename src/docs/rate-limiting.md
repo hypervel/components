@@ -121,7 +121,7 @@ The `rate-limiter:table` command is also available as an alias.
 
 If your application needs to rate limit while another connection is inside a transaction, configure a separate named connection using the store's `connection` option. The connection may use the same database server or a dedicated rate limiter database. Run the `rate_limits` migration on every connection used by a database rate limiter store.
 
-PostgreSQL limiter connections must use the default `READ COMMITTED` transaction isolation level. MySQL and MariaDB's default `REPEATABLE READ` isolation level is supported.
+PostgreSQL limiter connections must use the default `READ COMMITTED` transaction isolation level. Hypervel will throw an `InvalidArgumentException` before changing limiter state if another isolation level is configured. Higher isolation levels can cause concurrent updates to the same limit to fail. MySQL and MariaDB's default `REPEATABLE READ` isolation level is supported.
 
 > [!NOTE]
 > The `inspect` method remains available inside a transaction because it does not change rate limit state. Under MySQL or MariaDB's `REPEATABLE READ` isolation, it reads the outer transaction's snapshot and may not include changes committed after the transaction began.
@@ -150,7 +150,7 @@ The Swoole store allocates its table before server workers are forked. Changes t
 
 Set `rows` higher than the greatest number of rate limit keys that may be active at once. A key remains active for its fixed window, up to two sliding-window periods, its leaky-bucket refill time, or its backoff inactivity time. For example, if up to 40,000 client IP addresses may have active one-minute limits at once, configure substantially more than 40,000 rows.
 
-Swoole rounds `rows` up to a power of two with a minimum of 64 and allocates an additional collision area based on `conflict_proportion`. Hash collisions may exhaust that collision area before the table's total row count reaches its configured size. Hypervel logs a warning when table or collision pressure enters the configured `memory_limit_buffer`, and throws `Hypervel\RateLimiter\Exceptions\SwooleTableFullException` if a live entry cannot be allocated. It never evicts active limiter state because doing so could admit excess traffic.
+Swoole rounds `rows` up to a power of two with a minimum of 64 and allocates an additional collision area based on `conflict_proportion`. Hash collisions may exhaust that collision area before the table's total row count reaches its configured size. Hypervel logs a warning when table or collision pressure enters the configured `memory_limit_buffer`, which defaults to `0.05` when omitted, and throws `Hypervel\RateLimiter\Exceptions\SwooleTableFullException` if a live entry cannot be allocated. It never evicts active limiter state because doing so could admit excess traffic.
 
 Worker zero prunes expired rows at the configured `prune_interval`, in seconds. Consuming capacity, recording a failure, or clearing a key also replaces or removes expired state for that key. Inspection treats expired state as empty without changing the table.
 

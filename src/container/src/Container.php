@@ -83,28 +83,28 @@ class Container implements ContainerContract
      *
      * @var bool[]
      */
-    protected $resolved = [];
+    protected array $resolved = [];
 
     /**
      * The container's bindings.
      *
      * @var array[]
      */
-    protected $bindings = [];
+    protected array $bindings = [];
 
     /**
      * The container's method bindings.
      *
      * @var Closure[]
      */
-    protected $methodBindings = [];
+    protected array $methodBindings = [];
 
     /**
      * The container's shared instances.
      *
      * @var array<string, mixed>
      */
-    protected $instances = [];
+    protected array $instances = [];
 
     /**
      * Auto-singletoned instances for unbound concrete classes.
@@ -116,7 +116,7 @@ class Container implements ContainerContract
      *
      * @var object[]
      */
-    protected $autoSingletons = [];
+    protected array $autoSingletons = [];
 
     /**
      * Cacheable first resolutions currently owned by a coroutine.
@@ -143,119 +143,119 @@ class Container implements ContainerContract
      *
      * @var array<string, true>
      */
-    protected $scopedInstances = [];
+    protected array $scopedInstances = [];
 
     /**
      * The registered type aliases.
      *
      * @var string[]
      */
-    protected $aliases = [];
+    protected array $aliases = [];
 
     /**
      * The registered aliases keyed by the abstract name.
      *
      * @var array[]
      */
-    protected $abstractAliases = [];
+    protected array $abstractAliases = [];
 
     /**
      * The extension closures for services.
      *
      * @var array[]
      */
-    protected $extenders = [];
+    protected array $extenders = [];
 
     /**
      * All of the registered tags.
      *
      * @var array[]
      */
-    protected $tags = [];
+    protected array $tags = [];
 
     /**
      * The contextual binding map.
      *
      * @var array[]
      */
-    public $contextual = [];
+    public array $contextual = [];
 
     /**
      * The contextual attribute handlers.
      *
      * @var array[]
      */
-    public $contextualAttributes = [];
+    public array $contextualAttributes = [];
 
     /**
      * Whether an abstract class has already had its attributes checked for bindings.
      *
      * @var array<class-string, true>
      */
-    protected $checkedForAttributeBindings = [];
+    protected array $checkedForAttributeBindings = [];
 
     /**
      * Whether a class has already been checked for Singleton or Scoped attributes.
      *
      * @var array<class-string, null|"scoped"|"singleton">
      */
-    protected $checkedForSingletonOrScopedAttributes = [];
+    protected array $checkedForSingletonOrScopedAttributes = [];
 
     /**
      * All of the registered rebound callbacks.
      *
      * @var array[]
      */
-    protected $reboundCallbacks = [];
+    protected array $reboundCallbacks = [];
 
     /**
      * All of the global before resolving callbacks.
      *
      * @var Closure[]
      */
-    protected $globalBeforeResolvingCallbacks = [];
+    protected array $globalBeforeResolvingCallbacks = [];
 
     /**
      * All of the global resolving callbacks.
      *
      * @var Closure[]
      */
-    protected $globalResolvingCallbacks = [];
+    protected array $globalResolvingCallbacks = [];
 
     /**
      * All of the global after resolving callbacks.
      *
      * @var Closure[]
      */
-    protected $globalAfterResolvingCallbacks = [];
+    protected array $globalAfterResolvingCallbacks = [];
 
     /**
      * All of the before resolving callbacks by class type.
      *
      * @var array[]
      */
-    protected $beforeResolvingCallbacks = [];
+    protected array $beforeResolvingCallbacks = [];
 
     /**
      * All of the resolving callbacks by class type.
      *
      * @var array[]
      */
-    protected $resolvingCallbacks = [];
+    protected array $resolvingCallbacks = [];
 
     /**
      * All of the after resolving callbacks by class type.
      *
      * @var array[]
      */
-    protected $afterResolvingCallbacks = [];
+    protected array $afterResolvingCallbacks = [];
 
     /**
      * All of the after resolving attribute callbacks by class type.
      *
      * @var array<string, list<Closure>>
      */
-    protected $afterResolvingAttributeCallbacks = [];
+    protected array $afterResolvingAttributeCallbacks = [];
 
     /**
      * The callback used to determine the container's environment.

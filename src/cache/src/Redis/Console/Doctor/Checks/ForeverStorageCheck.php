@@ -15,11 +15,17 @@ use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
  */
 final class ForeverStorageCheck implements CheckInterface
 {
+    /**
+     * Get the human-readable name of this check.
+     */
     public function name(): string
     {
         return 'Forever Storage (No Expiration)';
     }
 
+    /**
+     * Run the check and return results.
+     */
     public function run(DoctorContext $context): CheckResult
     {
         $result = new CheckResult;
@@ -53,12 +59,15 @@ final class ForeverStorageCheck implements CheckInterface
                 $keyTtl === -1,
                 'forever() with tags: key has no expiration'
             );
-            $this->testAllMode($context, $result, $foreverTag, $foreverKey, $namespacedKey);
+            $this->testAllMode($context, $result, $foreverTag, $namespacedKey);
         }
 
         return $result;
     }
 
+    /**
+     * Test hash-field expiration in any-tag mode.
+     */
     private function testAnyModeHashTtl(DoctorContext $context, CheckResult $result, string $tag, string $key): void
     {
         // Verify hash field also has no expiration
@@ -69,11 +78,13 @@ final class ForeverStorageCheck implements CheckInterface
         );
     }
 
+    /**
+     * Test forever storage metadata in all-tags mode.
+     */
     private function testAllMode(
         DoctorContext $context,
         CheckResult $result,
         string $tag,
-        string $key,
         string $namespacedKey,
     ): void {
         // Verify sorted set score is -1 for forever items

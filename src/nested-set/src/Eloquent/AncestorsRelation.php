@@ -89,7 +89,7 @@ class AncestorsRelation extends BaseRelation
             $minimumRgt = null;
 
             foreach ($group as $model) {
-                $rgt = $model->getRgt(); /* @phpstan-ignore method.notFound */
+                $rgt = $model->getRgt();
 
                 if ($rgt !== null && $minimumRgt !== null && $rgt >= $minimumRgt) {
                     continue;

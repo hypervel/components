@@ -23,7 +23,6 @@ use Hypervel\Foundation\Events\Terminating;
 use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
-use Hypervel\Support\Env;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
 use ReflectionClass;
@@ -282,7 +281,7 @@ class Kernel implements KernelContract
     {
         $config = $this->app->make('config');
 
-        return $config->get('app.schedule_timezone', $config->get('app.timezone'));
+        return $config->get('app.schedule_timezone', $config->string('app.timezone'));
     }
 
     /**
@@ -290,9 +289,7 @@ class Kernel implements KernelContract
      */
     protected function scheduleCache(): ?string
     {
-        return $this->app->make('config')->get('cache.schedule_store', Env::get('SCHEDULE_CACHE_DRIVER', function () {
-            return Env::get('SCHEDULE_CACHE_STORE');
-        }));
+        return $this->app->make('config')->get('cache.schedule_store');
     }
 
     /**
@@ -506,8 +503,8 @@ class Kernel implements KernelContract
         $this->app->instance(ApplicationContract::class, $this->artisan);
 
         if ($this->symfonyDispatcher instanceof EventDispatcher) {
-            $this->artisan->setDispatcher($this->symfonyDispatcher); /* @phpstan-ignore-line */
-            $this->artisan->setSignalsToDispatchEvent(); /* @phpstan-ignore-line */
+            $this->artisan->setDispatcher($this->symfonyDispatcher);
+            $this->artisan->setSignalsToDispatchEvent();
         }
 
         return $this->artisan;

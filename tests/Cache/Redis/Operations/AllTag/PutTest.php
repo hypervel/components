@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 /**
@@ -16,6 +17,8 @@ class PutTest extends RedisCacheTestCase
      */
     public function testPutStoresValueWithTagsInPipelineMode(): void
     {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+
         $connection = $this->mockConnection();
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
@@ -23,7 +26,7 @@ class PutTest extends RedisCacheTestCase
         // ZADD for tag
         $connection->shouldReceive('zadd')
             ->once()
-            ->with('prefix:_all:tag:users:entries', now()->timestamp + 60, 'mykey')
+            ->with('prefix:_all:tag:users:entries', 1061, 'mykey')
             ->andReturn($connection);
 
         // SETEX for cache value
@@ -52,11 +55,13 @@ class PutTest extends RedisCacheTestCase
      */
     public function testPutWithMultipleTags(): void
     {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+
         $connection = $this->mockConnection();
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $expectedScore = now()->timestamp + 120;
+        $expectedScore = 1121;
 
         // ZADD for each tag
         $connection->shouldReceive('zadd')
@@ -125,13 +130,15 @@ class PutTest extends RedisCacheTestCase
      */
     public function testPutUsesCorrectPrefix(): void
     {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+
         $connection = $this->mockConnection();
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
         $connection->shouldReceive('zadd')
             ->once()
-            ->with('custom:_all:tag:users:entries', now()->timestamp + 30, 'mykey')
+            ->with('custom:_all:tag:users:entries', 1031, 'mykey')
             ->andReturn($connection);
 
         $connection->shouldReceive('setex')
@@ -187,6 +194,8 @@ class PutTest extends RedisCacheTestCase
      */
     public function testPutInClusterModeUsesSequentialCommands(): void
     {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+
         [$store, , $connection] = $this->createClusterStore();
 
         // Should NOT use pipeline in cluster mode
@@ -195,7 +204,7 @@ class PutTest extends RedisCacheTestCase
         // Sequential ZADD
         $connection->shouldReceive('zadd')
             ->once()
-            ->with('prefix:_all:tag:users:entries', now()->timestamp + 60, 'mykey')
+            ->with('prefix:_all:tag:users:entries', 1061, 'mykey')
             ->andReturn(1);
 
         // Sequential SETEX
@@ -219,11 +228,15 @@ class PutTest extends RedisCacheTestCase
      */
     public function testPutEnforcesMinimumTtlOfOne(): void
     {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
         $connection = $this->mockConnection();
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $connection->shouldReceive('zadd')->andReturn($connection);
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', 1002, 'mykey')
+            ->andReturn($connection);
 
         // TTL should be at least 1
         $connection->shouldReceive('setex')
