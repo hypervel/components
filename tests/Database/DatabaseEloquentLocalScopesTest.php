@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Database\DatabaseEloquentLocalScopesTest;
 
 use BadMethodCallException;
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Testbench\TestCase;
 
@@ -118,7 +119,7 @@ class ScopedModel extends Model
         return 'scoped';
     }
 
-    private function scopeHidden($query): void
+    private function scopeHidden(Builder $query): void
     {
     }
 }

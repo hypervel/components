@@ -294,6 +294,8 @@ includes:
     - vendor/hypervel/database/extension.neon
 ```
 
+A scope that declares no return type, or declares `void`, `null`, or the query builder, stays chainable. Declaring a broader type such as `mixed` or `object` tells the analyzer the scope may return something else, so that type is preserved. When a scope declares a union containing the query builder, such as `Builder|int`, the builder becomes the chainable receiver and the remaining types are kept.
+
 <a name="running-queries"></a>
 ## Running SQL Queries
 

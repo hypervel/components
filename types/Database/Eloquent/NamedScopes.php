@@ -64,6 +64,16 @@ function test(User $user, Post $post, DatabaseNotification $notification): void
     assertType('Hypervel\Types\NamedScopes\PostBuilder<Hypervel\Types\NamedScopes\Post>|int', Post::optionalRanking());
     assertType('Hypervel\Database\Eloquent\Relations\HasMany<Hypervel\Types\NamedScopes\Post, Hypervel\Types\NamedScopes\User>|int', $user->posts()->optionalRanking());
 
+    assertType('Hypervel\Types\NamedScopes\PostBuilder<Hypervel\Types\NamedScopes\Post>', Post::untypedReturn());
+    assertType('Hypervel\Database\Eloquent\Relations\HasMany<Hypervel\Types\NamedScopes\Post, Hypervel\Types\NamedScopes\User>', $user->posts()->untypedReturn());
+    assertType('mixed', Post::mixedScope());
+    assertType('mixed', Post::docblockMixed());
+    assertType('object', Post::objectScope());
+    assertType('Hypervel\Types\NamedScopes\PostBuilder<Hypervel\Types\NamedScopes\Post>|int', Post::builderOrInt());
+    assertType('Hypervel\Types\NamedScopes\PostBuilder<Hypervel\Types\NamedScopes\Post>|int', Post::query()->builderOrInt());
+    assertType('Hypervel\Database\Eloquent\Relations\HasMany<Hypervel\Types\NamedScopes\Post, Hypervel\Types\NamedScopes\User>|int', $user->posts()->builderOrInt());
+    assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\NamedScopes\Post>|Hypervel\Types\NamedScopes\PostBuilder<Hypervel\Types\NamedScopes\Post>', Post::builderOrCollection());
+
     assertType('Hypervel\Types\NamedScopes\PostBuilder<Hypervel\Types\NamedScopes\Post>', Post::where('active', true));
     assertType('Hypervel\Types\NamedScopes\PostBuilder<Hypervel\Types\NamedScopes\Post>', Post::query()->where('active', true));
     assertType('Hypervel\Database\Eloquent\Relations\HasMany<Hypervel\Types\NamedScopes\Post, Hypervel\Types\NamedScopes\User>', $user->posts()->where('active', true));
@@ -180,6 +190,51 @@ class Post extends BasePost
     protected function optionalRanking(BuilderContract $query): ?int
     {
         return null;
+    }
+
+    /** @phpstan-ignore missingType.return */
+    #[Scope]
+    protected function untypedReturn(BuilderContract $query)
+    {
+    }
+
+    #[Scope]
+    protected function mixedScope(BuilderContract $query): mixed
+    {
+        return null;
+    }
+
+    /** @return mixed */
+    #[Scope]
+    protected function docblockMixed(BuilderContract $query)
+    {
+        return null;
+    }
+
+    #[Scope]
+    protected function objectScope(BuilderContract $query): object
+    {
+        return $this;
+    }
+
+    /**
+     * @param Builder<static> $query
+     * @return Builder<static>|int
+     */
+    #[Scope]
+    protected function builderOrInt(Builder $query): Builder|int
+    {
+        return 1;
+    }
+
+    /**
+     * @param Builder<static> $query
+     * @return Builder<static>|Collection<int, static>
+     */
+    #[Scope]
+    protected function builderOrCollection(Builder $query): Builder|Collection
+    {
+        return $query;
     }
 
     /**

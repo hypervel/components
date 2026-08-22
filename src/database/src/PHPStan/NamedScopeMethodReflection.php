@@ -12,8 +12,10 @@ use PHPStan\Reflection\MethodReflection;
 use PHPStan\Reflection\ParameterReflection;
 use PHPStan\Reflection\ParametersAcceptor;
 use PHPStan\TrinaryLogic;
+use PHPStan\Type\MixedType;
 use PHPStan\Type\Type;
 use PHPStan\Type\TypeCombinator;
+use PHPStan\Type\UnionType;
 
 /**
  * Describe a model scope as invoked through an Eloquent receiver.
@@ -173,21 +175,37 @@ class NamedScopeMethodReflection implements MethodReflection
     private function returnType(Type $returnType): Type
     {
         $returnType = ModelScopeTypeResolver::bindToModel($returnType, $this->modelClass);
-        $nonNullReturnType = TypeCombinator::removeNull($returnType);
 
-        if ($nonNullReturnType->isVoid()->yes()
-            || $returnType->isNull()->yes()
-            || $nonNullReturnType->isSuperTypeOf($this->queryType)->yes()) {
+        if ($returnType->isVoid()->yes()) {
             return $this->receiverType;
         }
 
-        if (TypeCombinator::containsNull($returnType)) {
-            return TypeCombinator::union(
-                $nonNullReturnType,
-                $this->receiverType,
-            );
+        // A scalar/object union has no class names as a whole, so classify each member separately.
+        $declaredTypes = $returnType instanceof UnionType ? $returnType->getTypes() : [$returnType];
+
+        return TypeCombinator::union(...array_map(
+            fn (Type $declaredType): Type => $this->isReceiverResult($declaredType)
+                ? $this->receiverType
+                : $declaredType,
+            $declaredTypes,
+        ));
+    }
+
+    /**
+     * Determine whether a declared scope result maps to the fluent receiver.
+     */
+    private function isReceiverResult(Type $declaredType): bool
+    {
+        if ($declaredType->isNull()->yes()) {
+            return true;
         }
 
-        return $returnType;
+        if ($declaredType instanceof MixedType) {
+            // PHPStan cannot inspect the body here; conventional untyped Laravel scopes are fluent.
+            return ! $declaredType->isExplicitMixed();
+        }
+
+        return $declaredType->getObjectClassNames() !== []
+            && $declaredType->isSuperTypeOf($this->queryType)->yes();
     }
 }
