@@ -1807,7 +1807,7 @@ class RoutingRouteTest extends TestCase
         $this->assertSame('otwell', $router->dispatch(Request::create('foo/taylor', 'GET'))->getContent());
     }
 
-    public function testCustomImplicitBindingCallbackRunsForRouteWithoutParameters()
+    public function testCustomImplicitBindingCallbackRunsForRouteWithoutParameters(): void
     {
         $router = $this->getRouter();
         $calls = 0;
