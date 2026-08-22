@@ -109,7 +109,7 @@ class RouteMiddlewareCachingTest extends RoutingTestCase
         $container = new Container;
         $container->bind(ControllerDispatcherContract::class, fn ($app) => new ControllerDispatcher($app));
         $container->bind(CallableDispatcherContract::class, fn ($app) => new CallableDispatcher($app));
-        $container->instance(AppendedCountingMiddleware::class, $middleware = new AppendedCountingMiddleware);
+        $container->instance(CountingMiddleware::class, $middleware = new CountingMiddleware);
         $router = new AppendingMiddlewareRouter(new Dispatcher($container), $container);
 
         // The route has no middleware of its own; the subclass appends one on
@@ -117,12 +117,40 @@ class RouteMiddlewareCachingTest extends RoutingTestCase
         $route = $router->get('foo', fn () => 'ok');
 
         $this->assertSame('ok', $router->dispatch(Request::create('foo', 'GET'))->getContent());
+        $pipeline = $route->middlewarePipeline;
+        $this->assertNotNull($pipeline);
+
         $this->assertSame('ok', $router->dispatch(Request::create('foo', 'GET'))->getContent());
 
+        $this->assertSame(2, $router->gatherCalls);
+        $this->assertSame($pipeline, $route->middlewarePipeline);
         $this->assertSame(2, $middleware->runs);
 
         // Override-supplied middleware must never be frozen into the route's
         // descriptor cache.
+        $this->assertNull($route->middlewareDescriptors);
+    }
+
+    public function testRouterSubclassReusesPipelineWhenMiddlewareForAddsStableMiddleware(): void
+    {
+        $container = new Container;
+        $container->bind(ControllerDispatcherContract::class, fn ($app) => new ControllerDispatcher($app));
+        $container->bind(CallableDispatcherContract::class, fn ($app) => new CallableDispatcher($app));
+        $container->instance(CountingMiddleware::class, $middleware = new CountingMiddleware);
+        $router = new PrependingMiddlewareRouter(new Dispatcher($container), $container);
+        $route = $router->get('foo', [
+            'middleware' => TestMiddleware::class,
+            'uses' => fn () => 'ok',
+        ]);
+
+        $this->assertSame('ok', $router->dispatch(Request::create('foo', 'GET'))->getContent());
+        $pipeline = $route->middlewarePipeline;
+        $this->assertNotNull($pipeline);
+
+        $this->assertSame('ok', $router->dispatch(Request::create('foo', 'GET'))->getContent());
+
+        $this->assertSame($pipeline, $route->middlewarePipeline);
+        $this->assertSame(2, $middleware->runs);
         $this->assertNull($route->middlewareDescriptors);
     }
 
@@ -296,11 +324,11 @@ class DynamicMiddlewareRouter extends Router
 
     public function middlewareForRoute(Route $route): array
     {
-        return $this->middlewareFor($route);
+        return $this->middlewareDescriptorsFor($route, $this->middlewareFor($route));
     }
 }
 
-class AppendedCountingMiddleware
+class CountingMiddleware
 {
     public int $runs = 0;
 
@@ -314,9 +342,21 @@ class AppendedCountingMiddleware
 
 class AppendingMiddlewareRouter extends Router
 {
+    public int $gatherCalls = 0;
+
     public function gatherRouteMiddleware(Route $route): array
     {
-        return array_merge(parent::gatherRouteMiddleware($route), [AppendedCountingMiddleware::class]);
+        ++$this->gatherCalls;
+
+        return array_merge(parent::gatherRouteMiddleware($route), [CountingMiddleware::class]);
+    }
+}
+
+class PrependingMiddlewareRouter extends Router
+{
+    protected function middlewareFor(Route $route): array
+    {
+        return [CountingMiddleware::class, ...parent::middlewareFor($route)];
     }
 }
 

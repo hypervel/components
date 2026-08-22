@@ -637,7 +637,7 @@ class Router implements BindingRegistrar, RegistrarContract
             $request,
             $this->newPipeline()
                 ->send($request)
-                ->through($this->middlewareFor($route))
+                ->through($this->middlewareDescriptorsFor($route, $this->middlewareFor($route)))
                 ->then($callback)
         );
     }
@@ -688,14 +688,14 @@ class Router implements BindingRegistrar, RegistrarContract
             return $route->run();
         }
 
-        // Compile lazily for each route, then rebuild if middleware resolution
-        // changes so the cached onion never retains a stale pipe list.
+        // Compile lazily for each route, then rebuild if the gathered middleware
+        // changes so the cached onion never retains a stale middleware list.
         if ($route->middlewarePipeline === null
-            || $route->middlewarePipelinePipes !== $middleware
+            || $route->pipelineMiddleware !== $middleware
         ) {
-            $route->middlewarePipelinePipes = $middleware;
+            $route->pipelineMiddleware = $middleware;
             $route->middlewarePipeline = $this->newPipeline()
-                ->through($middleware)
+                ->through($this->middlewareDescriptorsFor($route, $middleware))
                 ->toClosure(function ($request) use ($route) {
                     return $this->prepareResponse($request, $route->run());
                 });
@@ -728,14 +728,22 @@ class Router implements BindingRegistrar, RegistrarContract
 
         // Never skip the gather: overrides may add middleware even when the
         // route's own canonical list is empty, and a cached gather is cheap.
-        $middleware = $this->gatherRouteMiddleware($route);
+        return $this->gatherRouteMiddleware($route);
+    }
 
+    /**
+     * Convert gathered middleware into descriptors, caching only the route's canonical list.
+     *
+     * @return array<int, mixed>
+     */
+    protected function middlewareDescriptorsFor(Route $route, array $middleware): array
+    {
         if ($middleware === []) {
             return [];
         }
 
         // Cache only the route's canonical list. Router overrides may return
-        // request-dependent middleware that must be described per dispatch.
+        // request-dependent middleware that must not enter that cache.
         if ($middleware !== $route->resolvedMiddleware) {
             return $this->describeMiddleware($middleware);
         }

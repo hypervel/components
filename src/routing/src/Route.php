@@ -146,11 +146,13 @@ class Route
     public ?array $middlewareDescriptors = null;
 
     /**
-     * The middleware descriptors represented by the compiled pipeline.
+     * The gathered middleware list the compiled pipeline was built from.
+     *
+     * Stable overrides producing an equal list reuse the compiled pipeline.
      *
      * @var null|array<int, mixed>
      */
-    public ?array $middlewarePipelinePipes = null;
+    public ?array $pipelineMiddleware = null;
 
     /**
      * The reusable route middleware pipeline.
@@ -422,7 +424,7 @@ class Route
         $this->controller = null;
         $this->middlewareDescriptors = null;
         $this->middlewarePipeline = null;
-        $this->middlewarePipelinePipes = null;
+        $this->pipelineMiddleware = null;
         $this->resolvedMiddleware = null;
 
         if ($this->isControllerAction()) {
@@ -1580,7 +1582,7 @@ class Route
         $this->controllerDispatcher = null;
         $this->middlewareDescriptors = null;
         $this->middlewarePipeline = null;
-        $this->middlewarePipelinePipes = null;
+        $this->pipelineMiddleware = null;
         $this->resolvedMiddleware = null;
         $this->shouldCacheControllerOnRoute = null;
 
@@ -1617,7 +1619,7 @@ class Route
         $this->controllerDispatcher = null;
         $this->middlewareDescriptors = null;
         $this->middlewarePipeline = null;
-        $this->middlewarePipelinePipes = null;
+        $this->pipelineMiddleware = null;
         $this->missing = null;
         $this->resolvedMiddleware = null;
         $this->router = null;
