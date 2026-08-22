@@ -100,6 +100,7 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\Support\ServiceProvider register(\Hypervel\Support\ServiceProvider|string $provider, bool $force = false)
  * @method static void registerConfiguredProviders()
  * @method static void registered(callable $callback)
+ * @method static bool resolvedScoped(string $abstract)
  * @method static void resolveEnvironmentUsing(null|callable $callback)
  * @method static mixed resolveFromAttribute(\ReflectionAttribute $attribute, \ReflectionParameter $parameter)
  * @method static \Hypervel\Support\ServiceProvider resolveProvider(string $provider)

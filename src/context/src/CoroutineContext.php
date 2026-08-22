@@ -32,7 +32,7 @@ class CoroutineContext
      */
     public static function set(UnitEnum|string $id, mixed $value, ?int $coroutineId = null): mixed
     {
-        $id = enum_value($id);
+        $id = is_string($id) ? $id : enum_value($id);
         $context = Coroutine::getContextFor($coroutineId);
 
         if ($context !== null) {
@@ -54,7 +54,7 @@ class CoroutineContext
      */
     public static function get(UnitEnum|string $id, mixed $default = null, ?int $coroutineId = null): mixed
     {
-        $id = enum_value($id);
+        $id = is_string($id) ? $id : enum_value($id);
         $context = Coroutine::getContextFor($coroutineId);
 
         if ($context !== null) {
@@ -73,7 +73,7 @@ class CoroutineContext
      */
     public static function has(UnitEnum|string $id, ?int $coroutineId = null): bool
     {
-        $id = enum_value($id);
+        $id = is_string($id) ? $id : enum_value($id);
         $context = Coroutine::getContextFor($coroutineId);
 
         if ($context !== null) {
@@ -90,7 +90,7 @@ class CoroutineContext
      */
     public static function forget(UnitEnum|string $id, ?int $coroutineId = null): void
     {
-        $id = enum_value($id);
+        $id = is_string($id) ? $id : enum_value($id);
         $context = Coroutine::getContextFor($coroutineId);
 
         if ($context !== null) {

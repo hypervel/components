@@ -19,6 +19,16 @@ use WeakMap;
 
 class ImplicitRouteBindingTest extends RoutingTestCase
 {
+    public function testItDoesNotInspectTheActionWhenTheRouteHasNoParameters(): void
+    {
+        $route = new EmptyParameterRoute('GET', '/test', fn () => 'ok');
+        $route->bind(Request::create('/test'));
+
+        ImplicitRouteBinding::resolveForRoute(Container::getInstance(), $route);
+
+        $this->assertSame(0, $route->signatureParameterCalls);
+    }
+
     public function testItCanResolveTheImplicitBackedEnumRouteBindingsForTheGivenRoute(): void
     {
         $action = ['uses' => function (CategoryBackedEnum $category) {
@@ -205,6 +215,18 @@ class ImplicitRouteBindingTest extends RoutingTestCase
 
 class ImplicitRouteBindingUser extends Model
 {
+}
+
+class EmptyParameterRoute extends Route
+{
+    public int $signatureParameterCalls = 0;
+
+    public function signatureParameters(array|string $conditions = []): array
+    {
+        ++$this->signatureParameterCalls;
+
+        return parent::signatureParameters($conditions);
+    }
 }
 
 class ImplicitRouteBindingInvoker

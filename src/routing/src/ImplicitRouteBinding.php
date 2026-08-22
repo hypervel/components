@@ -54,6 +54,10 @@ class ImplicitRouteBinding
     {
         $parameters = $route->parameters();
 
+        if ($parameters === []) {
+            return;
+        }
+
         $action = $route->getAction('uses');
 
         if (is_string($action)) {

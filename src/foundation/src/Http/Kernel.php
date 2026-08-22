@@ -82,6 +82,34 @@ class Kernel implements KernelContract
     protected array $requestLifecycleDurationHandlers = [];
 
     /**
+     * Whether each middleware name resolves to a terminable instance.
+     *
+     * Keyed by the middleware string as it appears in the stack, parameters
+     * included. Populated on first termination and reused for the worker
+     * lifetime, so repeat requests skip parsing and resolving middleware that
+     * turned out to have no terminate() method.
+     *
+     * @var array<string, bool>
+     */
+    protected array $terminableMiddleware = [];
+
+    /**
+     * The global middleware stack represented by the reusable pipeline.
+     *
+     * @var array<int, class-string|string>
+     */
+    protected array $middlewarePipelineStack = [];
+
+    /**
+     * The reusable global middleware pipeline.
+     *
+     * The request is supplied to the compiled onion per invocation, and pipe
+     * descriptors resolve middleware inside that invocation. The closure can
+     * therefore be shared by concurrent requests without retaining either one.
+     */
+    protected ?Closure $middlewarePipeline = null;
+
+    /**
      * Context key for the current request's start time.
      *
      * Stored per-coroutine — a singleton Kernel handles concurrent requests
@@ -127,7 +155,10 @@ class Kernel implements KernelContract
      */
     public function handle(Request $request): Response
     {
-        CoroutineContext::set(self::REQUEST_STARTED_AT_CONTEXT_KEY, CarbonImmutable::now());
+        CoroutineContext::set(
+            self::REQUEST_STARTED_AT_CONTEXT_KEY,
+            CarbonImmutable::hasTestNow() ? CarbonImmutable::now() : microtime(true)
+        );
 
         try {
             $request->enableHttpMethodParameterOverride();
@@ -170,10 +201,18 @@ class Kernel implements KernelContract
             return ($this->dispatchToRouter())($request);
         }
 
-        return (new Pipeline($this->app))
-            ->send($request)
-            ->through($middleware)
-            ->then($this->dispatchToRouter());
+        // Compile lazily on first use, then rebuild if middleware configuration
+        // changes so the cached onion never retains a stale pipe list.
+        if ($this->middlewarePipeline === null
+            || $this->middlewarePipelineStack !== $middleware
+        ) {
+            $this->middlewarePipelineStack = $middleware;
+            $this->middlewarePipeline = (new Pipeline($this->app))
+                ->through($middleware)
+                ->toClosure($this->dispatchToRouter());
+        }
+
+        return ($this->middlewarePipeline)($request);
     }
 
     /**
@@ -232,9 +271,9 @@ class Kernel implements KernelContract
         }
 
         try {
-            $requestStartedAt = CoroutineContext::get(self::REQUEST_STARTED_AT_CONTEXT_KEY);
-
-            if ($requestStartedAt !== null && $this->requestLifecycleDurationHandlers !== []) {
+            if ($this->requestLifecycleDurationHandlers !== []
+                && ($requestStartedAt = $this->requestStartedAt()) !== null
+            ) {
                 $requestStartedAt = $requestStartedAt->setTimezone(
                     $this->app->make('config')->string('app.timezone')
                 );
@@ -291,12 +330,24 @@ class Kernel implements KernelContract
                 continue;
             }
 
+            // Most middleware are not terminable, and resolving each one only to
+            // find it has no terminate() is the dominant cost of this method.
+            // Whether a name resolves to something terminable is fixed once
+            // bindings are registered — those are boot-only — so the answer is
+            // memoized and non-terminable middleware skip both the name parse
+            // and the resolution on later requests.
+            if (($this->terminableMiddleware[$middleware] ?? null) === false) {
+                continue;
+            }
+
             try {
                 [$name] = $this->parseMiddleware($middleware);
 
                 $instance = $this->app->make($name);
+                $terminable = method_exists($instance, 'terminate');
+                $this->terminableMiddleware[$middleware] = $terminable;
 
-                if (method_exists($instance, 'terminate')) {
+                if ($terminable) {
                     $instance->terminate($request, $response);
                 }
             } catch (Throwable $throwable) {
@@ -333,7 +384,17 @@ class Kernel implements KernelContract
      */
     public function requestStartedAt(): ?CarbonImmutable
     {
-        return CoroutineContext::get(self::REQUEST_STARTED_AT_CONTEXT_KEY);
+        $requestStartedAt = CoroutineContext::get(self::REQUEST_STARTED_AT_CONTEXT_KEY);
+
+        if (is_float($requestStartedAt)) {
+            $requestStartedAt = CarbonImmutable::createFromTimestamp(
+                $requestStartedAt,
+                date_default_timezone_get()
+            );
+            CoroutineContext::set(self::REQUEST_STARTED_AT_CONTEXT_KEY, $requestStartedAt);
+        }
+
+        return $requestStartedAt;
     }
 
     /**
@@ -739,6 +800,9 @@ class Kernel implements KernelContract
     public function setApplication(Application $app): static
     {
         $this->app = $app;
+        $this->terminableMiddleware = [];
+        $this->middlewarePipelineStack = [];
+        $this->middlewarePipeline = null;
 
         return $this;
     }

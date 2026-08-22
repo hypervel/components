@@ -24,6 +24,8 @@ use ReflectionProperty;
 use stdClass;
 use TypeError;
 
+use function Hypervel\Coroutine\parallel;
+
 class ContainerTest extends TestCase
 {
     public function testContainerSingleton()
@@ -676,6 +678,80 @@ class ContainerTest extends TestCase
 
         $this->assertNotSame($temporary, $restored);
         $this->assertSame($restored, $container->make(ContainerConcreteStub::class));
+    }
+
+    public function testResolvedScopedReportsWhetherAScopedBindingWasResolved(): void
+    {
+        $container = new Container;
+        $container->scoped(ContainerConcreteStub::class);
+
+        $this->assertFalse($container->resolvedScoped(ContainerConcreteStub::class));
+
+        $container->make(ContainerConcreteStub::class);
+
+        $this->assertTrue($container->resolvedScoped(ContainerConcreteStub::class));
+    }
+
+    public function testResolvedScopedIsFalseForBindingsThatAreNotScoped(): void
+    {
+        $container = new Container;
+        $container->singleton('singleton', fn (): stdClass => new stdClass);
+        $container->bind('transient', fn (): stdClass => new stdClass);
+
+        $container->make('singleton');
+        $container->make('transient');
+
+        $this->assertFalse($container->resolvedScoped('singleton'));
+        $this->assertFalse($container->resolvedScoped('transient'));
+        $this->assertFalse($container->resolvedScoped('unbound'));
+    }
+
+    public function testResolvedScopedResolvesAliases(): void
+    {
+        $container = new Container;
+        $container->scoped(ContainerConcreteStub::class);
+        $container->alias(ContainerConcreteStub::class, 'stub');
+
+        $this->assertFalse($container->resolvedScoped('stub'));
+
+        $container->make(ContainerConcreteStub::class);
+
+        $this->assertTrue($container->resolvedScoped('stub'));
+    }
+
+    public function testResolvedScopedSeesAnInstanceReplacingAScopedBinding(): void
+    {
+        $container = new Container;
+        $container->scoped(ContainerConcreteStub::class);
+
+        // instance() supersedes the scoped binding during resolution, so an
+        // existing instance counts as resolved for the current coroutine.
+        $container->instance(ContainerConcreteStub::class, new ContainerConcreteStub);
+
+        $this->assertTrue($container->resolvedScoped(ContainerConcreteStub::class));
+    }
+
+    public function testResolvedScopedIsIsolatedBetweenCoroutines(): void
+    {
+        $container = new Container;
+        $container->scoped(ContainerConcreteStub::class);
+
+        [$resolver, $observer] = parallel([
+            function () use ($container) {
+                $container->make(ContainerConcreteStub::class);
+                usleep(5000);
+
+                return $container->resolvedScoped(ContainerConcreteStub::class);
+            },
+            function () use ($container) {
+                usleep(1000);
+
+                return $container->resolvedScoped(ContainerConcreteStub::class);
+            },
+        ]);
+
+        $this->assertTrue($resolver);
+        $this->assertFalse($observer, 'A scoped instance resolved in one coroutine leaked into another.');
     }
 
     public function testExplicitTransientBindingOverridesScopedAttribute(): void

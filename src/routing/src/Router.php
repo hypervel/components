@@ -18,6 +18,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
+use Hypervel\Pipeline\PipeDescriptor;
 use Hypervel\Pipeline\Pipeline as BasePipeline;
 use Hypervel\Routing\Events\PreparingResponse;
 use Hypervel\Routing\Events\ResponsePrepared;
@@ -636,7 +637,7 @@ class Router implements BindingRegistrar, RegistrarContract
             $request,
             $this->newPipeline()
                 ->send($request)
-                ->through($this->middlewareFor($route))
+                ->through($this->middlewareDescriptorsFor($route, $this->middlewareFor($route)))
                 ->then($callback)
         );
     }
@@ -687,12 +688,20 @@ class Router implements BindingRegistrar, RegistrarContract
             return $route->run();
         }
 
-        return $this->newPipeline()
-            ->send($request)
-            ->through($middleware)
-            ->then(function ($request) use ($route) {
-                return $this->prepareResponse($request, $route->run());
-            });
+        // Compile lazily for each route, then rebuild if the gathered middleware
+        // changes so the cached onion never retains a stale middleware list.
+        if ($route->middlewarePipeline === null
+            || $route->pipelineMiddleware !== $middleware
+        ) {
+            $route->pipelineMiddleware = $middleware;
+            $route->middlewarePipeline = $this->newPipeline()
+                ->through($this->middlewareDescriptorsFor($route, $middleware))
+                ->toClosure(function ($request) use ($route) {
+                    return $this->prepareResponse($request, $route->run());
+                });
+        }
+
+        return ($route->middlewarePipeline)($request);
     }
 
     /**
@@ -713,7 +722,48 @@ class Router implements BindingRegistrar, RegistrarContract
         $disabled = $this->container->bound('middleware.disable')
             && $this->container->make('middleware.disable') === true;
 
-        return $disabled ? [] : $this->gatherRouteMiddleware($route);
+        if ($disabled) {
+            return [];
+        }
+
+        // Never skip the gather: overrides may add middleware even when the
+        // route's own canonical list is empty, and a cached gather is cheap.
+        return $this->gatherRouteMiddleware($route);
+    }
+
+    /**
+     * Convert gathered middleware into descriptors, caching only the route's canonical list.
+     *
+     * @return array<int, mixed>
+     */
+    protected function middlewareDescriptorsFor(Route $route, array $middleware): array
+    {
+        if ($middleware === []) {
+            return [];
+        }
+
+        // Cache only the route's canonical list. Router overrides may return
+        // request-dependent middleware that must not enter that cache.
+        if ($middleware !== $route->resolvedMiddleware) {
+            return $this->describeMiddleware($middleware);
+        }
+
+        return $route->middlewareDescriptors ??= $this->describeMiddleware($middleware);
+    }
+
+    /**
+     * Convert class-string middleware into immutable pipe descriptors.
+     *
+     * @return array<int, mixed>
+     */
+    protected function describeMiddleware(array $middleware): array
+    {
+        return array_map(
+            static fn (mixed $pipe): mixed => is_string($pipe) && ! is_callable($pipe)
+                ? PipeDescriptor::fromString($pipe)
+                : $pipe,
+            $middleware
+        );
     }
 
     /**

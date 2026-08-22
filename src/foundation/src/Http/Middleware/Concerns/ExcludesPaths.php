@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Http\Middleware\Concerns;
 
 use Hypervel\Http\Request;
+use Hypervel\Support\Str;
 
 trait ExcludesPaths
 {
@@ -13,12 +14,16 @@ trait ExcludesPaths
      */
     protected function inExceptArray(Request $request): bool
     {
+        $fullUrl = null;
+        $decodedPath = null;
+
         foreach ($this->getExcludedPaths() as $except) {
             if ($except !== '/') {
                 $except = trim($except, '/');
             }
 
-            if ($request->fullUrlIs($except) || $request->is($except)) {
+            if (Str::is($except, $fullUrl ??= $request->fullUrl())
+                || Str::is($except, $decodedPath ??= $request->decodedPath())) {
                 return true;
             }
         }

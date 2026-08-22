@@ -139,6 +139,30 @@ class Route
     public ?array $resolvedMiddleware = null;
 
     /**
+     * The cached pipeline descriptors for resolved class-string middleware.
+     *
+     * @var null|array<int, mixed>
+     */
+    public ?array $middlewareDescriptors = null;
+
+    /**
+     * The gathered middleware list the compiled pipeline was built from.
+     *
+     * Stable overrides producing an equal list reuse the compiled pipeline.
+     *
+     * @var null|array<int, mixed>
+     */
+    public ?array $pipelineMiddleware = null;
+
+    /**
+     * The reusable route middleware pipeline.
+     *
+     * Each invocation supplies its own request, resolves descriptor middleware
+     * without caching the instance, and applies the pipeline's execution hooks.
+     */
+    public ?Closure $middlewarePipeline = null;
+
+    /**
      * The compiled version of the route.
      *
      * Safe to cache on the Route instance — immutable after compilation,
@@ -398,6 +422,9 @@ class Route
     {
         $this->computedMiddleware = null;
         $this->controller = null;
+        $this->middlewareDescriptors = null;
+        $this->middlewarePipeline = null;
+        $this->pipelineMiddleware = null;
         $this->resolvedMiddleware = null;
 
         if ($this->isControllerAction()) {
@@ -482,8 +509,46 @@ class Route
 
         $parameters = (new RouteParameterBinder($this))->parameters($request);
 
-        CoroutineContext::set($this->parametersContextKey(), $parameters);
-        CoroutineContext::set($this->originalParametersContextKey(), $parameters);
+        return $this->storeParameters($parameters);
+    }
+
+    /**
+     * Bind parameters returned by the compiled route matcher.
+     *
+     * @internal
+     *
+     * @param array<string, mixed> $parameters
+     */
+    public function bindFromCompiledMatch(array $parameters, Request $request): static
+    {
+        // A custom Route may override bind() semantics, so only the base class
+        // can safely reuse parameters produced by Symfony's compiled matcher.
+        if ($this::class !== self::class) {
+            return $this->bind($request);
+        }
+
+        $this->compileRoute();
+
+        // Keep the bound-empty context state, but avoid allocating a binder
+        // when the compiled matcher cannot have produced route parameters.
+        $parameters = $this->parameterNames() === [] && $this->defaults === []
+            ? []
+            : (new RouteParameterBinder($this))->parametersFromCompiledMatch($parameters);
+
+        return $this->storeParameters($parameters);
+    }
+
+    /**
+     * Store the route's current and original parameters for this coroutine.
+     */
+    private function storeParameters(array $parameters): static
+    {
+        $routeId = spl_object_id($this);
+
+        CoroutineContext::setMany([
+            self::PARAMS_CONTEXT_KEY_PREFIX . $routeId => $parameters,
+            self::ORIGINAL_PARAMS_CONTEXT_KEY_PREFIX . $routeId => $parameters,
+        ]);
 
         return $this;
     }
@@ -555,8 +620,10 @@ class Route
      */
     public function parameters(): array
     {
-        if (CoroutineContext::has($this->parametersContextKey())) {
-            return CoroutineContext::get($this->parametersContextKey());
+        $parameters = CoroutineContext::get($this->parametersContextKey());
+
+        if ($parameters !== null) {
+            return $parameters;
         }
 
         throw new LogicException('Route is not bound.');
@@ -569,8 +636,10 @@ class Route
      */
     public function originalParameters(): array
     {
-        if (CoroutineContext::has($this->originalParametersContextKey())) {
-            return CoroutineContext::get($this->originalParametersContextKey());
+        $parameters = CoroutineContext::get($this->originalParametersContextKey());
+
+        if ($parameters !== null) {
+            return $parameters;
         }
 
         throw new LogicException('Route is not bound.');
@@ -581,7 +650,11 @@ class Route
      */
     public function parametersWithoutNulls(): array
     {
-        return array_filter($this->parameters(), fn ($parameter) => ! is_null($parameter));
+        $parameters = $this->parameters();
+
+        return $parameters === []
+            ? []
+            : array_filter($parameters, fn ($parameter) => ! is_null($parameter));
     }
 
     /**
@@ -1455,7 +1528,7 @@ class Route
             $this->wheres,
             ['utf8' => true],
             $this->getDomain() ?: '',
-            [],
+            $this->httpOnly() ? ['http'] : ($this->httpsOnly() ? ['https'] : []),
             $this->methods
         );
     }
@@ -1507,6 +1580,9 @@ class Route
         $this->computedMiddleware = null;
         $this->controller = null;
         $this->controllerDispatcher = null;
+        $this->middlewareDescriptors = null;
+        $this->middlewarePipeline = null;
+        $this->pipelineMiddleware = null;
         $this->resolvedMiddleware = null;
         $this->shouldCacheControllerOnRoute = null;
 
@@ -1541,6 +1617,9 @@ class Route
         $this->container = null;
         $this->controller = null;
         $this->controllerDispatcher = null;
+        $this->middlewareDescriptors = null;
+        $this->middlewarePipeline = null;
+        $this->pipelineMiddleware = null;
         $this->missing = null;
         $this->resolvedMiddleware = null;
         $this->router = null;

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Http;
 
+use Closure;
 use Hypervel\Config\Repository;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Application;
@@ -262,6 +264,49 @@ class KernelTest extends TestCase
         ], $called);
     }
 
+    public function testItTerminatesTerminableMiddlewareOnEveryRequest(): void
+    {
+        $app = new Application;
+        $events = new Dispatcher($app);
+        $app->instance('events', $events);
+        $kernel = new Kernel($app, new Router($events, $app));
+
+        $terminable = new class {
+            public int $terminated = 0;
+
+            public function terminate(Request $request, Response $response): void
+            {
+                ++$this->terminated;
+            }
+        };
+
+        $nonTerminable = new class {
+            public int $resolved = 0;
+        };
+
+        $app->instance('terminable-middleware', $terminable);
+        $app->bind('non-terminable-middleware', function () use ($nonTerminable) {
+            ++$nonTerminable->resolved;
+
+            return $nonTerminable;
+        });
+
+        $kernel->setGlobalMiddleware([
+            'terminable-middleware',
+            'non-terminable-middleware',
+        ]);
+
+        $kernel->terminate(new Request, new Response);
+        $kernel->terminate(new Request, new Response);
+        $kernel->terminate(new Request, new Response);
+
+        $this->assertSame(3, $terminable->terminated);
+
+        // The terminability answer is memoized for the worker lifetime, so a
+        // middleware without terminate() is resolved once and skipped after.
+        $this->assertSame(1, $nonTerminable->resolved);
+    }
+
     public function testHandleReportsAndRendersRouterFailures(): void
     {
         $app = new Application;
@@ -422,6 +467,104 @@ class KernelTest extends TestCase
         $this->assertSame($original?->getTimestamp(), $captured?->getTimestamp());
         $this->assertNull($kernel->requestStartedAt());
         $this->assertTrue($transportStartedAt->equalTo($request->startedAt()));
+    }
+
+    public function testProductionRequestStartTimeIsMaterializedLazily(): void
+    {
+        $app = new Application;
+        $events = new Dispatcher($app);
+        $app->instance('events', $events);
+        $app->instance('config', new Repository(['app' => ['timezone' => 'UTC']]));
+        $app->bootstrapWith([]);
+
+        $router = m::mock(Router::class);
+        $router->shouldReceive('dispatch')->once()->andReturn(new Response);
+
+        $kernel = new class($app, $router) extends Kernel {
+            public function rawRequestStartedAt(): mixed
+            {
+                return CoroutineContext::get(self::REQUEST_STARTED_AT_CONTEXT_KEY);
+            }
+        };
+        $request = Request::create('/');
+        $response = $kernel->handle($request);
+
+        $this->assertIsFloat($kernel->rawRequestStartedAt());
+
+        $startedAt = $kernel->requestStartedAt();
+
+        $this->assertInstanceOf(CarbonImmutable::class, $startedAt);
+        $this->assertSame($startedAt, $kernel->rawRequestStartedAt());
+        $this->assertSame($startedAt, $kernel->requestStartedAt());
+
+        $kernel->terminate($request, $response);
+
+        $this->assertNull($kernel->rawRequestStartedAt());
+    }
+
+    public function testGlobalMiddlewarePipelineIsReusedWithoutCachingMiddlewareInstances(): void
+    {
+        $app = new Application;
+        $events = new Dispatcher($app);
+        $app->instance('events', $events);
+        $app->bootstrapWith([]);
+        $resolutions = 0;
+        $app->bind('test-middleware', function () use (&$resolutions): object {
+            ++$resolutions;
+
+            return new class {
+                public function handle(Request $request, Closure $next): Response
+                {
+                    return $next($request);
+                }
+            };
+        });
+        $router = m::mock(Router::class);
+        $router->shouldReceive('dispatch')->twice()->andReturn(new Response);
+        $kernel = new class($app, $router) extends Kernel {
+            public function reusablePipeline(): ?Closure
+            {
+                return $this->middlewarePipeline;
+            }
+        };
+        $kernel->setGlobalMiddleware(['test-middleware']);
+
+        $kernel->handle(Request::create('/first'));
+        $pipeline = $kernel->reusablePipeline();
+
+        $this->assertNotNull($pipeline);
+
+        $kernel->handle(Request::create('/second'));
+
+        $this->assertSame($pipeline, $kernel->reusablePipeline());
+        $this->assertSame(2, $resolutions);
+    }
+
+    public function testSetApplicationClearsApplicationSpecificMiddlewareCaches(): void
+    {
+        $kernel = new class(new Application, m::mock(Router::class)) extends Kernel {
+            public function primeMiddlewareCaches(): void
+            {
+                $this->terminableMiddleware = ['test-middleware' => false];
+                $this->middlewarePipelineStack = ['test-middleware'];
+                $this->middlewarePipeline = static fn (): null => null;
+            }
+
+            public function middlewareCaches(): array
+            {
+                return [
+                    $this->terminableMiddleware,
+                    $this->middlewarePipelineStack,
+                    $this->middlewarePipeline,
+                ];
+            }
+        };
+        $application = new Application;
+        $kernel->primeMiddlewareCaches();
+
+        $this->assertSame($kernel, $kernel->setApplication($application));
+        $this->assertSame($application, $kernel->getApplication());
+        $this->assertSame([[], [], null], $kernel->middlewareCaches());
     }
 
     public function testRequestStartedAtIsIsolatedBetweenConcurrentCoroutines(): void

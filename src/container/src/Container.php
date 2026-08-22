@@ -382,6 +382,31 @@ class Container implements ContainerContract
     }
 
     /**
+     * Determine if a scoped binding has already been resolved in this coroutine.
+     *
+     * Scoped instances live in coroutine-local context, so this is false at the
+     * start of every request even for a binding resolved many times before.
+     * Callers that would only inspect an instance can use this to avoid paying
+     * for a full resolution — and the construction it implies — when nothing in
+     * the request asked for one.
+     *
+     * Only the scoped resolution path writes this context key, so its presence
+     * already implies the binding is scoped; singletons, auto-singletons and
+     * transient bindings never produce one. An instance() registration that
+     * replaced a scoped binding also counts: it supersedes the scoped lifetime
+     * during resolution — tests swap scoped services this way — so an existing
+     * instance must be reported as resolved rather than skipped.
+     */
+    public function resolvedScoped(string $abstract): bool
+    {
+        $abstract = $this->getAlias($abstract);
+
+        return CoroutineContext::has(self::SCOPED_CONTEXT_PREFIX . $abstract)
+            || ((isset($this->instances[$abstract]) || array_key_exists($abstract, $this->instances))
+                && $this->isScoped($abstract));
+    }
+
+    /**
      * Determine if a ReflectionClass has scoping attributes applied.
      *
      * @param ReflectionClass<object>|string $reflection

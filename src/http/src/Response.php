@@ -21,7 +21,18 @@ class Response extends SymfonyResponse
     use Macroable {
         Macroable::__call as macroCall;
     }
+    use Concerns\PreparesResponse;
     use ResponseTrait;
+
+    /**
+     * The pristine header bag cloned for each response.
+     */
+    protected static ?ResponseHeaderBag $headerPrototype = null;
+
+    /**
+     * Unix second represented by the prototype's Date header.
+     */
+    protected static int $headerPrototypeTimestamp = 0;
 
     /**
      * Create a new HTTP response.
@@ -30,9 +41,25 @@ class Response extends SymfonyResponse
      */
     public function __construct(mixed $content = '', int $status = 200, array $headers = [])
     {
-        // The parent constructor accepts the headers since Symfony 8.1; assigning
-        // the property directly would hit the deprecated property setter.
-        parent::__construct('', $status, $headers);
+        // HTTP dates have one-second precision, so all responses created in the
+        // same second can clone one value. Caller headers are applied afterward.
+        $timestamp = time();
+
+        if (static::$headerPrototype === null) {
+            static::$headerPrototype = new ResponseHeaderBag;
+            static::$headerPrototypeTimestamp = $timestamp;
+        } elseif (static::$headerPrototypeTimestamp !== $timestamp) {
+            static::$headerPrototype->set('Date', gmdate('D, d M Y H:i:s', $timestamp) . ' GMT');
+            static::$headerPrototypeTimestamp = $timestamp;
+        }
+
+        $bag = clone static::$headerPrototype;
+
+        if ($headers !== []) {
+            $bag->add($headers);
+        }
+
+        SymfonyResponse::__construct('', $status, $bag);
 
         $this->setContent($content);
     }
@@ -43,7 +70,9 @@ class Response extends SymfonyResponse
     #[Override]
     public function getContent(): string|false
     {
-        return transform(parent::getContent(), fn ($content) => $content, '');
+        $content = parent::getContent();
+
+        return $content === false ? '' : $content;
     }
 
     /**
@@ -153,5 +182,8 @@ class Response extends SymfonyResponse
     public static function flushState(): void
     {
         static::flushMacros();
+
+        static::$headerPrototype = null;
+        static::$headerPrototypeTimestamp = 0;
     }
 }

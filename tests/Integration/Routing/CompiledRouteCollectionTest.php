@@ -11,8 +11,10 @@ use Hypervel\Routing\Route;
 use Hypervel\Routing\RouteCollection;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Arr;
+use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Routing\RequestContext as SymfonyRequestContext;
 
 class CompiledRouteCollectionTest extends RoutingTestCase
 {
@@ -300,9 +302,21 @@ class CompiledRouteCollectionTest extends RoutingTestCase
     {
         $this->routeCollection->add($this->newRoute('GET', '/foo', ['uses' => 'FooController@index']));
 
-        $this->expectException(MethodNotAllowedHttpException::class);
+        try {
+            $this->collection()->match(Request::create('/foo', 'POST'));
+            $this->fail('Expected the compiled route to reject the POST method.');
+        } catch (MethodNotAllowedHttpException $exception) {
+            $this->assertSame('GET, HEAD', $exception->getHeaders()['Allow']);
+        }
+    }
 
-        $this->collection()->match(Request::create('/foo', 'POST'));
+    public function testOptionsRequestUsesCompiledAllowedMethods(): void
+    {
+        $this->routeCollection->add($this->newRoute('GET', '/foo', ['uses' => 'FooController@index']));
+
+        $route = $this->collection()->match(Request::create('/foo', 'OPTIONS'));
+
+        $this->assertSame(['OPTIONS'], $route->methods());
     }
 
     public function testMatchingThrowsExceptionWhenMethodIsNotAllowedWhileSameRouteIsAddedDynamically()
@@ -359,6 +373,279 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame('foo', $routes->match(Request::create('/foo', 'GET'))->getName());
     }
 
+    public function testCompiledMatchBindsPathParametersAndOriginalValues(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/users/{user}/posts/{post}', [
+                'uses' => 'FooController@index',
+                'as' => 'posts.show',
+            ])
+        );
+
+        $route = $this->collection()->match(Request::create('/users/12/posts/34', 'GET'));
+
+        $this->assertSame(['user' => '12', 'post' => '34'], $route->parameters());
+        $this->assertSame(['user' => '12', 'post' => '34'], $route->originalParameters());
+
+        $route->setParameter('user', 'changed');
+
+        $this->assertSame(['user' => 'changed', 'post' => '34'], $route->parameters());
+        $this->assertSame(['user' => '12', 'post' => '34'], $route->originalParameters());
+    }
+
+    public function testCompiledMatchBindsEmptyParameterState(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/status', [
+                'uses' => 'FooController@index',
+                'as' => 'status',
+            ])
+        );
+
+        $route = $this->collection()->match(Request::create('/status', 'GET'));
+
+        $this->assertTrue($route->hasParameters());
+        $this->assertSame([], $route->parameters());
+        $this->assertSame([], $route->originalParameters());
+
+        $route->setParameter('runtime', 'value');
+
+        $this->assertSame(['runtime' => 'value'], $route->parameters());
+        $this->assertSame([], $route->originalParameters());
+
+        $route->forgetParameter('runtime');
+
+        $this->assertSame([], $route->parameters());
+    }
+
+    public function testUnconstrainedStaticMatchPreservesHostValidation(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/status', [
+                'uses' => 'FooController@index',
+                'as' => 'status',
+            ])
+        );
+
+        $request = StaticMatchTrackingRequest::create('/status', 'GET');
+        $route = $this->collection()->match($request);
+
+        $this->assertSame('status', $route->getName());
+        $this->assertSame(1, $request->hostReads);
+    }
+
+    public function testUnconstrainedStaticMatchRejectsAnInvalidHost(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/status', [
+                'uses' => 'FooController@index',
+                'as' => 'status',
+            ])
+        );
+        $request = Request::create('/status', 'GET');
+        $request->headers->set('HOST', 'invalid host');
+
+        $this->expectException(SuspiciousOperationException::class);
+
+        $this->collection()->match($request);
+    }
+
+    public function testEncodedStaticLiteralsUseSymfonyMatchingSemantics(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/literal%20segment', [
+                'uses' => 'FooController@index',
+                'as' => 'encoded-literal',
+            ])
+        );
+
+        foreach ([$this->routeCollection, $this->collection()] as $routes) {
+            try {
+                $routes->match(Request::create('/literal%20segment', 'GET'));
+                $this->fail('Expected the raw encoded literal request to be rejected.');
+            } catch (NotFoundHttpException) {
+            }
+
+            $route = $routes->match(Request::create('/literal%2520segment', 'GET'));
+
+            $this->assertSame('encoded-literal', $route->getName());
+        }
+    }
+
+    public function testStaticCompiledFallbackYieldsToDynamicNonFallbackRoute(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/status', [
+                'uses' => 'FooController@index',
+                'as' => 'compiled-fallback',
+            ])->fallback()
+        );
+        $routes = $this->collection();
+        $routes->add(
+            $this->newRoute('GET', '/status', [
+                'uses' => 'FooController@index',
+                'as' => 'dynamic',
+            ])
+        );
+
+        $this->assertSame(
+            'dynamic',
+            $routes->match(Request::create('/status', 'GET'))->getName()
+        );
+    }
+
+    public function testCompiledMatchUsesAnOverriddenRouteBindMethod(): void
+    {
+        $router = new BindTrackingRouter($this->app->make('events'), $this->app);
+        $routes = new RouteCollection;
+        $routes->add($router->newRoute('GET', '/users/{user}', [
+            'uses' => 'FooController@index',
+            'as' => 'users.show',
+        ]));
+
+        $route = $routes
+            ->toCompiledRouteCollection($router, $this->app)
+            ->match(Request::create('/users/42', 'GET'));
+
+        $this->assertInstanceOf(BindTrackingRoute::class, $route);
+        $this->assertSame(1, $route->bindCalls);
+        $this->assertSame(['user' => '42'], $route->parameters());
+    }
+
+    public function testCompiledMatchBindsDomainAndPathParameters(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/users/{user}', [
+                'uses' => 'FooController@index',
+                'as' => 'tenant.users.show',
+                'domain' => '{tenant}.example.com',
+            ])
+        );
+
+        $route = $this->collection()->match(
+            Request::create('https://hypervel.example.com/users/42', 'GET')
+        );
+
+        $this->assertSame(['tenant' => 'hypervel', 'user' => '42'], $route->parameters());
+        $this->assertSame(['tenant' => 'hypervel', 'user' => '42'], $route->originalParameters());
+    }
+
+    public function testCompiledMatchHonorsHttpsOnlyRoute(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/secure/{resource}', [
+                'uses' => 'FooController@index',
+                'as' => 'secure',
+                'https',
+            ])
+        );
+
+        $this->assertSame(
+            'secure',
+            $this->collection()->match(Request::create('https://example.com/secure/report'))->getName()
+        );
+
+        $this->expectException(NotFoundHttpException::class);
+
+        $this->collection()->match(Request::create('http://example.com/secure/report'));
+    }
+
+    public function testCompiledMatchHonorsHttpOnlyRoute(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/insecure', [
+                'uses' => 'FooController@index',
+                'as' => 'insecure',
+                'http',
+            ])
+        );
+
+        $this->assertSame(
+            'insecure',
+            $this->collection()->match(Request::create('http://example.com/insecure'))->getName()
+        );
+
+        $this->expectException(NotFoundHttpException::class);
+
+        $this->collection()->match(Request::create('https://example.com/insecure'));
+    }
+
+    public function testCompiledConditionReceivesCompleteRequestContext(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/conditional', [
+                'uses' => 'FooController@index',
+                'as' => 'conditional',
+            ])
+        );
+
+        $compiled = $this->routeCollection->compile();
+        $compiled['compiled'][1]['/conditional'][0][6] = -1;
+        $compiled['compiled'][4] = static fn (
+            int $condition,
+            SymfonyRequestContext $context
+        ): bool => $condition === -1 && $context->getQueryString() === 'token=1';
+        $collection = (new CompiledRouteCollection($compiled['compiled'], $compiled['attributes']))
+            ->setRouter($this->router)
+            ->setContainer($this->app);
+
+        $this->assertSame(
+            'conditional',
+            $collection->match(Request::create('/conditional?token=1'))->getName()
+        );
+
+        $this->expectException(NotFoundHttpException::class);
+
+        $collection->match(Request::create('/conditional?token=2'));
+    }
+
+    public function testCompiledMatchAppliesOptionalParameterDefaults(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/reports/{period?}', [
+                'uses' => 'FooController@index',
+                'as' => 'reports.show',
+            ])->defaults('period', 'current')
+        );
+
+        $route = $this->collection()->match(Request::create('/reports', 'GET'));
+
+        $this->assertSame(['period' => 'current'], $route->parameters());
+        $this->assertSame(['period' => 'current'], $route->originalParameters());
+    }
+
+    public function testCompiledMatchKeepsUriParameterOrderWhenDefaultsArePresent(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/reports/{category}/{period?}', [
+                'uses' => 'FooController@index',
+                'as' => 'reports.category',
+            ])->defaults('period', 'current')
+        );
+
+        $route = $this->collection()->match(Request::create('/reports/sales', 'GET'));
+
+        $this->assertSame(
+            ['category' => 'sales', 'period' => 'current'],
+            $route->parameters()
+        );
+    }
+
+    public function testCompiledMatchAppliesDefaultsWithoutUriParameters(): void
+    {
+        $this->routeCollection->add(
+            $this->newRoute('GET', '/reports', [
+                'uses' => 'FooController@index',
+                'as' => 'reports.index',
+            ])->defaults('format', 'summary')
+        );
+
+        $route = $this->collection()->match(Request::create('/reports', 'GET'));
+
+        $this->assertSame(['format' => 'summary'], $route->parameters());
+        $this->assertSame(['format' => 'summary'], $route->originalParameters());
+    }
+
     public function testMatchingDynamicallyAddedRoutesTakePrecedenceOverFallbackRoutes()
     {
         $this->routeCollection->add($this->fallbackRoute(['uses' => 'FooController@index']));
@@ -384,7 +671,10 @@ class CompiledRouteCollectionTest extends RoutingTestCase
 
         $routes->add($this->newRoute('GET', '/bar/{id}', ['uses' => 'FooController@index', 'as' => 'bar']));
 
-        $this->assertSame('fallback', $routes->match(Request::create('/baz/1', 'GET'))->getName());
+        $route = $routes->match(Request::create('/baz/1', 'GET'));
+
+        $this->assertSame('fallback', $route->getName());
+        $this->assertSame(['fallbackPlaceholder' => 'baz/1'], $route->parameters());
     }
 
     public function testMatchingCachedFallbackTakesPrecedenceOverDynamicFallback()
@@ -590,5 +880,39 @@ class CompiledRouteCollectionTest extends RoutingTestCase
             "{{$placeholder}}",
             $action
         )->where($placeholder, '.*')->fallback();
+    }
+}
+
+class BindTrackingRouter extends Router
+{
+    public function newRoute(array|string $methods, string $uri, mixed $action): Route
+    {
+        return (new BindTrackingRoute($methods, $uri, $action))
+            ->setRouter($this)
+            ->setContainer($this->container);
+    }
+}
+
+class BindTrackingRoute extends Route
+{
+    public int $bindCalls = 0;
+
+    public function bind(Request $request): static
+    {
+        ++$this->bindCalls;
+
+        return parent::bind($request);
+    }
+}
+
+class StaticMatchTrackingRequest extends Request
+{
+    public int $hostReads = 0;
+
+    public function getHost(): string
+    {
+        ++$this->hostReads;
+
+        return parent::getHost();
     }
 }

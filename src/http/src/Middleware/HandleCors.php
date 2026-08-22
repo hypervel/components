@@ -8,6 +8,7 @@ use Closure;
 use Fruitcake\Cors\CorsService;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Http\Request;
+use Hypervel\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 class HandleCors
@@ -84,13 +85,16 @@ class HandleCors
     protected function hasMatchingPath(Request $request, array $paths): bool
     {
         $paths = $this->getPathsByHost($request->getHost(), $paths);
+        $fullUrl = null;
+        $decodedPath = null;
 
         foreach ($paths as $path) {
             if ($path !== '/') {
                 $path = trim($path, '/');
             }
 
-            if ($request->fullUrlIs($path) || $request->is($path)) {
+            if (Str::is($path, $fullUrl ??= $request->fullUrl())
+                || Str::is($path, $decodedPath ??= $request->decodedPath())) {
                 return true;
             }
         }
