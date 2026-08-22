@@ -396,7 +396,7 @@ $now = Date::now();
 
 $target = $delay instanceof DateTimeInterface
     ? Date::instance($delay)
-    : $now->addSeconds($delay);
+    : $now->avoidMutation()->addSeconds($delay);
 
 return $target > $now
     ? $target->ceilSecond()->getTimestamp()
@@ -404,6 +404,8 @@ return $target > $now
 ```
 
 Keep `parseDateInterval()` authoritative. It preserves interval microseconds and remains shared with `secondsUntil()`. Capturing `$now` after parsing makes a zero interval equal to or older than `$now`, so it stays immediate. The same comparison also keeps zero/negative integers and past absolute times floored, while future integers, intervals, and fractional `DateTimeInterface` values round upward by less than one second. `DatabaseQueue::pushToDatabase()` calls `availableAt()` with no argument for immediately available batch rows; this is the load-bearing reason not to ceiling every call unconditionally.
+
+Use `avoidMutation()` before adding an integer delay. Hypervel defaults to immutable dates, where this returns the same instance without allocation, but the supported `Date::use(Carbon::class)` opt-out would otherwise mutate `$now` in place and compare the target with itself, bypassing the future ceiling.
 
 Keep `secondsUntil()` unchanged. In particular, do not combine a ceiled duration with a ceiled storage deadline. `Worker::currentTime()` also remains unchanged: coroutine job timeouts already use the same precise monotonic float for registration and expiry checks.
 
@@ -451,11 +453,14 @@ Use it for both standalone and Cluster branches in:
 
 Keep both `FlushStale` current-time cutoffs floored. Ceiling the tag score reduces its former early-removal window from almost one second to at most the PHP-to-Redis command gap: the native `SETEX`/`EXPIRE` countdown begins after PHP computes the score. Do not add a fixed margin, extra command/round trip, fractional score, Lua clock, or other machinery for that residual window. Tag metadata lasting briefly after the value expires is safe; disappearing while the value is still live is the direction to avoid.
 
+Normalize expiring Redis-tag TTLs once at each operation's public `execute()` boundary before choosing a standalone or Cluster path. `AllTag` `Add`, `Put`, `PutMany`, and `Touch` use `max(1, $seconds)` for both the value TTL and tag score. `AnyTag` `Put`, `PutMany`, and `Touch` use the same boundary; `AnyTag` `Add` preserves `null` as permanent and normalizes only non-null values. Remove private duplicate clamps so cache values, reverse indexes, hash-field expiries, registry scores, and Lua arguments receive one consistent TTL. This adds no Redis command or allocation and preserves every positive-TTL call. Keep AnyTag registry scores based on `time() + $seconds`: the registry is only a pruning index, hash fields expire independently, and reads and flushes do not rely on it, so subsecond ceiling machinery would not prevent a meaningful failure.
+
 ### Tests
 
 Extend `tests/Foundation/FoundationInteractsWithTimeTest.php` with a clock frozen at fractional seconds and cover:
 
 - future positive integers round up, while zero and negative integers stay immediate/past;
+- the mutable Date factory opt-out produces the same future, immediate, and past integer deadlines without mutating the comparison baseline;
 - positive intervals round up, while zero and inverted intervals do not;
 - future fractional absolute dates round up, while past fractional dates do not;
 - whole-second future targets remain unchanged.
@@ -467,6 +472,8 @@ For both file-backed stores, add a test subclass whose `getPayload()` returns La
 Keep general file/database lock tests that assert nominal durations on a whole-second frozen clock. They must assert simple exact deadlines rather than copying the production ceiling expression or expecting the conservative fractional extension. Dedicated fractional tests alone own that storage-boundary behavior.
 
 Update the affected AllTag operation tests and add focused `Touch` coverage if no current file owns it. Pin fractional clocks to fixed instants and assert the resulting integer scores directly rather than recomputing them with the production formula. Assert every standalone and Cluster score uses `StoreContext::expirationScore()`, positive `AddEntry` TTLs ceiling correctly, forever entries remain `-1`, and stale pruning at the preceding whole second cannot remove the ceiled membership.
+
+Strengthen the existing AllTag zero-TTL operation tests so `Add`, `Put`, and `PutMany` each assert that both the stored value and tag score use the normalized one-second TTL. Add equivalent non-positive-TTL coverage for the AnyTag paths that previously diverged: Cluster `Add` and `Put`, plus pipelined `PutMany`, must use one second for the value, reverse index, hash field, and registry score. Use a negative TTL there so the old raw registry score is deterministically in the past without adding a clock seam. Existing positive-TTL and topology coverage owns the unchanged paths; moving already-correct `Touch` normalization needs no duplicate test.
 
 Add queue regressions in `QueueRedisQueueTest`, `QueueDatabaseQueueUnitTest`, and the relevant integration suites. Cover integer, interval, and absolute delayed jobs; Redis reservation scores; ceiled database `reserved_at`; and reclaim only at or after the requested visibility duration. Retain the existing precise `QueueWorkerTest` assertions unchanged.
 
