@@ -29,7 +29,7 @@ class PutMany
      * Execute the putMany operation with tag tracking.
      *
      * @param array<string, mixed> $values Key-value pairs (keys already namespaced)
-     * @param int $seconds TTL in seconds
+     * @param int $seconds TTL in seconds; values below one are stored for one second
      * @param array<string> $tagIds Array of tag identifiers
      * @param string $namespace The namespace prefix for keys (for building namespaced keys)
      * @return bool True if all operations successful
@@ -39,6 +39,8 @@ class PutMany
         if (empty($values)) {
             return true;
         }
+
+        $seconds = max(1, $seconds);
 
         if ($this->context->isCluster()) {
             return $this->executeCluster($values, $seconds, $tagIds, $namespace);
@@ -58,7 +60,6 @@ class PutMany
         return $this->context->withConnection(function (RedisConnection $connection) use ($values, $seconds, $tagIds, $namespace): bool {
             $prefix = $this->context->prefix();
             $score = $this->context->expirationScore($seconds);
-            $ttl = max(1, $seconds);
 
             // Prepare all data up front
             $preparedEntries = [];
@@ -84,7 +85,7 @@ class PutMany
 
             // Then all SETEXs
             foreach ($preparedEntries as $namespacedKey => $serialized) {
-                $pipeline->setex($prefix . $namespacedKey, $ttl, $serialized);
+                $pipeline->setex($prefix . $namespacedKey, $seconds, $serialized);
             }
 
             $results = $pipeline->exec();
@@ -105,7 +106,6 @@ class PutMany
         return $this->context->withConnection(function (RedisConnection $connection) use ($values, $seconds, $tagIds, $namespace): bool {
             $prefix = $this->context->prefix();
             $score = $this->context->expirationScore($seconds);
-            $ttl = max(1, $seconds);
 
             // Prepare all data up front
             $preparedEntries = [];
@@ -130,7 +130,7 @@ class PutMany
             // Then all SETEXs
             $allSucceeded = true;
             foreach ($preparedEntries as $namespacedKey => $serialized) {
-                if (! $connection->setex($prefix . $namespacedKey, $ttl, $serialized)) {
+                if (! $connection->setex($prefix . $namespacedKey, $seconds, $serialized)) {
                     $allSucceeded = false;
                 }
             }

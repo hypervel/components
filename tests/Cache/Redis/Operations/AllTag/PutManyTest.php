@@ -262,7 +262,10 @@ class PutManyTest extends RedisCacheTestCase
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $connection->shouldReceive('zadd')->andReturn($connection);
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', 1002, 'ns:foo')
+            ->andReturn($connection);
 
         // TTL should be at least 1
         $connection->shouldReceive('setex')

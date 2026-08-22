@@ -34,12 +34,14 @@ class Put
      *
      * @param string $key The cache key (already namespaced by caller)
      * @param mixed $value The value to store
-     * @param int $seconds TTL in seconds
+     * @param int $seconds TTL in seconds; values below one are stored for one second
      * @param array<string> $tagIds Array of tag identifiers (e.g., "_all:tag:users:entries")
      * @return bool True if successful
      */
     public function execute(string $key, mixed $value, int $seconds, array $tagIds): bool
     {
+        $seconds = max(1, $seconds);
+
         if ($this->context->isCluster()) {
             return $this->executeCluster($key, $value, $seconds, $tagIds);
         }
@@ -67,7 +69,7 @@ class Put
             }
 
             // SETEX for the cache value
-            $pipeline->setex($prefix . $key, max(1, $seconds), $serialized);
+            $pipeline->setex($prefix . $key, $seconds, $serialized);
 
             $results = $pipeline->exec();
 
@@ -95,7 +97,7 @@ class Put
             }
 
             // SETEX for the cache value
-            return (bool) $connection->setex($prefix . $key, max(1, $seconds), $serialized);
+            return (bool) $connection->setex($prefix . $key, $seconds, $serialized);
         });
     }
 }

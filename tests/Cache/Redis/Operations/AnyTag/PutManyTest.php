@@ -84,4 +84,37 @@ class PutManyTest extends RedisCacheTestCase
 
         $this->assertTrue($result);
     }
+
+    public function testPutManyNormalizesExpiringMetadata(): void
+    {
+        $connection = $this->mockConnection();
+        $startedAt = time();
+
+        $connection->shouldReceive('pipeline')->twice()->andReturn($connection);
+        $connection->shouldReceive('smembers')->once()->with('prefix:foo:_any:tags')->andReturn($connection);
+        $connection->shouldReceive('exec')->twice()->andReturn([[]], []);
+        $connection->shouldReceive('setex')->once()->with('prefix:foo', 1, serialize('bar'))->andReturn($connection);
+        $connection->shouldReceive('del')->once()->with('prefix:foo:_any:tags')->andReturn($connection);
+        $connection->shouldReceive('sadd')->once()->with('prefix:foo:_any:tags', 'users')->andReturn($connection);
+        $connection->shouldReceive('expire')->once()->with('prefix:foo:_any:tags', 1)->andReturn($connection);
+        $connection->shouldReceive('hsetex')
+            ->once()
+            ->with('prefix:_any:tag:users:entries', ['foo' => '1'], ['EX' => 1])
+            ->andReturn($connection);
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->withArgs(function (string $key, array $options, int $expiresAt, string $tag) use ($startedAt): bool {
+                $this->assertSame('prefix:_any:tag:registry', $key);
+                $this->assertSame(['GT'], $options);
+                $this->assertGreaterThan($startedAt, $expiresAt);
+                $this->assertSame('users', $tag);
+
+                return true;
+            })
+            ->andReturn($connection);
+
+        $redis = $this->createStore($connection, tagMode: 'any');
+
+        $this->assertTrue($redis->anyTagOps()->putMany()->execute(['foo' => 'bar'], -60, ['users']));
+    }
 }

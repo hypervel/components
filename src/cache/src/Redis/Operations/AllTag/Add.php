@@ -36,12 +36,14 @@ class Add
      *
      * @param string $key The cache key (already namespaced by caller)
      * @param mixed $value The value to store
-     * @param int $seconds TTL in seconds
+     * @param int $seconds TTL in seconds; values below one are stored for one second
      * @param array<string> $tagIds Array of tag identifiers
      * @return bool True if the key was added (didn't exist), false if it already existed
      */
     public function execute(string $key, mixed $value, int $seconds, array $tagIds): bool
     {
+        $seconds = max(1, $seconds);
+
         if ($this->context->isCluster()) {
             return $this->executeCluster($key, $value, $seconds, $tagIds);
         }
@@ -75,7 +77,7 @@ class Add
             $result = $connection->set(
                 $prefix . $key,
                 $this->serialization->serialize($connection, $value),
-                ['EX' => max(1, $seconds), 'NX']
+                ['EX' => $seconds, 'NX']
             );
 
             return (bool) $result;
@@ -103,7 +105,7 @@ class Add
             $result = $connection->set(
                 $prefix . $key,
                 $this->serialization->serialize($connection, $value),
-                ['EX' => max(1, $seconds), 'NX']
+                ['EX' => $seconds, 'NX']
             );
 
             return (bool) $result;

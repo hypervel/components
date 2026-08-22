@@ -223,10 +223,15 @@ class AddTest extends RedisCacheTestCase
      */
     public function testAddEnforcesMinimumTtlOfOne(): void
     {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
         $connection = $this->mockConnection();
 
-        // No pipeline for empty tags
-        $connection->shouldNotReceive('pipeline');
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', 1002, 'mykey')
+            ->andReturn($connection);
+        $connection->shouldReceive('exec')->once()->andReturn([1]);
 
         // TTL should be at least 1
         $connection->shouldReceive('set')
@@ -239,7 +244,7 @@ class AddTest extends RedisCacheTestCase
             'mykey',
             'myvalue',
             0,  // Zero TTL
-            []
+            ['_all:tag:users:entries']
         );
 
         $this->assertTrue($result);

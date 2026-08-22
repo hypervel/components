@@ -228,11 +228,15 @@ class PutTest extends RedisCacheTestCase
      */
     public function testPutEnforcesMinimumTtlOfOne(): void
     {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
         $connection = $this->mockConnection();
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $connection->shouldReceive('zadd')->andReturn($connection);
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', 1002, 'mykey')
+            ->andReturn($connection);
 
         // TTL should be at least 1
         $connection->shouldReceive('setex')
