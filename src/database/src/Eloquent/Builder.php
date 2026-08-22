@@ -934,6 +934,13 @@ class Builder implements BuilderContract
 
     /**
      * Invoke the "after query" modification callbacks.
+     *
+     * A callback that replaces the collection type owns the resulting type change.
+     *
+     * @template TCollection of BaseCollection
+     *
+     * @param TCollection $result
+     * @return TCollection
      */
     public function applyAfterQueryCallbacks(BaseCollection $result): BaseCollection
     {

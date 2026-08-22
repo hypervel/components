@@ -3,6 +3,9 @@
 # should be fixed at the source, or suppressed inline for genuine static analysis
 # limitations.
 
+includes:
+  - src/database/extension.neon
+
 parameters:
   tmpDir: .cache/phpstan
   level: 5
@@ -83,11 +86,6 @@ parameters:
     - identifier: method.childReturnType
       path: src/database/*
     - identifier: method.childParameterType
-      path: src/database/*
-
-    # Relation @mixin forwarding - Relation methods returning $this forward to Builder methods
-    # PHPStan sees Builder return type but the actual return is $this (the Relation)
-    - message: '#should return \$this\(Hypervel\\Database\\Eloquent\\Relations\\.+\) but returns Hypervel\\Database\\(Query|Eloquent)\\Builder#'
       path: src/database/*
 
     # BelongsToMany pivot intersection type - PHPDoc uses object{pivot: ...}&TRelatedModel

@@ -417,6 +417,11 @@ abstract class HasOneOrManyThrough extends Relation
         return $callback();
     }
 
+    /**
+     * Execute the query as a "select" statement.
+     *
+     * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>
+     */
     public function get(array $columns = ['*']): BaseCollection
     {
         $builder = $this->prepareQueryBuilder($columns);

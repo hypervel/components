@@ -852,6 +852,11 @@ class BelongsToMany extends Relation
             : $this->related->newCollection();
     }
 
+    /**
+     * Execute the query as a "select" statement.
+     *
+     * @return \Hypervel\Database\Eloquent\Collection<int, object{pivot: TPivotModel}&TRelatedModel>
+     */
     public function get(array $columns = ['*']): BaseCollection
     {
         // First we'll add the proper select columns onto the query so it is run with
