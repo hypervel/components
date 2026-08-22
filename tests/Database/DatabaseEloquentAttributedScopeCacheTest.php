@@ -61,20 +61,55 @@ class DatabaseEloquentAttributedScopeCacheTest extends TestCase
         $this->assertSame(0, AttributedScopeCacheModel::cachedScopeMethodCount());
     }
 
+    public function testLegacyScopesRespectVisibilityAndShareCaseInsensitiveCacheEntries(): void
+    {
+        $model = new AttributedScopeCacheModel;
+
+        $this->assertTrue($model->hasNamedScope('visible'));
+        $this->assertTrue($model->hasNamedScope('VISIBLE'));
+        $this->assertFalse($model->hasNamedScope('hidden'));
+        $this->assertSame(2, AttributedScopeCacheModel::cachedLegacyScopeMethodCount());
+    }
+
+    public function testInheritedLegacyScopesRespectVisibility(): void
+    {
+        $model = new SecondAttributedScopeCacheModel;
+
+        $this->assertTrue($model->hasNamedScope('visible'));
+        $this->assertFalse($model->hasNamedScope('hidden'));
+    }
+
+    public function testScopePrefixedMethodsAreNotTreatedAsLegacyScopes(): void
+    {
+        $model = new AttributedScopeCacheModel;
+
+        $this->assertFalse($model->hasNamedScope('d'));
+        $this->assertSame(1, AttributedScopeCacheModel::cachedLegacyScopeMethodCount());
+
+        $this->assertFalse($model->hasNamedScope('d'));
+        $this->assertSame(1, AttributedScopeCacheModel::cachedLegacyScopeMethodCount());
+    }
+
     public function testModelStaticStateResetsClearTheCache(): void
     {
         $model = new AttributedScopeCacheModel;
         $this->assertTrue($model->hasNamedScope('active'));
+        $this->assertTrue($model->hasNamedScope('visible'));
         $this->assertSame(1, AttributedScopeCacheModel::cachedScopeMethodCount());
+        $this->assertSame(1, AttributedScopeCacheModel::cachedLegacyScopeMethodCount());
 
         Model::clearBootedModels();
         $this->assertSame(0, AttributedScopeCacheModel::cachedScopeMethodCount());
+        $this->assertSame(0, AttributedScopeCacheModel::cachedLegacyScopeMethodCount());
 
         $this->assertTrue($model->hasNamedScope('active'));
+        $this->assertTrue($model->hasNamedScope('visible'));
         $this->assertSame(1, AttributedScopeCacheModel::cachedScopeMethodCount());
+        $this->assertSame(1, AttributedScopeCacheModel::cachedLegacyScopeMethodCount());
 
         Model::flushState();
         $this->assertSame(0, AttributedScopeCacheModel::cachedScopeMethodCount());
+        $this->assertSame(0, AttributedScopeCacheModel::cachedLegacyScopeMethodCount());
     }
 }
 
@@ -89,6 +124,19 @@ class AttributedScopeCacheModel extends Model
     {
     }
 
+    public static function scoped(array $attributes): string
+    {
+        return 'scoped';
+    }
+
+    protected function scopeVisible(): void
+    {
+    }
+
+    private function scopeHidden(): void
+    {
+    }
+
     #[Scope]
     private function privateScope(Builder $builder): void
     {
@@ -97,6 +145,11 @@ class AttributedScopeCacheModel extends Model
     public static function cachedScopeMethodCount(): int
     {
         return count(static::$scopeMethodAttributes);
+    }
+
+    public static function cachedLegacyScopeMethodCount(): int
+    {
+        return count(static::$legacyScopeMethods);
     }
 
     public static function seedScopeMethodCache(string $method, bool $isScope): void

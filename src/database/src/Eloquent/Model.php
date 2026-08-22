@@ -298,6 +298,13 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     protected static array $scopeMethodAttributes = [];
 
     /**
+     * Cache of whether methods are callable legacy local scopes.
+     *
+     * @var array<string, bool>
+     */
+    protected static array $legacyScopeMethods = [];
+
+    /**
      * Cache of soft deletable models.
      *
      * @var array<class-string<self>, bool>
@@ -547,7 +554,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         static::$classDeclaredAttributes = [];
         static::$classPropertyDeclarers = [];
         static::$guardConfigurations = [];
-        static::$scopeMethodAttributes = [];
+        self::flushScopeCaches();
 
         static::$globalScopes = [];
     }
@@ -1975,7 +1982,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public function hasNamedScope(string $scope): bool
     {
-        return method_exists($this, 'scope' . ucfirst($scope))
+        return static::isLegacyScopeMethod($scope)
             || static::isScopeMethodWithAttribute($scope);
     }
 
@@ -2014,6 +2021,33 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         return static::$scopeMethodAttributes[$key] = ! $reflection->isPrivate()
             && $reflection->getAttributes(LocalScope::class) !== [];
+    }
+
+    /**
+     * Determine if the given method is a callable legacy local scope.
+     */
+    protected static function isLegacyScopeMethod(string $scope): bool
+    {
+        $key = static::class . "\0" . strtolower($scope);
+
+        if (array_key_exists($key, static::$legacyScopeMethods)) {
+            return static::$legacyScopeMethods[$key];
+        }
+
+        $method = 'scope' . ucfirst($scope);
+
+        // Query-derived dynamic scope names can be arbitrary. Do not retain misses
+        // for nonexistent methods in a long-running worker.
+        if (! method_exists(static::class, $method)) {
+            return false;
+        }
+
+        $reflection = new ReflectionMethod(static::class, $method);
+        $declaredName = $reflection->getName();
+
+        return static::$legacyScopeMethods[$key] = strlen($declaredName) > 5
+            && ! $reflection->isPrivate()
+            && ! ctype_lower($declaredName[5]);
     }
 
     /**
@@ -2653,6 +2687,15 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     }
 
     /**
+     * Flush local scope caches.
+     */
+    private static function flushScopeCaches(): void
+    {
+        static::$scopeMethodAttributes = [];
+        static::$legacyScopeMethods = [];
+    }
+
+    /**
      * Flush all static state.
      */
     public static function flushState(): void
@@ -2668,7 +2711,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         static::$classDeclaredAttributes = [];
         static::$classPropertyDeclarers = [];
         static::$guardConfigurations = [];
-        static::$scopeMethodAttributes = [];
+        self::flushScopeCaches();
         static::$modelsShouldPreventLazyLoading = false;
         static::$modelsShouldAutomaticallyEagerLoadRelationships = false;
         static::$lazyLoadingViolationCallback = null;
