@@ -36,294 +36,294 @@ use function Hypervel\Coroutine\go;
  * Abstract base class for pooled Redis connections with Laravel-style method transformations.
  *
  * @method mixed get(string $key) Get the value of a key
- * @method bool set(string $key, mixed $value, mixed $expireResolution = null, mixed $expireTTL = null, mixed $flag = null) Set the value of a key
- * @method array mget(array $keys) Get the values of multiple keys
- * @method bool|int|Redis setnx(string $key, mixed $value) Set key if not exists
- * @method bool|int|Redis setNx(string $key, mixed $value) Set key if not exists
- * @method array|false|Redis hmget(string $key, array $fields) Get hash field values
- * @method bool|Redis hmset(string $key, array $fieldValues) Set hash field values
- * @method bool|int|Redis hsetnx(string $hash, string $key, mixed $value) Set hash field if not exists
+ * @method mixed set(string $key, mixed $value, mixed $expireResolution = null, int|null $expireTTL = null, string|null $flag = null) Set the value of a key
+ * @method array|false|Redis|RedisCluster mget(array $keys) Get the values of multiple keys
+ * @method bool|int|Redis|RedisCluster setnx(string $key, mixed $value) Set key if not exists
+ * @method bool|int|Redis|RedisCluster setNx(string $key, mixed $value) Set key if not exists
+ * @method array|false|Redis|RedisCluster hmget(string $key, array $fields) Get hash field values
+ * @method bool|Redis|RedisCluster hmset(string $key, array $fieldValues) Set hash field values
+ * @method bool|int|Redis|RedisCluster hsetnx(string $hash, string $key, mixed $value) Set hash field if not exists
  * @method mixed hget(string $key, string $member) Get hash field value
- * @method false|int|Redis hset(string $key, mixed ...$fields_and_vals) Set hash field values
+ * @method false|int|Redis|RedisCluster hset(string $key, mixed ...$fields_and_vals) Set hash field values
  * @method false|int lrem(string $key, int $count, mixed $value) Remove list elements
- * @method false|int|Redis llen(string $key) Get list length
- * @method null|array|false|Redis blpop(array|string $key_or_keys, float|int|string $timeout_or_key, mixed ...$extra_args) Blocking left pop from list
- * @method null|array|false|Redis brpop(array|string $key_or_keys, float|int|string $timeout_or_key, mixed ...$extra_args) Blocking right pop from list
+ * @method false|int|Redis|RedisCluster llen(string $key) Get list length
+ * @method null|array|false|Redis|RedisCluster blpop(array|string $key_or_keys, float|int|string $timeout_or_key, mixed ...$extra_args) Blocking left pop from list
+ * @method null|array|false|Redis|RedisCluster brpop(array|string $key_or_keys, float|int|string $timeout_or_key, mixed ...$extra_args) Blocking right pop from list
  * @method mixed spop(string $key, int $count = 0) Remove and return random set member
- * @method false|int|Redis sRem(string $key, mixed $value, mixed ...$other_values) Remove members from set
- * @method false|float|int|Redis zadd(string $key, array|float $score_or_options, mixed ...$more_scores_and_mems) Add members to sorted set
- * @method false|int|Redis zcard(string $key) Get sorted set cardinality
- * @method false|int|Redis zcount(string $key, int|string $start, int|string $end) Count sorted set members by score range
- * @method array|false|Redis zrangebyscore(string $key, string $min, string $max, array $options = []) Get sorted set members by score range
- * @method array|false|Redis zrevrangebyscore(string $key, string $max, string $min, array $options = []) Get sorted set members by score range (reverse)
- * @method int zinterstore(string $output, array $keys, array $options = []) Intersect sorted sets
- * @method int zunionstore(string $output, array $keys, array $options = []) Union sorted sets
+ * @method false|int|Redis|RedisCluster sRem(string $key, mixed $value, mixed ...$other_values) Remove members from set
+ * @method false|float|int|Redis|RedisCluster zadd(string $key, array|float $score_or_options, mixed ...$more_scores_and_mems) Add members to sorted set
+ * @method false|int|Redis|RedisCluster zcard(string $key) Get sorted set cardinality
+ * @method false|int|Redis|RedisCluster zcount(string $key, int|string $start, int|string $end) Count sorted set members by score range
+ * @method array|false|Redis|RedisCluster zrangebyscore(string $key, float|int|string $min, float|int|string $max, array $options = []) Get sorted set members by score range
+ * @method array|false|Redis|RedisCluster zrevrangebyscore(string $key, float|int|string $max, float|int|string $min, array $options = []) Get sorted set members by score range (reverse)
+ * @method false|int|Redis|RedisCluster zinterstore(string $output, array $keys, array $options = []) Intersect sorted sets
+ * @method false|int|Redis|RedisCluster zunionstore(string $output, array $keys, array $options = []) Union sorted sets
  * @method mixed eval(string $script, int $numberOfKeys, mixed ...$arguments) Evaluate Lua script
  * @method mixed evalsha(string $script, int $numkeys, mixed ...$arguments) Evaluate Lua script by SHA1
  * @method mixed flushdb(mixed ...$arguments) Flush database
  * @method mixed executeRaw(array $parameters) Execute raw Redis command
  * @method mixed pipeline(callable|null $callback = null) Execute commands in a pipeline
- * @method array|false|Redis smembers(string $key) Get all set members
- * @method false|int|Redis hdel(string $key, string $field, string ...$other_fields) Delete hash fields
- * @method false|int|Redis zrem(mixed $key, mixed $member, mixed ...$other_members) Remove sorted set members
- * @method false|int|Redis hlen(string $key) Get number of hash fields
- * @method array|false|Redis hkeys(string $key) Get all hash field names
+ * @method array|false|Redis|RedisCluster smembers(string $key) Get all set members
+ * @method false|int|Redis|RedisCluster hdel(string $key, string $field, string ...$other_fields) Delete hash fields
+ * @method false|int|Redis|RedisCluster zrem(mixed $key, mixed $member, mixed ...$other_members) Remove sorted set members
+ * @method false|int|Redis|RedisCluster hlen(string $key) Get number of hash fields
+ * @method array|false|Redis|RedisCluster hkeys(string $key) Get all hash field names
  * @method string _serialize(mixed $value) Serialize a value using configured serializer
  * @method string _digest(mixed $value)
  * @method string _pack(mixed $value)
  * @method mixed _unpack(string $value)
  * @method mixed acl(string $subcmd, string ...$args)
- * @method false|int|Redis append(string $key, mixed $value)
+ * @method false|int|Redis|RedisCluster append(string $key, mixed $value)
  * @method bool|Redis auth(mixed $credentials)
- * @method bool|Redis bgSave()
- * @method bool|Redis bgrewriteaof()
- * @method array|false|Redis waitaof(int $numlocal, int $numreplicas, int $timeout)
- * @method false|int|Redis bitcount(string $key, int $start = 0, int $end = -1, bool $bybit = false)
- * @method false|int|Redis bitop(string $operation, string $deskey, string $srckey, string ...$other_keys)
- * @method false|int|Redis bitpos(string $key, bool $bit, int $start = 0, int $end = -1, bool $bybit = false)
- * @method null|array|false|Redis blPop(array|string $key_or_keys, float|int|string $timeout_or_key, mixed ...$extra_args)
- * @method null|array|false|Redis brPop(array|string $key_or_keys, float|int|string $timeout_or_key, mixed ...$extra_args)
- * @method false|Redis|string brpoplpush(string $src, string $dst, float|int $timeout)
- * @method array|false|Redis bzPopMax(array|string $key, int|string $timeout_or_key, mixed ...$extra_args)
- * @method array|false|Redis bzPopMin(array|string $key, int|string $timeout_or_key, mixed ...$extra_args)
- * @method null|array|false|Redis bzmpop(float $timeout, array $keys, string $from, int $count = 1)
- * @method null|array|false|Redis zmpop(array $keys, string $from, int $count = 1)
- * @method null|array|false|Redis blmpop(float $timeout, array $keys, string $from, int $count = 1)
- * @method null|array|false|Redis lmpop(array $keys, string $from, int $count = 1)
+ * @method bool|Redis|RedisCluster bgSave()
+ * @method bool|Redis|RedisCluster bgrewriteaof()
+ * @method array|false|Redis|RedisCluster waitaof(int $numlocal, int $numreplicas, int $timeout)
+ * @method false|int|Redis|RedisCluster bitcount(string $key, int $start = 0, int $end = -1, bool $bybit = false)
+ * @method false|int|Redis|RedisCluster bitop(string $operation, string $deskey, string $srckey, string ...$other_keys)
+ * @method false|int|Redis|RedisCluster bitpos(string $key, bool $bit, int $start = 0, int $end = -1, bool $bybit = false)
+ * @method null|array|false|Redis|RedisCluster blPop(array|string $key_or_keys, float|int|string $timeout_or_key, mixed ...$extra_args) Blocking left pop from list
+ * @method null|array|false|Redis|RedisCluster brPop(array|string $key_or_keys, float|int|string $timeout_or_key, mixed ...$extra_args) Blocking right pop from list
+ * @method false|Redis|RedisCluster|string brpoplpush(string $src, string $dst, float|int $timeout)
+ * @method array|false|Redis|RedisCluster bzPopMax(array|string $key, int|string $timeout_or_key, mixed ...$extra_args)
+ * @method array|false|Redis|RedisCluster bzPopMin(array|string $key, int|string $timeout_or_key, mixed ...$extra_args)
+ * @method null|array|false|Redis|RedisCluster bzmpop(float $timeout, array $keys, string $from, int $count = 1)
+ * @method null|array|false|Redis|RedisCluster zmpop(array $keys, string $from, int $count = 1)
+ * @method null|array|false|Redis|RedisCluster blmpop(float $timeout, array $keys, string $from, int $count = 1)
+ * @method null|array|false|Redis|RedisCluster lmpop(array $keys, string $from, int $count = 1)
  * @method bool clearLastError()
  * @method mixed client(string $opt = '', mixed ...$args)
  * @method mixed command(string|null $opt = null, mixed ...$args)
  * @method mixed config(string $operation, array|string|null $key_or_settings = null, string|null $value = null)
  * @method bool connect(string $host, int $port = 6379, float $timeout = 0, string|null $persistent_id = null, int $retry_interval = 0, float $read_timeout = 0, array|null $context = null)
- * @method bool|Redis copy(string $src, string $dst, array|null $options = null)
- * @method false|int|Redis dbSize()
+ * @method bool|Redis|RedisCluster copy(string $src, string $dst, array|null $options = null)
+ * @method false|int|Redis|RedisCluster dbSize()
  * @method Redis|string debug(string $key)
- * @method false|int|Redis decr(string $key, int $by = 1)
- * @method false|int|Redis decrBy(string $key, int $value)
- * @method false|int|Redis del(array|string $key, string ...$other_keys)
- * @method false|int|Redis delex(string $key, array|null $options = null)
- * @method false|int|Redis delifeq(string $key, mixed $value)
- * @method false|Redis|string digest(string $key)
- * @method false|Redis|string dump(string $key)
- * @method false|Redis|string echo(string $str)
+ * @method false|int|Redis|RedisCluster decr(string $key, int $by = 1)
+ * @method false|int|Redis|RedisCluster decrBy(string $key, int $value)
+ * @method false|int|Redis|RedisCluster del(array|string $key, string ...$other_keys)
+ * @method false|int|Redis|RedisCluster delex(string $key, array|null $options = null)
+ * @method false|int|Redis|RedisCluster delifeq(string $key, mixed $value)
+ * @method false|Redis|RedisCluster|string digest(string $key)
+ * @method false|Redis|RedisCluster|string dump(string $key)
+ * @method false|Redis|RedisCluster|string echo(string $str)
  * @method mixed eval_ro(string $script_sha, array $args = [], int $num_keys = 0)
  * @method mixed evalsha_ro(string $sha1, array $args = [], int $num_keys = 0)
  * @method array|false|Redis exec()
- * @method bool|int|Redis exists(mixed $key, mixed ...$other_keys)
- * @method bool|Redis expire(string $key, int $timeout, string|null $mode = null)
- * @method bool|Redis expireAt(string $key, int $timestamp, string|null $mode = null)
+ * @method bool|int|Redis|RedisCluster exists(mixed $key, mixed ...$other_keys)
+ * @method bool|Redis|RedisCluster expire(string $key, int $timeout, string|null $mode = null)
+ * @method bool|Redis|RedisCluster expireAt(string $key, int $timestamp, string|null $mode = null)
  * @method bool|Redis failover(array|null $to = null, bool $abort = false, int $timeout = 0)
- * @method false|int|Redis expiretime(string $key)
- * @method false|int|Redis pexpiretime(string $key)
+ * @method false|int|Redis|RedisCluster expiretime(string $key)
+ * @method false|int|Redis|RedisCluster pexpiretime(string $key)
  * @method mixed fcall(string $fn, array $keys = [], array $args = [])
  * @method mixed fcall_ro(string $fn, array $keys = [], array $args = [])
- * @method bool|Redis flushAll(bool|null $sync = null)
- * @method mixed flushDB(mixed ...$arguments)
+ * @method bool|Redis|RedisCluster flushAll(bool|null $sync = null)
+ * @method mixed flushDB(mixed ...$arguments) Flush database
  * @method array|bool|Redis|string function(string $operation, mixed ...$args)
- * @method false|int|Redis geoadd(string $key, float $lng, float $lat, string $member, mixed ...$other_triples_and_options)
- * @method false|float|Redis geodist(string $key, string $src, string $dst, string|null $unit = null)
- * @method array|false|Redis geohash(string $key, string $member, string ...$other_members)
- * @method array|false|Redis geopos(string $key, string $member, string ...$other_members)
+ * @method false|int|Redis|RedisCluster geoadd(string $key, float $lng, float $lat, string $member, mixed ...$other_triples_and_options)
+ * @method false|float|Redis|RedisCluster geodist(string $key, string $src, string $dst, string|null $unit = null)
+ * @method array|false|Redis|RedisCluster geohash(string $key, string $member, string ...$other_members)
+ * @method array|false|Redis|RedisCluster geopos(string $key, string $member, string ...$other_members)
  * @method mixed georadius(string $key, float $lng, float $lat, float $radius, string $unit, array $options = [])
  * @method mixed georadius_ro(string $key, float $lng, float $lat, float $radius, string $unit, array $options = [])
  * @method mixed georadiusbymember(string $key, string $member, float $radius, string $unit, array $options = [])
  * @method mixed georadiusbymember_ro(string $key, string $member, float $radius, string $unit, array $options = [])
  * @method array geosearch(string $key, array|string $position, array|int|float $shape, string $unit, array $options = [])
- * @method array|false|int|Redis geosearchstore(string $dst, string $src, array|string $position, array|int|float $shape, string $unit, array $options = [])
+ * @method array|false|int|Redis|RedisCluster geosearchstore(string $dst, string $src, array|string $position, array|int|float $shape, string $unit, array $options = [])
  * @method mixed getAuth()
- * @method false|int|Redis getBit(string $key, int $idx)
- * @method bool|Redis|string getEx(string $key, array $options = [])
+ * @method false|int|Redis|RedisCluster getBit(string $key, int $idx)
+ * @method bool|Redis|RedisCluster|string getEx(string $key, array $options = [])
  * @method int getDBNum()
- * @method bool|Redis|string getDel(string $key)
+ * @method bool|Redis|RedisCluster|string getDel(string $key)
  * @method string getHost()
  * @method null|string getLastError()
  * @method int getMode()
  * @method mixed getOption(int $option)
  * @method null|string getPersistentID()
  * @method int getPort()
- * @method false|Redis|string getRange(string $key, int $start, int $end)
- * @method array|false|int|Redis|string lcs(string $key1, string $key2, array|null $options = null)
+ * @method false|Redis|RedisCluster|string getRange(string $key, int $start, int $end)
+ * @method array|false|int|Redis|RedisCluster|string lcs(string $key1, string $key2, array|null $options = null)
  * @method float getReadTimeout()
- * @method false|Redis|string getset(string $key, mixed $value)
+ * @method false|Redis|RedisCluster|string getset(string $key, mixed $value)
  * @method false|float getTimeout()
  * @method array getTransferredBytes()
  * @method void clearTransferredBytes()
- * @method array|false|Redis getWithMeta(string $key)
- * @method false|int|Redis hDel(string $key, string $field, string ...$other_fields)
- * @method array|false|Redis hexpire(string $key, int $ttl, array $fields, string|null $mode = null)
- * @method array|false|Redis hpexpire(string $key, int $ttl, array $fields, string|null $mode = null)
- * @method array|false|Redis hexpireat(string $key, int $time, array $fields, string|null $mode = null)
- * @method array|false|Redis hpexpireat(string $key, int $mstime, array $fields, string|null $mode = null)
- * @method array|false|Redis httl(string $key, array $fields)
- * @method array|false|Redis hpttl(string $key, array $fields)
- * @method array|false|Redis hexpiretime(string $key, array $fields)
- * @method array|false|Redis hpexpiretime(string $key, array $fields)
- * @method array|false|Redis hpersist(string $key, array $fields)
- * @method bool|Redis hExists(string $key, string $field)
- * @method mixed hGet(string $key, string $member)
- * @method array|false|Redis hGetAll(string $key)
+ * @method array|false|Redis|RedisCluster getWithMeta(string $key)
+ * @method false|int|Redis|RedisCluster hDel(string $key, string $field, string ...$other_fields) Delete hash fields
+ * @method array|false|Redis|RedisCluster hexpire(string $key, int $ttl, array $fields, string|null $mode = null)
+ * @method array|false|Redis|RedisCluster hpexpire(string $key, int $ttl, array $fields, string|null $mode = null)
+ * @method array|false|Redis|RedisCluster hexpireat(string $key, int $time, array $fields, string|null $mode = null)
+ * @method array|false|Redis|RedisCluster hpexpireat(string $key, int $mstime, array $fields, string|null $mode = null)
+ * @method array|false|Redis|RedisCluster httl(string $key, array $fields)
+ * @method array|false|Redis|RedisCluster hpttl(string $key, array $fields)
+ * @method array|false|Redis|RedisCluster hexpiretime(string $key, array $fields)
+ * @method array|false|Redis|RedisCluster hpexpiretime(string $key, array $fields)
+ * @method array|false|Redis|RedisCluster hpersist(string $key, array $fields)
+ * @method bool|Redis|RedisCluster hExists(string $key, string $field)
+ * @method mixed hGet(string $key, string $member) Get hash field value
+ * @method array|false|Redis|RedisCluster hGetAll(string $key)
  * @method mixed hGetWithMeta(string $key, string $member)
- * @method array|false|Redis hgetdel(string $key, array $fields)
- * @method array|false|Redis hgetex(string $key, array $fields, string|array|null $expiry = null)
- * @method false|int|Redis hIncrBy(string $key, string $field, int $value)
- * @method false|float|Redis hIncrByFloat(string $key, string $field, float $value)
- * @method array|false|Redis hKeys(string $key)
- * @method false|int|Redis hLen(string $key)
- * @method array|false|Redis hMget(string $key, array $fields)
- * @method bool|Redis hMset(string $key, array $fieldValues)
- * @method array|false|Redis|string hRandField(string $key, array|null $options = null)
- * @method false|int|Redis hSet(string $key, mixed ...$fields_and_vals)
- * @method bool|int|Redis hSetNx(string $hash, string $key, mixed $value)
- * @method false|int|Redis hsetex(string $key, array $fields, array|null $expiry = null)
- * @method false|int|Redis hStrLen(string $key, string $field)
- * @method array|false|Redis hVals(string $key)
- * @method false|int|Redis incr(string $key, int $by = 1)
- * @method false|int|Redis incrBy(string $key, int $value)
- * @method false|float|Redis incrByFloat(string $key, float $value)
- * @method array|false|Redis info(string ...$sections)
+ * @method array|false|Redis|RedisCluster hgetdel(string $key, array $fields)
+ * @method array|false|Redis|RedisCluster hgetex(string $key, array $fields, string|array|null $expiry = null)
+ * @method false|int|Redis|RedisCluster hIncrBy(string $key, string $field, int $value)
+ * @method false|float|Redis|RedisCluster hIncrByFloat(string $key, string $field, float $value)
+ * @method array|false|Redis|RedisCluster hKeys(string $key) Get all hash field names
+ * @method false|int|Redis|RedisCluster hLen(string $key) Get number of hash fields
+ * @method array|false|Redis|RedisCluster hMget(string $key, array $fields) Get hash field values
+ * @method bool|Redis|RedisCluster hMset(string $key, array $fieldValues) Set hash field values
+ * @method array|false|Redis|RedisCluster|string hRandField(string $key, array|null $options = null)
+ * @method false|int|Redis|RedisCluster hSet(string $key, mixed ...$fields_and_vals) Set hash field values
+ * @method bool|int|Redis|RedisCluster hSetNx(string $hash, string $key, mixed $value) Set hash field if not exists
+ * @method false|int|Redis|RedisCluster hsetex(string $key, array $fields, array|null $expiry = null)
+ * @method false|int|Redis|RedisCluster hStrLen(string $key, string $field)
+ * @method array|false|Redis|RedisCluster hVals(string $key)
+ * @method false|int|Redis|RedisCluster incr(string $key, int $by = 1)
+ * @method false|int|Redis|RedisCluster incrBy(string $key, int $value)
+ * @method false|float|Redis|RedisCluster incrByFloat(string $key, float $value)
+ * @method array|false|Redis|RedisCluster info(string ...$sections)
  * @method bool isConnected()
- * @method array|false|Redis keys(string $pattern)
- * @method false|int|Redis lInsert(string $key, string $pos, mixed $pivot, mixed $value)
- * @method false|int|Redis lLen(string $key)
- * @method false|Redis|string lMove(string $src, string $dst, string $wherefrom, string $whereto)
- * @method false|Redis|string blmove(string $src, string $dst, string $wherefrom, string $whereto, float $timeout)
- * @method array|bool|Redis|string lPop(string $key, int $count = 0)
- * @method null|array|bool|int|Redis lPos(string $key, mixed $value, array|null $options = null)
- * @method false|int|Redis lPush(string $key, mixed ...$elements)
- * @method false|int|Redis rPush(string $key, mixed ...$elements)
- * @method false|int|Redis lPushx(string $key, mixed $value)
- * @method false|int|Redis rPushx(string $key, mixed $value)
- * @method bool|Redis lSet(string $key, int $index, mixed $value)
+ * @method array|false|Redis|RedisCluster keys(string $pattern)
+ * @method false|int|Redis|RedisCluster lInsert(string $key, string $pos, mixed $pivot, mixed $value)
+ * @method false|int|Redis|RedisCluster lLen(string $key) Get list length
+ * @method false|Redis|RedisCluster|string lMove(string $src, string $dst, string $wherefrom, string $whereto)
+ * @method false|Redis|RedisCluster|string blmove(string $src, string $dst, string $wherefrom, string $whereto, float $timeout)
+ * @method array|bool|Redis|RedisCluster|string lPop(string $key, int $count = 0)
+ * @method null|array|bool|int|Redis|RedisCluster lPos(string $key, mixed $value, array|null $options = null)
+ * @method false|int|Redis|RedisCluster lPush(string $key, mixed ...$elements)
+ * @method false|int|Redis|RedisCluster rPush(string $key, mixed ...$elements)
+ * @method false|int|Redis|RedisCluster lPushx(string $key, mixed $value)
+ * @method false|int|Redis|RedisCluster rPushx(string $key, mixed $value)
+ * @method bool|Redis|RedisCluster lSet(string $key, int $index, mixed $value)
  * @method int lastSave()
  * @method mixed lindex(string $key, int $index)
- * @method array|false|Redis lrange(string $key, int $start, int $end)
- * @method bool|Redis ltrim(string $key, int $start, int $end)
+ * @method array|false|Redis|RedisCluster lrange(string $key, int $start, int $end)
+ * @method bool|Redis|RedisCluster ltrim(string $key, int $start, int $end)
  * @method bool|Redis migrate(string $host, int $port, array|string $key, int $dstdb, int $timeout, bool $copy = false, bool $replace = false, mixed $credentials = null)
  * @method bool|Redis move(string $key, int $index)
- * @method bool|Redis mset(array $key_values)
- * @method false|int|Redis msetex(array $key_values, int|float|array|null $expiry = null)
- * @method bool|Redis msetnx(array $key_values)
- * @method bool|Redis multi(int $value = 1)
- * @method false|int|Redis|string object(string $subcommand, string $key)
+ * @method bool|Redis|RedisCluster mset(array $key_values)
+ * @method false|int|Redis|RedisCluster msetex(array $key_values, int|float|array|null $expiry = null)
+ * @method bool|Redis|RedisCluster msetnx(array $key_values)
+ * @method bool|Redis|RedisCluster multi(int $value = 1)
+ * @method false|int|Redis|RedisCluster|string object(string $subcommand, string $key)
  * @method bool pconnect(string $host, int $port = 6379, float $timeout = 0, string|null $persistent_id = null, int $retry_interval = 0, float $read_timeout = 0, array|null $context = null)
- * @method bool|Redis persist(string $key)
+ * @method bool|Redis|RedisCluster persist(string $key)
  * @method bool pexpire(string $key, int $timeout, string|null $mode = null)
- * @method bool|Redis pexpireAt(string $key, int $timestamp, string|null $mode = null)
- * @method int|Redis pfadd(string $key, array $elements)
- * @method false|int|Redis pfcount(array|string $key_or_keys)
- * @method bool|Redis pfmerge(string $dst, array $srckeys)
- * @method bool|Redis|string ping(string|null $message = null)
- * @method bool|Redis psetex(string $key, int $expire, mixed $value)
- * @method false|int|Redis pttl(string $key)
- * @method false|int|Redis publish(string $channel, string $message)
+ * @method bool|Redis|RedisCluster pexpireAt(string $key, int $timestamp, string|null $mode = null)
+ * @method int|Redis|RedisCluster pfadd(string $key, array $elements)
+ * @method false|int|Redis|RedisCluster pfcount(array|string $key_or_keys)
+ * @method bool|Redis|RedisCluster pfmerge(string $dst, array $srckeys)
+ * @method bool|Redis|RedisCluster|string ping(string|null $message = null)
+ * @method bool|Redis|RedisCluster psetex(string $key, int $expire, mixed $value)
+ * @method false|int|Redis|RedisCluster pttl(string $key)
+ * @method false|int|Redis|RedisCluster publish(string $channel, string $message)
  * @method mixed pubsub(string $command, mixed $arg = null)
  * @method array|bool|Redis punsubscribe(array $patterns)
- * @method array|bool|Redis|string rPop(string $key, int $count = 0)
- * @method false|Redis|string randomKey()
+ * @method array|bool|Redis|RedisCluster|string rPop(string $key, int $count = 0)
+ * @method false|Redis|RedisCluster|string randomKey()
  * @method mixed rawcommand(string $command, mixed ...$args)
- * @method bool|Redis rename(string $old_name, string $new_name)
- * @method bool|Redis renameNx(string $key_src, string $key_dst)
- * @method bool|Redis restore(string $key, int $ttl, string $value, array|null $options = null)
+ * @method bool|Redis|RedisCluster rename(string $old_name, string $new_name)
+ * @method bool|Redis|RedisCluster renameNx(string $key_src, string $key_dst)
+ * @method bool|Redis|RedisCluster restore(string $key, int $ttl, string $value, array|null $options = null)
  * @method mixed role()
- * @method false|Redis|string rpoplpush(string $srckey, string $dstkey)
- * @method false|int|Redis sAdd(string $key, mixed $value, mixed ...$other_values)
+ * @method false|Redis|RedisCluster|string rpoplpush(string $srckey, string $dstkey)
+ * @method false|int|Redis|RedisCluster sAdd(string $key, mixed $value, mixed ...$other_values)
  * @method int sAddArray(string $key, array $values)
- * @method array|false|Redis sDiff(string $key, string ...$other_keys)
- * @method false|int|Redis sDiffStore(string $dst, string $key, string ...$other_keys)
- * @method array|false|Redis sInter(array|string $key, string ...$other_keys)
- * @method false|int|Redis sintercard(array $keys, int $limit = -1)
- * @method false|int|Redis sInterStore(array|string $key, string ...$other_keys)
- * @method array|false|Redis sMembers(string $key)
- * @method array|false|Redis sMisMember(string $key, string $member, string ...$other_members)
- * @method bool|Redis sMove(string $src, string $dst, mixed $value)
- * @method mixed sPop(string $key, int $count = 0)
+ * @method array|false|Redis|RedisCluster sDiff(string $key, string ...$other_keys)
+ * @method false|int|Redis|RedisCluster sDiffStore(string $dst, string $key, string ...$other_keys)
+ * @method array|false|Redis|RedisCluster sInter(array|string $key, string ...$other_keys)
+ * @method false|int|Redis|RedisCluster sintercard(array $keys, int $limit = -1)
+ * @method false|int|Redis|RedisCluster sInterStore(array|string $key, string ...$other_keys)
+ * @method array|false|Redis|RedisCluster sMembers(string $key) Get all set members
+ * @method array|false|Redis|RedisCluster sMisMember(string $key, string $member, string ...$other_members)
+ * @method bool|Redis|RedisCluster sMove(string $src, string $dst, mixed $value)
+ * @method mixed sPop(string $key, int $count = 0) Remove and return random set member
  * @method mixed sRandMember(string $key, int $count = 0)
- * @method array|false|Redis sUnion(string $key, string ...$other_keys)
- * @method false|int|Redis sUnionStore(string $dst, string $key, string ...$other_keys)
- * @method bool|Redis save()
- * @method false|int|Redis scard(string $key)
+ * @method array|false|Redis|RedisCluster sUnion(string $key, string ...$other_keys)
+ * @method false|int|Redis|RedisCluster sUnionStore(string $dst, string $key, string ...$other_keys)
+ * @method bool|Redis|RedisCluster save()
+ * @method false|int|Redis|RedisCluster scard(string $key)
  * @method mixed script(string $command, mixed ...$args)
  * @method bool|Redis select(int $db)
  * @method false|string serverName()
  * @method false|string serverVersion()
- * @method false|int|Redis setBit(string $key, int $idx, bool $value)
- * @method false|int|Redis setRange(string $key, int $index, string $value)
+ * @method false|int|Redis|RedisCluster setBit(string $key, int $idx, bool $value)
+ * @method false|int|Redis|RedisCluster setRange(string $key, int $index, string $value)
  * @method bool setOption(int $option, mixed $value)
- * @method bool|Redis setex(string $key, int $expire, mixed $value)
- * @method bool|Redis sismember(string $key, mixed $value)
+ * @method bool|Redis|RedisCluster setex(string $key, int $expire, mixed $value)
+ * @method bool|Redis|RedisCluster sismember(string $key, mixed $value)
  * @method bool|Redis replicaof(string|null $host = null, int $port = 6379)
- * @method false|int|Redis touch(array|string $key_or_array, string ...$more_keys)
+ * @method false|int|Redis|RedisCluster touch(array|string $key_or_array, string ...$more_keys)
  * @method mixed slowlog(string $operation, int $length = 0)
  * @method mixed sort(string $key, array|null $options = null)
  * @method mixed sort_ro(string $key, array|null $options = null)
- * @method false|int|Redis srem(string $key, mixed $value, mixed ...$other_values)
- * @method false|int|Redis strlen(string $key)
+ * @method false|int|Redis|RedisCluster srem(string $key, mixed $value, mixed ...$other_values) Remove members from set
+ * @method false|int|Redis|RedisCluster strlen(string $key)
  * @method array|bool|Redis sunsubscribe(array $channels)
  * @method bool|Redis swapdb(int $src, int $dst)
- * @method array|Redis time()
- * @method false|int|Redis ttl(string $key)
- * @method false|int|Redis type(string $key)
- * @method false|int|Redis unlink(array|string $key, string ...$other_keys)
+ * @method array|Redis|RedisCluster time()
+ * @method false|int|Redis|RedisCluster ttl(string $key)
+ * @method false|int|Redis|RedisCluster type(string $key)
+ * @method false|int|Redis|RedisCluster unlink(array|string $key, string ...$other_keys)
  * @method array|bool|Redis unsubscribe(array $channels)
- * @method bool|Redis unwatch()
- * @method false|int|Redis vadd(string $key, array $values, mixed $element, array|null $options = null)
- * @method false|int|Redis vcard(string $key)
- * @method false|int|Redis vdim(string $key)
- * @method array|false|Redis vemb(string $key, mixed $member, bool $raw = false)
- * @method array|false|Redis|string vgetattr(string $key, mixed $member, bool $decode = true)
- * @method array|false|Redis vinfo(string $key)
- * @method bool|Redis vismember(string $key, mixed $member)
- * @method array|false|Redis vlinks(string $key, mixed $member, bool $withscores = false)
- * @method array|false|Redis|string vrandmember(string $key, int $count = 0)
- * @method array|false|Redis vrange(string $key, string $min, string $max, int $count = -1)
- * @method false|int|Redis vrem(string $key, mixed $member)
- * @method false|int|Redis vsetattr(string $key, mixed $member, array|string $attributes)
- * @method array|false|Redis vsim(string $key, mixed $member, array|null $options = null)
- * @method bool|Redis watch(array|string $key, string ...$other_keys)
+ * @method null|bool|Redis unwatch()
+ * @method false|int|Redis|RedisCluster vadd(string $key, array $values, mixed $element, array|null $options = null)
+ * @method false|int|Redis|RedisCluster vcard(string $key)
+ * @method false|int|Redis|RedisCluster vdim(string $key)
+ * @method array|false|Redis|RedisCluster vemb(string $key, mixed $member, bool $raw = false)
+ * @method array|false|Redis|RedisCluster|string vgetattr(string $key, mixed $member, bool $decode = true)
+ * @method array|false|Redis|RedisCluster vinfo(string $key)
+ * @method bool|Redis|RedisCluster vismember(string $key, mixed $member)
+ * @method array|false|Redis|RedisCluster vlinks(string $key, mixed $member, bool $withscores = false)
+ * @method array|false|Redis|RedisCluster|string vrandmember(string $key, int $count = 0)
+ * @method array|false|Redis|RedisCluster vrange(string $key, string $min, string $max, int $count = -1)
+ * @method false|int|Redis|RedisCluster vrem(string $key, mixed $member)
+ * @method false|int|Redis|RedisCluster vsetattr(string $key, mixed $member, array|string $attributes)
+ * @method array|false|Redis|RedisCluster vsim(string $key, mixed $member, array|null $options = null)
+ * @method bool|Redis|RedisCluster watch(array|string $key, string ...$other_keys)
  * @method false|int wait(int $numreplicas, int $timeout)
  * @method false|int xack(string $key, string $group, array $ids)
- * @method false|Redis|string xadd(string $key, string $id, array $values, int $maxlen = 0, bool $approx = false, bool $nomkstream = false)
- * @method array|bool|Redis xautoclaim(string $key, string $group, string $consumer, int $min_idle, string $start, int $count = -1, bool $justid = false)
- * @method array|bool|Redis xclaim(string $key, string $group, string $consumer, int $min_idle, array $ids, array $options)
- * @method false|int|Redis xdel(string $key, array $ids)
- * @method array|false|Redis xdelex(string $key, array $ids, string|null $mode = null)
+ * @method false|Redis|RedisCluster|string xadd(string $key, string $id, array $values, int $maxlen = 0, bool $approx = false, bool $nomkstream = false)
+ * @method array|bool|Redis|RedisCluster xautoclaim(string $key, string $group, string $consumer, int $min_idle, string $start, int $count = -1, bool $justid = false)
+ * @method array|bool|Redis|RedisCluster xclaim(string $key, string $group, string $consumer, int $min_idle, array $ids, array $options)
+ * @method false|int|Redis|RedisCluster xdel(string $key, array $ids)
+ * @method array|false|Redis|RedisCluster xdelex(string $key, array $ids, string|null $mode = null)
  * @method mixed xgroup(string $operation, string|null $key = null, string|null $group = null, string|null $id_or_consumer = null, bool $mkstream = false, int $entries_read = -2)
  * @method mixed xinfo(string $operation, string|null $arg1 = null, string|null $arg2 = null, int $count = -1)
- * @method false|int|Redis xlen(string $key)
- * @method array|false|Redis xpending(string $key, string $group, string|null $start = null, string|null $end = null, int $count = -1, string|null $consumer = null)
- * @method array|bool|Redis xrange(string $key, string $start, string $end, int $count = -1)
- * @method array|bool|Redis xread(array $streams, int $count = -1, int $block = -1)
- * @method array|bool|Redis xreadgroup(string $group, string $consumer, array $streams, int $count = 1, int $block = 1)
- * @method array|bool|Redis xrevrange(string $key, string $end, string $start, int $count = -1)
- * @method false|int|Redis xtrim(string $key, string $threshold, bool $approx = false, bool $minid = false, int $limit = -1)
- * @method false|float|int|Redis zAdd(string $key, array|float $score_or_options, mixed ...$more_scores_and_mems)
- * @method false|int|Redis zCard(string $key)
- * @method false|int|Redis zCount(string $key, int|string $start, int|string $end)
- * @method false|float|Redis zIncrBy(string $key, float $value, mixed $member)
- * @method false|int|Redis zLexCount(string $key, string $min, string $max)
- * @method array|false|Redis zMscore(string $key, mixed $member, mixed ...$other_members)
- * @method array|false|Redis zPopMax(string $key, int|null $count = null)
- * @method array|false|Redis zPopMin(string $key, int|null $count = null)
- * @method array|false|Redis zRange(string $key, string|int $start, string|int $end, array|bool|null $options = null)
- * @method array|false|Redis zRangeByLex(string $key, string $min, string $max, int $offset = -1, int $count = -1)
- * @method array|false|Redis zRangeByScore(string $key, string $min, string $max, array $options = [])
- * @method false|int|Redis zrangestore(string $dstkey, string $srckey, string $start, string $end, array|bool|null $options = null)
- * @method array|Redis|string zRandMember(string $key, array|null $options = null)
- * @method false|int|Redis zRank(string $key, mixed $member)
- * @method false|int|Redis zRem(mixed $key, mixed $member, mixed ...$other_members)
- * @method false|int|Redis zRemRangeByLex(string $key, string $min, string $max)
- * @method false|int|Redis zRemRangeByRank(string $key, int $start, int $end)
- * @method false|int|Redis zRemRangeByScore(string $key, string $start, string $end)
- * @method array|false|Redis zRevRange(string $key, int $start, int $end, mixed $scores = null)
- * @method array|false|Redis zRevRangeByLex(string $key, string $max, string $min, int $offset = -1, int $count = -1)
- * @method array|false|Redis zRevRangeByScore(string $key, string $max, string $min, array $options = [])
- * @method false|int|Redis zRevRank(string $key, mixed $member)
- * @method false|float|Redis zScore(string $key, mixed $member)
- * @method array|false|Redis zdiff(array $keys, array|null $options = null)
- * @method false|int|Redis zdiffstore(string $dst, array $keys)
- * @method array|false|Redis zinter(array $keys, array|null $weights = null, array|null $options = null)
- * @method false|int|Redis zintercard(array $keys, int $limit = -1)
- * @method array|false|Redis zunion(array $keys, array|null $weights = null, array|null $options = null)
+ * @method false|int|Redis|RedisCluster xlen(string $key)
+ * @method array|false|Redis|RedisCluster xpending(string $key, string $group, string|null $start = null, string|null $end = null, int $count = -1, string|null $consumer = null)
+ * @method array|bool|Redis|RedisCluster xrange(string $key, string $start, string $end, int $count = -1)
+ * @method array|bool|Redis|RedisCluster xread(array $streams, int $count = -1, int $block = -1)
+ * @method array|bool|Redis|RedisCluster xreadgroup(string $group, string $consumer, array $streams, int $count = 1, int $block = 1)
+ * @method array|bool|Redis|RedisCluster xrevrange(string $key, string $end, string $start, int $count = -1)
+ * @method false|int|Redis|RedisCluster xtrim(string $key, string $threshold, bool $approx = false, bool $minid = false, int $limit = -1)
+ * @method false|float|int|Redis|RedisCluster zAdd(string $key, array|float $score_or_options, mixed ...$more_scores_and_mems) Add members to sorted set
+ * @method false|int|Redis|RedisCluster zCard(string $key) Get sorted set cardinality
+ * @method false|int|Redis|RedisCluster zCount(string $key, int|string $start, int|string $end) Count sorted set members by score range
+ * @method false|float|Redis|RedisCluster zIncrBy(string $key, float $value, mixed $member)
+ * @method false|int|Redis|RedisCluster zLexCount(string $key, string $min, string $max)
+ * @method array|false|Redis|RedisCluster zMscore(string $key, mixed $member, mixed ...$other_members)
+ * @method array|false|Redis|RedisCluster zPopMax(string $key, int|null $count = null)
+ * @method array|false|Redis|RedisCluster zPopMin(string $key, int|null $count = null)
+ * @method array|false|Redis|RedisCluster zRange(string $key, string|int $start, string|int $end, array|bool|null $options = null)
+ * @method array|false|Redis|RedisCluster zRangeByLex(string $key, string $min, string $max, int $offset = -1, int $count = -1)
+ * @method array|false|Redis|RedisCluster zRangeByScore(string $key, float|int|string $min, float|int|string $max, array $options = []) Get sorted set members by score range
+ * @method false|int|Redis|RedisCluster zrangestore(string $dstkey, string $srckey, string $start, string $end, array|bool|null $options = null)
+ * @method array|Redis|RedisCluster|string zRandMember(string $key, array|null $options = null)
+ * @method false|int|Redis|RedisCluster zRank(string $key, mixed $member)
+ * @method false|int|Redis|RedisCluster zRem(mixed $key, mixed $member, mixed ...$other_members) Remove sorted set members
+ * @method false|int|Redis|RedisCluster zRemRangeByLex(string $key, string $min, string $max)
+ * @method false|int|Redis|RedisCluster zRemRangeByRank(string $key, int $start, int $end)
+ * @method false|int|Redis|RedisCluster zRemRangeByScore(string $key, string $start, string $end)
+ * @method array|false|Redis|RedisCluster zRevRange(string $key, int $start, int $end, mixed $scores = null)
+ * @method array|false|Redis|RedisCluster zRevRangeByLex(string $key, string $max, string $min, int $offset = -1, int $count = -1)
+ * @method array|false|Redis|RedisCluster zRevRangeByScore(string $key, float|int|string $max, float|int|string $min, array $options = []) Get sorted set members by score range (reverse)
+ * @method false|int|Redis|RedisCluster zRevRank(string $key, mixed $member)
+ * @method false|float|Redis|RedisCluster zScore(string $key, mixed $member)
+ * @method array|false|Redis|RedisCluster zdiff(array $keys, array|null $options = null)
+ * @method false|int|Redis|RedisCluster zdiffstore(string $dst, array $keys)
+ * @method array|false|Redis|RedisCluster zinter(array $keys, array|null $weights = null, array|null $options = null)
+ * @method false|int|Redis|RedisCluster zintercard(array $keys, int $limit = -1)
+ * @method array|false|Redis|RedisCluster zunion(array $keys, array|null $weights = null, array|null $options = null)
  */
 abstract class RedisConnection extends BaseConnection
 {
@@ -409,6 +409,10 @@ abstract class RedisConnection extends BaseConnection
             || ($name === 'unwatch' && $result !== false)
         ) {
             $this->watching = false;
+        }
+
+        if ($name === 'select' && $result === true && array_key_exists(0, $arguments)) {
+            $this->database = (int) $arguments[0];
         }
 
         return $result;
@@ -756,16 +760,23 @@ abstract class RedisConnection extends BaseConnection
         }
 
         try {
-            // Cluster connections never select logical databases and omit this config member.
-            if ($this->database !== null) {
+            if ($this->connection instanceof Redis) {
                 $defaultDatabase = $this->config['database'];
 
-                if ($this->database !== $defaultDatabase) {
-                    $this->select($defaultDatabase);
+                if (! $this->connection->isConnected()) {
+                    $this->markInvalid();
+                } elseif ($this->connection->getDBNum() !== $defaultDatabase) {
+                    if ($this->select($defaultDatabase) !== true) {
+                        throw new ConnectionException(
+                            "Failed to select Redis database [{$defaultDatabase}] on connection [{$this->getName()}]."
+                        );
+                    }
                 }
             }
         } catch (Throwable $exception) {
             $this->markInvalid();
+            // A connected client would otherwise replay its rejected database during reconnect.
+            $this->close();
 
             try {
                 $this->log('Release connection failed, caused by ' . $exception, LogLevel::CRITICAL);
@@ -805,14 +816,6 @@ abstract class RedisConnection extends BaseConnection
     public function clearWatchState(): void
     {
         $this->watching = false;
-    }
-
-    /**
-     * Set current redis database.
-     */
-    public function setDatabase(?int $database): void
-    {
-        $this->database = $database;
     }
 
     /**
@@ -968,7 +971,7 @@ abstract class RedisConnection extends BaseConnection
     /**
      * Returns the value of the given key.
      */
-    protected function callGet(string $key): ?string
+    protected function callGet(string $key): mixed
     {
         $result = $this->connection->get($key);
 
@@ -978,15 +981,22 @@ abstract class RedisConnection extends BaseConnection
     /**
      * Get the values of all the given keys.
      */
-    protected function callMget(array $keys): array
+    protected function callMget(array $keys): array|false
     {
         if ($keys === []) {
             return [];
         }
 
-        return array_map(function ($value) {
-            return $value !== false ? $value : null;
-        }, $this->connection->mGet($keys));
+        $values = $this->connection->mGet($keys);
+
+        if ($values === false) {
+            return false;
+        }
+
+        return array_map(
+            static fn (mixed $value): mixed => $value !== false ? $value : null,
+            $values,
+        );
     }
 
     /**
@@ -1007,10 +1017,11 @@ abstract class RedisConnection extends BaseConnection
     /**
      * Set the string value in the argument as the value of the key.
      */
-    protected function callSet(string $key, mixed $value, ?string $expireResolution = null, ?int $expireTTL = null, ?string $flag = null): bool
+    protected function callSet(string $key, mixed $value, mixed $expireResolution = null, ?int $expireTTL = null, ?string $flag = null): mixed
     {
         [$method, $args] = $this->prepareSet($key, $value, $expireResolution, $expireTTL, $flag);
 
+        // SET with GET returns the previous decoded value; false may mean there was no previous value.
         return $this->connection->{$method}(...$args);
     }
 
@@ -1038,13 +1049,17 @@ abstract class RedisConnection extends BaseConnection
     /**
      * Get the value of the given hash fields.
      */
-    protected function callHmget(string $key, mixed ...$dictionary): array
+    protected function callHmget(string $key, mixed ...$dictionary): array|false
     {
         [$method, $args] = $this->prepareHmget($key, ...$dictionary);
 
-        return array_values(
-            $this->connection->{$method}(...$args)
-        );
+        $values = $this->connection->{$method}(...$args);
+
+        if ($values === false) {
+            return false;
+        }
+
+        return array_values($values);
     }
 
     /**
@@ -1175,7 +1190,7 @@ abstract class RedisConnection extends BaseConnection
     /**
      * Add one or more members to a sorted set or update its score if it already exists.
      */
-    protected function callZadd(string $key, mixed ...$dictionary): int
+    protected function callZadd(string $key, mixed ...$dictionary): false|float|int
     {
         [$method, $args] = $this->prepareZadd($key, ...$dictionary);
 
@@ -1205,7 +1220,7 @@ abstract class RedisConnection extends BaseConnection
     /**
      * Return elements with score between $min and $max.
      */
-    protected function callZrangebyscore(string $key, mixed $min, mixed $max, array $options = []): array
+    protected function callZrangebyscore(string $key, float|int|string $min, float|int|string $max, array $options = []): array|false
     {
         [$method, $args] = $this->prepareZrangebyscore($key, $min, $max, $options);
 
@@ -1235,7 +1250,7 @@ abstract class RedisConnection extends BaseConnection
     /**
      * Return elements with score between $max and $min in reverse order.
      */
-    protected function callZrevrangebyscore(string $key, mixed $max, mixed $min, array $options = []): array
+    protected function callZrevrangebyscore(string $key, float|int|string $max, float|int|string $min, array $options = []): array|false
     {
         [$method, $args] = $this->prepareZrevrangebyscore($key, $max, $min, $options);
 
@@ -1258,7 +1273,7 @@ abstract class RedisConnection extends BaseConnection
     /**
      * Find the intersection between sets and store in a new set.
      */
-    protected function callZinterstore(string $output, array $keys, array $options = []): int
+    protected function callZinterstore(string $output, array $keys, array $options = []): false|int
     {
         [$method, $args] = $this->prepareZinterstore($output, $keys, $options);
 
@@ -1281,7 +1296,7 @@ abstract class RedisConnection extends BaseConnection
     /**
      * Find the union between sets and store in a new set.
      */
-    protected function callZunionstore(string $output, array $keys, array $options = []): int
+    protected function callZunionstore(string $output, array $keys, array $options = []): false|int
     {
         [$method, $args] = $this->prepareZunionstore($output, $keys, $options);
 

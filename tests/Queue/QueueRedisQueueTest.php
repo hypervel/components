@@ -244,15 +244,14 @@ class QueueRedisQueueTest extends TestCase
 
     public function testDelayedPushProperlyPushesJobOntoRedis(): void
     {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
         $now = CarbonImmutable::now();
-        CarbonImmutable::setTestNow($now);
         $uuid = $this->mockUuid();
 
-        $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['availableAt', 'getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
+        $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
         $queue->setContainer($container = m::spy(Container::class));
         $queue->setConnectionName('default');
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
-        $queue->expects($this->once())->method('availableAt')->with(1)->willReturn(2);
 
         $redisProxy = m::mock(RedisProxy::class);
         $redisProxy->shouldReceive('isCluster')->once()->andReturn(false);
@@ -260,7 +259,7 @@ class QueueRedisQueueTest extends TestCase
             LuaScripts::later(),
             1,
             'queues:default:delayed',
-            2,
+            1002,
             json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => 1])
         );
         $redis->shouldReceive('connection')->twice()->andReturn($redisProxy);
@@ -272,16 +271,15 @@ class QueueRedisQueueTest extends TestCase
 
     public function testDelayedPushWithDateTimeProperlyPushesJobOntoRedis(): void
     {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
         $now = CarbonImmutable::now();
-        CarbonImmutable::setTestNow($now);
         $uuid = $this->mockUuid();
 
-        $date = CarbonImmutable::now()->addSeconds(5);
-        $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['availableAt', 'getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
+        $date = CarbonImmutable::createFromTimestampUTC('1001.100000');
+        $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
         $queue->setContainer($container = m::spy(Container::class));
         $queue->setConnectionName('default');
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
-        $queue->expects($this->once())->method('availableAt')->with($date)->willReturn(5);
 
         $redisProxy = m::mock(RedisProxy::class);
         $redisProxy->shouldReceive('isCluster')->once()->andReturn(false);
@@ -289,12 +287,39 @@ class QueueRedisQueueTest extends TestCase
             LuaScripts::later(),
             1,
             'queues:default:delayed',
-            5,
-            json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => 5])
+            1002,
+            json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => 1])
         );
         $redis->shouldReceive('connection')->twice()->andReturn($redisProxy);
 
         $queue->later($date, 'foo', ['data']);
+        $container->shouldHaveReceived('bound')->with('events')->twice();
+    }
+
+    public function testDelayedPushWithIntervalNeverRunsBeforeRequestedLifetime(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+        $now = CarbonImmutable::now();
+        $uuid = $this->mockUuid();
+        $delay = new DateInterval('PT1S');
+
+        $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
+        $queue->setContainer($container = m::spy(Container::class));
+        $queue->setConnectionName('default');
+        $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
+
+        $redisProxy = m::mock(RedisProxy::class);
+        $redisProxy->shouldReceive('isCluster')->once()->andReturn(false);
+        $redisProxy->shouldReceive('eval')->once()->with(
+            LuaScripts::later(),
+            1,
+            'queues:default:delayed',
+            1002,
+            json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => 1])
+        );
+        $redis->shouldReceive('connection')->twice()->andReturn($redisProxy);
+
+        $queue->later($delay, 'foo', ['data']);
         $container->shouldHaveReceived('bound')->with('events')->twice();
     }
 
@@ -486,11 +511,9 @@ class QueueRedisQueueTest extends TestCase
 
     public function testPopUsesClusterSafeRedisKeys(): void
     {
-        $queue = $this->getMockBuilder(RedisQueue::class)
-            ->onlyMethods(['availableAt'])
-            ->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])
-            ->getMock();
-        $queue->expects($this->once())->method('availableAt')->with(60)->willReturn(123);
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+
+        $queue = new RedisQueue($redis = m::mock(Redis::class), 'default', 'default');
 
         $redisProxy = m::mock(RedisProxy::class);
         $redisProxy->shouldReceive('isCluster')->once()->andReturn(true);
@@ -518,7 +541,7 @@ class QueueRedisQueueTest extends TestCase
             'queues:{default}',
             'queues:{default}:reserved',
             'queues:{default}:notify',
-            123
+            1061
         )->andReturn([]);
         $redis->shouldReceive('connection')->times(4)->andReturn($redisProxy);
 
@@ -587,11 +610,9 @@ class QueueRedisQueueTest extends TestCase
 
     public function testDeleteAndReleaseUsesClusterSafeRedisKeys(): void
     {
-        $queue = $this->getMockBuilder(RedisQueue::class)
-            ->onlyMethods(['availableAt'])
-            ->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])
-            ->getMock();
-        $queue->expects($this->once())->method('availableAt')->with(30)->willReturn(456);
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+
+        $queue = new RedisQueue($redis = m::mock(Redis::class), 'default', 'default');
 
         $job = m::mock(RedisJob::class);
         $job->shouldReceive('getReservedJob')->once()->andReturn('reserved-payload');
@@ -604,7 +625,7 @@ class QueueRedisQueueTest extends TestCase
             'queues:{emails}:delayed',
             'queues:{emails}:reserved',
             'reserved-payload',
-            456
+            1031
         );
         $redis->shouldReceive('connection')->twice()->andReturn($redisProxy);
 

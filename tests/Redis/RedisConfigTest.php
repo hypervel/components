@@ -601,7 +601,7 @@ class RedisConfigTest extends TestCase
         $this->assertSame(6380, $connectionConfig['port']);
         $this->assertSame('myuser', $connectionConfig['username']);
         $this->assertSame('secret', $connectionConfig['password']);
-        $this->assertSame('3', $connectionConfig['database']);
+        $this->assertSame(3, $connectionConfig['database']);
     }
 
     public function testConnectionConfigUrlOverridesExplicitValues(): void
@@ -622,7 +622,7 @@ class RedisConfigTest extends TestCase
 
         $this->assertSame('urlhost', $connectionConfig['host']);
         $this->assertSame(6380, $connectionConfig['port']);
-        $this->assertSame('2', $connectionConfig['database']);
+        $this->assertSame(2, $connectionConfig['database']);
     }
 
     public function testConnectionConfigWithoutUrlPreservesExplicitValues(): void
@@ -645,6 +645,24 @@ class RedisConfigTest extends TestCase
         $this->assertSame(0, $connectionConfig['database']);
     }
 
+    public function testConnectionConfigNormalizesExplicitStringDatabase(): void
+    {
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'options' => [],
+            'default' => [
+                'host' => '127.0.0.1',
+                'port' => 6379,
+                'database' => '4',
+                'options' => [],
+            ],
+        ]);
+
+        $connectionConfig = (new RedisConfig($config))->connectionConfig('default');
+
+        $this->assertSame(4, $connectionConfig['database']);
+    }
+
     public function testConnectionConfigAcceptsUrlOnlyConnection(): void
     {
         $config = m::mock(Repository::class);
@@ -659,6 +677,7 @@ class RedisConfigTest extends TestCase
         $connection = (new RedisConfig($config))->connectionConfig('default');
 
         $this->assertSame('127.0.0.1', $connection['host']);
+        $this->assertSame(0, $connection['database']);
     }
 
     public function testConnectionConfigThrowsWhenClusterAndSentinelBothEnabled(): void

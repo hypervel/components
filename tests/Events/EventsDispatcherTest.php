@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Events\EventsDispatcherTest;
 
+use Closure;
 use Error;
 use Exception;
 use Hypervel\Container\Container;
@@ -22,7 +23,7 @@ use Hypervel\Tests\Events\Fixtures\UnlistenedEvent;
 use Hypervel\Tests\Events\Fixtures\UnlistenedStringEvent;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use ReflectionProperty;
+use ReflectionClass;
 use RuntimeException;
 
 class EventsDispatcherTest extends TestCase
@@ -419,7 +420,7 @@ class EventsDispatcherTest extends TestCase
         $this->assertEquals(['regular', 'wildcard'], $response);
     }
 
-    public function testWildcardListenersCacheFlushing()
+    public function testAddingWildcardListenerChangesResolvedListeners()
     {
         unset($_SERVER['__event.test']);
         $d = new Dispatcher;
@@ -462,7 +463,7 @@ class EventsDispatcherTest extends TestCase
         $this->assertFalse(isset($_SERVER['__event.test']));
     }
 
-    public function testWildcardCacheIsClearedWhenListenersAreRemoved()
+    public function testForgettingWildcardRemovesResolvedListeners()
     {
         unset($_SERVER['__event.test']);
 
@@ -569,7 +570,7 @@ class EventsDispatcherTest extends TestCase
         $this->assertFalse(class_exists(UnlistenedStringEvent::class, false));
     }
 
-    public function testHasListenersCacheIsClearedWhenInterfaceListenerIsAddedOrForgotten(): void
+    public function testHasListenersReflectsInterfaceListenerRegistrationAndRemoval(): void
     {
         $d = new Dispatcher;
 
@@ -643,126 +644,38 @@ class EventsDispatcherTest extends TestCase
         $this->assertFalse($d->hasListeners('Other\Event'));
     }
 
-    public function testHasListenersCachesFalseResult(): void
+    public function testHasListenersReflectsExactListenerRegistrationAndRemoval(): void
     {
         $d = new Dispatcher;
 
-        // First call — uncached, scans listeners and wildcards.
-        $this->assertFalse($d->hasListeners('nonexistent'));
-
-        // Second call — should hit cache and still return false.
-        $this->assertFalse($d->hasListeners('nonexistent'));
-
-        // Verify the cache is populated by reading the protected property.
-        $cache = (new ReflectionProperty($d, 'hasListenersCache'))->getValue($d);
-        $this->assertArrayHasKey('nonexistent', $cache);
-        $this->assertFalse($cache['nonexistent']);
-    }
-
-    public function testHasListenersCachesTrueResult(): void
-    {
-        $d = new Dispatcher;
-        $d->listen('foo', function () {});
-
-        // First call — uncached.
-        $this->assertTrue($d->hasListeners('foo'));
-
-        // Second call — should hit cache.
-        $this->assertTrue($d->hasListeners('foo'));
-
-        $cache = (new ReflectionProperty($d, 'hasListenersCache'))->getValue($d);
-        $this->assertArrayHasKey('foo', $cache);
-        $this->assertTrue($cache['foo']);
-    }
-
-    public function testHasListenersCacheIsClearedWhenListenerIsAdded(): void
-    {
-        $d = new Dispatcher;
-
-        // Populate cache with false.
         $this->assertFalse($d->hasListeners('bar'));
-
-        // Adding a listener should clear the cache.
         $d->listen('bar', function () {});
-
-        // Now should return true (not the stale cached false).
         $this->assertTrue($d->hasListeners('bar'));
+        $d->forget('bar');
+        $this->assertFalse($d->hasListeners('bar'));
     }
 
-    public function testHasListenersCacheIsClearedWhenWildcardIsAdded(): void
+    public function testHasListenersReflectsWildcardListenerRegistrationAndRemoval(): void
     {
         $d = new Dispatcher;
 
-        // Populate cache with false for a specific event.
-        $this->assertFalse($d->hasListeners('foo.bar'));
-
-        // Adding a wildcard that matches should clear the cache.
-        $d->listen('foo.*', function () {});
-
-        // Now should return true.
-        $this->assertTrue($d->hasListeners('foo.bar'));
-    }
-
-    public function testHasListenersCacheIsClearedOnForget(): void
-    {
-        $d = new Dispatcher;
-        $d->listen('baz', function () {});
-
-        // Populate cache with true.
-        $this->assertTrue($d->hasListeners('baz'));
-
-        // Forgetting should clear the cache.
-        $d->forget('baz');
-
-        // Now should return false (not the stale cached true).
-        $this->assertFalse($d->hasListeners('baz'));
-    }
-
-    public function testHasListenersCacheIsClearedOnForgetWildcard(): void
-    {
-        $d = new Dispatcher;
+        $this->assertFalse($d->hasListeners('ns.event'));
         $d->listen('ns.*', function () {});
-
-        // Populate cache.
         $this->assertTrue($d->hasListeners('ns.event'));
-
-        // Forget the wildcard.
         $d->forget('ns.*');
-
-        // Should no longer have listeners.
         $this->assertFalse($d->hasListeners('ns.event'));
     }
 
-    public function testHasListenersCacheWithWildcardMatch(): void
+    public function testHasListenersChecksEachEventNameIndependently(): void
     {
         $d = new Dispatcher;
         $d->listen('app.*', function () {});
-
-        // First call — wildcard scan finds the match, caches true.
-        $this->assertTrue($d->hasListeners('app.started'));
-
-        // Second call — hits cache, no wildcard rescan.
-        $this->assertTrue($d->hasListeners('app.started'));
-
-        // Different event under same wildcard — separate cache entry.
-        $this->assertTrue($d->hasListeners('app.stopped'));
-
-        $cache = (new ReflectionProperty($d, 'hasListenersCache'))->getValue($d);
-        $this->assertArrayHasKey('app.started', $cache);
-        $this->assertArrayHasKey('app.stopped', $cache);
-    }
-
-    public function testHasListenersCacheIsIndependentPerEventName(): void
-    {
-        $d = new Dispatcher;
         $d->listen('exists', function () {});
 
+        $this->assertTrue($d->hasListeners('app.started'));
+        $this->assertTrue($d->hasListeners('app.stopped'));
         $this->assertTrue($d->hasListeners('exists'));
         $this->assertFalse($d->hasListeners('does_not_exist'));
-
-        $cache = (new ReflectionProperty($d, 'hasListenersCache'))->getValue($d);
-        $this->assertTrue($cache['exists']);
-        $this->assertFalse($cache['does_not_exist']);
     }
 
     public function testEventPassedFirstToWildcards()
@@ -897,6 +810,112 @@ class EventsDispatcherTest extends TestCase
         $d->listen(ExampleEvent::class, 'Listener3');
         $listeners = $d->getListeners(ExampleEvent::class);
         $this->assertCount(3, $listeners);
+    }
+
+    public function testRegisteredHandlerBucketsArePreparedLazilyOnceAndReused(): void
+    {
+        $dispatcher = new PreparationCountingDispatcher;
+        $dispatcher->listen('exact.event', static function (): void {});
+        $dispatcher->listen('orders.*', static function (): void {});
+        $dispatcher->listen(SomeEventInterface::class, static function (): void {});
+        $dispatcher->observe('exact.observer', static function (): void {});
+        $dispatcher->observe('metrics.*', static function (): void {});
+
+        $this->assertSame(0, $dispatcher->listenerPreparationCount);
+        $this->assertSame(0, $dispatcher->observerPreparationCount);
+
+        $exactListeners = $dispatcher->getListeners('exact.event');
+        $this->assertSame($exactListeners, $dispatcher->getListeners('exact.event'));
+        $firstWildcardListeners = $dispatcher->getListeners('orders.created');
+        $secondWildcardListeners = $dispatcher->getListeners('orders.shipped');
+        $this->assertSame($firstWildcardListeners[0], $secondWildcardListeners[0]);
+        $interfaceListeners = $dispatcher->getListeners(AnotherEvent::class);
+        $this->assertSame($interfaceListeners, $dispatcher->getListeners(AnotherEvent::class));
+
+        $exactObservers = $dispatcher->getObservers('exact.observer');
+        $this->assertSame($exactObservers, $dispatcher->getObservers('exact.observer'));
+        $firstWildcardObservers = $dispatcher->getObservers('metrics.first');
+        $secondWildcardObservers = $dispatcher->getObservers('metrics.second');
+        $this->assertSame($firstWildcardObservers[0], $secondWildcardObservers[0]);
+
+        $this->assertSame(3, $dispatcher->listenerPreparationCount);
+        $this->assertSame(2, $dispatcher->observerPreparationCount);
+    }
+
+    public function testListenersAndObserversRetainTheirResolutionOrder(): void
+    {
+        $dispatcher = new Dispatcher;
+        $order = [];
+        $dispatcher->listen(AnotherEvent::class, static function () use (&$order): void {
+            $order[] = 'exact-listener';
+        });
+        $dispatcher->listen(__NAMESPACE__ . '\*', static function () use (&$order): void {
+            $order[] = 'wildcard-listener';
+        });
+        $dispatcher->listen(SomeEventInterface::class, static function () use (&$order): void {
+            $order[] = 'interface-listener';
+        });
+        $dispatcher->observe(AnotherEvent::class, static function () use (&$order): void {
+            $order[] = 'exact-observer';
+        });
+        $dispatcher->observe(__NAMESPACE__ . '\*', static function () use (&$order): void {
+            $order[] = 'wildcard-observer';
+        });
+
+        $dispatcher->dispatch(new AnotherEvent);
+
+        $this->assertSame([
+            'exact-listener',
+            'wildcard-listener',
+            'interface-listener',
+            'exact-observer',
+            'wildcard-observer',
+        ], $order);
+    }
+
+    public function testInterfaceListenersFollowDirectImplementsClauseOrder(): void
+    {
+        $dispatcher = new Dispatcher;
+        $order = [];
+        $dispatcher->listen(SecondOrderedEventInterface::class, static function () use (&$order): void {
+            $order[] = 'second';
+        });
+        $dispatcher->listen(FirstOrderedEventInterface::class, static function () use (&$order): void {
+            $order[] = 'first';
+        });
+
+        $dispatcher->dispatch(new OrderedInterfaceEvent);
+
+        $this->assertSame(['first', 'second'], $order);
+    }
+
+    public function testRuntimeEventNamesDoNotGrowDispatcherState(): void
+    {
+        $dispatcher = new Dispatcher;
+        $dispatcher->listen('fixed.event', static function (): void {});
+        $dispatcher->listen('dynamic.*', static function (): void {});
+        $dispatcher->listen(SomeEventInterface::class, static function (): void {});
+        $dispatcher->observe('fixed.observer', static function (): void {});
+        $dispatcher->observe('observed.*', static function (): void {});
+
+        $dispatcher->getListeners('fixed.event');
+        $dispatcher->getListeners('dynamic.warm');
+        $dispatcher->getListeners(AnotherEvent::class);
+        $dispatcher->getObservers('fixed.observer');
+        $dispatcher->getObservers('observed.warm');
+
+        $state = $this->arrayPropertyEntryCounts($dispatcher);
+
+        for ($index = 0; $index < 200; ++$index) {
+            $dispatcher->hasListeners("dynamic.{$index}");
+            $dispatcher->getListeners("dynamic.{$index}");
+            $dispatcher->getListeners("unmatched.{$index}");
+            $dispatcher->getListeners("Dynamic\\Missing\\Event{$index}");
+            $dispatcher->dispatch("dynamic.{$index}");
+            $dispatcher->dispatch("observed.{$index}");
+        }
+
+        $this->assertSame($state, $this->arrayPropertyEntryCounts($dispatcher));
     }
 
     public function testListenersObjectsCreationOrder()
@@ -1336,7 +1355,7 @@ class EventsDispatcherTest extends TestCase
         $this->assertArrayNotHasKey('bar', $d2->getRawListeners());
     }
 
-    public function testObserverCacheIsInvalidatedOnNewObserver()
+    public function testAddingObserverChangesResolvedObservers()
     {
         $d = new Dispatcher;
         $first = false;
@@ -1360,7 +1379,7 @@ class EventsDispatcherTest extends TestCase
         $this->assertTrue($second);
     }
 
-    public function testHasListenersCacheNotAffectedByObservers()
+    public function testObserversDoNotAffectHasListeners()
     {
         $d = new Dispatcher;
 
@@ -1453,6 +1472,48 @@ class EventsDispatcherTest extends TestCase
 
         $this->assertSame([$first, $second], $events);
     }
+
+    private function arrayPropertyEntryCounts(Dispatcher $dispatcher): array
+    {
+        $counts = [];
+
+        foreach ((new ReflectionClass($dispatcher))->getProperties() as $property) {
+            if ($property->isStatic() || ! $property->isInitialized($dispatcher)) {
+                continue;
+            }
+
+            $value = $property->getValue($dispatcher);
+
+            if (is_array($value)) {
+                $counts[$property->getName()] = count($value, COUNT_RECURSIVE);
+            }
+        }
+
+        ksort($counts);
+
+        return $counts;
+    }
+}
+
+class PreparationCountingDispatcher extends Dispatcher
+{
+    public int $listenerPreparationCount = 0;
+
+    public int $observerPreparationCount = 0;
+
+    public function makeListener(array|object|string $listener, bool $wildcard = false): Closure
+    {
+        ++$this->listenerPreparationCount;
+
+        return parent::makeListener($listener, $wildcard);
+    }
+
+    protected function makeObserver(array|object|string $observer): Closure
+    {
+        ++$this->observerPreparationCount;
+
+        return parent::makeObserver($observer);
+    }
 }
 
 class TestListenerLean
@@ -1501,6 +1562,18 @@ interface SomeEventInterface
 }
 
 class AnotherEvent implements SomeEventInterface
+{
+}
+
+interface FirstOrderedEventInterface
+{
+}
+
+interface SecondOrderedEventInterface
+{
+}
+
+class OrderedInterfaceEvent implements FirstOrderedEventInterface, SecondOrderedEventInterface
 {
 }
 

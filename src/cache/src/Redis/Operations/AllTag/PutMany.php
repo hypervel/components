@@ -8,8 +8,6 @@ use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
 
-use function Hypervel\Support\now;
-
 /**
  * Store multiple items in the cache with all tag tracking.
  *
@@ -31,7 +29,7 @@ class PutMany
      * Execute the putMany operation with tag tracking.
      *
      * @param array<string, mixed> $values Key-value pairs (keys already namespaced)
-     * @param int $seconds TTL in seconds
+     * @param int $seconds TTL in seconds; values below one are stored for one second
      * @param array<string> $tagIds Array of tag identifiers
      * @param string $namespace The namespace prefix for keys (for building namespaced keys)
      * @return bool True if all operations successful
@@ -41,6 +39,8 @@ class PutMany
         if (empty($values)) {
             return true;
         }
+
+        $seconds = max(1, $seconds);
 
         if ($this->context->isCluster()) {
             return $this->executeCluster($values, $seconds, $tagIds, $namespace);
@@ -59,8 +59,7 @@ class PutMany
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($values, $seconds, $tagIds, $namespace): bool {
             $prefix = $this->context->prefix();
-            $score = now()->addSeconds($seconds)->getTimestamp();
-            $ttl = max(1, $seconds);
+            $score = $this->context->expirationScore($seconds);
 
             // Prepare all data up front
             $preparedEntries = [];
@@ -86,7 +85,7 @@ class PutMany
 
             // Then all SETEXs
             foreach ($preparedEntries as $namespacedKey => $serialized) {
-                $pipeline->setex($prefix . $namespacedKey, $ttl, $serialized);
+                $pipeline->setex($prefix . $namespacedKey, $seconds, $serialized);
             }
 
             $results = $pipeline->exec();
@@ -106,8 +105,7 @@ class PutMany
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($values, $seconds, $tagIds, $namespace): bool {
             $prefix = $this->context->prefix();
-            $score = now()->addSeconds($seconds)->getTimestamp();
-            $ttl = max(1, $seconds);
+            $score = $this->context->expirationScore($seconds);
 
             // Prepare all data up front
             $preparedEntries = [];
@@ -132,7 +130,7 @@ class PutMany
             // Then all SETEXs
             $allSucceeded = true;
             foreach ($preparedEntries as $namespacedKey => $serialized) {
-                if (! $connection->setex($prefix . $namespacedKey, $ttl, $serialized)) {
+                if (! $connection->setex($prefix . $namespacedKey, $seconds, $serialized)) {
                     $allSucceeded = false;
                 }
             }

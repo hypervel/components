@@ -63,6 +63,10 @@ Hypervel implements this with coroutine context. Child coroutines start with a f
 
 The `worker-array` store keeps values for the lifetime of the current worker process. Values are shared by all requests, jobs, tasks, and coroutines handled by that worker. They are not shared across worker processes, servers, or restarts.
 
+The same boundary applies to `worker-array` locks: they coordinate work only within one worker. When a lock must span workers, use a store shared by those workers, such as Swoole within one application node or Redis across servers.
+
+Expired values and locks are removed when accessed, and later mutations also reclaim expired records that are no longer accessed. Values stored forever and locks without an expiration remain until they are explicitly removed, flushed, or the worker exits.
+
 Use `array` for request-local test and scratch data. Use `worker-array` only when worker-local persistence is the intended behavior:
 
 ```php

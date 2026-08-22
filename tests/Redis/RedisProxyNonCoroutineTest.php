@@ -37,7 +37,7 @@ class RedisProxyNonCoroutineTest extends TestCase
 
     public function testSelectPinsConnectionUntilTerminalCleanup(): void
     {
-        $this->assertCommandPinsConnection('select', [2], true, 2);
+        $this->assertCommandPinsConnection('select', [2], true);
     }
 
     public function testWatchPinsConnectionUntilTerminalCleanup(): void
@@ -52,7 +52,6 @@ class RedisProxyNonCoroutineTest extends TestCase
         string $command,
         array $arguments,
         mixed $result,
-        ?int $selectedDatabase = null,
     ): void {
         $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('shouldTransform')->andReturnSelf();
@@ -60,10 +59,6 @@ class RedisProxyNonCoroutineTest extends TestCase
         $connection->shouldReceive('getEventDispatcher')->andReturnNull();
         $connection->expects($command)->with(...$arguments)->andReturn($result);
         $connection->expects('release');
-
-        if ($selectedDatabase !== null) {
-            $connection->expects('setDatabase')->with($selectedDatabase);
-        }
 
         $pool = m::mock(RedisPool::class);
         $pool->expects('get')->andReturn($connection);

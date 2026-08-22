@@ -84,21 +84,7 @@ class FileStore implements CanFlushLocks, LockProvider, Store
      */
     public function put(string $key, mixed $value, int $seconds): bool
     {
-        $this->ensureCacheDirectoryExists($path = $this->path($key));
-
-        $result = $this->files->put(
-            $path,
-            $this->expirationHeader($seconds) . serialize($value),
-            true
-        );
-
-        if ($result !== false && $result > 0) {
-            $this->ensurePermissionsAreCorrect($path);
-
-            return true;
-        }
-
-        return false;
+        return $this->putWithExpiresAt($key, $value, $this->expiration($seconds));
     }
 
     /**
@@ -122,7 +108,7 @@ class FileStore implements CanFlushLocks, LockProvider, Store
 
         if (empty($expire) || $this->currentTime() >= $expire) {
             $file->truncate()
-                ->write($this->expirationHeader($seconds) . serialize($value))
+                ->write($this->expiresAtHeader($this->expiration($seconds)) . serialize($value))
                 ->close();
 
             $this->ensurePermissionsAreCorrect($path);
@@ -170,7 +156,7 @@ class FileStore implements CanFlushLocks, LockProvider, Store
         }
 
         $file->truncate()
-            ->write($this->expirationHeader($seconds) . serialize($expectedOwner))
+            ->write($this->expiresAtHeader($this->expiration($seconds)) . serialize($expectedOwner))
             ->close();
 
         $this->ensurePermissionsAreCorrect($path);
@@ -204,9 +190,16 @@ class FileStore implements CanFlushLocks, LockProvider, Store
     public function increment(string $key, int $value = 1): int
     {
         $raw = $this->getPayload($key);
+        $expiresAt = $raw['expiresAt'] ?? null;
 
-        return tap(((int) $raw['data']) + $value, function ($newValue) use ($key, $raw) {
-            $this->put($key, $newValue, $raw['time'] ?? 0);
+        return tap(((int) $raw['data']) + $value, function (int $newValue) use ($key, $raw, $expiresAt): void {
+            if ($expiresAt === null) {
+                $this->put($key, $newValue, $raw['time'] ?? 0);
+
+                return;
+            }
+
+            $this->putWithExpiresAt($key, $newValue, $expiresAt);
         });
     }
 
@@ -419,7 +412,31 @@ class FileStore implements CanFlushLocks, LockProvider, Store
     }
 
     /**
+     * Store an item with an absolute expiration timestamp.
+     */
+    protected function putWithExpiresAt(string $key, mixed $value, int $expiresAt): bool
+    {
+        $this->ensureCacheDirectoryExists($path = $this->path($key));
+
+        $result = $this->files->put(
+            $path,
+            $this->expiresAtHeader($expiresAt) . serialize($value),
+            true
+        );
+
+        if ($result !== false && $result > 0) {
+            $this->ensurePermissionsAreCorrect($path);
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Retrieve an item and expiry time from the cache by key.
+     *
+     * @return array{data: mixed, time: ?int, expiresAt: ?int}
      */
     protected function getPayload(string $key): array
     {
@@ -429,19 +446,21 @@ class FileStore implements CanFlushLocks, LockProvider, Store
         // just return null. Otherwise, we'll get the contents of the file and get
         // the expiration UNIX timestamps from the start of the file's contents.
         try {
-            $expire = (int) substr(
+            $expiresAt = (int) substr(
                 $contents = $this->files->get($path, true),
                 0,
                 10
             );
-        } catch (Exception $e) {
+        } catch (Exception) {
             return $this->emptyPayload();
         }
 
         // If the current time is greater than expiration timestamps we will delete
         // the file and return null. This helps clean up the old files and keeps
         // this directory much cleaner for us as old files aren't hanging out.
-        if ($this->currentTime() >= $expire) {
+        $currentTime = $this->currentTime();
+
+        if ($currentTime >= $expiresAt) {
             $this->forget($key);
 
             return $this->emptyPayload();
@@ -449,18 +468,16 @@ class FileStore implements CanFlushLocks, LockProvider, Store
 
         try {
             $data = $this->unserialize(substr($contents, 10));
-        } catch (Exception $e) {
+        } catch (Exception) {
             $this->forget($key);
 
             return $this->emptyPayload();
         }
 
-        // Next, we'll extract the number of seconds that are remaining for a cache
-        // so that we can properly retain the time for things like the increment
-        // operation that may be performed on this cache on a later operation.
-        $time = $expire - $this->currentTime();
+        // Keep Laravel's remaining duration for subclasses; internal rewrites use the exact deadline.
+        $time = $expiresAt - $currentTime;
 
-        return compact('data', 'time');
+        return compact('data', 'time', 'expiresAt');
     }
 
     /**
@@ -481,10 +498,12 @@ class FileStore implements CanFlushLocks, LockProvider, Store
 
     /**
      * Get a default empty payload for the cache.
+     *
+     * @return array{data: mixed, time: ?int, expiresAt: ?int}
      */
     protected function emptyPayload(): array
     {
-        return ['data' => null, 'time' => null];
+        return ['data' => null, 'time' => null, 'expiresAt' => null];
     }
 
     /**
@@ -510,9 +529,9 @@ class FileStore implements CanFlushLocks, LockProvider, Store
     /**
      * Get the fixed-width expiration header for a cache item.
      */
-    protected function expirationHeader(int $seconds): string
+    protected function expiresAtHeader(int $expiresAt): string
     {
-        return sprintf('%010d', $this->expiration($seconds));
+        return sprintf('%010d', $expiresAt);
     }
 
     /**

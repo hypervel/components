@@ -207,6 +207,138 @@ class CacheFileStoreTest extends TestCase
         $this->assertSame('Hello World', (new FileStore($files, __DIR__))->get('foo'));
     }
 
+    public function testFractionalSecondWritesPreserveTheRequestedValueAndLockLifetime(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+        $tempDir = ParallelTesting::tempDir('CacheFileStoreTest-fractional-expiry');
+        (new Filesystem)->deleteDirectory($tempDir);
+        mkdir($tempDir, 0777, true);
+
+        try {
+            $store = new FileStore(new Filesystem, $tempDir);
+            $lock = $store->lock('boundary', 1, 'owner');
+
+            $this->assertTrue($store->put('foo', 'bar', 1));
+            $this->assertTrue($lock->acquire());
+            $this->assertStringStartsWith('0000001002', file_get_contents($store->path('foo')));
+
+            CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1001.000000'));
+
+            $this->assertSame('bar', $store->get('foo'));
+            $this->assertTrue($lock->isOwnedByCurrentProcess());
+
+            CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1002.000000'));
+
+            $this->assertNull($store->get('foo'));
+            $this->assertFalse($lock->isOwnedByCurrentProcess());
+        } finally {
+            (new Filesystem)->deleteDirectory($tempDir);
+        }
+    }
+
+    public function testIncrementPreservesAbsoluteExpiryAtFractionalSecond(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+        $tempDir = ParallelTesting::tempDir('CacheFileStoreTest-fractional-increment');
+        (new Filesystem)->deleteDirectory($tempDir);
+        mkdir($tempDir, 0777, true);
+
+        try {
+            $store = new FileStore(new Filesystem, $tempDir);
+
+            $this->assertTrue($store->put('counter', 1, 1));
+            $this->assertSame(2, $store->increment('counter'));
+            $this->assertStringStartsWith('0000001002', file_get_contents($store->path('counter')));
+
+            CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1001.000000'));
+
+            $this->assertSame(2, $store->get('counter'));
+
+            CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1002.000000'));
+
+            $this->assertNull($store->get('counter'));
+        } finally {
+            (new Filesystem)->deleteDirectory($tempDir);
+        }
+    }
+
+    public function testIncrementPreservesForeverExpiryAtFractionalSecond(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+        $tempDir = ParallelTesting::tempDir('CacheFileStoreTest-fractional-forever-increment');
+        (new Filesystem)->deleteDirectory($tempDir);
+        mkdir($tempDir, 0777, true);
+
+        try {
+            $store = new FileStore(new Filesystem, $tempDir);
+
+            $this->assertTrue($store->forever('counter', 1));
+            $this->assertSame(2, $store->increment('counter'));
+            $this->assertStringStartsWith('9999999999', file_get_contents($store->path('counter')));
+            $this->assertSame(2, $store->get('counter'));
+        } finally {
+            (new Filesystem)->deleteDirectory($tempDir);
+        }
+    }
+
+    public function testIncrementSupportsLaravelShapedPayloadOverrides(): void
+    {
+        $store = new class(new Filesystem, __DIR__) extends FileStore {
+            public ?int $writtenDuration = null;
+
+            public ?int $writtenExpiresAt = null;
+
+            public function put(string $key, mixed $value, int $seconds): bool
+            {
+                $this->writtenDuration = $seconds;
+
+                return true;
+            }
+
+            protected function getPayload(string $key): array
+            {
+                return ['data' => 1, 'time' => 30];
+            }
+
+            protected function putWithExpiresAt(string $key, mixed $value, int $expiresAt): bool
+            {
+                $this->writtenExpiresAt = $expiresAt;
+
+                return true;
+            }
+        };
+
+        $this->assertSame(2, $store->increment('counter'));
+        $this->assertSame(30, $store->writtenDuration);
+        $this->assertNull($store->writtenExpiresAt);
+    }
+
+    public function testPayloadRetainsLaravelRemainingTimeAlongsideAbsoluteExpiry(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC(1000));
+        $tempDir = ParallelTesting::tempDir('CacheFileStoreTest-payload-shape');
+        (new Filesystem)->deleteDirectory($tempDir);
+        mkdir($tempDir, 0777, true);
+
+        try {
+            $store = new class(new Filesystem, $tempDir) extends FileStore {
+                public function payload(string $key): array
+                {
+                    return $this->getPayload($key);
+                }
+            };
+
+            $this->assertTrue($store->put('key', 'value', 30));
+            $this->assertSame([
+                'data' => 'value',
+                'time' => 30,
+                'expiresAt' => 1030,
+            ], $store->payload('key'));
+        } finally {
+            (new Filesystem)->deleteDirectory($tempDir);
+        }
+    }
+
     public function testTouchExtendsTtl()
     {
         $files = $this->mockFilesystem();
@@ -227,7 +359,7 @@ class CacheFileStoreTest extends TestCase
         $store->expects($this->once())
             ->method('getPayload')
             ->with($key)
-            ->willReturn(['data' => $content, 'expiration' => $now->addSeconds($ttl)->getTimestamp()]);
+            ->willReturn(['data' => $content, 'expiresAt' => $now->addSeconds($ttl)->getTimestamp()]);
         $files->expects($this->once())
             ->method('put')
             ->with(

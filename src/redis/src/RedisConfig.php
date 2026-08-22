@@ -76,6 +76,7 @@ class RedisConfig
                 'database' => 0,
                 'name' => null,
             ];
+            $connectionConfig['database'] = (int) $connectionConfig['database'];
         }
 
         $sharedOptions = $redisConfig['options'];

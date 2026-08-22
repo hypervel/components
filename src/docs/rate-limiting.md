@@ -121,7 +121,7 @@ The `rate-limiter:table` command is also available as an alias.
 
 If your application needs to rate limit while another connection is inside a transaction, configure a separate named connection using the store's `connection` option. The connection may use the same database server or a dedicated rate limiter database. Run the `rate_limits` migration on every connection used by a database rate limiter store.
 
-PostgreSQL limiter connections must use the default `READ COMMITTED` transaction isolation level. MySQL and MariaDB's default `REPEATABLE READ` isolation level is supported.
+PostgreSQL limiter connections must use the default `READ COMMITTED` transaction isolation level. Hypervel will throw an `InvalidArgumentException` before changing limiter state if another isolation level is configured. Higher isolation levels can cause concurrent updates to the same limit to fail. MySQL and MariaDB's default `REPEATABLE READ` isolation level is supported.
 
 > [!NOTE]
 > The `inspect` method remains available inside a transaction because it does not change rate limit state. Under MySQL or MariaDB's `REPEATABLE READ` isolation, it reads the outer transaction's snapshot and may not include changes committed after the transaction began.
