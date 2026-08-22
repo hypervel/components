@@ -491,7 +491,9 @@ trait HasPermissions
     /**
      * Scope the model query to certain permissions only.
      *
+     * @param Builder<static> $query
      * @param array|Collection|int|Permission|string|UnitEnum $permissions
+     * @return Builder<static>
      */
     public function scopePermission(Builder $query, $permissions, bool $without = false): Builder
     {
@@ -588,7 +590,9 @@ trait HasPermissions
      * Scope the model query to only those without certain permissions,
      * whether indirectly by role or by direct permission.
      *
+     * @param Builder<static> $query
      * @param array|Collection|int|Permission|string|UnitEnum $permissions
+     * @return Builder<static>
      */
     public function scopeWithoutPermission(Builder $query, $permissions): Builder
     {

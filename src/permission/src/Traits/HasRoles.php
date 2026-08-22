@@ -169,7 +169,9 @@ trait HasRoles
     /**
      * Scope the model query to certain roles only.
      *
+     * @param Builder<static> $query
      * @param array|Collection|int|Role|string|UnitEnum $roles
+     * @return Builder<static>
      */
     public function scopeRole(Builder $query, $roles, ?string $guard = null, bool $without = false): Builder
     {
@@ -215,7 +217,9 @@ trait HasRoles
     /**
      * Scope the model query to only those without certain roles.
      *
+     * @param Builder<static> $query
      * @param array|Collection|int|Role|string|UnitEnum $roles
+     * @return Builder<static>
      */
     public function scopeWithoutRole(Builder $query, $roles, ?string $guard = null): Builder
     {
@@ -261,7 +265,9 @@ trait HasRoles
     /**
      * Scope the model query to certain teams only.
      *
+     * @param Builder<static> $query
      * @param array|Collection|int|Model|string $teams
+     * @return Builder<static>
      */
     public function scopeTeam(Builder $query, $teams, bool $without = false): Builder
     {
@@ -300,7 +306,9 @@ trait HasRoles
     /**
      * Scope the model query to those without certain teams.
      *
+     * @param Builder<static> $query
      * @param array|Collection|int|Model|string $teams
+     * @return Builder<static>
      */
     public function scopeWithoutTeam(Builder $query, $teams): Builder
     {

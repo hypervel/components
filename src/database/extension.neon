@@ -1,5 +1,15 @@
 services:
     -
+        class: Hypervel\Database\PHPStan\ModelScopeMethodResolver
+    -
         class: Hypervel\Database\PHPStan\ForwardedFluentMethodExtension
+        tags:
+            - phpstan.broker.methodsClassReflectionExtension
+    -
+        class: Hypervel\Database\PHPStan\ForwardedModelMethodExtension
+        tags:
+            - phpstan.broker.methodsClassReflectionExtension
+    -
+        class: Hypervel\Database\PHPStan\NamedScopeMethodExtension
         tags:
             - phpstan.broker.methodsClassReflectionExtension

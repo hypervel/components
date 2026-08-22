@@ -281,7 +281,7 @@ The `getPdo` and `getReadPdo` methods configure the PDO before returning it. The
 <a name="static-analysis"></a>
 ### Static Analysis
 
-The Hypervel database package includes a PHPStan extension that understands fluent methods forwarded by Eloquent builders and relationships. If your application uses `phpstan/extension-installer`, the extension is loaded automatically:
+The Hypervel database package includes a PHPStan extension that understands named scopes and query methods forwarded through Eloquent models, builders, and relationships. If your application uses `phpstan/extension-installer`, the extension is loaded automatically:
 
 ```shell
 composer require --dev phpstan/extension-installer
