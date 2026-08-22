@@ -6,6 +6,7 @@
     - [Read and Write Connections](#read-and-write-connections)
     - [Connection Pooling](#connection-pooling)
     - [Configuring Database Session State](#configuring-database-session-state)
+    - [Static Analysis](#static-analysis)
 - [Running SQL Queries](#running-queries)
     - [Using Multiple Database Connections](#using-multiple-database-connections)
     - [Listening for Query Events](#listening-for-query-events)
@@ -276,6 +277,24 @@ The `getPdo` and `getReadPdo` methods configure the PDO before returning it. The
 
 > [!WARNING]
 > If a setting must persist across queries and your application connects through a database proxy or connection pooler, use a mode that keeps the same database session. For example, PgBouncer must use session pooling. Transaction and statement pooling may send consecutive queries to different database sessions, so the setting may be missing from the next query. Hypervel cannot detect the pooler's mode for you. Direct database connections are not affected.
+
+<a name="static-analysis"></a>
+### Static Analysis
+
+The Hypervel database package includes a PHPStan extension that understands named scopes and query methods forwarded through Eloquent models, builders, and relationships. If your application uses `phpstan/extension-installer`, the extension is loaded automatically:
+
+```shell
+composer require --dev phpstan/extension-installer
+```
+
+Without the extension installer, add the package extension to your `phpstan.neon` file:
+
+```neon
+includes:
+    - vendor/hypervel/database/extension.neon
+```
+
+A scope that declares no return type, or declares `void`, `null`, or the query builder, stays chainable. Declaring a broader type such as `mixed` or `object` tells the analyzer the scope may return something else, so that type is preserved. When a scope declares a union containing the query builder, such as `Builder|int`, the builder becomes the chainable receiver and the remaining types are kept.
 
 <a name="running-queries"></a>
 ## Running SQL Queries

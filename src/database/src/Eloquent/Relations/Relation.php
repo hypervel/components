@@ -202,7 +202,7 @@ abstract class Relation implements BuilderContract
     /**
      * Execute the query as a "select" statement.
      *
-     * @return \Hypervel\Support\Collection<int, TRelatedModel>
+     * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>
      */
     public function get(array $columns = ['*']): BaseCollection
     {

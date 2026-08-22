@@ -25,7 +25,7 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
 {
     assertType('Hypervel\Database\Eloquent\Relations\HasOne<Hypervel\Types\Relations\Address, Hypervel\Types\Relations\User>', $user->address());
     assertType('Hypervel\Types\Relations\Address|null', $user->address()->getResults());
-    assertType('Hypervel\Support\Collection<int, Hypervel\Types\Relations\Address>', $user->address()->get());
+    assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Address>', $user->address()->get());
     assertType('Hypervel\Types\Relations\Address', $user->address()->make());
     assertType('Hypervel\Types\Relations\Address', $user->address()->create());
     assertType('Hypervel\Database\Eloquent\Relations\HasOne<Hypervel\Types\Relations\Address, Hypervel\Types\Relations\ChildUser>', $child->address());
@@ -38,6 +38,13 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Post>', $user->posts()->getResults());
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Post>', $user->posts()->fetchUsing(PDO::FETCH_ASSOC)->get());
     assertType('Hypervel\Types\Relations\Post|null', $user->posts()->useWritePdo()->first());
+    assertType('Hypervel\Database\Query\Builder<int, Hypervel\Types\Relations\Post>', $user->posts()->dump());
+    assertType('Hypervel\Database\Query\Builder<int, Hypervel\Types\Relations\Post>', $user->posts()->dumpRawSql());
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Relations\Post>', $user->posts()->clone());
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Relations\Post>', $user->posts()->applyScopes());
+    assertType('Hypervel\Database\Eloquent\Relations\HasMany<Hypervel\Types\Relations\Post, Hypervel\Types\Relations\User>', $user->posts()->whereIn('id', [1]));
+    assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Post>', $user->posts()->whereIn('id', [1])->get());
+    assertType('Hypervel\Database\Eloquent\Relations\HasMany<Hypervel\Types\Relations\Post, Hypervel\Types\Relations\User>', $user->posts()->whereCan('edit'));
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Post>', $user->posts()->makeMany([]));
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Post>', $user->posts()->createMany([]));
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Post>', $user->posts()->createManyQuietly([]));
@@ -49,6 +56,8 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
 
     assertType("Hypervel\\Database\\Eloquent\\Relations\\BelongsToMany<Hypervel\\Types\\Relations\\Role, Hypervel\\Types\\Relations\\User, Hypervel\\Database\\Eloquent\\Relations\\Pivot, 'pivot'>", $user->roles());
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->getResults());
+    assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->get());
+    assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->whereIn('id', [1])->get());
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->find([1]));
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->findMany([1, 2, 3]));
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->findOrNew([1]));

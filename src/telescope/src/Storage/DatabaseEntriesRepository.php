@@ -61,12 +61,15 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
      */
     public function find(mixed $id): EntryResult
     {
-        $entry = EntryModel::on($this->connection)->whereUuid($id)->firstOrFail(); // @phpstan-ignore method.notFound
+        $entry = EntryModel::on($this->connection)->where('uuid', $id)->firstOrFail();
 
         $tags = $this->table('telescope_entries_tags')
             ->where('entry_uuid', $id)
             ->pluck('tag')
             ->all();
+
+        /** @var array<array-key, mixed> $content */
+        $content = $entry->content;
 
         return new EntryResult(
             $entry->uuid,
@@ -74,7 +77,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
             $entry->batch_id,
             $entry->type,
             $entry->family_hash,
-            $entry->content,
+            $content,
             $entry->created_at,
             $tags
         );
@@ -86,19 +89,22 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
     public function get(?string $type, EntryQueryOptions $options): Collection
     {
         return EntryModel::on($this->connection)
-            ->withTelescopeOptions($type, $options) // @phpstan-ignore method.notFound (scope method registered at runtime)
+            ->withTelescopeOptions($type, $options)
             ->take($options->limit)
             ->orderByDesc('sequence')
             ->get()->reject(function ($entry) {
                 return ! is_array($entry->content);
             })->map(function ($entry) {
+                /** @var array<array-key, mixed> $content */
+                $content = $entry->content;
+
                 return new EntryResult(
                     $entry->uuid,
                     $entry->sequence,
                     $entry->batch_id,
                     $entry->type,
                     $entry->family_hash,
-                    $entry->content,
+                    $content,
                     $entry->created_at,
                     []
                 );

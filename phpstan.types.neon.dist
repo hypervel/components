@@ -1,3 +1,6 @@
+includes:
+    - src/database/extension.neon
+
 parameters:
     level: max
     tmpDir: .cache/phpstan-types
