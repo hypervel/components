@@ -34,7 +34,7 @@ trait InteractsWithTime
 
         $target = $delay instanceof DateTimeInterface
             ? Date::instance($delay)
-            : $now->addSeconds($delay);
+            : $now->avoidMutation()->addSeconds($delay);
 
         return $target > $now
             ? $target->ceilSecond()->getTimestamp()

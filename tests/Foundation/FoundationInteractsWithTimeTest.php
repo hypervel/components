@@ -138,6 +138,18 @@ class FoundationInteractsWithTimeTest extends TestCase
         $this->assertSame(999, $formatter->availableAt(-1));
     }
 
+    public function testFutureIntegerDeadlinesRoundUpWithMutableDates(): void
+    {
+        Date::use(Carbon::class);
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+        $formatter = new SupportInteractsWithTimeTestFixture;
+
+        $this->assertSame(Carbon::class, Date::now()::class);
+        $this->assertSame(1002, $formatter->availableAt(1));
+        $this->assertSame(1000, $formatter->availableAt(0));
+        $this->assertSame(999, $formatter->availableAt(-1));
+    }
+
     public function testFutureIntervalDeadlinesRoundUpWithoutDelayingZeroOrInvertedIntervals(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
