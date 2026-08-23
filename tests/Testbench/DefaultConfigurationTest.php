@@ -86,9 +86,13 @@ class DefaultConfigurationTest extends TestCase
             'driver' => 'sqlite',
             'database' => 'file:database?mode=memory&mode=rwc',
         ]);
+        $config->set('database.connections.url_memory', [
+            'url' => 'sqlite:///:memory:',
+        ]);
 
         $this->assertTrue($this->usesSqliteInMemoryDatabaseConnection('uri_memory'));
         $this->assertFalse($this->usesSqliteInMemoryDatabaseConnection('uri_file'));
+        $this->assertTrue($this->usesSqliteInMemoryDatabaseConnection('url_memory'));
     }
 
     #[Test]

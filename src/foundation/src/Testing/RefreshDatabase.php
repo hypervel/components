@@ -93,11 +93,10 @@ trait RefreshDatabase
     {
         $config = $this->app->make('config');
         $name ??= $this->getRefreshConnection();
+        $configuration = $config->get("database.connections.{$name}");
 
-        // All supported SQLite memory URI forms need the same refresh lifecycle.
-        return SQLiteDatabase::isInMemory(
-            $config->string("database.connections.{$name}.database")
-        );
+        return is_array($configuration)
+            && SQLiteDatabase::isInMemoryConfiguration($configuration);
     }
 
     /**

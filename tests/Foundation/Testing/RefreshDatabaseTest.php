@@ -224,7 +224,7 @@ class RefreshDatabaseTest extends TestCase
         }
     }
 
-    public function testBeginDatabaseTransactionWorkSetsMigratedAndCachesPdoTogether()
+    public function testBeginDatabaseTransactionWorkSetsMigratedAndCachesPdoTogether(): void
     {
         // Regression test for the RefreshDatabase + RunTestsInCoroutine +
         // mid-setUp skip bug. The invariant the fix establishes is that
@@ -254,7 +254,7 @@ class RefreshDatabaseTest extends TestCase
             'database' => [
                 'default' => 'default',
                 'connections' => [
-                    'default' => ['database' => ':memory:'],
+                    'default' => ['driver' => 'sqlite', 'database' => ':memory:'],
                 ],
             ],
         ]));
@@ -291,7 +291,7 @@ class RefreshDatabaseTest extends TestCase
             'database' => [
                 'default' => 'default',
                 'connections' => [
-                    'default' => ['database' => ':memory:'],
+                    'default' => ['driver' => 'sqlite', 'database' => ':memory:'],
                 ],
             ],
         ]));
@@ -309,10 +309,12 @@ class RefreshDatabaseTest extends TestCase
                 'default' => 'file',
                 'connections' => [
                     'file' => [
+                        'driver' => 'sqlite',
                         'database' => ParallelTesting::tempDir('RefreshDatabaseTest')
                             . '/database.sqlite',
                     ],
-                    'memory' => ['database' => 'file::memory:?cache=shared'],
+                    'memory' => ['driver' => 'sqlite', 'database' => 'file::memory:?cache=shared'],
+                    'url_memory' => ['url' => 'sqlite:///:memory:'],
                 ],
             ],
         ]));
@@ -320,6 +322,7 @@ class RefreshDatabaseTest extends TestCase
         $this->assertFalse($this->usingInMemoryDatabase());
         $this->assertFalse($this->usingInMemoryDatabase('file'));
         $this->assertTrue($this->usingInMemoryDatabase('memory'));
+        $this->assertTrue($this->usingInMemoryDatabase('url_memory'));
 
         $this->connectionsToTransact = ['file', 'memory'];
 
@@ -362,10 +365,11 @@ class RefreshDatabaseTest extends TestCase
                 'default' => 'file',
                 'connections' => [
                     'file' => [
+                        'driver' => 'sqlite',
                         'database' => ParallelTesting::tempDir('RefreshDatabaseTest')
                             . '/database.sqlite',
                     ],
-                    'memory' => ['database' => 'file::memory:?cache=shared'],
+                    'memory' => ['driver' => 'sqlite', 'database' => 'file::memory:?cache=shared'],
                 ],
             ],
         ]));
