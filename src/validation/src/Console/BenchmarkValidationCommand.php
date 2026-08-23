@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Validation\Console;
 
 use Hypervel\Console\Command;
+use Hypervel\Contracts\Translation\Translator;
 use Hypervel\Contracts\Validation\CompilableRules;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Support\Arr;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\Str;
+use Hypervel\Validation\DatabasePresenceVerifier;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\RulePlanCache;
 use Hypervel\Validation\ValidationData;
@@ -81,7 +84,11 @@ class BenchmarkValidationCommand extends Command
 
         $this->components->info('Hypervel Validation Benchmark');
 
+        /** @var Translator $translator */
         $translator = $this->hypervel->make('translator');
+        /** @var ConnectionResolverInterface $database */
+        $database = $this->hypervel->make('db');
+        $presenceVerifier = new DatabasePresenceVerifier($database);
         $results = [];
 
         foreach ($scenarioList as $scenario) {
@@ -93,15 +100,33 @@ class BenchmarkValidationCommand extends Command
 
             RulePlanCache::flushState();
             ValidationRuleParser::flushState();
-            $optimizedPassed = (new Validator($translator, $data, $rules))->passes();
+            $optimizedPassed = $this->makeValidator(
+                Validator::class,
+                $translator,
+                $data,
+                $rules,
+                $presenceVerifier,
+            )->passes();
             $optimizedMs = $this->benchmark(
-                fn () => (new Validator($translator, $data, $rules))->passes(),
+                fn () => $this->makeValidator(
+                    Validator::class,
+                    $translator,
+                    $data,
+                    $rules,
+                    $presenceVerifier,
+                )->passes(),
                 $iterations,
             );
 
             RulePlanCache::flushState();
             ValidationRuleParser::flushState();
-            $legacyPassed = (new LegacyValidator($translator, $data, $rules))->passes();
+            $legacyPassed = $this->makeValidator(
+                LegacyValidator::class,
+                $translator,
+                $data,
+                $rules,
+                $presenceVerifier,
+            )->passes();
 
             if ($optimizedPassed !== $legacyPassed) {
                 $this->error("Optimized and legacy validation disagree for scenario: {$scenario}.");
@@ -110,7 +135,13 @@ class BenchmarkValidationCommand extends Command
             }
 
             $legacyMs = $this->benchmark(
-                fn () => (new LegacyValidator($translator, $data, $rules))->passes(),
+                fn () => $this->makeValidator(
+                    LegacyValidator::class,
+                    $translator,
+                    $data,
+                    $rules,
+                    $presenceVerifier,
+                )->passes(),
                 $iterations,
             );
 
@@ -157,6 +188,24 @@ class BenchmarkValidationCommand extends Command
         return count($times) % 2 === 0
             ? ($times[$middle - 1] + $times[$middle]) / 2
             : $times[$middle];
+    }
+
+    /**
+     * Build a validator with production presence-verifier wiring.
+     *
+     * @param class-string<Validator> $validatorClass
+     */
+    private function makeValidator(
+        string $validatorClass,
+        Translator $translator,
+        array $data,
+        array $rules,
+        DatabasePresenceVerifier $presenceVerifier,
+    ): Validator {
+        $validator = new $validatorClass($translator, $data, $rules);
+        $validator->setPresenceVerifier($presenceVerifier);
+
+        return $validator;
     }
 
     /**
