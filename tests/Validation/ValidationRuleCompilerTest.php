@@ -336,27 +336,74 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame('Y-m-d', $plan->checks[1]->param['format']);
     }
 
-    public function testCastableArrayFormDateFormatsAreNormalizedForSiblingChecks(): void
+    public function testScalarArrayFormDateFormatStillProvidesSiblingContext(): void
+    {
+        $plan = $this->compile([['date_format', 123], 'after:124']);
+
+        $this->assertInstanceOf(InlineCheck::class, $plan->checks[0]);
+        $this->assertInstanceOf(InlineCheck::class, $plan->checks[1]);
+        $this->assertSame('123', $plan->checks[1]->param['format']);
+    }
+
+    public function testNonScalarArrayFormDateFormatDelegatesTheWholeAttributeWithoutCasting(): void
     {
         $stringable = new class implements Stringable {
+            public int $casts = 0;
+
             public function __toString(): string
             {
+                ++$this->casts;
+
                 return 'Y-m-d';
             }
         };
 
-        $integerPlan = $this->compile([['date_format', 123], 'after:124']);
-        $stringablePlan = $this->compile([['date_format', $stringable], 'after:2025-01-01']);
+        $plan = $this->compile([['date_format', $stringable], 'after:2025-01-01']);
 
-        $this->assertSame('123', $integerPlan->checks[1]->param['format']);
-        $this->assertSame('Y-m-d', $stringablePlan->checks[1]->param['format']);
+        $this->assertSame(0, $stringable->casts);
+        $this->assertCount(2, $plan->checks);
+        $this->assertContainsOnlyInstancesOf(DelegatedCheck::class, $plan->checks);
+        $this->assertFalse($plan->checks[0]->parametersAreScalar);
+        $this->assertTrue($plan->checks[1]->parametersAreScalar);
     }
 
-    public function testMalformedArrayFormDateFormatDoesNotPoisonSiblingCompilation(): void
+    public function testNestedArrayParameterDelegatesTheWholeAttribute(): void
     {
-        $plan = $this->compile([['date_format', []], 'after:2025-01-01']);
+        $plan = $this->compile([['date_format', []], 'string']);
 
-        $this->assertNull($plan->checks[1]->param['format']);
+        $this->assertCount(2, $plan->checks);
+        $this->assertContainsOnlyInstancesOf(DelegatedCheck::class, $plan->checks);
+    }
+
+    public function testNullParameterDelegatesTheWholeAttribute(): void
+    {
+        $plan = $this->compile([['in', null], 'max:5']);
+
+        $this->assertCount(2, $plan->checks);
+        $this->assertContainsOnlyInstancesOf(DelegatedCheck::class, $plan->checks);
+    }
+
+    public function testResourceParameterDelegatesTheWholeAttribute(): void
+    {
+        $resource = fopen('php://memory', 'r');
+
+        try {
+            $plan = $this->compile([['in', $resource], 'max:5']);
+
+            $this->assertCount(2, $plan->checks);
+            $this->assertContainsOnlyInstancesOf(DelegatedCheck::class, $plan->checks);
+        } finally {
+            fclose($resource);
+        }
+    }
+
+    public function testScalarArrayTupleKeepsTheOptimizedPath(): void
+    {
+        $plan = $this->compile([['in', 'a', 2], 'max:5']);
+
+        $this->assertCount(2, $plan->checks);
+        $this->assertContainsOnlyInstancesOf(InlineCheck::class, $plan->checks);
+        $this->assertSame(['a', '2'], $plan->checks[0]->param);
     }
 
     public function testDateFormatStoresAllFormats()
@@ -481,13 +528,24 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testCompileAllDelegatedProducesOnlyDelegatedChecks(): void
     {
-        $plan = RuleCompiler::compileAllDelegated(['required', 'string', 'max:255']);
+        $plan = RuleCompiler::compileAllDelegated([
+            'nullable',
+            'bail',
+            'sometimes',
+            'required',
+            'string',
+            'max:255',
+        ]);
 
         foreach ($plan->checks as $check) {
             $this->assertInstanceOf(DelegatedCheck::class, $check);
+            $this->assertTrue($check->parametersAreScalar);
         }
 
-        $this->assertCount(3, $plan->checks);
+        $this->assertTrue($plan->nullable);
+        $this->assertTrue($plan->bail);
+        $this->assertTrue($plan->sometimes);
+        $this->assertCount(6, $plan->checks);
     }
 
     public function testMultipleOfLiteralInlines()

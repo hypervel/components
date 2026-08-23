@@ -12,6 +12,8 @@ namespace Hypervel\Validation;
  */
 final readonly class DelegatedCheck
 {
+    public bool $parametersAreScalar;
+
     /**
      * @param string $ruleName Parsed rule name (e.g., 'Exists', 'Required'). Empty for
      *                         Rule objects dispatched via validateUsingCustomRule().
@@ -25,6 +27,10 @@ final readonly class DelegatedCheck
         public array $parameters,
         public mixed $originalRule = null,
     ) {
+        $this->parametersAreScalar = array_all(
+            $parameters,
+            static fn (mixed $parameter): bool => is_scalar($parameter),
+        );
     }
 
     /**

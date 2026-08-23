@@ -6,7 +6,6 @@ namespace Hypervel\Validation;
 
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Validation\Enums\CheckType;
-use Stringable;
 
 /**
  * Compile pipe-string or array rules into an AttributePlan.
@@ -33,6 +32,13 @@ final class RuleCompiler
             static fn (mixed $rule): array => ValidationRuleParser::parse($rule),
             $rules,
         );
+
+        foreach ($parsedRules as [, $parameters]) {
+            if (array_any($parameters, static fn (mixed $parameter): bool => ! is_scalar($parameter))) {
+                return self::compileAllDelegated($rules);
+            }
+        }
+
         $context = self::collectContext($parsedRules, $numericRules);
 
         foreach ($rules as $index => $rule) {
@@ -45,9 +51,9 @@ final class RuleCompiler
     /**
      * Compile all rules as DelegatedCheck (no inlining).
      *
-     * Used for Validator subclasses which may override validate*() methods.
-     * Retains the same meta-flag resolution so the execution loop's
-     * attribute-level logic still works.
+     * Used for Validator subclasses and attributes with non-scalar rule
+     * parameters. Retains meta flags for attribute-level gating while keeping
+     * every declared rule available to delegated execution.
      *
      * @param list<mixed> $rules As produced by ValidationRuleParser::explode()
      */
@@ -84,12 +90,8 @@ final class RuleCompiler
                 $numeric = true;
             }
 
-            if ($dateFormat === null && $parsedName === 'DateFormat') {
-                $format = $parsedParameters[0] ?? null;
-
-                if (is_scalar($format) || $format instanceof Stringable) {
-                    $dateFormat = (string) $format;
-                }
+            if ($dateFormat === null && $parsedName === 'DateFormat' && isset($parsedParameters[0])) {
+                $dateFormat = (string) $parsedParameters[0];
             }
 
             if ($parsedName === 'Array') {
@@ -131,8 +133,8 @@ final class RuleCompiler
             return;
         }
 
-        // nullable/bail/sometimes are pure meta-flags — their validate*() methods
-        // are no-ops returning true, so they don't need checks.
+        // The exact base plan needs nullable/bail/sometimes only as meta-flags.
+        // compileRuleDelegated() also emits them so subclass hooks still run.
         if ($ruleName === 'Nullable') {
             $plan->nullable = true;
             return;
@@ -162,9 +164,8 @@ final class RuleCompiler
     /**
      * Compile a single rule as DelegatedCheck only (no inlining).
      *
-     * Used by compileAllDelegated() for Validator subclasses. Handles the
-     * same input forms and flag resolution as compileRule() but skips the
-     * tryInline() step — everything becomes a DelegatedCheck.
+     * Handles the same input forms and flag resolution as compileRule() but
+     * skips tryInline() so every declared rule becomes a DelegatedCheck.
      */
     private static function compileRuleDelegated(mixed $rule, AttributePlan $plan): void
     {
@@ -185,15 +186,10 @@ final class RuleCompiler
 
         if ($ruleName === 'Nullable') {
             $plan->nullable = true;
-            return;
-        }
-        if ($ruleName === 'Bail') {
+        } elseif ($ruleName === 'Bail') {
             $plan->bail = true;
-            return;
-        }
-        if ($ruleName === 'Sometimes') {
+        } elseif ($ruleName === 'Sometimes') {
             $plan->sometimes = true;
-            return;
         }
 
         $plan->checks[] = new DelegatedCheck(
@@ -280,9 +276,7 @@ final class RuleCompiler
                 : new InlineCheck(
                     CheckType::In,
                     array_map(
-                        static fn (mixed $parameter): mixed => is_scalar($parameter) || $parameter instanceof Stringable
-                            ? (string) $parameter
-                            : $parameter,
+                        static fn (mixed $parameter): string => (string) $parameter,
                         $parameters,
                     ),
                     parameters: $parameters,
@@ -292,9 +286,7 @@ final class RuleCompiler
                 : new InlineCheck(
                     CheckType::NotIn,
                     array_map(
-                        static fn (mixed $parameter): mixed => is_scalar($parameter) || $parameter instanceof Stringable
-                            ? (string) $parameter
-                            : $parameter,
+                        static fn (mixed $parameter): string => (string) $parameter,
                         $parameters,
                     ),
                     parameters: $parameters,
