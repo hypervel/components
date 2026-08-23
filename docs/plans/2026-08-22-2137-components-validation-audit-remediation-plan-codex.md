@@ -1,16 +1,16 @@
 # Validation audit remediation plan
 
-Status: Signed off by `claude-fixes` on 2026-08-22; ready for implementation
+Status: Implementation complete; final code review pending
 
-Branch: `audit/validation-remediation` from `0.4` at `7741eaad0435450e500304f173dde4f4a5488646`
+Branch: `audit/validation-remediation` from `0.4`
 
-Scope: master-audit findings 15–20 plus three validation defects exposed while reviewing their shared execution and compilation boundaries
+Scope: master-audit findings 15–20 plus validation defects exposed while reviewing their shared parsing, compilation, execution, and batching boundaries
 
 ## Goal
 
-Fix the validation optimizer's correctness gaps without giving back the architecture's principal performance gains. Preserve Laravel's supported validation API and ordered behavior, while retaining Hypervel's O(n) wildcard expansion, worker-lifetime immutable plan cache, single compiled execution loop, inline predicates, exclusion prepass, and wildcard database-presence batching.
+Fix the validation optimizer's correctness gaps without giving back the architecture's principal performance gains. Preserve Laravel's supported validation API and ordered behavior, while retaining Hypervel's O(n) wildcard expansion, worker-lifetime immutable plan cache, single compiled execution loop, inline predicates, exclusion prepass, and wildcard database-presence batching. Restore upstream-safe rule-object canonicalization so modern fluent rules benefit from the same compiled path instead of becoming a second, slower architecture.
 
-The finished code must be the simplest design that is correct under Hypervel's long-lived concurrent workers. It must add no external request/coroutine-context state, locks, worker-global mutable results, shadow validator, resumable executor, database-specific SQL, or maintenance registry of Laravel rule names. Execution-local facts may live only on the validator-owned verifier that is already installed for one `passes()` call.
+The finished code must be the simplest design that is correct under Hypervel's long-lived concurrent workers. It must add no external request/coroutine-context state, locks, worker-global mutable results, shadow validator, resumable executor, database-specific SQL, or duplicate maintenance registry of Laravel rule names. Execution-local facts may live only on the validator and the verifier already installed for one `passes()` call.
 
 ## Scope and findings
 
@@ -22,9 +22,14 @@ The finished code must be the simplest design that is correct under Hypervel's l
 - **20 — compiled plans retain unused fields and a duplicated implicit-rule registry.**
 - **Additional verified defect — `date_format` uses loose numeric-string comparison:** padded formats such as `m` accept unpadded strings such as `'1'`. Laravel 13.x shares the bug, but its documented contract says the value must match the selected PHP format.
 - **Additional verified defect — `json` throws on resource input:** both Hypervel and Laravel call `method_exists()` with a resource. Hypervel also carries a duplicate inline implementation that can drift from the delegated predicate.
-- **Additional verified defect — closure-backed exclusion rules are parsed twice:** `RuleCompiler::compile()` parses every rule during its context scan and again during compilation, so `ExcludeIf` / `ExcludeUnless` conditions run twice and the first result is discarded.
-
-Out of scope: unrelated validation behavior, new validation APIs, removing pipe-delimited rules, or reverting the compiled validator.
+- **Additional verified defect — safe fluent rules miss canonicalization, caching, and inlining:** Hypervel's `ValidationRuleParser::prepareRule()` returns ordinary `Stringable` rule objects where Laravel returns their canonical string. Common modern forms such as `Rule::in()` therefore remain uncacheable and delegated, and Hypervel-only presence-object machinery compensates for a one-line upstream omission.
+- **Additional verified defect — falsey database-rule values serialize incorrectly:** `Unique::ignore(0)` / `ignore('0')` become the no-ignore `NULL` sentinel, while `DatabaseRule::where(..., false)` and `whereNot(..., false)` become empty-string constraints that PostgreSQL rejects for typed columns. The current object-metadata batch path happens to preserve an ignored zero while ordinary validation does not, so deleting that workaround requires fixing the owning serializers in the same change.
+- **Additional verified defect — common typeless size rules are needlessly delegated:** `max`, `min`, `size`, and `between` inline only when a sibling type rule selects one of four modes. Laravel's actual rule is simpler: only numeric semantics come from sibling rules; arrays, files, and strings are selected from the runtime value. The duplicate compiler mapping also omits `decimal`.
+- **Additional verified defect — compiled stop checks reparse rules after failures:** the plan already owns `bail`, and uploaded/implicit failures already exist in `failedRules`, but the compiled loop calls `shouldStopValidating()` and rescans the attribute's rules after every failure.
+- **Additional verified defect — global early-stop can be preempted by speculative presence SQL:** `stopOnFirstFailure()` can make ordinary execution return after an earlier failure without reaching a later presence rule, while eager batching submits that later value first. A PostgreSQL type error then replaces the clean validation failure and aborts any surrounding transaction.
+- **Additional verified defect — presence facts erase PDO binding identity:** string `'1'` and integer `1` currently collapse to one candidate and fact key even though the connection binds them as `PDO::PARAM_STR` and `PDO::PARAM_INT`. PostgreSQL can hide the integer binding error when the string wins deduplication. MySQL silently gives both candidates the string result or both the integer result against stored `'01'`, producing order-dependent false failures and false passes.
+- **Implementation-review defect — date/time candidates bypass grammar-owned binding conversion:** batching string-casts `Stringable` date objects, while ordinary validation formats every `DateTimeInterface` through `Connection::prepareBindings()`. The same value can therefore query with different strings and silently produce different results.
+- **Implementation-review defect — resolved leading exclusions block their own presence batch:** the exclusion prepass proves a first-position exclusion is non-excluding, but the prefix walk still treats that delegated check as uncertain and turns a common wildcard form back into one query per item.
 
 ## Research and settled decisions
 
@@ -38,7 +43,7 @@ The defects are optimizer-boundary mistakes, not flaws in the overall refactor. 
 4. `PlanExecutor` owns the one real validation loop; delegated rules still call the established `validateAttribute()` path.
 5. Exclusion and database batching are pre-execution optimizations guarded to the exact base `Validator` with no mutating extension surface.
 
-Baseline focused tests are green: 264 tests / 604 assertions across the six optimizer/compiler test files, and 18 tests / 38 assertions in the existing database batching integration file. Previous representative benchmarks found material wins for nested and conditional validation and a smaller but real inline-execution win. The implementation must preserve those gains.
+Baseline focused and database-batching integration tests are green. Previous representative benchmarks found material wins for nested and conditional validation and a smaller but real inline-execution win. The implementation must preserve those gains.
 
 ### Laravel API and reference behavior
 
@@ -51,11 +56,15 @@ Relevant conclusions:
 
 - Laravel's current documentation presents rule arrays as the preferred form, but the framework still explicitly accepts and centrally parses string rules with `explode('|', $rule)`. The string form is not deprecated. Hypervel must keep both forms; neither finding is caused by pipe syntax because both forms have already become the same ordered rule array before compilation.
 - Laravel validates rules in declaration order and skips `Exists` / `Unique` after any prior failure on the attribute. The batch planner must preserve that behavior rather than eagerly submitting every raw value.
+- Laravel's `ValidationRuleParser::prepareRule()` preserves closures, `RuleContract` instances, callback-bearing `Exists` / `Unique`, and `CompilableRules`, then stringifies every other object. Hypervel is missing only the final `(string)` cast. Restoring it is the generic parity fix: it evaluates conditional fluent rules once at parse time, makes pure fluent rules cacheable, and avoids a brittle class allowlist.
+- Callback-free `Exists` / `Unique` strings contain all metadata used by ordinary validation and batching. Callback-bearing objects remain objects and delegated. Hypervel's internal `DatabasePresenceRule`, `presenceMetadata()`, and special compiler/planner branches become dead after upstream canonicalization and should be removed.
+- Laravel's fluent `Unique` serializer also shares a truthiness bug: zero-valued ignored IDs become `NULL`. The matching database-rule serializer loses `false` conditions as an empty string. `null` is the only no-ignore sentinel; normalize boolean where values to integers before formatting, matching ordinary query-builder binding across supported drivers.
+- Laravel's `getSize()` asks one semantic question of the sibling rules: whether numeric semantics are active. It then dispatches on the actual value for array count, file kilobytes, or string length. Hypervel's four-way `SizeMode` duplicates rule categories, fails to inline common `required|max:255`, and misses `Decimal` despite `Validator::$defaultNumericRules` already being the authority.
 - Laravel uses `getExplicitKeys()` and `replaceAsterisksInParameters()` for dependent wildcard fields. Hypervel should reuse that authority.
 - Laravel's database `getMultiCount()` is `distinct()->count($column)`. PHP bytewise uniqueness is not an equivalent substitute under collations or database coercion.
 - Laravel 13.x still uses loose comparison in `validateDateFormat()`. This is an upstream bug: PHP has separate padded and unpadded format tokens, and the docs say the value must match the requested format. Hypervel will fix the shared boundary and can offer the change upstream separately.
 - Laravel 13.x shares the resource-unsafe `validateJson()` predicate. PHP 8 exposes `Stringable` for the supported object boundary, while resources are neither scalar nor `Stringable`; fix that predicate rather than guarding an optimizer around it.
-- Laravel parses each rule once during ordinary execution. Hypervel's second parse is introduced solely by the compiled plan's context pre-scan and is unnecessary.
+- Laravel parses safe fluent conditions once while exploding rules. Hypervel must restore that timing. The compiler still has a context pre-scan and emission pass, so one compile-local list of parsed pairs should feed both passes rather than parsing tokens twice on every cache miss.
 
 No Swoole defect was exposed by this investigation.
 
@@ -69,13 +78,81 @@ These invariants govern every change in this slice:
 - One uncertain value must not disable batching for safe siblings. Declining an entire group would let one unusual value turn 999 safe values back into 1,000 queries.
 - Preflight writes nothing to `AttributePlan`. The same plan instance can be shared by multiple wildcard attributes and concurrent requests.
 - Inline preflight fails closed. A positive `CheckType` allowlist with `default => false` means a future inline rule is correct by default and merely forgoes batching until explicitly reviewed.
-- Optimizer disqualification follows the ability to mutate this `Validator`'s data, not a wrapper interface that never reaches the wrapped rule.
+- The allowlist is safety metadata, not a second rule registry. An exhaustive test must partition every `CheckType` into reviewed-safe or reviewed-unsafe cases so adding an enum case forces an explicit decision.
+- Exclusion pre-evaluation is disabled only by mutation-capable behavior actually used by the compiled plans, not by an unused registered extension or a wrapper interface that never reaches its wrapped rule.
+- Presence facts are keyed by database query shape and PDO binding identity, not by attribute. Request-data mutation cannot stale them: a new binding identity is unknown and delegates; an identity queried elsewhere retains a database-proven fact. Presence batching therefore does not share the exclusion prepass's data-mutation gate.
+- Query-shape identity is enforced by the precomputed verifier itself, not by a separate table/column collision census. A runtime probe can consume facts only when its connection, table, column, scalar where conditions, and effective unique exclusion exactly match the grouped query.
+- Validation predicates may read the database, but must not write database state and depend on later presence-query ordering. Detecting arbitrary database side effects in user code is impossible, and globally disabling batching for every custom rule would destroy the optimization without providing a coherent guarantee.
 - The precomputed verifier stores only facts a database query proved. Anything unqueried or ambiguous delegates.
 - All verifier facts and fallback memoization live only for the current `passes()` execution. No `CoroutineContext`, static map, or worker cache is permitted.
+- `executeCompiledPlans()` iterates the compiled-plan array captured at the start of the call. A rule may mutate validation data, but it cannot introduce an uncatalogued query shape into that execution; rules added during execution take effect only on a later `passes()` compilation.
 
 ## Implementation plan
 
-### 1. Share the non-implicit execution gates
+### 1. Restore Laravel's generic rule-object canonicalization
+
+Files:
+
+- `src/validation/src/ValidationRuleParser.php`
+- `src/validation/src/Contracts/DatabasePresenceRule.php`
+- `src/validation/src/Rules/DatabaseRule.php`
+- `src/validation/src/Rules/Exists.php`
+- `src/validation/src/Rules/Unique.php`
+- `src/validation/src/DelegatedCheck.php`
+- `src/validation/src/RuleCompiler.php`
+- `src/validation/src/Validator.php`
+- `tests/Validation/ValidationRuleParserTest.php`
+- `tests/Validation/ValidationRulePlanCacheTest.php`
+- `tests/Validation/ValidationRuleCompilerTest.php`
+- presence tests named below
+
+Restore the one missing upstream line at the end of `ValidationRuleParser::prepareRule()`:
+
+```php
+return (string) $rule;
+```
+
+Keep the preceding upstream guards exactly as the semantic boundary:
+
+- non-objects and `RuleContract` instances remain unchanged;
+- closures and modern `ValidationRule` / `InvokableRule` objects remain wrapped rule contracts;
+- callback-bearing `Exists` / `Unique` remain objects so their query callbacks survive;
+- `CompilableRules` still compile against the current attribute and data;
+- every other object is a pure Laravel-style string rule and is canonicalized once during rule explosion.
+
+Do not replace this with an `In` / `NotIn` / `Dimensions` / presence-rule class list. The generic upstream boundary already handles future stringable rules without another registry. It also means `Rule::requiredIf()`, `Rule::excludeIf()`, and `Rule::excludeUnless()` evaluate their closure once during parsing, exactly when Laravel does, rather than entering the compiler as stateful objects.
+
+After canonicalization, remove the compensating Hypervel-only presence-object layer:
+
+- delete the internal `Contracts\DatabasePresenceRule` interface;
+- remove `implements DatabasePresenceRule` and its imports from `Exists` / `Unique`;
+- delete `DatabaseRule::presenceMetadata()` and `Unique::presenceMetadata()`;
+- delete the special `Exists` / `Unique` branches in `RuleCompiler`; callback-bearing objects can use the ordinary non-string delegated branch while retaining the object in `originalRule`;
+- delete `DelegatedCheck::$ruleObject`; `originalRule` already carries the same custom `RuleContract` object used by execution and mutation analysis, so retaining both references has no consumer;
+- make presence metadata extraction consume each `DelegatedCheck`'s parsed `ruleName` / `parameters`. Use `originalRule` only to reject callback-bearing `Exists` / `Unique`; do not stringify or parse the same check again;
+- delete `extractObjectPresenceRuleMeta()` and all `presenceMetadata()` branches after confirming no caller remains.
+
+Fix the database-rule serializers at their owning boundary before removing that layer:
+
+- serialize an ignored ID whenever it is non-null, so integer zero, string zero, and float zero become `"0"` while `null` remains the no-ignore `NULL` sentinel;
+- normalize boolean values to integers in one small helper used by both `DatabaseRule::where()` and `whereNot()`, so `false` serializes as `"0"` / `"!0"` rather than an empty string. Keep `enum_value()` normalization in that helper and add no extra sentinels or guards for unsupported array/object key values.
+
+Callback-free `Rule::exists()` / `Rule::unique()` now follow the same string path as Laravel, including inferred columns. Callback-bearing forms remain uncacheable, are rejected from batching via `queryCallbacks()`, and execute through the ordinary verifier with their original object as `currentRule`. This preserves the public fluent API while deleting internal machinery.
+
+Tests:
+
+- safe fluent `In`, `NotIn`, `Dimensions`, `Exists`, and `Unique` objects appear in `getRules()` as the same canonical strings Laravel produces;
+- `Rule::in()` / `Rule::notIn()` compile to inline checks and attributes containing them hit `RulePlanCache` on later validators;
+- callback-free presence objects are cacheable and batchable, including inferred-column behavior matching the ordinary string path;
+- callback-bearing presence objects remain objects, retain callbacks, never enter a batch, and produce no runtime lookup key so they always delegate;
+- integer zero, string zero, and float zero ignored IDs canonicalize as `"0"`, reach `getCount()` as a non-null exclusion, and work through ordinary, fallback, and batched wildcard paths; `ignore(null)` and an unsaved model's null key retain the `NULL` sentinel;
+- boolean `where()` / `whereNot()` constraints canonicalize as `"0"` / `"!0"` and validate against typed columns without changing true or non-boolean values;
+- `RuleContract`, `ValidationRule`, `InvokableRule`, `CompilableRules`, and closure rules retain their established object/wrapper behavior and remain uncacheable;
+- conditional fluent-rule closures execute once during parser explosion and their one result determines the exploded rule; do not add a compiler-only double-evaluation test for a stateful object that no longer reaches the compiler.
+
+Pin the ignored-zero behavior end to end with a mocked verifier assertion and one shared real-database case inherited by all four driver wrappers. Treat both serializer defects as upstream Laravel issue/PR candidates after the Hypervel fix; upstream coordination is not part of this implementation.
+
+### 2. Share the non-implicit execution gates
 
 Files:
 
@@ -115,7 +192,7 @@ Tests:
 - an invalid upload with a file or implicit rule produces the existing `uploaded` failure and no database probe;
 - an invalid upload without either condition is not falsely classified as a proven failure.
 
-### 2. Add a conservative inline-preflight boundary
+### 3. Add a conservative inline-preflight boundary
 
 Files:
 
@@ -129,7 +206,7 @@ Place `canPreflightInline(InlineCheck $check, mixed $value): bool` immediately b
 
 Reject all object and resource values first. Objects can invoke user magic methods, `Countable::count()`, overridable file methods, and configurable object behavior. Resources are not legitimate presence candidates. Do **not** reject arrays: array-valued `exists` is supported, and native array/type/size predicates are safe.
 
-Repair JSON validation at its actual shared boundary before relying on that classification:
+Repair JSON validation at its actual shared boundary before relying on that classification, replacing both existing guards with one exhaustive type boundary:
 
 ```php
 if (! is_scalar($value) && ! $value instanceof Stringable) {
@@ -137,7 +214,7 @@ if (! is_scalar($value) && ! $value instanceof Stringable) {
 }
 ```
 
-PHP 8 automatically implements `Stringable` for classes declaring `__toString()`, while the check is safely false for a resource. Change the `Json` inline arm to call `$this->validateJson($attribute, $value)`, then delete the byte-identical `executeInlineJson()` helper and its unused `Json` import. This direct call has no parameter parsing, rule lookup, dispatch, or state overhead because `validateJson()` does not use the attribute. Do not generalize the pattern to inline rules whose delegated methods do more work.
+Null and arrays are neither scalar nor `Stringable`, so no preceding special case remains. PHP 8 automatically implements `Stringable` for classes declaring `__toString()`, while the check is safely false for a resource. Change the `Json` inline arm to call `$this->validateJson($attribute, $value)`, then delete the byte-identical `executeInlineJson()` helper and its unused `Json` import. This direct call has no parameter parsing, rule lookup, dispatch, or state overhead because `validateJson()` does not use the attribute. Do not generalize the pattern to inline rules whose delegated methods do more work.
 
 Use a positive match with `default => false`. The 41 currently safe cases are:
 
@@ -152,17 +229,16 @@ StartsWith, EndsWith, DoesntStartWith, DoesntEndWith,
 In, NotIn, IsDate, DateFormat
 ```
 
-The size cases are safe only when they will not reach the user-configurable exponent guard:
+The size cases are safe only when they cannot reach user code or a reachable Brick Math exception:
 
 ```php
-! (
-    $check->param['mode'] === SizeMode::Numeric
-    && is_numeric($value)
-    && Str::contains((string) $value, 'e', ignoreCase: true)
-)
+if ($check->param['numeric'] && is_numeric($value)) {
+    return ! Str::contains((string) $value, 'e', ignoreCase: true)
+        && (! is_float($value) || is_finite($value));
+}
 ```
 
-Objects are already rejected, so this also avoids file stat calls and magic string casts. Arrays continue through native `count()`.
+Exponent values can invoke the configurable exponent-range callback. Non-finite floats pass PHP's `is_numeric()` but Brick Math rejects `INF` / `NAN`; treating them as unsafe preserves normal rule order if execution would throw. Objects are already rejected, so preflight also avoids file stat calls and magic string casts. Arrays continue through native `count()`.
 
 Leave these eight cases unlisted:
 
@@ -172,56 +248,118 @@ Leave these eight cases unlisted:
 
 `IsDate` and `DateFormat` are safe scalar/native predicates and do not use the `Date` facade. Bare `Email` is also allowed after the object guard; Hypervel auto-singletons the stateless Egulias validator, and a hypothetical stateful concrete rebinding is not a supported behavior worth turning common `email|exists` lists into N queries.
 
-Add an optional fourth step to `CheckType`'s existing maintenance docblock: an inline case may be added to the preflight allowlist only after proving repeat evaluation is free of user callbacks, I/O, warnings, and reachable exceptions; omission is safe and only disables batching across that prefix. Do not add behavior or a second registry to the enum.
+Add a fourth step to `CheckType`'s existing maintenance docblock: an inline case may be added to the preflight allowlist only after proving repeat evaluation is free of user callbacks, I/O, warnings, and reachable exceptions; omission is safe and only disables batching across that prefix. Do not add behavior or another rule-name registry to the enum.
 
 Tests:
 
-- assert every allowed and disallowed case, the object/resource guard, array support, and the size exponent exception;
+- define the reviewed-safe and reviewed-unsafe case lists in the test, assert their union equals `CheckType::cases()` with no duplicates, and exercise the object/resource guard, array support, exponent callback, and non-finite-size exceptions;
 - prove a Stringable object is not cast during preflight;
 - prove exponent callbacks and file methods execute only once and in normal order;
 - prove resource-valued `json` fails rather than throwing in both base inline and all-delegated execution, while valid scalar and `Stringable` JSON retain their behavior;
 - keep `required|integer|min:1|exists` batchable for ordinary scalar values;
 - keep `required|array|exists` batchable.
 
-### 3. Build presence candidates from active compiled plans in order
+### 4. Replace four-way size modes with canonical numeric semantics
+
+Files:
+
+- `src/validation/src/Enums/SizeMode.php`
+- `src/validation/src/AttributePlan.php`
+- `src/validation/src/RuleCompiler.php`
+- `src/validation/src/PlanExecutor.php`
+- `src/validation/src/Concerns/ValidatesAttributes.php`
+- `src/validation/src/Validator.php`
+- `tests/Validation/ValidationRuleCompilerTest.php`
+- `tests/Validation/ValidationPlanExecutorTest.php`
+- `tests/Validation/ValidationCompiledExecutionTest.php`
+
+Delete `SizeMode`. It encodes four compile-time modes that Laravel does not have and cannot determine the runtime value's actual shape. Compile each valid `min`, `max`, `size`, or `between` rule with one boolean: whether a sibling rule activates numeric semantics. The emitted check retains the original message parameters and its raw numeric threshold strings for precision.
+
+There must be one authority for numeric-size rules. Pass the exact base `Validator`'s existing `$defaultNumericRules` into `RuleCompiler::compile()` and let `collectContext()` derive the boolean with a strict membership check. Do not hard-code `Numeric`, `Integer`, and `Decimal` in the compiler, move a duplicate list into the enum, or infer the category from class names. `compileAllDelegated()` needs no numeric context. Because only the exact base class is cached and its default list is stable, the existing rule-array cache key remains sufficient.
+
+Use value-first size dispatch matching `getSize()`:
+
+```php
+protected function sizeOf(string $attribute, mixed $value, bool $numeric): float|int|string
+{
+    if ($numeric && is_numeric($value)) {
+        return $this->ensureExponentWithinAllowedRange($attribute, $this->trim($value));
+    }
+
+    if (is_array($value)) {
+        return count($value);
+    }
+
+    if ($value instanceof SplFileInfo) {
+        return $value->getSize() / 1024;
+    }
+
+    return mb_strlen((string) $value);
+}
+```
+
+Make `getSize()` delegate to this one body with `$this->hasRule($attribute, $this->numericRules)` as the boolean, then delete `sizeOfWithExponentCheck()`. Both inline and delegated execution therefore share value dispatch and exponent enforcement instead of maintaining parallel implementations.
+
+Preserve precision-safe Brick Math comparison for numeric and file sizes. Classify every threshold at compile time by storing its `FILTER_VALIDATE_INT` result (or `null`) beside its raw string in the immutable `InlineCheck`. At execution, use the parsed integer only when the runtime size resolves to an array count or string length; otherwise use the raw threshold with Brick Math. Execution therefore performs only type/null checks. Decimal, exponent, and out-of-range thresholds are never rounded through `(float)`. Common `max:255` remains on the fast path without per-value parsing or a precision divergence. Do not choose value behavior solely from the sibling rule: `min:1|numeric` with `'abc'` must measure string length before the later `numeric` failure, just as Laravel does.
+
+With this representation, typeless rules such as `required|max:255` inline correctly and keep a following presence rule batchable. `Decimal` automatically activates numeric semantics because it already belongs to `$defaultNumericRules`; future changes to that canonical list cannot silently drift from compilation.
+
+Tests:
+
+- typeless `min`, `max`, `size`, and `between` inline and use runtime string, array, and file semantics with the same messages as delegated Laravel behavior;
+- `numeric`, `integer`, and `decimal` siblings activate numeric semantics, including when the size rule appears first;
+- mixed/contradictory type siblings follow Laravel's `hasRule($numericRules)` behavior rather than delegating;
+- non-numeric values with numeric siblings fall through to runtime value shape and preserve rule order;
+- exponent callbacks, precision-sensitive decimal thresholds, file kilobytes, invalid uploads, and non-finite numeric values retain delegated behavior;
+- string/array size comparisons with decimal or integer-overflow thresholds remain exact while ordinary integer thresholds use native comparison;
+- threshold integer classification happens once at compilation, not per checked value;
+- delegated `getSize()` and inline comparisons share `sizeOf()` as the only value-dispatch/exponent implementation;
+- no `SizeMode`, four-way mapping, or duplicated numeric-rule list remains.
+
+### 5. Build presence candidates from active compiled plans in order
 
 Files:
 
 - `src/validation/src/Validator.php`
+- `src/validation/src/Concerns/ValidatesAttributes.php`
 - `tests/Validation/ValidationCompiledExecutionTest.php`
-- validation database integration tests described in step 9
+- validation database integration tests described in step 11
 
 Rewrite the candidate half of `maybeBatchDatabaseChecks()` around the already filtered `compiledPlans`, not raw `$rules`:
 
 1. Retain the current wildcard-only optimization boundary.
 2. Skip plans whose `sometimes` flag is set when the concrete key is absent.
-3. Locate each `Exists` / `Unique` `DelegatedCheck` in the concrete plan and extract metadata from its `originalRule`, preserving string, array, and rule-object forms.
-4. Apply the shared non-implicit and invalid-upload predicates to the current value.
-5. Walk only the checks preceding that presence check, in declaration order:
+3. Apply the shared non-implicit and invalid-upload predicates once per attribute, before the check loop; neither depends on the current check or index.
+4. Locate each `Exists` / `Unique` `DelegatedCheck` by its already parsed rule name. Walk only its preceding checks, in declaration order, before resolving presence metadata:
    - an `InlineCheck` may be evaluated only when `canPreflightInline()` returns true;
    - ordinary `Required` may call `validateRequired()` only for non-object values;
    - another `DelegatedCheck` makes this concrete value uncertain;
    - a safely evaluated false result proves failure and omits the value;
    - reaching the presence check after all safe passes makes the value batchable.
-6. Preserve an active uncertain query shape for collision detection, but add no value for it. If all candidates are uncertain, no batch query or verifier swap occurs.
+   Use an indexed walk over the plan's list rather than allocating an `array_slice()` for every candidate.
+5. Only after the prefix passes, extract metadata from the check's parsed name/parameters. Inspect `originalRule` only to reject callback-bearing presence objects. Retain the existing rejection when a unique rule's raw ignore parameter contains `[` or `*`: a wildcard field reference resolves to a different ignored value for each concrete item and would turn batching into one grouped query per item plus planning overhead. Do not add a special case for the rare non-wildcard field-reference form; one simple conservative guard is easier to maintain and ordinary validation already handles both forms correctly.
+6. Memoize only `parseTable()` results in a validator-owned map keyed by the raw table parameter and reset at the start of every `passes()` call. Make `parseTable()` the one authority so planning and real presence execution share the same model resolution; do not thread a by-reference planner accumulator. Model-class table resolution is stable within one validation execution, and developer-authored rule strings naturally bound the map. Do not memoize full metadata because inferred columns can depend on the concrete attribute.
+7. Add no value for an uncertain candidate. If all candidates are uncertain, no batch query or verifier swap occurs. A lookup installed for safe siblings remains correct because unknown values delegate and runtime query-shape keys prevent a different presence query from consuming its facts.
 
 Conceptually there are three outcomes, but do not introduce an enum, result object, plan cursor, phased executor, or mutable plan field. A small private helper/local state is enough:
 
 ```text
 proven failure or shared skip -> no group value; presence cannot run
 fully safe prefix            -> group and submit value
-uncertain prefix             -> retain active shape, do not submit; runtime fallback if reached
+uncertain prefix             -> do not submit; runtime fallback if reached
 ```
 
 Critical examples:
 
 - `multiple_of:5|exists` with `'abc'`: normal validation fails `multiple_of` and performs no SQL. Because `MultipleOf` is unsafe to preflight, the candidate is uncertain and must not be eagerly submitted.
-- `min:1|integer|exists` with `'abc'`: numeric mode is compiled from the sibling `integer`, but value-first size dispatch treats `'abc'` as length 3, so `min` passes and `integer` fails. Stopping at the unsafe size rule and submitting the raw value would be wrong.
+- `min:1|integer|exists` with `'abc'`: numeric semantics are compiled from the sibling `integer`, but value-first size dispatch treats `'abc'` as length 3, so `min` passes and `integer` fails. Stopping at an unsafe size rule and submitting the raw value would be wrong.
 - one exponent-form, file, or custom-prefix value must not disable batching for safe siblings.
 
-Building from `compiledPlans` automatically excludes plans removed by exclusion pre-evaluation. The plan-level `sometimes` gate prevents absent attributes from contributing values. Continue using the existing full-query-shape key and conservative table/column collision guard; a possibly executable uncertain shape must still prevent another shape on the same table/column from intercepting its runtime probe.
+Building from `compiledPlans` automatically excludes plans removed by exclusion pre-evaluation. The plan-level `sometimes` gate prevents absent attributes from contributing values. Build every group with `PrecomputedPresenceVerifier::lookupKey()` from step 7 rather than retaining `buildPresenceGroupKey()`. Do not rebuild the current table/column collision census: query-shape-keyed lookups make different where, ignore, connection, and column shapes independent, while an unregistered or unknown runtime shape delegates. This also lets an ordinary non-wildcard presence rule share proven facts with an identical wildcard group without turning the wildcard batch back into N queries.
 
-`stopOnFirstFailure` can still make an already-issued batch query unnecessary when an earlier attribute later fails. This is an existing consequence of pre-execution batching and does not justify stateful or phased machinery.
+Parent exclusions need an additional conservative boundary. A child presence rule can otherwise be queried before a parent plan excludes the subtree; on a typed PostgreSQL column, a bare invalid child value can throw even though normal execution never reaches it. During exclusion analysis, return one execution-local set of attributes whose exclusion outcome could not be safely resolved. Do not batch a strict descendant of one of those prefixes; same-attribute order is already handled by the check-prefix walk. Execution order need not be stored: if a parent normally runs after its child, declining the child's batch is only conservative, whereas an order map adds state for a rare optimization. Reuse the existing descendant-prefix walk, do not add state to cached plans, and do not globally disable unrelated groups. A safely resolved non-excluding parent adds no prefix, and a pre-excluded parent has already been removed.
+
+`stopOnFirstFailure` disables presence batching entirely under step 6. Global early-stop is the only cross-attribute execution break; a speculative PostgreSQL statement error can otherwise replace an earlier clean validation failure and abort the caller's transaction. Do not catch `QueryException`: catching it in PHP cannot repair PostgreSQL's aborted transaction state. Phased execution, savepoints, or schema/type probing would add disproportionate machinery, so validators that request global early-stop use the ordinary verifier while exclusion pre-evaluation remains enabled.
 
 Tests:
 
@@ -229,24 +367,39 @@ Tests:
 - mixed valid/invalid integers submit only valid values, preserve ordered messages, and keep safe siblings batched;
 - PostgreSQL `integer|exists` and `date|exists` / `date_format:Y-m-d|exists` reject invalid typed values without `QueryException` or presence SQL;
 - a preceding safe failure, `bail`, nullable, empty, absent, `sometimes`, and pre-excluded attributes issue no inappropriate query;
+- a child below any unresolved parent exclusion is not submitted early, while unrelated wildcard groups remain batchable;
 - a preceding custom/delegated rule makes only that concrete value uncertain;
 - an uncertain prefix that later fails performs no fallback; one that reaches presence performs one fallback;
 - an all-uncertain group performs no batch query;
+- different query shapes on the same table/column remain independent and correct rather than disabling one another;
+- a non-wildcard presence rule with the same query shape does not disable wildcard batching and delegates only when its value is unknown;
+- a data mutator that activates a previously skipped presence rule cannot consume facts from another query shape;
 - two attributes sharing one cached `AttributePlan` can make different candidate decisions without cross-request/attribute state;
-- string, array-tuple, `Exists`, and `Unique` object forms retain their metadata and messages.
+- string and array-tuple forms plus canonicalized callback-free presence objects retain their metadata/messages; callback-bearing objects remain delegated.
 
-### 4. Track the real optimizer mutation surface
+### 6. Split optimizer gates at the real mutation boundary
 
 Files:
 
 - `src/validation/src/Validator.php`
 - `tests/Validation/ValidationCompiledExecutionTest.php`
 
-Correct `compiledPlansContainValidatorAwareRules()` by unwrapping `InvokableValidationRule`:
+Use separate gates for the two optimizations:
+
+```text
+presence batching      exact base Validator + exact DatabasePresenceVerifier + not stopOnFirstFailure
+exclusion prepass      exact base Validator + no used data-mutating extension/rule
+```
+
+Keep the early-stop condition on the inner presence-verifier gate. Exclusion pre-evaluation is a pure data pass that cannot produce a failure and remains safe and useful under `stopOnFirstFailure`. Add a concise source comment at that gate explaining that a failed speculative PostgreSQL query aborts the caller's transaction even when PHP catches the exception; do not add an exception catch, savepoint, transaction-state check, or deferred-query executor.
+
+Do not retain the current `$this->extensions === []` gate. Extension registration normally happens at application boot and an unused registered extension cannot affect this validator. For exclusion pre-evaluation, scan compiled delegated checks and block only when dispatch would actually reach a custom extension (the normalized name exists in `$extensions` and no concrete `validate*()` method handles it), is a `ClosureValidationRule`, or carries an actual `ValidatorAwareRule`.
+
+Unwrap `InvokableValidationRule` before classifying it:
 
 ```php
-if ($check->ruleObject instanceof InvokableValidationRule) {
-    if ($check->ruleObject->invokable() instanceof ValidatorAwareRule) {
+if ($check->originalRule instanceof InvokableValidationRule) {
+    if ($check->originalRule->invokable() instanceof ValidatorAwareRule) {
         return true;
     }
 
@@ -254,18 +407,27 @@ if ($check->ruleObject instanceof InvokableValidationRule) {
 }
 ```
 
-The wrapper always implements `ValidatorAwareRule`, but forwards the validator only when the inner rule implements it. A normal modern `ValidationRule` / `InvokableRule` cannot mutate this validator and must not globally disable exclusion or presence optimization.
+The wrapper always implements `ValidatorAwareRule`, but forwards the validator only when the inner rule implements it. A normal modern `ValidationRule` / `InvokableRule` receives data by value at most and cannot mutate this validator. It must not disable exclusion pre-evaluation.
 
-Keep `ClosureValidationRule` as a blocker because it passes the live validator as the fourth callback argument. Keep an actual inner `ValidatorAwareRule` as a blocker. Regardless of the global decision, a custom rule preceding presence remains locally uncertain under step 3.
+Keep `ClosureValidationRule` as an exclusion blocker because it passes the live validator as the fourth callback argument. Keep a direct or wrapped `ValidatorAwareRule` as a blocker. Regardless of these global exclusion decisions, a custom rule preceding presence remains locally uncertain under step 5.
+
+Presence batching must not use this data-mutation gate. Its maps store facts about a query shape and concrete value. If an earlier custom rule changes a value to one never submitted, runtime lookup is unknown and delegates. If it changes to a value submitted by another attribute, the fact remains database truth. Callback-bearing presence shapes remain unbatchable and their null lookup key always delegates.
+
+The unresolved-parent exclusion boundary in step 5 still applies when the exclusion prepass is disabled: data mutation can make an exclusion outcome unknowable, so descendants of that potential exclusion are not submitted. This preserves typed-database safety without forfeiting unrelated groups.
 
 Tests:
 
-- an unrelated plain modern validation rule does not prevent wildcard batching;
-- an inner `ValidatorAwareRule` still disables precomputation;
-- a closure rule still disables precomputation;
-- mutation before presence retains ordinary execution semantics.
+- an unused registered extension disables neither optimization;
+- a used extension, `ClosureValidationRule`, and direct/wrapped `ValidatorAwareRule` disable exclusion pre-evaluation;
+- a plain modern `ValidationRule` / `InvokableRule` does not disable exclusion pre-evaluation merely because Hypervel wraps it in `InvokableValidationRule`;
+- presence batching remains enabled with those mutation-capable rules, while changed values use database-proven facts or delegate when unknown;
+- changes from one submitted presence value to another submitted value use the correct fact; changes to an unsubmitted value fall back;
+- parent exclusions made unresolved by a used mutator suppress only affected descendant batches.
+- with `stopOnFirstFailure`, an earlier required failure prevents a later wildcard integer-to-text presence probe on every driver, reports only the earlier failure, and issues zero presence queries;
+- without `stopOnFirstFailure`, the same earlier failure does not disable one grouped query for safe later text probes. Document this as the narrowness converse of the early-stop regression rather than a duplicate general batching test;
+- on PostgreSQL, ordinary and wildcard/batched integer-to-text probes without early-stop both raise `QueryException`, proving that batching preserves the ordinary verifier's raw binding types.
 
-### 5. Make precomputed presence facts database-semantic
+### 7. Make precomputed presence facts database-semantic
 
 Files:
 
@@ -275,45 +437,87 @@ Files:
 - `tests/Validation/ValidationDatabasePresenceVerifierTest.php`
 - `tests/Validation/ValidationBatchDatabaseCheckerTest.php`
 - `tests/Validation/ValidationPrecomputedPresenceVerifierTest.php`
-- validation database integration tests described in step 9
+- validation database integration tests described in step 11
 
-#### 5.1 Query only normalizable candidates
+#### 7.1 Key facts by the complete database query shape
 
-Normalize each concrete candidate independently. Strings, integers, floats, `Stringable` values, and one-dimensional arrays containing only those types remain supported. Booleans, null, and other unsupported candidates are skipped without declining safe siblings. Unsupported runtime probes must delegate before consulting any stored fact.
+Move query-shape identity to the verifier that owns the facts. Add one shared public static `PrecomputedPresenceVerifier::lookupKey()` used by both `Validator` group construction and runtime `getCount()` / `getMultiCount()` lookup. The key contains:
 
-Keep query binding semantics separate from lookup keys. Do not string-cast every submitted SQL value: retain the raw string, integer, or float query value so the connection performs the same driver-specific binding as the ordinary verifier; cast a supported `Stringable` once. Alongside it, build the same type-insensitive `(string)` lookup key that `PrecomputedPresenceVerifier` uses today. This prevents the batch path from changing a typed PostgreSQL probe merely to deduplicate it without assuming that PDO will return the same PHP type it received.
+- the current connection recorded by `setConnection()`;
+- table and column;
+- scalar where conditions in their established order, normalized exactly as `DatabasePresenceVerifier::addWhere()` consumes them;
+- the ignored ID and effective ID column only when the ignored ID is neither null nor the `NULL` sentinel.
+
+Do not include rule type. `exists` and `unique` without an ignored ID issue the same verifier query, and runtime verifier calls cannot distinguish them. `getMultiCount()` has no ignored-ID arguments, so its key correctly matches the no-exclusion scalar shape. Return null when any extra condition is a `Closure`; callback-bearing rules remain unbatchable and runtime calls delegate.
+
+Use a collision-free serialized plain-string representation rather than delimiters or a lossy hash. This state exists only for one validation execution, query shapes are small, and correctness is more important than shortening the key. Require the original `DatabasePresenceVerifierInterface` in `PrecomputedPresenceVerifier`'s constructor and forward `setConnection()` unconditionally; a connection-less fallback cannot honor connection-keyed query shapes. `Validator::getPresenceVerifier()` already keeps the connection selection and probe in one synchronous chain. Unknown facts must always delegate; a nullable fallback and synthesized zero count would incorrectly pass `unique`.
+
+Change `addLookup()` to accept the query key, and key all fact maps by it. A mismatched or null runtime key delegates. Delete the compensating table/column machinery completely:
+
+- `Validator::collectUnsafeTableColumns()` and `extractTableColumnForUnsafeCheck()`;
+- `Validator::buildPresenceGroupKey()` after its callers use `lookupKey()`;
+- the `$unsafeTableColumns` parameter through `BatchDatabaseChecker`;
+- `BatchDatabaseChecker`'s table/column count census and stale limitation docs.
+
+Do not keep both collision mechanisms. Query-key ownership is smaller, supports separate batched shapes on the same column, and makes non-wildcard identical-shape probes safe once unknown values delegate under the fact model below.
+
+Tests:
+
+- build-time and runtime keys agree for exists, unique with/without ignore, connection-qualified tables, ordered wheres, and the `NULL` sentinel;
+- exists and unique without an effective exclusion share a key; ignored IDs and effective ID columns change it;
+- closure conditions return null and delegate;
+- two different shapes on one table/column can each register and consume only their own facts;
+- connection changes select the matching lookup while still reaching the fallback for unknown keys.
+
+#### 7.2 Query only normalizable candidates
+
+Normalize each concrete candidate independently. Strings, integers, floats, ordinary `Stringable` values, and one-dimensional arrays containing only those types remain supported. Booleans, null, `DateTimeInterface`, and other unsupported candidates are skipped without declining safe siblings. Date/time objects must delegate because `Connection::prepareBindings()` formats them through the connection grammar rather than their `__toString()` method. Unsupported runtime probes must delegate before consulting any stored fact.
+
+Keep database comparison normalization separate from PDO binding identity. Do not string-cast submitted SQL values: retain the raw string, integer, or float so the connection uses the same binding as the ordinary verifier; cast a supported `Stringable` once. `Connection::bindValues()` binds integers as `PDO::PARAM_INT` and the other supported values as `PDO::PARAM_STR`, so add one collision-free binding key with a positional prefix:
+
+```php
+public static function bindingKey(mixed $value): ?string
+{
+    $normalized = self::normalizeValue($value);
+
+    return $normalized === null ? null : (is_int($value) ? 'i' : 's') . $normalized;
+}
+```
+
+Keep `normalizeValue()` as the shared string comparison form for candidates and fetched database values. The binding key delegates to it, so support checks and `Stringable` conversion remain in one place. Float, string, and a cast `Stringable` intentionally share the `s` form because PDO binds each as the same string representation. Prefixed keys also prevent PHP from silently converting numeric-string fact-map keys to integers.
 
 Do not batch booleans. `Connection::prepareBindings()` converts them to integers, while `PostgresConnection` with emulated prepares converts them to `'true'` / `'false'`, and returned column representations also vary by driver/PDO mode. Delegating this marginal presence-rule shape is simpler and guarantees parity with the real verifier. It also removes the existing `false` to `''` corruption without adding a two-representation boolean scheme.
 
-Deduplicate candidates by that string key and retain the first raw value as the representative SQL binding. Use the identical key function for submitted candidates, runtime probes, and every value fetched by both query stages before comparing results or populating `exactHits`, `knownPresent`, and `provenAbsent`. Integer/float candidates may be returned as strings because of the column type, driver, or PDO options; equal string keys must remain fast-path hits rather than becoming ambiguous misses. Booleans are excluded before normalization, so `false` cannot collide with an empty string. Keep the representation as plain arrays/maps rather than introducing a value object.
+Deduplicate candidates by binding key and retain the first raw value as its representative SQL binding. Build one comparison-string-to-binding-keys index from `substr($bindingKey, 1)`; do not allocate a tuple or value object per candidate. Reuse that suffix as an ordinary `Stringable` value's representative so `__toString()` runs once. A successful grouped query proves every retained raw binding was accepted. A fetched equal comparison string can therefore establish an exact fact for every matching submitted binding key while still allowing PDO to return integer/numeric columns as strings. An equal-looking runtime value with an unsubmitted binding key is unknown and delegates. Booleans and date/time objects are excluded before normalization, so no binding-conversion approximation is needed.
 
 Do not partially submit an array containing an unsupported nested item. Its eventual `getMultiCount()` must remain one coherent fallback.
 
-#### 5.2 Use two grouped stages
+#### 7.3 Use two grouped stages
 
-For every collision-free query shape:
+For every grouped query shape:
 
-1. Query all distinct submitted representative values in chunks of 1,000.
-2. Normalize every fetched value through the shared string-key function, then build the exact-key hit map and submitted-key misses.
+1. Query all distinct submitted binding representatives in chunks of 1,000.
+2. Normalize every fetched value to its comparison string, use the comparison index to build binding-keyed exact hits, then derive binding-keyed misses.
 3. If stage 1 fetched nothing, every submitted value is proven absent.
-4. If the whole group has one distinct submitted value and stage 1 returned a nonexact representation, that sole value is already known present for scalar presence semantics; no isolation query is needed.
-5. Otherwise, if stage 1 has hits and misses, query only the misses with the identical connection, table, column, where conditions, ignore value, ID column, write PDO, and chunking.
-6. If stage 2 fetched nothing, every submitted miss is proven absent.
-7. Every miss returned with the same normalized key by stage 2 is known present for scalar semantics, even when other misses remain ambiguous. Keep these in the scalar-only `knownPresent` map rather than merging facts from two queries into the stage-1 exact map.
-8. If stage 2 is non-empty and there was exactly one distinct miss, that isolated miss is known present even when the stored representation differs.
-9. Other misses from a non-empty multi-miss stage remain unresolved and each runtime scalar probe delegates, memoized per normalized value for this execution.
+4. If the whole group has one submitted binding and stage 1 returned a nonexact representation, that sole value is already known present for scalar presence semantics; no isolation query is needed. This count must be binding-based: collapsing string `'1'` and integer `1` here caused the same order-dependent MySQL defect as candidate deduplication.
+5. If stage 1 has no exact hits and multiple submitted bindings, register no facts and let runtime probes delegate. The miss set is identical to the original grouped query, so rerunning it cannot isolate a value.
+6. Otherwise, if stage 1 has hits and misses, query only the misses with the identical connection, table, column, where conditions, ignore value, ID column, write PDO, and chunking.
+7. If stage 2 fetched nothing, every submitted miss is proven absent.
+8. Every missed binding whose comparison string is returned by stage 2 is known present for scalar semantics, even when other misses remain ambiguous. Keep these in the scalar-only `knownPresent` map rather than merging facts from two queries into the stage-1 exact map.
+9. If stage 2 is non-empty and there was exactly one missed binding, that isolated miss is known present even when the stored representation differs.
+10. Other misses from a non-empty multi-miss stage remain unresolved and each runtime scalar probe delegates, memoized by full query key and binding key for this execution.
 
 This uses the database itself to isolate collation/coercion matches. It avoids both an attacker-controlled one-query-per-ordinary-miss regression and non-portable collation emulation. Do not add recursive partitioning, thresholds, derived tables, `CASE`, or driver-specific equality logic.
 
-Store three plain maps per lookup:
+Store three plain maps per query-keyed lookup:
 
 ```text
-exactHits       stage 1 returned this exact normalized string key
-knownPresent    a single-input query or stage 2 proved a scalar miss is present
-provenAbsent    a stage returned no row for this submitted value
+exactHits       stage 1 returned this submitted binding's comparison string
+knownPresent    a single-binding query or stage 2 proved a scalar miss is present
+provenAbsent    a stage returned no row for this submitted binding
 ```
 
-Anything in no map was unqueried or ambiguous and delegates. Cache only actual fallback scalar counts inside this verifier instance. Return the real cached integer count, not a synthesized boolean.
+Anything in no map was unqueried or ambiguous and delegates. Cache only actual fallback scalar counts inside this verifier instance, nested by the same full query key as the fact maps and then by binding key. Return the real cached integer count, not a synthesized boolean.
 
 Expected scalar query costs:
 
@@ -325,16 +529,16 @@ Expected scalar query costs:
 
 The extra stage creates no new consistency model: Laravel's unbatched probes already occur at different instants, and both grouped stages use the write PDO.
 
-#### 5.3 Preserve `getMultiCount()` database DISTINCT semantics
+#### 7.4 Preserve `getMultiCount()` database DISTINCT semantics
 
 Change `getExistingValues()` to select distinct column values and update its docblock to promise distinct stored values. This reduces duplicate transfer and makes one-chunk exact-hit facts usable for array-valued `exists` under the same database equality semantics as `distinct()->count($column)`.
 
 On a case-insensitive or otherwise normalizing column, SQL `DISTINCT` can collapse multiple stored string representations to one representative. A requested value can therefore have a row with the same normalized string key in the table without that representation being returned by stage 1; here, an "exact hit" means only that stage 1 returned the submitted string key as its distinct representative. The omitted submitted key enters the miss set and may require stage 2. This is why stage-2 key hits can establish scalar facts, and why the second grouped pass is expected more often on columns containing equivalent representations.
 
-There is one additional chunk boundary: SQL `DISTINCT` is authoritative within a query, not across independently chunked queries. Record whether stage 1 fit in one chunk. After normalizing and deduplicating the requested array, `getMultiCount()` follows these rules:
+There is one additional chunk boundary: SQL `DISTINCT` is authoritative within a query, not across independently chunked queries. Record whether stage 1 fit in one chunk. For `getMultiCount()`, derive each input's binding key and recover its comparison string from that key. Require a fact for every distinct binding key, but count present comparison strings once. This exactly matches `validateExists()`'s `count(array_unique($value))`, whose default `SORT_STRING` comparison collapses the same inputs. The existing rules then apply:
 
 - any unknown value delegates the whole multi-count;
-- a `knownPresent` value is usable only when it is the array's sole distinct input; otherwise delegate because it may map to the same stored value as another input;
+- a `knownPresent` binding is usable only when the array has one distinct comparison string; otherwise delegate because it may map to the same stored value as another input;
 - proven-absent values contribute zero;
 - exact hits can be counted only when stage 1 fit in one distinct query; otherwise delegate to avoid double-counting database-equivalent representations returned from separate chunks.
 
@@ -346,7 +550,8 @@ Tests:
 
 - exact, absent, known-present, unresolved, unsupported, and unregistered scalar paths;
 - boolean false/true candidates are never submitted to a batch and fall back only if normal execution reaches their presence rule, without disabling safe siblings;
-- fallback count memoization is execution-local and keyed by distinct normalized scalar probe;
+- `DateTimeInterface` candidates are never string-cast or submitted to a batch and match ordinary grammar-formatted validation on every driver;
+- fallback count memoization is execution-local and keyed by the full query shape plus binding key; prove isolation between equal-looking string/integer probes, two shapes on one table/column, and two tables sharing the same probe value;
 - all-new unique values do not produce N fallbacks;
 - a case-insensitive differently-cased duplicate fails `unique`;
 - exists honors case, accent, trailing-space, and numeric coercion according to each real driver rather than PHP guesses;
@@ -356,19 +561,22 @@ Tests:
 - stage-2 exact-key hits in a multi-miss group become scalar-known facts without contaminating stage-1 multi-count facts;
 - canonical exact array values still use the precomputed distinct result;
 - a MySQL/MariaDB case-insensitive table containing collation-equivalent representations matches the real verifier's distinct count;
-- mocked and real-driver integer/float candidates remain precomputed hits without fallback queries when PDO returns the same values as strings, including integer candidates against text columns and numeric/decimal column results;
+- mocked and real-driver integer/float candidates remain precomputed hits without fallback queries when PDO returns the same values as strings, including numeric/decimal column results on every driver;
+- on MySQL, MariaDB, and SQLite, mixed string `'1'` and integer `1` against stored text `'1'` submit both raw bindings in one query and both pass;
+- on MySQL and MariaDB, stored text `'01'` with mixed candidates in both orders preserves ordinary per-value semantics: string `'1'` is absent and integer `1` is present, with neither fact consuming the other;
+- on PostgreSQL, integer-to-text probes and both orders of mixed string/integer batches raise `QueryException` rather than being deduplicated or string-cast by the optimizer;
 - a distinct representative can omit a requested string representation from stage 1 without producing an incorrect scalar or multi-count fact;
 - duplicate input elements preserve `count(array_unique($value))` / database distinct behavior;
 - verifier restoration after success and exception remains covered.
 
-### 6. Restore exclusion order and wildcard authority
+### 8. Restore exclusion order and wildcard authority
 
 Files:
 
 - `src/validation/src/Validator.php`
 - `tests/Validation/ValidationPreEvaluatedExclusionsTest.php`
 
-Drive `preEvaluateExclusions()` from `compiledPlans`. Only pre-evaluate when `checks[0]` is a delegated `ExcludeIf` or `ExcludeUnless`. `nullable`, `bail`, and `sometimes` are plan flags rather than executable checks, so they do not occupy position zero.
+Drive exclusion analysis from `compiledPlans`. Only pre-evaluate when `checks[0]` is a delegated exclusion rule. `nullable`, `bail`, and `sometimes` are plan flags rather than executable checks, so they do not occupy position zero. Support all five built-in exclusion rules through their existing shared predicates: unconditional `Exclude`, `ExcludeIf`, `ExcludeUnless`, `ExcludeWith`, and `ExcludeWithout`. When a first-position exclusion resolves non-excluding and the attribute survives the pre-excluded filter, let that attribute's presence-prefix walk skip the resolved exclusion. Exclusions marked unresolved by position, malformed parameters, or the mutation gate remain uncertain and keep ordinary per-value presence execution.
 
 Use the check's already parsed parameters. Apply the same dependent-field normalization as `validateAttribute()`:
 
@@ -380,18 +588,32 @@ if ($keys = $this->getExplicitKeys($attribute)) {
 }
 ```
 
-Retain the existing safety skips for boolean/null-dependent coercion and non-scalar condition values. Delete `parseExcludeRule()` and the numeric-segment regex `resolveWildcardConditionField()` once they have no caller.
+After parameter normalization, call the corresponding existing `validateExclude*()` predicate without adding a failure; a false result means pre-exclude and a true result resolves non-excluding. This reuses `parseDependentRuleParameters()` and therefore handles boolean/null coercion and non-scalar values exactly like execution instead of maintaining the current manual approximation. The exact-base/no-used-mutator gate makes repeated access to `$this->data` safe.
+
+Scan each plan's checks once to find its first exclusion index and whether another exclusion appears later. Do not allocate `array_slice()` or repeat the same exclusion-name scan after a first-position predicate passes.
+
+Memoize successful boolean predicate outcomes inside this one prepass with a collision-free `serialize([$ruleName, $originalParameters, $explicitKeys])` key. The five built-in predicates read only their normalized parameters, `$this->data`, and `$this->rules`; their target attribute/value arguments are unused. Original parameters retain the dependent wildcard pattern, while the exact explicit-capture list completes the normalized identity even when different target primary patterns share captures. The map is `array<string, bool>` local to one pre-execution call, so its inputs cannot change during its lifetime and it adds no plan, coroutine, or worker state. Keep calling `getValue($attribute)` on misses to match normal invocation. Do not cache exception deferrals, which would add a third state for a rare path, and do not add plan-identity metadata or a broader `getExplicitKeys()` pattern cache.
+
+Normalize dependent parameters only when the existing `dependsOnOtherFields($ruleName)` authority says to do so. Wrap that normalization and the speculative predicate call in one `try`. Catch exactly `InvalidArgumentException|ValueError` and classify the exclusion unresolved so normal ordered execution remains the authority: parameter-count checks throw the former, while too few wildcard captures make `vsprintf()` throw the latter. Do not catch `Throwable` or plain `Error`; that would hide bugs in the prepass, and unsupported non-stringable array-form field parameters have no realistic fluent or documented path. Do not duplicate the five predicates' parameter-count tables. Deferring is observable and required with `stopOnFirstFailure`: an earlier attribute failure can legitimately stop before Laravel ever reaches a malformed later exclusion, whereas throwing from the prepass would change that result. If execution does reach it, the original predicate still throws normally. Delete `parseExcludeRule()` and the numeric-segment regex `resolveWildcardConditionField()` once they have no caller.
+
+Return a plain set of potential parent exclusions for step 5. A first-position exclusion whose predicate returned false is pre-excluded; a true result is resolved non-excluding. An exclusion later in its plan, a malformed exclusion deferred after `InvalidArgumentException`, or any exclusion while the mutation gate is closed remains unresolved. Pass that local set into presence candidate building; do not store execution order or add a validator property. A candidate declines batching only when an unresolved exclusion attribute is a strict ancestor, while its own rule-prefix walk remains the authority for same-attribute order. Reuse the existing O(depth) prefix walk rather than scanning every unresolved attribute for every candidate.
 
 Tests:
 
 - `integer|exclude_if:foo,bar` retains the integer error even though the attribute is later excluded;
 - exclusion-first still removes data before execution;
+- exclusion-first supports top-level numeric attribute keys without crossing an integer/string type boundary;
+- first-position `exclude`, `exclude_with`, and `exclude_without` use the same fast path and semantics as `exclude_if` / `exclude_unless`;
+- a resolved non-excluding first-position exclusion keeps a following wildcard presence rule grouped, while a mutation-gated unresolved exclusion keeps that rule delegated;
 - `bail`, `nullable`, and `sometimes` flags before exclusion do not prevent the fast path;
+- malformed, later-position, or mutation-dependent exclusions remain in normal execution and mark only descendant batches uncertain;
+- a malformed later exclusion still throws if reached, but an earlier `stopOnFirstFailure` result is not replaced by a prepass exception;
+- a malformed wildcard exclusion remains an unresolved ancestor and suppresses early batching only for its descendants;
 - literal numeric segment case: `data.5.items.0.value` resolves `data.5.items.*.type` with capture `0`, not literal segment `5`;
-- one/multiple wildcard captures, mismatched counts, nested arrays, and escaped-dot field names match normal dependent-rule execution;
+- two target fields sharing one capture reuse the same correct outcome while different captures remain isolated; one/multiple wildcard captures, mismatched counts, nested arrays, and escaped-dot field names match normal dependent-rule execution;
 - parent pre-exclusion still suppresses descendants.
 
-### 7. Reset transient numeric state, parse once, and remove dead plan metadata
+### 9. Reset transient state, parse once, and streamline stop checks
 
 Files:
 
@@ -411,7 +633,7 @@ Delegated checks already reset inside `validateAttribute()`. Do not add a dirty 
 
 Regression: data `['field' => '123456', 'other' => 2]` with `string|gt:other|max:5`. `Gt` temporarily adds itself to `numericRules`; inline `max` must select `validation.max.string`, not `validation.max.numeric`.
 
-In `RuleCompiler::compile()`, parse each input rule exactly once into a temporary list of parsed name/parameter pairs. Pass those pairs to `collectContext()` and pass the corresponding pair into `compileRule()` rather than calling `ValidationRuleParser::parse()` again. Do not cache object parse results beyond this compile: `ExcludeIf` and `ExcludeUnless` deliberately evaluate their closures while stringifying, so a worker-global object cache would be incorrect. This removes duplicate parsing work and ensures a closure-backed exclusion condition is evaluated once per compile, with the result that is actually compiled.
+In `RuleCompiler::compile()`, parse each exploded input rule exactly once into a temporary list of parsed name/parameter pairs. Pass those pairs to `collectContext()` and pass the corresponding pair into `compileRule()` rather than calling `ValidationRuleParser::parse()` again. Safe fluent conditions were already canonicalized once by step 1; this local intermediate representation removes duplicate token parsing and stringification from the compiler's context and emission passes.
 
 Keep the data flow explicit and local:
 
@@ -429,33 +651,46 @@ foreach ($rules as $index => $rule) {
 
 Change `collectContext()` to consume parsed pairs and `compileRule()` to accept its pair. The temporary list is linear in one attribute's rule count, exists only during a cache miss, and replaces repeated parsing; it adds no worker-lifetime or per-validation execution state.
 
-The parsed pair's first element is `mixed`, not always a rule-name string: `ValidationRuleParser::parse()` returns the original object for a `RuleContract`. Keep `compileRule()`'s `RuleContract` branch ahead of any pair-consuming path, keep `collectContext()`'s `is_string($parsedName)` guard, and consume the parsed name/parameters only for the remaining string, array, and `Stringable` forms, including `Exists` / `Unique`.
+The parsed pair's first element is `mixed`, not always a rule-name string: `ValidationRuleParser::parse()` returns the original object for a `RuleContract`. Keep `compileRule()`'s `RuleContract` branch ahead of any string-only path, keep `collectContext()`'s `is_string($parsedName)` guard, and consume the parsed name/parameters for strings, array tuples, and callback-bearing `Stringable` presence objects.
 
 `compileAllDelegated()` does not need parsed context after the dead size-mode metadata is removed. Let `compileRuleDelegated()` continue parsing each rule once as it emits the delegated check; do not add a second generalized compilation abstraction solely to share a short control flow.
 
-Then remove from `AttributePlan`:
+Remove from `AttributePlan`:
 
 - `$required`;
 - `$hasImplicitRule`;
-- `$sizeMode` and its `SizeMode` import.
+- `$sizeMode` and its `SizeMode` import as part of step 4.
 
-Remove every compiler write and delete `RuleCompiler::isImplicitRule()` with its duplicate list. Keep size mode only in `compile()`'s local context and in the `InlineCheck` parameters that consume it. `compileAllDelegated()` no longer needs the context pre-scan, which also removes needless work for validator subclasses.
+Remove every compiler write and delete `RuleCompiler::isImplicitRule()` with its duplicate list. Numeric semantics remain only in `compile()`'s local context and in size `InlineCheck` parameters. `compileAllDelegated()` needs no context pre-scan, which also removes needless work for validator subclasses.
 
 Strengthen `AttributePlan`'s existing immutability documentation: no execution or optimizer state may be attached because cached plans are shared across attributes, requests, and concurrent coroutines.
 
-Replace compiler tests that pin dead fields with behavior or consumed-output assertions:
+The compiled loop must also stop from state it already owns instead of calling the parsing-based `shouldStopValidating()` after a message:
+
+1. Compute `$cleanedAttribute = $this->replacePlaceholderInString($attribute)` once for the plan.
+2. Use `$plan->bail && $this->messages->has($cleanedAttribute)`. The current raw-attribute check is wrong for escaped-dot keys and is accidentally rescued by the later legacy helper.
+3. Stop when `failedRules[$cleanedAttribute]` contains `uploaded`.
+4. Stop when the names already recorded in `failedRules[$cleanedAttribute]` intersect the canonical validator `$implicitRules` list. The failed rule's presence proves the attribute has that implicit rule, so a preliminary `hasRule()` scan and a stored `hasImplicitRule` flag are both redundant.
+
+Keep Laravel's protected `shouldStopValidating()` for the legacy benchmark loop and protected API compatibility; only the compiled executor bypasses its repeated parsing.
+
+Replace tests that pin dead fields with behavior or consumed-output assertions:
 
 - `Required` and implicit rules still execute on absent/empty attributes;
 - nullable/bail/sometimes flags remain;
-- size comparison and message mode come from the emitted inline check;
-- closure-backed `ExcludeIf` and `ExcludeUnless` conditions are invoked exactly once per `compile()` call, and their single result determines the emitted check;
+- size comparison and message selection come from the emitted numeric-semantics boolean plus runtime value shape;
+- compiler context and emission consume one parsed-pair list without a second parse;
+- parser tests, not compiler tests, prove conditional fluent closures are invoked once;
+- bail, uploaded failures, and failed implicit rules stop without reparsing the attribute's rules;
+- bail and implicit stopping use placeholder-cleaned escaped-dot attributes;
 - all-delegated subclass plans retain correct ordered behavior without stored context.
 
-### 8. Fix strict `date_format` round trips
+### 10. Fix strict `date_format` round trips
 
 Files:
 
 - `src/validation/src/Concerns/ValidatesAttributes.php`
+- `src/docs/validation.md`
 - `tests/Validation/ValidationValidatorTest.php`
 - `tests/Validation/ValidationCompiledExecutionTest.php`
 
@@ -482,7 +717,9 @@ Tests in both base and all-delegated execution paths:
 
 Mark this as an upstream Laravel issue/PR candidate after the Hypervel fix; do not make upstream coordination part of this implementation slice.
 
-### 9. Put database validation coverage on the existing matrix
+Document the exact-match contract beside `date_format` in the canonical validation docs. Do not add this correctness fix to the porting guide or package README: it does not change a normal porting decision, and those surfaces must not become exhaustive bug-fix diffs.
+
+### 11. Put database validation coverage on the existing matrix
 
 Files:
 
@@ -512,18 +749,50 @@ Update `tests/Validation/ValidationDatabasePresenceVerifierTest.php::testGetExis
 
 The current `bin/run-database-tests.sh` already discovers `tests/Integration/Validation/Database/<DriverDirectory>`; no workflow or runner edit is needed.
 
+### 12. Cover the newly optimized common forms in benchmarks
+
+Files:
+
+- `src/validation/src/Console/BenchmarkValidationCommand.php`
+- `src/testing/src/PHPUnit/AfterEachTestSubscriber.php`
+- `tests/Validation/BenchmarkValidationCommandTest.php`
+
+Repair and verify the benchmark harness before changing performance-sensitive validation source, then capture the trusted baseline. The current command has valid optimized and historical execution paths, but its option handling, cache setup, workload checks, and reporting need these corrections:
+
+- replace the mutable static description map with one typed `SCENARIO_DESCRIPTIONS` constant; derive the `all` list from its keys, validate requested names against it with a console error and `self::FAILURE`, and remove the `buildScenario()` fallback so a description/builder mismatch fails natively;
+- keep the iteration count local to `handle()` and pass it to `benchmark()`. Delete the static property, `flushState()`, and its `AfterEachTestSubscriber` call so normal test cleanup no longer autoloads the benchmark-only legacy classes;
+- declare both valued options with `InputOption::VALUE_REQUIRED`; validate iterations with `FILTER_VALIDATE_INT`, reject values below one instead of silently clamping them, and keep the default when the option is omitted;
+- replace scenario `rand()` calls with deterministic arithmetic that preserves the same representative value shapes without mutating the process-global random generator;
+- before timing each path, flush `RulePlanCache` and `ValidationRuleParser`, then run one untimed warmup. Require the optimized and legacy warmup booleans to agree; report disagreement as a console error and `self::FAILURE`. Time each path only after its own warmup so both measure long-lived-worker steady state with the caches they actually use;
+- calculate the true median for odd and even iteration counts inline in `benchmark()`. Do not extract a helper solely for testing;
+- divide the nonzero real validator timings directly rather than guarding the numerator while dividing by the unguarded denominator;
+- report that timings are medians of the requested number of measured iterations and return `self::SUCCESS` on completion.
+
+Use one focused command test with `flat` and one iteration to keep it cheap. Assert a known scenario succeeds and names itself, an unknown scenario fails without silently running `simple`, and zero/non-integer iteration values fail. Do not expose private timing machinery, inject fake production scenarios, or test Symfony's own required-value error merely to reach otherwise private branches.
+
+After steps 1–11, add two focused scenarios. The current scenarios use only pipe-delimited string rules and all size rules have explicit sibling types:
+
+- a fluent-rules scenario with a representative wildcard form such as `['required', Rule::in([...]), 'max:...']`, proving parser canonicalization, plan-cache reuse, and `In` inlining are measured across fresh validators;
+- a typeless-size scenario dominated by common `required|max:255` / `min` / `between` string and array values, proving the value-dispatched size path rather than the old delegated path is measured.
+
+Keep benchmark data and rules valid and deterministic, reuse the existing optimized-versus-legacy harness, and do not add database timing to this command. Presence batching remains pinned by deterministic integration-test query counts; mixing live database latency into the CPU benchmark would add noise rather than useful coverage. Keep the existing conditional scenario shape unchanged because its first-position wildcard `exclude_unless` directly exercises step 8.
+
 ## Test and verification sequence
 
 Implement each section with its focused tests, running the touched file immediately. At coherent checkpoints run:
 
 ```bash
+vendor/bin/phpunit tests/Validation/BenchmarkValidationCommandTest.php
+
 vendor/bin/phpunit tests/Validation/ValidationPlanExecutorTest.php \
   tests/Validation/ValidationCompiledExecutionTest.php \
   tests/Validation/ValidationBatchDatabaseCheckerTest.php \
   tests/Validation/ValidationPrecomputedPresenceVerifierTest.php \
   tests/Validation/ValidationDatabasePresenceVerifierTest.php \
   tests/Validation/ValidationPreEvaluatedExclusionsTest.php \
-  tests/Validation/ValidationRuleCompilerTest.php
+  tests/Validation/ValidationRuleCompilerTest.php \
+  tests/Validation/ValidationRuleParserTest.php \
+  tests/Validation/ValidationRulePlanCacheTest.php
 
 vendor/bin/phpunit tests/Validation
 
@@ -533,13 +802,13 @@ bin/run-database-tests.sh mariadb --filter=ValidationBatchDatabaseCheckerTest
 bin/run-database-tests.sh pgsql --filter=ValidationBatchDatabaseCheckerTest
 ```
 
-Run the existing benchmark before source changes and after the final implementation, using multiple runs rather than one noisy sample:
+After repairing its integrity and before changing validation runtime behavior, run the existing benchmark three times. Run the final expanded benchmark three times after implementation:
 
 ```bash
 php src/testbench/bin/testbench validation:benchmark --scenarios=all --iterations=15
 ```
 
-Compare three runs by median. Investigate any repeatable optimized-path regression above normal measurement noise, especially the flat and simple cases affected by the inline numeric-state reset. Presence performance is pinned primarily by query counts because avoided database round trips dominate predicate CPU.
+Compare three runs by median. Investigate any repeatable optimized-path regression above normal measurement noise, especially flat/simple scenarios affected by the inline numeric-state reset. Confirm that fluent-object and typeless-size scenarios improve as intended. Presence performance is pinned primarily by query counts because avoided database round trips dominate predicate CPU.
 
 Final verification:
 
@@ -551,22 +820,30 @@ Do not weaken assertions to accommodate the implementation. Any failure must be 
 
 ## Acceptance checklist
 
-- [ ] Laravel rule syntax, public APIs, rule/message order, and extension points remain compatible except for the verified upstream `date_format` and resource-valued `json` bug fixes.
+- [ ] Laravel rule syntax, public APIs, rule/message order, and extension points remain compatible except for the verified upstream `date_format`, resource-valued `json`, falsey ignored-ID, and boolean database-condition bug fixes.
 - [ ] Pipe-delimited and array rule forms compile to the same correct behavior.
+- [ ] Laravel's generic safe-object canonicalization is restored; fluent `in` / `not_in` and callback-free presence rules use caching/inlining without a class allowlist.
+- [ ] Callback-bearing presence rules retain their objects and query callbacks, remain delegated, and produce no lookup key.
 - [ ] O(n) wildcard expansion, immutable worker-lifetime plan caching, and the single execution loop remain intact.
-- [ ] Common `required|integer|exists`, `email|exists`, `date|exists`, and `required|array|exists` wildcard shapes remain batched.
+- [ ] Typeless `min` / `max` / `size` / `between` inline with runtime value dispatch; numeric semantics come only from the canonical `$defaultNumericRules`, including `Decimal`.
+- [ ] Common `required|integer|exists`, `required|max:255|exists`, `email|exists`, `date|exists`, and `required|array|exists` wildcard shapes remain batched.
+- [ ] `stopOnFirstFailure` uses ordinary presence execution so speculative SQL cannot replace the first validation failure or poison a PostgreSQL transaction; exclusion pre-evaluation remains enabled.
 - [ ] No invalid value is submitted merely because preflight could not prove its prefix; uncertain probes fall back only if execution reaches presence.
 - [ ] Boolean presence candidates use the ordinary verifier path; driver-specific binding is never approximated by the batch optimizer.
-- [ ] SQL bindings retain their raw supported types while candidates, runtime probes, and fetched values share one PDO-type-insensitive string lookup key.
-- [ ] Pre-excluded, absent-sometimes, empty, nullable, and proven-failing values issue no presence query.
+- [ ] SQL bindings retain their raw supported types; facts and fallback memos require the submitted PDO binding identity while fetched values use a separate string comparison form.
+- [ ] Precomputed facts are keyed by complete effective query shape; different connections, wheres, or unique exclusions on one table/column cannot consume one another's facts or disable each other's batches.
+- [ ] Pre-excluded, unresolved-parent-excluded, absent-sometimes, empty, nullable, and proven-failing values issue no presence query.
 - [ ] Case-insensitive/collation-equivalent `unique` values cannot false-pass.
 - [ ] Array-valued `exists` agrees with database `DISTINCT` semantics, including chunk boundaries.
 - [ ] No optimizer result is stored in a shared plan, static property, or coroutine context.
-- [ ] Exclusion pre-evaluation preserves earlier failures and resolves wildcard captures through the established authority.
+- [ ] Exclusion pre-evaluation covers the five built-in exclusion rules only at a safe first position, preserves earlier failures, and resolves wildcard captures through the established authority.
+- [ ] Unused extensions do not suppress optimization; used validator mutators suppress only exclusion pre-evaluation and affected descendant batches.
 - [ ] Inline messages cannot inherit transient numeric state.
 - [ ] Resource-valued JSON fails cleanly in inline and delegated execution, with no duplicate JSON predicate.
-- [ ] Closure-backed exclusion rules are parsed/evaluated once per compile.
-- [ ] Dead plan fields, compiler writes, duplicate implicit-rule knowledge, and obsolete helpers/tests/comments are removed.
+- [ ] Conditional fluent closures are evaluated once during parser explosion, matching Laravel, and compiler context/emission share one local parsed-pair list.
+- [ ] Compiled bail/uploaded/implicit stopping uses existing plan/failure state and placeholder-cleaned attribute keys without reparsing rules.
+- [ ] `SizeMode`, `DatabasePresenceRule`, presence-metadata methods, dead plan fields/compiler writes, duplicate implicit-rule knowledge, and obsolete helpers/tests/comments are removed.
 - [ ] Every retained source comment and docblock describes the final design; no superseded optimizer explanation remains.
 - [ ] The validation database suite runs through the existing MySQL, MariaDB, PostgreSQL, and SQLite workflow discovery.
+- [ ] The benchmark rejects invalid input, verifies optimized/legacy result agreement, measures deterministic warm-cache workloads, and reports a correct median without process-global command state.
 - [ ] Focused, full validation, database-matrix, benchmark, static-analysis, formatting, and final repository checks pass.
