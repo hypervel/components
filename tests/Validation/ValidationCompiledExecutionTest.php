@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation\ValidationCompiledExecutionTest;
 
+use Brick\Math\Exception\NumberFormatException;
 use Closure;
 use DateTimeImmutable;
 use Hypervel\Contracts\Validation\ImplicitRule;
@@ -165,6 +166,35 @@ class ValidationCompiledExecutionTest extends TestCase
 
             $this->assertTrue($validator->passes());
             $this->assertSame(1, $calls);
+        }
+    }
+
+    public function testNonFiniteNumericSizesPreserveNumberFormatExceptionWithoutWarnings(): void
+    {
+        $cases = [
+            [NAN, 'NAN'],
+            [INF, 'INF'],
+            [-INF, '-INF'],
+        ];
+
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            foreach ($cases as [$value, $representation]) {
+                $validator = $this->makeValidator(
+                    ['value' => $value],
+                    ['value' => 'numeric|max:5'],
+                    validatorClass: $validatorClass,
+                );
+
+                try {
+                    $validator->passes();
+                    $this->fail("{$validatorClass} did not reject {$representation}.");
+                } catch (NumberFormatException $exception) {
+                    $this->assertSame(
+                        "Value \"{$representation}\" does not represent a valid number.",
+                        $exception->getMessage(),
+                    );
+                }
+            }
         }
     }
 

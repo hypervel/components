@@ -2594,9 +2594,22 @@ trait ValidatesAttributes
      */
     protected function ensureExponentWithinAllowedRange(string $attribute, mixed $value): mixed
     {
+        if (! is_numeric($value)) {
+            return $value;
+        }
+
+        if (is_float($value) && ! is_finite($value)) {
+            // Downstream size comparisons stringify the result, but PHP warns when NAN is cast.
+            return match (true) {
+                is_nan($value) => 'NAN',
+                $value > 0 => 'INF',
+                default => '-INF',
+            };
+        }
+
         $stringValue = (string) $value;
 
-        if (! is_numeric($value) || ! Str::contains($stringValue, 'e', ignoreCase: true)) {
+        if (! Str::contains($stringValue, 'e', ignoreCase: true)) {
             return $value;
         }
 

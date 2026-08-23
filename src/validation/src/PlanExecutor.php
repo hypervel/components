@@ -234,8 +234,8 @@ trait PlanExecutor
             CheckType::SizeMax,
             CheckType::SizeBetween,
             CheckType::SizeExact => ! ($check->param['numeric'] && is_numeric($value))
-                || (! Str::contains((string) $value, 'e', ignoreCase: true)
-                    && (! is_float($value) || is_finite($value))),
+                || ((! is_float($value) || is_finite($value))
+                    && ! Str::contains((string) $value, 'e', ignoreCase: true)),
             default => false,
         };
     }
