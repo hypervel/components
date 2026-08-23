@@ -10,8 +10,12 @@ use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Foundation\Testing\DatabaseTransactions;
+use Hypervel\Foundation\Testing\DatabaseTruncation;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Foundation\Testing\TestCase as BaseTestCase;
+use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
+use Hypervel\Testbench\Attributes\WithMigration;
+use ReflectionMethod;
 use RuntimeException;
 use Swoole\Timer;
 use Throwable;
@@ -24,6 +28,7 @@ use Throwable;
  *
  * @method void refreshDatabase()
  * @method void runDatabaseMigrations()
+ * @method void truncateDatabaseTables()
  * @method void beginDatabaseTransaction()
  * @method void disableMiddlewareForAllTests()
  * @method void disableEventsForAllTests()
@@ -133,6 +138,9 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
      */
     protected function setUpDatabaseTraits(array $uses): void
     {
+        // Reset before database attributes register paths against retained schema state.
+        $this->prepareDatabaseTruncationForMethod($uses);
+
         $this->setUpDatabaseRequirements(function () use ($uses): void {
             if (isset($uses[RefreshDatabase::class])) {
                 $this->refreshDatabase();
@@ -141,11 +149,38 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
             if (isset($uses[DatabaseMigrations::class])) {
                 $this->runDatabaseMigrations();
             }
+
+            if (isset($uses[DatabaseTruncation::class])) {
+                $this->truncateDatabaseTables();
+            }
         });
 
         if (isset($uses[DatabaseTransactions::class])) {
             $this->beginDatabaseTransaction();
         }
+    }
+
+    /**
+     * Isolate method-specific migration sets from the retained truncation schema.
+     */
+    protected function prepareDatabaseTruncationForMethod(array $uses): void
+    {
+        if (! isset($uses[DatabaseTruncation::class])) {
+            return;
+        }
+
+        $method = $this->resolvePhpUnitTestMethodName();
+
+        if ($method === null
+            || (new ReflectionMethod(static::class, $method))->getAttributes(WithMigration::class) === []) {
+            return;
+        }
+
+        ResetRefreshDatabaseState::run();
+
+        $this->beforeApplicationDestroyed(static function (): void {
+            ResetRefreshDatabaseState::run();
+        });
     }
 
     /**
