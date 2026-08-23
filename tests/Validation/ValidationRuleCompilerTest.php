@@ -7,10 +7,10 @@ namespace Hypervel\Tests\Validation;
 use Hypervel\Contracts\Validation\ImplicitRule;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Tests\TestCase;
+use Hypervel\Validation\AttributePlan;
 use Hypervel\Validation\ClosureValidationRule;
 use Hypervel\Validation\DelegatedCheck;
 use Hypervel\Validation\Enums\CheckType;
-use Hypervel\Validation\Enums\SizeMode;
 use Hypervel\Validation\InlineCheck;
 use Hypervel\Validation\RuleCompiler;
 use Hypervel\Validation\Rules\Exists;
@@ -19,12 +19,12 @@ use Stringable;
 
 class ValidationRuleCompilerTest extends TestCase
 {
-    public function testRequiredSetsFlagAndProducesDelegatedCheck()
-    {
-        $plan = RuleCompiler::compile(['required']);
+    private const array NUMERIC_RULES = ['Numeric', 'Integer', 'Decimal'];
 
-        $this->assertTrue($plan->required);
-        $this->assertTrue($plan->hasImplicitRule);
+    public function testRequiredProducesDelegatedCheck(): void
+    {
+        $plan = $this->compile(['required']);
+
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
         $this->assertSame('Required', $plan->checks[0]->ruleName);
@@ -32,7 +32,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testNullableSetsFlag()
     {
-        $plan = RuleCompiler::compile(['nullable']);
+        $plan = $this->compile(['nullable']);
 
         $this->assertTrue($plan->nullable);
         $this->assertCount(0, $plan->checks);
@@ -40,7 +40,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testBailSetsFlag()
     {
-        $plan = RuleCompiler::compile(['bail']);
+        $plan = $this->compile(['bail']);
 
         $this->assertTrue($plan->bail);
         $this->assertCount(0, $plan->checks);
@@ -48,7 +48,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testSometimesSetsFlag()
     {
-        $plan = RuleCompiler::compile(['sometimes']);
+        $plan = $this->compile(['sometimes']);
 
         $this->assertTrue($plan->sometimes);
         $this->assertCount(0, $plan->checks);
@@ -56,14 +56,14 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testEmptyRuleStringProducesNoCheck()
     {
-        $plan = RuleCompiler::compile(['']);
+        $plan = $this->compile(['']);
 
         $this->assertCount(0, $plan->checks);
     }
 
     public function testStringInlinesCorrectly()
     {
-        $plan = RuleCompiler::compile(['string']);
+        $plan = $this->compile(['string']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[0]);
@@ -72,7 +72,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testNumericBareInlines()
     {
-        $plan = RuleCompiler::compile(['numeric']);
+        $plan = $this->compile(['numeric']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[0]);
@@ -81,7 +81,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testNumericStrictDelegates()
     {
-        $plan = RuleCompiler::compile(['numeric:strict']);
+        $plan = $this->compile(['numeric:strict']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
@@ -90,7 +90,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testBooleanBareInlines()
     {
-        $plan = RuleCompiler::compile(['boolean']);
+        $plan = $this->compile(['boolean']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[0]);
@@ -99,7 +99,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testBooleanStrictDelegates()
     {
-        $plan = RuleCompiler::compile(['boolean:strict']);
+        $plan = $this->compile(['boolean:strict']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
@@ -107,7 +107,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testIntegerBareInlines()
     {
-        $plan = RuleCompiler::compile(['integer']);
+        $plan = $this->compile(['integer']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[0]);
@@ -116,7 +116,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testIntegerStrictInlines()
     {
-        $plan = RuleCompiler::compile(['integer:strict']);
+        $plan = $this->compile(['integer:strict']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[0]);
@@ -125,7 +125,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testUuidBareInlines()
     {
-        $plan = RuleCompiler::compile(['uuid']);
+        $plan = $this->compile(['uuid']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[0]);
@@ -134,7 +134,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testUuidWithVersionDelegates()
     {
-        $plan = RuleCompiler::compile(['uuid:4']);
+        $plan = $this->compile(['uuid:4']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
@@ -142,7 +142,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testEmailBareInlines()
     {
-        $plan = RuleCompiler::compile(['email']);
+        $plan = $this->compile(['email']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[0]);
@@ -151,7 +151,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testEmailWithParamsDelegates()
     {
-        $plan = RuleCompiler::compile(['email:rfc,dns']);
+        $plan = $this->compile(['email:rfc,dns']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
@@ -159,7 +159,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testUrlBareInlines()
     {
-        $plan = RuleCompiler::compile(['url']);
+        $plan = $this->compile(['url']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[0]);
@@ -167,7 +167,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testUrlWithParamsDelegates()
     {
-        $plan = RuleCompiler::compile(['url:http,https']);
+        $plan = $this->compile(['url:http,https']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
@@ -175,7 +175,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testArrayBareInlines()
     {
-        $plan = RuleCompiler::compile(['array']);
+        $plan = $this->compile(['array']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[0]);
@@ -184,56 +184,55 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testArrayWithKeysDelegates()
     {
-        $plan = RuleCompiler::compile(['array:name,email']);
+        $plan = $this->compile(['array:name,email']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
     }
 
-    public function testSizeRulesWithResolvedMode()
+    public function testSizeRulesInlineWithoutATypeSibling(): void
     {
-        $plan = RuleCompiler::compile(['string', 'max:255']);
+        $plan = $this->compile(['max:255']);
 
-        $this->assertCount(2, $plan->checks);
+        $this->assertCount(1, $plan->checks);
+        $this->assertInstanceOf(InlineCheck::class, $plan->checks[0]);
+        $this->assertSame(CheckType::SizeMax, $plan->checks[0]->type);
+        $this->assertFalse($plan->checks[0]->param['numeric']);
+        $this->assertSame(['raw' => '255', 'integer' => 255], $plan->checks[0]->param['threshold']);
+    }
+
+    public function testNumericSiblingActivatesNumericSizeSemantics(): void
+    {
+        $plan = $this->compile(['numeric', 'max:255']);
+
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[1]);
-        $this->assertSame(CheckType::SizeMax, $plan->checks[1]->type);
-        $this->assertSame('255', $plan->checks[1]->param['n']);
-        $this->assertSame(SizeMode::String, $plan->checks[1]->param['mode']);
+        $this->assertTrue($plan->checks[1]->param['numeric']);
     }
 
-    public function testSizeRulesWithoutTypeFlagDelegate()
+    public function testNumericSemanticsRemainActiveWithConflictingTypeSiblings(): void
     {
-        $plan = RuleCompiler::compile(['max:255']);
-
-        $this->assertCount(1, $plan->checks);
-        $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
-        $this->assertSame('Max', $plan->checks[0]->ruleName);
-    }
-
-    public function testSizeRulesWithConflictingTypeFlagsDelegate()
-    {
-        $plan = RuleCompiler::compile(['numeric', 'string', 'max:10']);
+        $plan = $this->compile(['numeric', 'string', 'max:10']);
 
         $this->assertCount(3, $plan->checks);
-        $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[2]);
-        $this->assertSame('Max', $plan->checks[2]->ruleName);
+        $this->assertInstanceOf(InlineCheck::class, $plan->checks[2]);
+        $this->assertTrue($plan->checks[2]->param['numeric']);
     }
 
-    public function testBetweenWithResolvedMode()
+    public function testBetweenStoresNumericSemanticsAndClassifiedThresholds(): void
     {
-        $plan = RuleCompiler::compile(['numeric', 'between:1,100']);
+        $plan = $this->compile(['decimal:2', 'between:1.5,100']);
 
         $this->assertCount(2, $plan->checks);
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[1]);
         $this->assertSame(CheckType::SizeBetween, $plan->checks[1]->type);
-        $this->assertSame('1', $plan->checks[1]->param['min']);
-        $this->assertSame('100', $plan->checks[1]->param['max']);
-        $this->assertSame(SizeMode::Numeric, $plan->checks[1]->param['mode']);
+        $this->assertTrue($plan->checks[1]->param['numeric']);
+        $this->assertSame(['raw' => '1.5', 'integer' => null], $plan->checks[1]->param['minimum']);
+        $this->assertSame(['raw' => '100', 'integer' => 100], $plan->checks[1]->param['maximum']);
     }
 
     public function testInWithoutSiblingArrayInlines()
     {
-        $plan = RuleCompiler::compile(['in:a,b,c']);
+        $plan = $this->compile(['in:a,b,c']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[0]);
@@ -242,7 +241,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testInWithSiblingArrayDelegates()
     {
-        $plan = RuleCompiler::compile(['array', 'in:a,b,c']);
+        $plan = $this->compile(['array', 'in:a,b,c']);
 
         $this->assertCount(2, $plan->checks);
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[1]);
@@ -251,7 +250,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testNotInWithSiblingArrayDelegates()
     {
-        $plan = RuleCompiler::compile(['array', 'not_in:a,b,c']);
+        $plan = $this->compile(['array', 'not_in:a,b,c']);
 
         $this->assertCount(2, $plan->checks);
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[1]);
@@ -261,7 +260,7 @@ class ValidationRuleCompilerTest extends TestCase
     {
         // Array-form ['array'] must be detected as a sibling array rule,
         // causing 'in' to delegate (uses array_diff branch in validateIn).
-        $plan = RuleCompiler::compile([['array'], 'in:a,b,c']);
+        $plan = $this->compile([['array'], 'in:a,b,c']);
 
         $this->assertCount(2, $plan->checks);
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[1]);
@@ -270,7 +269,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testParameterizedArrayTriggersDelegation()
     {
-        $plan = RuleCompiler::compile(['array:foo,bar', 'in:a,b,c']);
+        $plan = $this->compile(['array:foo,bar', 'in:a,b,c']);
 
         $this->assertCount(2, $plan->checks);
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
@@ -279,7 +278,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testDateWithLiteralTargetInlines()
     {
-        $plan = RuleCompiler::compile(['after:2025-01-01']);
+        $plan = $this->compile(['after:2025-01-01']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[0]);
@@ -290,7 +289,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testDateWithFieldRefDelegates()
     {
-        $plan = RuleCompiler::compile(['after:start_date']);
+        $plan = $this->compile(['after:start_date']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
@@ -298,7 +297,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testDateWithHyphenatedFieldRefDelegates(): void
     {
-        $plan = RuleCompiler::compile(['after:start-date']);
+        $plan = $this->compile(['after:start-date']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
@@ -306,7 +305,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testDateWithDigitLeadingFieldRefDelegates(): void
     {
-        $plan = RuleCompiler::compile(['after:2fa-expiry']);
+        $plan = $this->compile(['after:2fa-expiry']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
@@ -314,7 +313,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testDateWithAmbiguousTimestampDelegates(): void
     {
-        $plan = RuleCompiler::compile(['after:20250102T120000Z']);
+        $plan = $this->compile(['after:20250102T120000Z']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
@@ -322,7 +321,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testDateWithEscapedDotFieldRefDelegates(): void
     {
-        $plan = RuleCompiler::compile(['after:a\.b']);
+        $plan = $this->compile(['after:a\.b']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
@@ -330,7 +329,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testDateWithSiblingFormatBaked()
     {
-        $plan = RuleCompiler::compile(['date_format:Y-m-d', 'after:2025-01-01']);
+        $plan = $this->compile(['date_format:Y-m-d', 'after:2025-01-01']);
 
         $this->assertCount(2, $plan->checks);
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[1]);
@@ -346,8 +345,8 @@ class ValidationRuleCompilerTest extends TestCase
             }
         };
 
-        $integerPlan = RuleCompiler::compile([['date_format', 123], 'after:124']);
-        $stringablePlan = RuleCompiler::compile([['date_format', $stringable], 'after:2025-01-01']);
+        $integerPlan = $this->compile([['date_format', 123], 'after:124']);
+        $stringablePlan = $this->compile([['date_format', $stringable], 'after:2025-01-01']);
 
         $this->assertSame('123', $integerPlan->checks[1]->param['format']);
         $this->assertSame('Y-m-d', $stringablePlan->checks[1]->param['format']);
@@ -355,14 +354,14 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testMalformedArrayFormDateFormatDoesNotPoisonSiblingCompilation(): void
     {
-        $plan = RuleCompiler::compile([['date_format', []], 'after:2025-01-01']);
+        $plan = $this->compile([['date_format', []], 'after:2025-01-01']);
 
         $this->assertNull($plan->checks[1]->param['format']);
     }
 
     public function testDateFormatStoresAllFormats()
     {
-        $plan = RuleCompiler::compile(['date_format:Y-m-d H:i:s,H:i:s']);
+        $plan = $this->compile(['date_format:Y-m-d H:i:s,H:i:s']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[0]);
@@ -374,7 +373,7 @@ class ValidationRuleCompilerTest extends TestCase
     {
         $existsRule = new Exists('users', 'email');
 
-        $plan = RuleCompiler::compile(['required', 'string', 'max:255', $existsRule]);
+        $plan = $this->compile(['required', 'string', 'max:255', $existsRule]);
 
         $inlineCount = 0;
         $delegatedCount = 0;
@@ -390,26 +389,25 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertSame(2, $delegatedCount);
     }
 
-    public function testExistsRuleObjectStoresRuleAndOriginal()
+    public function testExistsRuleObjectStoresOriginalRule(): void
     {
         $existsRule = new Exists('users', 'email');
-        $plan = RuleCompiler::compile([$existsRule]);
+        $plan = $this->compile([$existsRule]);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
-        $this->assertSame($existsRule, $plan->checks[0]->ruleObject);
         $this->assertSame($existsRule, $plan->checks[0]->originalRule);
         $this->assertSame('Exists', $plan->checks[0]->ruleName);
     }
 
-    public function testUniqueRuleObjectStoresRuleAndOriginal()
+    public function testUniqueRuleObjectStoresOriginalRule(): void
     {
         $uniqueRule = new Unique('users', 'email');
-        $plan = RuleCompiler::compile([$uniqueRule]);
+        $plan = $this->compile([$uniqueRule]);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
-        $this->assertSame($uniqueRule, $plan->checks[0]->ruleObject);
+        $this->assertSame($uniqueRule, $plan->checks[0]->originalRule);
         $this->assertSame('Unique', $plan->checks[0]->ruleName);
     }
 
@@ -419,14 +417,14 @@ class ValidationRuleCompilerTest extends TestCase
             return true;
         });
 
-        $plan = RuleCompiler::compile([$closure]);
+        $plan = $this->compile([$closure]);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
-        $this->assertSame($closure, $plan->checks[0]->ruleObject);
+        $this->assertSame($closure, $plan->checks[0]->originalRule);
     }
 
-    public function testImplicitInvokableRuleSetsHasImplicitRule()
+    public function testImplicitInvokableRuleProducesDelegatedCheck(): void
     {
         $implicitRule = new class implements RuleContract, ImplicitRule {
             public function passes(string $attribute, mixed $value): bool
@@ -440,23 +438,24 @@ class ValidationRuleCompilerTest extends TestCase
             }
         };
 
-        $plan = RuleCompiler::compile([$implicitRule]);
+        $plan = $this->compile([$implicitRule]);
 
-        $this->assertTrue($plan->hasImplicitRule);
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
     }
 
-    public function testImplicitStringRulesSetsHasImplicitRule()
+    public function testImplicitStringRuleProducesDelegatedCheck(): void
     {
-        $plan = RuleCompiler::compile(['accepted']);
+        $plan = $this->compile(['accepted']);
 
-        $this->assertTrue($plan->hasImplicitRule);
+        $this->assertCount(1, $plan->checks);
+        $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
+        $this->assertSame('Accepted', $plan->checks[0]->ruleName);
     }
 
     public function testAlphaAsciiVariant()
     {
-        $plan = RuleCompiler::compile(['alpha:ascii']);
+        $plan = $this->compile(['alpha:ascii']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[0]);
@@ -465,7 +464,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testArrayFormRuleParsedCorrectly()
     {
-        $plan = RuleCompiler::compile([['required_array_keys', 'name']]);
+        $plan = $this->compile([['required_array_keys', 'name']]);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
@@ -475,12 +474,12 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testEmptyArrayRuleSkipped()
     {
-        $plan = RuleCompiler::compile([[]]);
+        $plan = $this->compile([[]]);
 
         $this->assertCount(0, $plan->checks);
     }
 
-    public function testCompileAllDelegatedProducesNoDelegatedChecks()
+    public function testCompileAllDelegatedProducesOnlyDelegatedChecks(): void
     {
         $plan = RuleCompiler::compileAllDelegated(['required', 'string', 'max:255']);
 
@@ -488,13 +487,12 @@ class ValidationRuleCompilerTest extends TestCase
             $this->assertInstanceOf(DelegatedCheck::class, $check);
         }
 
-        $this->assertTrue($plan->required);
-        $this->assertTrue($plan->hasImplicitRule);
+        $this->assertCount(3, $plan->checks);
     }
 
     public function testMultipleOfLiteralInlines()
     {
-        $plan = RuleCompiler::compile(['multiple_of:5']);
+        $plan = $this->compile(['multiple_of:5']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[0]);
@@ -503,20 +501,50 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testMultipleOfFieldRefDelegates()
     {
-        $plan = RuleCompiler::compile(['multiple_of:other_field']);
+        $plan = $this->compile(['multiple_of:other_field']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
     }
 
-    public function testSizeModeResolvesFromParameterizedArray()
+    public function testParameterizedArrayStillAllowsRuntimeDispatchedSizeInlining(): void
     {
-        $plan = RuleCompiler::compile(['array:name,email', 'max:5']);
+        $plan = $this->compile(['array:name,email', 'max:5']);
 
-        $this->assertSame(SizeMode::Array, $plan->sizeMode);
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
-        // max:5 delegates because array was parameterized but still sets Array mode
-        // However, in:* would delegate because hasSiblingArrayRule is true
+        $this->assertInstanceOf(InlineCheck::class, $plan->checks[1]);
+        $this->assertFalse($plan->checks[1]->param['numeric']);
+    }
+
+    public function testSizeThresholdsAreNormalizedAndClassifiedOnceAtCompilation(): void
+    {
+        $plan = $this->compile(['max: 5 ', 'min:1e3', 'size:9223372036854775808']);
+
+        $this->assertSame(['raw' => '5', 'integer' => 5], $plan->checks[0]->param['threshold']);
+        $this->assertSame(['raw' => '1e3', 'integer' => null], $plan->checks[1]->param['threshold']);
+        $this->assertSame(
+            ['raw' => '9223372036854775808', 'integer' => null],
+            $plan->checks[2]->param['threshold'],
+        );
+    }
+
+    public function testCompilerParsesEachRuleOnceForContextAndEmission(): void
+    {
+        $rule = new class implements Stringable {
+            public int $casts = 0;
+
+            public function __toString(): string
+            {
+                ++$this->casts;
+
+                return 'max:5';
+            }
+        };
+
+        $plan = $this->compile([$rule]);
+
+        $this->assertSame(1, $rule->casts);
+        $this->assertInstanceOf(InlineCheck::class, $plan->checks[0]);
     }
 
     public function testFormatCheckTypesInline()
@@ -528,7 +556,7 @@ class ValidationRuleCompilerTest extends TestCase
         ];
 
         foreach ($types as $i => $type) {
-            $plan = RuleCompiler::compile([$type]);
+            $plan = $this->compile([$type]);
             $this->assertCount(1, $plan->checks, "Failed for rule: {$type}");
             $this->assertInstanceOf(InlineCheck::class, $plan->checks[0], "Failed for rule: {$type}");
             $this->assertSame($expected[$i], $plan->checks[0]->type, "Failed for rule: {$type}");
@@ -537,7 +565,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testDigitsInlines()
     {
-        $plan = RuleCompiler::compile(['digits:5']);
+        $plan = $this->compile(['digits:5']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[0]);
@@ -553,7 +581,7 @@ class ValidationRuleCompilerTest extends TestCase
             'min_digits:2.9',
             'max_digits:abc',
         ] as $rule) {
-            $plan = RuleCompiler::compile([$rule]);
+            $plan = $this->compile([$rule]);
 
             $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0], $rule);
         }
@@ -561,7 +589,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testRegexInlines()
     {
-        $plan = RuleCompiler::compile(['regex:/^[a-z]+$/']);
+        $plan = $this->compile(['regex:/^[a-z]+$/']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[0]);
@@ -571,7 +599,7 @@ class ValidationRuleCompilerTest extends TestCase
 
     public function testStartsWithInlines()
     {
-        $plan = RuleCompiler::compile(['starts_with:foo,bar']);
+        $plan = $this->compile(['starts_with:foo,bar']);
 
         $this->assertCount(1, $plan->checks);
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[0]);
@@ -584,7 +612,7 @@ class ValidationRuleCompilerTest extends TestCase
         $crossFieldRules = ['same:other', 'different:other', 'confirmed', 'gt:other', 'gte:other', 'lt:other', 'lte:other'];
 
         foreach ($crossFieldRules as $rule) {
-            $plan = RuleCompiler::compile([$rule]);
+            $plan = $this->compile([$rule]);
             $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0], "Expected DelegatedCheck for: {$rule}");
         }
     }
@@ -592,8 +620,16 @@ class ValidationRuleCompilerTest extends TestCase
     public function testDateLiteralsRecognized()
     {
         foreach (['today', 'yesterday', 'tomorrow', 'now'] as $literal) {
-            $plan = RuleCompiler::compile(["after:{$literal}"]);
+            $plan = $this->compile(["after:{$literal}"]);
             $this->assertInstanceOf(InlineCheck::class, $plan->checks[0], "Expected InlineCheck for date literal: {$literal}");
         }
+    }
+
+    /**
+     * Compile rules with the base validator's canonical numeric-rule set.
+     */
+    private function compile(array $rules): AttributePlan
+    {
+        return RuleCompiler::compile($rules, self::NUMERIC_RULES);
     }
 }
