@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Validation;
 
 use Closure;
-use DateTimeInterface;
-use Stringable;
 
 /**
  * Return database-proven presence facts from batched queries.
@@ -52,7 +50,7 @@ final class PrecomputedPresenceVerifier implements DatabasePresenceVerifierInter
 
         foreach ($extra as $key => $value) {
             if ($value instanceof Closure
-                || (! is_scalar($value) && $value !== null && ! $value instanceof Stringable)
+                || (! is_scalar($value) && $value !== null)
             ) {
                 return null;
             }
@@ -230,14 +228,7 @@ final class PrecomputedPresenceVerifier implements DatabasePresenceVerifierInter
      */
     public static function normalizeValue(mixed $value): ?string
     {
-        // Connection::prepareBindings() formats dates through the query grammar.
-        if ($value instanceof DateTimeInterface) {
-            return null;
-        }
-
-        if ((! is_string($value) && ! is_int($value) && ! is_float($value))
-            && ! $value instanceof Stringable
-        ) {
+        if (! is_string($value) && ! is_int($value) && ! is_float($value)) {
             return null;
         }
 

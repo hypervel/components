@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
-use Stringable;
-
 /**
  * Query wildcard database-presence candidates in groups.
  *
@@ -200,8 +198,7 @@ final class BatchDatabaseChecker
                     continue 2;
                 }
 
-                $rawValue = $item instanceof Stringable ? substr($bindingKey, 1) : $item;
-                $candidateValues[$bindingKey] ??= $rawValue;
+                $candidateValues[$bindingKey] ??= $item;
             }
 
             foreach ($candidateValues as $bindingKey => $rawValue) {

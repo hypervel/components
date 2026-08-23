@@ -38,8 +38,24 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
 
     public function testLookupKeyRejectsConditionsThatCannotBeReplayed(): void
     {
+        $casts = 0;
+        $stringable = new class($casts) implements Stringable {
+            public function __construct(private int &$casts)
+            {
+            }
+
+            public function __toString(): string
+            {
+                ++$this->casts;
+
+                return 'active';
+            }
+        };
+
         $this->assertNull(PrecomputedPresenceVerifier::lookupKey(null, 'users', 'email', extra: [static function (): void {}]));
         $this->assertNull(PrecomputedPresenceVerifier::lookupKey(null, 'users', 'email', extra: ['status' => new stdClass]));
+        $this->assertNull(PrecomputedPresenceVerifier::lookupKey(null, 'users', 'email', extra: ['status' => $stringable]));
+        $this->assertSame(0, $casts);
     }
 
     public function testScalarFactsUseTheirDatabaseProvenState(): void
@@ -61,13 +77,24 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
 
     public function testFactsRequireTheSubmittedBindingIdentity(): void
     {
-        $stringable = new class implements Stringable {
+        $casts = 0;
+        $stringable = new class($casts) implements Stringable {
+            public function __construct(private int &$casts)
+            {
+            }
+
             public function __toString(): string
             {
+                ++$this->casts;
+
                 return '3';
             }
         };
         $fallback = m::mock(DatabasePresenceVerifierInterface::class);
+        $fallback->shouldReceive('getCount')
+            ->once()
+            ->with('users', 'id', m::on(static fn (mixed $value): bool => $value === $stringable), null, null, [])
+            ->andReturn(1);
         $fallback->shouldReceive('getCount')
             ->once()
             ->with('users', 'id', 1, null, null, [])
@@ -88,6 +115,7 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
         $this->assertSame(1, $verifier->getCount('users', 'id', '1'));
         $this->assertSame(1, $verifier->getCount('users', 'id', 2));
         $this->assertSame(1, $verifier->getCount('users', 'id', $stringable));
+        $this->assertSame(0, $casts);
         $this->assertSame(0, $verifier->getCount('users', 'id', 1));
         $this->assertSame(0, $verifier->getCount('users', 'id', '2'));
     }
@@ -206,9 +234,26 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
 
     public function testMultiCountDelegatesUnknownUnsupportedAndCrossChunkFactsAsAWhole(): void
     {
+        $casts = 0;
+        $stringable = new class($casts) implements Stringable {
+            public function __construct(private int &$casts)
+            {
+            }
+
+            public function __toString(): string
+            {
+                ++$this->casts;
+
+                return 'exact';
+            }
+        };
         $fallback = m::mock(DatabasePresenceVerifierInterface::class);
         $fallback->shouldReceive('getMultiCount')->once()->with('users', 'email', ['unknown'], [])->andReturn(1);
         $fallback->shouldReceive('getMultiCount')->once()->with('users', 'email', [false], [])->andReturn(0);
+        $fallback->shouldReceive('getMultiCount')
+            ->once()
+            ->with('users', 'email', m::on(static fn (array $values): bool => $values === [$stringable]), [])
+            ->andReturn(1);
         $fallback->shouldReceive('getMultiCount')->once()->with('users', 'email', ['exact'], [])->andReturn(1);
         $verifier = new PrecomputedPresenceVerifier($fallback);
         $verifier->addLookup(
@@ -221,6 +266,8 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
 
         $this->assertSame(1, $verifier->getMultiCount('users', 'email', ['unknown']));
         $this->assertSame(0, $verifier->getMultiCount('users', 'email', [false]));
+        $this->assertSame(1, $verifier->getMultiCount('users', 'email', [$stringable]));
+        $this->assertSame(0, $casts);
         $this->assertSame(1, $verifier->getMultiCount('users', 'email', ['exact']));
     }
 

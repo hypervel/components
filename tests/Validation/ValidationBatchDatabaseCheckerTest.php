@@ -43,7 +43,7 @@ class ValidationBatchDatabaseCheckerTest extends TestCase
         $this->assertSame(0, $verifier->getCount('users', 'id', '1', 'ignored', 'uuid', ['status' => 'active']));
     }
 
-    public function testNormalizesOneDimensionalArraysAndCastsStringableValuesOnce(): void
+    public function testNormalizesNativeArraysAndDelegatesStringableValuesWithoutCasting(): void
     {
         $casts = 0;
         $stringable = new class($casts) implements Stringable {
@@ -62,14 +62,56 @@ class ValidationBatchDatabaseCheckerTest extends TestCase
         $presenceVerifier = m::mock(DatabasePresenceVerifier::class);
         $presenceVerifier->shouldReceive('getExistingValues')
             ->once()
-            ->with('users', 'id', [1, 2, '3'], null, null, null, [])
-            ->andReturn(['1', '2', '3']);
+            ->with('users', 'id', [1, 2], null, null, null, [])
+            ->andReturn(['1', '2']);
+        $presenceVerifier->shouldReceive('getCount')
+            ->once()
+            ->with('users', 'id', m::on(static fn (mixed $value): bool => $value === $stringable), null, null, [])
+            ->andReturn(1);
 
         $verifier = BatchDatabaseChecker::buildVerifier($this->batchGroups($meta, [[1, 2], 2, $stringable]), $presenceVerifier);
 
         $this->assertInstanceOf(PrecomputedPresenceVerifier::class, $verifier);
-        $this->assertSame(1, $casts);
-        $this->assertSame(3, $verifier->getMultiCount('users', 'id', [1, 2, '3']));
+        $this->assertSame(2, $verifier->getMultiCount('users', 'id', [1, 2]));
+        $this->assertSame(1, $verifier->getCount('users', 'id', $stringable));
+        $this->assertSame(0, $casts);
+    }
+
+    public function testArrayContainingStringableDelegatesAsAWholeWithoutDisablingSafeSiblings(): void
+    {
+        $casts = 0;
+        $stringable = new class($casts) implements Stringable {
+            public function __construct(private int &$casts)
+            {
+            }
+
+            public function __toString(): string
+            {
+                ++$this->casts;
+
+                return 'unsafe';
+            }
+        };
+        $candidate = ['safe-in-array', $stringable];
+        $presenceVerifier = m::mock(DatabasePresenceVerifier::class);
+        $presenceVerifier->shouldReceive('getExistingValues')
+            ->once()
+            ->with('users', 'id', ['safe-sibling'], null, null, null, [])
+            ->andReturn(['safe-sibling']);
+        $presenceVerifier->shouldReceive('getMultiCount')
+            ->once()
+            ->with('users', 'id', m::on(static fn (array $values): bool => $values === $candidate), [])
+            ->andReturn(1);
+
+        $verifier = BatchDatabaseChecker::buildVerifier(
+            $this->batchGroups($this->metadata(), [$candidate, 'safe-sibling']),
+            $presenceVerifier,
+        );
+
+        $this->assertInstanceOf(PrecomputedPresenceVerifier::class, $verifier);
+        $this->assertSame(1, $verifier->getCount('users', 'id', 'safe-sibling'));
+        $this->assertSame(1, $verifier->getMultiCount('users', 'id', $candidate));
+        $this->assertSame(0, $casts);
     }
 
     public function testEqualLookingIntegerAndStringCandidatesRetainBothBindings(): void
