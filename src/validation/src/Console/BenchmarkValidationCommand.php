@@ -5,14 +5,19 @@ declare(strict_types=1);
 namespace Hypervel\Validation\Console;
 
 use Hypervel\Console\Command;
+use Hypervel\Contracts\Translation\Translator;
 use Hypervel\Contracts\Validation\CompilableRules;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Support\Arr;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\Str;
+use Hypervel\Validation\DatabasePresenceVerifier;
+use Hypervel\Validation\Rule;
 use Hypervel\Validation\RulePlanCache;
 use Hypervel\Validation\ValidationData;
 use Hypervel\Validation\ValidationRuleParser;
 use Hypervel\Validation\Validator;
+use LogicException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
@@ -41,50 +46,106 @@ class BenchmarkValidationCommand extends Command
      *
      * @var array<string, string>
      */
-    private static array $scenarioDescriptions = [
+    private const array SCENARIO_DESCRIPTIONS = [
         'simple' => '500 items × 7 fields (string, email, integer, in, alpha_num, numeric, nullable)',
         'nested' => '1,000 orders × 5 nested line items (string, integer, numeric)',
         'conditional' => '100 items × 47 conditional fields (exclude_unless, string, max)',
         'flat' => '3-field login form (email, string, boolean)',
+        'fluent' => '500 items × 2 fluent-rule fields (Rule::in, Rule::notIn, max)',
+        'typeless-size' => '500 items × 3 typeless size fields (string and array min, max, between, size)',
     ];
-
-    /**
-     * The number of iterations per scenario.
-     */
-    private static int $iterations = 0;
 
     /**
      * Execute the console command.
      */
     public function handle(): int
     {
-        $scenarios = $this->option('scenarios');
+        $scenarios = trim((string) $this->option('scenarios'));
         $scenarioList = $scenarios === 'all'
-            ? ['simple', 'nested', 'conditional', 'flat']
-            : explode(',', $scenarios);
+            ? array_keys(self::SCENARIO_DESCRIPTIONS)
+            : array_map(trim(...), explode(',', $scenarios));
 
-        self::$iterations = max(1, (int) $this->option('iterations'));
+        foreach ($scenarioList as $scenario) {
+            if (! array_key_exists($scenario, self::SCENARIO_DESCRIPTIONS)) {
+                $this->error("Invalid scenario: {$scenario}. Available: " . implode(', ', array_keys(self::SCENARIO_DESCRIPTIONS)));
+
+                return self::FAILURE;
+            }
+        }
+
+        $iterationsOption = $this->option('iterations');
+        $iterations = filter_var($iterationsOption, FILTER_VALIDATE_INT);
+
+        if ($iterations === false || $iterations < 1) {
+            $this->error("Invalid iterations: {$iterationsOption}. Must be a positive integer.");
+
+            return self::FAILURE;
+        }
 
         $this->components->info('Hypervel Validation Benchmark');
 
+        /** @var Translator $translator */
         $translator = $this->hypervel->make('translator');
+        /** @var ConnectionResolverInterface $database */
+        $database = $this->hypervel->make('db');
+        $presenceVerifier = new DatabasePresenceVerifier($database);
         $results = [];
 
         foreach ($scenarioList as $scenario) {
-            $scenario = trim($scenario);
-            $description = self::$scenarioDescriptions[$scenario] ?? '';
+            $description = self::SCENARIO_DESCRIPTIONS[$scenario];
 
             $this->line("  <fg=cyan>Benchmarking</> {$scenario} <fg=gray>({$description})</>");
 
             [$data, $rules] = $this->buildScenario($scenario);
 
             RulePlanCache::flushState();
-            $optimizedMs = $this->benchmark(fn () => (new Validator($translator, $data, $rules))->passes());
+            ValidationRuleParser::flushState();
+            $optimizedPassed = $this->makeValidator(
+                Validator::class,
+                $translator,
+                $data,
+                $rules,
+                $presenceVerifier,
+            )->passes();
+            $optimizedMs = $this->benchmark(
+                fn () => $this->makeValidator(
+                    Validator::class,
+                    $translator,
+                    $data,
+                    $rules,
+                    $presenceVerifier,
+                )->passes(),
+                $iterations,
+            );
 
             RulePlanCache::flushState();
-            $legacyMs = $this->benchmark(fn () => (new LegacyValidator($translator, $data, $rules))->passes());
+            ValidationRuleParser::flushState();
+            $legacyPassed = $this->makeValidator(
+                LegacyValidator::class,
+                $translator,
+                $data,
+                $rules,
+                $presenceVerifier,
+            )->passes();
 
-            $speedup = $legacyMs > 0 ? round($legacyMs / $optimizedMs, 1) : 0;
+            if ($optimizedPassed !== $legacyPassed) {
+                $this->error("Optimized and legacy validation disagree for scenario: {$scenario}.");
+
+                return self::FAILURE;
+            }
+
+            $legacyMs = $this->benchmark(
+                fn () => $this->makeValidator(
+                    LegacyValidator::class,
+                    $translator,
+                    $data,
+                    $rules,
+                    $presenceVerifier,
+                )->passes(),
+                $iterations,
+            );
+
+            $speedup = round($legacyMs / $optimizedMs, 1);
 
             $results[] = [
                 $scenario,
@@ -101,28 +162,50 @@ class BenchmarkValidationCommand extends Command
         $this->components->bulletList([
             '<fg=gray>Optimized</> — compiled execution with inline checks, plan caching, pre-evaluated excludes',
             '<fg=gray>Legacy</> — pre-optimization baseline with original validateAttribute() loop and O(n²) wildcard expansion',
+            '<fg=gray>Timings</> — median of ' . $iterations . ' measured ' . ($iterations === 1 ? 'iteration' : 'iterations') . ' after one untimed warmup',
             '<fg=gray>Speedup</> — how many times faster the optimized path is (higher is better)',
         ]);
 
-        return 0;
+        return self::SUCCESS;
     }
 
     /**
      * Run a callable N times and return the median time in milliseconds.
      */
-    private function benchmark(callable $callback): float
+    private function benchmark(callable $callback, int $iterations): float
     {
         $times = [];
 
-        for ($i = 0; $i < self::$iterations; ++$i) {
+        for ($i = 0; $i < $iterations; ++$i) {
             $start = hrtime(true);
             $callback();
             $times[] = (hrtime(true) - $start) / 1_000_000;
         }
 
         sort($times);
+        $middle = intdiv(count($times), 2);
 
-        return $times[(int) (count($times) / 2)];
+        return count($times) % 2 === 0
+            ? ($times[$middle - 1] + $times[$middle]) / 2
+            : $times[$middle];
+    }
+
+    /**
+     * Build a validator with production presence-verifier wiring.
+     *
+     * @param class-string<Validator> $validatorClass
+     */
+    private function makeValidator(
+        string $validatorClass,
+        Translator $translator,
+        array $data,
+        array $rules,
+        DatabasePresenceVerifier $presenceVerifier,
+    ): Validator {
+        $validator = new $validatorClass($translator, $data, $rules);
+        $validator->setPresenceVerifier($presenceVerifier);
+
+        return $validator;
     }
 
     /**
@@ -137,7 +220,9 @@ class BenchmarkValidationCommand extends Command
             'nested' => $this->nestedScenario(),
             'conditional' => $this->conditionalScenario(),
             'flat' => $this->flatScenario(),
-            default => $this->simpleScenario(),
+            'fluent' => $this->fluentScenario(),
+            'typeless-size' => $this->typelessSizeScenario(),
+            default => throw new LogicException("Unknown benchmark scenario [{$name}]."),
         };
     }
 
@@ -151,10 +236,10 @@ class BenchmarkValidationCommand extends Command
             $items[] = [
                 'name' => 'Item ' . $i,
                 'email' => "user{$i}@example.com",
-                'age' => rand(18, 80),
+                'age' => 18 + ($i % 63),
                 'status' => 'active',
                 'code' => 'ABC' . $i,
-                'score' => rand(1, 100),
+                'score' => 1 + ($i % 100),
                 'notes' => 'Some notes for item ' . $i,
             ];
         }
@@ -184,8 +269,8 @@ class BenchmarkValidationCommand extends Command
             for ($j = 0; $j < 5; ++$j) {
                 $items[] = [
                     'sku' => 'SKU-' . $i . '-' . $j,
-                    'quantity' => rand(1, 10),
-                    'price' => rand(100, 10000) / 100,
+                    'quantity' => 1 + (($i + $j) % 10),
+                    'price' => (100 + (($i * 5 + $j) % 9901)) / 100,
                 ];
             }
             $orders[] = ['items' => $items];
@@ -235,22 +320,63 @@ class BenchmarkValidationCommand extends Command
     }
 
     /**
+     * 500 items × 2 fluent-rule fields.
+     */
+    private function fluentScenario(): array
+    {
+        $statuses = ['active', 'inactive', 'pending'];
+        $items = [];
+
+        for ($index = 0; $index < 500; ++$index) {
+            $items[] = [
+                'status' => $statuses[$index % count($statuses)],
+                'role' => $index % 2 === 0 ? 'member' : 'editor',
+            ];
+        }
+
+        return [
+            ['items' => $items],
+            [
+                'items.*.status' => ['required', Rule::in($statuses), 'max:16'],
+                'items.*.role' => ['required', Rule::notIn(['blocked', 'banned']), 'max:16'],
+            ],
+        ];
+    }
+
+    /**
+     * 500 items × 3 typeless size fields.
+     */
+    private function typelessSizeScenario(): array
+    {
+        $items = [];
+
+        for ($index = 0; $index < 500; ++$index) {
+            $items[] = [
+                'name' => "Item {$index}",
+                'code' => "CODE-{$index}",
+                'tags' => ['alpha', 'beta', 'gamma'],
+            ];
+        }
+
+        return [
+            ['items' => $items],
+            [
+                'items.*.name' => 'required|min:2|max:255|between:2,255',
+                'items.*.code' => 'required|min:2|max:32|between:2,32',
+                'items.*.tags' => 'required|min:1|max:5|between:1,5|size:3',
+            ],
+        ];
+    }
+
+    /**
      * Get the console command options.
      */
     protected function getOptions(): array
     {
         return [
-            ['scenarios', null, InputOption::VALUE_OPTIONAL, 'Comma-separated scenario names or "all"', 'all'],
-            ['iterations', null, InputOption::VALUE_OPTIONAL, 'Number of iterations per scenario', '5'],
+            ['scenarios', null, InputOption::VALUE_REQUIRED, 'Comma-separated scenario names or "all"', 'all'],
+            ['iterations', null, InputOption::VALUE_REQUIRED, 'Number of iterations per scenario', '5'],
         ];
-    }
-
-    /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        self::$iterations = 0;
     }
 }
 

@@ -50,7 +50,7 @@ class DatabasePresenceVerifier implements DatabasePresenceVerifierInterface
     }
 
     /**
-     * Get the existing values from a collection.
+     * Get the distinct existing values from a collection.
      *
      * @param array<int, mixed> $values
      * @param array<string, mixed> $extra
@@ -75,7 +75,7 @@ class DatabasePresenceVerifier implements DatabasePresenceVerifierInterface
         }
 
         /** @var array<int, mixed> */
-        return $this->addConditions($query, $extra)->pluck($column)->all();
+        return $this->addConditions($query, $extra)->distinct()->pluck($column)->all();
     }
 
     /**

@@ -138,7 +138,7 @@ class ValidationRuleParser
             )->rules[$attribute];
         }
 
-        return $rule;
+        return (string) $rule;
     }
 
     /**

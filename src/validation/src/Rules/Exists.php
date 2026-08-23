@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Validation\Rules;
 
 use Hypervel\Support\Traits\Conditionable;
-use Hypervel\Validation\Contracts\DatabasePresenceRule;
 use Stringable;
 
-class Exists implements DatabasePresenceRule, Stringable
+class Exists implements Stringable
 {
     use Conditionable;
     use DatabaseRule;

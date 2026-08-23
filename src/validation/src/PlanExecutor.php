@@ -7,11 +7,10 @@ namespace Hypervel\Validation;
 use Brick\Math\BigNumber;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Validation\Enums\CheckType;
-use Hypervel\Validation\Enums\SizeMode;
 use InvalidArgumentException;
+use SplFileInfo;
 use Stringable;
 
 /**
@@ -19,28 +18,27 @@ use Stringable;
  *
  * ## Architecture overview
  *
- * Hypervel's validation uses a compiled single-path execution model:
+ * Hypervel's validation uses compiled execution with a delegated subclass path:
  *
  * 1. Rules are compiled into AttributePlans by RuleCompiler — each rule
  *    becomes either an InlineCheck (fast, match-dispatched) or a DelegatedCheck
  *    (calls the existing validate*() method). Plans are cached worker-lifetime
  *    by RulePlanCache for Swoole performance.
  *
- * 2. Pre-optimizations run before execution when the context is provably
- *    non-mutating: exclude_if/exclude_unless pre-evaluation (eliminates
- *    excluded attributes before the loop) and batched exists/unique DB
- *    queries (collapses N queries into 1 per table:column).
+ * 2. Safe first-position exclusions are resolved before execution, and
+ *    wildcard database-presence candidates are queried in ordered groups.
+ *    Unknown values remain on the ordinary verifier path.
  *
- * 3. This trait executes the compiled plans through a single loop. InlineChecks
- *    use simplified gating (all are non-implicit by design) and match-dispatch.
- *    DelegatedChecks call validateAttribute() directly — no duplication of
- *    upstream logic, zero maintenance burden for delegated rules.
+ * 3. The exact Validator executes optimized plans through a branch-free loop.
+ *    Subclasses use a Laravel-shaped loop over delegated checks so their
+ *    validation and stopping hooks remain authoritative.
  *
  * ## Maintenance notes
  *
- * - Adding a new inline-eligible rule requires changes in 3 places:
- *   CheckType (enum case + ruleName), RuleCompiler::tryInline(), and
- *   executeInline() below. Forgetting executeInline() fails PHPStan.
+ * - Adding a new inline-eligible rule requires review in 4 places: CheckType
+ *   (enum case + ruleName), RuleCompiler::tryInline(), executeInline() below,
+ *   and canPreflightInline(). Omitting preflight support is correctness-safe
+ *   but prevents presence batching across that rule.
  * - DelegatedChecks require zero changes — they call validate*() directly.
  * - executeInline() arms must match the exact behavior of their corresponding
  *   validate*() methods in ValidatesAttributes. When an upstream method
@@ -55,19 +53,19 @@ trait PlanExecutor
     /**
      * Execute all compiled plans against the validation data.
      *
-     * This is the ONLY execution path — every rule (inline or delegated) flows
-     * through this loop. Per-check fresh reads of $value and $exists match
-     * validateAttribute()'s per-rule getValue() call.
+     * Per-check fresh reads of $value and $exists match validateAttribute()'s
+     * per-rule getValue() call.
      *
      * @param array<string, AttributePlan> $compiledPlans
+     * @param array<string, true> $preExcludedAttributes
      */
-    protected function executeCompiledPlans(array $compiledPlans): void
+    protected function executeCompiledPlans(array $compiledPlans, array $preExcludedAttributes): void
     {
         foreach ($compiledPlans as $attribute => $plan) {
             $attribute = (string) $attribute;
 
-            if (isset($this->preExcludedAttributes[$attribute])) {
-                $this->excludeAttribute($attribute);
+            if ($this->shouldBeExcluded($attribute)) {
+                $this->removeAttribute($attribute);
                 continue;
             }
 
@@ -75,9 +73,12 @@ trait PlanExecutor
                 break;
             }
 
-            if ($plan->sometimes && ! Arr::has($this->data, $attribute)) {
+            if (isset($preExcludedAttributes[$attribute])) {
+                $this->excludeAttribute($attribute);
                 continue;
             }
+
+            $cleanedAttribute = $this->replacePlaceholderInString($attribute);
 
             foreach ($plan->checks as $check) {
                 if ($check instanceof InlineCheck) {
@@ -87,21 +88,16 @@ trait PlanExecutor
                     $value = $this->getValue($attribute);
                     $exists = Arr::has($this->data, $attribute);
 
-                    if ($value instanceof UploadedFile && ! $value->isValid()
-                        && $this->hasRule($attribute, array_merge($this->fileRules, $this->implicitRules))
-                    ) {
+                    if ($this->shouldFailInvalidUpload($attribute, $value)) {
                         $this->addFailure($attribute, 'uploaded', []);
                         break;
                     }
 
-                    // All InlineChecks are non-implicit. For non-implicit rules:
-                    // empty string → skip, null + nullable → skip, absent → skip.
-                    if (! $exists || (is_string($value) && trim($value) === '')) {
+                    if ($this->shouldSkipNonImplicitCheck($plan, $value, $exists)) {
                         continue;
                     }
-                    if ($plan->nullable && $value === null) {
-                        continue;
-                    }
+
+                    $this->numericRules = $this->defaultNumericRules;
 
                     if (! $this->executeInline($check, $value, $attribute)) {
                         $this->addFailure($attribute, $check->getRuleName(), $check->parameters);
@@ -118,15 +114,130 @@ trait PlanExecutor
                     break;
                 }
 
-                if ($plan->bail && $this->messages->has($attribute)) {
+                if ($plan->bail && $this->messages->has($cleanedAttribute)) {
                     break;
                 }
 
-                if ($this->messages->isNotEmpty() && $this->shouldStopValidating($attribute)) {
+                if (isset($this->failedRules[$cleanedAttribute])) {
+                    $failedRuleNames = array_keys($this->failedRules[$cleanedAttribute]);
+
+                    if (in_array('uploaded', $failedRuleNames, true)
+                        || array_intersect($failedRuleNames, $this->implicitRules)
+                    ) {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Execute all-delegated plans for a Validator subclass.
+     *
+     * @param array<string, AttributePlan> $compiledPlans
+     */
+    protected function executeDelegatedPlans(array $compiledPlans): void
+    {
+        foreach ($compiledPlans as $attribute => $plan) {
+            $attribute = (string) $attribute;
+
+            if ($this->shouldBeExcluded($attribute)) {
+                $this->removeAttribute($attribute);
+                continue;
+            }
+
+            if ($this->stopOnFirstFailure && $this->messages->isNotEmpty()) {
+                break;
+            }
+
+            foreach ($plan->checks as $check) {
+                /** @var DelegatedCheck $check */
+                $this->validateAttribute($attribute, $check->originalRule);
+
+                if ($this->shouldBeExcluded($attribute)
+                    || $this->shouldStopValidating($attribute)
+                ) {
                     break;
                 }
             }
         }
+    }
+
+    /**
+     * Determine if a non-implicit check should be skipped.
+     */
+    protected function shouldSkipNonImplicitCheck(AttributePlan $plan, mixed $value, bool $exists): bool
+    {
+        return ! $exists
+            || (is_string($value) && trim($value) === '')
+            || ($plan->nullable && $value === null);
+    }
+
+    /**
+     * Determine if an invalid upload should fail before rule execution.
+     */
+    protected function shouldFailInvalidUpload(string $attribute, mixed $value): bool
+    {
+        return $value instanceof UploadedFile
+            && ! $value->isValid()
+            && $this->hasRule($attribute, array_merge($this->fileRules, $this->implicitRules));
+    }
+
+    /**
+     * Determine if an inline check is safe to repeat during presence preflight.
+     */
+    protected function canPreflightInline(InlineCheck $check, mixed $value): bool
+    {
+        if (is_object($value) || is_resource($value)) {
+            return false;
+        }
+
+        return match ($check->type) {
+            CheckType::TypeString,
+            CheckType::TypeNumeric,
+            CheckType::TypeInteger,
+            CheckType::TypeIntegerStrict,
+            CheckType::TypeBoolean,
+            CheckType::TypeArray,
+            CheckType::Email,
+            CheckType::Url,
+            CheckType::Ip,
+            CheckType::Ipv4,
+            CheckType::Ipv6,
+            CheckType::Uuid,
+            CheckType::Ulid,
+            CheckType::Json,
+            CheckType::Ascii,
+            CheckType::HexColor,
+            CheckType::MacAddress,
+            CheckType::Alpha,
+            CheckType::AlphaAscii,
+            CheckType::AlphaDash,
+            CheckType::AlphaDashAscii,
+            CheckType::AlphaNum,
+            CheckType::AlphaNumAscii,
+            CheckType::Lowercase,
+            CheckType::Uppercase,
+            CheckType::Digits,
+            CheckType::DigitsBetween,
+            CheckType::MinDigits,
+            CheckType::MaxDigits,
+            CheckType::StartsWith,
+            CheckType::EndsWith,
+            CheckType::DoesntStartWith,
+            CheckType::DoesntEndWith,
+            CheckType::In,
+            CheckType::NotIn,
+            CheckType::IsDate,
+            CheckType::DateFormat => true,
+            CheckType::SizeMin,
+            CheckType::SizeMax,
+            CheckType::SizeBetween,
+            CheckType::SizeExact => ! ($check->param['numeric'] && is_numeric($value))
+                || ((! is_float($value) || is_finite($value))
+                    && ! Str::contains((string) $value, 'e', ignoreCase: true)),
+            default => false,
+        };
     }
 
     /**
@@ -158,7 +269,7 @@ trait PlanExecutor
             CheckType::Ipv6 => is_string($value) && $this->isValidIpv6($value),
             CheckType::Uuid => is_string($value) && $this->isValidUuid($value),
             CheckType::Ulid => is_string($value) && $this->isValidUlid($value),
-            CheckType::Json => $this->executeInlineJson($value),
+            CheckType::Json => $this->validateJson($attribute, $value),
             CheckType::Ascii => is_string($value) && Str::isAscii($value),
             CheckType::HexColor => is_string($value)
                 && preg_match('/^#(?:(?:[0-9a-f]{3}){1,2}|(?:[0-9a-f]{4}){1,2})$/i', $value) === 1,
@@ -177,15 +288,33 @@ trait PlanExecutor
             CheckType::Lowercase => is_string($value) && Str::lower($value) === $value,
             CheckType::Uppercase => is_string($value) && Str::upper($value) === $value,
 
-            CheckType::SizeMin => $this->compareSize($attribute, $value, $check->param['n'], '>=', $check->param['mode']),
-            CheckType::SizeMax => $this->compareSize($attribute, $value, $check->param['n'], '<=', $check->param['mode']),
-            CheckType::SizeExact => $this->compareSize($attribute, $value, $check->param['n'], '==', $check->param['mode']),
+            CheckType::SizeMin => $this->compareSize(
+                $attribute,
+                $value,
+                $check->param['threshold'],
+                '>=',
+                $check->param['numeric'],
+            ),
+            CheckType::SizeMax => $this->compareSize(
+                $attribute,
+                $value,
+                $check->param['threshold'],
+                '<=',
+                $check->param['numeric'],
+            ),
+            CheckType::SizeExact => $this->compareSize(
+                $attribute,
+                $value,
+                $check->param['threshold'],
+                '==',
+                $check->param['numeric'],
+            ),
             CheckType::SizeBetween => $this->compareSizeBetween(
                 $attribute,
                 $value,
-                $check->param['min'],
-                $check->param['max'],
-                $check->param['mode']
+                $check->param['minimum'],
+                $check->param['maximum'],
+                $check->param['numeric'],
             ),
             CheckType::Digits => (is_string($value) || is_numeric($value))
                 && ! preg_match('/[^0-9]/', $s = (string) $value)
@@ -229,54 +358,34 @@ trait PlanExecutor
     }
 
     /**
-     * Inline JSON validation matching validateJson() behavior.
-     *
-     * Checks for array/null and non-stringable objects before validation.
-     */
-    private function executeInlineJson(mixed $value): bool
-    {
-        if (is_array($value) || is_null($value)) {
-            return false;
-        }
-
-        if (! is_scalar($value) && ! method_exists($value, '__toString')) {
-            return false;
-        }
-
-        return Json::validate((string) $value);
-    }
-
-    /**
      * Compare a value's size against a threshold.
      *
-     * For String/Array modes with numeric thresholds, uses native comparison
-     * (mb_strlen and count always return int). Falls back to BigNumber only
-     * for Numeric/File modes.
+     * @param array{raw: string, integer: ?int} $threshold
      */
-    private function compareSize(string $attribute, mixed $value, string $target, string $operator, SizeMode $mode): bool
-    {
-        $target = $this->trim($target);
+    private function compareSize(
+        string $attribute,
+        mixed $value,
+        array $threshold,
+        string $operator,
+        bool $numeric,
+    ): bool {
+        $size = $this->sizeOf($attribute, $value, $numeric);
 
-        if (($mode === SizeMode::String || $mode === SizeMode::Array)
-            && $target !== '' && is_numeric($target)
-        ) {
-            $size = $this->sizeOf($value, $mode);
-            $numericTarget = (float) $target;
-
+        if ($this->usesNativeSizeComparison($value, $numeric) && $threshold['integer'] !== null) {
             return match ($operator) {
-                '>=' => $size >= $numericTarget,
-                '<=' => $size <= $numericTarget,
-                '==' => (float) $size === $numericTarget,
+                '>=' => $size >= $threshold['integer'],
+                '<=' => $size <= $threshold['integer'],
+                '==' => $size === $threshold['integer'],
                 default => throw new InvalidArgumentException("Unsupported size comparison operator: {$operator}"),
             };
         }
 
-        $size = BigNumber::of((string) $this->sizeOfWithExponentCheck($attribute, $value, $mode));
+        $size = BigNumber::of((string) $size);
 
         return match ($operator) {
-            '>=' => $size->isGreaterThanOrEqualTo($target),
-            '<=' => $size->isLessThanOrEqualTo($target),
-            '==' => $size->isEqualTo($target),
+            '>=' => $size->isGreaterThanOrEqualTo($threshold['raw']),
+            '<=' => $size->isLessThanOrEqualTo($threshold['raw']),
+            '==' => $size->isEqualTo($threshold['raw']),
             default => throw new InvalidArgumentException("Unsupported size comparison operator: {$operator}"),
         };
     }
@@ -284,41 +393,37 @@ trait PlanExecutor
     /**
      * Compare a value's size against a min/max range.
      *
-     * Native fast path for String/Array modes with numeric thresholds.
+     * @param array{raw: string, integer: ?int} $minimum
+     * @param array{raw: string, integer: ?int} $maximum
      */
-    private function compareSizeBetween(string $attribute, mixed $value, string $min, string $max, SizeMode $mode): bool
-    {
-        $min = $this->trim($min);
-        $max = $this->trim($max);
+    private function compareSizeBetween(
+        string $attribute,
+        mixed $value,
+        array $minimum,
+        array $maximum,
+        bool $numeric,
+    ): bool {
+        $size = $this->sizeOf($attribute, $value, $numeric);
 
-        if (($mode === SizeMode::String || $mode === SizeMode::Array)
-            && $min !== '' && is_numeric($min)
-            && $max !== '' && is_numeric($max)
+        if ($this->usesNativeSizeComparison($value, $numeric)
+            && $minimum['integer'] !== null
+            && $maximum['integer'] !== null
         ) {
-            $size = $this->sizeOf($value, $mode);
-
-            return $size >= (float) $min && $size <= (float) $max;
+            return $size >= $minimum['integer'] && $size <= $maximum['integer'];
         }
 
-        $size = BigNumber::of((string) $this->sizeOfWithExponentCheck($attribute, $value, $mode));
+        $size = BigNumber::of((string) $size);
 
-        return $size->isGreaterThanOrEqualTo($min) && $size->isLessThanOrEqualTo($max);
+        return $size->isGreaterThanOrEqualTo($minimum['raw'])
+            && $size->isLessThanOrEqualTo($maximum['raw']);
     }
 
     /**
-     * Compute a value's size with exponent-range checking for numeric modes.
-     *
-     * For numeric-mode values, runs ensureExponentWithinAllowedRange() to
-     * match getSize()'s behavior. This preserves the MathException for
-     * out-of-range exponents and any custom exponent-range callbacks.
+     * Determine if a size comparison can use native integer arithmetic.
      */
-    private function sizeOfWithExponentCheck(string $attribute, mixed $value, SizeMode $mode): float|int|string
+    private function usesNativeSizeComparison(mixed $value, bool $numeric): bool
     {
-        if ($mode === SizeMode::Numeric && is_numeric($value)) {
-            return $this->ensureExponentWithinAllowedRange($attribute, $this->trim($value));
-        }
-
-        return $this->sizeOf($value, $mode);
+        return ! ($numeric && is_numeric($value)) && ! $value instanceof SplFileInfo;
     }
 
     /**

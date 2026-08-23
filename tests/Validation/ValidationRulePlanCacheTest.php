@@ -5,14 +5,21 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Validation;
 
 use Hypervel\Tests\TestCase;
+use Hypervel\Validation\AttributePlan;
+use Hypervel\Validation\Enums\CheckType;
+use Hypervel\Validation\InlineCheck;
+use Hypervel\Validation\Rule;
 use Hypervel\Validation\RuleCompiler;
 use Hypervel\Validation\RulePlanCache;
+use Hypervel\Validation\ValidationRuleParser;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
 
 class ValidationRulePlanCacheTest extends TestCase
 {
+    private const array NUMERIC_RULES = ['Numeric', 'Integer', 'Decimal'];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -23,7 +30,7 @@ class ValidationRulePlanCacheTest extends TestCase
     public function testCacheHitReturnsSamePlanInstance(): void
     {
         $rules = ['required', 'string', 'max:255'];
-        $plan = RuleCompiler::compile($rules);
+        $plan = $this->compile($rules);
 
         RulePlanCache::put($rules, $plan);
 
@@ -42,10 +49,29 @@ class ValidationRulePlanCacheTest extends TestCase
         $this->assertNull(RulePlanCache::get(['required', new stdClass]));
     }
 
+    public function testCanonicalFluentRulesShareCachedPlans(): void
+    {
+        $firstRules = (new ValidationRuleParser(['state' => 'active']))->explode([
+            'state' => ['required', Rule::in(['active', 'inactive'])],
+        ])->rules['state'];
+        $secondRules = (new ValidationRuleParser(['state' => 'inactive']))->explode([
+            'state' => ['required', Rule::in(['active', 'inactive'])],
+        ])->rules['state'];
+        $plan = $this->compile($firstRules);
+
+        RulePlanCache::put($firstRules, $plan);
+
+        $this->assertSame(['required', 'in:"active","inactive"'], $firstRules);
+        $this->assertSame($firstRules, $secondRules);
+        $this->assertInstanceOf(InlineCheck::class, $plan->checks[1]);
+        $this->assertSame(CheckType::In, $plan->checks[1]->type);
+        $this->assertSame($plan, RulePlanCache::get($secondRules));
+    }
+
     public function testFlushStateClearsCache(): void
     {
         $rules = ['required'];
-        $plan = RuleCompiler::compile($rules);
+        $plan = $this->compile($rules);
 
         RulePlanCache::put($rules, $plan);
         $this->assertNotNull(RulePlanCache::get($rules));
@@ -63,9 +89,9 @@ class ValidationRulePlanCacheTest extends TestCase
         $rules3 = ['rule_c'];
         $rules4 = ['rule_d'];
 
-        RulePlanCache::put($rules1, RuleCompiler::compile($rules1));
-        RulePlanCache::put($rules2, RuleCompiler::compile($rules2));
-        RulePlanCache::put($rules3, RuleCompiler::compile($rules3));
+        RulePlanCache::put($rules1, $this->compile($rules1));
+        RulePlanCache::put($rules2, $this->compile($rules2));
+        RulePlanCache::put($rules3, $this->compile($rules3));
 
         $this->assertNotNull(RulePlanCache::get($rules1));
         $this->assertNotNull(RulePlanCache::get($rules2));
@@ -73,7 +99,7 @@ class ValidationRulePlanCacheTest extends TestCase
 
         // Adding a 4th entry evicts the least recently used (rules1,
         // since rules2 and rules3 were just accessed by get() above)
-        RulePlanCache::put($rules4, RuleCompiler::compile($rules4));
+        RulePlanCache::put($rules4, $this->compile($rules4));
 
         $this->assertNull(RulePlanCache::get($rules1));
         $this->assertNotNull(RulePlanCache::get($rules2));
@@ -94,9 +120,9 @@ class ValidationRulePlanCacheTest extends TestCase
         $rules4 = ['rule_d'];
         $rules5 = ['rule_e'];
 
-        $plan1 = RuleCompiler::compile($rules1);
-        $plan2 = RuleCompiler::compile($rules2);
-        $plan3 = RuleCompiler::compile($rules3);
+        $plan1 = $this->compile($rules1);
+        $plan2 = $this->compile($rules2);
+        $plan3 = $this->compile($rules3);
 
         RulePlanCache::put($rules1, $plan1);
         RulePlanCache::put($rules2, $plan2);
@@ -106,8 +132,8 @@ class ValidationRulePlanCacheTest extends TestCase
         // eviction loop, rules1 will be wrongly evicted here and rules2 will
         // not be refreshed to the MRU position.
         RulePlanCache::put($rules2, $plan2);
-        RulePlanCache::put($rules4, RuleCompiler::compile($rules4));
-        RulePlanCache::put($rules5, RuleCompiler::compile($rules5));
+        RulePlanCache::put($rules4, $this->compile($rules4));
+        RulePlanCache::put($rules5, $this->compile($rules5));
 
         $this->assertNull(RulePlanCache::get($rules1));
         $this->assertNotNull(RulePlanCache::get($rules2));
@@ -118,7 +144,7 @@ class ValidationRulePlanCacheTest extends TestCase
 
     public function testPutWithNonStringElementsIsNoOp(): void
     {
-        RulePlanCache::put(['required', new stdClass], RuleCompiler::compile(['required']));
+        RulePlanCache::put(['required', new stdClass], $this->compile(['required']));
 
         // No crash, and cache is still empty for string rules
         $this->assertNull(RulePlanCache::get(['required']));
@@ -129,8 +155,8 @@ class ValidationRulePlanCacheTest extends TestCase
         $rules1 = ['required', 'string'];
         $rules2 = ['required', 'integer'];
 
-        $plan1 = RuleCompiler::compile($rules1);
-        $plan2 = RuleCompiler::compile($rules2);
+        $plan1 = $this->compile($rules1);
+        $plan2 = $this->compile($rules2);
 
         RulePlanCache::put($rules1, $plan1);
         RulePlanCache::put($rules2, $plan2);
@@ -143,8 +169,8 @@ class ValidationRulePlanCacheTest extends TestCase
     {
         $rules1 = ['alpha|beta', 'gamma'];
         $rules2 = ['alpha', 'beta|gamma'];
-        $plan1 = RuleCompiler::compile($rules1);
-        $plan2 = RuleCompiler::compile($rules2);
+        $plan1 = $this->compile($rules1);
+        $plan2 = $this->compile($rules2);
 
         RulePlanCache::put($rules1, $plan1);
         RulePlanCache::put($rules2, $plan2);
@@ -168,5 +194,13 @@ class ValidationRulePlanCacheTest extends TestCase
     public static function invalidMaxSizes(): array
     {
         return [[0], [-1]];
+    }
+
+    /**
+     * Compile rules with the base validator's canonical numeric-rule set.
+     */
+    private function compile(array $rules): AttributePlan
+    {
+        return RuleCompiler::compile($rules, self::NUMERIC_RULES);
     }
 }
