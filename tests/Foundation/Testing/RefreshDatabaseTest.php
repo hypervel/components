@@ -224,7 +224,7 @@ class RefreshDatabaseTest extends TestCase
         }
     }
 
-    public function testBeginDatabaseTransactionWorkSetsMigratedAndCachesPdoTogether()
+    public function testBeginDatabaseTransactionWorkSetsMigratedAndCachesPdoTogether(): void
     {
         // Regression test for the RefreshDatabase + RunTestsInCoroutine +
         // mid-setUp skip bug. The invariant the fix establishes is that
