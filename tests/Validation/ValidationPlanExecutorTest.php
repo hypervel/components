@@ -9,10 +9,11 @@ use Hypervel\Tests\TestCase;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Enums\CheckType;
-use Hypervel\Validation\Enums\SizeMode;
 use Hypervel\Validation\InlineCheck;
 use Hypervel\Validation\RulePlan\ExposedExecutorValidator;
 use PHPUnit\Framework\Attributes\DataProvider;
+use SplFileInfo;
+use Stringable;
 
 class ValidationPlanExecutorTest extends TestCase
 {
@@ -96,6 +97,136 @@ class ValidationPlanExecutorTest extends TestCase
         ));
     }
 
+    public function testJsonCheckAcceptsStringableValuesAndRejectsResources(): void
+    {
+        $validator = $this->makeValidator();
+        $check = new InlineCheck(CheckType::Json);
+        $stringable = new class implements Stringable {
+            public function __toString(): string
+            {
+                return '{"valid":true}';
+            }
+        };
+        $resource = fopen('php://memory', 'r');
+
+        try {
+            $this->assertTrue($validator->publicExecuteInline($check, $stringable, 'field'));
+            $this->assertFalse($validator->publicExecuteInline($check, $resource, 'field'));
+        } finally {
+            fclose($resource);
+        }
+    }
+
+    public function testPreflightSafetyPartitionCoversEveryInlineCheckType(): void
+    {
+        $safe = [
+            CheckType::TypeString, CheckType::TypeNumeric, CheckType::TypeInteger,
+            CheckType::TypeIntegerStrict, CheckType::TypeBoolean, CheckType::TypeArray,
+            CheckType::Email, CheckType::Url, CheckType::Ip, CheckType::Ipv4,
+            CheckType::Ipv6, CheckType::Uuid, CheckType::Ulid, CheckType::Json,
+            CheckType::Ascii, CheckType::HexColor, CheckType::MacAddress,
+            CheckType::Alpha, CheckType::AlphaAscii, CheckType::AlphaDash,
+            CheckType::AlphaDashAscii, CheckType::AlphaNum, CheckType::AlphaNumAscii,
+            CheckType::Lowercase, CheckType::Uppercase,
+            CheckType::SizeMin, CheckType::SizeMax, CheckType::SizeBetween,
+            CheckType::SizeExact, CheckType::Digits, CheckType::DigitsBetween,
+            CheckType::MinDigits, CheckType::MaxDigits,
+            CheckType::StartsWith, CheckType::EndsWith, CheckType::DoesntStartWith,
+            CheckType::DoesntEndWith, CheckType::In, CheckType::NotIn,
+            CheckType::IsDate, CheckType::DateFormat,
+        ];
+        $unsafe = [
+            CheckType::Regex, CheckType::NotRegex, CheckType::DateAfter,
+            CheckType::DateBefore, CheckType::DateAfterOrEq, CheckType::DateBeforeOrEq,
+            CheckType::DateEquals, CheckType::MultipleOf,
+        ];
+        $reviewedNames = array_map(
+            static fn (CheckType $type): string => $type->name,
+            [...$safe, ...$unsafe],
+        );
+
+        $this->assertCount(count(array_unique($reviewedNames)), $reviewedNames);
+        $this->assertEqualsCanonicalizing(
+            array_map(static fn (CheckType $type): string => $type->name, CheckType::cases()),
+            $reviewedNames,
+        );
+
+        $validator = $this->makeValidator();
+
+        foreach ($safe as $type) {
+            $param = in_array($type, [
+                CheckType::SizeMin,
+                CheckType::SizeMax,
+                CheckType::SizeBetween,
+                CheckType::SizeExact,
+            ], true) ? ['numeric' => false] : null;
+
+            $this->assertTrue($validator->publicCanPreflightInline(new InlineCheck($type, $param), 'value'));
+        }
+
+        foreach ($unsafe as $type) {
+            $this->assertFalse($validator->publicCanPreflightInline(new InlineCheck($type), 'value'));
+        }
+    }
+
+    public function testPreflightRejectsObjectsAndResourcesWithoutInvokingThem(): void
+    {
+        $validator = $this->makeValidator();
+        $stringable = new class implements Stringable {
+            public int $casts = 0;
+
+            public function __toString(): string
+            {
+                ++$this->casts;
+
+                return 'value';
+            }
+        };
+        $file = new class(__FILE__) extends SplFileInfo {
+            public int $reads = 0;
+
+            public function getSize(): int|false
+            {
+                ++$this->reads;
+
+                return parent::getSize();
+            }
+        };
+        $resource = fopen('php://memory', 'r');
+
+        try {
+            $this->assertFalse($validator->publicCanPreflightInline(
+                new InlineCheck(CheckType::TypeString),
+                $stringable,
+            ));
+            $this->assertFalse($validator->publicCanPreflightInline(
+                new InlineCheck(CheckType::SizeMax, ['numeric' => false]),
+                $file,
+            ));
+            $this->assertFalse($validator->publicCanPreflightInline(
+                new InlineCheck(CheckType::TypeString),
+                $resource,
+            ));
+            $this->assertSame(0, $stringable->casts);
+            $this->assertSame(0, $file->reads);
+        } finally {
+            fclose($resource);
+        }
+    }
+
+    public function testPreflightAllowsArraysButRejectsUnsafeNumericSizeValues(): void
+    {
+        $validator = $this->makeValidator();
+        $arraySize = new InlineCheck(CheckType::SizeMax, ['numeric' => false]);
+        $numericSize = new InlineCheck(CheckType::SizeMax, ['numeric' => true]);
+
+        $this->assertTrue($validator->publicCanPreflightInline($arraySize, ['value']));
+        $this->assertTrue($validator->publicCanPreflightInline($numericSize, '100'));
+        $this->assertFalse($validator->publicCanPreflightInline($numericSize, '1e2'));
+        $this->assertFalse($validator->publicCanPreflightInline($numericSize, INF));
+        $this->assertFalse($validator->publicCanPreflightInline($numericSize, NAN));
+    }
+
     #[DataProvider('charClassCases')]
     public function testCharacterClassChecks(CheckType $type, mixed $value, bool $expected)
     {
@@ -121,28 +252,38 @@ class ValidationPlanExecutorTest extends TestCase
         yield 'Uppercase fails' => [CheckType::Uppercase, 'Hello', false];
     }
 
-    public function testSizeMinWithStringMode()
+    public function testSizeMinWithStringValue(): void
     {
         $validator = $this->makeValidator();
-        $check = new InlineCheck(CheckType::SizeMin, ['n' => '3', 'mode' => SizeMode::String]);
+        $check = new InlineCheck(CheckType::SizeMin, [
+            'numeric' => false,
+            'threshold' => ['raw' => '3', 'integer' => 3],
+        ]);
 
         $this->assertTrue($validator->publicExecuteInline($check, 'hello', 'field'));
         $this->assertFalse($validator->publicExecuteInline($check, 'hi', 'field'));
     }
 
-    public function testSizeMaxWithNumericMode()
+    public function testSizeMaxWithNumericSemantics(): void
     {
         $validator = $this->makeValidator();
-        $check = new InlineCheck(CheckType::SizeMax, ['n' => '100', 'mode' => SizeMode::Numeric]);
+        $check = new InlineCheck(CheckType::SizeMax, [
+            'numeric' => true,
+            'threshold' => ['raw' => '100', 'integer' => 100],
+        ]);
 
         $this->assertTrue($validator->publicExecuteInline($check, '50', 'field'));
         $this->assertFalse($validator->publicExecuteInline($check, '150', 'field'));
     }
 
-    public function testSizeBetweenWithArrayMode()
+    public function testSizeBetweenWithArrayValue(): void
     {
         $validator = $this->makeValidator();
-        $check = new InlineCheck(CheckType::SizeBetween, ['min' => '1', 'max' => '3', 'mode' => SizeMode::Array]);
+        $check = new InlineCheck(CheckType::SizeBetween, [
+            'numeric' => false,
+            'minimum' => ['raw' => '1', 'integer' => 1],
+            'maximum' => ['raw' => '3', 'integer' => 3],
+        ]);
 
         $this->assertTrue($validator->publicExecuteInline($check, [1, 2], 'field'));
         $this->assertFalse($validator->publicExecuteInline($check, [1, 2, 3, 4], 'field'));
@@ -302,26 +443,33 @@ class ValidationPlanExecutorTest extends TestCase
         $this->assertFalse($validator->publicExecuteInline($check, 7, 'field'));
     }
 
-    // --- Native size comparison tests ---
-
     public function testSizeComparisonWithIntegerThreshold()
     {
         $validator = $this->makeValidator();
 
-        $stringMax = new InlineCheck(CheckType::SizeMax, ['n' => '5', 'mode' => SizeMode::String]);
+        $stringMax = new InlineCheck(CheckType::SizeMax, [
+            'numeric' => false,
+            'threshold' => ['raw' => '5', 'integer' => 5],
+        ]);
         $this->assertTrue($validator->publicExecuteInline($stringMax, 'hello', 'field'));
         $this->assertFalse($validator->publicExecuteInline($stringMax, 'hello!', 'field'));
 
-        $arrayMin = new InlineCheck(CheckType::SizeMin, ['n' => '2', 'mode' => SizeMode::Array]);
+        $arrayMin = new InlineCheck(CheckType::SizeMin, [
+            'numeric' => false,
+            'threshold' => ['raw' => '2', 'integer' => 2],
+        ]);
         $this->assertTrue($validator->publicExecuteInline($arrayMin, [1, 2], 'field'));
         $this->assertFalse($validator->publicExecuteInline($arrayMin, [1], 'field'));
     }
 
-    public function testSizeComparisonWithDecimalThresholdUsesNativeComparison()
+    public function testSizeComparisonWithDecimalThresholdUsesExactComparison(): void
     {
         $validator = $this->makeValidator();
 
-        $check = new InlineCheck(CheckType::SizeMax, ['n' => '3.5', 'mode' => SizeMode::String]);
+        $check = new InlineCheck(CheckType::SizeMax, [
+            'numeric' => false,
+            'threshold' => ['raw' => '3.5', 'integer' => null],
+        ]);
         $this->assertTrue($validator->publicExecuteInline($check, 'abc', 'field'));
         $this->assertFalse($validator->publicExecuteInline($check, 'abcd', 'field'));
     }
@@ -330,7 +478,10 @@ class ValidationPlanExecutorTest extends TestCase
     {
         $validator = $this->makeValidator();
 
-        $check = new InlineCheck(CheckType::SizeExact, ['n' => '3.5', 'mode' => SizeMode::String]);
+        $check = new InlineCheck(CheckType::SizeExact, [
+            'numeric' => false,
+            'threshold' => ['raw' => '3.5', 'integer' => null],
+        ]);
         $this->assertFalse($validator->publicExecuteInline($check, 'abc', 'field'));
     }
 
@@ -338,36 +489,50 @@ class ValidationPlanExecutorTest extends TestCase
     {
         $validator = $this->makeValidator();
 
-        $check = new InlineCheck(CheckType::SizeBetween, ['min' => '2', 'max' => '5', 'mode' => SizeMode::String]);
+        $check = new InlineCheck(CheckType::SizeBetween, [
+            'numeric' => false,
+            'minimum' => ['raw' => '2', 'integer' => 2],
+            'maximum' => ['raw' => '5', 'integer' => 5],
+        ]);
         $this->assertTrue($validator->publicExecuteInline($check, 'hi', 'field'));
         $this->assertTrue($validator->publicExecuteInline($check, 'hello', 'field'));
         $this->assertFalse($validator->publicExecuteInline($check, 'h', 'field'));
         $this->assertFalse($validator->publicExecuteInline($check, 'helloo', 'field'));
     }
 
-    public function testSizeBetweenWithDecimalThresholdUsesNativeComparison()
+    public function testSizeBetweenWithDecimalThresholdUsesExactComparison(): void
     {
         $validator = $this->makeValidator();
 
-        $check = new InlineCheck(CheckType::SizeBetween, ['min' => '1', 'max' => '3.5', 'mode' => SizeMode::String]);
+        $check = new InlineCheck(CheckType::SizeBetween, [
+            'numeric' => false,
+            'minimum' => ['raw' => '1', 'integer' => 1],
+            'maximum' => ['raw' => '3.5', 'integer' => null],
+        ]);
         $this->assertTrue($validator->publicExecuteInline($check, 'abc', 'field'));
         $this->assertFalse($validator->publicExecuteInline($check, 'abcd', 'field'));
     }
 
-    public function testNumericModeSizeStillUsesBigNumber()
+    public function testNumericSizeUsesBigNumber(): void
     {
         $validator = $this->makeValidator();
 
-        $check = new InlineCheck(CheckType::SizeMax, ['n' => '100', 'mode' => SizeMode::Numeric]);
+        $check = new InlineCheck(CheckType::SizeMax, [
+            'numeric' => true,
+            'threshold' => ['raw' => '100', 'integer' => 100],
+        ]);
         $this->assertTrue($validator->publicExecuteInline($check, '50', 'field'));
         $this->assertFalse($validator->publicExecuteInline($check, '150', 'field'));
     }
 
-    public function testSizeExactWithArrayMode()
+    public function testSizeExactWithArrayValue(): void
     {
         $validator = $this->makeValidator();
 
-        $check = new InlineCheck(CheckType::SizeExact, ['n' => '3', 'mode' => SizeMode::Array]);
+        $check = new InlineCheck(CheckType::SizeExact, [
+            'numeric' => false,
+            'threshold' => ['raw' => '3', 'integer' => 3],
+        ]);
         $this->assertTrue($validator->publicExecuteInline($check, [1, 2, 3], 'field'));
         $this->assertFalse($validator->publicExecuteInline($check, [1, 2], 'field'));
     }
@@ -390,6 +555,11 @@ use Hypervel\Validation\Validator;
  */
 class ExposedExecutorValidator extends Validator
 {
+    public function publicCanPreflightInline(InlineCheck $check, mixed $value): bool
+    {
+        return $this->canPreflightInline($check, $value);
+    }
+
     public function publicExecuteInline(InlineCheck $check, mixed $value, string $attribute): bool
     {
         return $this->executeInline($check, $value, $attribute);

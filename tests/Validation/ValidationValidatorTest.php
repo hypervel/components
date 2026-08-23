@@ -4551,6 +4551,24 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
+    public function testValidateUniquePreservesZeroIgnoredId(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['email' => 'foo'],
+            ['email' => (new Unique('users', 'email'))->ignore(0)],
+        );
+        $verifier = m::mock(DatabasePresenceVerifierInterface::class);
+        $verifier->shouldReceive('setConnection')->once()->with(null);
+        $verifier->shouldReceive('getCount')
+            ->once()
+            ->with('users', 'email', 'foo', '0', 'id', [])
+            ->andReturn(0);
+        $validator->setPresenceVerifier($verifier);
+
+        $this->assertTrue($validator->passes());
+    }
+
     public function testValidateUniqueAndExistsSendsCorrectFieldNameToDBWithArrays()
     {
         $trans = $this->getArrayTranslator();
