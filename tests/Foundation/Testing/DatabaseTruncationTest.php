@@ -8,12 +8,15 @@ use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection;
+use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Database\Schema\PostgresBuilder;
 use Hypervel\Foundation\Testing\DatabaseTruncation;
+use Hypervel\Foundation\Testing\RefreshDatabaseState;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PDO;
 
 class DatabaseTruncationTest extends TestCase
 {
@@ -24,6 +27,8 @@ class DatabaseTruncationTest extends TestCase
     private ?array $tablesToTruncate = null;
 
     private ?array $exceptTables = null;
+
+    private array $connectionsToTruncate = [null];
 
     protected function setUp(): void
     {
@@ -44,8 +49,10 @@ class DatabaseTruncationTest extends TestCase
     {
         $this->app = null;
         static::$allTables = [];
+        RefreshDatabaseState::$inMemoryConnections = [];
         $this->tablesToTruncate = null;
         $this->exceptTables = null;
+        $this->connectionsToTruncate = [null];
 
         parent::tearDown();
     }
@@ -179,6 +186,73 @@ class DatabaseTruncationTest extends TestCase
         $this->truncateTablesForConnection($connection, 'test');
 
         $this->assertEquals(['public.foo', 'public.bar', 'my_schema.foo', 'my_schema.baz'], $truncatedTables);
+    }
+
+    public function testRestoreSkipsDatabaseResolutionWhenNoInMemoryConnectionIsCached(): void
+    {
+        $this->restoreInMemoryDatabases();
+
+        $this->assertFalse($this->app->resolved('db'));
+    }
+
+    public function testCachesAndRestoresConfiguredInMemoryConnections(): void
+    {
+        $defaultPdo = m::mock(PDO::class);
+        $namedPdo = m::mock(PDO::class);
+        $sourceDefault = m::mock(Connection::class);
+        $sourceNamed = m::mock(Connection::class);
+        $sourceDefault->shouldReceive('getPdo')->once()->andReturn($defaultPdo);
+        $sourceNamed->shouldReceive('getPdo')->once()->andReturn($namedPdo);
+
+        $sourceDatabase = m::mock(DatabaseManager::class);
+        $sourceDatabase->shouldReceive('connection')->once()->with(null)->andReturn($sourceDefault);
+        $sourceDatabase->shouldReceive('connection')->once()->with('named')->andReturn($sourceNamed);
+        $sourceDatabase->shouldNotReceive('connection')->with('file');
+
+        $this->app->instance('config', new Repository([
+            'database' => [
+                'default' => 'default',
+                'connections' => [
+                    'default' => ['driver' => 'sqlite', 'database' => ':memory:'],
+                    'named' => ['driver' => 'sqlite', 'database' => 'file::memory:?cache=shared'],
+                    'file' => ['driver' => 'sqlite', 'database' => '/tmp/database.sqlite'],
+                ],
+            ],
+        ]));
+        $this->app->instance('db', $sourceDatabase);
+        $this->connectionsToTruncate = [null, 'named', 'file'];
+
+        $this->cacheInMemoryDatabases();
+
+        $dispatcher = m::mock(Dispatcher::class);
+        $restoredDefault = m::mock(Connection::class);
+        $restoredNamed = m::mock(Connection::class);
+        $restoredDefault->shouldReceive('setPdo')->once()->with($defaultPdo)->andReturnSelf();
+        $restoredDefault->shouldReceive('setEventDispatcher')->once()->with($dispatcher)->andReturnSelf();
+        $restoredNamed->shouldReceive('setPdo')->once()->with($namedPdo)->andReturnSelf();
+        $restoredNamed->shouldReceive('setEventDispatcher')->once()->with($dispatcher)->andReturnSelf();
+
+        $restoredDatabase = m::mock(DatabaseManager::class);
+        $restoredDatabase->shouldReceive('connection')->once()->with(null)->andReturn($restoredDefault);
+        $restoredDatabase->shouldReceive('connection')->once()->with('named')->andReturn($restoredNamed);
+        $restoredDatabase->shouldNotReceive('connection')->with('file');
+
+        $this->app->instance('db', $restoredDatabase);
+        $this->app->instance(Dispatcher::class, $dispatcher);
+
+        $this->restoreInMemoryDatabases();
+
+        $this->connectionsToTruncate = ['named', 'file'];
+
+        $this->assertTrue($this->usingInMemoryDatabasesForTruncation());
+
+        $this->connectionsToTruncate = ['missing'];
+
+        $this->assertFalse($this->usingInMemoryDatabasesForTruncation());
+        $this->assertSame([
+            'default' => $defaultPdo,
+            'named' => $namedPdo,
+        ], RefreshDatabaseState::$inMemoryConnections);
     }
 
     private function arrangeConnection(

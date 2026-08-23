@@ -78,7 +78,8 @@ trait InteractsWithParallelDatabase
      * Ensure the per-worker database exists, creating it if needed.
      *
      * Called from database testing traits (RefreshDatabase, DatabaseMigrations,
-     * DatabaseTransactions) after the app is booted and connections are available.
+     * DatabaseTruncation, DatabaseTransactions) after the app is booted and
+     * connections are available.
      * The config has already been rewritten by configureParallelDatabaseName().
      *
      * No-op when not running in parallel or when using in-memory SQLite.
