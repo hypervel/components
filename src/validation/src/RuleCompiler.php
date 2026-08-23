@@ -35,7 +35,11 @@ final class RuleCompiler
 
         foreach ($parsedRules as [, $parameters]) {
             if (array_any($parameters, static fn (mixed $parameter): bool => ! is_scalar($parameter))) {
-                return self::compileAllDelegated($rules);
+                foreach ($rules as $index => $rule) {
+                    self::compileRuleDelegated($rule, $plan, $parsedRules[$index]);
+                }
+
+                return $plan;
             }
         }
 
@@ -51,9 +55,8 @@ final class RuleCompiler
     /**
      * Compile all rules as DelegatedCheck (no inlining).
      *
-     * Used for Validator subclasses and attributes with non-scalar rule
-     * parameters. Retains meta flags for attribute-level gating while keeping
-     * every declared rule available to delegated execution.
+     * Used for Validator subclasses. Retains meta flags for attribute-level
+     * gating while keeping every declared rule available to delegated execution.
      *
      * @param list<mixed> $rules As produced by ValidationRuleParser::explode()
      */
@@ -166,8 +169,10 @@ final class RuleCompiler
      *
      * Handles the same input forms and flag resolution as compileRule() but
      * skips tryInline() so every declared rule becomes a DelegatedCheck.
+     *
+     * @param null|array{0: mixed, 1: array<int, mixed>} $parsedRule
      */
-    private static function compileRuleDelegated(mixed $rule, AttributePlan $plan): void
+    private static function compileRuleDelegated(mixed $rule, AttributePlan $plan, ?array $parsedRule = null): void
     {
         if ($rule instanceof RuleContract) {
             $plan->checks[] = new DelegatedCheck(
@@ -178,7 +183,7 @@ final class RuleCompiler
             return;
         }
 
-        [$ruleName, $parameters] = ValidationRuleParser::parse($rule);
+        [$ruleName, $parameters] = $parsedRule ?? ValidationRuleParser::parse($rule);
 
         if (! is_string($ruleName) || $ruleName === '') {
             return;

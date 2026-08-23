@@ -605,6 +605,28 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[0]);
     }
 
+    public function testDelegatedFallbackReusesParsedRules(): void
+    {
+        $existsRule = new class('users', 'email') extends Exists {
+            public int $casts = 0;
+
+            public function __toString(): string
+            {
+                ++$this->casts;
+
+                return parent::__toString();
+            }
+        };
+        $existsRule->using(static fn (mixed $query): mixed => $query);
+
+        $plan = $this->compile([$existsRule, ['date_format', []]]);
+
+        $this->assertSame(1, $existsRule->casts);
+        $this->assertCount(2, $plan->checks);
+        $this->assertContainsOnlyInstancesOf(DelegatedCheck::class, $plan->checks);
+        $this->assertSame($existsRule, $plan->checks[0]->originalRule);
+    }
+
     public function testFormatCheckTypesInline()
     {
         $types = ['ip', 'ipv4', 'ipv6', 'ulid', 'json', 'ascii', 'hex_color', 'mac_address'];
