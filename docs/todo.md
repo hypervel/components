@@ -30,6 +30,7 @@
 
 ## Testing
 
+- Make parallel database isolation URL-aware. A persistent connection configured only with `url` currently skips worker-database rewriting, so ParaTest workers share one database. Normalize the connection before deciding whether it can be managed, keep in-memory SQLite process-local, and either rewrite supported persistent URLs per worker or fail with a clear error when automatic isolation is impossible.
 - Port current Laravel's complete `tests/Support/SupportTestingEventFakeTest.php`, preserving Hypervel-specific EventFake coverage and coroutine-safe test behavior.
 - Complete Testing assertion coverage: port the remaining current Laravel `TestResponseTest` cases through the incremental upstream-update workflow, and add focused coverage for `TestView`'s public assertion and string surface where Laravel has no equivalent suite.
 - Add the repository-required `: void` return type to the remaining untyped HTTP test methods: 176 in `tests/Http/HttpClientTest.php`, 30 in `tests/Http/HttpRequestTrustedStateTest.php`, and 4 in `tests/Http/HttpRequestTrustedStateCoroutineTest.php`. Verify each file after the mechanical conversion.
