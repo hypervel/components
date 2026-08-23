@@ -61,4 +61,28 @@ class SQLiteDatabaseTest extends TestCase
             'mixed-case mode value is not memory' => ['file:database?mode=MEMORY', false],
         ];
     }
+
+    #[DataProvider('configurationProvider')]
+    public function testItClassifiesInMemoryConnectionConfigurations(array $configuration, bool $expected): void
+    {
+        $this->assertSame($expected, SQLiteDatabase::isInMemoryConfiguration($configuration));
+    }
+
+    /**
+     * @return array<string, array{array<string, mixed>, bool}>
+     */
+    public static function configurationProvider(): array
+    {
+        return [
+            'discrete SQLite memory' => [['driver' => 'sqlite', 'database' => ':memory:'], true],
+            'SQLite memory URL' => [['url' => 'sqlite:///:memory:'], true],
+            'URL overrides discrete values' => [[
+                'driver' => 'sqlite',
+                'database' => ':memory:',
+                'url' => 'mysql://root:secret@database/app',
+            ], false],
+            'non-SQLite memory name' => [['driver' => 'mysql', 'database' => ':memory:'], false],
+            'incomplete configuration' => [['driver' => 'sqlite'], false],
+        ];
+    }
 }
