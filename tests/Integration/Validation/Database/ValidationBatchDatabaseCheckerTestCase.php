@@ -114,6 +114,59 @@ abstract class ValidationBatchDatabaseCheckerTestCase extends DatabaseTestCase
         $this->assertCount(1, $existsQueries);
     }
 
+    public function testStringableCandidateUsesOrdinaryPresenceQueryWithoutDisablingSafeBatch(): void
+    {
+        $stringable = new ValidationPresenceStringable('user1@example.com');
+        $validator = $this->makeValidator(
+            ['items' => [
+                ['email' => 'user2@example.com'],
+                ['email' => $stringable],
+            ]],
+            ['items.*.email' => 'required|exists:batch_test_users,email'],
+        );
+
+        DB::enableQueryLog();
+
+        try {
+            $result = $validator->passes();
+            $queryLog = DB::getQueryLog();
+        } finally {
+            DB::disableQueryLog();
+        }
+
+        $this->assertTrue($result);
+        $this->assertSame(1, $stringable->casts);
+        $this->assertCount(2, array_filter(
+            $queryLog,
+            static fn (array $entry): bool => str_contains($entry['query'], 'batch_test_users'),
+        ));
+    }
+
+    public function testStringablePresenceParameterUsesOrdinaryConversionOnce(): void
+    {
+        $condition = new ValidationPresenceStringable('active');
+        $validator = $this->makeValidator(
+            ['items' => [['email' => 'user1@example.com']]],
+            ['items.*.email' => ['required', ['exists', 'batch_test_users', 'email', 'status', $condition]]],
+        );
+
+        DB::enableQueryLog();
+
+        try {
+            $result = $validator->passes();
+            $queryLog = DB::getQueryLog();
+        } finally {
+            DB::disableQueryLog();
+        }
+
+        $this->assertTrue($result);
+        $this->assertSame(1, $condition->casts);
+        $this->assertCount(1, array_filter(
+            $queryLog,
+            static fn (array $entry): bool => str_contains($entry['query'], 'batch_test_users'),
+        ));
+    }
+
     public function testBatchingProducesCorrectPassFailResults(): void
     {
         $validator = $this->makeValidator(
@@ -912,6 +965,81 @@ abstract class ValidationBatchDatabaseCheckerTestCase extends DatabaseTestCase
         ));
     }
 
+    public function testRemovedDescendantMakesLaterExclusionUncertainWithoutDisablingUnrelatedBatch(): void
+    {
+        $validator = $this->makeValidator(
+            [
+                'parent' => ['child' => 'trigger'],
+                'conditional' => [
+                    ['external_id' => 1],
+                    ['external_id' => 2],
+                ],
+                'items' => [
+                    ['email' => 'user1@example.com'],
+                    ['email' => 'user2@example.com'],
+                ],
+            ],
+            [
+                'parent' => 'exclude',
+                'parent.child' => 'string',
+                'conditional.*.external_id' => 'exclude_if:parent.child,trigger|required|exists:batch_test_users,external_id',
+                'items.*.email' => 'required|exists:batch_test_users,email',
+            ],
+        );
+
+        DB::enableQueryLog();
+
+        try {
+            $result = $validator->passes();
+            $queryLog = DB::getQueryLog();
+        } finally {
+            DB::disableQueryLog();
+        }
+
+        $this->assertTrue($result);
+        $this->assertCount(3, array_filter(
+            $queryLog,
+            static fn (array $entry): bool => str_contains($entry['query'], 'batch_test_users'),
+        ));
+    }
+
+    public function testFutureParentExclusionConservativelyLeavesEarlierDescendantPresenceChecksOrdered(): void
+    {
+        $validator = $this->makeValidator(
+            [
+                'flag' => 'exclude',
+                'items' => [
+                    ['email' => 'user1@example.com'],
+                    ['email' => 'user2@example.com'],
+                ],
+            ],
+            [
+                'items.0.email' => 'required',
+                'items' => 'exclude_if:flag,exclude',
+                'items.*.email' => 'exists:batch_test_users,email',
+            ],
+        );
+
+        DB::enableQueryLog();
+
+        try {
+            $result = $validator->passes();
+            $queryLog = DB::getQueryLog();
+        } finally {
+            DB::disableQueryLog();
+        }
+
+        $this->assertTrue($result);
+        $this->assertSame(['flag' => 'exclude'], $validator->getData());
+        $presenceQueries = array_values(array_filter(
+            $queryLog,
+            static fn (array $entry): bool => str_contains($entry['query'], 'batch_test_users'),
+        ));
+        $this->assertCount(1, $presenceQueries);
+        $this->assertContains('user1@example.com', $presenceQueries[0]['bindings']);
+        $this->assertNotContains('user2@example.com', $presenceQueries[0]['bindings']);
+    }
+
     public function testMutationGateKeepsFirstExclusionPresenceChecksDelegated(): void
     {
         $validator = $this->makeValidator(
@@ -1335,5 +1463,21 @@ class ValidationPresenceDomainDate extends DateTimeImmutable implements Stringab
     public function __toString(): string
     {
         return $this->format(DATE_ATOM);
+    }
+}
+
+class ValidationPresenceStringable implements Stringable
+{
+    public int $casts = 0;
+
+    public function __construct(private readonly string $value)
+    {
+    }
+
+    public function __toString(): string
+    {
+        ++$this->casts;
+
+        return $this->value;
     }
 }

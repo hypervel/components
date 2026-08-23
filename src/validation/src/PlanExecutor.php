@@ -18,7 +18,7 @@ use Stringable;
  *
  * ## Architecture overview
  *
- * Hypervel's validation uses a compiled single-path execution model:
+ * Hypervel's validation uses compiled execution with a delegated subclass path:
  *
  * 1. Rules are compiled into AttributePlans by RuleCompiler — each rule
  *    becomes either an InlineCheck (fast, match-dispatched) or a DelegatedCheck
@@ -29,16 +29,16 @@ use Stringable;
  *    wildcard database-presence candidates are queried in ordered groups.
  *    Unknown values remain on the ordinary verifier path.
  *
- * 3. This trait executes the compiled plans through a single loop. InlineChecks
- *    use simplified gating (all are non-implicit by design) and match-dispatch.
- *    DelegatedChecks call validateAttribute() directly — no duplication of
- *    upstream logic, zero maintenance burden for delegated rules.
+ * 3. The exact Validator executes optimized plans through a branch-free loop.
+ *    Subclasses use a Laravel-shaped loop over delegated checks so their
+ *    validation and stopping hooks remain authoritative.
  *
  * ## Maintenance notes
  *
- * - Adding a new inline-eligible rule requires changes in 3 places:
- *   CheckType (enum case + ruleName), RuleCompiler::tryInline(), and
- *   executeInline() below. Forgetting executeInline() fails PHPStan.
+ * - Adding a new inline-eligible rule requires review in 4 places: CheckType
+ *   (enum case + ruleName), RuleCompiler::tryInline(), executeInline() below,
+ *   and canPreflightInline(). Omitting preflight support is correctness-safe
+ *   but prevents presence batching across that rule.
  * - DelegatedChecks require zero changes — they call validate*() directly.
  * - executeInline() arms must match the exact behavior of their corresponding
  *   validate*() methods in ValidatesAttributes. When an upstream method
@@ -53,25 +53,32 @@ trait PlanExecutor
     /**
      * Execute all compiled plans against the validation data.
      *
-     * This is the ONLY execution path — every rule (inline or delegated) flows
-     * through this loop. Per-check fresh reads of $value and $exists match
-     * validateAttribute()'s per-rule getValue() call.
+     * Per-check fresh reads of $value and $exists match validateAttribute()'s
+     * per-rule getValue() call.
      *
      * @param array<string, AttributePlan> $compiledPlans
+     * @param array<string, true> $preExcludedAttributes
      */
-    protected function executeCompiledPlans(array $compiledPlans): void
+    protected function executeCompiledPlans(array $compiledPlans, array $preExcludedAttributes): void
     {
         foreach ($compiledPlans as $attribute => $plan) {
             $attribute = (string) $attribute;
-            $cleanedAttribute = $this->replacePlaceholderInString($attribute);
+
+            if ($this->shouldBeExcluded($attribute)) {
+                $this->removeAttribute($attribute);
+                continue;
+            }
 
             if ($this->stopOnFirstFailure && $this->messages->isNotEmpty()) {
                 break;
             }
 
-            if ($plan->sometimes && ! Arr::has($this->data, $attribute)) {
+            if (isset($preExcludedAttributes[$attribute])) {
+                $this->excludeAttribute($attribute);
                 continue;
             }
+
+            $cleanedAttribute = $this->replacePlaceholderInString($attribute);
 
             foreach ($plan->checks as $check) {
                 if ($check instanceof InlineCheck) {
@@ -119,6 +126,38 @@ trait PlanExecutor
                     ) {
                         break;
                     }
+                }
+            }
+        }
+    }
+
+    /**
+     * Execute all-delegated plans for a Validator subclass.
+     *
+     * @param array<string, AttributePlan> $compiledPlans
+     */
+    protected function executeDelegatedPlans(array $compiledPlans): void
+    {
+        foreach ($compiledPlans as $attribute => $plan) {
+            $attribute = (string) $attribute;
+
+            if ($this->shouldBeExcluded($attribute)) {
+                $this->removeAttribute($attribute);
+                continue;
+            }
+
+            if ($this->stopOnFirstFailure && $this->messages->isNotEmpty()) {
+                break;
+            }
+
+            foreach ($plan->checks as $check) {
+                /** @var DelegatedCheck $check */
+                $this->validateAttribute($attribute, $check->originalRule);
+
+                if ($this->shouldBeExcluded($attribute)
+                    || $this->shouldStopValidating($attribute)
+                ) {
+                    break;
                 }
             }
         }

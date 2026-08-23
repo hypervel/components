@@ -56,6 +56,16 @@ class Validator implements ValidatorContract
     protected array $excludeAttributes = [];
 
     /**
+     * Active exclusions for exact-base compiled execution.
+     *
+     * Subclasses keep Laravel's protected list because their passes() methods
+     * may reset that list directly.
+     *
+     * @var array<string, true>
+     */
+    private array $activeExclusions = [];
+
+    /**
      * The message bag instance.
      */
     protected ?MessageBag $messages = null;
@@ -126,16 +136,6 @@ class Validator implements ValidatorContract
      * on the same instance aren't polluted by the precomputed verifier.
      */
     protected ?PresenceVerifierInterface $originalPresenceVerifier = null;
-
-    /**
-     * Attributes pre-excluded by the exclude_unless/exclude_if pre-pass.
-     *
-     * Stored separately from the compiled plans so cached plans remain
-     * immutable and shareable across requests without cloning.
-     *
-     * @var array<string, true>
-     */
-    protected array $preExcludedAttributes = [];
 
     /**
      * All of the registered "after" callbacks.
@@ -444,24 +444,15 @@ class Validator implements ValidatorContract
     {
         $this->messages = new MessageBag;
         [$this->distinctValues, $this->failedRules, $this->excludeAttributes] = [[], [], []];
+        $this->activeExclusions = [];
         $this->originalPresenceVerifier = null;
-        $this->preExcludedAttributes = [];
         $this->parsedTables = [];
 
         $this->compiledPlans = $this->compileRules();
+        $preExcludedAttributes = [];
 
         if (static::class === self::class) {
-            $unresolvedExclusionAttributes = $this->preEvaluateExclusions(
-                ! $this->compiledPlansUseDataMutatingRules(),
-            );
-
-            if ($this->preExcludedAttributes !== []) {
-                $this->compiledPlans = array_filter(
-                    $this->compiledPlans,
-                    fn (string $attribute): bool => ! $this->isPreExcludedOrDescendant($attribute),
-                    ARRAY_FILTER_USE_KEY,
-                );
-            }
+            [$preExcludedAttributes, $unresolvedExclusionAttributes] = $this->preEvaluateExclusions();
 
             $activeVerifier = $this->presenceVerifier;
             // A failed speculative PostgreSQL query aborts the caller's transaction
@@ -470,16 +461,24 @@ class Validator implements ValidatorContract
                 && $activeVerifier::class === DatabasePresenceVerifier::class
                 && ! $this->stopOnFirstFailure
             ) {
-                $this->maybeBatchDatabaseChecks($activeVerifier, $unresolvedExclusionAttributes);
+                $this->maybeBatchDatabaseChecks(
+                    $activeVerifier,
+                    $preExcludedAttributes,
+                    $unresolvedExclusionAttributes,
+                );
             }
         }
 
         try {
-            $this->executeCompiledPlans($this->compiledPlans);
+            if (static::class === self::class) {
+                $this->executeCompiledPlans($this->compiledPlans, $preExcludedAttributes);
+            } else {
+                $this->executeDelegatedPlans($this->compiledPlans);
+            }
 
             foreach ($this->rules as $attribute => $rules) {
                 $attribute = (string) $attribute;
-                if ($this->isPreExcludedOrDescendant($attribute) || $this->shouldBeExcluded($attribute)) {
+                if ($this->shouldBeExcluded($attribute)) {
                     $this->removeAttribute($attribute);
                 }
             }
@@ -588,19 +587,32 @@ class Validator implements ValidatorContract
     /**
      * Pre-evaluate safe first-position exclusion checks.
      *
-     * This pass records resolved exclusions on the validator instance.
-     *
-     * @return array<string, true> attributes whose exclusion outcome remains unresolved
+     * @return array{0: array<string, true>, 1: array<string, true>}
      * @phpstan-impure
      */
-    protected function preEvaluateExclusions(bool $canPreEvaluate): array
+    protected function preEvaluateExclusions(): array
     {
+        $preExcludedAttributes = [];
         $unresolvedAttributes = [];
+        $possibleExclusionPrefixes = [];
+        $dataMayDiffer = false;
+        $canPreEvaluate = null;
         /** @var array<string, bool> $exclusionOutcomes */
         $exclusionOutcomes = [];
 
         foreach ($this->compiledPlans as $attribute => $plan) {
             $attribute = (string) $attribute;
+
+            if ($possibleExclusionPrefixes !== []
+                && $this->hasAttributeAncestorInSet($attribute, $possibleExclusionPrefixes)
+            ) {
+                // Laravel removes an excluded descendant at its rule-map position.
+                // Each possible prefix is also pre-excluded or unresolved, so presence
+                // planning already declines this plan and every deeper descendant.
+                $dataMayDiffer = true;
+                continue;
+            }
+
             $firstExclusionIndex = null;
             $hasLaterExclusion = false;
 
@@ -618,13 +630,28 @@ class Validator implements ValidatorContract
                 continue;
             }
 
-            if (! $canPreEvaluate || $firstExclusionIndex !== 0) {
+            if ($dataMayDiffer || $firstExclusionIndex !== 0) {
                 $unresolvedAttributes[$attribute] = true;
+                $possibleExclusionPrefixes[$attribute] = true;
                 continue;
             }
 
             /** @var DelegatedCheck $firstCheck */
             $firstCheck = $plan->checks[0];
+
+            if (! $firstCheck->parametersAreScalar) {
+                $unresolvedAttributes[$attribute] = true;
+                $possibleExclusionPrefixes[$attribute] = true;
+                continue;
+            }
+
+            $canPreEvaluate ??= ! $this->compiledPlansUseDataMutatingRules();
+
+            if (! $canPreEvaluate) {
+                $unresolvedAttributes[$attribute] = true;
+                $possibleExclusionPrefixes[$attribute] = true;
+                continue;
+            }
 
             try {
                 $parameters = $firstCheck->parameters;
@@ -662,29 +689,34 @@ class Validator implements ValidatorContract
                 }
             } catch (InvalidArgumentException|ValueError) {
                 $unresolvedAttributes[$attribute] = true;
+                $possibleExclusionPrefixes[$attribute] = true;
                 continue;
             }
 
             if (! $passes) {
-                $this->preExcludedAttributes[$attribute] = true;
+                $preExcludedAttributes[$attribute] = true;
+                $possibleExclusionPrefixes[$attribute] = true;
                 continue;
             }
 
             if ($hasLaterExclusion) {
                 $unresolvedAttributes[$attribute] = true;
+                $possibleExclusionPrefixes[$attribute] = true;
             }
         }
 
-        return $unresolvedAttributes;
+        return [$preExcludedAttributes, $unresolvedAttributes];
     }
 
     /**
      * Batch safe wildcard database-presence candidates by query shape.
      *
+     * @param array<string, true> $preExcludedAttributes
      * @param array<string, true> $unresolvedExclusionAttributes
      */
     protected function maybeBatchDatabaseChecks(
         DatabasePresenceVerifier $presenceVerifier,
+        array $preExcludedAttributes,
         array $unresolvedExclusionAttributes,
     ): void {
         if ($this->implicitAttributes === []) {
@@ -707,10 +739,29 @@ class Validator implements ValidatorContract
                 continue;
             }
 
+            $firstPresenceIndex = null;
+
+            foreach ($plan->checks as $index => $check) {
+                if ($check instanceof DelegatedCheck
+                    && ($check->ruleName === 'Exists' || $check->ruleName === 'Unique')
+                ) {
+                    $firstPresenceIndex = $index;
+                    break;
+                }
+            }
+
+            if ($firstPresenceIndex === null) {
+                continue;
+            }
+
             $exists = Arr::has($this->data, $attribute);
 
-            if (($plan->sometimes && ! $exists)
-                || $this->hasAttributeAncestorInSet($attribute, $unresolvedExclusionAttributes)
+            if (isset($preExcludedAttributes[$attribute])
+                || ($preExcludedAttributes !== []
+                    && $this->hasAttributeAncestorInSet($attribute, $preExcludedAttributes))
+                || ($plan->sometimes && ! $exists)
+                || ($unresolvedExclusionAttributes !== []
+                    && $this->hasAttributeAncestorInSet($attribute, $unresolvedExclusionAttributes))
             ) {
                 continue;
             }
@@ -723,7 +774,9 @@ class Validator implements ValidatorContract
                 continue;
             }
 
-            foreach ($plan->checks as $index => $check) {
+            for ($index = $firstPresenceIndex, $checkCount = count($plan->checks); $index < $checkCount; ++$index) {
+                $check = $plan->checks[$index];
+
                 if (! $check instanceof DelegatedCheck
                     || ($check->ruleName !== 'Exists' && $check->ruleName !== 'Unique')
                 ) {
@@ -794,6 +847,10 @@ class Validator implements ValidatorContract
         DelegatedCheck $check,
         string $attribute,
     ): ?array {
+        if (! $check->parametersAreScalar) {
+            return null;
+        }
+
         if (($check->originalRule instanceof Rules\Exists || $check->originalRule instanceof Rules\Unique)
             && $check->originalRule->queryCallbacks() !== []
         ) {
@@ -939,6 +996,12 @@ class Validator implements ValidatorContract
      */
     protected function shouldBeExcluded(string $attribute): bool
     {
+        if (static::class === self::class) {
+            return isset($this->activeExclusions[$attribute])
+                || ($this->activeExclusions !== []
+                    && $this->hasAttributeAncestorInSet($attribute, $this->activeExclusions));
+        }
+
         foreach ($this->excludeAttributes as $excludeAttribute) {
             if ($attribute === $excludeAttribute
                 || Str::startsWith($attribute, $excludeAttribute . '.')
@@ -948,21 +1011,6 @@ class Validator implements ValidatorContract
         }
 
         return false;
-    }
-
-    /**
-     * Determine if the attribute or any of its ancestors was pre-excluded.
-     *
-     * Walks up the dot-separated segments checking each prefix against
-     * $preExcludedAttributes. O(depth) where depth is typically 2-4.
-     */
-    private function isPreExcludedOrDescendant(string $attribute): bool
-    {
-        if (isset($this->preExcludedAttributes[$attribute])) {
-            return true;
-        }
-
-        return $this->hasAttributeAncestorInSet($attribute, $this->preExcludedAttributes);
     }
 
     /**
@@ -1295,7 +1343,9 @@ class Validator implements ValidatorContract
      */
     protected function hasNotFailedPreviousRuleIfPresenceRule(object|string $rule, string $attribute): bool
     {
-        return in_array($rule, ['Unique', 'Exists']) ? ! $this->messages->has($attribute) : true;
+        return in_array($rule, ['Unique', 'Exists'], true)
+            ? ! $this->messages->has($this->replacePlaceholderInString($attribute))
+            : true;
     }
 
     /**
@@ -1391,8 +1441,8 @@ class Validator implements ValidatorContract
 
         $attribute = $this->replacePlaceholderInString($attribute);
 
-        if (in_array($rule, $this->excludeRules)) {
-            $this->excludeAttribute($attribute);
+        if (in_array($rule, $this->excludeRules, true)) {
+            $this->excludeAttribute($attributeWithPlaceholders);
             return;
         }
 
@@ -1415,6 +1465,12 @@ class Validator implements ValidatorContract
      */
     protected function excludeAttribute(string $attribute): void
     {
+        if (static::class === self::class) {
+            $this->activeExclusions[$attribute] = true;
+
+            return;
+        }
+
         $this->excludeAttributes[] = $attribute;
 
         $this->excludeAttributes = array_unique($this->excludeAttributes);

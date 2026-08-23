@@ -427,6 +427,186 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
+    public function testSubclassMetaRulesAndStopHookRemainDelegated(): void
+    {
+        $validator = $this->makeValidator(
+            ['name' => 'value'],
+            ['name' => 'nullable|bail|sometimes|string'],
+            validatorClass: ValidationHookTrackingValidator::class,
+        );
+
+        $this->assertTrue($validator->passes());
+        $this->assertSame(1, $validator->nullableCalls);
+        $this->assertSame(1, $validator->bailCalls);
+        $this->assertSame(1, $validator->sometimesCalls);
+        $this->assertGreaterThan(0, $validator->optionalCheckCalls);
+        $this->assertSame(4, $validator->stopCalls);
+    }
+
+    public function testSubclassStopHookCanStopAfterItsFirstFailure(): void
+    {
+        $validator = $this->makeValidator(
+            ['name' => 'invalid'],
+            ['name' => 'integer|string'],
+            validatorClass: ValidationHookTrackingValidator::class,
+        );
+        $validator->alwaysStop = true;
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame(1, $validator->stopCalls);
+        $this->assertSame(['Integer'], array_keys($validator->failed()['name']));
+    }
+
+    public function testSubclassOptionalHookControlsAbsentSometimesAttribute(): void
+    {
+        $validator = $this->makeValidator(
+            [],
+            ['name' => 'sometimes|required'],
+            validatorClass: ValidationHookTrackingValidator::class,
+        );
+        $validator->forceOptional = true;
+
+        $this->assertFalse($validator->passes());
+        $this->assertGreaterThan(0, $validator->optionalCheckCalls);
+        $this->assertArrayHasKey('Required', $validator->failed()['name']);
+    }
+
+    public function testNonScalarParametersAreNotEvaluatedAfterBailStopsTheAttribute(): void
+    {
+        $casts = 0;
+        $parameter = new class($casts) implements Stringable {
+            public function __construct(private int &$casts)
+            {
+            }
+
+            public function __toString(): string
+            {
+                ++$this->casts;
+
+                return 'allowed';
+            }
+        };
+        $validator = $this->makeValidator(
+            ['value' => 'invalid'],
+            ['value' => ['bail', 'integer', ['in', $parameter]]],
+        );
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame(0, $casts);
+        $this->assertSame(['Integer'], array_keys($validator->failed()['value']));
+    }
+
+    public function testReachedNonScalarDateFormatParameterIsCastOnce(): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            $casts = 0;
+            $parameter = new class($casts) implements Stringable {
+                public function __construct(private int &$casts)
+                {
+                }
+
+                public function __toString(): string
+                {
+                    ++$this->casts;
+
+                    return 'Ymd';
+                }
+            };
+            $validator = $this->makeValidator(
+                ['value' => '20250101'],
+                ['value' => [['date_format', $parameter]]],
+                validatorClass: $validatorClass,
+            );
+
+            $this->assertTrue($validator->passes(), $validatorClass);
+            $this->assertSame(1, $casts, $validatorClass);
+        }
+    }
+
+    public function testEscapedDotPresenceRulesSkipAfterAnEarlierFailure(): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            foreach (['exists:users,email', 'unique:users,email'] as $presenceRule) {
+                $calls = 0;
+                $presenceVerifier = new class($calls) implements PresenceVerifierInterface {
+                    public function __construct(private int &$calls)
+                    {
+                    }
+
+                    public function getCount(string $collection, string $column, mixed $value, int|string|null $excludeId = null, ?string $idColumn = null, array $extra = []): int
+                    {
+                        ++$this->calls;
+
+                        return 0;
+                    }
+
+                    public function getMultiCount(string $collection, string $column, array $values, array $extra = []): int
+                    {
+                        ++$this->calls;
+
+                        return 0;
+                    }
+                };
+                $validator = $this->makeValidator(
+                    ['items' => [['literal.dot' => 'invalid']]],
+                    ['items.*.literal\.dot' => "integer|{$presenceRule}"],
+                    validatorClass: $validatorClass,
+                );
+                $validator->setPresenceVerifier($presenceVerifier);
+
+                $this->assertFalse($validator->passes());
+                $this->assertSame(0, $calls);
+                $this->assertTrue($validator->errors()->has('items.0.literal.dot'));
+            }
+        }
+    }
+
+    public function testStringablePresenceCandidateIsNotCastWhenAnEarlierRuleFails(): void
+    {
+        $casts = 0;
+        $value = new class($casts) implements Stringable {
+            public function __construct(private int &$casts)
+            {
+            }
+
+            public function __toString(): string
+            {
+                ++$this->casts;
+
+                return 'user1@example.com';
+            }
+        };
+        $presenceCalls = 0;
+        $presenceVerifier = new class($presenceCalls) implements PresenceVerifierInterface {
+            public function __construct(private int &$presenceCalls)
+            {
+            }
+
+            public function getCount(string $collection, string $column, mixed $value, int|string|null $excludeId = null, ?string $idColumn = null, array $extra = []): int
+            {
+                ++$this->presenceCalls;
+
+                return 1;
+            }
+
+            public function getMultiCount(string $collection, string $column, array $values, array $extra = []): int
+            {
+                ++$this->presenceCalls;
+
+                return 1;
+            }
+        };
+        $validator = $this->makeValidator(
+            ['items' => [['email' => $value]]],
+            ['items.*.email' => 'array|exists:users,email'],
+        );
+        $validator->setPresenceVerifier($presenceVerifier);
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame(0, $casts);
+        $this->assertSame(0, $presenceCalls);
+    }
+
     public function testUnusedCustomExtensionPreservesExclusionBehavior(): void
     {
         $v = $this->makeValidator(
@@ -1009,6 +1189,58 @@ class AlwaysFailStringValidator extends Validator
 
 class DelegatedValidationValidator extends Validator
 {
+}
+
+class ValidationHookTrackingValidator extends Validator
+{
+    public int $nullableCalls = 0;
+
+    public int $bailCalls = 0;
+
+    public int $sometimesCalls = 0;
+
+    public int $optionalCheckCalls = 0;
+
+    public int $stopCalls = 0;
+
+    public bool $alwaysStop = false;
+
+    public bool $forceOptional = false;
+
+    public function validateNullable(): bool
+    {
+        ++$this->nullableCalls;
+
+        return true;
+    }
+
+    public function validateBail(): bool
+    {
+        ++$this->bailCalls;
+
+        return true;
+    }
+
+    public function validateSometimes(): bool
+    {
+        ++$this->sometimesCalls;
+
+        return true;
+    }
+
+    protected function passesOptionalCheck(string $attribute): bool
+    {
+        ++$this->optionalCheckCalls;
+
+        return $this->forceOptional || parent::passesOptionalCheck($attribute);
+    }
+
+    protected function shouldStopValidating(string $attribute): bool
+    {
+        ++$this->stopCalls;
+
+        return $this->alwaysStop || parent::shouldStopValidating($attribute);
+    }
 }
 
 class ValidationStringableValue implements Stringable

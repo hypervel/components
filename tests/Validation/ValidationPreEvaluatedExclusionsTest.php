@@ -13,6 +13,7 @@ use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Validator;
 use InvalidArgumentException;
+use Stringable;
 
 class ValidationPreEvaluatedExclusionsTest extends TestCase
 {
@@ -58,6 +59,36 @@ class ValidationPreEvaluatedExclusionsTest extends TestCase
 
         $this->assertTrue($v->passes());
         $this->assertArrayHasKey('publish_date', $v->validated());
+    }
+
+    public function testActiveExclusionsResetBetweenPasses(): void
+    {
+        $validator = $this->makeValidator(
+            ['flag' => 'yes', 'first' => 'first value', 'second' => 'second value'],
+            [
+                'flag' => 'required|string',
+                'first' => 'exclude_if:flag,yes|required|string',
+                'second' => 'exclude_if:flag,no|required|string',
+            ],
+        );
+
+        $this->assertTrue($validator->passes());
+        $this->assertSame(
+            ['flag' => 'yes', 'second' => 'second value'],
+            $validator->getData(),
+        );
+
+        $validator->setData([
+            'flag' => 'no',
+            'first' => 'first value',
+            'second' => 'second value',
+        ]);
+
+        $this->assertTrue($validator->passes());
+        $this->assertSame(
+            ['flag' => 'no', 'first' => 'first value'],
+            $validator->getData(),
+        );
     }
 
     public function testExcludeUnlessWithWildcardConditionField(): void
@@ -472,12 +503,207 @@ class ValidationPreEvaluatedExclusionsTest extends TestCase
         $this->assertArrayNotHasKey('appointments', $validated);
     }
 
-    private function makeValidator(array $data, array $rules): Validator
+    public function testExecutionTimeParentExclusionSkipsLaterDescendants(): void
     {
-        return new Validator(
+        foreach ([Validator::class, DelegatedExclusionValidator::class] as $validatorClass) {
+            $validator = $this->makeValidator(
+                ['parent' => ['child' => 'invalid'], 'flag' => 'yes'],
+                [
+                    'parent' => 'array|exclude_if:flag,yes',
+                    'parent.child' => 'integer',
+                ],
+                $validatorClass,
+            );
+
+            $this->assertTrue($validator->passes(), $validatorClass);
+            $this->assertSame([], $validator->errors()->toArray(), $validatorClass);
+            $this->assertSame(['flag' => 'yes'], $validator->getData(), $validatorClass);
+        }
+    }
+
+    public function testDescendantBeforeParentKeepsItsEarlierFailure(): void
+    {
+        foreach ([Validator::class, DelegatedExclusionValidator::class] as $validatorClass) {
+            $validator = $this->makeValidator(
+                ['parent' => ['child' => 'invalid'], 'flag' => 'yes'],
+                [
+                    'parent.child' => 'integer',
+                    'parent' => 'exclude_if:flag,yes',
+                ],
+                $validatorClass,
+            );
+
+            $this->assertFalse($validator->passes(), $validatorClass);
+            $this->assertTrue($validator->errors()->has('parent.child'), $validatorClass);
+            $this->assertSame(['flag' => 'yes'], $validator->getData(), $validatorClass);
+        }
+    }
+
+    public function testGlobalEarlyStopDoesNotActivateALaterExclusionHint(): void
+    {
+        $validator = $this->makeValidator(
+            ['first' => 'invalid', 'secret' => 'value'],
+            ['first' => 'integer', 'secret' => 'exclude'],
+        )->stopOnFirstFailure();
+
+        $this->assertFalse($validator->passes());
+        $this->assertTrue($validator->errors()->has('first'));
+        $this->assertSame(['first' => 'invalid', 'secret' => 'value'], $validator->getData());
+    }
+
+    public function testAbsentSometimesAttributeStillRunsLaterExclusion(): void
+    {
+        foreach ([Validator::class, DelegatedExclusionValidator::class] as $validatorClass) {
+            $validator = $this->makeValidator(
+                ['flag' => 'yes'],
+                [
+                    'parent' => 'sometimes|string|exclude_if:flag,yes',
+                    'parent.child' => 'required',
+                ],
+                $validatorClass,
+            );
+
+            $this->assertTrue($validator->passes(), $validatorClass);
+            $this->assertSame([], $validator->errors()->toArray(), $validatorClass);
+            $this->assertArrayNotHasKey('parent', $validator->getRules(), $validatorClass);
+            $this->assertArrayNotHasKey('parent.child', $validator->getRules(), $validatorClass);
+        }
+    }
+
+    public function testGlobalEarlyStopDoesNotConvertALaterNonScalarExclusionParameter(): void
+    {
+        $field = new ValidationExclusionStringable('flag');
+        $validator = $this->makeValidator(
+            ['first' => 'invalid', 'flag' => 'yes', 'target' => 'value'],
+            [
+                'first' => 'integer',
+                'target' => [['exclude_if', $field, 'yes'], 'string'],
+            ],
+        )->stopOnFirstFailure();
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame(0, $field->casts);
+        $this->assertSame(['Integer'], array_keys($validator->failed()['first']));
+        $this->assertSame(
+            ['first' => 'invalid', 'flag' => 'yes', 'target' => 'value'],
+            $validator->getData(),
+        );
+    }
+
+    public function testReachedNonScalarExclusionParameterUsesOrdinaryConversionOnce(): void
+    {
+        $field = new ValidationExclusionStringable('flag');
+        $validator = $this->makeValidator(
+            ['flag' => 'yes', 'target' => 'value'],
+            ['target' => [['exclude_if', $field, 'yes'], 'string']],
+        );
+
+        $this->assertTrue($validator->passes());
+        $this->assertSame(1, $field->casts);
+        $this->assertSame(['flag' => 'yes'], $validator->getData());
+    }
+
+    public function testLaterExclusionUsesDataAfterExcludedDescendantRemoval(): void
+    {
+        $validator = $this->makeValidator(
+            ['parent' => ['child' => 'value'], 'later' => 'invalid'],
+            [
+                'parent' => 'exclude',
+                'parent.child' => 'string',
+                'later' => 'exclude_if:parent.child,value|integer',
+            ],
+        );
+
+        $this->assertFalse($validator->passes());
+        $this->assertTrue($validator->errors()->has('later'));
+        $this->assertSame(['later' => 'invalid'], $validator->getData());
+    }
+
+    public function testLaterExclusionCanStillReadExcludedParentUntilFinalCleanup(): void
+    {
+        $validator = $this->makeValidator(
+            ['parent' => ['child' => 'value'], 'later' => 'invalid'],
+            [
+                'parent' => 'exclude',
+                'later' => 'exclude_if:parent.child,value|integer',
+            ],
+        );
+
+        $this->assertTrue($validator->passes());
+        $this->assertSame([], $validator->getData());
+    }
+
+    public function testLaterDependentRuleCanReadExcludedParentUntilFinalCleanup(): void
+    {
+        $validator = $this->makeValidator(
+            ['parent' => ['child' => 'value'], 'later' => 'invalid'],
+            [
+                'parent' => 'exclude',
+                'later' => 'required_with:parent|integer',
+            ],
+        );
+
+        $this->assertFalse($validator->passes());
+        $this->assertTrue($validator->errors()->has('later'));
+        $this->assertSame(['later' => 'invalid'], $validator->getData());
+    }
+
+    public function testLaterPositionExclusionUsesInternalEscapedDotKey(): void
+    {
+        $laterRuleCalls = 0;
+        $validator = $this->makeValidator(
+            ['literal.dot' => 'invalid'],
+            [
+                'literal\.dot' => [
+                    'integer',
+                    'exclude',
+                    function () use (&$laterRuleCalls): bool {
+                        ++$laterRuleCalls;
+
+                        return false;
+                    },
+                ],
+            ],
+        );
+
+        $this->assertFalse($validator->passes());
+        $this->assertTrue($validator->errors()->has('literal.dot'));
+        $this->assertSame(0, $laterRuleCalls);
+        $this->assertSame([], $validator->getData());
+    }
+
+    /**
+     * @param class-string<Validator> $validatorClass
+     */
+    private function makeValidator(
+        array $data,
+        array $rules,
+        string $validatorClass = Validator::class,
+    ): Validator {
+        return new $validatorClass(
             new Translator(new ArrayLoader, 'en'),
             $data,
             $rules,
         );
+    }
+}
+
+class DelegatedExclusionValidator extends Validator
+{
+}
+
+class ValidationExclusionStringable implements Stringable
+{
+    public int $casts = 0;
+
+    public function __construct(private readonly string $value)
+    {
+    }
+
+    public function __toString(): string
+    {
+        ++$this->casts;
+
+        return $this->value;
     }
 }
