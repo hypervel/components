@@ -16,9 +16,6 @@ final readonly class DelegatedCheck
      * @param string $ruleName Parsed rule name (e.g., 'Exists', 'Required'). Empty for
      *                         Rule objects dispatched via validateUsingCustomRule().
      * @param array<int, mixed> $parameters parsed rule parameters
-     * @param null|object $ruleObject The original rule object (RuleContract, Exists, Unique, etc.).
-     *                                Typed as `object` (not RuleContract) because Exists/Unique
-     *                                implement Stringable, not RuleContract.
      * @param mixed $originalRule The raw rule as it appears in the exploded rules array.
      *                            Set as $this->currentRule before dispatch so validateExists/
      *                            validateUnique can check `$this->currentRule instanceof Exists`.
@@ -26,7 +23,6 @@ final readonly class DelegatedCheck
     public function __construct(
         public string $ruleName,
         public array $parameters,
-        public ?object $ruleObject = null,
         public mixed $originalRule = null,
     ) {
     }
