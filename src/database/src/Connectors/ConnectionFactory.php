@@ -11,10 +11,12 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionName;
 use Hypervel\Database\MariaDbConnection;
 use Hypervel\Database\MySqlConnection;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\PostgresConnection;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Support\Arr;
 use InvalidArgumentException;
+use LogicException;
 use PDO;
 use PDOException;
 
@@ -36,7 +38,7 @@ class ConnectionFactory
     }
 
     /**
-     * Establish a PDO connection based on the configuration.
+     * Establish a database connection based on the configuration.
      */
     public function make(array $config, ?string $name = null): Connection
     {
@@ -45,24 +47,25 @@ class ConnectionFactory
         // First we will check by the connection name to see if an extension has been
         // registered specifically for that connection. If it has we will call the
         // Closure and pass it the config allowing it to resolve the connection.
-        if ($name !== null && isset($this->extensions[$name])) {
-            return call_user_func($this->extensions[$name], $config, $name);
-        }
-
         // Next we will check to see if an extension has been registered for a driver
         // and will call the Closure if so, which allows us to have a more generic
         // resolver for the drivers themselves which applies to all connections.
         $driver = $config['driver'] ?? null;
+        $resolver = $name !== null && isset($this->extensions[$name])
+            ? $this->extensions[$name]
+            : ($driver !== null ? $this->extensions[$driver] ?? null : null);
 
-        if ($driver !== null && isset($this->extensions[$driver])) {
-            return call_user_func($this->extensions[$driver], $config, $name);
+        if ($resolver !== null) {
+            $connection = call_user_func($resolver, $config, $name);
+
+            if (! $connection instanceof Connection) {
+                throw new InvalidArgumentException('Database connection extensions must return a Connection instance.');
+            }
+
+            return $connection;
         }
 
-        if (isset($config['read'])) {
-            return $this->createReadWriteConnection($config);
-        }
-
-        return $this->createSingleConnection($config);
+        return $this->createPdoConnectionFromConfig($config);
     }
 
     /**
@@ -95,12 +98,12 @@ class ConnectionFactory
      * must share the same PDO instance to see the same data. Without this,
      * each pooled connection would get its own empty in-memory database.
      *
-     * Returns Connection (not SQLiteConnection) to respect custom resolvers
-     * that may return a different Connection subclass.
+     * Laravel-compatible PDO resolvers may return a custom PdoConnection subclass.
      */
-    public function makeSqliteFromSharedPdo(PDO $pdo, array $config, ?string $name = null): Connection
+    public function makeSqliteFromSharedPdo(PDO $pdo, array $config, ?string $name = null): PdoConnection
     {
         $config = $this->parseConfig($config, $name);
+        $this->ensureNoSharedInMemorySqliteExtension($config);
 
         // Use write config if read/write is configured, matching normal factory behavior
         $connectionConfig = isset($config['read'])
@@ -115,6 +118,21 @@ class ConnectionFactory
             $connectionConfig['prefix'],
             $connectionConfig
         );
+    }
+
+    /**
+     * Create the initial pooled in-memory SQLite connection.
+     */
+    public function makeSharedInMemorySqliteConnection(array $config, ?string $name = null): PdoConnection
+    {
+        $config = $this->parseConfig($config, $name);
+        $this->ensureNoSharedInMemorySqliteExtension($config);
+
+        $connectionConfig = isset($config['read'])
+            ? $this->getWriteConfig($config)
+            : $config;
+
+        return $this->createPdoConnectionFromConfig($connectionConfig);
     }
 
     /**
@@ -152,9 +170,21 @@ class ConnectionFactory
     }
 
     /**
-     * Create a single database connection instance.
+     * Create a PDO-backed connection from its configuration.
      */
-    protected function createSingleConnection(array $config): Connection
+    protected function createPdoConnectionFromConfig(array $config): PdoConnection
+    {
+        if (isset($config['read'])) {
+            return $this->createReadWriteConnection($config);
+        }
+
+        return $this->createSingleConnection($config);
+    }
+
+    /**
+     * Create a single PDO-backed connection instance.
+     */
+    protected function createSingleConnection(array $config): PdoConnection
     {
         $pdo = $this->createPdoResolver($config);
 
@@ -170,7 +200,7 @@ class ConnectionFactory
     /**
      * Create a read / write database connection instance.
      */
-    protected function createReadWriteConnection(array $config): Connection
+    protected function createReadWriteConnection(array $config): PdoConnection
     {
         $connection = $this->createSingleConnection($this->getWriteConfig($config));
 
@@ -312,10 +342,16 @@ class ConnectionFactory
      *
      * @throws InvalidArgumentException
      */
-    protected function createConnection(string $driver, PDO|Closure $connection, string $database, string $prefix = '', array $config = []): Connection
+    protected function createConnection(string $driver, PDO|Closure $connection, string $database, string $prefix = '', array $config = []): PdoConnection
     {
         if ($resolver = Connection::getResolver($driver)) {
-            return $resolver($connection, $database, $prefix, $config);
+            $resolvedConnection = $resolver($connection, $database, $prefix, $config);
+
+            if (! $resolvedConnection instanceof PdoConnection) {
+                throw new InvalidArgumentException('PDO connection resolvers must return a PdoConnection instance.');
+            }
+
+            return $resolvedConnection;
         }
 
         return match ($driver) {
@@ -325,5 +361,20 @@ class ConnectionFactory
             'sqlite' => new SQLiteConnection($connection, $database, $prefix, $config),
             default => throw new InvalidArgumentException("Unsupported driver [{$driver}]."),
         };
+    }
+
+    /**
+     * Ensure pooled in-memory SQLite uses a PDO connection resolver.
+     */
+    private function ensureNoSharedInMemorySqliteExtension(array $config): void
+    {
+        $name = $config['name'] ?? null;
+
+        if (($name !== null && isset($this->extensions[$name]))
+            || isset($this->extensions['sqlite'])) {
+            throw new LogicException(
+                "Pooled in-memory SQLite connections cannot use config-first extensions. Use Connection::resolverFor('sqlite', ...) to register a PDO connection subclass."
+            );
+        }
     }
 }

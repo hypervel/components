@@ -15,7 +15,7 @@ use Hypervel\Filesystem\Filesystem;
 use Override;
 use PDO;
 
-class PostgresConnection extends Connection
+class PostgresConnection extends PdoConnection
 {
     /**
      * Get a human-readable name for the given connection driver.
@@ -82,8 +82,8 @@ class PostgresConnection extends Connection
     protected function isUsingEmulatedPrepares(): bool
     {
         $config = $this->latestReadWriteTypeUsed() === 'read'
-            && $this->readPdoConfig !== []
-                ? $this->readPdoConfig
+            && $this->readConnectionConfig !== []
+                ? $this->readConnectionConfig
                 : $this->config;
 
         return (bool) ($config['options'][PDO::ATTR_EMULATE_PREPARES] ?? false);

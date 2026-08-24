@@ -7,11 +7,13 @@ namespace Hypervel\Foundation\Testing;
 use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
 use Hypervel\Foundation\Testing\Traits\CanConfigureMigrationCommands;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use LogicException;
 
 /**
  * This concern is mutually exclusive with RefreshDatabase and DatabaseMigrations.
@@ -80,7 +82,13 @@ trait DatabaseTruncation
 
             if (isset(RefreshDatabaseState::$inMemoryConnections[$connectionName])) {
                 // The PDO outlives its original application; the dispatcher must not.
-                $database->connection($name)
+                $connection = $database->connection($name);
+
+                if (! $connection instanceof PdoConnection) {
+                    throw new LogicException('In-memory SQLite database testing requires a PDO-backed connection.');
+                }
+
+                $connection
                     ->setPdo(RefreshDatabaseState::$inMemoryConnections[$connectionName])
                     ->setEventDispatcher($this->app->make(Dispatcher::class));
             }
@@ -99,9 +107,13 @@ trait DatabaseTruncation
         foreach ($this->connectionsToTruncate() as $name) {
             if ($this->usingInMemoryDatabaseForTruncation($name)) {
                 $connectionName = $name ?? $defaultConnection;
+                $connection = $database->connection($name);
 
-                RefreshDatabaseState::$inMemoryConnections[$connectionName]
-                    = $database->connection($name)->getPdo();
+                if (! $connection instanceof PdoConnection) {
+                    throw new LogicException('In-memory SQLite database testing requires a PDO-backed connection.');
+                }
+
+                RefreshDatabaseState::$inMemoryConnections[$connectionName] = $connection->getPdo();
             }
         }
     }

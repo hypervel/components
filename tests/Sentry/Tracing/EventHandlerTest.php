@@ -12,12 +12,14 @@ use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Events\TransactionBeginning;
 use Hypervel\Database\Events\TransactionCommitted;
 use Hypervel\Database\Events\TransactionRolledBack;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Events\PreparingResponse;
 use Hypervel\Routing\Events\ResponsePrepared;
 use Hypervel\Sentry\Tracing\EventHandler;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use Mockery as m;
+use PDO;
 use ReflectionClass;
 use RuntimeException;
 use Sentry\SentrySdk;
@@ -199,8 +201,8 @@ class EventHandlerTest extends SentryTestCase
 
     private function connection(string $name): Connection
     {
-        return new Connection(
-            static fn (): null => null,
+        return new SQLiteConnection(
+            new PDO('sqlite::memory:'),
             'database',
             '',
             ['driver' => 'sqlite', 'name' => $name],

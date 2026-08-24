@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Connectors;
 
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Database\SQLiteDatabaseDoesNotExistException;
 use InvalidArgumentException;
@@ -51,8 +53,15 @@ class SQLiteConnector extends Connector implements ConnectorInterface
             return $path;
         }
 
-        $path = realpath($path)
-            ?: (function_exists('base_path') ? realpath(base_path($path)) : false);
+        $path = realpath($path);
+
+        // A standalone Capsule has no application root to resolve relative paths against.
+        if ($path === false
+            && function_exists('base_path')
+            && (defined('BASE_PATH') || Container::getInstance()->has(Application::class))
+        ) {
+            $path = realpath(base_path($database));
+        }
 
         // Here we'll verify that the SQLite database exists before going any further
         // as the developer probably wants to know if the database exists and this

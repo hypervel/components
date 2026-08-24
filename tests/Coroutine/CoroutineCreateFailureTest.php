@@ -13,7 +13,7 @@ use Hypervel\Coroutine\Exceptions\ParallelExecutionException;
 use Hypervel\Coroutine\Parallel;
 use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Coroutine\Waiter;
-use Hypervel\Database\Connection as DatabaseConnection;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Engine\Exceptions\CoroutineCreateException;
 use Hypervel\Engine\SafeSocket;
@@ -197,7 +197,7 @@ class CoroutineCreateFailureTest extends TestCase
             (new ReflectionProperty(PooledConnection::class, 'connection'))
                 ->setValue(
                     $database,
-                    new DatabaseConnection(new PDO('sqlite::memory:')),
+                    new PdoConnection(new PDO('sqlite::memory:')),
                 );
 
             $redis = (new ReflectionClass(PhpRedisConnection::class))

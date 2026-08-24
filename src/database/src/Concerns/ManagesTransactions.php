@@ -7,7 +7,6 @@ namespace Hypervel\Database\Concerns;
 use Closure;
 use Hypervel\Database\DeadlockException;
 use LogicException;
-use PDO;
 use RuntimeException;
 use Throwable;
 
@@ -113,7 +112,7 @@ trait ManagesTransactions
         // let the developer handle it in another way. We will decrement too.
         if ($this->causedByConcurrencyError($e)
             && $this->transactions > 1) {
-            $this->invalidateSessionState($this->resolvePdo());
+            $this->invalidateCurrentSessionState();
 
             --$this->transactions;
 
@@ -210,18 +209,6 @@ trait ManagesTransactions
     }
 
     /**
-     * Create a save point within the database.
-     *
-     * @throws Throwable
-     */
-    protected function createSavepoint(): void
-    {
-        $this->resolvePdo()->exec(
-            $this->queryGrammar->compileSavepoint('trans' . ($this->transactions + 1))
-        );
-    }
-
-    /**
      * Handle an exception from a transaction beginning.
      *
      * @throws Throwable
@@ -278,27 +265,6 @@ trait ManagesTransactions
     }
 
     /**
-     * Commit the active physical transaction.
-     */
-    protected function performCommit(): void
-    {
-        $pdo = $this->resolvePdo();
-
-        try {
-            $pdo->commit();
-        } catch (Throwable $exception) {
-            $this->invalidateSessionState($pdo);
-
-            if (! $this->causedByLostConnection($exception)
-                && ! $this->causedByConcurrencyError($exception)) {
-                $this->markSessionStateUnknown($pdo);
-            }
-
-            throw $exception;
-        }
-    }
-
-    /**
      * Handle an exception encountered when committing a transaction.
      *
      * @throws Throwable
@@ -307,7 +273,7 @@ trait ManagesTransactions
     {
         if ($this->causedByLostConnection($e)) {
             try {
-                $this->terminateTransactionState();
+                $this->forgetLostConnection();
             } catch (Throwable) {
                 // Preserve the physical commit failure.
             }
@@ -353,18 +319,10 @@ trait ManagesTransactions
         // Next, we will actually perform this rollback within this database and fire the
         // rollback event. We will also set the current transaction level to the given
         // level that was passed into this method so it will be right from here out.
-        $pdo = $this->resolvePdo();
-
         try {
-            $this->performRollBack($toLevel, $pdo);
+            $this->performRollBack($toLevel);
         } catch (Throwable $exception) {
-            if (! $this->causedByLostConnection($exception)) {
-                $this->markSessionStateUnknown($pdo);
-            }
-
             $this->handleRollBackException($exception);
-        } finally {
-            $this->invalidateSessionState($pdo);
         }
 
         $this->transactions = $toLevel;
@@ -391,24 +349,6 @@ trait ManagesTransactions
     }
 
     /**
-     * Perform a rollback within the database.
-     *
-     * @throws Throwable
-     */
-    protected function performRollBack(int $toLevel, PDO $pdo): void
-    {
-        if ($toLevel === 0) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-        } elseif ($this->queryGrammar->supportsSavepoints()) {
-            $pdo->exec(
-                $this->queryGrammar->compileSavepointRollBack('trans' . ($toLevel + 1))
-            );
-        }
-    }
-
-    /**
      * Handle an exception from a rollback.
      *
      * @throws Throwable
@@ -417,7 +357,7 @@ trait ManagesTransactions
     {
         if ($this->causedByLostConnection($e)) {
             try {
-                $this->terminateTransactionState();
+                $this->forgetLostConnection();
             } catch (Throwable) {
                 // Preserve the physical rollback failure.
             }
@@ -427,23 +367,14 @@ trait ManagesTransactions
     }
 
     /**
-     * Detach transaction records and physical connection references.
+     * Forget a connection after a lost transaction operation.
      */
-    protected function terminateTransactionState(): void
+    protected function forgetLostConnection(): void
     {
-        $this->transactions = 0;
-        $exception = null;
-
         try {
-            $this->transactionsManager?->rollback($this->getName(), 0);
-        } catch (Throwable $throwable) {
-            $exception = $throwable;
-        }
-
-        $this->setPdo(null)->setReadPdo(null);
-
-        if ($exception !== null) {
-            throw $exception;
+            $this->resetTransactionState();
+        } finally {
+            $this->forgetDriverResources();
         }
     }
 

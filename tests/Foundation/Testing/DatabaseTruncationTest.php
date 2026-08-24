@@ -9,12 +9,14 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseManager;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Database\Schema\PostgresBuilder;
 use Hypervel\Foundation\Testing\DatabaseTruncation;
 use Hypervel\Foundation\Testing\RefreshDatabaseState;
 use Hypervel\Tests\TestCase;
+use LogicException;
 use Mockery as m;
 use PDO;
 
@@ -199,8 +201,8 @@ class DatabaseTruncationTest extends TestCase
     {
         $defaultPdo = m::mock(PDO::class);
         $namedPdo = m::mock(PDO::class);
-        $sourceDefault = m::mock(Connection::class);
-        $sourceNamed = m::mock(Connection::class);
+        $sourceDefault = m::mock(PdoConnection::class);
+        $sourceNamed = m::mock(PdoConnection::class);
         $sourceDefault->shouldReceive('getPdo')->once()->andReturn($defaultPdo);
         $sourceNamed->shouldReceive('getPdo')->once()->andReturn($namedPdo);
 
@@ -225,8 +227,8 @@ class DatabaseTruncationTest extends TestCase
         $this->cacheInMemoryDatabases();
 
         $dispatcher = m::mock(Dispatcher::class);
-        $restoredDefault = m::mock(Connection::class);
-        $restoredNamed = m::mock(Connection::class);
+        $restoredDefault = m::mock(PdoConnection::class);
+        $restoredNamed = m::mock(PdoConnection::class);
         $restoredDefault->shouldReceive('setPdo')->once()->with($defaultPdo)->andReturnSelf();
         $restoredDefault->shouldReceive('setEventDispatcher')->once()->with($dispatcher)->andReturnSelf();
         $restoredNamed->shouldReceive('setPdo')->once()->with($namedPdo)->andReturnSelf();
@@ -253,6 +255,49 @@ class DatabaseTruncationTest extends TestCase
             'default' => $defaultPdo,
             'named' => $namedPdo,
         ], RefreshDatabaseState::$inMemoryConnections);
+    }
+
+    public function testCachingInMemoryConnectionRequiresPdoConnection(): void
+    {
+        $this->app->instance('config', new Repository([
+            'database' => [
+                'default' => 'default',
+                'connections' => [
+                    'default' => ['driver' => 'sqlite', 'database' => ':memory:'],
+                ],
+            ],
+        ]));
+
+        $database = m::mock(DatabaseManager::class);
+        $database->shouldReceive('connection')->once()->with(null)->andReturn(m::mock(Connection::class));
+        $this->app->instance('db', $database);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('In-memory SQLite database testing requires a PDO-backed connection.');
+
+        $this->cacheInMemoryDatabases();
+    }
+
+    public function testRestoringInMemoryConnectionRequiresPdoConnection(): void
+    {
+        $this->app->instance('config', new Repository([
+            'database' => [
+                'default' => 'default',
+                'connections' => [
+                    'default' => ['driver' => 'sqlite', 'database' => ':memory:'],
+                ],
+            ],
+        ]));
+        RefreshDatabaseState::$inMemoryConnections = ['default' => m::mock(PDO::class)];
+
+        $database = m::mock(DatabaseManager::class);
+        $database->shouldReceive('connection')->once()->with(null)->andReturn(m::mock(Connection::class));
+        $this->app->instance('db', $database);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('In-memory SQLite database testing requires a PDO-backed connection.');
+
+        $this->restoreInMemoryDatabases();
     }
 
     private function arrangeConnection(

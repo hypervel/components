@@ -29,7 +29,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Database\Connection
+ * @mixin \Hypervel\Database\PdoConnection
  */
 class DatabaseManager implements ConnectionResolverInterface
 {
@@ -79,17 +79,7 @@ class DatabaseManager implements ConnectionResolverInterface
         protected ContainerContract $app,
         protected ConnectionFactory $factory
     ) {
-        $this->reconnector = function (Connection $connection) {
-            $name = $connection->getName();
-
-            if ($name !== null && $connection->getConfig(Connection::READ_WRITE_TYPE_CONFIG_KEY) === ConnectionName::READ) {
-                $name .= '::' . ConnectionName::READ;
-            }
-
-            $connection->setPdo(
-                $this->reconnect($name)->getRawPdo()
-            );
-        };
+        $this->reconnector = fn (Connection $connection) => $this->refreshConnection($connection);
     }
 
     /**
@@ -175,6 +165,10 @@ class DatabaseManager implements ConnectionResolverInterface
     {
         $connectionName = is_string($name) ? ConnectionName::parse($name) : $name;
         $config = $this->configuration($connectionName);
+
+        if ($connectionName->role !== null) {
+            $config[Connection::READ_WRITE_TYPE_CONFIG_KEY] = $connectionName->role;
+        }
 
         return $this->factory->make($config, $connectionName->base);
     }
@@ -296,7 +290,7 @@ class DatabaseManager implements ConnectionResolverInterface
     /**
      * Disconnect from the given database.
      *
-     * In pooled mode, this nulls the PDOs on the current coroutine's connection
+     * In pooled mode, this disconnects the current coroutine's driver resources
      * (if one exists), forcing a reconnect on the next query. Does not clear
      * context or affect the pool - the connection is still released at coroutine end.
      *
@@ -329,9 +323,9 @@ class DatabaseManager implements ConnectionResolverInterface
     /**
      * Reconnect to the given database.
      *
-     * In pooled mode, if this coroutine already has a connection, reconnects
-     * its PDOs and returns it. In non-pooled mode, refreshes the existing
-     * connection's PDOs in-place. Otherwise gets a fresh connection.
+     * In pooled mode, if this coroutine already has a connection, refreshes
+     * its driver resources and returns it. In non-pooled mode, refreshes the
+     * existing connection in place. Otherwise gets a fresh connection.
      */
     public function reconnect(UnitEnum|string|null $name = null): Connection
     {
@@ -343,23 +337,20 @@ class DatabaseManager implements ConnectionResolverInterface
             ? $this->getDefaultConnection()
             : $name;
 
-        $this->disconnect($name);
-
         // Pooled mode: if we already have a connection in this coroutine, reconnect it
         $contextKey = $this->getConnectionContextKey($name);
         $connection = CoroutineContext::get($contextKey);
         if ($connection instanceof Connection) {
             $connection->reconnect();
-            $this->dispatchConnectionEstablishedEvent($connection);
 
             return $connection;
         }
 
-        // Non-pooled mode: refresh PDOs on existing connection in-place
+        // Non-pooled mode: refresh the existing connection in place.
         if (isset($this->connections[$name])) {
-            return tap($this->refreshPdoConnections($name), function ($connection) {
-                $this->dispatchConnectionEstablishedEvent($connection);
-            });
+            $this->connections[$name]->reconnect();
+
+            return $this->connections[$name];
         }
 
         // No existing connection — get a fresh one
@@ -399,17 +390,26 @@ class DatabaseManager implements ConnectionResolverInterface
     }
 
     /**
-     * Refresh the PDO connections on a given connection.
+     * Refresh the driver resources on the invoking connection.
      */
-    protected function refreshPdoConnections(string $name): Connection
+    protected function refreshConnection(Connection $connection): Connection
     {
+        $name = $connection->getName()
+            ?? throw new RuntimeException('Cannot reconnect an unnamed database connection.');
+        $role = $connection->getConfig(Connection::READ_WRITE_TYPE_CONFIG_KEY);
+
+        if ($role === ConnectionName::READ || $role === ConnectionName::WRITE) {
+            $name .= '::' . $role;
+        }
+
         $fresh = $this->configure(
             $this->makeConnection($name)
         );
 
-        return $this->connections[$name]
-            ->setPdo($fresh->getRawPdo())
-            ->setReadPdo($fresh->getRawReadPdo());
+        $connection->refreshFrom($fresh);
+        $this->dispatchConnectionEstablishedEvent($connection);
+
+        return $connection;
     }
 
     /**

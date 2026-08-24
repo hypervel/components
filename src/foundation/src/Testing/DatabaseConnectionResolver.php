@@ -86,7 +86,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
             if ($connection instanceof Connection) {
                 $connection->resetForPool();
 
-                if ($connection->hasUnknownSessionState()) {
+                if (! $connection->isReusable()) {
                     try {
                         static::discardCachedConnection($cacheKey);
                     } catch (Throwable $throwable) {

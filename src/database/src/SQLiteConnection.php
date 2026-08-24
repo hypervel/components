@@ -13,7 +13,7 @@ use Hypervel\Database\Schema\SqliteSchemaState;
 use Hypervel\Filesystem\Filesystem;
 use Override;
 
-class SQLiteConnection extends Connection
+class SQLiteConnection extends PdoConnection
 {
     /**
      * Get a human-readable name for the given connection driver.

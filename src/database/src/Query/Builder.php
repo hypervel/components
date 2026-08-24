@@ -235,7 +235,7 @@ class Builder implements BuilderContract
     ];
 
     /**
-     * Whether to use write pdo for the select.
+     * Whether to use the write connection for the select.
      */
     public bool $useWritePdo = false;
 
@@ -4158,7 +4158,7 @@ class Builder implements BuilderContract
     }
 
     /**
-     * Use the "write" PDO connection when executing the query.
+     * Use the write connection when executing the query.
      */
     public function useWritePdo(): static
     {

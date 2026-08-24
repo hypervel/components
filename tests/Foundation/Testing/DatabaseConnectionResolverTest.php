@@ -111,10 +111,10 @@ class DatabaseConnectionResolverTest extends TestCase
 
         $firstConnection = m::mock(Connection::class);
         $firstConnection->shouldReceive('resetForPool')->once();
-        $firstConnection->shouldReceive('hasUnknownSessionState')->once()->andReturnTrue();
+        $firstConnection->shouldReceive('isReusable')->once()->andReturnFalse();
         $secondConnection = m::mock(Connection::class);
         $secondConnection->shouldReceive('resetForPool')->once();
-        $secondConnection->shouldReceive('hasUnknownSessionState')->once()->andReturnTrue();
+        $secondConnection->shouldReceive('isReusable')->once()->andReturnFalse();
         $failure = new RuntimeException('discard failed');
         $firstPooledConnection = m::mock(PooledConnection::class);
         $firstPooledConnection->shouldReceive('discard')->once()->andThrow($failure);

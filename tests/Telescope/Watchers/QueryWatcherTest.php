@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Exception;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Support\CarbonImmutable;
@@ -14,9 +13,8 @@ use Hypervel\Telescope\Storage\EntryModel;
 use Hypervel\Telescope\Watchers\QueryWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
-use PDO;
-use PDOException;
-use ReflectionProperty;
+use Mockery as m;
+use TypeError;
 
 #[WithConfig('telescope.watchers', [
     QueryWatcher::class => [
@@ -26,7 +24,7 @@ use ReflectionProperty;
 ])]
 class QueryWatcherTest extends FeatureTestCase
 {
-    public function testQueryWatcherRegistersDatabaseQueries()
+    public function testQueryWatcherRegistersDatabaseQueries(): void
     {
         EntryModel::count();
 
@@ -38,7 +36,7 @@ class QueryWatcherTest extends FeatureTestCase
         $this->assertSame('sqlite', $entry->content['driver']);
     }
 
-    public function testQueryWatcherCanTagSlowQueries()
+    public function testQueryWatcherCanTagSlowQueries(): void
     {
         $bindings = array_map(
             static fn (int $record): string => sprintf('tag-%012d', $record),
@@ -119,54 +117,93 @@ SQL,
         $this->assertSame('testing', $entry->content['connection']);
     }
 
-    public function testQueryWatcherCanPrepareBindingsForNonstandardConnections()
+    public function testQueryWatcherUsesTheConnectionsEscapingContract(): void
     {
-        $event = new QueryExecuted(
-            <<<'SQL'
-select
-Method: post
-URL: https://fms.example.com/fmi/data/vLatest/databases/Database_Name/layouts/dapi_layout/_find
-Data: {
-    "query": [
-        {
-            "kp_iti": "=ITI0130"
-        }
-    ],
-    "limit": 1
-}
-SQL,
-            ['kp_id' => '=ABC001'],
-            500,
-            new class(fn () => null, '', '', ['name' => 'filemaker']) extends Connection {
-                public function getName(): string
-                {
-                    return $this->config['name'];
-                }
-
-                public function getPdo(): PDO
-                {
-                    $e = new PDOException('Driver does not support this function');
-                    (new ReflectionProperty(Exception::class, 'code'))->setValue($e, 'IM001');
-                    throw $e;
-                }
-            },
+        [$event, $connection] = $this->queryEvent(
+            'select * from records where external_id = ?',
+            ['=ABC001'],
         );
+        $connection->shouldReceive('escape')
+            ->once()
+            ->with('=ABC001')
+            ->andReturn('FILEMAKER_STRING[=ABC001]');
 
         $sql = $this->app->make(QueryWatcher::class)->replaceBindings($event);
 
-        $this->assertSame(<<<'SQL'
-select
-Method: post
-URL: https://fms.example.com/fmi/data/vLatest/databases/Database_Name/layouts/dapi_layout/_find
-Data: {
-    "query": [
-        {
-            "kp_iti": "=ITI0130"
+        $this->assertSame(
+            'select * from records where external_id = FILEMAKER_STRING[=ABC001]',
+            $sql,
+        );
+    }
+
+    public function testQueryWatcherSubstitutesEscapedBindingsLiterally(): void
+    {
+        $binding = <<<'TEXT'
+O'Reilly \ café $1 \1
+TEXT;
+        $quotedBinding = <<<'TEXT'
+'O''Reilly \\ café $1 \1'
+TEXT;
+        [$event, $connection] = $this->queryEvent('select ?', [$binding]);
+        $connection->shouldReceive('escape')
+            ->once()
+            ->with($binding)
+            ->andReturn($quotedBinding);
+
+        $this->assertSame(
+            'select ' . $quotedBinding,
+            $this->app->make(QueryWatcher::class)->replaceBindings($event),
+        );
+    }
+
+    public function testQueryWatcherMatchesCompleteLiteralNamedBindings(): void
+    {
+        [$event] = $this->queryEvent(
+            'select :id, :id2, :id, :i.d, :iXd',
+            [
+                'id' => 1,
+                'id2' => 2,
+                'i.d' => 3,
+            ],
+        );
+
+        $this->assertSame(
+            'select 1, 2, 1, 3, :iXd',
+            $this->app->make(QueryWatcher::class)->replaceBindings($event),
+        );
+    }
+
+    public function testQueryWatcherRedactsBindingsTheConnectionCannotEscape(): void
+    {
+        $event = new QueryExecuted(
+            'select ? as null_byte, ? as invalid_utf8',
+            ["before\0after", "\xC3\x28"],
+            500,
+            DB::connection(),
+        );
+
+        $this->app->make(QueryWatcher::class)->recordQuery($event);
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame(
+            'select [REDACTED: UNESCAPABLE BINDING] as null_byte, [REDACTED: UNESCAPABLE BINDING] as invalid_utf8',
+            $entry->content['sql'],
+        );
+    }
+
+    public function testQueryWatcherDoesNotHideBrokenDriverErrors(): void
+    {
+        [$event, $connection] = $this->queryEvent('select ?', ['value']);
+        $failure = new TypeError('Broken driver.');
+        $connection->shouldReceive('escape')->once()->andThrow($failure);
+
+        try {
+            $this->app->make(QueryWatcher::class)->replaceBindings($event);
+            $this->fail('A broken driver error should remain visible.');
+        } catch (TypeError $exception) {
+            $this->assertSame($failure, $exception);
         }
-    ],
-    "limit": 1
-}
-SQL, $sql);
     }
 
     public function testQueryWatcherUsesConfiguredPackageAndPathStackFilters(): void
@@ -192,5 +229,19 @@ SQL, $sql);
             base_path('vendor' . DIRECTORY_SEPARATOR . 'hypervel'),
             '/custom/path',
         ], $watcher->stackTraceIgnoredPaths());
+    }
+
+    /**
+     * Create a query event and its test connection.
+     *
+     * @return array{QueryExecuted, Connection}
+     */
+    private function queryEvent(string $sql, array $bindings): array
+    {
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getName')->once()->andReturn('filemaker');
+        $connection->shouldReceive('prepareBindings')->once()->with($bindings)->andReturn($bindings);
+
+        return [new QueryExecuted($sql, $bindings, 500, $connection), $connection];
     }
 }
