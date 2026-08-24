@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Redis;
 
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Redis\Events\CommandExecuted;
@@ -324,6 +326,141 @@ class RedisProxyIntegrationTest extends TestCase
 
         $this->assertSame([['A', 'B'], true], $first->pop());
         $this->assertSame([['C', 'D'], true], $second->pop());
+    }
+
+    public function testCopiedSiblingContextsUseDistinctPinnedRedisConnections(): void
+    {
+        $connectionName = $this->createRedisConnectionWithOptions(
+            name: 'test_copied_sibling_connections',
+            options: ['prefix' => ''],
+            maxConnections: 3,
+        );
+        $redis = Redis::connection($connectionName);
+        $redis->multi();
+        $contextKey = RedisProxy::CONNECTION_CONTEXT_PREFIX . $connectionName;
+        $parentConnection = CoroutineContext::get($contextKey);
+        $childrenReady = new Channel(2);
+        $releaseChildren = new Channel(2);
+
+        $childCoroutineIds = [
+            go(static function () use ($redis, $contextKey, $childrenReady, $releaseChildren): void {
+                $redis->multi();
+                $childrenReady->push(CoroutineContext::get($contextKey));
+                $releaseChildren->pop();
+                $redis->discard();
+            }, copyContext: true),
+            go(static function () use ($redis, $contextKey, $childrenReady, $releaseChildren): void {
+                $redis->multi();
+                $childrenReady->push(CoroutineContext::get($contextKey));
+                $releaseChildren->pop();
+                $redis->discard();
+            }, copyContext: true),
+        ];
+
+        $firstChildConnection = $childrenReady->pop(1.0);
+        $secondChildConnection = $childrenReady->pop(1.0);
+
+        try {
+            $this->assertInstanceOf(RedisConnection::class, $parentConnection);
+            $this->assertInstanceOf(RedisConnection::class, $firstChildConnection);
+            $this->assertInstanceOf(RedisConnection::class, $secondChildConnection);
+            $this->assertNotSame($parentConnection, $firstChildConnection);
+            $this->assertNotSame($parentConnection, $secondChildConnection);
+            $this->assertNotSame($firstChildConnection, $secondChildConnection);
+        } finally {
+            $releaseChildren->push(true);
+            $releaseChildren->push(true);
+            Coroutine::join($childCoroutineIds, 1.0);
+            $redis->discard();
+            $redis->releaseContextConnection();
+        }
+
+        foreach ($childCoroutineIds as $childCoroutineId) {
+            $this->assertFalse(Coroutine::exists($childCoroutineId));
+        }
+
+        $this->assertTrue($redis->set('copied:siblings:after', 'healthy'));
+        $this->assertSame('healthy', $redis->get('copied:siblings:after'));
+    }
+
+    public function testDetachedCopiedChildOwnsItsSingleSlotRedisCheckout(): void
+    {
+        $connectionName = $this->createRedisConnectionWithOptions(
+            name: 'test_detached_copied_child',
+            options: ['prefix' => ''],
+            maxConnections: 1,
+        );
+        $redis = Redis::connection($connectionName);
+        $redis->set('copied:detached:value', 'available');
+        $allowChildCheckout = new Channel(1);
+        $childBorrowed = new Channel(1);
+        $releaseChild = new Channel(1);
+        $childCoroutineId = new Channel(1);
+
+        $parentCoroutineId = go(static function () use (
+            $redis,
+            $allowChildCheckout,
+            $childBorrowed,
+            $releaseChild,
+            $childCoroutineId,
+        ): void {
+            $redis->multi();
+            $childCoroutineId->push(go(static function () use (
+                $redis,
+                $allowChildCheckout,
+                $childBorrowed,
+                $releaseChild,
+            ): void {
+                $allowChildCheckout->pop();
+                $redis->multi();
+                $childBorrowed->push(true);
+                $releaseChild->pop();
+                $redis->discard();
+            }, copyContext: true));
+        });
+
+        $contenderFinished = new Channel(1);
+        $detachedChildCoroutineId = null;
+        $contenderCoroutineId = null;
+        $parentStillRunning = true;
+        $contenderResultWhileChildHeld = null;
+
+        try {
+            $detachedChildCoroutineId = $childCoroutineId->pop(1.0);
+            $this->assertIsInt($detachedChildCoroutineId);
+            Coroutine::join([$parentCoroutineId], 1.0);
+            $parentStillRunning = Coroutine::exists($parentCoroutineId);
+
+            $allowChildCheckout->push(true);
+            $this->assertTrue($childBorrowed->pop(1.0));
+
+            $contenderCoroutineId = go(static function () use ($redis, $contenderFinished): void {
+                $contenderFinished->push($redis->get('copied:detached:value'));
+            });
+
+            $contenderResultWhileChildHeld = $contenderFinished->pop(0.05);
+            $releaseChild->push(true);
+
+            if ($contenderResultWhileChildHeld === false) {
+                $this->assertSame('available', $contenderFinished->pop(1.0));
+            }
+        } finally {
+            $allowChildCheckout->push(true, 0.01);
+            $releaseChild->push(true, 0.01);
+
+            Coroutine::join(array_values(array_filter([
+                $parentCoroutineId,
+                $detachedChildCoroutineId,
+                $contenderCoroutineId,
+            ], is_int(...))), 1.0);
+        }
+
+        $this->assertFalse($parentStillRunning);
+        $this->assertIsInt($detachedChildCoroutineId);
+        $this->assertIsInt($contenderCoroutineId);
+        $this->assertFalse(Coroutine::exists($detachedChildCoroutineId));
+        $this->assertFalse(Coroutine::exists($contenderCoroutineId));
+        $this->assertFalse($contenderResultWhileChildHeld);
     }
 
     public function testPipelineCallbackAndSelect(): void
