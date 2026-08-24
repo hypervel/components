@@ -28,15 +28,9 @@ class SQLiteConnection extends PdoConnection
      */
     protected function executeBeginTransactionStatement(): void
     {
-        if (version_compare(PHP_VERSION, '8.4.0', '>=')) {
-            $mode = $this->getConfig('transaction_mode') ?? 'DEFERRED';
+        $mode = $this->getConfig('transaction_mode') ?? 'DEFERRED';
 
-            $this->getPdo()->exec("BEGIN {$mode} TRANSACTION");
-
-            return;
-        }
-
-        $this->getPdo()->beginTransaction();
+        $this->getPdo()->exec("BEGIN {$mode} TRANSACTION");
     }
 
     /**

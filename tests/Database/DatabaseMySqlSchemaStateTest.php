@@ -9,7 +9,7 @@ use Generator;
 use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\Schema\MySqlSchemaState;
 use Hypervel\Tests\TestCase;
-use PDO;
+use Pdo\Mysql;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use Symfony\Component\Process\Process;
@@ -93,7 +93,7 @@ class DatabaseMySqlSchemaStateTest extends TestCase
                 'username' => 'root',
                 'database' => 'forge',
                 'options' => [
-                    PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA => 'ssl.ca',
+                    Mysql::ATTR_SSL_CA => 'ssl.ca',
                 ],
             ],
         ];
@@ -113,9 +113,9 @@ class DatabaseMySqlSchemaStateTest extends TestCase
                 'username' => 'root',
                 'database' => 'forge',
                 'options' => [
-                    PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA => 'ssl.ca',
-                    PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CERT : PDO::MYSQL_ATTR_SSL_CERT => '/path/to/client-cert.pem',
-                    PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_KEY : PDO::MYSQL_ATTR_SSL_KEY => '/path/to/client-key.pem',
+                    Mysql::ATTR_SSL_CA => 'ssl.ca',
+                    Mysql::ATTR_SSL_CERT => '/path/to/client-cert.pem',
+                    Mysql::ATTR_SSL_KEY => '/path/to/client-key.pem',
                 ],
             ],
         ];
@@ -135,7 +135,7 @@ class DatabaseMySqlSchemaStateTest extends TestCase
                 'username' => 'root',
                 'database' => 'forge',
                 'options' => [
-                    PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT : PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false,
+                    Mysql::ATTR_SSL_VERIFY_SERVER_CERT => false,
                 ],
             ],
         ];
