@@ -44,6 +44,8 @@ This is a driver-independent correctness defect. PDO connections must not be sha
 
 `Database\Connection::escape()` is already the public connection-owned quoting API. The watcher should not select a transport or dialect itself.
 
+The watcher's placeholder matcher also treats PostgreSQL syntax as bindings. A binding named `jsonb`, for example, can replace the cast token in `:payload::jsonb`, while the positional matcher consumes the first question mark in PostgreSQL's doubled `??` operator escape. The latter affects ordinary query-builder output such as `whereJsonContainsKey()`, not only raw SQL.
+
 ### 3. The generic Pool package is already driver-neutral
 
 `Hypervel\Contracts\Pool\ConnectionInterface` owns only generic pool lifecycle operations. The PDO coupling is confined to `Database\Pool\PooledConnection` and `Database\Pool\DbPool`:
@@ -205,10 +207,12 @@ try {
 
 Remove the now-unused `PDO` and `PDOException` imports and add the `RuntimeException` import. Catch only the documented representability/driver runtime failure from `escape()` for the individual string binding; do not catch `Throwable`, because a driver `TypeError`, assertion, or other programming failure must remain visible. Do not catch around the whole event, invent another quoting algorithm, or expose the original bytes in the marker. Other failures in record construction remain visible; only a value that cannot be represented safely in SQL text is redacted.
 
-Correct two locally verified bugs inherited from `laravel/telescope` in the same method:
+Correct four locally verified bugs inherited from `laravel/telescope` in the same method:
 
 - pass replacements through `preg_replace_callback()` so `$1`, backslashes, and other replacement-language bytes in an already escaped binding remain literal;
-- `preg_quote()` named keys and require a parameter-name boundary so `:id` cannot replace the prefix of `:id2`.
+- `preg_quote()` named keys and require a parameter-name boundary so `:id` cannot replace the prefix of `:id2`;
+- require `(?<!:)` before named placeholders so PostgreSQL casts such as `:payload::jsonb` keep both cast colons;
+- require `(?<!\?)` and `(?!\?)` around positional placeholders so PostgreSQL's doubled `??`, `??|`, and `??&` operator escapes are not treated as bindings.
 
 Preserve the existing positional replacement limit and repeated named-parameter behavior. These are upstream defects, not intentional Hypervel differences. Report the defects and an upstream-ready patch summary to the owner in the implementation handoff; submitting an external Telescope PR is a separate user-authorized action and is not an implementation acceptance criterion.
 
@@ -218,6 +222,8 @@ Update `tests/Telescope/Watchers/QueryWatcherTest.php` so the nonstandard connec
 - the connection's exact dialect-specific quoted string is used;
 - quotes, backslashes, Unicode, dollar/backreference-like bytes, and named bindings still substitute literally;
 - a named `:id` binding does not corrupt `:id2`, while repeated exact `:id` placeholders are all replaced;
+- a PostgreSQL `::` cast whose type name is also a binding key keeps its cast token;
+- a real `whereJsonContainsKey()` SQL shape preserves its doubled `??` operator while a later positional placeholder is replaced;
 - null-byte and invalid-UTF-8 bindings record an entry with the exact redaction marker without throwing from the query listener or being reformatted as MySQL SQL.
 - a `TypeError` or other non-`RuntimeException` from a broken driver remains visible instead of being redacted.
 
@@ -271,7 +277,7 @@ Keep `QueryException extends PDOException`, `DeadlockException extends PDOExcept
 
 Keep logical read/write routing and diagnostics neutral. Rename `$latestPdoTypeRetrieved` to `$latestReadWriteTypeRetrieved` and `$readPdoConfig` to `$readConnectionConfig` on `Connection`, and remove stale PDO terminology from error details and comments. Keep both properties protected: `PdoConnection` updates them when resolving write/read handles, its Laravel-compatible `setReadPdoConfig()` writes the neutral config property, and a native or HTTP subclass can publish the same state directly. Do not add one-line publisher helpers with no separate invariant.
 
-Make PDO string escaping use the effective physical session that executed the most recent query. `PdoConnection::escapeString()` selects `getPdo()` when `latestReadWriteTypeUsed()` is `write` and `getReadPdo()` otherwise. The explicit branch is clearer than reusing the select-named helper and needs no role parameter or Telescope-specific hook. This is a correctness invariant, not only an optimization: quoting can depend on physical session configuration, while synchronizing the other endpoint during synchronous query diagnostics can apply configurators, reconnect unknown state, or turn that other endpoint's runtime failure into Telescope redaction. It also prevents a split base or explicit `::write` wrapper from opening and configuring its lazy read endpoint solely to format a binding. A fresh connection with no prior role keeps Laravel's read default. Pretend mode also keeps that default because it deliberately executes no query and therefore has no truthful physical role to record; do not add pretend-only role machinery.
+Make PDO string escaping use the effective physical session that executed the most recent query. `PdoConnection::escapeString()` selects `getPdo()` when `latestReadWriteTypeUsed()` is `write` and `getReadPdo()` otherwise. The explicit branch is clearer than reusing the select-named helper and needs no role parameter or Telescope-specific hook. This is a correctness invariant, not only an optimization: quoting can depend on physical session configuration, while synchronizing the other endpoint during synchronous query diagnostics can apply configurators, reconnect unknown state, or turn that other endpoint's runtime failure into Telescope redaction. It also prevents a split base or explicit `::write` wrapper from opening and configuring its lazy read endpoint solely to format a binding. Keep a short comment above the branch explaining the session-configuration dependency and the unwanted endpoint resolution. A fresh connection with no prior role keeps Laravel's read default. Pretend mode also keeps that default because it deliberately executes no query and therefore has no truthful physical role to record; do not add pretend-only role machinery.
 
 Make explicitly requested roles unambiguous on `DatabaseManager`'s direct/non-pooled cache path. Before factory construction, stamp `READ_WRITE_TYPE_CONFIG_KEY` with the parsed `::read` or `::write` role; keep the existing `configForRead()` endpoint selection when a separate read configuration exists, and otherwise preserve today's base/fallback and write-forced resource behavior. The manager's default reconnector can then reconstruct the exact requested configuration from the invoking wrapper's base name plus neutral role metadata without adding requested-name state or scanning the cache by object identity. Do not change `PoolFactory`'s intentional ownership rule: pooled `::write` continues sharing the base pool, and `::read` gets a separate pool only when a separate read configuration exists.
 
@@ -615,8 +621,8 @@ Document the declarative discovery boundary: a migration's `getConnection()` res
 ### Telescope
 
 - `src/telescope/src/Watchers/QueryWatcher.php` — delegate escaping.
-- `tests/Telescope/Watchers/QueryWatcherTest.php` — replace PDO fallback fixture and add neutral/dialect, literal replacement, named-boundary, and redaction cases.
-- implementation handoff — report the two locally verified upstream Telescope defects and an upstream-ready patch summary without performing an unauthorized external submission.
+- `tests/Telescope/Watchers/QueryWatcherTest.php` — replace PDO fallback fixture and add neutral/dialect, literal replacement, named-boundary, PostgreSQL cast/operator, and redaction cases.
+- implementation handoff — report the four locally verified upstream Telescope defects and an upstream-ready patch summary without performing an unauthorized external submission.
 
 ### Database architecture and pool
 
@@ -640,8 +646,7 @@ Document the declarative discovery boundary: a migration's `getConnection()` res
 - `src/foundation/src/Testing/DatabaseTruncation.php`, `DatabaseConnectionResolver.php`, and `Concerns/InteractsWithDatabase.php` — narrow retained SQLite PDOs and otherwise use neutral lifecycle/escaping APIs.
 - `src/testing/src/PHPUnit/AfterEachTestSubscriber.php` — call `PdoConnection::flushState()` once so neutral state plus the PDO configurator list/session map are cleared.
 - `src/support/src/Facades/DB.php` — correct annotations.
-- `src/docs/database.md`, `src/docs/pools.md`, `src/docs/porting-from-laravel.md`, and the minimal `src/database/README.md` — PDO/non-PDO extension paths, pool probes, session configuration, and concise lasting public differences.
-- `docs/upstream-sync/laravel-framework.md`, referenced by `docs/upstream-sync/sync.yaml` — durable hunk-routing guidance for future Laravel `Connection.php` syncs.
+- `src/docs/database.md`, `src/docs/pools.md`, `src/docs/porting-from-laravel.md`, and the minimal `src/database/README.md` — PDO/non-PDO extension paths, pool probes, session configuration, concise lasting public differences, and future Laravel database-change routing.
 - Every source/test import and direct construction found by a final broad content sweep — use `PdoConnection` when the test or consumer needs PDO.
 - `tests/Database/DatabaseConnectionTest.php` and `DatabasePdoConnectionTest.php` — separate neutral orchestration from PDO mechanics without duplicate cases.
 
@@ -657,24 +662,13 @@ Document the declarative discovery boundary: a migration's `getConnection()` res
 - `tests/Database/DatabaseMigrationMigrateCommandTest.php` — all-target missing-database preflight and creation.
 - `tests/Database/DatabaseMigratorConnectionRoutingTest.php` and new migration fixtures — named/anonymous discovery and alias resolution.
 - `tests/Integration/Database/MigrationsConnectionRoutingTest.php` plus SQLite fresh coverage — end-to-end mixed connections and missing database behavior.
-- `src/docs/migrations.md`, `src/docs/porting-from-laravel.md`, the minimal database README difference, and console help text — declared target semantics and the deliberate Fresh divergence.
+- `src/docs/migrations.md`, `src/docs/porting-from-laravel.md`, the minimal database README difference, and console help text — declared target semantics, central migration-history ownership, and the deliberate Fresh divergence.
 
 ### Documentation and future Laravel syncs
 
-Keep one user-documentation source in `src/docs/`. Explain the PDO/non-PDO extension choice in `database.md`, pooling lifecycle in `pools.md`, context-copy omission wherever context copying is described, and multi-target migration behavior in `migrations.md`. Add only concise, action-oriented entries to `porting-from-laravel.md` for differences a Laravel application/package porter must account for: direct PDO access requires `PdoConnection`; Laravel's nested `direct` endpoint and `::direct` suffix map to a normal named Hypervel connection plus `migrations_connection`; and Fresh discovers/resets declared migration connections. The database README remains a minimal link/upstream/difference surface and must not duplicate those guides.
+Keep one user-documentation source in `src/docs/`. Explain the PDO/non-PDO extension choice in `database.md`, pooling lifecycle in `pools.md`, context-copy omission wherever context copying is described, and multi-target migration behavior in `migrations.md`. The pooling documentation must state that connections open on demand in the borrowing coroutine and that lifetime recycling occurs only while a connection is idle or before reuse. Add only concise, action-oriented entries to `porting-from-laravel.md` for differences a Laravel application/package porter must account for: direct PDO access requires `PdoConnection`; Laravel's nested `direct` endpoint and `::direct` suffix map to a normal named Hypervel connection plus `migrations_connection`; and Fresh discovers/resets declared migration connections.
 
-Create `docs/upstream-sync/laravel-framework.md` because `docs/upstream-sync/README.md` explicitly owns persistent per-package divergence notes. Reference it from the existing `laravel/framework` `notes:` value in `sync.yaml` while preserving that entry's current instruction to scan direct-to-branch commits. Keep the note short and operational:
-
-| Laravel change location/concern | Hypervel destination |
-|---|---|
-| query/grammar/logging/reconnect orchestration independent of a client | `Connection` |
-| PDO handles/resolvers, prepared statements, binding, execution, session state, physical transactions, quoting, server version | `PdoConnection` |
-| Laravel `escapeString()` changes | preserve Hypervel's effective-last-session routing in `PdoConnection`; no prior execution role still defaults to read |
-| MySQL/MariaDB/PostgreSQL/SQLite behavior | matching dialect subclass/grammar/builder/processor |
-| Laravel's nested `direct` PDO handle, `::direct` role, and migration/schema consumers | keep Hypervel's documented normal named connection plus `migrations_connection`; do not add `directPdo` state to either class |
-| Laravel `DatabaseConnectionTest` changes | route neutral cases to `DatabaseConnectionTest` and PDO cases to `DatabasePdoConnectionTest`, preserving upstream-relative order |
-
-Preserve Laravel relative constant/property/method order within each destination class. Do not duplicate this maintainer mapping in the public README, add source comments to every moved method, or annotate ordinary adapted code as a divergence; the class boundary plus this one sync note is sufficient.
+Keep the database package README minimal, but make its existing `Connection` / `PdoConnection` difference the durable routing note for future Laravel database updates: driver-neutral connection behavior stays on `Connection`, PDO mechanics move to `PdoConnection`, and driver-specific behavior stays on the matching connection, grammar, schema builder, or processor. Do not add a per-package file under `docs/upstream-sync/` or place this maintainer guidance in `sync.yaml`; that directory owns sync workflow and state, while package READMEs own lasting Laravel differences. Preserve Laravel relative constant/property/method order within each destination class without adding source comments to ordinary adapted methods.
 
 ## Testing plan
 
@@ -831,6 +825,7 @@ Run the repository's configured documentation validation if one exists. Use broa
 - The context marker adds one `instanceof` only while explicitly copying context, not on ordinary request execution.
 - The connection split adds no strategy dispatch to query hot paths. Existing virtual method calls remain virtual method calls.
 - PDO string escaping adds one branch only when SQL text is explicitly rendered. It reuses the already selected query session, avoiding wrong-endpoint connection, session-configuration, and reconnect work; ordinary query execution is unchanged. Pretend mode has no executed-session role and retains the read-default behavior.
+- Telescope's two placeholder guards add fixed-width adjacency checks only while recorded SQL is formatted; they add no database, network, context, or ordinary query-execution work.
 - `PooledConnection` keeps one child coroutine and channel only when heartbeat is enabled, exactly as today.
 - `isReusable()` adds one driver method call on pool release, where PDO-specific state is already checked today.
 - Configured database/prefix baselines add two refcounted string properties per wrapper and three scalar assignments on pool release; they add no query-path, context, database, or network operation.
@@ -867,12 +862,12 @@ Implementation is complete only when:
 
 1. every context-copy direction has identical atomic replication/omission semantics;
 2. copied Database and Redis contexts can no longer share a borrowed resource;
-3. Telescope has no PDO import or fallback quoting algorithm and substitutes literal/named bindings without replacement-language or prefix corruption;
+3. Telescope has no PDO import or fallback quoting algorithm, substitutes literal/named bindings without replacement-language or prefix corruption, and preserves PostgreSQL casts and escaped question-mark operators;
 4. neutral `Connection` exposes no PDO resource API and all built-in drivers retain full typed PDO access through `PdoConnection`;
 5. config-first custom drivers can be pooled, probed, refreshed, disconnected, and discarded without fake PDO state;
 6. current MySQL, MariaDB, PostgreSQL, and SQLite tests prove unchanged query/grammar/schema/transaction/session behavior;
 7. insert-ID failure can never return `false` through an `int|string` API;
 8. migration aliases resolve one hop to a validated terminal target, both migration commands prepare every declared database before mutation, and `migrate:fresh` creates verified-missing targets only after confirmation, wipes every pre-existing target without replacing its logical connection wrapper or pool ownership, and fails on every other error;
 9. public documentation accurately separates PDO drivers, native/HTTP drivers, pool lifecycles, context copy rules, and migration target declarations;
-10. the durable Laravel framework sync note accurately routes future `Connection.php` hunks without duplicating user documentation;
+10. the database package README accurately routes future Laravel connection changes without duplicating user documentation or sync-state guidance;
 11. focused tests, `composer fix`, documentation validation, source/documentation sweeps, and a final fresh review all pass with no stale or dead artifacts.
