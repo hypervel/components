@@ -155,6 +155,8 @@ If one of your application's database connections should use a different connect
 
 The migration connection must be a terminal target. The target connection may omit `migrations_connection` or point to itself, but connection chains such as `primary` to `schema` to `admin` are not supported.
 
+Hypervel records migration history in the migrations table on the connection resolved by the command, even when individual migrations run on another connection.
+
 <a name="skipping-migrations"></a>
 #### Skipping Migrations
 
