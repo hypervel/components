@@ -261,8 +261,7 @@ class DatabaseManager implements ConnectionResolverInterface
         $variants = $this->connectionNameVariants($requestedName);
 
         foreach ($variants as $variant) {
-            // Disconnect current connection if any
-            $this->disconnect($variant);
+            $this->disconnectManagerOwnedConnection(ConnectionName::parse($variant));
         }
 
         foreach ($variants as $variant) {
@@ -275,7 +274,7 @@ class DatabaseManager implements ConnectionResolverInterface
 
         // Clear resolver-level caching (e.g., DatabaseConnectionResolver's static cache)
         $resolver = $this->app->make('db.resolver');
-        if ($resolver instanceof FlushableConnectionResolver) {
+        if ($resolver instanceof CachedConnectionResolver) {
             foreach ($variants as $variant) {
                 $resolver->flush($variant);
             }
@@ -294,8 +293,8 @@ class DatabaseManager implements ConnectionResolverInterface
      * (if one exists), forcing a reconnect on the next query. Does not clear
      * context or affect the pool - the connection is still released at coroutine end.
      *
-     * In non-pooled mode (SimpleConnectionResolver), disconnects the connection
-     * stored in the $connections array.
+     * In non-pooled mode, disconnects the connection stored in the manager's cache
+     * for SimpleConnectionResolver or in a CachedConnectionResolver's cache.
      */
     public function disconnect(UnitEnum|string|null $name = null): void
     {
@@ -308,13 +307,28 @@ class DatabaseManager implements ConnectionResolverInterface
             : $name;
         $connectionName = ConnectionName::parse($requestedName);
 
-        // Pooled mode: disconnect the current coroutine's connection
+        $this->disconnectManagerOwnedConnection($connectionName);
+
+        $resolver = $this->app->make('db.resolver');
+
+        if ($resolver instanceof CachedConnectionResolver
+            && ($connection = $resolver->getResolvedConnection($connectionName->requested)) instanceof Connection
+        ) {
+            $connection->disconnect();
+        }
+    }
+
+    /**
+     * Disconnect a connection owned directly by the database manager.
+     */
+    protected function disconnectManagerOwnedConnection(ConnectionName $connectionName): void
+    {
         $connection = CoroutineContext::get($this->getConnectionContextKey($connectionName->requested));
+
         if ($connection instanceof Connection) {
             $connection->disconnect();
         }
 
-        // Non-pooled mode (SimpleConnectionResolver): disconnect from $connections array
         if (isset($this->connections[$connectionName->requested])) {
             $this->connections[$connectionName->requested]->disconnect();
         }
@@ -351,6 +365,16 @@ class DatabaseManager implements ConnectionResolverInterface
             $this->connections[$name]->reconnect();
 
             return $this->connections[$name];
+        }
+
+        $resolver = $this->app->make('db.resolver');
+
+        if ($resolver instanceof CachedConnectionResolver
+            && ($connection = $resolver->getResolvedConnection($name)) instanceof Connection
+        ) {
+            $connection->reconnect();
+
+            return $connection;
         }
 
         // No existing connection — get a fresh one

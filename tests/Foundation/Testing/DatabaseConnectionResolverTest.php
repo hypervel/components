@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Foundation\Testing;
 
 use Hypervel\Container\Container;
 use Hypervel\Database\Connection;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolFactory;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
@@ -30,6 +31,49 @@ class DatabaseConnectionResolverTest extends TestCase
         $resolver->flush($connection->getName());
 
         // The connection's PDO should be nulled (disconnected)
+        $this->assertNull($connection->getRawPdo());
+    }
+
+    public function testManagerDisconnectsAndReconnectsResolverOwnedConnectionInPlace(): void
+    {
+        $manager = $this->app->make('db');
+        $connection = $manager->connection();
+
+        $manager->disconnect();
+
+        $this->assertNull($connection->getRawPdo());
+
+        $reconnected = $manager->reconnect();
+
+        $this->assertSame($connection, $reconnected);
+        $this->assertNotNull($reconnected->getRawPdo());
+    }
+
+    public function testManagerLifecycleFindsSharedSqliteRoleAliasThroughItsBaseCacheKey(): void
+    {
+        $manager = $this->app->make('db');
+        $connection = $manager->connection('testing::read');
+
+        $manager->disconnect('testing::read');
+
+        $this->assertNull($connection->getRawPdo());
+
+        $reconnected = $manager->reconnect('testing::read');
+
+        $this->assertSame($connection, $reconnected);
+        $this->assertNotNull($reconnected->getRawPdo());
+    }
+
+    public function testPurgeDisconnectsSharedResolverOwnedConnectionOnce(): void
+    {
+        $manager = $this->app->make('db');
+        $connection = $manager->connection('testing::read');
+        $transactions = m::mock(DatabaseTransactionsManager::class);
+        $transactions->shouldReceive('rollback')->with('testing', 0)->once();
+        $connection->setTransactionManager($transactions);
+
+        $manager->purge('testing::read');
+
         $this->assertNull($connection->getRawPdo());
     }
 
