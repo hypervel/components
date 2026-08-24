@@ -279,6 +279,8 @@ class PdoConnection extends Connection
      */
     protected function escapeString(string $value): string
     {
+        // Quote through the session that executed the last query because quoting may depend
+        // on its configuration, and resolving the other endpoint may open or reconfigure it.
         $pdo = $this->latestReadWriteTypeUsed() === 'write'
             ? $this->getPdo()
             : $this->getReadPdo();
