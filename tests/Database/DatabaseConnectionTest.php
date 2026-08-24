@@ -17,14 +17,18 @@ use Hypervel\Database\Events\TransactionBeginning;
 use Hypervel\Database\Events\TransactionCommitted;
 use Hypervel\Database\Events\TransactionCommitting;
 use Hypervel\Database\Events\TransactionRolledBack;
+use Hypervel\Database\MariaDbConnection;
 use Hypervel\Database\MultipleColumnsSelectedException;
+use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\PdoConnection;
+use Hypervel\Database\PostgresConnection;
 use Hypervel\Database\Query\Builder as BaseBuilder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Database\Schema\Grammars\Grammar as SchemaGrammar;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Testbench\TestCase;
 use LogicException;
 use Mockery as m;
@@ -35,6 +39,155 @@ use RuntimeException;
 
 class DatabaseConnectionTest extends TestCase
 {
+    public function testDriverNameFallsBackToTheConnectionIdentity(): void
+    {
+        $pdo = new PDOStub;
+
+        foreach ([
+            'pdo' => new PdoConnection($pdo),
+            'mysql' => new MySqlConnection($pdo),
+            'mariadb' => new MariaDbConnection($pdo),
+            'pgsql' => new PostgresConnection($pdo),
+            'sqlite' => new SQLiteConnection($pdo),
+            'http' => new NeutralConnectionForTest,
+        ] as $driver => $connection) {
+            $this->assertSame($driver, $connection->getDriverName());
+        }
+    }
+
+    public function testConfiguredDriverNameOverridesTheConnectionIdentity(): void
+    {
+        $connection = new SQLiteConnection(
+            new PDO('sqlite::memory:'),
+            config: ['driver' => 'custom-sqlite'],
+        );
+
+        $this->assertSame('custom-sqlite', $connection->getDriverName());
+    }
+
+    public function testDefaultPdoDriverNameDoesNotResolveTheLazyConnection(): void
+    {
+        $connection = new PdoConnection(
+            static fn (): never => throw new RuntimeException('The lazy PDO should not be resolved.'),
+        );
+
+        $this->assertSame('pdo', $connection->getDriverName());
+    }
+
+    public function testConfiglessQueryFailureRetainsTheOriginalDatabaseException(): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
+        $exception = null;
+
+        try {
+            $connection->statement('invalid sql');
+        } catch (QueryException $thrown) {
+            $exception = $thrown;
+        }
+
+        $this->assertInstanceOf(QueryException::class, $exception);
+        $this->assertNull($exception->getConnectionName());
+        $this->assertInstanceOf(PDOException::class, $exception->getPrevious());
+    }
+
+    public function testConfiglessDatabaseEventsRetainTheNullableConnectionName(): void
+    {
+        $queryConnection = new PdoConnection(new PDO('sqlite::memory:'));
+        $queryConnection->setEventDispatcher($queryEvents = m::mock(Dispatcher::class));
+        $queryEvents->shouldReceive('hasListeners')->once()->with(QueryExecuted::class)->andReturn(true);
+        $queryEvents->shouldReceive('dispatch')->once()->with(m::on(
+            static fn (object $event): bool => $event instanceof QueryExecuted
+                && $event->connectionName === null
+        ));
+
+        $queryConnection->logQuery('select 1', [], 0.0);
+
+        $transactionConnection = new PdoConnection(new PDO('sqlite::memory:'));
+        $transactionConnection->setEventDispatcher($transactionEvents = m::mock(Dispatcher::class));
+        $transactionEvents->shouldReceive('hasListeners')->once()->with(TransactionBeginning::class)->andReturn(true);
+        $transactionEvents->shouldReceive('dispatch')->once()->with(m::on(
+            static fn (object $event): bool => $event instanceof TransactionBeginning
+                && $event->connectionName === null
+        ));
+
+        $transactionConnection->beginTransaction();
+        $transactionConnection->unsetEventDispatcher();
+        $transactionConnection->rollBack();
+    }
+
+    public function testConfiglessTransactionManagerUsesTheDefaultConnectionKey(): void
+    {
+        $connection = new PdoConnection(new PDO('sqlite::memory:'));
+        $manager = new DatabaseTransactionsManager;
+        $connection->setTransactionManager($manager);
+
+        $connection->beginTransaction();
+
+        $this->assertSame('', $manager->getPendingTransactions()->first()->connection);
+
+        $connection->disconnect();
+
+        $this->assertCount(0, $manager->getPendingTransactions());
+        $this->assertCount(0, $manager->getCommittedTransactions());
+        $this->assertNull($connection->getRawPdo());
+    }
+
+    public function testConfiglessCommitCallbacksRemainScopedToTheirConnection(): void
+    {
+        $connection = new PdoConnection(new PDO('sqlite::memory:'));
+        $manager = new DatabaseTransactionsManager;
+        $connection->setTransactionManager($manager);
+
+        $connection->beginTransaction();
+        $manager->begin('named', 1);
+
+        $committed = false;
+        $connection->afterCommit(function () use (&$committed): void {
+            $committed = true;
+        });
+
+        $connection->commit();
+
+        $this->assertTrue($committed);
+
+        $executedImmediately = false;
+        $connection->afterCommit(function () use (&$executedImmediately): void {
+            $executedImmediately = true;
+        });
+
+        $this->assertTrue($executedImmediately);
+
+        $manager->rollback('named', 0);
+    }
+
+    public function testConfiglessRollbackCallbacksRemainScopedToTheirConnection(): void
+    {
+        $connection = new PdoConnection(new PDO('sqlite::memory:'));
+        $manager = new DatabaseTransactionsManager;
+        $connection->setTransactionManager($manager);
+
+        $connection->beginTransaction();
+        $manager->begin('named', 1);
+
+        $rolledBack = false;
+        $connection->afterRollBack(function () use (&$rolledBack): void {
+            $rolledBack = true;
+        });
+
+        $connection->rollBack();
+
+        $this->assertTrue($rolledBack);
+
+        $calledWithoutOwnTransaction = false;
+        $connection->afterRollBack(function () use (&$calledWithoutOwnTransaction): void {
+            $calledWithoutOwnTransaction = true;
+        });
+
+        $manager->rollback('named', 0);
+
+        $this->assertFalse($calledWithoutOwnTransaction);
+    }
+
     public function testFlushStateClearsResolversAndMacros()
     {
         try {
@@ -1502,6 +1655,11 @@ class NeutralConnectionForTest extends Connection
     public function getServerVersion(): string
     {
         return '1.0';
+    }
+
+    protected function getDefaultDriverName(): string
+    {
+        return 'http';
     }
 
     protected function escapeString(string $value): string

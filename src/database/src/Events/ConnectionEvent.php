@@ -11,7 +11,7 @@ abstract class ConnectionEvent
     /**
      * The name of the connection.
      */
-    public string $connectionName;
+    public ?string $connectionName;
 
     /**
      * The database connection instance.

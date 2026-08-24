@@ -275,6 +275,14 @@ class PdoConnection extends Connection
     }
 
     /**
+     * Get the default database driver name.
+     */
+    protected function getDefaultDriverName(): string
+    {
+        return 'pdo';
+    }
+
+    /**
      * Escape a string value for safe SQL embedding.
      */
     protected function escapeString(string $value): string

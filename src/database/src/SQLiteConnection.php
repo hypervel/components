@@ -24,6 +24,14 @@ class SQLiteConnection extends PdoConnection
     }
 
     /**
+     * Get the default database driver name.
+     */
+    protected function getDefaultDriverName(): string
+    {
+        return 'sqlite';
+    }
+
+    /**
      * Run the statement to start a new transaction.
      */
     protected function executeBeginTransactionStatement(): void

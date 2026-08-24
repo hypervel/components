@@ -75,7 +75,7 @@ trait ManagesTransactions
 
             try {
                 $this->transactionsManager?->commit(
-                    $this->getName(),
+                    $this->getName() ?? '',
                     $levelBeingCommitted,
                     $this->transactions
                 );
@@ -124,7 +124,7 @@ trait ManagesTransactions
 
             try {
                 $this->transactionsManager?->rollback(
-                    $this->getName(),
+                    $this->getName() ?? '',
                     $this->transactions
                 );
             } catch (Throwable) {
@@ -172,7 +172,7 @@ trait ManagesTransactions
 
         try {
             $this->transactionsManager?->begin(
-                $this->getName(),
+                $this->getName() ?? '',
                 $this->transactions
             );
 
@@ -245,7 +245,7 @@ trait ManagesTransactions
 
         try {
             $this->transactionsManager?->commit(
-                $this->getName(),
+                $this->getName() ?? '',
                 $levelBeingCommitted,
                 $this->transactions
             );
@@ -330,7 +330,7 @@ trait ManagesTransactions
 
         try {
             $this->transactionsManager?->rollback(
-                $this->getName(),
+                $this->getName() ?? '',
                 $this->transactions
             );
         } catch (Throwable $throwable) {
@@ -396,7 +396,7 @@ trait ManagesTransactions
     public function afterCommit(callable $callback): void
     {
         if ($this->transactionsManager) {
-            $this->transactionsManager->addCallback($callback, $this->getName());
+            $this->transactionsManager->addCallback($callback, $this->getName() ?? '');
 
             return;
         }
@@ -414,7 +414,7 @@ trait ManagesTransactions
     public function afterRollBack(callable $callback): void
     {
         if ($this->transactionsManager) {
-            $this->transactionsManager->addCallbackForRollback($callback, $this->getName());
+            $this->transactionsManager->addCallbackForRollback($callback, $this->getName() ?? '');
 
             return;
         }

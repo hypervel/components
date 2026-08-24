@@ -1412,6 +1412,11 @@ class NeutralPoolConnection extends Connection
         return 'test';
     }
 
+    protected function getDefaultDriverName(): string
+    {
+        return 'neutral';
+    }
+
     public function dropResources(): void
     {
         $this->hasResources = false;

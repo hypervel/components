@@ -31,7 +31,7 @@ class QueryExecuted
     /**
      * The database connection name.
      */
-    public string $connectionName;
+    public ?string $connectionName;
 
     /**
      * The connection role used for the executed query.

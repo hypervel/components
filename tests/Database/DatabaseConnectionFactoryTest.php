@@ -582,6 +582,11 @@ class FactoryNonPdoConnection extends Connection
         return '1.0';
     }
 
+    protected function getDefaultDriverName(): string
+    {
+        return 'http';
+    }
+
     protected function escapeString(string $value): string
     {
         return "'{$value}'";

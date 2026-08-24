@@ -14,7 +14,7 @@ class QueryException extends PDOException
     /**
      * The database connection name.
      */
-    public string $connectionName;
+    public ?string $connectionName;
 
     /**
      * The SQL for the query.
@@ -44,7 +44,7 @@ class QueryException extends PDOException
      * @param null|'read'|'write' $readWriteType
      */
     public function __construct(
-        string $connectionName,
+        ?string $connectionName,
         string $sql,
         array $bindings,
         Throwable $previous,
@@ -69,7 +69,7 @@ class QueryException extends PDOException
     /**
      * Format the SQL error message.
      */
-    protected function formatMessage(string $connectionName, string $sql, array $bindings, Throwable $previous): string
+    protected function formatMessage(?string $connectionName, string $sql, array $bindings, Throwable $previous): string
     {
         $details = $this->formatConnectionDetails();
 
@@ -108,7 +108,7 @@ class QueryException extends PDOException
     /**
      * Get the connection name for the query.
      */
-    public function getConnectionName(): string
+    public function getConnectionName(): ?string
     {
         return $this->connectionName;
     }

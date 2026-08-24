@@ -329,7 +329,9 @@ DB::extend('clickhouse', function (array $config, ?string $name): Connection {
 
 The extension name may be a driver name or a configured connection name. A connection-specific extension takes precedence over a driver extension. The configuration includes the normalized `connect_timeout` value, allowing the driver to apply the pool's connection deadline to its client.
 
-Custom connections implement their own query execution, transactions, escaping, health check, reconnection, and cleanup behavior. Hypervel's database pool calls those connection methods without assuming PDO, so a native or HTTP driver does not need to create a fake PDO instance.
+Custom connections implement their own query execution, transactions, escaping, health check, reconnection, and cleanup behavior. They must also return their driver key, such as `clickhouse`, from the protected `getDefaultDriverName` method. Hypervel uses this value when the connection has no configured driver name; an explicitly configured driver name still takes precedence.
+
+Hypervel's database pool calls these connection methods without assuming PDO, so a native or HTTP driver does not need to create a fake PDO instance.
 
 <a name="static-analysis"></a>
 ### Static Analysis

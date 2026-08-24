@@ -839,7 +839,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     {
         $this->transactions = 0;
 
-        $this->transactionsManager?->rollback($this->getName(), 0);
+        $this->transactionsManager?->rollback($this->getName() ?? '', 0);
     }
 
     /**
@@ -1232,7 +1232,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
      */
     public function getDriverName(): string
     {
-        return $this->getConfig('driver');
+        return $this->getConfig('driver') ?? $this->getDefaultDriverName();
     }
 
     /**
@@ -1242,6 +1242,11 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     {
         return $this->getDriverName();
     }
+
+    /**
+     * Get the default database driver name.
+     */
+    abstract protected function getDefaultDriverName(): string;
 
     /**
      * Get the query grammar used by the connection.

@@ -33,6 +33,14 @@ class MySqlConnection extends PdoConnection
     }
 
     /**
+     * Get the default database driver name.
+     */
+    protected function getDefaultDriverName(): string
+    {
+        return 'mysql';
+    }
+
+    /**
      * Run an insert statement against the database.
      */
     public function insert(string $query, array $bindings = [], ?string $sequence = null): bool

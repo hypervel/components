@@ -18,7 +18,7 @@ class ModelInfo implements Arrayable, ArrayAccess
 {
     /**
      * @param class-string<Model> $class the model's fully-qualified class
-     * @param string $database the database connection name
+     * @param null|string $database the database connection name
      * @param string $table the database table name
      * @param null|class-string $policy the policy that applies to the model
      * @param BaseCollection<int, array<string, mixed>> $attributes the attributes available on the model
@@ -49,7 +49,7 @@ class ModelInfo implements Arrayable, ArrayAccess
      *
      * @return array{
      *     "class": class-string<Model>,
-     *     database: string,
+     *     database: null|string,
      *     table: string,
      *     policy: null|class-string,
      *     attributes: BaseCollection<int, array<string, mixed>>,

@@ -26,6 +26,14 @@ class PostgresConnection extends PdoConnection
     }
 
     /**
+     * Get the default database driver name.
+     */
+    protected function getDefaultDriverName(): string
+    {
+        return 'pgsql';
+    }
+
+    /**
      * Escape a binary value for safe SQL embedding.
      */
     protected function escapeBinary(string $value): string
