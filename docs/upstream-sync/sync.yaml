@@ -10,14 +10,15 @@
 #   repo_url   — GitHub URL, for humans
 #   release    — newest release tag walked in a sync session. Bumped even if
 #                some PRs were deferred; deferred items are tracked in the
-#                session PR body and, if persistent, in <package>.md
+#                session PR body and, when they remain worthwhile future work,
+#                in docs/todo.md
 #   sync_date  — date (YYYY-MM-DD) of the most recent session that touched
 #                this entry (bumped even if no releases were new)
-#   notes      — optional, omit when empty. Permanent per-repo context that
-#                informs every sync of this entry (e.g. composer/repo name
-#                mismatch, per-repo workflow tweaks). Per-session notes
-#                belong in the session PR body, not here. Reference
-#                <package>.md here when a divergence doc exists.
+#   notes      — optional, omit when empty. Sync-specific operational facts
+#                needed to process this repo (e.g. Composer/repo name mismatch
+#                or per-repo workflow tweaks). Per-session notes belong in the
+#                session PR body; package differences belong in the affected
+#                package README.
 #
 # `release` and `sync_date` are null on entries that haven't been synced yet.
 
