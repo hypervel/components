@@ -94,16 +94,10 @@ class WipeCommand extends Command
 
     /**
      * Flush the given database connection.
-     *
-     * Uses purge() instead of disconnect() because Hypervel's pooled connection
-     * architecture caches connection wrappers. disconnect() only nulls the PDO
-     * on the cached wrapper, leaving it in place — the next query reuses the
-     * disconnected wrapper and triggers a reconnect. purge() fully resets the
-     * connection including pool and resolver caches.
      */
     protected function flushDatabaseConnection(?string $database): void
     {
-        $this->hypervel->make('db')->purge($database);
+        $this->hypervel->make('db')->connection($database)->disconnect();
     }
 
     /**
