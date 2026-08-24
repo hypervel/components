@@ -84,8 +84,8 @@ class QueryWatcher extends Watcher
         foreach ($this->formatBindings($event) as $key => $binding) {
             $isPositional = is_numeric($key);
             $regex = $isPositional
-                ? "/\\?(?=(?:[^'\\\\']*'[^'\\\\']*')*[^'\\\\']*$)/"
-                : '/:' . preg_quote((string) $key, '/') . "(?![A-Za-z0-9_])(?=(?:[^'\\\\']*'[^'\\\\']*')*[^'\\\\']*$)/";
+                ? "/(?<!\\?)\\?(?!\\?)(?=(?:[^'\\\\']*'[^'\\\\']*')*[^'\\\\']*$)/"
+                : '/(?<!:):' . preg_quote((string) $key, '/') . "(?![A-Za-z0-9_])(?=(?:[^'\\\\']*'[^'\\\\']*')*[^'\\\\']*$)/";
 
             if ($binding === null) {
                 $binding = 'null';

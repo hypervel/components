@@ -173,6 +173,32 @@ TEXT;
         );
     }
 
+    public function testQueryWatcherDoesNotReplacePostgresTypeCasts(): void
+    {
+        [$event] = $this->queryEvent(
+            'select :payload::jsonb, :jsonb',
+            ['payload' => 42, 'jsonb' => 43],
+        );
+
+        $this->assertSame(
+            'select 42::jsonb, 43',
+            $this->app->make(QueryWatcher::class)->replaceBindings($event),
+        );
+    }
+
+    public function testQueryWatcherDoesNotReplacePostgresJsonKeyOperators(): void
+    {
+        [$event] = $this->queryEvent(
+            'select * from "users" where coalesce(("options")::jsonb ?? \'languages\', false) and "id" = ?',
+            [42],
+        );
+
+        $this->assertSame(
+            'select * from "users" where coalesce(("options")::jsonb ?? \'languages\', false) and "id" = 42',
+            $this->app->make(QueryWatcher::class)->replaceBindings($event),
+        );
+    }
+
     public function testQueryWatcherRedactsBindingsTheConnectionCannotEscape(): void
     {
         $event = new QueryExecuted(
