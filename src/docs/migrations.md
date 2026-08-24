@@ -153,6 +153,8 @@ If one of your application's database connections should use a different connect
 ],
 ```
 
+The migration connection must be a terminal target. The target connection may omit `migrations_connection` or point to itself, but connection chains such as `primary` to `schema` to `admin` are not supported.
+
 <a name="skipping-migrations"></a>
 #### Skipping Migrations
 
@@ -178,6 +180,8 @@ To run all of your outstanding migrations, execute the `migrate` Artisan command
 ```shell
 php artisan migrate
 ```
+
+Before running any migration, Hypervel inspects the default connection and every connection declared by the migration files. If a supported MySQL, MariaDB, PostgreSQL, or SQLite database does not exist, Hypervel offers to create it before any migration is executed. The `--force` option allows creation without another prompt, while non-interactive commands must provide `--force`. The `--pretend` option never creates a database and will fail if a required database is missing.
 
 If you would like to see which migrations have already run and which are still pending, you may use the `migrate:status` Artisan command:
 
@@ -286,7 +290,7 @@ php artisan migrate:refresh --step=5
 <a name="drop-all-tables-migrate"></a>
 #### Drop All Tables and Migrate
 
-The `migrate:fresh` command will drop all tables from the database and then execute the `migrate` command:
+The `migrate:fresh` command will drop all tables from the databases managed by your migration files and then execute the `migrate` command:
 
 ```shell
 php artisan migrate:fresh
@@ -294,14 +298,22 @@ php artisan migrate:fresh
 php artisan migrate:fresh --seed
 ```
 
-By default, the `migrate:fresh` command only drops tables from the default database connection. However, you may use the `--database` option to specify the database connection that should be migrated. The database connection name should correspond to a connection defined in your application's `database` [configuration file](/docs/{{version}}/configuration):
+Hypervel reads each migration's `$connection` property or `getConnection` method before making any changes. It resolves `migrations_connection` for those connections, creates supported databases that do not exist, and wipes every declared database that already exists. A reachable database is wiped even when it does not contain a migrations table.
+
+Before making any changes, the command lists the connections that will be created and the connections that will be wiped. In production, declining the confirmation leaves every database unchanged.
+
+The `--database` option selects the default migration connection. Migrations that declare another connection are still included. The connection name should correspond to a connection defined in your application's `database` [configuration file](/docs/{{version}}/configuration):
 
 ```shell
 php artisan migrate:fresh --database=admin
 ```
 
+A migration's connection should remain stable for that migration. A migration is included in the reset even when its `shouldRun` method currently returns `false`, since it may have created tables during an earlier run.
+
+Hypervel cannot discover a connection that is only selected by calling `Schema::connection('other')` inside the `up` method. Split cross-database work into separate migrations and declare the connection on each migration so `migrate:fresh` can reset every database before rebuilding it.
+
 > [!WARNING]
-> The `migrate:fresh` command will drop all database tables regardless of their prefix. This command should be used with caution when developing on a database that is shared with other applications.
+> The `migrate:fresh` command will drop all database tables from every declared migration connection, regardless of their prefix. This command should be used with caution when developing on databases that are shared with other applications.
 
 <a name="tables"></a>
 ## Tables
