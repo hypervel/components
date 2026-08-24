@@ -33,8 +33,9 @@ class Parallel
      * @param int $concurrent Maximum concurrent coroutines (0 = unlimited)
      * @param array<string>|bool $copyContext When set, parent coroutine context is copied to each child.
      *                                        false = fresh context (default), true or empty array = copy all keys, non-empty array = copy listed keys only.
-     *                                        Object values from the parent context are shared by reference; values implementing
-     *                                        Hypervel\Context\ReplicableContext are deep-copied via replicate().
+     *                                        Objects stored directly in context are shared by reference by default. Values implementing
+     *                                        Hypervel\Context\ReplicableContext are copied via replicate(), while values implementing
+     *                                        Hypervel\Context\NonCopyableContext are omitted.
      */
     public function __construct(
         int $concurrent = 0,

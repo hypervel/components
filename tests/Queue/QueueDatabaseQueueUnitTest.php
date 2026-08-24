@@ -63,6 +63,62 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertSame('0', $queue->getQueue('0'));
     }
 
+    public function testLockForPoppingUsesOneConnectionAndConfiguredVersion(): void
+    {
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $connection = m::mock(ConnectionInterface::class);
+        $resolver->shouldReceive('connection')->once()->with(null)->andReturn($connection);
+        $connection->shouldReceive('getDriverName')->once()->andReturn('mysql');
+        $connection->shouldReceive('getConfig')->once()->with('version')->andReturn('8.0.1');
+        $connection->shouldNotReceive('getServerVersion');
+
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver,
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+
+        $this->assertSame('FOR UPDATE SKIP LOCKED', $queue->lockForPopping());
+    }
+
+    #[DataProvider('databaseLockProvider')]
+    public function testLockForPoppingUsesDriverOwnedServerVersion(
+        string $driver,
+        string $version,
+        bool|string $expected,
+    ): void {
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $connection = m::mock(ConnectionInterface::class);
+        $resolver->shouldReceive('connection')->once()->with(null)->andReturn($connection);
+        $connection->shouldReceive('getDriverName')->once()->andReturn($driver);
+        $connection->shouldReceive('getConfig')->once()->with('version')->andReturnNull();
+        $connection->shouldReceive('getServerVersion')->once()->andReturn($version);
+
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver,
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+
+        $this->assertSame($expected, $queue->lockForPopping());
+    }
+
+    public static function databaseLockProvider(): array
+    {
+        return [
+            'mysql' => ['mysql', '8.0.1', 'FOR UPDATE SKIP LOCKED'],
+            'old mysql' => ['mysql', '5.7.44', true],
+            'mariadb' => ['mysql', '5.5.5-10.6.1-MariaDB', 'FOR UPDATE SKIP LOCKED'],
+            'postgres' => ['pgsql', '9.5', 'FOR UPDATE SKIP LOCKED'],
+            'vitess' => ['mysql', '19.0.0-vitess', 'FOR UPDATE SKIP LOCKED'],
+            'planetscale' => ['mysql', '19.0.0-PlanetScale', 'FOR UPDATE SKIP LOCKED'],
+        ];
+    }
+
     #[DataProvider('pushJobsDataProvider')]
     public function testPushProperlyPushesJobOntoDatabase($uuid, $job, $displayNameStartsWith, $jobStartsWith)
     {
@@ -743,6 +799,14 @@ class TestDatabaseQueue extends DatabaseQueue
     protected function currentTime(): int
     {
         return $this->currentTime;
+    }
+
+    /**
+     * Get the lock used when popping a job.
+     */
+    public function lockForPopping(): bool|string
+    {
+        return $this->getLockForPopping();
     }
 
     protected function availableAt(DateInterval|DateTimeInterface|int|null $delay = 0): int

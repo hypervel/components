@@ -60,9 +60,7 @@ class Connector
      */
     protected function createPdoConnection(string $dsn, ?string $username, #[SensitiveParameter] ?string $password, array $options): PDO
     {
-        return version_compare(PHP_VERSION, '8.4.0', '<')
-            ? new PDO($dsn, $username, $password, $options)
-            : PDO::connect($dsn, $username, $password, $options);
+        return PDO::connect($dsn, $username, $password, $options);
     }
 
     /**

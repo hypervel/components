@@ -6,13 +6,18 @@ namespace Hypervel\Tests\Context;
 
 use ArrayObject;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Context\NonCopyableContext;
+use Hypervel\Context\ReplicableContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
 use Hypervel\Http\Request;
+use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use RuntimeException;
+use stdClass;
 use Swoole\Event;
 
 use function Hypervel\Coroutine\run;
@@ -33,7 +38,7 @@ class ContextTest extends TestCase
 
         foreach ($values as $key => $expectedValue) {
             $this->assertTrue(CoroutineContext::has($key));
-            $this->assertEquals($expectedValue, CoroutineContext::get($key));
+            $this->assertSame($expectedValue, CoroutineContext::get($key));
         }
     }
 
@@ -114,6 +119,140 @@ class ContextTest extends TestCase
             'unwanted' => null,
             'existing' => 'kept',
         ], $copied);
+    }
+
+    public function testCopyFromNonCoroutineOmitsNonCopyableValuesForAllAndSelectedCopies(): void
+    {
+        CoroutineContext::set('copyable', 'source');
+        CoroutineContext::set('owned-resource', new class implements NonCopyableContext {
+        });
+        $destinationResource = new stdClass;
+        $results = [];
+
+        run(static function () use ($destinationResource, &$results): void {
+            Coroutine::create(static function () use ($destinationResource, &$results): void {
+                CoroutineContext::set('owned-resource', $destinationResource);
+                CoroutineContext::set('untouched', 'value');
+                CoroutineContext::copyFromNonCoroutine();
+
+                $results['all'] = [
+                    CoroutineContext::get('copyable'),
+                    CoroutineContext::get('owned-resource'),
+                    CoroutineContext::get('untouched'),
+                ];
+            });
+
+            Coroutine::create(static function () use ($destinationResource, &$results): void {
+                CoroutineContext::set('owned-resource', $destinationResource);
+                CoroutineContext::copyFromNonCoroutine(['owned-resource']);
+
+                $results['selected'] = CoroutineContext::get('owned-resource');
+            });
+        });
+
+        $this->assertSame(['source', $destinationResource, 'value'], $results['all']);
+        $this->assertSame($destinationResource, $results['selected']);
+    }
+
+    public function testFailedCopyFromNonCoroutineDoesNotPartiallyModifyTheDestination(): void
+    {
+        CoroutineContext::set('stable', 'source');
+        CoroutineContext::set('throwing', new ThrowingReplicableContext);
+        $results = [];
+
+        run(static function () use (&$results): void {
+            Coroutine::create(static function () use (&$results): void {
+                CoroutineContext::set('stable', 'destination');
+                CoroutineContext::set('untouched', 'value');
+
+                try {
+                    CoroutineContext::copyFromNonCoroutine();
+                } catch (RuntimeException $exception) {
+                    $results['exception'] = $exception;
+                }
+
+                $results['stable'] = CoroutineContext::get('stable');
+                $results['untouched'] = CoroutineContext::get('untouched');
+                $results['throwing'] = CoroutineContext::has('throwing');
+            });
+        });
+
+        $this->assertSame('Unable to replicate context.', $results['exception']->getMessage());
+        $this->assertSame('destination', $results['stable']);
+        $this->assertSame('value', $results['untouched']);
+        $this->assertFalse($results['throwing']);
+    }
+
+    public function testSelectedNullIsCopiedFromNonCoroutineContext(): void
+    {
+        CoroutineContext::set('nullable', null);
+        $containsKey = false;
+
+        run(static function () use (&$containsKey): void {
+            Coroutine::create(static function () use (&$containsKey): void {
+                CoroutineContext::copyFromNonCoroutine(['nullable']);
+                $containsKey = array_key_exists('nullable', CoroutineContext::getContainer()->getArrayCopy());
+            });
+        });
+
+        $this->assertTrue($containsKey);
+    }
+
+    public function testCopyToNonCoroutineTransformsAllAndSelectedValues(): void
+    {
+        $destinationResource = new stdClass;
+        $replicable = new class implements ReplicableContext {
+            public string $value = 'replicated';
+
+            public function replicate(): static
+            {
+                return clone $this;
+            }
+        };
+
+        CoroutineContext::set('owned-resource', $destinationResource);
+
+        run(static function () use ($replicable): void {
+            CoroutineContext::set('copyable', 'source');
+            CoroutineContext::set('owned-resource', new class implements NonCopyableContext {
+            });
+            CoroutineContext::set('replicable', $replicable);
+            CoroutineContext::set('nullable', null);
+            CoroutineContext::copyToNonCoroutine();
+            CoroutineContext::copyToNonCoroutine(['owned-resource', 'nullable']);
+        });
+
+        $container = CoroutineContext::getContainer();
+
+        $this->assertSame('source', $container['copyable']);
+        $this->assertSame($destinationResource, $container['owned-resource']);
+        $this->assertNotSame($replicable, $container['replicable']);
+        $this->assertSame('replicated', $container['replicable']->value);
+        $this->assertArrayHasKey('nullable', $container);
+        $this->assertNull($container['nullable']);
+    }
+
+    public function testFailedCopyToNonCoroutineDoesNotPartiallyModifyTheDestination(): void
+    {
+        CoroutineContext::set('stable', 'destination');
+        CoroutineContext::set('untouched', 'value');
+        $exception = null;
+
+        run(static function () use (&$exception): void {
+            CoroutineContext::set('stable', 'source');
+            CoroutineContext::set('throwing', new ThrowingReplicableContext);
+
+            try {
+                CoroutineContext::copyToNonCoroutine();
+            } catch (RuntimeException $runtimeException) {
+                $exception = $runtimeException;
+            }
+        });
+
+        $this->assertSame('Unable to replicate context.', $exception?->getMessage());
+        $this->assertSame('destination', CoroutineContext::get('stable'));
+        $this->assertSame('value', CoroutineContext::get('untouched'));
+        $this->assertFalse(CoroutineContext::has('throwing'));
     }
 
     public function testFlush(): void

@@ -6,11 +6,14 @@ namespace Hypervel\Tests\Integration\Database;
 
 use Closure;
 use Exception;
+use Generator;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
+use Hypervel\Database\MySqlConnection;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Pool\DbPool;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\SessionConfigurator;
@@ -201,15 +204,20 @@ class PooledConnectionTest extends DatabaseTestCase
         $writePath = $directory . '/write.sqlite';
         touch($readPath);
         touch($writePath);
+        $pool = null;
+        $pooledConnection = null;
 
         try {
             $this->app->make('config')->set('database.connections.file_read_pool_test', [
                 'driver' => 'sqlite',
+                'prefix' => 'base_',
                 'read' => [
                     'database' => $readPath,
+                    'prefix' => 'read_',
                 ],
                 'write' => [
                     'database' => $writePath,
+                    'prefix' => 'write_',
                 ],
                 'pool' => [
                     'min_connections' => 1,
@@ -226,10 +234,27 @@ class PooledConnectionTest extends DatabaseTestCase
 
             $this->assertSame('file_read_pool_test', $connection->getName());
             $this->assertSame($readPath, $connection->getConfig('database'));
+            $this->assertSame($readPath, $connection->getDatabaseName());
+            $this->assertSame('read_', $connection->getTablePrefix());
             $this->assertSame('read', $connection->getConfig(Connection::READ_WRITE_TYPE_CONFIG_KEY));
 
+            $connection->setDatabaseName('tenant_database');
+            $connection->setTablePrefix('tenant_');
+            $releasedConnection = $pooledConnection;
             $pooledConnection->release();
+            $pooledConnection = null;
+
+            /** @var PooledConnection $pooledConnection */
+            $pooledConnection = $pool->get();
+            $connection = $pooledConnection->getConnection();
+
+            $this->assertSame($releasedConnection, $pooledConnection);
+            $this->assertSame($readPath, $connection->getDatabaseName());
+            $this->assertSame('read_', $connection->getTablePrefix());
+            $this->assertSame('read', $connection->getConfig(Connection::READ_WRITE_TYPE_CONFIG_KEY));
         } finally {
+            $pooledConnection?->release();
+            $pool?->close();
             $filesystem->deleteDirectory($directory);
         }
     }
@@ -389,7 +414,7 @@ class PooledConnectionTest extends DatabaseTestCase
     public function testCleanReleasePreservesMatchingPhysicalSessionState(): void
     {
         $configurator = new PoolSessionConfigurator;
-        Connection::configureSessionUsing($configurator);
+        PdoConnection::configureSessionUsing($configurator);
         $pool = new DbPool($this->app, 'pool_test');
 
         /** @var PooledConnection $pooledConnection */
@@ -425,7 +450,7 @@ class PooledConnectionTest extends DatabaseTestCase
     public function testAbandonedTransactionRollbackInvalidatesPhysicalSessionState(): void
     {
         $configurator = new PoolSessionConfigurator;
-        Connection::configureSessionUsing($configurator);
+        PdoConnection::configureSessionUsing($configurator);
         $pool = new DbPool($this->app, 'pool_test');
 
         /** @var PooledConnection $pooledConnection */
@@ -452,7 +477,7 @@ class PooledConnectionTest extends DatabaseTestCase
     public function testUnknownSessionIsMarkedInvalidAtFinalReleaseBoundary(): void
     {
         $configurator = new PoolSessionConfigurator;
-        Connection::configureSessionUsing($configurator);
+        PdoConnection::configureSessionUsing($configurator);
         $pool = new DbPool($this->app, 'pool_test');
 
         /** @var PooledConnection $pooledConnection */
@@ -483,7 +508,7 @@ class PooledConnectionTest extends DatabaseTestCase
     public function testUnknownReadSessionIsDetectedWithoutResolvingUnopenedPdos(): void
     {
         $configurator = new PoolSessionConfigurator;
-        Connection::configureSessionUsing($configurator);
+        PdoConnection::configureSessionUsing($configurator);
         $pool = new DbPool($this->app, 'pool_test');
 
         /** @var PooledConnection $pooledConnection */
@@ -524,7 +549,7 @@ class PooledConnectionTest extends DatabaseTestCase
             ReleaseConnection::class,
         ]);
         $configurator = new PoolSessionConfigurator;
-        Connection::configureSessionUsing($configurator);
+        PdoConnection::configureSessionUsing($configurator);
         $pool = new DbPool($this->app, 'pool_test');
         $configurator->desiredState = 'fail';
         $configurator->applyCallback = static fn () => throw new Exception('Configuration failed.');
@@ -574,7 +599,7 @@ class PooledConnectionTest extends DatabaseTestCase
         $configurator = new PoolSessionConfigurator('session_reconnect_test');
         $configurationException = new Exception('Configuration failed.');
         $configurator->applyCallback = static fn () => throw $configurationException;
-        Connection::configureSessionUsing($configurator);
+        PdoConnection::configureSessionUsing($configurator);
         $pool = new DbPool($this->app, 'session_reconnect_test');
         $pooledConnection = null;
 
@@ -677,7 +702,7 @@ class PooledConnectionTest extends DatabaseTestCase
             ],
         ]);
         $configurator = new PoolSessionConfigurator('session_refresh_failure_test');
-        Connection::configureSessionUsing($configurator);
+        PdoConnection::configureSessionUsing($configurator);
         $pool = new DbPool($this->app, 'session_refresh_failure_test');
         $pooledConnection = null;
 
@@ -777,7 +802,7 @@ class PooledConnectionTest extends DatabaseTestCase
     public function testHeartbeatDoesNotComputeOrInvalidateSessionState(): void
     {
         $configurator = new PoolSessionConfigurator;
-        Connection::configureSessionUsing($configurator);
+        PdoConnection::configureSessionUsing($configurator);
         $pool = new DbPool($this->app, 'pool_test');
         $stateCallsAfterCreation = $configurator->stateCalls;
         $applyCallsAfterCreation = $configurator->applyCalls;
@@ -1077,8 +1102,8 @@ class PooledConnectionTest extends DatabaseTestCase
     public function testReconnectHonoursFactoryExtensions(): void
     {
         // Use a file-based SQLite connection so reconnect() takes the
-        // factory->make() path (not the makeSqliteFromSharedPdo() path
-        // that in-memory SQLite uses).
+        // factory->make() path rather than the shared-PDO path used by
+        // pooled in-memory SQLite.
         $filesystem = new Filesystem;
         $directory = ParallelTesting::tempDir('PooledConnectionTest-extension');
         $filesystem->deleteDirectory($directory);
@@ -1086,6 +1111,7 @@ class PooledConnectionTest extends DatabaseTestCase
 
         $databasePath = $directory . '/extension.sqlite';
         touch($databasePath);
+        $pooledConnection = null;
 
         try {
             $this->app->make('config')->set('database.connections.extension_test', [
@@ -1102,24 +1128,153 @@ class PooledConnectionTest extends DatabaseTestCase
                 ],
             ]);
 
-            $custom = new SQLiteConnection(
-                new PDO('sqlite::memory:'),
-                ':memory:',
-                '',
-                ['name' => 'extension_test']
-            );
-
             /** @var ConnectionFactory $factory */
             $factory = $this->app->make('db.factory');
-            $factory->extend('sqlite', fn () => $custom);
+            $resolutions = 0;
+            $factory->extend('sqlite', static function (array $config) use (&$resolutions): SQLiteConnection {
+                ++$resolutions;
+
+                return new SQLiteConnection(
+                    new PDO('sqlite:' . $config['database']),
+                    $config['database'],
+                    $config['prefix'],
+                    $config
+                );
+            });
 
             $pool = new DbPool($this->app, 'extension_test');
             $pooledConnection = $this->createPooledConnectionForName($pool, 'extension_test');
+            $connection = $pooledConnection->getConnection();
+            $firstPdo = $connection->getPdo();
 
-            // reconnect() calls factory->make() which should consult the extension
-            $this->assertSame($custom, $pooledConnection->getConnection());
+            // Reconnecting through the pool should consult the factory extension.
+            $connection->setPdo(null);
+            $connection->reconnectIfMissingConnection();
+
+            $this->assertSame($connection, $pooledConnection->getConnection());
+            $this->assertNotSame($firstPdo, $connection->getPdo());
+            $this->assertSame(2, $resolutions);
         } finally {
+            $pooledConnection?->close();
             $filesystem->deleteDirectory($directory);
+        }
+    }
+
+    public function testConfigFirstNonPdoExtensionSupportsTheCompletePoolLifecycle(): void
+    {
+        $this->app->make('config')->set('database.connections.neutral_pool_test', [
+            'driver' => 'neutral',
+            'database' => 'first',
+            'prefix' => '',
+            'pool' => [
+                'min_connections' => 1,
+                'max_connections' => 1,
+                'heartbeat' => -1,
+            ],
+        ]);
+
+        /** @var ConnectionFactory $factory */
+        $factory = $this->app->make('db.factory');
+        $resolutions = 0;
+        $factory->extend('neutral', static function (array $config) use (&$resolutions): NeutralPoolConnection {
+            return new NeutralPoolConnection(++$resolutions, $config['database'], $config['prefix'], $config);
+        });
+
+        $pool = new DbPool($this->app, 'neutral_pool_test');
+        $pooledConnection = null;
+
+        try {
+            /** @var PooledConnection $pooledConnection */
+            $pooledConnection = $pool->get();
+            $connection = $pooledConnection->getConnection();
+
+            $this->assertInstanceOf(NeutralPoolConnection::class, $connection);
+            $this->assertSame(1, $connection->generation);
+            $this->assertTrue($pooledConnection->ping(1.0));
+            $this->assertSame(1, $connection->pingCalls);
+
+            $connection->dropResources();
+            $connection->reconnectIfMissingConnection();
+
+            $this->assertSame($connection, $pooledConnection->getConnection());
+            $this->assertSame(2, $connection->generation);
+            $this->assertSame(2, $resolutions);
+            $this->assertSame(1, $connection->disconnectCalls);
+
+            $pooledConnection->release();
+            $pooledConnection = null;
+
+            /** @var PooledConnection $pooledConnection */
+            $pooledConnection = $pool->get();
+            $this->assertSame($connection, $pooledConnection->getConnection());
+
+            $pooledConnection->release();
+            $pooledConnection = null;
+            $pool->close();
+
+            $this->assertSame(2, $connection->disconnectCalls);
+        } finally {
+            $pooledConnection?->release();
+            $pool->close();
+        }
+    }
+
+    public function testReleaseClearsCapturedMySqlInsertIdBeforeReborrow(): void
+    {
+        $this->app->make('config')->set('database.connections.mysql_insert_id_pool_test', [
+            'driver' => 'mysql_insert_id',
+            'database' => 'unused',
+            'prefix' => '',
+            'pool' => [
+                'min_connections' => 1,
+                'max_connections' => 1,
+                'heartbeat' => -1,
+            ],
+        ]);
+
+        /** @var ConnectionFactory $factory */
+        $factory = $this->app->make('db.factory');
+        $factory->extend(
+            'mysql_insert_id',
+            static fn (array $config): PoolMySqlConnection => new PoolMySqlConnection(
+                new PDO('sqlite::memory:'),
+                $config['database'],
+                $config['prefix'],
+                $config
+            )
+        );
+
+        $pool = new DbPool($this->app, 'mysql_insert_id_pool_test');
+        $pooledConnection = null;
+
+        try {
+            /** @var PooledConnection $pooledConnection */
+            $pooledConnection = $pool->get();
+            $connection = $pooledConnection->getConnection();
+            $this->assertInstanceOf(PoolMySqlConnection::class, $connection);
+            $connection->rememberLastInsertId(42);
+            $this->assertSame(42, $connection->getLastInsertId());
+
+            $pooledConnection->release();
+            $pooledConnection = null;
+
+            /** @var PooledConnection $pooledConnection */
+            $pooledConnection = $pool->get();
+            $this->assertSame($connection, $pooledConnection->getConnection());
+
+            $exception = null;
+
+            try {
+                $connection->getLastInsertId();
+            } catch (RuntimeException $runtimeException) {
+                $exception = $runtimeException;
+            }
+
+            $this->assertNotNull($exception);
+            $this->assertSame('No last insert ID has been captured for this connection.', $exception->getMessage());
+        } finally {
+            $pooledConnection?->release();
+            $pool->close();
         }
     }
 
@@ -1179,7 +1334,7 @@ class PoolSessionConfigurator implements SessionConfigurator
     ) {
     }
 
-    public function state(Connection $connection): ?string
+    public function state(PdoConnection $connection): ?string
     {
         ++$this->stateCalls;
 
@@ -1188,12 +1343,120 @@ class PoolSessionConfigurator implements SessionConfigurator
             : null;
     }
 
-    public function apply(PDO $pdo, string $state, Connection $connection): void
+    public function apply(PDO $pdo, string $state, PdoConnection $connection): void
     {
         ++$this->applyCalls;
 
         if ($this->applyCallback instanceof Closure) {
             ($this->applyCallback)($pdo, $state, $connection);
         }
+    }
+}
+
+class NeutralPoolConnection extends Connection
+{
+    public int $pingCalls = 0;
+
+    public int $disconnectCalls = 0;
+
+    private bool $hasResources = true;
+
+    public function __construct(
+        public int $generation,
+        string $database,
+        string $tablePrefix,
+        array $config,
+    ) {
+        parent::__construct($database, $tablePrefix, $config);
+    }
+
+    public function select(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): array
+    {
+        return [];
+    }
+
+    public function cursor(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): Generator
+    {
+        yield from [];
+    }
+
+    public function statement(string $query, array $bindings = []): bool
+    {
+        return true;
+    }
+
+    public function affectingStatement(string $query, array $bindings = []): int
+    {
+        return 0;
+    }
+
+    public function unprepared(string $query): bool
+    {
+        return true;
+    }
+
+    public function ping(): bool
+    {
+        ++$this->pingCalls;
+
+        return $this->hasResources;
+    }
+
+    public function inTransaction(): bool
+    {
+        return false;
+    }
+
+    public function getServerVersion(): string
+    {
+        return 'test';
+    }
+
+    public function dropResources(): void
+    {
+        $this->hasResources = false;
+    }
+
+    protected function escapeString(string $value): string
+    {
+        return "'" . str_replace("'", "''", $value) . "'";
+    }
+
+    protected function hasDriverResources(): bool
+    {
+        return $this->hasResources;
+    }
+
+    protected function disconnectDriverResources(): void
+    {
+        ++$this->disconnectCalls;
+        $this->forgetDriverResources();
+    }
+
+    protected function forgetDriverResources(): void
+    {
+        $this->hasResources = false;
+    }
+
+    protected function replaceDriverResources(Connection $fresh): void
+    {
+        /** @var self $fresh */
+        $generation = $fresh->generation;
+        $hasResources = $fresh->hasResources;
+
+        try {
+            $this->disconnectDriverResources();
+        } finally {
+            $this->generation = $generation;
+            $this->hasResources = $hasResources;
+        }
+    }
+}
+
+class PoolMySqlConnection extends MySqlConnection
+{
+    public function rememberLastInsertId(int|string $lastInsertId): void
+    {
+        $this->lastInsertId = $lastInsertId;
     }
 }

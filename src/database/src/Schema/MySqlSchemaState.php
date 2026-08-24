@@ -9,7 +9,7 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\MySqlConnection;
 use Hypervel\Support\Str;
 use Override;
-use PDO;
+use Pdo\Mysql;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\Process;
 
@@ -109,21 +109,19 @@ class MySqlSchemaState extends SchemaState
             ? ' --socket="${:HYPERVEL_LOAD_SOCKET}"'
             : ' --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}"';
 
-        if (isset($config['options'][PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA])) {
+        if (isset($config['options'][Mysql::ATTR_SSL_CA])) {
             $value .= ' --ssl-ca="${:HYPERVEL_LOAD_SSL_CA}"';
         }
 
-        if (isset($config['options'][PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CERT : PDO::MYSQL_ATTR_SSL_CERT])) {
+        if (isset($config['options'][Mysql::ATTR_SSL_CERT])) {
             $value .= ' --ssl-cert="${:HYPERVEL_LOAD_SSL_CERT}"';
         }
 
-        if (isset($config['options'][PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_KEY : PDO::MYSQL_ATTR_SSL_KEY])) {
+        if (isset($config['options'][Mysql::ATTR_SSL_KEY])) {
             $value .= ' --ssl-key="${:HYPERVEL_LOAD_SSL_KEY}"';
         }
 
-        $verifyCertOption = PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT : PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT;
-
-        if (isset($config['options'][$verifyCertOption]) && $config['options'][$verifyCertOption] === false) {
+        if (($config['options'][Mysql::ATTR_SSL_VERIFY_SERVER_CERT] ?? null) === false) {
             if (version_compare($versionInfo['version'], '5.7.11', '>=') && ! $versionInfo['isMariaDb']) {
                 $value .= ' --ssl-mode=DISABLED';
             } else {
@@ -149,9 +147,9 @@ class MySqlSchemaState extends SchemaState
             'HYPERVEL_LOAD_USER' => $config['username'],
             'HYPERVEL_LOAD_PASSWORD' => $config['password'] ?? '',
             'HYPERVEL_LOAD_DATABASE' => $config['database'],
-            'HYPERVEL_LOAD_SSL_CA' => $config['options'][PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA] ?? '',
-            'HYPERVEL_LOAD_SSL_CERT' => $config['options'][PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CERT : PDO::MYSQL_ATTR_SSL_CERT] ?? '',
-            'HYPERVEL_LOAD_SSL_KEY' => $config['options'][PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_KEY : PDO::MYSQL_ATTR_SSL_KEY] ?? '',
+            'HYPERVEL_LOAD_SSL_CA' => $config['options'][Mysql::ATTR_SSL_CA] ?? '',
+            'HYPERVEL_LOAD_SSL_CERT' => $config['options'][Mysql::ATTR_SSL_CERT] ?? '',
+            'HYPERVEL_LOAD_SSL_KEY' => $config['options'][Mysql::ATTR_SSL_KEY] ?? '',
         ]);
     }
 

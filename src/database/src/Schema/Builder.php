@@ -12,7 +12,6 @@ use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use LogicException;
 use RuntimeException;
-use Throwable;
 
 class Builder
 {
@@ -637,15 +636,7 @@ class Builder
      */
     protected function executeSessionStatement(string $statement): void
     {
-        try {
-            if ($this->connection->getPdo()->exec($statement) === false) {
-                throw new RuntimeException("Failed to execute schema statement [{$statement}].");
-            }
-        } catch (Throwable $exception) {
-            $this->connection->markCurrentSessionStateUnknown();
-
-            throw $exception;
-        }
+        $this->connection->executeSessionStatement($statement);
     }
 
     /**

@@ -7,9 +7,9 @@ namespace Hypervel\Tests\Foundation\Testing;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Database\Connection as DatabaseConnection;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\DatabaseManager;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -17,6 +17,7 @@ use Hypervel\Foundation\Testing\RefreshDatabaseState;
 use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
+use LogicException;
 use Mockery as m;
 use PDO;
 use RuntimeException;
@@ -238,7 +239,7 @@ class RefreshDatabaseTest extends TestCase
         $pdo = m::mock(PDO::class);
         $eventDispatcher = m::mock(Dispatcher::class);
 
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(PdoConnection::class);
         $connection->shouldReceive('setTransactionManager')->once();
         $connection->shouldReceive('getPdo')->once()->andReturn($pdo);
         $connection->shouldReceive('getEventDispatcher')->once()->andReturn($eventDispatcher);
@@ -277,7 +278,7 @@ class RefreshDatabaseTest extends TestCase
     {
         $pdo = m::mock(PDO::class);
         $eventDispatcher = m::mock(Dispatcher::class);
-        $connection = m::mock(DatabaseConnection::class);
+        $connection = m::mock(PdoConnection::class);
         $connection->shouldReceive('setPdo')->once()->with($pdo)->andReturnSelf();
         $connection->shouldReceive('setEventDispatcher')->once()->with($eventDispatcher)->andReturnSelf();
 
@@ -341,7 +342,7 @@ class RefreshDatabaseTest extends TestCase
         $memoryPdo = m::mock(PDO::class);
         $eventDispatcher = m::mock(Dispatcher::class);
         $fileConnection = m::mock(ConnectionInterface::class);
-        $memoryConnection = m::mock(ConnectionInterface::class);
+        $memoryConnection = m::mock(PdoConnection::class);
 
         foreach ([$fileConnection, $memoryConnection] as $connection) {
             $connection->shouldReceive('setTransactionManager')->once();
@@ -382,6 +383,56 @@ class RefreshDatabaseTest extends TestCase
             ['memory' => $memoryPdo],
             RefreshDatabaseState::$inMemoryConnections,
         );
+    }
+
+    public function testBeginDatabaseTransactionWorkRequiresPdoForInMemoryConnection(): void
+    {
+        $connection = m::mock(ConnectionInterface::class);
+        $connection->shouldReceive('setTransactionManager')->once();
+
+        $database = m::mock(DatabaseManager::class);
+        $database->shouldReceive('connection')->once()->with(null)->andReturn($connection);
+
+        $this->app = new Application;
+        $this->app->singleton('config', fn () => new Repository([
+            'database' => [
+                'default' => 'default',
+                'connections' => [
+                    'default' => ['driver' => 'sqlite', 'database' => ':memory:'],
+                ],
+            ],
+        ]));
+        $this->app->singleton('db', fn () => $database);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('In-memory SQLite database testing requires a PDO-backed connection.');
+
+        $this->beginDatabaseTransactionWork();
+    }
+
+    public function testRestoreInMemoryDatabaseRequiresPdoConnection(): void
+    {
+        $pdo = m::mock(PDO::class);
+        $connection = m::mock(ConnectionInterface::class);
+        $database = m::mock(DatabaseManager::class);
+        $database->shouldReceive('connection')->once()->with(null)->andReturn($connection);
+        RefreshDatabaseState::$inMemoryConnections = ['default' => $pdo];
+
+        $this->app = new Application;
+        $this->app->singleton('config', fn () => new Repository([
+            'database' => [
+                'default' => 'default',
+                'connections' => [
+                    'default' => ['driver' => 'sqlite', 'database' => ':memory:'],
+                ],
+            ],
+        ]));
+        $this->app->singleton('db', fn () => $database);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('In-memory SQLite database testing requires a PDO-backed connection.');
+
+        $this->restoreInMemoryDatabase();
     }
 
     public function testRefreshTestDatabaseLeavesMigratedFalseWhenTransactionWorkNotYetRun(): void
@@ -450,12 +501,9 @@ class RefreshDatabaseTest extends TestCase
         $connection->shouldReceive('setTransactionManager')
             ->once();
 
-        $pdo = m::mock(PDO::class);
-        $pdo->shouldReceive('inTransaction')
-            ->andReturn(true);
-        $connection->shouldReceive('getPdo')
+        $connection->shouldReceive('inTransaction')
             ->once()
-            ->andReturn($pdo);
+            ->andReturnTrue();
 
         $db = m::mock(DatabaseManager::class);
         $db->shouldReceive('connection')

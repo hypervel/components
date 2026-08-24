@@ -130,20 +130,17 @@ class DatabaseSQLiteBuilderTest extends TestCase
             ['pragma foreign_keys = 0', 'first statement', 'second statement', 'pragma foreign_keys = 1'],
             [new Fluent(['name' => 'alter'])],
         );
-        $pdo = m::mock(PDO::class);
-
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $connection->shouldReceive('pretending')->once()->andReturnFalse();
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('getPdo')->twice()->andReturn($pdo);
-        $pdo->shouldReceive('exec')->once()->with('pragma foreign_keys = 0')->andReturn(0)->ordered();
+        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma foreign_keys = 0')->ordered();
         $connection->shouldReceive('transaction')
             ->once()
             ->andReturnUsing(static fn (Closure $callback) => $callback())
             ->ordered();
         $connection->shouldReceive('statement')->once()->with('first statement')->andReturnTrue()->ordered();
         $connection->shouldReceive('statement')->once()->with('second statement')->andReturnTrue()->ordered();
-        $pdo->shouldReceive('exec')->once()->with('pragma foreign_keys = 1')->andReturn(0)->ordered();
+        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma foreign_keys = 1')->ordered();
 
         (new SQLiteBuilder($connection))->executeBlueprint($blueprint);
     }
@@ -160,7 +157,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $connection->shouldReceive('pretending')->once()->andReturnFalse();
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('getPdo')->never();
+        $connection->shouldReceive('executeSessionStatement')->never();
         $connection->shouldReceive('transaction')
             ->once()
             ->andReturnUsing(static fn (Closure $callback) => $callback());
@@ -242,13 +239,10 @@ class DatabaseSQLiteBuilderTest extends TestCase
             ['pragma foreign_keys = 0', 'failing statement', 'pragma foreign_keys = 1'],
             [new Fluent(['name' => 'alter'])],
         );
-        $pdo = m::mock(PDO::class);
-
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $connection->shouldReceive('pretending')->once()->andReturnFalse();
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('getPdo')->twice()->andReturn($pdo);
-        $pdo->shouldReceive('exec')->once()->with('pragma foreign_keys = 0')->andReturn(0)->ordered();
+        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma foreign_keys = 0')->ordered();
         $connection->shouldReceive('transaction')
             ->once()
             ->andReturnUsing(static fn (Closure $callback) => $callback())
@@ -258,7 +252,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
             ->with('failing statement')
             ->andThrow(new LogicException('statement failed'))
             ->ordered();
-        $pdo->shouldReceive('exec')->once()->with('pragma foreign_keys = 1')->andReturn(0)->ordered();
+        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma foreign_keys = 1')->ordered();
 
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('statement failed');
@@ -301,7 +295,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
                 );
             }
 
-            $this->assertTrue($connection->hasUnknownSessionState());
+            $this->assertFalse($connection->isReusable());
             $this->assertSame(0, (int) $pdo->query('pragma foreign_keys')->fetchColumn());
             $this->assertSame(
                 1,
@@ -405,7 +399,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('pretending')->once()->andReturnTrue();
         $connection->shouldReceive('transactionLevel')->never();
         $connection->shouldReceive('transaction')->never();
-        $connection->shouldReceive('getPdo')->never();
+        $connection->shouldReceive('executeSessionStatement')->never();
         $connection->shouldReceive('statement')->once()->with('pragma foreign_keys = 0')->andReturnTrue()->ordered();
         $connection->shouldReceive('statement')->once()->with('first statement')->andReturnTrue()->ordered();
         $connection->shouldReceive('statement')->once()->with('second statement')->andReturnTrue()->ordered();
@@ -560,20 +554,18 @@ class DatabaseSQLiteBuilderTest extends TestCase
     {
         $connection = m::mock(Connection::class);
         $grammar = new SQLiteGrammar($connection);
-        $pdo = m::mock(PDO::class);
 
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0)->ordered();
         $connection->shouldReceive('scalar')->once()->with('pragma writable_schema', [], false)->andReturn(0)->ordered();
         $connection->shouldReceive('getServerVersion')->once()->andReturn('3.45.0')->ordered();
-        $connection->shouldReceive('getPdo')->twice()->andReturn($pdo);
-        $pdo->shouldReceive('exec')->once()->with('pragma writable_schema = 1')->andReturn(0)->ordered();
+        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma writable_schema = 1')->ordered();
         $connection->shouldReceive('statement')
             ->once()
             ->with($grammar->compileDropAllTables('main'))
             ->andReturnTrue()
             ->ordered();
-        $pdo->shouldReceive('exec')->once()->with('pragma writable_schema = RESET')->andReturn(0)->ordered();
+        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma writable_schema = RESET')->ordered();
         $connection->shouldReceive('statement')
             ->once()
             ->with($grammar->compileRebuild('main'))
@@ -587,25 +579,23 @@ class DatabaseSQLiteBuilderTest extends TestCase
     {
         $connection = m::mock(Connection::class);
         $grammar = new SQLiteGrammar($connection);
-        $pdo = m::mock(PDO::class);
 
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0)->ordered();
         $connection->shouldReceive('scalar')->once()->with('pragma writable_schema', [], false)->andReturn(1)->ordered();
         $connection->shouldReceive('getServerVersion')->once()->andReturn('3.45.0')->ordered();
-        $connection->shouldReceive('getPdo')->twice()->andReturn($pdo);
         $connection->shouldReceive('statement')
             ->once()
             ->with($grammar->compileDropAllViews('main'))
             ->andReturnTrue()
             ->ordered();
-        $pdo->shouldReceive('exec')->once()->with('pragma writable_schema = RESET')->andReturn(0)->ordered();
+        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma writable_schema = RESET')->ordered();
         $connection->shouldReceive('statement')
             ->once()
             ->with($grammar->compileRebuild('main'))
             ->andReturnTrue()
             ->ordered();
-        $pdo->shouldReceive('exec')->once()->with('pragma writable_schema = 1')->andReturn(0)->ordered();
+        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma writable_schema = 1')->ordered();
 
         (new SQLiteBuilder($connection))->dropAllViews();
     }
@@ -614,20 +604,18 @@ class DatabaseSQLiteBuilderTest extends TestCase
     {
         $connection = m::mock(Connection::class);
         $grammar = new SQLiteGrammar($connection);
-        $pdo = m::mock(PDO::class);
 
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
         $connection->shouldReceive('scalar')->once()->with('pragma writable_schema', [], false)->andReturn(0);
         $connection->shouldReceive('getServerVersion')->once()->andReturn('3.45.0');
-        $connection->shouldReceive('getPdo')->twice()->andReturn($pdo);
-        $pdo->shouldReceive('exec')->once()->with('pragma writable_schema = 1')->andReturn(0)->ordered();
+        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma writable_schema = 1')->ordered();
         $connection->shouldReceive('statement')
             ->once()
             ->with($grammar->compileDropAllTables('main'))
             ->andReturnFalse()
             ->ordered();
-        $pdo->shouldReceive('exec')->once()->with('pragma writable_schema = RESET')->andReturn(0)->ordered();
+        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma writable_schema = RESET')->ordered();
         $connection->shouldReceive('statement')->with($grammar->compileRebuild('main'))->never();
 
         $this->expectException(RuntimeException::class);
@@ -642,20 +630,18 @@ class DatabaseSQLiteBuilderTest extends TestCase
     {
         $connection = m::mock(Connection::class);
         $grammar = new SQLiteGrammar($connection);
-        $pdo = m::mock(PDO::class);
 
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
         $connection->shouldReceive('scalar')->once()->with('pragma writable_schema', [], false)->andReturn(0);
         $connection->shouldReceive('getServerVersion')->once()->andReturn('3.36.0');
-        $connection->shouldReceive('getPdo')->twice()->andReturn($pdo);
-        $pdo->shouldReceive('exec')->once()->with('pragma writable_schema = 1')->andReturn(0)->ordered();
+        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma writable_schema = 1')->ordered();
         $connection->shouldReceive('statement')
             ->once()
             ->with($grammar->compileDropAllTables('main'))
             ->andReturnTrue()
             ->ordered();
-        $pdo->shouldReceive('exec')->once()->with('pragma writable_schema = 0')->andReturn(0)->ordered();
+        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma writable_schema = 0')->ordered();
         $connection->shouldReceive('statement')
             ->once()
             ->with($grammar->compileRebuild('main'))
@@ -673,20 +659,18 @@ class DatabaseSQLiteBuilderTest extends TestCase
     {
         $connection = m::mock(Connection::class);
         $grammar = new SQLiteGrammar($connection);
-        $pdo = m::mock(PDO::class);
 
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
         $connection->shouldReceive('scalar')->once()->with('pragma writable_schema', [], false)->andReturn(0);
         $connection->shouldReceive('getServerVersion')->once()->andReturn('3.45.0');
-        $connection->shouldReceive('getPdo')->twice()->andReturn($pdo);
-        $pdo->shouldReceive('exec')->once()->with('pragma writable_schema = 1')->andReturn(0)->ordered();
+        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma writable_schema = 1')->ordered();
         $connection->shouldReceive('statement')
             ->once()
             ->with($grammar->compileDropAllTables('main'))
             ->andReturnTrue()
             ->ordered();
-        $pdo->shouldReceive('exec')->once()->with('pragma writable_schema = RESET')->andReturn(0)->ordered();
+        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma writable_schema = RESET')->ordered();
         $connection->shouldReceive('statement')
             ->once()
             ->with($grammar->compileRebuild('main'))
@@ -700,25 +684,26 @@ class DatabaseSQLiteBuilderTest extends TestCase
         (new SQLiteBuilder($connection))->dropAllTables();
     }
 
-    public function testDropAllTablesMarksTheSessionUnknownWhenSchemaReloadFails(): void
+    public function testDropAllTablesStopsBeforeSchemaReloadWhenWritableSchemaResetFails(): void
     {
         $connection = m::mock(Connection::class);
         $grammar = new SQLiteGrammar($connection);
-        $pdo = m::mock(PDO::class);
 
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
         $connection->shouldReceive('scalar')->once()->with('pragma writable_schema', [], false)->andReturn(0);
         $connection->shouldReceive('getServerVersion')->once()->andReturn('3.45.0');
-        $connection->shouldReceive('getPdo')->twice()->andReturn($pdo);
-        $pdo->shouldReceive('exec')->once()->with('pragma writable_schema = 1')->andReturn(0)->ordered();
+        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma writable_schema = 1')->ordered();
         $connection->shouldReceive('statement')
             ->once()
             ->with($grammar->compileDropAllTables('main'))
             ->andReturnTrue()
             ->ordered();
-        $pdo->shouldReceive('exec')->once()->with('pragma writable_schema = RESET')->andReturnFalse()->ordered();
-        $connection->shouldReceive('markCurrentSessionStateUnknown')->once();
+        $connection->shouldReceive('executeSessionStatement')
+            ->once()
+            ->with('pragma writable_schema = RESET')
+            ->andThrow(new RuntimeException('Failed to execute schema statement [pragma writable_schema = RESET].'))
+            ->ordered();
         $connection->shouldReceive('statement')->with($grammar->compileRebuild('main'))->never();
 
         $this->expectException(RuntimeException::class);
@@ -727,30 +712,31 @@ class DatabaseSQLiteBuilderTest extends TestCase
         (new SQLiteBuilder($connection))->dropAllTables();
     }
 
-    public function testDropAllViewsMarksTheSessionUnknownWhenWritableModeRestorationFails(): void
+    public function testDropAllViewsPropagatesWritableModeRestorationFailure(): void
     {
         $connection = m::mock(Connection::class);
         $grammar = new SQLiteGrammar($connection);
-        $pdo = m::mock(PDO::class);
 
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
         $connection->shouldReceive('scalar')->once()->with('pragma writable_schema', [], false)->andReturn(1);
         $connection->shouldReceive('getServerVersion')->once()->andReturn('3.45.0');
-        $connection->shouldReceive('getPdo')->twice()->andReturn($pdo);
         $connection->shouldReceive('statement')
             ->once()
             ->with($grammar->compileDropAllViews('main'))
             ->andReturnTrue()
             ->ordered();
-        $pdo->shouldReceive('exec')->once()->with('pragma writable_schema = RESET')->andReturn(0)->ordered();
+        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma writable_schema = RESET')->ordered();
         $connection->shouldReceive('statement')
             ->once()
             ->with($grammar->compileRebuild('main'))
             ->andReturnTrue()
             ->ordered();
-        $pdo->shouldReceive('exec')->once()->with('pragma writable_schema = 1')->andReturnFalse()->ordered();
-        $connection->shouldReceive('markCurrentSessionStateUnknown')->once();
+        $connection->shouldReceive('executeSessionStatement')
+            ->once()
+            ->with('pragma writable_schema = 1')
+            ->andThrow(new RuntimeException('Failed to execute schema statement [pragma writable_schema = 1].'))
+            ->ordered();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Failed to execute schema statement [pragma writable_schema = 1].');

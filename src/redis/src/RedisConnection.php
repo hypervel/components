@@ -6,6 +6,7 @@ namespace Hypervel\Redis;
 
 use BadMethodCallException;
 use Generator;
+use Hypervel\Context\NonCopyableContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
@@ -325,7 +326,7 @@ use function Hypervel\Coroutine\go;
  * @method false|int|Redis|RedisCluster zintercard(array $keys, int $limit = -1)
  * @method array|false|Redis|RedisCluster zunion(array $keys, array|null $weights = null, array|null $options = null)
  */
-abstract class RedisConnection extends BaseConnection
+abstract class RedisConnection extends BaseConnection implements NonCopyableContext
 {
     use Macroable {
         __call as macroCall;

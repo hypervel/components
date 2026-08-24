@@ -27,7 +27,7 @@ class QueryException extends PDOException
     protected array $bindings;
 
     /**
-     * The PDO read / write type for the executed query.
+     * The connection role used for the executed query.
      *
      * @var null|'read'|'write'
      */

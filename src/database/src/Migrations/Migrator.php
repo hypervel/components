@@ -28,6 +28,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use InvalidArgumentException;
 use ReflectionClass;
 
 class Migrator
@@ -502,6 +503,39 @@ class Migrator
     }
 
     /**
+     * Get the distinct connections declared by the migrations at the given paths.
+     *
+     * @return list<string>
+     */
+    public function getMigrationConnections(
+        array|string $paths,
+        ?string $defaultConnection = null,
+    ): array {
+        $defaultConnection = static::resolveMigrationConnectionName($defaultConnection);
+
+        if ($defaultConnection === null || $defaultConnection === '') {
+            throw new InvalidArgumentException('Migration connection name cannot be empty.');
+        }
+
+        return $this->usingConnection($defaultConnection, function () use ($paths, $defaultConnection): array {
+            $connections = [$defaultConnection => true];
+
+            foreach ($this->getMigrationFiles($paths) as $file) {
+                /** @var Migration $migration */
+                $migration = $this->resolvePath($file);
+                $connection = $migration->getConnection();
+                $connection = static::resolveMigrationConnectionName(
+                    $connection === null || $connection === '' ? $defaultConnection : $connection
+                );
+
+                $connections[$connection] = true;
+            }
+
+            return array_keys($connections);
+        });
+    }
+
+    /**
      * Generate a migration class name based on the migration file name.
      */
     protected function getMigrationClass(string $migrationName): string
@@ -592,6 +626,9 @@ class Migrator
      * state required by migrations — advisory locks, LOCK TABLE, temp tables — is
      * incompatible with transaction-pooling mode.
      *
+     * The target must be terminal: it may omit migrations_connection or reference
+     * itself, but it may not route migrations to another connection.
+     *
      * When $name is null, falls back to the "effective default connection" —
      * the current coroutine's Context override first, then the configured
      * default (database.default). This mirrors DatabaseManager::getDefaultConnection()
@@ -601,6 +638,10 @@ class Migrator
      * Defensively passes the name through when the container has no "config"
      * binding so unit tests that construct Migrator without a booted framework
      * still work.
+     *
+     * @return ($name is null ? null|string : string)
+     *
+     * @throws InvalidArgumentException
      */
     public static function resolveMigrationConnectionName(?string $name): ?string
     {
@@ -615,26 +656,49 @@ class Migrator
         if ($name === null) {
             $name = CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY)
                 ?? $config->get('database.default');
-
-            if ($name === null) {
-                return null;
-            }
         }
 
-        return $config->string(
+        if ($name === null || $name === '') {
+            throw new InvalidArgumentException('Migration connection name cannot be empty.');
+        }
+
+        $target = $config->string(
             "database.connections.{$name}.migrations_connection",
             $name,
         );
+
+        if ($target === '') {
+            throw new InvalidArgumentException(
+                "The migrations_connection value for database connection [{$name}] cannot be empty."
+            );
+        }
+
+        $terminalTarget = $config->string(
+            "database.connections.{$target}.migrations_connection",
+            $target,
+        );
+
+        if ($terminalTarget === '') {
+            throw new InvalidArgumentException(
+                "The migrations_connection value for database connection [{$target}] cannot be empty."
+            );
+        }
+
+        if ($terminalTarget !== $target) {
+            throw new InvalidArgumentException(
+                "Database connection [{$name}] routes migrations to [{$target}], but [{$target}] routes migrations to [{$terminalTarget}]. Migration connections must resolve directly to a terminal connection."
+            );
+        }
+
+        return $target;
     }
 
     /**
      * Execute the given callback using the given connection as the default connection.
      *
-     * Snapshots the prior coroutine Context value and the stored migrator
-     * connection on entry, then restores them directly in finally without
-     * routing back through setConnection() — otherwise the restoration would
-     * apply migrations_connection to the saved alias and leave the wrong
-     * default in place.
+     * Snapshots the prior coroutine Context value and stored migrator connection
+     * independently, then restores both directly in finally. The two values can
+     * differ, so routing restoration through setConnection() would collapse them.
      *
      * @template TReturn
      *

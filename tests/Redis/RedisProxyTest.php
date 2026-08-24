@@ -292,33 +292,124 @@ class RedisProxyTest extends TestCase
         $this->assertSame(0, $redis->contextAbsentReleaseCalls);
     }
 
-    public function testCopiedContextRegistersAChildOwnedTerminalRelease(): void
+    public function testCopiedSiblingContextsBorrowDistinctPinnedConnectionsAndOwnTheirReleases(): void
     {
-        $transaction = m::mock(PhpRedis::class);
-        $transaction->expects('exec')->andReturn([]);
-        $rawTransaction = m::mock(PhpRedis::class);
+        $parentTransaction = m::mock(PhpRedis::class);
+        $firstChildTransaction = m::mock(PhpRedis::class);
+        $secondChildTransaction = m::mock(PhpRedis::class);
 
         $parentConnection = $this->mockConnection();
-        $parentConnection->expects('multi')->andReturn($transaction);
+        $parentConnection->expects('multi')->andReturn($parentTransaction);
         $parentConnection->expects('release');
-        $childConnection = $this->mockConnection();
-        $childConnection->expects('multi')->andReturn($rawTransaction);
-        $childConnection->expects('release');
+        $firstChildConnection = $this->mockConnection();
+        $firstChildConnection->expects('multi')->andReturn($firstChildTransaction);
+        $firstChildConnection->expects('release');
+        $secondChildConnection = $this->mockConnection();
+        $secondChildConnection->expects('multi')->andReturn($secondChildTransaction);
+        $secondChildConnection->expects('release');
 
-        $redis = $this->createCountingRedis($parentConnection, $childConnection);
-        $redis->transaction(static function (): void {
+        $redis = $this->createCountingRedis(
+            $parentConnection,
+            $firstChildConnection,
+            $secondChildConnection,
+        );
+        $redis->multi();
+
+        $childrenReady = new Channel(2);
+        $releaseChildren = new Channel(2);
+        $childCoroutineIds = [
+            go(static function () use ($redis, $childrenReady, $releaseChildren): void {
+                $redis->multi();
+                $childrenReady->push(CoroutineContext::get(
+                    RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default',
+                ));
+                $releaseChildren->pop();
+            }, copyContext: true),
+            go(static function () use ($redis, $childrenReady, $releaseChildren): void {
+                $redis->multi();
+                $childrenReady->push(CoroutineContext::get(
+                    RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default',
+                ));
+                $releaseChildren->pop();
+            }, copyContext: true),
+        ];
+
+        try {
+            $firstBorrowedConnection = $childrenReady->pop(1.0);
+            $secondBorrowedConnection = $childrenReady->pop(1.0);
+
+            $this->assertSame($parentConnection, CoroutineContext::get(
+                RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default',
+            ));
+            $this->assertNotSame($parentConnection, $firstBorrowedConnection);
+            $this->assertNotSame($parentConnection, $secondBorrowedConnection);
+            $this->assertNotSame($firstBorrowedConnection, $secondBorrowedConnection);
+        } finally {
+            $releaseChildren->push(true);
+            $releaseChildren->push(true);
+            Coroutine::join($childCoroutineIds, 1.0);
+        }
+
+        foreach ($childCoroutineIds as $childCoroutineId) {
+            $this->assertFalse(Coroutine::exists($childCoroutineId));
+        }
+    }
+
+    public function testDetachedCopiedChildBorrowsAfterItsParentReleases(): void
+    {
+        $parentTransaction = m::mock(PhpRedis::class);
+        $childTransaction = m::mock(PhpRedis::class);
+        $parentReleased = new Channel(1);
+        $childReleased = new Channel(1);
+
+        $parentConnection = $this->mockConnection();
+        $parentConnection->expects('multi')->andReturn($parentTransaction);
+        $parentConnection->expects('release')->andReturnUsing(static function () use ($parentReleased): void {
+            $parentReleased->push(true);
+        });
+        $childConnection = $this->mockConnection();
+        $childConnection->expects('multi')->andReturn($childTransaction);
+        $childConnection->expects('release')->andReturnUsing(static function () use ($childReleased): void {
+            $childReleased->push(true);
         });
 
-        $completed = new Channel(1);
-        go(static function () use ($redis, $completed): void {
-            Coroutine::defer(static function () use ($completed): void {
-                $completed->push(true);
-            });
+        $redis = $this->createCountingRedis($parentConnection, $childConnection);
+        $allowChild = new Channel(1);
+        $childBorrowed = new Channel(1);
+        $childCoroutineId = new Channel(1);
 
+        $parentCoroutineId = go(static function () use ($redis, $allowChild, $childBorrowed, $childCoroutineId): void {
             $redis->multi();
-        }, copyContext: true);
+            $childCoroutineId->push(go(static function () use ($redis, $allowChild, $childBorrowed): void {
+                $allowChild->pop();
+                $redis->multi();
+                $childBorrowed->push(CoroutineContext::get(
+                    RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default',
+                ));
+            }, copyContext: true));
+        });
 
-        $this->assertTrue($completed->pop(1.0));
+        $detachedChildCoroutineId = null;
+
+        try {
+            $detachedChildCoroutineId = $childCoroutineId->pop(1.0);
+            $this->assertIsInt($detachedChildCoroutineId);
+            $this->assertTrue($parentReleased->pop(1.0));
+
+            $allowChild->push(true);
+
+            $this->assertSame($childConnection, $childBorrowed->pop(1.0));
+            $this->assertTrue($childReleased->pop(1.0));
+        } finally {
+            $allowChild->push(true, 0.01);
+            Coroutine::join(array_values(array_filter([
+                $parentCoroutineId,
+                $detachedChildCoroutineId,
+            ], is_int(...))), 1.0);
+        }
+
+        $this->assertIsInt($detachedChildCoroutineId);
+        $this->assertFalse(Coroutine::exists($detachedChildCoroutineId));
     }
 
     public function testSelectPinnedConnectionDoesNotLeakAcrossCoroutines(): void
@@ -467,8 +558,8 @@ class RedisProxyTest extends TestCase
         try {
             $redis->get('key');
             $this->fail('Expected exception was not thrown');
-        } catch (Exception $e) {
-            $this->assertEquals('Redis error', $e->getMessage());
+        } catch (Exception $exception) {
+            $this->assertSame('Redis error', $exception->getMessage());
         }
     }
 
@@ -485,8 +576,8 @@ class RedisProxyTest extends TestCase
         try {
             $redis->multi();
             $this->fail('Expected exception was not thrown');
-        } catch (Exception $e) {
-            $this->assertEquals('Multi failed', $e->getMessage());
+        } catch (Exception $exception) {
+            $this->assertSame('Multi failed', $exception->getMessage());
         }
 
         // Connection should NOT be stored in context on error
@@ -878,8 +969,8 @@ class RedisProxyTest extends TestCase
 
         $redis = $this->createRedis($connection);
 
-        $result = $redis->withConnection(function (RedisConnection $conn) use ($connection) {
-            $this->assertSame($connection, $conn);
+        $result = $redis->withConnection(function (RedisConnection $redisConnection) use ($connection) {
+            $this->assertSame($connection, $redisConnection);
 
             return 'callback-result';
         });
@@ -898,8 +989,8 @@ class RedisProxyTest extends TestCase
 
         $redis = $this->createRedis($connection);
 
-        $result = $redis->withConnection(function (RedisConnection $conn) use ($connection) {
-            $this->assertSame($connection, $conn);
+        $result = $redis->withConnection(function (RedisConnection $redisConnection) use ($connection) {
+            $this->assertSame($connection, $redisConnection);
 
             return 'reused-connection';
         });
@@ -920,7 +1011,7 @@ class RedisProxyTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Callback failed');
 
-        $redis->withConnection(function (RedisConnection $conn) {
+        $redis->withConnection(function (RedisConnection $redisConnection) {
             throw new RuntimeException('Callback failed');
         });
     }
@@ -936,12 +1027,12 @@ class RedisProxyTest extends TestCase
         $redis = $this->createRedis($connection);
 
         try {
-            $redis->withConnection(function (RedisConnection $conn) {
+            $redis->withConnection(function (RedisConnection $redisConnection) {
                 throw new RuntimeException('Callback failed');
             });
             $this->fail('Expected exception was not thrown');
-        } catch (RuntimeException $e) {
-            $this->assertSame('Callback failed', $e->getMessage());
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Callback failed', $exception->getMessage());
         }
 
         // Connection should still be in context
@@ -961,7 +1052,7 @@ class RedisProxyTest extends TestCase
 
         $redis = $this->createRedis($connection);
 
-        $redis->withConnection(function (RedisConnection $conn) {
+        $redis->withConnection(function (RedisConnection $redisConnection) {
             return 'result';
         });
     }
@@ -979,7 +1070,7 @@ class RedisProxyTest extends TestCase
 
         $redis = $this->createRedis($connection);
 
-        $redis->withConnection(function (RedisConnection $conn) {
+        $redis->withConnection(function (RedisConnection $redisConnection) {
             return 'result';
         }, transform: false);
     }
@@ -997,7 +1088,7 @@ class RedisProxyTest extends TestCase
 
         $redis = $this->createRedis($connection);
 
-        $redis->withConnection(function (RedisConnection $conn) {
+        $redis->withConnection(function (RedisConnection $redisConnection) {
             return 'result';
         }, transform: true);
     }
@@ -1454,7 +1545,7 @@ class RedisProxyTest extends TestCase
         $this->assertSame(3, count($nodes));
     }
 
-    public function testFlushByPatternDelegatestoConnection()
+    public function testFlushByPatternDelegatesToConnection(): void
     {
         $connection = $this->mockConnection();
         $connection->shouldReceive('flushByPattern')
@@ -1470,7 +1561,7 @@ class RedisProxyTest extends TestCase
         $this->assertSame(42, $result);
     }
 
-    public function testIsClusterReturnsFalseForStandardConfig()
+    public function testIsClusterReturnsFalseForStandardConfig(): void
     {
         $pool = m::mock(RedisPool::class);
         $pool->shouldReceive('getConfig')->andReturn([
@@ -1487,7 +1578,7 @@ class RedisProxyTest extends TestCase
         $this->assertFalse($redis->isCluster());
     }
 
-    public function testIsClusterReturnsTrueForClusterConfig()
+    public function testIsClusterReturnsTrueForClusterConfig(): void
     {
         $pool = m::mock(RedisPool::class);
         $pool->shouldReceive('getConfig')->andReturn([
@@ -1620,8 +1711,8 @@ class RedisProxyTest extends TestCase
 
         // Forward the command call to the mock PHP Redis
         $mockRedisConnection->shouldReceive($command)
-            ->andReturnUsing(function (...$args) use ($mockPhpRedis, $command) {
-                return $mockPhpRedis->{$command}(...$args);
+            ->andReturnUsing(function (...$arguments) use ($mockPhpRedis, $command) {
+                return $mockPhpRedis->{$command}(...$arguments);
             });
 
         return $mockRedisConnection;

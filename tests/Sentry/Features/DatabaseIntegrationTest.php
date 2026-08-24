@@ -10,8 +10,10 @@ use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Events\TransactionBeginning;
 use Hypervel\Database\Events\TransactionCommitted;
 use Hypervel\Database\Events\TransactionRolledBack;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Tests\Sentry\SentryTestCase;
+use PDO;
 use Sentry\Breadcrumb;
 use Sentry\Tracing\Span;
 
@@ -26,7 +28,12 @@ class DatabaseIntegrationTest extends SentryTestCase
      */
     protected function createTestConnection(): Connection
     {
-        return new Connection(fn () => null, '', '', ['name' => 'sqlite']);
+        return new SQLiteConnection(
+            new PDO('sqlite::memory:'),
+            ':memory:',
+            '',
+            ['driver' => 'sqlite', 'name' => 'sqlite'],
+        );
     }
 
     // ──────────────────────────────────────────────────────

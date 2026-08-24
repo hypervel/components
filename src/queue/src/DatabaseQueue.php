@@ -19,7 +19,6 @@ use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
-use PDO;
 use Throwable;
 
 class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
@@ -458,8 +457,9 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      */
     protected function getLockForPopping(): bool|string
     {
-        $databaseEngine = $this->getDatabase()->getPdo()->getAttribute(PDO::ATTR_DRIVER_NAME);
-        $databaseVersion = $this->getDatabase()->getConfig('version') ?? $this->getDatabase()->getPdo()->getAttribute(PDO::ATTR_SERVER_VERSION);
+        $connection = $this->getDatabase();
+        $databaseEngine = $connection->getDriverName();
+        $databaseVersion = $connection->getConfig('version') ?? $connection->getServerVersion();
 
         if (Str::of($databaseVersion)->contains('MariaDB')) {
             $databaseEngine = 'mariadb';
@@ -475,10 +475,6 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
             || ($databaseEngine === 'vitess' && version_compare($databaseVersion, '19.0', '>='))
         ) {
             return 'FOR UPDATE SKIP LOCKED';
-        }
-
-        if ($databaseEngine === 'sqlsrv') {
-            return 'with(rowlock,updlock,readpast)';
         }
 
         return true;

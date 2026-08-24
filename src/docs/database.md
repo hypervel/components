@@ -6,6 +6,7 @@
     - [Read and Write Connections](#read-and-write-connections)
     - [Connection Pooling](#connection-pooling)
     - [Configuring Database Session State](#configuring-database-session-state)
+    - [Extending Database Connections](#extending-database-connections)
     - [Static Analysis](#static-analysis)
 - [Running SQL Queries](#running-queries)
     - [Using Multiple Database Connections](#using-multiple-database-connections)
@@ -131,7 +132,7 @@ To see how read / write connections should be configured, let's look at this exa
     'strict' => true,
     'engine' => null,
     'options' => extension_loaded('pdo_mysql') ? array_filter([
-        (PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : \PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
+        \Pdo\Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
     ]) : [],
     'pool' => [
         'min_connections' => (int) env('DB_MIN_CONNECTIONS', 1),
@@ -188,7 +189,13 @@ Each connection may define its own `pool` configuration:
 ],
 ```
 
-The `min_connections` option controls how far trimming excess idle connections may reduce the total managed connection count. It is not an idle-count invariant or a guaranteed total minimum, and it does not prewarm or automatically replenish the pool. The caller that first needs each new connection pays its connection-establishment cost, and the pool may have zero idle connections under load. Lifecycle-expired or unhealthy connections and explicit discards can reduce the managed count below `min_connections`; failed connection creation can leave it below that value. None is automatically replenished. The `max_connections` option determines the maximum number of connections that may be opened for the worker. The `connect_timeout` option controls how long Hypervel will wait while opening a new database connection. The `wait_timeout` option controls how long a coroutine may wait for an available connection when the pool is exhausted. The `heartbeat` option controls how often Hypervel validates idle connections in the worker pool; set this value to `-1` to disable heartbeats. When heartbeats are enabled, Hypervel checks retained idle connections with a raw `SELECT 1` ping that does not fire query events, query logs, or query duration handlers. The `heartbeat_timeout` option controls how long a heartbeat ping may run before the connection is discarded. The `max_idle_time` option controls how long an idle connection may remain in the pool while the total managed count is above `min_connections`. The `max_lifetime` option controls the upper bound for how long a pooled connection generation may live before it is recycled while idle or before it is reused; Hypervel assigns each generation an effective lifetime between 90-100% of this value to avoid synchronized reconnects. Set this value to `-1` to disable lifetime recycling.
+The `min_connections` option controls how far Hypervel may trim excess idle connections. It does not prewarm or automatically replenish the pool, and the pool may have no idle connections while it is under load. The coroutine that first needs each new connection therefore pays the cost of opening it. Expired, unhealthy, or discarded connections may reduce the managed connection count below this value. A failed connection attempt may do the same.
+
+The `max_connections` option determines the maximum number of connections that may be opened for the worker. The `connect_timeout` option controls how long Hypervel will wait while opening a new database connection, while `wait_timeout` controls how long a coroutine may wait for an available connection when the pool is exhausted.
+
+The `heartbeat` option controls how often Hypervel validates idle connections in the worker pool. Set this value to `-1` to disable heartbeats. When heartbeats are enabled, Hypervel asks the database driver to check each retained idle connection without firing query events, query logs, or query duration handlers. Hypervel's PDO drivers use a raw `SELECT 1` query, while native and HTTP drivers may use their own protocol. The `heartbeat_timeout` option controls how long a heartbeat check may run before the connection is discarded.
+
+The `max_idle_time` option controls how long an idle connection may remain in the pool while the managed connection count is above `min_connections`. The `max_lifetime` option controls how long a pooled connection may live. Hypervel recycles an expired connection only while it is idle or before it is reused. To avoid synchronized reconnects, Hypervel varies each connection's effective lifetime between 90 and 100 percent of this value. Set `max_lifetime` to `-1` to disable lifetime recycling.
 
 For a connection with separate read and write hosts, each base pool slot may lazily open one write PDO and one read PDO. It does not open one PDO per configured host. If `max_connections` is `10`, a worker may therefore hold up to roughly 20 server-side database connections for that configured connection once both sides have been used. Size your database server, PgBouncer, PgDog, or other pooler capacity with that in mind. Increase `max_connections` for more concurrent database work per worker, not simply because you configured more read hosts.
 
@@ -205,7 +212,7 @@ When you need a direct connection for migrations or schema operations, configure
 <a name="configuring-database-session-state"></a>
 ### Configuring Database Session State
 
-Database connections may stay open and be reused across requests and jobs. If your application uses a database session setting that can change between requests or jobs, you may use a session configurator to keep it up to date.
+PDO database connections may stay open and be reused across requests and jobs. If your application uses a PDO session setting that can change between requests or jobs, you may use a session configurator to keep it up to date. Native and HTTP database drivers should configure their own client sessions through their connection implementation.
 
 Session configurators implement the `SessionConfigurator` contract. The following example keeps PostgreSQL's `application_name` setting up to date:
 
@@ -216,7 +223,7 @@ declare(strict_types=1);
 
 namespace App\Database;
 
-use Hypervel\Database\Connection;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\SessionConfigurator;
 use PDO;
 
@@ -227,14 +234,14 @@ final class ApplicationNameConfigurator implements SessionConfigurator
     ) {
     }
 
-    public function state(Connection $connection): ?string
+    public function state(PdoConnection $connection): ?string
     {
         return $connection->getDriverName() === 'pgsql'
             ? $this->applicationName
             : null;
     }
 
-    public function apply(PDO $pdo, string $state, Connection $connection): void
+    public function apply(PDO $pdo, string $state, PdoConnection $connection): void
     {
         $statement = $pdo->prepare(
             "select set_config('application_name', ?, false)"
@@ -249,9 +256,9 @@ You should register the configurator in the `boot` method of a service provider:
 
 ```php
 use App\Database\ApplicationNameConfigurator;
-use Hypervel\Database\Connection;
+use Hypervel\Database\PdoConnection;
 
-Connection::configureSessionUsing(
+PdoConnection::configureSessionUsing(
     $this->app->make(ApplicationNameConfigurator::class)
 );
 ```
@@ -266,7 +273,7 @@ The `apply` method receives the PDO that needs to be configured. Use this PDO di
 
 The `apply` method must apply all the settings represented by the state string to the database session. When using PostgreSQL, use session-level `SET` or `set_config(..., false)`. Do not use `SET LOCAL` or `set_config(..., true)`, since those settings last only for the current transaction.
 
-Hypervel tracks the applied state separately for read and write connections. It applies the settings when a connection is first used, when the state changes, after a reconnect, and after a rollback that may have undone a setting. Returning a connection to the pool or committing a transaction does not cause unchanged settings to be applied again. If configuration fails, Hypervel will not run the application query, and a pooled connection will not be returned as healthy.
+Hypervel tracks the applied state separately for the read and write PDOs. It applies the settings when a PDO is first used, when the state changes, after a reconnect, and after a rollback that may have undone a setting. Returning a connection to the pool or committing a transaction does not cause unchanged settings to be applied again. If configuration fails, Hypervel will not run the application query, and a pooled connection will not be returned as healthy.
 
 When the state has not changed, Hypervel runs no configuration SQL. The `state` method is still called, so it should remain quick. If you do not register a configurator, Hypervel stores no session state and runs no configuration SQL.
 
@@ -277,6 +284,52 @@ The `getPdo` and `getReadPdo` methods configure the PDO before returning it. The
 
 > [!WARNING]
 > If a setting must persist across queries and your application connects through a database proxy or connection pooler, use a mode that keeps the same database session. For example, PgBouncer must use session pooling. Transaction and statement pooling may send consecutive queries to different database sessions, so the setting may be missing from the next query. Hypervel cannot detect the pooler's mode for you. Direct database connections are not affected.
+
+<a name="extending-database-connections"></a>
+### Extending Database Connections
+
+Hypervel provides separate extension points for PDO drivers and drivers that use another transport.
+
+If your driver uses PDO, register a connection resolver during application boot. The resolver receives the lazy PDO connection, database name, table prefix, and normalized configuration. It should return a `PdoConnection` instance:
+
+```php
+use App\Database\TenantAwareMySqlConnection;
+use Closure;
+use Hypervel\Database\Connection;
+use Hypervel\Database\PdoConnection;
+use PDO;
+
+Connection::resolverFor('mysql', function (
+    PDO|Closure $pdo,
+    string $database,
+    string $prefix,
+    array $config,
+): PdoConnection {
+    return new TenantAwareMySqlConnection(
+        $pdo, $database, $prefix, $config
+    );
+});
+```
+
+If your driver uses an HTTP client, native extension, or another non-PDO transport, extend the driver-neutral `Connection` class and register it during application boot using the `DB::extend` method:
+
+```php
+use App\Database\ClickHouseConnection;
+use Hypervel\Database\Connection;
+use Hypervel\Support\Facades\DB;
+
+DB::extend('clickhouse', function (array $config, ?string $name): Connection {
+    return new ClickHouseConnection(
+        database: $config['database'] ?? '',
+        tablePrefix: $config['prefix'],
+        config: $config,
+    );
+});
+```
+
+The extension name may be a driver name or a configured connection name. A connection-specific extension takes precedence over a driver extension. The configuration includes the normalized `connect_timeout` value, allowing the driver to apply the pool's connection deadline to its client.
+
+Custom connections implement their own query execution, transactions, escaping, health check, reconnection, and cleanup behavior. Hypervel's database pool calls those connection methods without assuming PDO, so a native or HTTP driver does not need to create a fake PDO instance.
 
 <a name="static-analysis"></a>
 ### Static Analysis
@@ -454,13 +507,21 @@ $users = DB::connection('sqlite')->select(/* ... */);
 
 Hypervel applications should define database connections in the configuration file before the worker boots. Runtime connection configuration is not supported because database pools are worker-level resources and configuration mutation would affect concurrent coroutines in the same worker.
 
-You may access the underlying PDO instance of a connection using the `getPdo` method. Hypervel applies any registered session configuration before returning the PDO.
+Hypervel's built-in MariaDB, MySQL, PostgreSQL, and SQLite connections extend `PdoConnection`. You may access their underlying PDO instance using the `getPdo` method. Hypervel applies any registered session configuration before returning the PDO:
 
 ```php
-$pdo = DB::connection()->getPdo();
+use Hypervel\Database\PdoConnection;
+
+$connection = DB::connection();
+
+if ($connection instanceof PdoConnection) {
+    $pdo = $connection->getPdo();
+}
 ```
 
-If you are building a low-level framework extension, you may use `getRawPdo` to access the connection parameter without resolving or configuring it. This value may be a PDO, a lazy connection closure, or `null`. Applications should use `getPdo` or Hypervel's query APIs instead.
+The driver-neutral `Connection` class does not expose PDO methods because native and HTTP drivers do not have a PDO instance. Code that requires direct PDO access should accept or narrow to `PdoConnection` instead of a generic connection.
+
+If you are building a low-level PDO extension, you may use `getRawPdo` to access the connection parameter without resolving or configuring it. This value may be a PDO, a lazy connection closure, or `null`. Applications should use `getPdo` or Hypervel's query APIs instead.
 
 <a name="listening-for-query-events"></a>
 ### Listening for Query Events

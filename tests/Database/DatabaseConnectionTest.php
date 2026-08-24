@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Database\DatabaseConnectionTest;
 use DateTime;
 use ErrorException;
 use Exception;
+use Generator;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseTransactionsManager;
@@ -17,23 +18,20 @@ use Hypervel\Database\Events\TransactionCommitted;
 use Hypervel\Database\Events\TransactionCommitting;
 use Hypervel\Database\Events\TransactionRolledBack;
 use Hypervel\Database\MultipleColumnsSelectedException;
-use Hypervel\Database\MySqlConnection;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder as BaseBuilder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Database\Schema\Grammars\Grammar as SchemaGrammar;
-use Hypervel\Database\SessionConfigurator;
 use Hypervel\Testbench\TestCase;
 use LogicException;
 use Mockery as m;
 use PDO;
 use PDOException;
-use PDOStatement;
 use ReflectionClass;
 use RuntimeException;
-use stdClass;
 
 class DatabaseConnectionTest extends TestCase
 {
@@ -53,6 +51,198 @@ class DatabaseConnectionTest extends TestCase
         } finally {
             Connection::flushState();
         }
+    }
+
+    public function testNeutralConnectionDoesNotExposePdoResourceMethods(): void
+    {
+        $connection = new ReflectionClass(Connection::class);
+
+        foreach (['getPdo', 'getRawPdo', 'getReadPdo', 'getRawReadPdo', 'setPdo', 'setReadPdo'] as $method) {
+            $this->assertFalse($connection->hasMethod($method));
+        }
+    }
+
+    public function testNeutralConnectionProvidesPreciseUnsupportedCapabilityErrors(): void
+    {
+        $connection = new NeutralConnectionForTest(
+            'analytics',
+            '',
+            ['name' => 'analytics', 'driver' => 'http']
+        );
+
+        foreach ([
+            [
+                static fn () => $connection->selectResultSets('select 1'),
+                LogicException::class,
+                'Database driver [http] does not support multiple result sets.',
+            ],
+            [
+                static fn () => $connection->getLastInsertId(),
+                LogicException::class,
+                'Database driver [http] does not support retrieving last insert IDs.',
+            ],
+            [
+                static fn () => $connection->getSchemaState(),
+                RuntimeException::class,
+                'This database driver does not support schema state.',
+            ],
+            [
+                static fn () => $connection->executeSessionStatement('set state'),
+                LogicException::class,
+                'Database driver [http] does not support physical session statements.',
+            ],
+            [
+                static fn () => $connection->beginTransaction(),
+                LogicException::class,
+                'Database driver [http] does not support transactions.',
+            ],
+        ] as [$operation, $exceptionClass, $message]) {
+            $exception = null;
+
+            try {
+                $operation();
+            } catch (LogicException|RuntimeException $thrown) {
+                $exception = $thrown;
+            }
+
+            $this->assertInstanceOf($exceptionClass, $exception);
+            $this->assertSame($message, $exception->getMessage());
+        }
+    }
+
+    public function testNeutralConnectionOwnsEscapingAndLifecycleHooks(): void
+    {
+        $connection = new NeutralConnectionForTest(
+            'analytics',
+            '',
+            ['name' => 'analytics', 'driver' => 'http']
+        );
+
+        $this->assertSame('HTTP_STRING[value]', $connection->escape('value'));
+        $this->assertSame('null', $connection->escape(null));
+        $this->assertSame('1', $connection->escape(true));
+        $this->assertTrue($connection->ping());
+        $this->assertTrue($connection->isReusable());
+
+        $connection->disconnect();
+
+        $this->assertSame(1, $connection->disconnectCalls);
+        $this->assertSame(1, $connection->forgetCalls);
+        $this->assertFalse($connection->driverResourcesPresent);
+
+        $reconnects = 0;
+        $connection->setReconnector(function (NeutralConnectionForTest $connection) use (&$reconnects): void {
+            ++$reconnects;
+            $connection->driverResourcesPresent = true;
+        });
+        $connection->reconnectIfMissingConnection();
+
+        $this->assertSame(1, $reconnects);
+        $this->assertTrue($connection->driverResourcesPresent);
+    }
+
+    public function testNeutralConnectionRefreshesOnlyFromTheSameConfiguredType(): void
+    {
+        $connection = new NeutralConnectionForTest(
+            'analytics',
+            'analytics_',
+            ['name' => 'analytics', 'driver' => 'http']
+        );
+        $fresh = new NeutralConnectionForTest(
+            'fresh_analytics',
+            'fresh_',
+            ['name' => 'analytics', 'driver' => 'http']
+        );
+        $fresh->driverGeneration = 'fresh';
+
+        $connection->refreshFrom($fresh);
+
+        $this->assertSame(1, $connection->replaceCalls);
+        $this->assertSame(1, $connection->disconnectCalls);
+        $this->assertSame(1, $connection->forgetCalls);
+        $this->assertTrue($connection->driverResourcesPresent);
+        $this->assertSame('fresh', $connection->driverGeneration);
+
+        $connection->setDatabaseName('tenant_analytics');
+        $connection->setTablePrefix('tenant_');
+        $connection->resetForPool();
+
+        $this->assertSame('fresh_analytics', $connection->getDatabaseName());
+        $this->assertSame('fresh_', $connection->getTablePrefix());
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            'Cannot refresh connection [analytics] of type [' . NeutralConnectionForTest::class
+            . '] from connection [analytics] of type [' . NeutralTransactionConnectionForTest::class . '].'
+        );
+
+        $connection->refreshFrom(new NeutralTransactionConnectionForTest(
+            'analytics',
+            '',
+            ['name' => 'analytics', 'driver' => 'http']
+        ));
+    }
+
+    public function testNeutralPoolResetRestoresConfiguredMetadataAndRouting(): void
+    {
+        $connection = new NeutralConnectionForTest(
+            'derived_analytics',
+            'derived_',
+            ['name' => 'analytics', 'driver' => 'http']
+        );
+        $connection->setDatabaseName('tenant_analytics');
+        $connection->setTablePrefix('tenant_');
+        $connection->setLatestReadWriteTypeForTest('write');
+
+        $connection->resetForPool();
+
+        $this->assertSame('derived_analytics', $connection->getDatabaseName());
+        $this->assertSame('derived_', $connection->getTablePrefix());
+        $this->assertNull($connection->latestReadWriteTypeForTest());
+
+        $writeConnection = new NeutralConnectionForTest(
+            'analytics',
+            '',
+            [
+                'name' => 'analytics',
+                'driver' => 'http',
+                Connection::READ_WRITE_TYPE_CONFIG_KEY => 'write',
+            ]
+        );
+        $writeConnection->setLatestReadWriteTypeForTest('read');
+
+        $writeConnection->resetForPool();
+
+        $this->assertSame('write', $writeConnection->latestReadWriteTypeForTest());
+    }
+
+    public function testNeutralNestedConcurrencyFailureInvalidatesOnceWithoutRollingBackTheDriver(): void
+    {
+        $connection = new NeutralTransactionConnectionForTest(
+            'analytics',
+            '',
+            ['name' => 'analytics', 'driver' => 'http']
+        );
+        $connection->beginTransaction();
+        $failure = new QueryException(
+            'analytics',
+            '',
+            [],
+            new RuntimeException('Deadlock found when trying to get lock')
+        );
+
+        try {
+            $connection->transaction(static fn () => throw $failure);
+            $this->fail('Expected the nested transaction to deadlock.');
+        } catch (DeadlockException $exception) {
+            $this->assertSame($failure, $exception->getPrevious());
+        }
+
+        $this->assertSame(1, $connection->invalidateCalls);
+        $this->assertSame(0, $connection->rollBackCalls);
+        $this->assertSame(1, $connection->transactionLevel());
+
+        $connection->rollBack();
     }
 
     public function testSettingDefaultCallsGetDefaultGrammar()
@@ -102,216 +292,6 @@ class DatabaseConnectionTest extends TestCase
         $this->assertNull($connection->scalar('select foo from tbl where 0=1'));
     }
 
-    public function testSelectProperlyCallsPDO()
-    {
-        $pdo = $this->getMockBuilder(PDOStub::class)->onlyMethods(['prepare'])->getMock();
-        $writePdo = $this->getMockBuilder(PDOStub::class)->onlyMethods(['prepare'])->getMock();
-        $writePdo->expects($this->never())->method('prepare');
-        $statement = $this->getMockBuilder('PDOStatement')
-            ->onlyMethods(['setFetchMode', 'execute', 'fetchAll', 'bindValue'])
-            ->getMock();
-        $statement->expects($this->once())->method('setFetchMode');
-        $statement->expects($this->once())->method('bindValue')->with('foo', 'bar', 2);
-        $statement->expects($this->once())->method('execute');
-        $statement->expects($this->once())->method('fetchAll')->willReturn(['boom']);
-        $pdo->expects($this->once())->method('prepare')->with('foo')->willReturn($statement);
-        $mock = $this->getMockConnection(['prepareBindings'], $writePdo);
-        $mock->setReadPdo($pdo);
-        $mock->expects($this->once())->method('prepareBindings')->with($this->equalTo(['foo' => 'bar']))->willReturn(['foo' => 'bar']);
-        $results = $mock->select('foo', ['foo' => 'bar']);
-        $this->assertEquals(['boom'], $results);
-        $log = $mock->getQueryLog();
-        $this->assertSame('foo', $log[0]['query']);
-        $this->assertEquals(['foo' => 'bar'], $log[0]['bindings']);
-        $this->assertIsNumeric($log[0]['time']);
-    }
-
-    public function testSelectResultsetsReturnsMultipleRowset(): void
-    {
-        $configurator = new StatementPathSessionConfigurator;
-        Connection::configureSessionUsing($configurator);
-        $pdo = $this->getMockBuilder(PDOStub::class)->onlyMethods(['prepare'])->getMock();
-        $writePdo = $this->getMockBuilder(PDOStub::class)->onlyMethods(['prepare'])->getMock();
-        $writePdo->expects($this->never())->method('prepare');
-        $statement = $this->getMockBuilder('PDOStatement')
-            ->onlyMethods(['setFetchMode', 'execute', 'fetchAll', 'bindValue', 'nextRowset'])
-            ->getMock();
-        $statement->expects($this->once())->method('setFetchMode');
-        $statement->expects($this->once())->method('bindValue')->with(1, 'foo', 2);
-        $statement->expects($this->once())->method('execute');
-        $statement->expects($this->atLeastOnce())->method('fetchAll')->with(PDO::FETCH_COLUMN, 1)->willReturn(['boom']);
-        $statement->expects($this->atLeastOnce())->method('nextRowset')->willReturnCallback(function () {
-            static $i = 1;
-
-            return ++$i <= 2;
-        });
-        $pdo->expects($this->once())->method('prepare')->with('CALL a_procedure(?)')->willReturn($statement);
-        $mock = $this->getMockConnection(['prepareBindings'], $writePdo);
-        $mock->setReadPdo($pdo);
-        $mock->expects($this->once())->method('prepareBindings')->with($this->equalTo(['foo']))->willReturn(['foo']);
-        $results = $mock->selectResultsets('CALL a_procedure(?)', ['foo'], true, [PDO::FETCH_COLUMN, 1]);
-        $this->assertEquals([['boom'], ['boom']], $results);
-        $log = $mock->getQueryLog();
-        $this->assertSame('CALL a_procedure(?)', $log[0]['query']);
-        $this->assertEquals(['foo'], $log[0]['bindings']);
-        $this->assertIsNumeric($log[0]['time']);
-        $this->assertSame(1, $configurator->stateCalls);
-        $this->assertSame(1, $configurator->applyCalls);
-    }
-
-    public function testEveryOrdinaryConnectionStatementClosureSynchronizesItsPdo(): void
-    {
-        $configurator = new StatementPathSessionConfigurator;
-        Connection::configureSessionUsing($configurator);
-        $connection = new Connection(
-            new PDO('sqlite::memory:'),
-            ':memory:',
-            '',
-            ['name' => 'test', 'driver' => 'sqlite']
-        );
-
-        $operations = [
-            static fn () => $connection->select('select 1'),
-            static fn () => iterator_to_array($connection->cursor('select 1')),
-            static fn () => $connection->statement('create table records (id integer primary key)'),
-            static fn () => $connection->affectingStatement('insert into records (id) values (1)'),
-            static fn () => $connection->unprepared('delete from records'),
-        ];
-
-        foreach ($operations as $index => $operation) {
-            $configurator->desiredState = 'state-' . $index;
-            $operation();
-            $this->assertSame($index + 1, $configurator->applyCalls);
-        }
-
-        $this->assertSame(count($operations), $configurator->stateCalls);
-    }
-
-    public function testPretendModeDoesNotResolveOrSynchronizePdo(): void
-    {
-        $configurator = new StatementPathSessionConfigurator;
-        Connection::configureSessionUsing($configurator);
-        $resolutions = 0;
-        $connection = new Connection(
-            static function () use (&$resolutions): PDO {
-                ++$resolutions;
-
-                return new PDO('sqlite::memory:');
-            },
-            ':memory:',
-            '',
-            ['name' => 'test', 'driver' => 'sqlite']
-        );
-
-        $cursorRows = null;
-        $queries = $connection->pretend(static function (Connection $connection) use (&$cursorRows): void {
-            $connection->select('select 1');
-            $cursorRows = iterator_to_array($connection->cursor('select cursor_value'));
-            $connection->statement('create table records (id integer)');
-            $connection->affectingStatement('delete from records');
-            $connection->unprepared('delete from records');
-        });
-
-        $this->assertSame([], $cursorRows);
-        $this->assertSame('select cursor_value', $queries[1]['query']);
-        $this->assertSame(0, $resolutions);
-        $this->assertSame(0, $configurator->stateCalls);
-        $this->assertSame(0, $configurator->applyCalls);
-    }
-
-    public function testCursorPreservesFalseyValuesWithCustomFetchMode(): void
-    {
-        $connection = $this->getSqliteTransactionConnection();
-        $connection->statement('create table records (id integer primary key, value text null)');
-        $connection->insert("insert into records (id, value) values (1, null), (2, ''), (3, '0'), (4, 'later')");
-
-        $this->assertSame(
-            [null, '', '0', 'later'],
-            iterator_to_array($connection->cursor(
-                'select id, value from records order by id',
-                fetchUsing: [PDO::FETCH_COLUMN, 1]
-            ))
-        );
-    }
-
-    public function testCursorPreservesModeOnlyFetchDefaults(): void
-    {
-        $connection = $this->getSqliteTransactionConnection();
-
-        $this->assertSame(
-            ['first', 'second'],
-            iterator_to_array($connection->cursor(
-                "select 'first' as value union all select 'second'",
-                fetchUsing: [PDO::FETCH_COLUMN]
-            ))
-        );
-
-        $classRows = iterator_to_array($connection->cursor(
-            "select 'class' as value",
-            fetchUsing: [PDO::FETCH_CLASS]
-        ));
-        $this->assertInstanceOf(stdClass::class, $classRows[0]);
-        $this->assertSame('class', $classRows[0]->value);
-
-        $this->assertSame(
-            [1, 2],
-            iterator_to_array($connection->cursor(
-                'select 1 as value union all select 2',
-                fetchUsing: [PDO::FETCH_GROUP | PDO::FETCH_COLUMN]
-            ))
-        );
-
-        $classTypeRows = iterator_to_array($connection->cursor(
-            "select 'stdClass' as class_name, 'typed' as value",
-            fetchUsing: [PDO::FETCH_CLASS | PDO::FETCH_CLASSTYPE]
-        ));
-        $this->assertInstanceOf(stdClass::class, $classTypeRows[0]);
-        $this->assertSame('typed', $classTypeRows[0]->value);
-    }
-
-    public function testMySqlInsertUsesOneSynchronizedPdoForExecutionAndInsertId(): void
-    {
-        $configurator = new StatementPathSessionConfigurator;
-        Connection::configureSessionUsing($configurator);
-        $pdo = $this->getMockBuilder(PDOStub::class)
-            ->onlyMethods(['prepare', 'lastInsertId'])
-            ->getMock();
-        $statement = $this->getMockBuilder(PDOStatement::class)
-            ->onlyMethods(['execute'])
-            ->getMock();
-        $pdo->expects($this->once())->method('prepare')->with('insert into records values ()')->willReturn($statement);
-        $pdo->expects($this->once())->method('lastInsertId')->with(null)->willReturn('42');
-        $statement->expects($this->once())->method('execute')->willReturn(true);
-        $connection = new MySqlConnection(
-            $pdo,
-            'test_database',
-            '',
-            ['name' => 'test', 'driver' => 'mysql']
-        );
-
-        $this->assertTrue($connection->insert('insert into records values ()'));
-        $this->assertSame('42', $connection->getLastInsertId());
-        $this->assertSame(1, $configurator->stateCalls);
-        $this->assertSame(1, $configurator->applyCalls);
-    }
-
-    public function testEscapingAndServerIntrospectionUseSynchronizedPdoHandOuts(): void
-    {
-        $configurator = new StatementPathSessionConfigurator;
-        Connection::configureSessionUsing($configurator);
-        $connection = new Connection(
-            new PDO('sqlite::memory:'),
-            ':memory:',
-            '',
-            ['name' => 'test', 'driver' => 'sqlite']
-        );
-
-        $this->assertSame("'value'", $connection->escape('value'));
-        $this->assertNotSame('', $connection->getServerVersion());
-        $this->assertSame(2, $configurator->stateCalls);
-        $this->assertSame(1, $configurator->applyCalls);
-    }
-
     public function testInsertCallsTheStatementMethod()
     {
         $connection = $this->getMockConnection(['statement']);
@@ -334,41 +314,6 @@ class DatabaseConnectionTest extends TestCase
         $connection->expects($this->once())->method('affectingStatement')->with($this->equalTo('foo'), $this->equalTo(['bar']))->willReturn(1);
         $results = $connection->delete('foo', ['bar']);
         $this->assertSame(1, $results);
-    }
-
-    public function testStatementProperlyCallsPDO()
-    {
-        $pdo = $this->getMockBuilder(PDOStub::class)->onlyMethods(['prepare'])->getMock();
-        $statement = $this->getMockBuilder('PDOStatement')->onlyMethods(['execute', 'bindValue'])->getMock();
-        $statement->expects($this->once())->method('bindValue')->with(1, 'bar', 2);
-        $statement->expects($this->once())->method('execute')->willReturn(true);
-        $pdo->expects($this->once())->method('prepare')->with($this->equalTo('foo'))->willReturn($statement);
-        $mock = $this->getMockConnection(['prepareBindings'], $pdo);
-        $mock->expects($this->once())->method('prepareBindings')->with($this->equalTo(['bar']))->willReturn(['bar']);
-        $results = $mock->statement('foo', ['bar']);
-        $this->assertTrue($results);
-        $log = $mock->getQueryLog();
-        $this->assertSame('foo', $log[0]['query']);
-        $this->assertEquals(['bar'], $log[0]['bindings']);
-        $this->assertIsNumeric($log[0]['time']);
-    }
-
-    public function testAffectingStatementProperlyCallsPDO()
-    {
-        $pdo = $this->getMockBuilder(PDOStub::class)->onlyMethods(['prepare'])->getMock();
-        $statement = $this->getMockBuilder('PDOStatement')->onlyMethods(['execute', 'rowCount', 'bindValue'])->getMock();
-        $statement->expects($this->once())->method('bindValue')->with('foo', 'bar', 2);
-        $statement->expects($this->once())->method('execute');
-        $statement->expects($this->once())->method('rowCount')->willReturn(42);
-        $pdo->expects($this->once())->method('prepare')->with('foo')->willReturn($statement);
-        $mock = $this->getMockConnection(['prepareBindings'], $pdo);
-        $mock->expects($this->once())->method('prepareBindings')->with($this->equalTo(['foo' => 'bar']))->willReturn(['foo' => 'bar']);
-        $results = $mock->update('foo', ['foo' => 'bar']);
-        $this->assertSame(42, $results);
-        $log = $mock->getQueryLog();
-        $this->assertSame('foo', $log[0]['query']);
-        $this->assertEquals(['foo' => 'bar'], $log[0]['bindings']);
-        $this->assertIsNumeric($log[0]['time']);
     }
 
     public function testTransactionLevelNotIncrementedOnTransactionException()
@@ -423,16 +368,6 @@ class DatabaseConnectionTest extends TestCase
         } catch (Exception) {
             $this->assertEquals(1, $connection->transactionLevel());
         }
-    }
-
-    public function testSwapPDOWithOpenTransactionResetsTransactionLevel()
-    {
-        $pdo = $this->createMock(PDOStub::class);
-        $pdo->expects($this->once())->method('beginTransaction')->willReturn(true);
-        $connection = $this->getMockConnection([], $pdo);
-        $connection->beginTransaction();
-        $connection->disconnect();
-        $this->assertEquals(0, $connection->transactionLevel());
     }
 
     public function testDisconnectClearsTransactionManagerStateEvenWhenTheLogicalLevelIsZero(): void
@@ -593,45 +528,6 @@ class DatabaseConnectionTest extends TestCase
         } catch (Exception $e) {
             $this->assertSame('foo', $e->getMessage());
         }
-    }
-
-    public function testOnLostConnectionPDOIsNotSwappedWithinATransaction()
-    {
-        $this->expectException(QueryException::class);
-        $this->expectExceptionMessage('server has gone away (Connection: test, Host: , Port: , Database: , SQL: foo)');
-
-        $pdo = m::mock(PDO::class);
-        $pdo->shouldReceive('beginTransaction')->once();
-        $statement = m::mock(PDOStatement::class);
-        $pdo->shouldReceive('prepare')->once()->andReturn($statement);
-        $statement->shouldReceive('execute')->once()->andThrow(new PDOException('server has gone away'));
-
-        $connection = new Connection($pdo, '', '', ['name' => 'test', 'driver' => 'mysql']);
-        $connection->beginTransaction();
-        $connection->statement('foo');
-    }
-
-    public function testOnLostConnectionPDOIsSwappedOutsideTransaction()
-    {
-        $pdo = m::mock(PDO::class);
-
-        $statement = m::mock(PDOStatement::class);
-        $statement->shouldReceive('execute')->once()->andThrow(new PDOException('server has gone away'));
-        $statement->shouldReceive('execute')->once()->andReturn(true);
-
-        $pdo->shouldReceive('prepare')->twice()->andReturn($statement);
-
-        $connection = new Connection($pdo, '', '', ['name' => 'test', 'driver' => 'mysql']);
-
-        $called = false;
-
-        $connection->setReconnector(function ($connection) use (&$called) {
-            $called = true;
-        });
-
-        $this->assertTrue($connection->statement('foo'));
-
-        $this->assertTrue($called);
     }
 
     public function testRunMethodRetriesOnFailure()
@@ -1024,135 +920,6 @@ class DatabaseConnectionTest extends TestCase
         $this->assertCount(0, $manager->getCommittedTransactions());
     }
 
-    public function testExplicitPhysicalCommitFailureLeavesTheTransactionCallerOwned(): void
-    {
-        $failure = new RuntimeException('commit failure');
-        $pdo = $this->getMockBuilder(PDOStub::class)
-            ->onlyMethods(['beginTransaction', 'commit', 'inTransaction', 'rollBack'])
-            ->getMock();
-        $pdo->expects($this->once())->method('beginTransaction');
-        $pdo->expects($this->once())->method('commit')->willThrowException($failure);
-        $pdo->expects($this->once())->method('inTransaction')->willReturn(true);
-        $pdo->expects($this->once())->method('rollBack');
-
-        $connection = $this->getMockConnection([], $pdo);
-        $manager = new DatabaseTransactionsManager;
-        $connection->setTransactionManager($manager);
-        $connection->beginTransaction();
-
-        try {
-            $connection->commit();
-            $this->fail('Expected the physical commit to fail.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame($failure, $exception);
-        }
-
-        $this->assertSame(1, $connection->transactionLevel());
-        $this->assertCount(1, $manager->getPendingTransactions());
-        $this->assertSame($pdo, $connection->getRawPdo());
-        $this->assertTrue($connection->hasUnknownSessionState());
-
-        $connection->rollBack();
-    }
-
-    public function testLostManagedCommitTerminallyDetachesTransactionState(): void
-    {
-        $failure = new PDOException('server has gone away');
-        $pdo = $this->getMockBuilder(PDOStub::class)
-            ->onlyMethods(['beginTransaction', 'commit', 'inTransaction', 'rollBack'])
-            ->getMock();
-        $pdo->expects($this->once())->method('beginTransaction');
-        $pdo->expects($this->once())->method('commit')->willThrowException($failure);
-        $pdo->expects($this->never())->method('inTransaction');
-        $pdo->expects($this->never())->method('rollBack');
-
-        $connection = $this->getMockConnection([], $pdo);
-        $connection->setReadPdo(new PDOStub);
-        $manager = new DatabaseTransactionsManager;
-        $connection->setTransactionManager($manager);
-        $rollbackCallbackCalled = false;
-
-        try {
-            $connection->transaction(function (Connection $connection) use (&$rollbackCallbackCalled): void {
-                $connection->afterRollBack(function () use (&$rollbackCallbackCalled): void {
-                    $rollbackCallbackCalled = true;
-                });
-            });
-            $this->fail('Expected the lost commit to fail.');
-        } catch (PDOException $exception) {
-            $this->assertSame($failure, $exception);
-        }
-
-        $this->assertTrue($rollbackCallbackCalled);
-        $this->assertSame(0, $connection->transactionLevel());
-        $this->assertCount(0, $manager->getPendingTransactions());
-        $this->assertCount(0, $manager->getCommittedTransactions());
-        $this->assertNull($connection->getRawPdo());
-        $this->assertNull($connection->getRawReadPdo());
-    }
-
-    public function testNonLostPhysicalRollbackFailureKeepsActiveStateAndMarksTheSessionUnknown(): void
-    {
-        $failure = new RuntimeException('rollback failure');
-        $pdo = $this->getMockBuilder(PDOStub::class)
-            ->onlyMethods(['beginTransaction', 'inTransaction', 'rollBack'])
-            ->getMock();
-        $pdo->expects($this->once())->method('beginTransaction');
-        $pdo->expects($this->once())->method('inTransaction')->willReturn(true);
-        $pdo->expects($this->once())->method('rollBack')->willThrowException($failure);
-
-        $connection = $this->getMockConnection([], $pdo);
-        $manager = new DatabaseTransactionsManager;
-        $connection->setTransactionManager($manager);
-        $connection->beginTransaction();
-
-        try {
-            $connection->rollBack();
-            $this->fail('Expected the physical rollback to fail.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame($failure, $exception);
-        }
-
-        $this->assertSame(1, $connection->transactionLevel());
-        $this->assertCount(1, $manager->getPendingTransactions());
-        $this->assertTrue($connection->hasUnknownSessionState());
-        $this->assertSame($pdo, $connection->getRawPdo());
-    }
-
-    public function testLostPhysicalRollbackTerminallyDetachesTransactionState(): void
-    {
-        $failure = new PDOException('server has gone away');
-        $pdo = $this->getMockBuilder(PDOStub::class)
-            ->onlyMethods(['beginTransaction', 'inTransaction', 'rollBack'])
-            ->getMock();
-        $pdo->expects($this->once())->method('beginTransaction');
-        $pdo->expects($this->once())->method('inTransaction')->willReturn(true);
-        $pdo->expects($this->once())->method('rollBack')->willThrowException($failure);
-
-        $connection = $this->getMockConnection([], $pdo);
-        $connection->setReadPdo(new PDOStub);
-        $manager = new DatabaseTransactionsManager;
-        $connection->setTransactionManager($manager);
-        $connection->beginTransaction();
-        $rollbackCallbackCalled = false;
-        $connection->afterRollBack(function () use (&$rollbackCallbackCalled): void {
-            $rollbackCallbackCalled = true;
-        });
-
-        try {
-            $connection->rollBack();
-            $this->fail('Expected the lost rollback to fail.');
-        } catch (PDOException $exception) {
-            $this->assertSame($failure, $exception);
-        }
-
-        $this->assertTrue($rollbackCallbackCalled);
-        $this->assertSame(0, $connection->transactionLevel());
-        $this->assertCount(0, $manager->getPendingTransactions());
-        $this->assertNull($connection->getRawPdo());
-        $this->assertNull($connection->getRawReadPdo());
-    }
-
     public function testManagerRollbackFailureStillDispatchesRolledBackEvent(): void
     {
         $connection = $this->getSqliteTransactionConnection();
@@ -1208,104 +975,6 @@ class DatabaseConnectionTest extends TestCase
         $this->assertSame(0, $connection->transactionLevel());
         $this->assertCount(0, $manager->getPendingTransactions());
         $this->assertFalse($connection->getPdo()->inTransaction());
-    }
-
-    public function testDisconnectExhaustsCleanupAndPreservesThePhysicalFailure(): void
-    {
-        $physicalFailure = new RuntimeException('physical rollback failure');
-        $callbackFailure = new RuntimeException('rollback callback failure');
-        $pdo = $this->getMockBuilder(PDOStub::class)
-            ->onlyMethods(['beginTransaction', 'inTransaction', 'rollBack'])
-            ->getMock();
-        $pdo->expects($this->once())->method('beginTransaction');
-        $pdo->expects($this->once())->method('inTransaction')->willReturn(true);
-        $pdo->expects($this->once())->method('rollBack')->willThrowException($physicalFailure);
-
-        $connection = $this->getMockConnection([], $pdo);
-        $connection->setReadPdo(new PDOStub);
-        $manager = new DatabaseTransactionsManager;
-        $connection->setTransactionManager($manager);
-        $connection->beginTransaction();
-        $rollbackCallbackCalled = false;
-        $connection->afterRollBack(function () use (&$rollbackCallbackCalled, $callbackFailure): never {
-            $rollbackCallbackCalled = true;
-
-            throw $callbackFailure;
-        });
-
-        try {
-            $connection->disconnect();
-            $this->fail('Expected disconnect cleanup to fail.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame($physicalFailure, $exception);
-        }
-
-        $this->assertTrue($rollbackCallbackCalled);
-        $this->assertSame(0, $connection->transactionLevel());
-        $this->assertCount(0, $manager->getPendingTransactions());
-        $this->assertNull($connection->getRawPdo());
-        $this->assertNull($connection->getRawReadPdo());
-
-        $connection->setPdo($pdo);
-
-        $this->assertTrue($connection->hasUnknownSessionState());
-    }
-
-    public function testDisconnectTreatsLostPhysicalRollbackFailureAsAlreadyTerminal(): void
-    {
-        $pdo = $this->getMockBuilder(PDOStub::class)
-            ->onlyMethods(['inTransaction', 'rollBack'])
-            ->getMock();
-        $pdo->expects($this->once())->method('inTransaction')->willReturn(true);
-        $pdo->expects($this->once())->method('rollBack')->willThrowException(
-            new PDOException('SQLSTATE[HY000]: General error: 7 no connection to the server')
-        );
-
-        $connection = $this->getMockConnection([], $pdo);
-        $connection->setReadPdo(new PDOStub);
-        $manager = new DatabaseTransactionsManager;
-        $connection->setTransactionManager($manager);
-        $manager->begin('test', 1);
-
-        $connection->disconnect();
-
-        $this->assertSame(0, $connection->transactionLevel());
-        $this->assertCount(0, $manager->getPendingTransactions());
-        $this->assertNull($connection->getRawPdo());
-        $this->assertNull($connection->getRawReadPdo());
-    }
-
-    public function testDisconnectPreservesManagerFailureAfterLostPhysicalRollbackFailure(): void
-    {
-        $callbackFailure = new RuntimeException('rollback callback failure');
-        $pdo = $this->getMockBuilder(PDOStub::class)
-            ->onlyMethods(['inTransaction', 'rollBack'])
-            ->getMock();
-        $pdo->expects($this->once())->method('inTransaction')->willReturn(true);
-        $pdo->expects($this->once())->method('rollBack')->willThrowException(
-            new PDOException('SQLSTATE[HY000]: General error: 7 no connection to the server')
-        );
-
-        $connection = $this->getMockConnection([], $pdo);
-        $connection->setReadPdo(new PDOStub);
-        $manager = new DatabaseTransactionsManager;
-        $connection->setTransactionManager($manager);
-        $manager->begin('test', 1);
-        $manager->addCallbackForRollback(static function () use ($callbackFailure): never {
-            throw $callbackFailure;
-        });
-
-        try {
-            $connection->disconnect();
-            $this->fail('Expected disconnect manager cleanup to fail.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame($callbackFailure, $exception);
-        }
-
-        $this->assertSame(0, $connection->transactionLevel());
-        $this->assertCount(0, $manager->getPendingTransactions());
-        $this->assertNull($connection->getRawPdo());
-        $this->assertNull($connection->getRawReadPdo());
     }
 
     public function testPretendOnlyLogsQueries()
@@ -1455,43 +1124,6 @@ class DatabaseConnectionTest extends TestCase
         $connection->endForeignKeyConstraintSuppression();
     }
 
-    public function testResetForPoolMarksALeakedForeignKeySuppressionScopeUnknown(): void
-    {
-        $connection = $this->getMockConnection();
-
-        $connection->beginForeignKeyConstraintSuppression();
-        $connection->resetForPool();
-
-        $this->assertTrue($connection->hasUnknownSessionState());
-        $this->assertTrue($connection->beginForeignKeyConstraintSuppression());
-
-        $connection->endForeignKeyConstraintSuppression();
-    }
-
-    public function testResetForPoolDoesNotResolveALazyConnectionForALeakedForeignKeySuppressionScope(): void
-    {
-        $resolutions = 0;
-        $connection = new Connection(
-            static function () use (&$resolutions): PDO {
-                ++$resolutions;
-
-                return new PDOStub;
-            },
-            'test_db',
-            '',
-            ['name' => 'test', 'driver' => 'mysql']
-        );
-
-        $connection->beginForeignKeyConstraintSuppression();
-        $connection->resetForPool();
-
-        $this->assertSame(0, $resolutions);
-        $this->assertFalse($connection->hasUnknownSessionState());
-        $this->assertTrue($connection->beginForeignKeyConstraintSuppression());
-
-        $connection->endForeignKeyConstraintSuppression();
-    }
-
     public function testQueryExceptionContainsReadConnectionDetailsWhenUsingReadPdo()
     {
         // Create write PDO mock that will NOT be used for this query
@@ -1518,7 +1150,7 @@ class DatabaseConnectionTest extends TestCase
         ];
 
         // Create connection with write config
-        $connection = new Connection($writePdo, 'write_db', '', $writeConfig);
+        $connection = new PdoConnection($writePdo, 'write_db', '', $writeConfig);
         $connection->useDefaultQueryGrammar();
         $connection->useDefaultPostProcessor();
 
@@ -1565,7 +1197,7 @@ class DatabaseConnectionTest extends TestCase
             'database' => 'write_db',
         ];
 
-        $connection = new Connection($writePdo, 'write_db', '', $writeConfig);
+        $connection = new PdoConnection($writePdo, 'write_db', '', $writeConfig);
         $connection->useDefaultQueryGrammar();
         $connection->useDefaultPostProcessor();
 
@@ -1605,7 +1237,7 @@ class DatabaseConnectionTest extends TestCase
             ->method('prepare')
             ->willThrowException(new PDOException('Connection refused'));
 
-        $connection = new Connection($pdo, 'read_db', '', [
+        $connection = new PdoConnection($pdo, 'read_db', '', [
             'driver' => 'mysql',
             'name' => 'mysql',
             'host' => '192.168.1.20',
@@ -1654,7 +1286,7 @@ class DatabaseConnectionTest extends TestCase
             'database' => 'write_db',
         ];
 
-        $connection = new Connection($writePdo, 'write_db', '', $writeConfig);
+        $connection = new PdoConnection($writePdo, 'write_db', '', $writeConfig);
         $connection->useDefaultQueryGrammar();
         $connection->useDefaultPostProcessor();
 
@@ -1695,7 +1327,7 @@ class DatabaseConnectionTest extends TestCase
         ];
 
         // Simulate lazy write PDO that fails during connection (e.g., SET NAMES fails)
-        $connection = new Connection(function () {
+        $connection = new PdoConnection(function () {
             throw new PDOException('SQLSTATE[HY000] SET NAMES failed');
         }, 'write_db', '', $writeConfig);
         $connection->useDefaultQueryGrammar();
@@ -1725,9 +1357,9 @@ class DatabaseConnectionTest extends TestCase
         }
     }
 
-    protected function getSqliteTransactionConnection(): Connection
+    protected function getSqliteTransactionConnection(): PdoConnection
     {
-        return new Connection(
+        return new PdoConnection(
             new PDO('sqlite::memory:'),
             ':memory:',
             '',
@@ -1738,14 +1370,14 @@ class DatabaseConnectionTest extends TestCase
     /**
      * Create a read / write connection for sticky routing assertions.
      *
-     * @return array{0: Connection, 1: PDOStub, 2: PDOStub}
+     * @return array{0: PdoConnection, 1: PDOStub, 2: PDOStub}
      */
     protected function getReadWriteConnection(bool $sticky): array
     {
         $writePdo = new PDOStub;
         $readPdo = new PDOStub;
 
-        $connection = new Connection($writePdo, 'test_db', '', [
+        $connection = new PdoConnection($writePdo, 'test_db', '', [
             'name' => 'test',
             'driver' => 'mysql',
             'sticky' => $sticky,
@@ -1760,7 +1392,7 @@ class DatabaseConnectionTest extends TestCase
         $pdo = $pdo ?: new PDOStub;
 
         if ($methods === []) {
-            $connection = new Connection($pdo, 'test_db', '', ['name' => 'test', 'driver' => 'mysql']);
+            $connection = new PdoConnection($pdo, 'test_db', '', ['name' => 'test', 'driver' => 'mysql']);
             $connection->setSchemaGrammar(m::mock(SchemaGrammar::class));
             $connection->enableQueryLog();
 
@@ -1768,7 +1400,7 @@ class DatabaseConnectionTest extends TestCase
         }
 
         $defaults = ['getDefaultQueryGrammar', 'getDefaultPostProcessor', 'getDefaultSchemaGrammar'];
-        $connection = $this->getMockBuilder(Connection::class)->onlyMethods(array_values(array_unique(array_merge($defaults, $methods))))->setConstructorArgs([$pdo, 'test_db', '', ['name' => 'test', 'driver' => 'mysql']])->getMock();
+        $connection = $this->getMockBuilder(PdoConnection::class)->onlyMethods(array_values(array_unique(array_merge($defaults, $methods))))->setConstructorArgs([$pdo, 'test_db', '', ['name' => 'test', 'driver' => 'mysql']])->getMock();
         $connection->method('getDefaultSchemaGrammar')->willReturn(m::mock(SchemaGrammar::class));
         $connection->enableQueryLog();
 
@@ -1804,23 +1436,163 @@ class PDOExceptionStub extends PDOException
     }
 }
 
-class StatementPathSessionConfigurator implements SessionConfigurator
+class NeutralConnectionForTest extends Connection
 {
-    public string $desiredState = 'state';
+    public bool $driverResourcesPresent = true;
 
-    public int $stateCalls = 0;
+    public int $disconnectCalls = 0;
 
-    public int $applyCalls = 0;
+    public int $forgetCalls = 0;
 
-    public function state(Connection $connection): ?string
+    public int $replaceCalls = 0;
+
+    public string $driverGeneration = 'initial';
+
+    /**
+     * Set the latest read / write type for testing.
+     */
+    public function setLatestReadWriteTypeForTest(?string $type): void
     {
-        ++$this->stateCalls;
-
-        return $this->desiredState;
+        $this->latestReadWriteTypeRetrieved = $type;
     }
 
-    public function apply(PDO $pdo, string $state, Connection $connection): void
+    /**
+     * Get the effective read / write type for testing.
+     */
+    public function latestReadWriteTypeForTest(): ?string
     {
-        ++$this->applyCalls;
+        return $this->latestReadWriteTypeUsed();
+    }
+
+    public function select(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): array
+    {
+        return [];
+    }
+
+    public function cursor(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): Generator
+    {
+        yield from [];
+    }
+
+    public function statement(string $query, array $bindings = []): bool
+    {
+        return true;
+    }
+
+    public function affectingStatement(string $query, array $bindings = []): int
+    {
+        return 0;
+    }
+
+    public function unprepared(string $query): bool
+    {
+        return true;
+    }
+
+    public function ping(): bool
+    {
+        return true;
+    }
+
+    public function inTransaction(): bool
+    {
+        return false;
+    }
+
+    public function getServerVersion(): string
+    {
+        return '1.0';
+    }
+
+    protected function escapeString(string $value): string
+    {
+        return "HTTP_STRING[{$value}]";
+    }
+
+    protected function hasDriverResources(): bool
+    {
+        return $this->driverResourcesPresent;
+    }
+
+    protected function disconnectDriverResources(): void
+    {
+        ++$this->disconnectCalls;
+        $this->forgetDriverResources();
+    }
+
+    protected function forgetDriverResources(): void
+    {
+        ++$this->forgetCalls;
+        $this->driverResourcesPresent = false;
+    }
+
+    protected function replaceDriverResources(Connection $fresh): void
+    {
+        ++$this->replaceCalls;
+
+        /** @var self $fresh */
+        $driverResourcesPresent = $fresh->driverResourcesPresent;
+        $driverGeneration = $fresh->driverGeneration;
+        $database = $fresh->database;
+        $configuredDatabase = $fresh->configuredDatabase;
+        $tablePrefix = $fresh->tablePrefix;
+        $configuredTablePrefix = $fresh->configuredTablePrefix;
+        $config = $fresh->config;
+        $readConnectionConfig = $fresh->readConnectionConfig;
+        $readWriteType = $fresh->readWriteType;
+
+        try {
+            $this->disconnectDriverResources();
+        } finally {
+            $this->driverResourcesPresent = $driverResourcesPresent;
+            $this->driverGeneration = $driverGeneration;
+            $this->database = $database;
+            $this->configuredDatabase = $configuredDatabase;
+            $this->tablePrefix = $tablePrefix;
+            $this->configuredTablePrefix = $configuredTablePrefix;
+            $this->config = $config;
+            $this->readConnectionConfig = $readConnectionConfig;
+            $this->readWriteType = $readWriteType;
+            $this->latestReadWriteTypeRetrieved = null;
+        }
+    }
+}
+
+class NeutralTransactionConnectionForTest extends NeutralConnectionForTest
+{
+    public int $invalidateCalls = 0;
+
+    public int $rollBackCalls = 0;
+
+    public bool $physicalTransaction = false;
+
+    public function inTransaction(): bool
+    {
+        return $this->physicalTransaction;
+    }
+
+    protected function invalidateCurrentSessionState(): void
+    {
+        ++$this->invalidateCalls;
+    }
+
+    protected function executeBeginTransactionStatement(): void
+    {
+        $this->physicalTransaction = true;
+    }
+
+    protected function createSavepoint(): void
+    {
+    }
+
+    protected function performCommit(): void
+    {
+        $this->physicalTransaction = false;
+    }
+
+    protected function performRollBack(int $toLevel): void
+    {
+        ++$this->rollBackCalls;
+        $this->physicalTransaction = false;
     }
 }

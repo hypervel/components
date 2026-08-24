@@ -18,7 +18,7 @@
     - [Copying From Non-Coroutine Context](#copying-from-non-coroutine-context)
     - [Copying To Non-Coroutine Context](#copying-to-non-coroutine-context)
     - [Reading Non-Coroutine Context](#reading-non-coroutine-context)
-    - [Replicable Context Values](#replicable-context-values)
+    - [Copied Context Values](#copied-context-values)
 - [Context Containers](#context-containers)
 - [Typed Context Helpers](#typed-context-helpers)
     - [Request Context](#request-context)
@@ -298,9 +298,7 @@ $capturedContext = CoroutineContext::captureFrom(
 );
 ```
 
-When a captured value implements `ReplicableContext`, Hypervel calls its `replicate` method. The `copyFrom` method captures every value before changing the current context, so a replication failure leaves the current context unchanged.
-
-The returned array is not serialized. If you install it in another coroutine, objects that do not implement `ReplicableContext` remain shared between the coroutines.
+Captured values follow the rules described in [Copied Context Values](#copied-context-values). Hypervel prepares the entire captured array before returning it, so a replication failure does not produce a partial result.
 
 > [!NOTE]
 > Most application code should use `Coroutine::fork` or the `copyContext` argument provided by `go`, `co`, and `parallel`. Use `captureFrom` when you need to capture context values now and install them in another coroutine later.
@@ -370,10 +368,10 @@ CoroutineContext::clearFromNonCoroutine(['test_state']);
 > [!WARNING]
 > `clearFromNonCoroutine` changes storage shared by every coroutine in the worker. Use it only for controlled test lifecycle cleanup.
 
-<a name="replicable-context-values"></a>
-### Replicable Context Values
+<a name="copied-context-values"></a>
+### Copied Context Values
 
-When context is copied between coroutines, its objects are shared by default. If each coroutine needs its own copy of an object, implement the `Hypervel\Context\ReplicableContext` interface:
+When context is copied, objects stored directly as context values are shared by default. If each coroutine needs its own copy of an object, implement the `Hypervel\Context\ReplicableContext` interface:
 
 ```php
 use Hypervel\Context\ReplicableContext;
@@ -393,7 +391,22 @@ class RequestState implements ReplicableContext
 }
 ```
 
-When `Coroutine::fork`, `CoroutineContext::captureFrom`, `CoroutineContext::copyFrom`, or `CoroutineContext::copyFromNonCoroutine` encounters one of these objects, Hypervel copies it using the `replicate` method.
+If an object owns a resource that cannot be shared safely, you may implement the `Hypervel\Context\NonCopyableContext` interface. Hypervel will omit the value from the copied context:
+
+```php
+use Hypervel\Context\NonCopyableContext;
+
+class RequestResource implements NonCopyableContext
+{
+    // ...
+}
+```
+
+These rules apply to `Coroutine::fork`, `CoroutineContext::captureFrom`, `CoroutineContext::copyFrom`, `CoroutineContext::copyFromNonCoroutine`, and `CoroutineContext::copyToNonCoroutine`. If an object implements both interfaces, Hypervel omits it without calling its `replicate` method. Hypervel prepares every value before changing the destination, so a replication failure leaves the destination unchanged.
+
+Only objects stored directly as context values receive this treatment. Hypervel does not inspect objects nested within arrays or other objects.
+
+Hypervel's borrowed database and Redis connections are non-copyable. A child coroutine still receives copyable values such as the default database connection name, but it borrows its own connection when it first uses the database.
 
 <a name="context-containers"></a>
 ## Context Containers
@@ -466,7 +479,7 @@ Values set outside a coroutine are stored in the shared non-coroutine context. T
 
 Values stored in one coroutine are not visible inside another unless you copy them. Use `Coroutine::fork`, `go(..., copyContext: true)`, `parallel(..., copyContext: true)`, or `CoroutineContext::copyFrom(...)` when a child needs values from its parent.
 
-Objects remain shared when context is copied unless they implement `ReplicableContext`. Avoid copying mutable request-specific objects when shared changes would be unsafe.
+Objects stored directly in context remain shared when context is copied unless they implement `ReplicableContext` or `NonCopyableContext`. Avoid copying mutable request-specific objects when shared changes would be unsafe.
 
 <a name="credits"></a>
 ## Credits

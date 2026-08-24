@@ -117,7 +117,8 @@ class CoroutineContext
     /**
      * Capture context values as an array.
      *
-     * Replicable values are copied in the calling coroutine at capture time.
+     * Replicable values are copied and non-copyable values are omitted in the
+     * calling coroutine at capture time.
      *
      * @return array<TKey, TValue>
      */
@@ -133,13 +134,7 @@ class CoroutineContext
             ? array_intersect_key($from->getArrayCopy(), array_flip($keys))
             : $from->getArrayCopy();
 
-        foreach ($map as $key => $value) {
-            if ($value instanceof ReplicableContext) {
-                $map[$key] = $value->replicate();
-            }
-        }
-
-        return $map;
+        return self::prepareForCopy($map);
     }
 
     /**
@@ -225,10 +220,9 @@ class CoroutineContext
             $map = static::$nonCoroutineContext;
         }
 
+        $map = self::prepareForCopy($map);
+
         foreach ($map as $key => $value) {
-            if ($value instanceof ReplicableContext) {
-                $value = $value->replicate();
-            }
             $context[$key] = $value;
         }
     }
@@ -245,17 +239,35 @@ class CoroutineContext
             return;
         }
 
-        if ($keys) {
-            foreach ($keys as $key) {
-                if (isset($context[$key])) {
-                    static::$nonCoroutineContext[$key] = $context[$key];
-                }
+        $map = $keys
+            ? array_intersect_key($context->getArrayCopy(), array_flip($keys))
+            : $context->getArrayCopy();
+
+        $map = self::prepareForCopy($map);
+
+        foreach ($map as $key => $value) {
+            static::$nonCoroutineContext[(string) $key] = $value;
+        }
+    }
+
+    /**
+     * Prepare context values for copying.
+     */
+    private static function prepareForCopy(array $values): array
+    {
+        foreach ($values as $key => $value) {
+            if ($value instanceof NonCopyableContext) {
+                unset($values[$key]);
+
+                continue;
             }
-        } else {
-            foreach ($context as $key => $value) {
-                static::$nonCoroutineContext[$key] = $value;
+
+            if ($value instanceof ReplicableContext) {
+                $values[$key] = $value->replicate();
             }
         }
+
+        return $values;
     }
 
     /**

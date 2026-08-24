@@ -9,9 +9,9 @@ use Closure;
 use DateTimeInterface;
 use Exception;
 use Generator;
+use Hypervel\Context\NonCopyableContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Events\QueryExecuted;
-use Hypervel\Database\Events\StatementPrepared;
 use Hypervel\Database\Events\TransactionBeginning;
 use Hypervel\Database\Events\TransactionCommitted;
 use Hypervel\Database\Events\TransactionCommitting;
@@ -26,17 +26,13 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
 use LogicException;
-use PDO;
-use PDOStatement;
 use RuntimeException;
-use stdClass;
 use Throwable;
 use UnitEnum;
-use WeakMap;
 
 use function Hypervel\Support\enum_value;
 
-class Connection implements ConnectionInterface
+abstract class Connection implements ConnectionInterface, NonCopyableContext
 {
     use DetectsConcurrencyErrors;
     use DetectsLostConnections;
@@ -45,23 +41,9 @@ class Connection implements ConnectionInterface
     use Macroable;
 
     /**
-     * The active PDO connection.
-     *
-     * @var null|(Closure(): PDO)|PDO
-     */
-    protected PDO|Closure|null $pdo;
-
-    /**
-     * The active PDO connection used for reads.
-     *
-     * @var null|(Closure(): PDO)|PDO
-     */
-    protected PDO|Closure|null $readPdo = null;
-
-    /**
      * The database connection configuration options for reading.
      */
-    protected array $readPdoConfig = [];
+    protected array $readConnectionConfig = [];
 
     /**
      * The name of the connected database.
@@ -69,9 +51,19 @@ class Connection implements ConnectionInterface
     protected string $database;
 
     /**
+     * The configured database name.
+     */
+    protected string $configuredDatabase;
+
+    /**
      * The table prefix for the connection.
      */
     protected string $tablePrefix = '';
+
+    /**
+     * The configured table prefix.
+     */
+    protected string $configuredTablePrefix = '';
 
     /**
      * The database connection configuration options.
@@ -106,11 +98,6 @@ class Connection implements ConnectionInterface
     protected ?Dispatcher $events = null;
 
     /**
-     * The default fetch mode of the connection.
-     */
-    protected int $fetchMode = PDO::FETCH_OBJ;
-
-    /**
      * The number of active transactions.
      */
     protected int $transactions = 0;
@@ -133,7 +120,7 @@ class Connection implements ConnectionInterface
     protected bool $recordsModified = false;
 
     /**
-     * Indicates if the connection should use the "write" PDO connection.
+     * Indicates if the connection should use the write connection when reading.
      */
     protected bool $readOnWriteConnection = false;
 
@@ -145,11 +132,11 @@ class Connection implements ConnectionInterface
     protected ?string $readWriteType = null;
 
     /**
-     * The last retrieved PDO read / write type.
+     * The last retrieved read / write type.
      *
      * @var null|'read'|'write'
      */
-    protected ?string $latestPdoTypeRetrieved = null;
+    protected ?string $latestReadWriteTypeRetrieved = null;
 
     /**
      * All of the queries run against the connection.
@@ -202,20 +189,6 @@ class Connection implements ConnectionInterface
     protected int $errorCount = 0;
 
     /**
-     * The registered database session configurators.
-     *
-     * @var list<SessionConfigurator>
-     */
-    protected static array $sessionConfigurators = [];
-
-    /**
-     * The state known for each live physical database session.
-     *
-     * @var null|WeakMap<PDO, PhysicalSessionState>
-     */
-    protected static ?WeakMap $physicalSessionStates = null;
-
-    /**
      * The connection resolvers.
      *
      * @var array<string, Closure>
@@ -225,16 +198,16 @@ class Connection implements ConnectionInterface
     /**
      * Create a new database connection instance.
      */
-    public function __construct(PDO|Closure $pdo, string $database = '', string $tablePrefix = '', array $config = [])
+    public function __construct(string $database = '', string $tablePrefix = '', array $config = [])
     {
-        $this->pdo = $pdo;
-
         // First we will setup the default properties. We keep track of the DB
         // name we are connected to since it is needed when some reflective
         // type commands are run such as checking whether a table exists.
         $this->database = $database;
+        $this->configuredDatabase = $database;
 
         $this->tablePrefix = $tablePrefix;
+        $this->configuredTablePrefix = $tablePrefix;
 
         $this->config = $config;
 
@@ -385,54 +358,17 @@ class Connection implements ConnectionInterface
     /**
      * Run a select statement against the database.
      */
-    public function select(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): array
-    {
-        return $this->run($query, $bindings, function ($query, $bindings) use ($useReadPdo, $fetchUsing) {
-            if ($this->pretending()) {
-                return [];
-            }
-
-            // For select statements, we'll simply execute the query and return an array
-            // of the database result set. Each element in the array will be a single
-            // row from the database table, and will either be an array or objects.
-            $statement = $this->prepared(
-                $this->getPdoForSelect($useReadPdo)->prepare($query)
-            );
-
-            $this->bindValues($statement, $this->prepareBindings($bindings));
-
-            $statement->execute();
-
-            return $statement->fetchAll(...$fetchUsing);
-        });
-    }
+    abstract public function select(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): array;
 
     /**
      * Run a select statement against the database and return all of the result sets.
      */
     public function selectResultSets(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): array
     {
-        return $this->run($query, $bindings, function ($query, $bindings) use ($useReadPdo, $fetchUsing) {
-            if ($this->pretending()) {
-                return [];
-            }
-
-            $statement = $this->prepared(
-                $this->getPdoForSelect($useReadPdo)->prepare($query)
-            );
-
-            $this->bindValues($statement, $this->prepareBindings($bindings));
-
-            $statement->execute();
-
-            $sets = [];
-
-            do {
-                $sets[] = $statement->fetchAll(...$fetchUsing);
-            } while ($statement->nextRowset());
-
-            return $sets;
-        });
+        throw new LogicException(sprintf(
+            'Database driver [%s] does not support multiple result sets.',
+            $this->getDriverName(),
+        ));
     }
 
     /**
@@ -440,76 +376,7 @@ class Connection implements ConnectionInterface
      *
      * @return Generator<int, mixed>
      */
-    public function cursor(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): Generator
-    {
-        $statement = $this->run($query, $bindings, function ($query, $bindings) use ($useReadPdo) {
-            if ($this->pretending()) {
-                return null;
-            }
-
-            // First we will create a statement for the query. Then, we will set the fetch
-            // mode and prepare the bindings for the query. Once that's done we will be
-            // ready to execute the query against the database and return the cursor.
-            $statement = $this->prepared($this->getPdoForSelect($useReadPdo)
-                ->prepare($query));
-
-            $this->bindValues(
-                $statement,
-                $this->prepareBindings($bindings)
-            );
-
-            // Next, we'll execute the query against the database and return the statement
-            // so we can return the cursor. The cursor will use a PHP generator to give
-            // back one row at a time without using a bunch of memory to render them.
-            $statement->execute();
-
-            return $statement;
-        });
-
-        if ($statement === null) {
-            return;
-        }
-
-        if ($fetchUsing !== []) {
-            // fetchAll() supplies default column and class arguments that setFetchMode()
-            // demands explicitly, so a mode-only call keeps the same meaning when streamed.
-            if (count($fetchUsing) === 1) {
-                $mode = $fetchUsing[0] & ~(PDO::FETCH_GROUP | PDO::FETCH_UNIQUE | PDO::FETCH_CLASSTYPE | PDO::FETCH_PROPS_LATE);
-
-                if ($mode === PDO::FETCH_COLUMN) {
-                    $fetchUsing[] = 0;
-                } elseif ($mode === PDO::FETCH_CLASS && ($fetchUsing[0] & PDO::FETCH_CLASSTYPE) === 0) {
-                    $fetchUsing[] = stdClass::class;
-                }
-            }
-
-            $statement->setFetchMode(...$fetchUsing);
-        }
-
-        foreach ($statement as $record) {
-            yield $record;
-        }
-    }
-
-    /**
-     * Configure the PDO prepared statement.
-     */
-    protected function prepared(PDOStatement $statement): PDOStatement
-    {
-        $statement->setFetchMode($this->fetchMode);
-
-        $this->event(StatementPrepared::class, fn () => new StatementPrepared($this, $statement));
-
-        return $statement;
-    }
-
-    /**
-     * Get the PDO connection to use for a select query.
-     */
-    protected function getPdoForSelect(bool $useReadPdo = true): PDO
-    {
-        return $useReadPdo ? $this->getReadPdo() : $this->getPdo();
-    }
+    abstract public function cursor(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): Generator;
 
     /**
      * Run an insert statement against the database.
@@ -517,6 +384,17 @@ class Connection implements ConnectionInterface
     public function insert(string $query, array $bindings = []): bool
     {
         return $this->statement($query, $bindings);
+    }
+
+    /**
+     * Get the last insert ID.
+     */
+    public function getLastInsertId(?string $sequence = null): int|string
+    {
+        throw new LogicException(sprintf(
+            'Database driver [%s] does not support retrieving last insert IDs.',
+            $this->getDriverName(),
+        ));
     }
 
     /**
@@ -538,67 +416,17 @@ class Connection implements ConnectionInterface
     /**
      * Execute an SQL statement and return the boolean result.
      */
-    public function statement(string $query, array $bindings = []): bool
-    {
-        return $this->run($query, $bindings, function ($query, $bindings) {
-            if ($this->pretending()) {
-                return true;
-            }
-
-            $statement = $this->getPdo()->prepare($query);
-
-            $this->bindValues($statement, $this->prepareBindings($bindings));
-
-            $this->recordsHaveBeenModified();
-
-            return $statement->execute();
-        });
-    }
+    abstract public function statement(string $query, array $bindings = []): bool;
 
     /**
      * Run an SQL statement and get the number of rows affected.
      */
-    public function affectingStatement(string $query, array $bindings = []): int
-    {
-        return $this->run($query, $bindings, function ($query, $bindings) {
-            if ($this->pretending()) {
-                return 0;
-            }
-
-            // For update or delete statements, we want to get the number of rows affected
-            // by the statement and return that back to the developer. We'll first need
-            // to execute the statement and then we'll use PDO to fetch the affected.
-            $statement = $this->getPdo()->prepare($query);
-
-            $this->bindValues($statement, $this->prepareBindings($bindings));
-
-            $statement->execute();
-
-            $this->recordsHaveBeenModified(
-                ($count = $statement->rowCount()) > 0
-            );
-
-            return $count;
-        });
-    }
+    abstract public function affectingStatement(string $query, array $bindings = []): int;
 
     /**
-     * Run a raw, unprepared query against the PDO connection.
+     * Run a raw, unprepared query against the connection.
      */
-    public function unprepared(string $query): bool
-    {
-        return $this->run($query, [], function ($query) {
-            if ($this->pretending()) {
-                return true;
-            }
-
-            $this->recordsHaveBeenModified(
-                $change = $this->getPdo()->exec($query) !== false
-            );
-
-            return $change;
-        });
-    }
+    abstract public function unprepared(string $query): bool;
 
     /**
      * Get the number of open connections for the database.
@@ -684,24 +512,6 @@ class Connection implements ConnectionInterface
     }
 
     /**
-     * Bind values to their parameters in the given statement.
-     */
-    public function bindValues(PDOStatement $statement, array $bindings): void
-    {
-        foreach ($bindings as $key => $value) {
-            $statement->bindValue(
-                is_string($key) ? $key : $key + 1,
-                $value,
-                match (true) {
-                    is_int($value) => PDO::PARAM_INT,
-                    is_resource($value) => PDO::PARAM_LOB,
-                    default => PDO::PARAM_STR
-                },
-            );
-        }
-    }
-
-    /**
      * Prepare the query bindings for execution.
      */
     public function prepareBindings(array $bindings): array
@@ -771,7 +581,7 @@ class Connection implements ConnectionInterface
     protected function runQueryCallback(string $query, array $bindings, Closure $callback): mixed
     {
         // To execute the statement, we'll simply call the callback, which will actually
-        // run the SQL against the PDO connection. Then we can calculate the time it
+        // run the SQL against the database connection. Then we can calculate the time it
         // took to execute and log the query SQL, bindings and time in our memory.
         try {
             return $callback($query, $bindings);
@@ -969,38 +779,50 @@ class Connection implements ConnectionInterface
     }
 
     /**
-     * Reconnect to the database if a PDO connection is missing.
+     * Reconnect to the database if the driver resources are missing.
      */
     public function reconnectIfMissingConnection(): void
     {
-        if (is_null($this->pdo)) {
+        if (! $this->hasDriverResources()) {
             $this->reconnect();
         }
     }
 
     /**
-     * Disconnect from the underlying PDO connection.
+     * Refresh the driver resources from a fresh connection.
+     *
+     * @internal
+     */
+    final public function refreshFrom(Connection $fresh): void
+    {
+        if ($fresh::class !== static::class || $fresh->getName() !== $this->getName()) {
+            throw new LogicException(sprintf(
+                'Cannot refresh connection [%s] of type [%s] from connection [%s] of type [%s].',
+                $this->getName() ?? '',
+                static::class,
+                $fresh->getName() ?? '',
+                $fresh::class,
+            ));
+        }
+
+        $this->replaceDriverResources($fresh);
+    }
+
+    /**
+     * Disconnect from the underlying driver resources.
      */
     public function disconnect(): void
     {
-        $pdo = $this->getRawPdo();
         $exception = null;
 
         try {
-            if ($pdo instanceof PDO && $pdo->inTransaction()) {
-                $pdo->rollBack();
-                $this->invalidateSessionState($pdo);
-            }
+            $this->disconnectDriverResources();
         } catch (Throwable $throwable) {
-            $this->markSessionStateUnknown($pdo);
-
-            if (! $this->causedByLostConnection($throwable)) {
-                $exception = $throwable;
-            }
+            $exception = $throwable;
         }
 
         try {
-            $this->terminateTransactionState();
+            $this->resetTransactionState();
         } catch (Throwable $throwable) {
             $exception ??= $throwable;
         }
@@ -1008,6 +830,62 @@ class Connection implements ConnectionInterface
         if ($exception !== null) {
             throw $exception;
         }
+    }
+
+    /**
+     * Reset the logical transaction state.
+     */
+    protected function resetTransactionState(): void
+    {
+        $this->transactions = 0;
+
+        $this->transactionsManager?->rollback($this->getName(), 0);
+    }
+
+    /**
+     * Determine whether the connection has driver resources.
+     */
+    abstract protected function hasDriverResources(): bool;
+
+    /**
+     * Disconnect the driver resources.
+     *
+     * Implementations must forget the current resources through
+     * forgetDriverResources() in a finally block so cleanup failure cannot
+     * leave stale resources attached.
+     */
+    abstract protected function disconnectDriverResources(): void;
+
+    /**
+     * Forget the driver resources without performing physical cleanup.
+     */
+    abstract protected function forgetDriverResources(): void;
+
+    /**
+     * Refresh the driver resources from a fresh connection.
+     *
+     * Validate and capture a complete replacement set of driver resources and
+     * resource-associated metadata, including the configured database and table
+     * prefix baselines. Adopt it in a finally block around teardown. The original
+     * teardown throwable must propagate unchanged.
+     */
+    abstract protected function replaceDriverResources(Connection $fresh): void;
+
+    /**
+     * Determine whether the connection is responsive.
+     *
+     * @internal
+     */
+    abstract public function ping(): bool;
+
+    /**
+     * Determine whether the connection may be reused.
+     *
+     * @internal
+     */
+    public function isReusable(): bool
+    {
+        return true;
     }
 
     /**
@@ -1067,8 +945,9 @@ class Connection implements ConnectionInterface
     /**
      * Reset all wrapper state for pool release.
      *
+     * Mutable connection metadata is restored to its configured values.
      * Trustworthy physical session state is preserved and synchronized against
-     * the next coroutine's desired state when the PDO is handed out again.
+     * the next coroutine's desired state when the connection is handed out again.
      */
     public function resetForPool(): void
     {
@@ -1089,7 +968,10 @@ class Connection implements ConnectionInterface
         $this->totalQueryDuration = 0.0;
         $this->queryDurationHandlers = [];
 
-        // Reset connection routing
+        // Reset connection metadata and routing
+        $this->database = $this->configuredDatabase;
+        $this->tablePrefix = $this->configuredTablePrefix;
+        $this->latestReadWriteTypeRetrieved = null;
         $this->readOnWriteConnection = false;
 
         // Reset pretend mode (defensive - normally reset by finally block)
@@ -1203,10 +1085,7 @@ class Connection implements ConnectionInterface
     /**
      * Escape a string value for safe SQL embedding.
      */
-    protected function escapeString(string $value): string
-    {
-        return $this->getReadPdo()->quote($value);
-    }
+    abstract protected function escapeString(string $value): string;
 
     /**
      * Escape a boolean value for safe SQL embedding.
@@ -1263,7 +1142,7 @@ class Connection implements ConnectionInterface
     }
 
     /**
-     * Indicate that the connection should use the write PDO connection for reads.
+     * Indicate that the connection should use the write connection for reads.
      */
     public function useWriteConnectionWhenReading(bool $value = true): static
     {
@@ -1273,288 +1152,32 @@ class Connection implements ConnectionInterface
     }
 
     /**
-     * Get the current synchronized PDO connection.
+     * Invalidate the state remembered for the current physical session.
      */
-    public function getPdo(): PDO
+    protected function invalidateCurrentSessionState(): void
     {
-        $this->latestPdoTypeRetrieved = 'write';
-        $pdo = $this->resolvePdo();
-
-        return static::$sessionConfigurators === []
-            ? $pdo
-            : $this->synchronizeSession($pdo, read: false);
     }
 
     /**
-     * Get the current PDO parameter without resolving, reconnecting, or synchronizing session state.
-     */
-    public function getRawPdo(): PDO|Closure|null
-    {
-        return $this->pdo;
-    }
-
-    /**
-     * Get the current synchronized PDO connection used for reading.
-     */
-    public function getReadPdo(): PDO
-    {
-        if ($this->transactions > 0) {
-            return $this->getPdo();
-        }
-
-        if ($this->readOnWriteConnection
-            || ($this->recordsModified && $this->getConfig('sticky'))) {
-            return $this->getPdo();
-        }
-
-        $this->latestPdoTypeRetrieved = 'read';
-        $pdo = $this->resolveReadPdo();
-
-        return static::$sessionConfigurators === []
-            ? $pdo
-            : $this->synchronizeSession($pdo, read: true);
-    }
-
-    /**
-     * Get the current read PDO parameter without resolving, reconnecting, or synchronizing session state.
-     */
-    public function getRawReadPdo(): PDO|Closure|null
-    {
-        return $this->readPdo;
-    }
-
-    /**
-     * Resolve the current write PDO without synchronizing session state.
-     */
-    protected function resolvePdo(): PDO
-    {
-        if ($this->pdo instanceof Closure) {
-            return $this->pdo = call_user_func($this->pdo);
-        }
-
-        return $this->pdo;
-    }
-
-    /**
-     * Resolve the current read PDO without synchronizing session state.
-     */
-    protected function resolveReadPdo(): PDO
-    {
-        if ($this->readPdo instanceof Closure) {
-            return $this->readPdo = call_user_func($this->readPdo);
-        }
-
-        if ($this->readPdo instanceof PDO) {
-            return $this->readPdo;
-        }
-
-        $this->latestPdoTypeRetrieved = 'write';
-
-        return $this->resolvePdo();
-    }
-
-    /**
-     * Synchronize the desired state for a physical database session.
-     */
-    protected function synchronizeSession(PDO $pdo, bool $read): PDO
-    {
-        $sessionState = static::physicalSessionState($pdo);
-
-        if ($sessionState->configuring) {
-            $this->markSessionStateUnknown($pdo);
-
-            throw new RuntimeException('Reentrant database session configuration is not allowed.');
-        }
-
-        if ($sessionState->unknown) {
-            $sessionState->configuring = true;
-
-            try {
-                $pdo = $this->replaceUnknownSession($read);
-            } finally {
-                $sessionState->configuring = false;
-            }
-
-            $sessionState = static::physicalSessionState($pdo);
-
-            if ($sessionState->configuring) {
-                $this->markSessionStateUnknown($pdo);
-
-                throw new RuntimeException('Reentrant database session configuration is not allowed.');
-            }
-        }
-
-        $sessionState->configuring = true;
-
-        try {
-            foreach (static::$sessionConfigurators as $index => $configurator) {
-                $desiredState = $configurator->state($this);
-
-                if ($desiredState === null
-                    || ($sessionState->appliedStates[$index] ?? null) === $desiredState) {
-                    continue;
-                }
-
-                try {
-                    $configurator->apply($pdo, $desiredState, $this);
-
-                    if ($sessionState->unknown) {
-                        throw new RuntimeException('Database session state became unknown during configuration.');
-                    }
-                } catch (Throwable $exception) {
-                    $sessionState->appliedStates = [];
-                    $sessionState->unknown = true;
-
-                    throw $exception;
-                }
-
-                $sessionState->appliedStates[$index] = $desiredState;
-            }
-
-            if ($sessionState->unknown) {
-                throw new RuntimeException('Database session state became unknown during configuration.');
-            }
-        } finally {
-            $sessionState->configuring = false;
-        }
-
-        return $pdo;
-    }
-
-    /**
-     * Replace a physical session whose state can no longer be trusted.
-     */
-    protected function replaceUnknownSession(bool $read): PDO
-    {
-        if ($this->transactions > 0) {
-            throw new RuntimeException('Database session state is unknown within an active transaction.');
-        }
-
-        $this->reconnect();
-
-        $replacement = $read
-            ? $this->resolveReadPdo()
-            : $this->resolvePdo();
-
-        if (static::sessionStateIsUnknown($replacement)) {
-            throw new RuntimeException('Database session state remains unknown after reconnecting.');
-        }
-
-        return $replacement;
-    }
-
-    /**
-     * Get the state holder for a physical database session.
-     */
-    protected static function physicalSessionState(PDO $pdo): PhysicalSessionState
-    {
-        $states = static::$physicalSessionStates ??= new WeakMap;
-
-        return $states[$pdo] ??= new PhysicalSessionState;
-    }
-
-    /**
-     * Determine whether a physical database session has unknown state.
-     */
-    protected static function sessionStateIsUnknown(PDO $pdo): bool
-    {
-        return static::$physicalSessionStates !== null
-            && isset(static::$physicalSessionStates[$pdo])
-            && static::$physicalSessionStates[$pdo]->unknown;
-    }
-
-    /**
-     * Invalidate the states remembered for a physical database session.
-     */
-    protected function invalidateSessionState(PDO $pdo): void
-    {
-        if (static::$physicalSessionStates !== null
-            && isset(static::$physicalSessionStates[$pdo])) {
-            static::$physicalSessionStates[$pdo]->appliedStates = [];
-        }
-    }
-
-    /**
-     * Mark a physical database session's state as unknown.
-     */
-    protected function markSessionStateUnknown(PDO $pdo): void
-    {
-        $sessionState = static::physicalSessionState($pdo);
-        $sessionState->appliedStates = [];
-        $sessionState->unknown = true;
-    }
-
-    /**
-     * Mark the current write session's state as unknown.
+     * Mark the current physical session state as unknown.
      *
      * @internal
      */
     public function markCurrentSessionStateUnknown(): void
     {
-        $pdo = $this->getRawPdo();
-
-        if (! $pdo instanceof PDO) {
-            // Cleanup must not resolve a lazy connection merely to invalidate a session that does not yet exist.
-            return;
-        }
-
-        $this->markSessionStateUnknown($pdo);
     }
 
     /**
-     * Determine whether an open PDO has unknown session state.
+     * Execute an internal physical-session statement.
      *
      * @internal
      */
-    public function hasUnknownSessionState(): bool
+    public function executeSessionStatement(string $sql): void
     {
-        if (static::$physicalSessionStates === null) {
-            return false;
-        }
-
-        $writePdo = $this->getRawPdo();
-
-        if ($writePdo instanceof PDO
-            && static::sessionStateIsUnknown($writePdo)) {
-            return true;
-        }
-
-        $readPdo = $this->getRawReadPdo();
-
-        return $readPdo instanceof PDO
-            && static::sessionStateIsUnknown($readPdo);
-    }
-
-    /**
-     * Set the PDO connection.
-     */
-    public function setPdo(PDO|Closure|null $pdo): static
-    {
-        $this->transactions = 0;
-
-        $this->pdo = $pdo;
-
-        return $this;
-    }
-
-    /**
-     * Set the PDO connection used for reading.
-     */
-    public function setReadPdo(PDO|Closure|null $pdo): static
-    {
-        $this->readPdo = $pdo;
-
-        return $this;
-    }
-
-    /**
-     * Set the read PDO connection configuration.
-     */
-    public function setReadPdoConfig(array $config): static
-    {
-        $this->readPdoConfig = $config;
-
-        return $this;
+        throw new LogicException(sprintf(
+            'Database driver [%s] does not support physical session statements.',
+            $this->getDriverName(),
+        ));
     }
 
     /**
@@ -1577,6 +1200,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Get an option from the configuration options.
+     *
+     * @return ($option is null ? array<string, mixed> : mixed)
      */
     public function getConfig(?string $option = null): mixed
     {
@@ -1588,8 +1213,8 @@ class Connection implements ConnectionInterface
      */
     protected function getConnectionDetails(): array
     {
-        $config = $this->latestReadWriteTypeUsed() === 'read' && $this->readPdoConfig !== []
-            ? $this->readPdoConfig
+        $config = $this->latestReadWriteTypeUsed() === 'read' && $this->readConnectionConfig !== []
+            ? $this->readConnectionConfig
             : $this->config;
 
         return [
@@ -1603,7 +1228,7 @@ class Connection implements ConnectionInterface
     }
 
     /**
-     * Get the PDO driver name.
+     * Get the database driver name.
      */
     public function getDriverName(): string
     {
@@ -1703,8 +1328,52 @@ class Connection implements ConnectionInterface
      */
     protected function executeBeginTransactionStatement(): void
     {
-        $this->getPdo()->beginTransaction();
+        $this->throwUnsupportedTransactionException();
     }
+
+    /**
+     * Create a save point within the database.
+     *
+     * @throws Throwable
+     */
+    protected function createSavepoint(): void
+    {
+        $this->throwUnsupportedTransactionException();
+    }
+
+    /**
+     * Commit the active physical transaction.
+     */
+    protected function performCommit(): void
+    {
+        $this->throwUnsupportedTransactionException();
+    }
+
+    /**
+     * Perform a rollback within the database.
+     *
+     * @throws Throwable
+     */
+    protected function performRollBack(int $toLevel): void
+    {
+        $this->throwUnsupportedTransactionException();
+    }
+
+    /**
+     * Throw an exception for an unsupported transaction operation.
+     */
+    private function throwUnsupportedTransactionException(): never
+    {
+        throw new LogicException(sprintf(
+            'Database driver [%s] does not support transactions.',
+            $this->getDriverName(),
+        ));
+    }
+
+    /**
+     * Determine whether the connection has an active physical transaction.
+     */
+    abstract public function inTransaction(): bool;
 
     /**
      * Set the transaction manager instance on the connection.
@@ -1824,7 +1493,7 @@ class Connection implements ConnectionInterface
      */
     protected function latestReadWriteTypeUsed(): ?string
     {
-        return $this->readWriteType ?? $this->latestPdoTypeRetrieved;
+        return $this->readWriteType ?? $this->latestReadWriteTypeRetrieved;
     }
 
     /**
@@ -1869,22 +1538,7 @@ class Connection implements ConnectionInterface
     /**
      * Get the server version for the connection.
      */
-    public function getServerVersion(): string
-    {
-        return $this->getPdo()->getAttribute(PDO::ATTR_SERVER_VERSION);
-    }
-
-    /**
-     * Register a database session configurator.
-     *
-     * Boot-only. The configurator persists in a static property for the worker
-     * lifetime and runs on every subsequent synchronized PDO hand-out across all
-     * coroutines.
-     */
-    public static function configureSessionUsing(SessionConfigurator $configurator): void
-    {
-        static::$sessionConfigurators[] = $configurator;
-    }
+    abstract public function getServerVersion(): string;
 
     /**
      * Register a connection resolver.
@@ -1911,8 +1565,6 @@ class Connection implements ConnectionInterface
      */
     public static function flushState(): void
     {
-        static::$sessionConfigurators = [];
-        static::$physicalSessionStates = null;
         static::$resolvers = [];
         static::flushMacros();
     }

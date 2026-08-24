@@ -10,12 +10,12 @@ use Hypervel\Console\Prohibitable;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Events\DatabaseRefreshed;
 use Hypervel\Database\Migrations\Migrator;
+use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
-use Throwable;
 
 #[AsCommand(name: 'migrate:fresh')]
-class FreshCommand extends Command
+class FreshCommand extends BaseCommand
 {
     use ConfirmableTrait;
     use Prohibitable;
@@ -28,12 +28,7 @@ class FreshCommand extends Command
     /**
      * The console command description.
      */
-    protected string $description = 'Drop all tables and re-run all migrations';
-
-    /**
-     * The migrator instance.
-     */
-    protected Migrator $migrator;
+    protected string $description = 'Drop all tables from migration connections and re-run all migrations';
 
     /**
      * Create a new fresh command instance.
@@ -50,42 +45,59 @@ class FreshCommand extends Command
      */
     public function handle(): int
     {
-        if ($this->isProhibited()
-            || ! $this->confirmToProceed()) {
+        if ($this->isProhibited()) {
             return Command::FAILURE;
         }
 
         $database = $this->input->getOption('database');
+        $paths = $this->getMigrationPaths();
+        $connections = $this->migrator->getMigrationConnections($paths, $database);
+        $missingDatabases = $this->inspectMigrationConnections($connections);
+        $preExistingConnections = array_values(array_diff($connections, array_keys($missingDatabases)));
 
-        $this->migrator->usingConnection($database, function () use ($database) {
-            try {
-                $repositoryExists = $this->migrator->repositoryExists();
-            } catch (Throwable) {
-                $repositoryExists = false;
-            }
+        if ($preExistingConnections !== []) {
+            $this->components->warn('The following database connections will be wiped:');
+            $this->components->bulletList($preExistingConnections);
+        }
 
-            if ($repositoryExists) {
-                $this->newLine();
+        if ($missingDatabases !== []) {
+            $this->components->warn('The following database connections will be created:');
+            $this->components->bulletList(array_keys($missingDatabases));
+        }
 
-                $this->components->task('Dropping all tables', fn () => $this->callSilent('db:wipe', array_filter([
-                    '--database' => $database,
+        if (! $this->confirmToProceed()) {
+            return Command::FAILURE;
+        }
+
+        $this->createMissingDatabases($missingDatabases);
+
+        foreach ($preExistingConnections as $connection) {
+            $this->components->task("Dropping all tables on [{$connection}]", function () use ($connection): bool {
+                if ($this->callSilent('db:wipe', array_filter([
+                    '--database' => $connection,
                     '--drop-views' => $this->option('drop-views'),
                     '--drop-types' => $this->option('drop-types'),
                     '--force' => true,
-                ])) === 0);
-            }
-        });
+                ])) !== Command::SUCCESS) {
+                    throw new RuntimeException("Database wipe failed for connection [{$connection}].");
+                }
+
+                return true;
+            });
+        }
 
         $this->newLine();
 
-        $this->call('migrate', array_filter([
+        if ($this->call('migrate', array_filter([
             '--database' => $database,
             '--path' => $this->input->getOption('path'),
             '--realpath' => $this->input->getOption('realpath'),
             '--schema-path' => $this->input->getOption('schema-path'),
             '--force' => true,
             '--step' => $this->option('step'),
-        ]));
+        ])) !== Command::SUCCESS) {
+            throw new RuntimeException('Migration command failed while refreshing the databases.');
+        }
 
         if ($this->hypervel->bound(Dispatcher::class)) {
             $this->hypervel->make(Dispatcher::class)->dispatch(
@@ -97,7 +109,7 @@ class FreshCommand extends Command
             $this->runSeeder($database);
         }
 
-        return 0;
+        return Command::SUCCESS;
     }
 
     /**
@@ -113,11 +125,13 @@ class FreshCommand extends Command
      */
     protected function runSeeder(?string $database): void
     {
-        $this->call('db:seed', array_filter([
+        if ($this->call('db:seed', array_filter([
             '--database' => $database,
             '--class' => $this->option('seeder') ?: 'Database\Seeders\DatabaseSeeder',
             '--force' => true,
-        ]));
+        ])) !== Command::SUCCESS) {
+            throw new RuntimeException('Database seeding failed after the databases were refreshed.');
+        }
     }
 
     /**
@@ -126,7 +140,7 @@ class FreshCommand extends Command
     protected function getOptions(): array
     {
         return [
-            ['database', null, InputOption::VALUE_OPTIONAL, 'The database connection to use'],
+            ['database', null, InputOption::VALUE_OPTIONAL, 'The default database connection to use'],
             ['drop-views', null, InputOption::VALUE_NONE, 'Drop all tables and views'],
             ['drop-types', null, InputOption::VALUE_NONE, 'Drop all tables and types (Postgres only)'],
             ['force', null, InputOption::VALUE_NONE, 'Force the operation to run when in production'],

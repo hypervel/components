@@ -16,7 +16,6 @@ use Hypervel\Engine\Coroutine;
 use Hypervel\Engine\Exceptions\CoroutineCreateException;
 use Hypervel\Pool\Events\ReleaseConnection;
 use Hypervel\Pool\PoolOption;
-use PDO;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -118,11 +117,11 @@ class PooledConnection implements PoolConnectionInterface
                 $this->config['name'] ?? null
             );
         } else {
-            // Normal path: factory creates fresh connection with new PDO
+            // Normal path: factory creates a fresh connection with new driver resources.
             $this->connection = $this->factory->make($this->config, $this->config['name'] ?? null);
         }
 
-        if ($this->connection->hasUnknownSessionState()) {
+        if (! $this->connection->isReusable()) {
             $this->markInvalid();
 
             if ($sharedPdo !== null) {
@@ -131,7 +130,7 @@ class PooledConnection implements PoolConnectionInterface
                 );
             }
 
-            throw new RuntimeException('Database session state remains unknown after reconnecting.');
+            throw new RuntimeException('Database connection is not reusable after reconnecting.');
         }
 
         // Configure event dispatcher for query events
@@ -212,7 +211,7 @@ class PooledConnection implements PoolConnectionInterface
     }
 
     /**
-     * Ping already-open PDO connections.
+     * Ping the underlying database connection.
      */
     public function ping(float $timeout): bool
     {
@@ -220,22 +219,20 @@ class PooledConnection implements PoolConnectionInterface
             return false;
         }
 
-        // Known session configuration is memoized by physical PDO across clean
-        // releases. Pool maintenance must remain session-state-neutral.
-        $pdos = $this->getOpenPdos();
-
-        if ($pdos === []) {
-            return true;
-        }
-
         $result = new Channel(1);
+        $connection = $this->connection;
 
         try {
-            $started = go(static function () use ($pdos, $result): void {
+            $started = go(static function () use ($connection, $result): void {
                 try {
-                    $result->push(self::pingPdos($pdos), 0.0);
+                    $healthy = $connection->ping();
                 } catch (CanceledException) {
+                    return;
+                } catch (Throwable) {
+                    $healthy = false;
                 }
+
+                $result->push($healthy, 0.0);
             });
         } catch (CoroutineCreateException) {
             return false;
@@ -305,8 +302,8 @@ class PooledConnection implements PoolConnectionInterface
             // Mark as stale so it will be recreated
             $this->markInvalid();
         } finally {
-            if ($this->connection?->hasUnknownSessionState()) {
-                $this->logger->warning('Database session state is unknown, marking connection as stale.');
+            if ($this->connection !== null && ! $this->connection->isReusable()) {
+                $this->logger->warning('Database connection is not reusable, marking it as stale.');
                 $this->markInvalid();
             }
 
@@ -385,60 +382,6 @@ class PooledConnection implements PoolConnectionInterface
     }
 
     /**
-     * Get already-open PDO instances.
-     *
-     * @return PDO[]
-     */
-    protected function getOpenPdos(): array
-    {
-        if (! $this->connection instanceof Connection) {
-            return [];
-        }
-
-        $writePdo = $this->connection->getRawPdo();
-        $readPdo = $this->connection->getRawReadPdo();
-        $pdos = [];
-
-        if ($writePdo instanceof PDO) {
-            $pdos[] = $writePdo;
-        }
-
-        if ($readPdo instanceof PDO && $readPdo !== $writePdo) {
-            $pdos[] = $readPdo;
-        }
-
-        return $pdos;
-    }
-
-    /**
-     * Ping PDO instances.
-     *
-     * @param PDO[] $pdos
-     */
-    protected static function pingPdos(array $pdos): bool
-    {
-        try {
-            foreach ($pdos as $pdo) {
-                $statement = $pdo->query('SELECT 1');
-
-                if ($statement === false) {
-                    return false;
-                }
-
-                $statement->closeCursor();
-            }
-
-            return true;
-        } catch (Throwable $exception) {
-            if ($exception instanceof CanceledException) {
-                throw $exception;
-            }
-
-            return false;
-        }
-    }
-
-    /**
      * Stamp the current connection generation.
      */
     private function stampGeneration(float $now): void
@@ -451,39 +394,33 @@ class PooledConnection implements PoolConnectionInterface
     }
 
     /**
-     * Refresh the PDO connections.
+     * Refresh the database connection resources.
      */
     protected function refresh(Connection $connection): void
     {
         $sharedPdo = $this->pool->getSharedInMemorySqlitePdo();
 
-        if ($sharedPdo !== null) {
-            // For shared in-memory SQLite, rebind to the same PDO.
-            // Creating a fresh PDO would give us a new empty database.
-            // Disconnect first to roll back connection state and resolve manager records.
-            try {
-                $connection->disconnect();
-            } finally {
-                $connection->setPdo($sharedPdo);
-                $connection->setReadPdo($sharedPdo);
-            }
-        } else {
-            try {
+        try {
+            if ($sharedPdo !== null) {
+                // For shared in-memory SQLite, rebind to the same PDO.
+                // Creating a fresh PDO would give us a new empty database.
+                $fresh = $this->factory->makeSqliteFromSharedPdo(
+                    $sharedPdo,
+                    $this->config,
+                    $this->config['name'] ?? null
+                );
+            } else {
                 $fresh = $this->factory->make($this->config, $this->config['name'] ?? null);
-                $writePdo = $fresh->getPdo();
-                $readPdo = $fresh->getReadPdo();
-
-                // Keep the current generation intact until both replacement handles
-                // are ready so a failed refresh cannot leave a partial connection.
-                $connection->disconnect();
-                $connection->setPdo($writePdo);
-                $connection->setReadPdo($readPdo);
-            } catch (Throwable $exception) {
-                $this->markInvalid();
-
-                throw $exception;
             }
 
+            $connection->refreshFrom($fresh);
+        } catch (Throwable $exception) {
+            $this->markInvalid();
+
+            throw $exception;
+        }
+
+        if ($sharedPdo === null) {
             $this->logger->warning('Database connection refreshed.');
         }
 

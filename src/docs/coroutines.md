@@ -231,7 +231,7 @@ go(function () {
 });
 ```
 
-When the copied value is an object, the object reference is shared unless the object implements `Hypervel\Context\ReplicableContext`. See the [coroutine context](/docs/{{version}}/coroutine-context) documentation for more information.
+Objects stored directly as context values are shared by default. Values that implement `Hypervel\Context\ReplicableContext` are copied independently, while values that implement `Hypervel\Context\NonCopyableContext` are omitted. Hypervel does not inspect objects nested within arrays or other objects. See the [coroutine context](/docs/{{version}}/coroutine-context) documentation for more information.
 
 <a name="nested-coroutines"></a>
 ### Nested Coroutines
@@ -451,7 +451,7 @@ $result = wait(function () {
 }, copyContext: ['request_id']);
 ```
 
-Copied object values follow the same replication behavior as [`go` and `Coroutine::fork`](#copying-coroutine-context).
+Copied values follow the same rules as [`go` and `Coroutine::fork`](#copying-coroutine-context).
 
 If the closure throws an exception, `wait` rethrows it in the waiting coroutine after the child's deferred callbacks have finished.
 

@@ -6,7 +6,7 @@ Hypervel is a standalone Laravel-style Swoole framework. The public API should s
 
 Laravel is the main API reference. Hyperf is a historical and architectural reference for some lower-level Swoole/coroutine packages, but Hypervel code should follow current Hypervel patterns rather than copying Hyperf structure mechanically.
 
-Most work in this repo today is framework bug fixing and enhancement, or porting Laravel packages. Hyperf-to-Hypervel porting is largely done — the conversion guide lives in `docs/ai/porting-hyperf.md`, read when maintaining previously ported code or doing the occasional remaining port.
+Most work in this repo today is framework bug fixes and enhancements, or porting Laravel packages and updates. `docs/ai/porting-hyperf.md` applies only to the rare Hyperf package or update port.
 
 This file is intentionally detailed because agents trained on Laravel will otherwise assume Laravel's request lifecycle and miss Hypervel's Swoole/coroutine constraints.
 
@@ -125,6 +125,7 @@ The Working rules and the Avoid overengineering rules apply to all work in this 
 - **One file at a time** — never work on multiple files simultaneously. This governs manual editing; package-manager and formatter runs may touch multiple files.
 - **Never use Write to overwrite files** — always use Edit for targeted updates.
 - **Always use `cp` to copy files and `mv` to move/rename** — never read → write new version → delete old version.
+- **Copy before splitting** — When a new file or class is primarily extracted from existing code, use `cp` to copy the primary source first and then update the copy rather than rebuilding it from individual pieces. Copy any additional blocks, including comments and docblocks, into the destination before removing them from their source.
 - **Grep broadly — never assume a subdir** — when searching for any symbol, class, method, or pattern, grep across the whole `src/` (or `tests/`) tree, not a specific package subdir. Assumptions about where something lives produce false negatives.
 - **Read the source before describing behavior** — never state how code behaves from memory or Laravel assumptions. Hypervel's coroutine runtime breaks many Laravel assumptions; if you haven't read the relevant source, read it first.
 - **Treat past owner decisions as context, not constraints** — Previous owner approvals and completed plans explain history but do not determine the best design today. Never retain or reject a design merely because it was previously approved; decide from current requirements, code, and evidence.
@@ -758,7 +759,7 @@ Hyperf is a historical reference rather than an ongoing merge target. For the ra
 
 When working on a package, check its README for the upstream reference before making changes. Most Hypervel packages are ports of Laravel first-party or third-party ecosystem packages, such as Spatie packages. Most low-level Swoole infrastructure packages were originally ported from Hyperf, and a few packages are Hypervel-specific.
 
-Before porting Hyperf code or modifying a Hyperf-ported package, read `docs/ai/porting-hyperf.md` — it covers the conversion mechanics: container calls, ConfigProvider migration, listener/event conversion, and Hyperf test porting.
+Read `docs/ai/porting-hyperf.md` only when porting a Hyperf package or update.
 
 ### Source workflow
 

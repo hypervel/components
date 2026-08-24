@@ -11,6 +11,7 @@ use Hypervel\Database\Events\TransactionBeginning;
 use Hypervel\Sentry\Features\CacheFeature;
 use Hypervel\Sentry\Integration;
 use Hypervel\Sentry\Tracing\EventHandler as TracingEventHandler;
+use Mockery as m;
 use Sentry\SentrySdk;
 use Sentry\Tracing\TransactionContext;
 use Swoole\Coroutine\Channel;
@@ -60,12 +61,8 @@ class CoroutineSafetyTest extends SentryTestCase
         $transaction->setSampled(true);
         $hub->setSpan($transaction);
 
-        $connection = new Connection(
-            static fn (): null => null,
-            'database',
-            '',
-            ['driver' => 'sqlite', 'name' => 'parent'],
-        );
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getName')->once()->andReturn('parent');
         $handler->transactionBeginning(new TransactionBeginning($connection));
 
         // Verify parent has a span on its stack

@@ -465,7 +465,7 @@ CoroutineContext::set('tenant_id', 123);
 $tenantId = CoroutineContext::get('tenant_id');
 ```
 
-Plain child coroutines do not automatically inherit the parent's context. For example, `Hypervel\Coroutine\Coroutine::fork` snapshots the parent's context when invoked and installs it in the child; values implementing `Hypervel\Context\ReplicableContext`, such as the context repository, are copied independently so changes made inside the child coroutine do not mutate the parent's context.
+Plain child coroutines do not automatically inherit the parent's context. For example, `Hypervel\Coroutine\Coroutine::fork` copies the parent's context when invoked and installs it in the child. Objects stored directly as context values are shared by default. Values implementing `Hypervel\Context\ReplicableContext`, such as the context repository, are copied independently, while values implementing `Hypervel\Context\NonCopyableContext`, such as borrowed database and Redis connections, are omitted. Hypervel does not inspect objects nested within arrays or other objects.
 
 <a name="events"></a>
 ## Events

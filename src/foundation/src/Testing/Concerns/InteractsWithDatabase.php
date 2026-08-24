@@ -321,7 +321,7 @@ trait InteractsWithDatabase
 
         $database = DB::connection($connection);
 
-        $value = $database->getPdo()->quote($value);
+        $value = $database->escape($value);
 
         return $database->raw(
             $database->getQueryGrammar()->compileJsonValueCast($value)
