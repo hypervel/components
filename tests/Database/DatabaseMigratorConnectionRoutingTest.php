@@ -14,8 +14,11 @@ use Hypervel\Database\Migrations\MigrationRepositoryInterface;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
+use RuntimeException;
 
 class DatabaseMigratorConnectionRoutingTest extends TestCase
 {
@@ -29,7 +32,7 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
         parent::tearDown();
     }
 
-    public function testFlushStateRestoresStaticState()
+    public function testFlushStateRestoresStaticState(): void
     {
         $reflection = new ReflectionClass(Migrator::class);
         $reflection->setStaticPropertyValue('connectionResolverCallback', static fn () => null);
@@ -43,14 +46,17 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
         $this->assertSame([], $reflection->getStaticPropertyValue('withoutMigrations'));
     }
 
-    public function testResolveMigrationConnectionNameReturnsNullForNullInput()
+    public function testResolveMigrationConnectionNameRejectsMissingEffectiveDefault(): void
     {
         $this->bindConfig([]);
 
-        $this->assertNull(Migrator::resolveMigrationConnectionName(null));
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Migration connection name cannot be empty.');
+
+        Migrator::resolveMigrationConnectionName(null);
     }
 
-    public function testResolveMigrationConnectionNameReturnsOriginalWhenNoMigrationsConnectionConfigured()
+    public function testResolveMigrationConnectionNameReturnsOriginalWhenNoMigrationsConnectionConfigured(): void
     {
         $this->bindConfig([
             'pgsql' => ['driver' => 'pgsql'],
@@ -59,7 +65,7 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
         $this->assertSame('pgsql', Migrator::resolveMigrationConnectionName('pgsql'));
     }
 
-    public function testResolveMigrationConnectionNameReturnsMigrationsConnectionWhenConfigured()
+    public function testResolveMigrationConnectionNameReturnsMigrationsConnectionWhenConfigured(): void
     {
         $this->bindConfig([
             'pgsql-pooled' => ['driver' => 'pgsql', 'migrations_connection' => 'pgsql'],
@@ -67,9 +73,21 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
         ]);
 
         $this->assertSame('pgsql', Migrator::resolveMigrationConnectionName('pgsql-pooled'));
+        $this->assertSame('pgsql', Migrator::resolveMigrationConnectionName('pgsql'));
     }
 
-    public function testResolveMigrationConnectionNameIsDriverAgnostic()
+    public function testResolveMigrationConnectionNameAllowsATerminalSelfReference(): void
+    {
+        $this->bindConfig([
+            'pgsql-pooled' => ['driver' => 'pgsql', 'migrations_connection' => 'pgsql'],
+            'pgsql' => ['driver' => 'pgsql', 'migrations_connection' => 'pgsql'],
+        ]);
+
+        $this->assertSame('pgsql', Migrator::resolveMigrationConnectionName('pgsql-pooled'));
+        $this->assertSame('pgsql', Migrator::resolveMigrationConnectionName('pgsql'));
+    }
+
+    public function testResolveMigrationConnectionNameIsDriverAgnostic(): void
     {
         $this->bindConfig([
             'mysql-pooled' => ['driver' => 'mysql', 'migrations_connection' => 'mysql'],
@@ -79,7 +97,7 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
         $this->assertSame('mysql', Migrator::resolveMigrationConnectionName('mysql-pooled'));
     }
 
-    public function testResolveMigrationConnectionNameReturnsOriginalWhenConfigBindingMissing()
+    public function testResolveMigrationConnectionNameReturnsOriginalWhenConfigBindingMissing(): void
     {
         // No container/config set up — helper should pass the name through
         // rather than throw. Protects unit tests that construct Migrator
@@ -89,7 +107,7 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
         $this->assertSame('pgsql-pooled', Migrator::resolveMigrationConnectionName('pgsql-pooled'));
     }
 
-    public function testResolveMigrationConnectionNameReturnsOriginalWhenTargetConnectionUnknown()
+    public function testResolveMigrationConnectionNameReturnsOriginalWhenTargetConnectionUnknown(): void
     {
         // If the named connection doesn't exist in config, we pass through;
         // the resolver (not our helper) surfaces the "not configured" error.
@@ -98,7 +116,7 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
         $this->assertSame('ghost', Migrator::resolveMigrationConnectionName('ghost'));
     }
 
-    public function testResolveMigrationConnectionNameNullPrefersContextOverConfigDefault()
+    public function testResolveMigrationConnectionNameNullPrefersContextOverConfigDefault(): void
     {
         // Regression for the "effective default" fix. Scenario:
         //   DB::usingConnection('tenant-pooled', fn () => Artisan::call('migrate'))
@@ -127,7 +145,7 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
         );
     }
 
-    public function testResolveMigrationConnectionNameNullReturnsContextValueWhenNoMigrationsConnection()
+    public function testResolveMigrationConnectionNameNullReturnsContextValueWhenNoMigrationsConnection(): void
     {
         // Edge case: Context override is set, but that connection has no
         // migrations_connection key. Helper returns the Context value unchanged
@@ -147,7 +165,7 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
         );
     }
 
-    public function testResolveMigrationConnectionNameNullFallsBackToConfigWhenNoContext()
+    public function testResolveMigrationConnectionNameNullFallsBackToConfigWhenNoContext(): void
     {
         // Regression guard: the config-default fallback path still works when
         // no Context override is present. This is the CLI migration path
@@ -170,7 +188,82 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
         );
     }
 
-    public function testSetConnectionWritesContextRepositorySourceAndStoredName()
+    public function testResolveMigrationConnectionNameRejectsAnEmptySource(): void
+    {
+        $this->bindConfig([]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Migration connection name cannot be empty.');
+
+        Migrator::resolveMigrationConnectionName('');
+    }
+
+    public function testResolveMigrationConnectionNameRejectsAnEmptyTarget(): void
+    {
+        $this->bindConfig([
+            'pgsql-pooled' => ['driver' => 'pgsql', 'migrations_connection' => ''],
+        ]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'The migrations_connection value for database connection [pgsql-pooled] cannot be empty.'
+        );
+
+        Migrator::resolveMigrationConnectionName('pgsql-pooled');
+    }
+
+    public function testResolveMigrationConnectionNameRejectsANonStringTarget(): void
+    {
+        $this->bindConfig([
+            'pgsql-pooled' => ['driver' => 'pgsql', 'migrations_connection' => ['pgsql']],
+        ]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Configuration value for key [database.connections.pgsql-pooled.migrations_connection] must be a string, array given.'
+        );
+
+        Migrator::resolveMigrationConnectionName('pgsql-pooled');
+    }
+
+    #[DataProvider('nonTerminalMigrationConnectionRoutes')]
+    public function testResolveMigrationConnectionNameRejectsANonTerminalRoute(
+        array $connections,
+        string $message,
+    ): void {
+        $this->bindConfig($connections);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($message);
+
+        Migrator::resolveMigrationConnectionName('first');
+    }
+
+    /**
+     * Get non-terminal migration connection routes.
+     */
+    public static function nonTerminalMigrationConnectionRoutes(): array
+    {
+        return [
+            'chain' => [
+                [
+                    'first' => ['driver' => 'pgsql', 'migrations_connection' => 'second'],
+                    'second' => ['driver' => 'pgsql', 'migrations_connection' => 'third'],
+                    'third' => ['driver' => 'pgsql'],
+                ],
+                'Database connection [first] routes migrations to [second], but [second] routes migrations to [third]. Migration connections must resolve directly to a terminal connection.',
+            ],
+            'cycle' => [
+                [
+                    'first' => ['driver' => 'pgsql', 'migrations_connection' => 'second'],
+                    'second' => ['driver' => 'pgsql', 'migrations_connection' => 'first'],
+                ],
+                'Database connection [first] routes migrations to [second], but [second] routes migrations to [first]. Migration connections must resolve directly to a terminal connection.',
+            ],
+        ];
+    }
+
+    public function testSetConnectionWritesContextRepositorySourceAndStoredName(): void
     {
         $this->bindConfig([
             'pgsql-pooled' => ['driver' => 'pgsql', 'migrations_connection' => 'pgsql'],
@@ -193,27 +286,23 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
         );
     }
 
-    public function testSetConnectionWithNullAndNoEffectiveDefaultStoresNull()
+    public function testSetConnectionRejectsNullWithoutAnEffectiveDefault(): void
     {
-        // No Context override AND no database.default — there's nothing to
-        // fall back to, so setConnection(null) stores null and leaves Context
-        // untouched (already absent).
         $this->bindConfig([]);
 
         $resolver = m::mock(Resolver::class);
         $repository = m::mock(MigrationRepositoryInterface::class);
-        $repository->shouldReceive('setSource')->once()->with(null);
+        $repository->shouldNotReceive('setSource');
 
         $migrator = new Migrator($repository, $resolver, new Filesystem);
-        $migrator->setConnection(null);
 
-        $this->assertNull($migrator->getConnection());
-        $this->assertNull(
-            CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY),
-        );
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Migration connection name cannot be empty.');
+
+        $migrator->setConnection(null);
     }
 
-    public function testSetConnectionDoesNotSwapWhenNoMigrationsConnectionKey()
+    public function testSetConnectionDoesNotSwapWhenNoMigrationsConnectionKey(): void
     {
         $this->bindConfig([
             'pgsql' => ['driver' => 'pgsql'],
@@ -234,7 +323,7 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
         );
     }
 
-    public function testResolveConnectionUsesStoredConnectionWhenArgumentIsNullOrEmpty()
+    public function testResolveConnectionUsesStoredConnectionWhenArgumentIsNullOrEmpty(): void
     {
         $this->bindConfig([
             'pgsql-pooled' => ['driver' => 'pgsql', 'migrations_connection' => 'pgsql'],
@@ -276,7 +365,7 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
         $this->assertSame($resolvedConnection, $migrator->resolveConnection('0'));
     }
 
-    public function testResolveConnectionSwapsPerMigrationConnectionOverride()
+    public function testResolveConnectionSwapsPerMigrationConnectionOverride(): void
     {
         // A migration file can return a specific connection name from its
         // getConnection(). If that connection has migrations_connection set,
@@ -297,7 +386,7 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
         $this->assertSame($resolvedConnection, $migrator->resolveConnection('pgsql-pooled'));
     }
 
-    public function testResolveConnectionPassesSwappedNameToCustomCallback()
+    public function testResolveConnectionPassesSwappedNameToCustomCallback(): void
     {
         $this->bindConfig([
             'pgsql-pooled' => ['driver' => 'pgsql', 'migrations_connection' => 'pgsql'],
@@ -321,7 +410,7 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
         $this->assertSame($resolvedConnection, $result);
     }
 
-    public function testResolveConnectionPassesOriginalNameWhenNoMigrationsConnection()
+    public function testResolveConnectionPassesOriginalNameWhenNoMigrationsConnection(): void
     {
         $this->bindConfig([
             'pgsql' => ['driver' => 'pgsql'],
@@ -338,7 +427,7 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
         $this->assertSame($resolvedConnection, $migrator->resolveConnection('pgsql'));
     }
 
-    public function testSetConnectionWithNullAndPooledDefaultRoutesToDirect()
+    public function testSetConnectionWithNullAndPooledDefaultRoutesToDirect(): void
     {
         // Regression: null name must resolve via database.default. When the
         // app default is pooled, setConnection(null) should end up at the
@@ -365,7 +454,7 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
         );
     }
 
-    public function testResolveConnectionWithNullAndPooledDefaultRoutesToDirect()
+    public function testResolveConnectionWithNullAndPooledDefaultRoutesToDirect(): void
     {
         // Regression: fresh Migrator (no setConnection called) handling a
         // per-migration override of null (or missing getConnection()). The
@@ -390,47 +479,82 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
         $this->assertSame($resolvedConnection, $migrator->resolveConnection(null));
     }
 
-    public function testUsingConnectionRestoresExactPriorState()
+    public function testUsingConnectionRestoresDistinctStoredAndContextState(): void
     {
-        // Regression for issue 2: usingConnection must restore the user-facing
-        // alias, not the swapped direct name. Simulate pre-existing state: a
-        // prior Context override of 'pgsql-pooled' (as if some outer scope
-        // had set it) and a stored migrator connection.
         $this->bindConfig(
             connections: [
-                'pgsql-pooled' => ['driver' => 'pgsql', 'migrations_connection' => 'pgsql'],
-                'pgsql' => ['driver' => 'pgsql'],
+                'stored' => ['driver' => 'pgsql'],
+                'context-pooled' => ['driver' => 'pgsql', 'migrations_connection' => 'context-direct'],
+                'context-direct' => ['driver' => 'pgsql'],
+                'inner-pooled' => ['driver' => 'pgsql', 'migrations_connection' => 'inner-direct'],
+                'inner-direct' => ['driver' => 'pgsql'],
             ],
-            default: 'pgsql-pooled',
+            default: 'stored',
         );
-
-        CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, 'pgsql-pooled');
 
         $resolver = m::mock(Resolver::class);
         $repository = m::mock(MigrationRepositoryInterface::class);
-
-        // setConnection inside usingConnection sets source to 'pgsql'.
-        // Finally restores source to null (the migrator's previous stored state).
-        $repository->shouldReceive('setSource')->once()->with('pgsql');
-        $repository->shouldReceive('setSource')->once()->with(null);
+        $repository->shouldReceive('setSource')->twice()->with('stored');
+        $repository->shouldReceive('setSource')->once()->with('inner-direct');
 
         $migrator = new Migrator($repository, $resolver, new Filesystem);
+        $migrator->setConnection('stored');
+        CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, 'context-pooled');
 
+        $innerStored = null;
         $innerContext = null;
-        $migrator->usingConnection('pgsql-pooled', function () use (&$innerContext) {
+        $migrator->usingConnection('inner-pooled', function () use ($migrator, &$innerStored, &$innerContext): void {
+            $innerStored = $migrator->getConnection();
             $innerContext = CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
         });
 
-        $this->assertSame('pgsql', $innerContext, 'Inside the callback, Context should be the swapped name');
+        $this->assertSame('inner-direct', $innerStored);
+        $this->assertSame('inner-direct', $innerContext);
+        $this->assertSame('stored', $migrator->getConnection());
         $this->assertSame(
-            'pgsql-pooled',
+            'context-pooled',
             CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY),
-            'After the callback, Context must be restored to the exact prior alias — not the swapped name',
         );
-        $this->assertNull($migrator->getConnection(), 'Stored connection should be restored to the prior null value');
     }
 
-    public function testUsingConnectionWithNullAndPooledDefaultRoutesAndRestores()
+    public function testUsingConnectionRestoresDistinctStoredAndContextStateAfterAnException(): void
+    {
+        $this->bindConfig(
+            connections: [
+                'stored' => ['driver' => 'pgsql'],
+                'context-pooled' => ['driver' => 'pgsql', 'migrations_connection' => 'context-direct'],
+                'context-direct' => ['driver' => 'pgsql'],
+                'inner-pooled' => ['driver' => 'pgsql', 'migrations_connection' => 'inner-direct'],
+                'inner-direct' => ['driver' => 'pgsql'],
+            ],
+            default: 'stored',
+        );
+
+        $resolver = m::mock(Resolver::class);
+        $repository = m::mock(MigrationRepositoryInterface::class);
+        $repository->shouldReceive('setSource')->twice()->with('stored');
+        $repository->shouldReceive('setSource')->once()->with('inner-direct');
+
+        $migrator = new Migrator($repository, $resolver, new Filesystem);
+        $migrator->setConnection('stored');
+        CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, 'context-pooled');
+        $failure = new RuntimeException('migration callback failed');
+
+        try {
+            $migrator->usingConnection('inner-pooled', static fn (): never => throw $failure);
+            $this->fail('Expected the migration callback to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertSame('stored', $migrator->getConnection());
+        $this->assertSame(
+            'context-pooled',
+            CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY),
+        );
+    }
+
+    public function testUsingConnectionWithNullAndPooledDefaultRoutesAndRestores(): void
     {
         // Combined regression for issues 1 and 2: null input must route via
         // database.default, AND the restoration must bring back the exact
@@ -467,7 +591,63 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
         $this->assertNull($migrator->getConnection());
     }
 
-    public function testNestedUsingConnectionPreservesEachLevelsState()
+    public function testGetMigrationConnectionsDiscoversNamedAnonymousAndContextDeclaredTargets(): void
+    {
+        $this->bindConfig(
+            connections: [
+                'default-pooled' => ['driver' => 'pgsql', 'migrations_connection' => 'default-direct'],
+                'default-direct' => ['driver' => 'pgsql'],
+                'analytics-pooled' => ['driver' => 'pgsql', 'migrations_connection' => 'analytics-direct'],
+                'reporting-pooled' => ['driver' => 'pgsql', 'migrations_connection' => 'analytics-direct'],
+                'analytics-direct' => ['driver' => 'pgsql'],
+                'context-target' => ['driver' => 'pgsql'],
+                'wrong-target' => ['driver' => 'pgsql'],
+            ],
+            default: 'default-pooled',
+        );
+
+        $resolver = m::mock(Resolver::class);
+        $repository = m::mock(MigrationRepositoryInterface::class);
+        $repository->shouldReceive('setSource')->once()->with('default-direct');
+        $repository->shouldReceive('setSource')->once()->with(null);
+        $migrator = new Migrator($repository, $resolver, new Filesystem);
+
+        $connections = $migrator->getMigrationConnections([
+            __DIR__ . '/migrations/one',
+            __DIR__ . '/migrations/connection_targets',
+        ]);
+
+        $this->assertSame(
+            ['default-direct', 'analytics-direct', 'context-target'],
+            $connections,
+        );
+        $this->assertNull($migrator->getConnection());
+        $this->assertNull(CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY));
+    }
+
+    public function testGetMigrationConnectionsIncludesTheDefaultWithoutMigrationFiles(): void
+    {
+        $this->bindConfig(
+            connections: [
+                'default-pooled' => ['driver' => 'pgsql', 'migrations_connection' => 'default-direct'],
+                'default-direct' => ['driver' => 'pgsql'],
+            ],
+            default: 'default-pooled',
+        );
+
+        $resolver = m::mock(Resolver::class);
+        $repository = m::mock(MigrationRepositoryInterface::class);
+        $repository->shouldReceive('setSource')->once()->with('default-direct');
+        $repository->shouldReceive('setSource')->once()->with(null);
+        $migrator = new Migrator($repository, $resolver, new Filesystem);
+
+        $this->assertSame(
+            ['default-direct'],
+            $migrator->getMigrationConnections(__DIR__ . '/migrations/missing'),
+        );
+    }
+
+    public function testNestedUsingConnectionPreservesEachLevelsState(): void
     {
         // Regression guard: each frame must snapshot and restore its own
         // prior state. Outer sets 'pgsql-pooled' → 'pgsql'. Inner sets
