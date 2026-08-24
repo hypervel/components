@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Coroutine;
 
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Context\NonCopyableContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\ChildTerminationTimeoutException;
 use Hypervel\Coroutine\Exceptions\WaitTimeoutException;
@@ -96,6 +97,26 @@ class WaiterTest extends TestCase
         );
 
         $this->assertSame(['value_a', null], $result);
+    }
+
+    public function testCopiedContextOmitsSelectedNonCopyableValues(): void
+    {
+        $resource = new class implements NonCopyableContext {
+        };
+
+        CoroutineContext::set('resource', $resource);
+        CoroutineContext::set('request_id', 'abc');
+
+        $result = wait(
+            static fn (): array => [
+                CoroutineContext::get('resource'),
+                CoroutineContext::get('request_id'),
+            ],
+            copyContext: ['resource', 'request_id'],
+        );
+
+        $this->assertSame([null, 'abc'], $result);
+        $this->assertSame($resource, CoroutineContext::get('resource'));
     }
 
     public function testContextReplicationFailureIsReportedInsteadOfTimingOut(): void
