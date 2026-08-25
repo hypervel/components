@@ -93,6 +93,32 @@ class ScanFileDriverTest extends TestCase
         }
     }
 
+    public function testRenamedFileReportsItsOldAndNewPaths(): void
+    {
+        $this->putFixture('rename/old.php', 'contents');
+        $oldPath = $this->fixturePath . '/rename/old.php';
+        $newPath = $this->fixturePath . '/rename/new.php';
+        $driver = new ScanFileDriverTestProxy(new Option(watchPaths: [
+            new WatchPath($this->fixtureRelativePath . '/rename', WatchPathType::Directory),
+        ]), ContainerStub::getLogger());
+        $channel = new Channel(2);
+
+        try {
+            $driver->processForTest($channel, $driver->fileHashesForTest());
+            rename($oldPath, $newPath);
+            $driver->processForTest($channel, $driver->fileHashesForTest());
+
+            $this->assertEqualsCanonicalizing(
+                [$oldPath, $newPath],
+                [$channel->pop(0.1), $channel->pop(0.1)],
+            );
+            $this->assertFalse($channel->pop(0.01));
+        } finally {
+            $driver->stop();
+            $channel->close();
+        }
+    }
+
     public function testSnapshotOrderingDoesNotCreateFalseChanges(): void
     {
         $driver = new ScanFileDriverTestProxy(new Option, ContainerStub::getLogger());

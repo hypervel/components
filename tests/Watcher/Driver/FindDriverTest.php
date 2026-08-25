@@ -293,6 +293,51 @@ class FindDriverTest extends TestCase
         $this->assertSame($this->set($unchanged, $modified, $added), $driver->inventoryForTest());
     }
 
+    public function testRenameIsDetectedByInventoryWhenModificationTimeDoesNotChange(): void
+    {
+        $directory = $this->tempDir . '/rename';
+        $oldPath = $directory . '/old.php';
+        $newPath = $directory . '/new.php';
+        mkdir($directory);
+        file_put_contents($oldPath, 'contents');
+        $driver = new RawOutputFindDriver($this->option(), ContainerStub::getLogger());
+
+        try {
+            $driver->ensureReferenceFilesForTest();
+            [$initialInventory, $initialExitCode] = $driver->findForTest(
+                [$directory],
+                recursive: true,
+                changed: false,
+            );
+
+            $this->assertSame(0, $initialExitCode);
+            $this->assertSame([], $driver->reconcileForTest([], $initialInventory, complete: true));
+
+            rename($oldPath, $newPath);
+
+            [$changedFiles, $changedExitCode] = $driver->findForTest(
+                [$directory],
+                recursive: true,
+                changed: true,
+            );
+            [$currentInventory, $inventoryExitCode] = $driver->findForTest(
+                [$directory],
+                recursive: true,
+                changed: false,
+            );
+
+            $this->assertSame(0, $changedExitCode);
+            $this->assertSame([], $changedFiles);
+            $this->assertSame(0, $inventoryExitCode);
+            $this->assertEqualsCanonicalizing(
+                [$oldPath, $newPath],
+                $driver->reconcileForTest($changedFiles, $currentInventory, complete: true),
+            );
+        } finally {
+            $driver->removeReferenceFilesForTest();
+        }
+    }
+
     public function testChangedPathDeletedBeforeInventoryIsReportedOnlyAsADeletion(): void
     {
         $driver = new ScriptedFindDriver($this->option(), ContainerStub::getLogger());
@@ -1091,5 +1136,10 @@ class RawOutputFindDriver extends FindDriver
     public function findForTest(array $targets, bool $recursive, bool $changed): array
     {
         return $this->find($targets, $recursive, $changed);
+    }
+
+    public function reconcileForTest(array $changedFiles, array $inventory, bool $complete): array
+    {
+        return $this->reconcileInventory($changedFiles, $inventory, $complete);
     }
 }
