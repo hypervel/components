@@ -10,6 +10,7 @@
     - [Scan Interval](#scan-interval)
     - [Server Command](#server-command)
 - [Watcher Drivers](#watcher-drivers)
+    - [Choosing a Driver](#choosing-a-driver)
     - [Custom Drivers](#custom-drivers)
 - [Custom Restart Strategies](#custom-restart-strategies)
 - [Credits](#credits)
@@ -104,9 +105,13 @@ The `watch` option accepts paths relative to your application's base directory. 
 ],
 ```
 
+At least one path must be provided through the configuration or the command line. Empty paths and paths beginning with `/` are invalid. Repeated and trailing separators and exact `.` segments are normalized, while `..` segments are preserved so you may watch a sibling directory. Use `.` when you deliberately want the application root.
+
 A directory entry watches every file within that directory recursively. A specific file entry only watches that exact file. Plain paths are identified as directories when the watcher starts; a plain path that is not an existing directory is treated as a file.
 
 Glob patterns use Symfony Finder's glob syntax. A single `*` matches within one directory, while `**` may match across directories. You may also use `?` to match one character, braces to match one of several values, and brackets to match a character range.
+
+A directory given directly as a watch path may be a symbolic link. The watcher follows that root, but does not traverse symbolic links found inside a watched directory.
 
 <a name="scan-interval"></a>
 ### Scan Interval
@@ -119,7 +124,7 @@ The `scan_interval` option determines how often polling drivers check for change
 
 The scan interval must be greater than zero.
 
-This option is used by the `ScanFileDriver`, `FindDriver`, and `FindNewerDriver`. The `FswatchDriver` receives operating system events and does not use the scan interval.
+This option is used by the `ScanFileDriver` and `FindDriver`. The `FswatchDriver` receives operating system events and does not use the scan interval.
 
 <a name="server-command"></a>
 ### Server Command
@@ -141,17 +146,25 @@ Hypervel includes several drivers for detecting file changes:
 | Driver | Requirements | Detected Changes |
 |---|---|---|
 | `ScanFileDriver` | None | Created, modified, and deleted files |
-| `FindDriver` | `find`, or GNU `gfind` on macOS | Created and modified files |
-| `FindNewerDriver` | `find` | Created and modified files |
+| `FindDriver` | `find` | Created, modified, and deleted files |
 | `FswatchDriver` | `fswatch` | Created, modified, renamed, and deleted files |
-
-The `ScanFileDriver` is the default and works by comparing file hashes at each scan interval. The `FindDriver` and `FindNewerDriver` use file modification times and do not detect deleted files. The `FswatchDriver` uses operating system file events instead of polling.
 
 You may select a driver using the `driver` option in your `watcher.php` configuration file:
 
 ```php
 'driver' => Hypervel\Watcher\Driver\FswatchDriver::class,
 ```
+
+<a name="choosing-a-driver"></a>
+### Choosing a Driver
+
+The `ScanFileDriver` is the dependency-free and most portable choice. It detects exact content changes by reading and hashing every matched file on each scan, so its polling I/O grows with the watched tree. If a subtree becomes unreadable, files beneath it are reported as removed and then added again when access returns.
+
+The `FindDriver` is a useful Unix polling option when `fswatch` is unavailable. It compares filesystem metadata and maintains an inventory for deletions without reading file contents. A rewrite that deliberately preserves its modification time may not be detected, and filesystems with whole-second timestamp precision may miss a rewrite whose timestamp equals the scan cutoff. If a filesystem error prevents a complete inventory, deletion detection is suspended for that scan. If change detection also fails, changes already found may be reported again on later scans until the error is fixed.
+
+The `FswatchDriver` uses operating system events and has the lowest steady-state work on native filesystems. It requires `fswatch` and depends on the operating system delivering events. On Linux, Hypervel separates shallow and recursive watch roots so each path registers only the directory depth it needs. On macOS, the native backend observes every watched root recursively, so broad roots may deliver extra events that Hypervel filters out.
+
+Polling is generally safer when files live in containers, virtual machines, or network mounts that do not reliably forward operating system events.
 
 <a name="custom-drivers"></a>
 ### Custom Drivers
