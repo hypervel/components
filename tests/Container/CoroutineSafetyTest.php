@@ -8,6 +8,7 @@ use Hypervel\Container\Container;
 use Hypervel\Container\SharedResolution;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Container\CircularDependencyException;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 use stdClass;
@@ -346,6 +347,43 @@ class CoroutineSafetyTest extends TestCase
         $this->assertSame($results['owner'], $results['waiter']);
     }
 
+    public function testConcurrentTransientConstructionDoesNotCoordinateOrShare(): void
+    {
+        $container = new Container;
+        $dependencyEntered = new Channel(2);
+        $releaseDependency = new Channel(2);
+
+        $container->bind(CoroutineCoordinatedDependency::class, function () use ($dependencyEntered, $releaseDependency) {
+            $dependencyEntered->push(true);
+            $releaseDependency->pop();
+
+            return new CoroutineCoordinatedDependency;
+        });
+        CoroutineTransientService::$constructions = 0;
+
+        try {
+            $results = parallel([
+                'first' => fn () => $container->make(CoroutineTransientService::class),
+                'second' => fn () => $container->make(CoroutineTransientService::class),
+                'release' => function () use ($dependencyEntered, $releaseDependency): bool {
+                    $firstEntered = $dependencyEntered->pop(1);
+                    $secondEntered = $dependencyEntered->pop(1);
+                    $releaseDependency->push(true);
+                    $releaseDependency->push(true);
+
+                    return $firstEntered === true && $secondEntered === true;
+                },
+            ]);
+            $constructions = CoroutineTransientService::$constructions;
+        } finally {
+            CoroutineTransientService::$constructions = 0;
+        }
+
+        $this->assertTrue($results['release']);
+        $this->assertSame(2, $constructions);
+        $this->assertNotSame($results['first'], $results['second']);
+    }
+
     public function testConcurrentFailureFansOutAndAllowsRetry(): void
     {
         $container = new CoroutineInspectingContainer;
@@ -677,6 +715,16 @@ class CoroutineCoordinatedDependency
 }
 
 class CoroutineCoordinatedService
+{
+    public static int $constructions = 0;
+
+    public function __construct(public readonly CoroutineCoordinatedDependency $dependency)
+    {
+        ++self::$constructions;
+    }
+}
+
+class CoroutineTransientService implements Transient
 {
     public static int $constructions = 0;
 
