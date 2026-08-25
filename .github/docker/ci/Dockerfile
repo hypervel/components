@@ -17,6 +17,7 @@ RUN set -eux; \
     apt-get update; \
     apt-get install --yes --no-install-recommends \
         curl \
+        fswatch \
         git \
         libavif-dev \
         libfreetype6-dev \
@@ -85,5 +86,6 @@ RUN set -eux; \
     php -r '$extensions = ["bcmath", "ctype", "curl", "dom", "fileinfo", "filter", "gd", "gmp", "imagick", "intl", "mbstring", "openssl", "pcntl", "pdo", "pdo_mysql", "pdo_pgsql", "pdo_sqlite", "posix", "redis", "session", "sockets", "sqlite3", "swoole", "tokenizer", "zlib"]; foreach ($extensions as $extension) { if (! extension_loaded($extension)) { fwrite(STDERR, "Missing required extension: {$extension}\n"); exit(1); } } foreach (["imagewebp", "imageavif"] as $function) { if (! function_exists($function)) { fwrite(STDERR, "Missing required GD function: {$function}()\n"); exit(1); } } if (version_compare((string) phpversion("redis"), "6.3.0", "<")) { fwrite(STDERR, "Redis extension 6.3.0 or newer is required for full integration coverage.\n"); exit(1); } if ((bool) ini_get("swoole.use_shortname")) { fwrite(STDERR, "Swoole short names must be disabled.\n"); exit(1); }'; \
     php -r 'foreach (["avif", "heic"] as $format) { $image = new Imagick; try { $image->newImage(1, 1, "white"); $image->setImageFormat($format); if ($image->getImageBlob() === "") { fwrite(STDERR, "Imagick produced an empty {$format} image.\n"); exit(1); } } finally { $image->clear(); $image->destroy(); } }'; \
     composer --version --no-ansi; \
+    fswatch --version; \
     git --version; \
     ps --version
