@@ -8,6 +8,7 @@ use ArrayAccess;
 use Closure;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Broadcasting\HasBroadcastChannel;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\QueueableCollection;
 use Hypervel\Contracts\Queue\QueueableEntity;
@@ -51,7 +52,7 @@ use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
-abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToString, HasBroadcastChannel, Jsonable, JsonSerializable, QueueableEntity, Stringable, UrlRoutable
+abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToString, HasBroadcastChannel, Jsonable, JsonSerializable, QueueableEntity, Stringable, Transient, UrlRoutable
 {
     use Concerns\HasAttributes;
     use Concerns\HasEvents;
