@@ -8,12 +8,11 @@ Resolve every genuine issue retained in this master plan against the current 0.4
 
 ## Final verdict
 
-- 145 unique findings are retained in this master plan.
-- 144 unique findings remain open on the current branch.
+- Every genuine finding retained in this master plan remains open unless noted below.
 - Finding 123 was valid but is already fixed on the current branch.
-- Findings 4, 9, 14, 93, 109, 119, 129, and 153 require no change: some are false positives, while the rest propose churn or machinery for deliberate behavior that is already correct.
+- Findings 4, 9, 14, 93, 119, 129, and 153 require no change: some are false positives, while the rest propose churn or machinery for deliberate behavior that is already correct.
 - Finding 88 is an exact duplicate of finding 32 and must not become a second patch.
-- Findings 6, 26, 41, 55, 65, 94, 98, 108, 128, 145, 152, 154, and 158 are only partially correct as written. Their valid portions remain in this plan; their invalid portions are explicitly rejected below.
+- Findings 6, 26, 41, 55, 65, 94, 98, 128, 145, 152, 154, and 158 are only partially correct as written. Their valid portions remain in this plan; their invalid portions are explicitly rejected below.
 - Some audit statements about Laravel were stale or incorrect. A defect shared with current Laravel remains a defect, but the plan does not cite false upstream parity as evidence.
 
 ## Rejected, duplicate, resolved, and narrowed claims
@@ -30,8 +29,6 @@ Resolve every genuine issue retained in this master plan against the current 0.4
 | 88 | Exact duplicate | Same file, cause, behavior, and fix as 32. Cover it with the 32 tests and close both audit IDs together. |
 | 93 | Rejected | Moving methods to a preferred class location is style-only churn. Narrowing the concrete path() return to string would needlessly diverge from Laravel's nullable signature and could make existing subclasses incompatible. |
 | 94 | Partially confirmed | Native concrete JsonSchema type returns in hypervel/contracts create an invalid reverse dependency. The contract being unbound is not a defect: Laravel likewise does not bind it. Preserve the Laravel contract API by matching upstream's untyped methods with precise PHPDoc; do not add a service provider or binding. |
-| 108 | Partially confirmed | Native posix_kill reports failure with false and that result is currently ignored. The catch is not literally unreachable because an overridden signalProcess may throw. Handle both false and Throwable. |
-| 109 | Rejected | A metadata-only prescreen can miss a same-size rewrite with restored/coarse timestamps; periodic full rehashing merely delays correctness and adds a tuning constant. Full hashing is the default driver's deliberate correctness guarantee, and finding 105 separately fixes the accidental broad-root scan. |
 | 119 | False positive | The defaults on tinker.alias, tinker.dont_alias, and tinker.commands intentionally allow those lists to be removed; TinkerCommandTest explicitly pins that behavior. Typed getters without defaults would break a supported configuration. |
 | 123 | Valid, already resolved | RedisConnection::callGet is mixed on the current branch. Retain or extend the serializer regression test, but do not schedule another production change. |
 | 128 | Partially confirmed | The strict native type causes the reported TypeError. Match Laravel's clean assertion behavior by accepting null in the JSON assertion methods; do not invent a new undocumented “any errors” meaning for assertOnlyJsonValidationErrors. |
@@ -191,19 +188,12 @@ Each row is an implementation requirement. Test names are descriptive; use the r
 | 101 | Make both mutable builders—`Hypervel\ApiClient\PendingRequest` and `Hypervel\Http\Client\PendingRequest`—implement SelfBuilding with public static `newInstance(): static` returning a fresh instance. Both have container-resolvable all-default constructors and otherwise become unsafe auto-singletons; Saloon's connector-required request is not affected. | Two container resolutions of each class are distinct; concurrent HTTP builders do not share options, middleware, callbacks, cookies, promises, or fakes; concurrent API builders do not share middleware, client, context, or active request; newInstance and documented factory/facade paths. |
 | 102 | Add ApiResource::__set that throws LogicException and align property and array mutation messages with their syntax. | Property assignment and unset; offset set/unset; no dynamic shadow; reads and toArray/toJson remain identical. |
 
-### Database worker safety, watcher, Reverb, Wayfinder, and Tinker
+### Database worker safety, Reverb, Wayfinder, and Tinker
 
 | ID | Proposed implementation | Required tests |
 |---:|---|---|
 | 103 | When missing-attribute prevention is disabled, keep offsetExists on the direct path with no context work. When enabled, wrap getAttribute in an execution-local suppression depth consulted only by the exceptional missing-attribute branch, restoring in finally and supporting nesting. This is execution state, not a boot/default setter, so `Application::isBooted()` is intentionally irrelevant. | Two forced interleavings cannot disable strict mode for a sibling or permanently; lazy relation yield; nested isset; custom missing-attribute callback; ordinary non-strict benchmark stays on the direct path. |
 | 104 | Resolve the root seeder with Container::build, matching Seeder::resolve and its fresh-instance convention. | Two programmatic db:seed runs receive distinct root objects; nested seeder remains fresh; container dependencies inject correctly. |
-| 105 | In Option::parseGlob, truncate the non-wildcard prefix to the last slash before the first wildcard. Map app/Foo*.php to app and .env* to dot; preserve absolute/relative matching. | Wildcard after filename prefix, root dotfile glob, wildcard directly after slash, nested braces/classes, all watcher drivers receive an existing base. |
-| 106 | Measure monotonic elapsed time from the previous scan's start and add exactly one second for filesystem timestamp granularity. Round GNU find's fractional-minute value up to its representable 0.01-minute unit; use ceiling whole minutes for non-GNU find. The existing mtime map deduplicates the intentional overlap. | Default interval plus a deliberately slow scan has no blind tail; sub-300ms interval never becomes -0.00; exact fractional rounding; non-GNU ceiling; no duplicate events. |
-| 107 | Read server.settings.daemonize with a false default because application server settings may validly replace the framework settings map. | Minimal server.php with only worker_num; explicit true rejects; explicit false starts. |
-| 108 | Check signalProcess's boolean return and report false as failure; retain Throwable handling for extensions/test doubles. | Native false return logs failure; true does not; throwing override logs; absent PID does nothing. |
-| 109 | No change; see disposition above. | Retain full-content detection tests, including same-size/coarse-timestamp rewrites. |
-| 110 | Enumerate hidden files in ScanFileDriver because WatchPath matching already accepts them and other drivers report them. | Hidden files and hidden directories under a watched target; matching exclusion pattern; parity with find/fswatch. |
-| 111 | Prune modification-map entries whose recorded mtime is older than the current lookback/deduplication horizon. They can no longer suppress a future find result, so remove them without a file_exists syscall per historical path. | Repeated unique create/change/delete cycles keep the map bounded; no per-history stat calls; recreated path emits; overlap dedupe remains correct. |
 | 112 | Add a manual-only `reverb:clear-state` command for crash recovery. Require all Reverb nodes using the selected Redis connection/prefix to be stopped, scan only RedisSharedState's `reverb:{*}:*` namespace across the selected connection's cluster nodes, and delete in bounded UNLINK batches (DEL fallback where unavailable). Provide `--dry-run`; otherwise require interactive confirmation or `--force`. Document the stop/clear/start runbook and explicitly exclude webhook buffer keys. Never schedule it, invoke it at boot, or wire it into automatic recovery; do not add leases, heartbeats, per-node aggregation, or hot-path Redis work without operational evidence. | Dry-run reports without deletion; confirmation/force behavior; only shared-state counters/locks/smoothing keys are removed; webhook and unrelated Redis data survive; multi-batch and cluster-wide scanning; stopped-nodes safety warning; command registration does not add scheduled/boot execution; docs runbook. |
 | 113 | Render Wayfinder @see with docblock_method when explicitly supplied, otherwise original_method, never the allocated TypeScript identifier. | Reserved PHP method renamed in TS; collision suffix; invokable; named and controller files; IDE target string. |
 | 114 | Strip the :parameters suffix from gathered middleware before class reflection for URL::defaults extraction. | Parameterized class middleware, alias-resolved middleware, unparameterized middleware, and absent class. |
@@ -302,10 +292,9 @@ After all package work is complete:
 ## Completion criteria
 
 - Every audit ID retained in this plan has the disposition recorded above.
-- Findings 4, 9, 14, 93, 109, 119, 129, and 153 remain unchanged for the stated reasons.
+- Findings 4, 9, 14, 93, 119, 129, and 153 remain unchanged for the stated reasons.
 - Finding 88 is closed by 32 rather than implemented twice.
 - Finding 123 remains fixed and regression-covered.
-- All 144 open unique remediation entries have production, test, documentation, or metadata changes as specified.
 - No worker-global mutable state is introduced without an explicit boot-only contract and reset path.
 - No pooled borrowed resource escapes its operation scope.
 - No cache fill can republish state after a completed revocation/invalidation.
