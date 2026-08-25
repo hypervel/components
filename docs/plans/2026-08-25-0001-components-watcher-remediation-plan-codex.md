@@ -1,12 +1,12 @@
 # Hypervel Watcher Remediation Plan
 
-Status: Implementation, verification, and code review complete
+Status: Implementation, verification, documentation, and code review complete
 
 ## Objective
 
 Make the watcher package correct, portable, and cheap enough to run beside several development applications without needless CPU, disk I/O, memory, subprocess, temporary-file, or inotify-descriptor use.
 
-This slice closes audit findings 105–111 and the Watcher section of `docs/todo.md`. It also fixes defects found while tracing the same code paths: invalid watch configuration can silently select the whole project, polling waits before establishing its baseline, `ScanFileDriver` materializes and sorts every discovered file, unreadable watched roots or child subtrees abort its scan, `FswatchDriver` corrupts newline-containing paths and applies one recursive setting to unrelated shallow roots, and `ServerRestartStrategy` mishandles absent and failed process signals.
+This slice closes audit findings 105–111 and the Watcher section of `docs/todo.md`. It also fixes defects found while tracing the same code paths: invalid watch configuration can silently select the whole project, a bare `--path` reaches a raw type error, polling waits before establishing its baseline, `ScanFileDriver` materializes and sorts every discovered file, unreadable watched roots or child subtrees abort its scan, `FswatchDriver` corrupts newline-containing paths and applies one recursive setting to unrelated shallow roots, and `ServerRestartStrategy` mishandles absent and failed process signals.
 
 The package remains Laravel-style at its public surface:
 
@@ -21,6 +21,7 @@ The package remains Laravel-style at its public surface:
 |---|---|---|
 | Glob roots | `Option::parseGlob()` keeps the filename prefix before a wildcard, so `app/Foo*.php` becomes the nonexistent target `app/Foo` and `.env*` becomes `.env`. | Resolve the existing directory before the wildcard: `app` and `.` respectively. |
 | Invalid paths | An empty watch entry becomes the application root and matches everything; a missing/empty watch list silently watches nothing; leading-slash paths are treated as if relative. | Reject empty entries, absolute entries, and an empty combined config/CLI list. Keep `.` as the explicit project-root form. |
+| CLI paths | `--path` accepts no value and passes `null` into strict path normalization, producing a raw `TypeError`. | Require a value at the Symfony Console definition so the parser reports the invalid option before command execution. |
 | Poll timing | `AbstractDriver::watchAtInterval()` waits one interval before its first scan. | Scan immediately to establish a baseline, then wait between scans. |
 | Find portability | `FindDriver` uses non-portable `-mmin`, requires GNU `gfind` on macOS, rounds short intervals to `-0.00`, and deduplicates with PHP's whole-second `filemtime()`. | Use the system `find`, portable `-newer`, unique reference files, and no PHP mtime map. |
 | Find correctness | Newline output corrupts valid paths; deletions are invisible; a failed scan can lose later changes or repeat data without a clear contract. | NUL-safe parsing, exact matched-path inventory, explicit partial-failure semantics, and cutoff rotation only after complete changed traversals. |
@@ -87,6 +88,7 @@ Update `src/watcher/src/Option.php`:
 - Merge configured `watch` entries with CLI `--path` entries and reject an empty combined list with `InvalidArgumentException`.
 - Validate and normalize each raw entry once before wildcard detection or filesystem probing: reject `''` and leading `/`; remove trailing separators; split on `/`; discard empty and exact `.` segments wherever they occur; preserve every `..` segment; join the remaining segments with one `/`. When the entry consists only of root-dot segments, canonicalize it to `.` rather than rejecting it. Then deduplicate the normalized strings before constructing `WatchPath` values. This keeps traversal bases, public paths, and Symfony glob patterns on the same canonical form without resolving legitimate sibling paths such as `../packages/foo`.
 - Keep `.` as the deliberate application-root entry.
+- Define the command's repeatable `--path` option as `VALUE_REQUIRED | VALUE_IS_ARRAY`. A bare option has no meaning and must receive Symfony Console's native missing-value error; an explicit empty value continues through normal path validation.
 - Fix `parseGlob()` by finding the first wildcard and truncating its preceding normalized literal prefix at the last slash:
 
   ```php
@@ -379,6 +381,7 @@ Update `src/watcher/config/watcher.php` and `src/docs/watcher.md`:
 
 ### Production and configuration
 
+- Modify `src/watcher/src/Console/WatchCommand.php`.
 - Modify `src/watcher/src/Option.php`.
 - Modify `src/watcher/src/WatchPath.php`.
 - Modify `src/watcher/src/Driver/AbstractDriver.php`.
@@ -401,7 +404,7 @@ Update `src/watcher/config/watcher.php` and `src/docs/watcher.md`:
 - Modify `tests/Watcher/Driver/FswatchDriverTest.php`.
 - Modify `tests/Watcher/ServerRestartStrategyTest.php`.
 - Add a focused `tests/Watcher/Driver/AbstractDriverTest.php` only if the inherited scan/wait lifecycle cannot be covered clearly through the existing driver tests without duplicating setup. Do not add it solely to test a protected helper in isolation.
-- Modify `tests/Watcher/WatchCommandTest.php` only if invalid combined watch configuration needs command-boundary coverage beyond `OptionTest`.
+- Modify `tests/Watcher/WatchCommandTest.php` to pin that the repeatable `--path` option requires a value before command execution.
 - `tests/Watcher/WatcherTest.php` and `tests/Watcher/PackageMetadataTest.php` should remain unchanged unless implementation exposes a real integration or metadata change; no new dependency is required.
 - Re-run `tests/Horizon` after the `Option` contract change. `Horizon\Console\ListenCommand` is the other `Option::fromConfig()` caller: it already rejects an empty effective watch list and its shipped paths are relative, so no Horizon source change is required.
 
@@ -416,7 +419,7 @@ Update `src/watcher/config/watcher.php` and `src/docs/watcher.md`:
 ### Option and WatchPath
 
 - Every base/recursive example in the table above.
-- Empty string, leading slash, repeated/trailing separators, leading and interior `.` segments, explicit `.` and `./` root forms, preserved `..` sibling paths, duplicates before and after normalization, missing watch list, empty watch list, config empty plus CLI nonempty, config nonempty plus CLI paths, missing plain file, and scan interval validation.
+- Empty string, leading slash, repeated/trailing separators, leading and interior `.` segments, explicit `.` and `./` root forms, preserved `..` sibling paths, duplicates before and after normalization, missing watch list, empty watch list, config empty plus CLI nonempty, config nonempty plus CLI paths, a bare `--path`, missing plain file, and scan interval validation.
 - Existing matching semantics for hidden files, braces, ranges, `?`, single star, double star, trailing slash, and exact files.
 
 ### Abstract polling lifecycle
@@ -531,6 +534,7 @@ Each rejected mechanism either weakens detection, adds state for an exceptional 
 - Audit findings 105–111 and every Watcher todo are implemented or closed by the superseding consolidated design.
 - Only `ScanFileDriver`, `FindDriver`, and `FswatchDriver` remain documented and shipped.
 - Valid newline-containing filenames survive both command-backed drivers.
+- A bare `--path` is rejected by Symfony Console instead of reaching strict path normalization.
 - Polling starts with an immediate silent baseline and detects the first later change within one interval.
 - Find detects additions, modifications, renames, and deletions without GNU find or whole-second PHP mtime deduplication, and its degraded behavior never invents deletions or loses a changed cutoff silently.
 - ScanFile retains exact-content detection while removing sorted/materialized directory walks and surviving unreadable watched roots and child subtrees.
