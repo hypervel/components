@@ -55,6 +55,7 @@ Audit mapping:
   Hashing all 20,000 files with `xxh128` took about 232 ms. Full hashing remains the driver's correctness guarantee; the avoidable work is sorting, materialization, and duplicate traversal.
 - For 80,000 `find` candidates with 20,000 retained matches, cursor parsing with inline matching took about 14.5 ms and 3.1 MB of transient peak memory. `explode()` followed by filtering took about 19.1 ms and 9.3 MB. The cursor avoids about 6.2 MB per watcher without adding an abstraction.
 - Current fswatch inotify source confirms that a watched directory reports events for first-level children without recursive registration. Recursive mode adds watches for descendant directories. FSEvents is recursive regardless of the flag.
+- A direct file operand misses an atomic replacement event but reports later edits after the monitor re-registers the new inode during its next root scan. The replacement event is therefore the only observation that distinguishes a direct file operand from the required parent-directory operand.
 - On a 1,028-directory application-shaped fixture, the shipped default's one recursive Linux process registered 1,028 inotify watches. Splitting the exact root file into a shallow process and `app`/`config` into a recursive process registered 26 in total. The current components checkout contains more than 19,000 directories, so this is a default-path resource defect rather than a tuning edge case.
 - Fswatch has one recursive setting per monitor, not per operand. Installed 1.14.0 happens to use ordinary output filters while registering inotify watches, while current upstream uses a separate prune-filter collection. A filter-based depth emulation is therefore version-dependent and would add a second path matcher.
 - Fswatch 1.14.0 canonicalizes existing command operands once at startup but retains the literal spelling of missing operands. Current upstream makes operands absolute without canonicalizing them. Passing canonical existing operands and literal missing operands from Hypervel gives both versions one stable output-prefix contract.
@@ -402,6 +403,8 @@ Update `src/watcher/config/watcher.php` and `src/docs/watcher.md`:
 - Delete `tests/Watcher/Fixtures/FindNewerDriverStub.php`.
 - Modify `tests/Watcher/Driver/ScanFileDriverTest.php`.
 - Modify `tests/Watcher/Driver/FswatchDriverTest.php`.
+- Delete `tests/Watcher/Fixtures/FswatchDriverStub.php`; it replaces the real driver's select loop with an unrelated polling lifecycle and gates that fake behavior on the external executable.
+- Modify `.github/docker/ci/Dockerfile` to install `fswatch` so the live Linux test runs instead of skipping.
 - Modify `tests/Watcher/ServerRestartStrategyTest.php`.
 - Add a focused `tests/Watcher/Driver/AbstractDriverTest.php` only if the inherited scan/wait lifecycle cannot be covered clearly through the existing driver tests without duplicating setup. Do not add it solely to test a protected helper in isolation.
 - Modify `tests/Watcher/WatchCommandTest.php` to pin that the repeatable `--path` option requires a value before command execution.
@@ -465,7 +468,7 @@ Update `src/watcher/config/watcher.php` and `src/docs/watcher.md`:
 - An existing shallow symlink whose canonical target is an ordinary directory inside the recursive tree is removed from the shallow command while its canonical matcher entry still maps the configured symlink spelling and publishes once.
 - Dropping a genuinely contained shallow operand leaves its matcher entry active and publishes its events once. Nested recursive operands are both passed to the recursive child, and nested shallow operands are both passed to the shallow child so direct children at each level remain observable.
 - `app/**/*.php` plus an absent shallow `app/Generated/*.js` proves that an event delivered by the recursive operand can be accepted by another configured matcher. Multiple mappings or matchers accepting one record publish it once. Two exact files in one parent share an operand, while different configured spellings for one real directory retain their distinct mappings.
-- An exact file remains observable after an atomic temp-file replacement and a later edit. Sibling events from its watched parent are filtered, and multiple exact files in one parent add only one command target.
+- An exact file's atomic temp-file replacement is observed through its watched parent. Sibling events from that parent are filtered, and multiple exact files in one parent add only one command target.
 - Complete and fragmented NUL records, multiple records per read, embedded-newline filenames, empty records, unterminated EOF tail, read failure, unexpected child exit, path matcher exceptions, explicit stop, channel closure, and repeated cleanup.
 - One Darwin process and one or two Linux processes as grouping requires. `stream_select()` reads ready records from both without detached coroutines. Stopping while selected terminates the direct children, wakes the loop through EOF, and leaves closure to the owner; repeated stop and stop-before-watch leave no handles.
 - Pin that `proc_open()` receives an argument list rather than a shell command.
