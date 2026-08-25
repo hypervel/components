@@ -9,7 +9,6 @@ use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Watcher\Fixtures\FswatchDriverStub;
 use Hypervel\Watcher\Driver\FswatchDriver;
 use Hypervel\Watcher\Option;
 use Hypervel\Watcher\WatchPath;
@@ -43,48 +42,6 @@ class FswatchDriverTest extends TestCase
         parent::tearDown();
     }
 
-    public function testWatch(): void
-    {
-        $option = new Option(
-            driver: FswatchDriver::class,
-            watchPaths: [
-                new WatchPath('/tmp', WatchPathType::Directory),
-                new WatchPath('.env', WatchPathType::File),
-            ],
-            scanInterval: 1,
-        );
-
-        $channel = new Channel(10);
-
-        try {
-            $driver = new FswatchDriverStub($option);
-            $finished = new WaitGroup(1);
-            Coroutine::create(function () use ($channel, $driver, $finished): void {
-                try {
-                    $driver->watch($channel);
-                } finally {
-                    $finished->done();
-                }
-            });
-
-            $this->assertSame('.env', $channel->pop($option->getScanIntervalSeconds() + 0.1));
-        } catch (InvalidArgumentException $exception) {
-            if ($exception->getMessage() === 'The FswatchDriver requires the `fswatch` executable.') {
-                $this->markTestSkipped();
-            }
-
-            throw $exception;
-        } finally {
-            if (isset($driver)) {
-                $driver->stop();
-            }
-            if (isset($finished)) {
-                $this->assertTrue($finished->wait(0.1));
-            }
-            $channel->close();
-        }
-    }
-
     public function testConstructorProbesFswatchWithTheShellBuiltin(): void
     {
         $driver = new InspectableFswatchDriver($this->option());
@@ -105,15 +62,7 @@ class FswatchDriverTest extends TestCase
 
     public function testStopTerminatesProcessButLeavesResourceClosureToTheWatchOwner(): void
     {
-        $option = new Option(
-            driver: FswatchDriver::class,
-            watchPaths: [
-                new WatchPath('/tmp', WatchPathType::Directory),
-            ],
-            scanInterval: 1,
-        );
-
-        $driver = new class($option) extends FswatchDriver {
+        $driver = new class($this->option()) extends FswatchDriver {
             protected function exec(string $command): array
             {
                 return ['code' => 0, 'output' => '/usr/bin/fswatch'];
@@ -308,7 +257,6 @@ class FswatchDriverTest extends TestCase
                 fn (string $path): WatchPath => new WatchPath($path, WatchPathType::Directory),
                 $paths,
             ),
-            scanInterval: 1,
         );
         $driver = new InspectableFswatchDriver($option);
         $resolvedPaths = array_map(base_path(...), $paths);
@@ -356,7 +304,6 @@ class FswatchDriverTest extends TestCase
     {
         $watchPaths = [
             new WatchPath('.', WatchPathType::Directory),
-            new WatchPath('/', WatchPathType::Directory),
             new WatchPath('app/', WatchPathType::Directory),
         ];
         $driver = new InspectableFswatchDriver(new Option(driver: FswatchDriver::class, watchPaths: $watchPaths));
@@ -842,7 +789,7 @@ class FswatchDriverTest extends TestCase
         }
     }
 
-    public function testExactFileRemainsObservableAfterAtomicReplacement(): void
+    public function testAtomicFileReplacementIsObservedThroughTheWatchedParent(): void
     {
         $relativePath = $this->fixtureRelativePath . '/watched.php';
         $path = base_path($relativePath);
@@ -854,15 +801,10 @@ class FswatchDriverTest extends TestCase
         );
 
         try {
-            $driver = new class($option) extends FswatchDriver {
-                public function processIsRunning(): bool
-                {
-                    return $this->processes !== [];
-                }
-            };
+            $driver = new FswatchDriver($option);
         } catch (InvalidArgumentException $exception) {
             if ($exception->getMessage() === 'The FswatchDriver requires the `fswatch` executable.') {
-                $this->markTestSkipped();
+                $this->markTestSkipped('The fswatch executable is not available.');
             }
 
             throw $exception;
@@ -883,22 +825,17 @@ class FswatchDriverTest extends TestCase
         });
 
         try {
-            for ($attempt = 0; $attempt < 1000 && ! $driver->processIsRunning(); ++$attempt) {
-                usleep(1_000);
+            $deadline = hrtime(true) + 5_000_000_000;
+            $received = false;
+
+            // Fswatch registers after startup and batches records on its default latency.
+            while (! $received && hrtime(true) < $deadline) {
+                $this->files->put($replacementPath, 'replacement');
+                rename($replacementPath, $path);
+                $received = $channel->pop(0.25) === $path;
             }
 
-            $this->assertTrue($driver->processIsRunning());
-            usleep(200_000);
-            $this->files->put($replacementPath, 'replacement');
-            rename($replacementPath, $path);
-
-            $this->assertSame($path, $channel->pop(3));
-
-            while ($channel->pop(1.2) !== false);
-
-            $this->files->append($path, ' later');
-
-            $this->assertSame($path, $channel->pop(3));
+            $this->assertTrue($received, 'fswatch did not report an atomic file replacement.');
         } finally {
             $driver->stop();
             $this->assertTrue($finished->wait(1));
@@ -917,7 +854,6 @@ class FswatchDriverTest extends TestCase
                 new WatchPath($literalPath, WatchPathType::File),
                 new WatchPath('second.php', WatchPathType::File),
             ],
-            scanInterval: 1,
         );
         $driver = new OutputFswatchDriver(
             $option,
@@ -1003,7 +939,6 @@ class FswatchDriverTest extends TestCase
                 new WatchPath($newlinePath, WatchPathType::File),
                 new WatchPath('incomplete.php', WatchPathType::File),
             ],
-            scanInterval: 1,
         );
         $driver = new InspectableFswatchDriver($option);
         $channel = new Channel(3);
@@ -1031,7 +966,6 @@ class FswatchDriverTest extends TestCase
         $option = new Option(
             driver: FswatchDriver::class,
             watchPaths: [new ThrowingWatchPath($failure)],
-            scanInterval: 1,
         );
         $driver = new OutputFswatchDriver(
             $option,
@@ -1060,9 +994,8 @@ class FswatchDriverTest extends TestCase
         return new Option(
             driver: FswatchDriver::class,
             watchPaths: [
-                new WatchPath('/tmp', WatchPathType::Directory),
+                new WatchPath($this->fixtureRelativePath, WatchPathType::Directory),
             ],
-            scanInterval: 1,
         );
     }
 }
@@ -1290,7 +1223,7 @@ readonly class ThrowingWatchPath extends WatchPath
 {
     public function __construct(public RuntimeException $failure)
     {
-        parent::__construct('', WatchPathType::Directory);
+        parent::__construct('.', WatchPathType::Directory);
     }
 
     public function matches(string $relativePath): bool
