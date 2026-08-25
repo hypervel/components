@@ -772,7 +772,7 @@ Use `Transient` only when freshness belongs to the class itself and every subcla
 
 A transient dependency injected into a longer-lived service is retained by that service. If the service needs a fresh instance for each operation, resolve the transient dependency at the call site instead of injecting it through the constructor.
 
-Hypervel's Eloquent `Model` implements `Transient`, so resolving an application model through the container always returns a fresh model. Query hydration and Eloquent's shared model metadata caches use their existing optimized paths.
+Hypervel's Eloquent `Model` implements `Transient`, so application models use fresh unbound resolutions unless an explicit container registration selects another lifetime. Query hydration and Eloquent's shared model metadata caches use their existing optimized paths.
 
 <a name="self-building-classes"></a>
 ### Self-Building Classes
