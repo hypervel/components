@@ -220,7 +220,7 @@ Hypervel's container keeps Laravel's named API surface — `bind()`, `singleton(
 
 ### Resolution semantics vs Laravel
 
-The critical difference: **unbound concrete classes are auto-singletoned**. In Laravel, `make()` on a class with no binding builds a fresh instance every call. In Hypervel, the first resolution caches the instance (in `$autoSingletons`) for the worker lifetime — in Swoole's long-running process model services are stateless singletons by design, and re-creating them on every resolution wastes CPU and memory. Explicit bindings override this (bound classes follow their binding type), and `SelfBuilding` classes are excluded.
+The critical difference: **unbound concrete classes are auto-singletoned**. In Laravel, `make()` on a class with no binding builds a fresh instance every call. In Hypervel, the first resolution caches the instance (in `$autoSingletons`) for the worker lifetime — in Swoole's long-running process model services are stateless singletons by design, and re-creating them on every resolution wastes CPU and memory. Explicit bindings override this (bound classes follow their binding type), and `SelfBuilding` and `Transient` classes are excluded.
 
 | Registration | Laravel | Hypervel |
 |---|---|---|
@@ -231,19 +231,20 @@ The critical difference: **unbound concrete classes are auto-singletoned**. In L
 | `make($abstract, $params)` / `makeWith()` | Contextual build — never cached | Same — parameters bypass the singleton, scoped, and auto-singleton caches |
 | `build($concrete)` | Constructs the concrete directly, bypassing bindings and caches for the top-level class | Same; Hypervel adds `buildWith($concrete, $params)`. Nested constructor dependencies still resolve through the container |
 | `implements SelfBuilding` | Container calls the class's static `newInstance()` | Same, and it also skips auto-singletoning |
+| `implements Transient` | No equivalent marker | Unbound resolutions are always fresh; explicit bindings still determine the lifetime. Eloquent models inherit this marker from `Model` |
 
 Rules that follow from this:
 
-- **Classes that capture per-request data in their constructor or accumulate mutable state must not be auto-singletoned** — pick the correct lifetime: `scoped()` for one instance per coroutine/request, `bind()` for a fresh instance per resolution, `build()`/`buildWith()` for direct construction at the call site, or `SelfBuilding` for class-controlled construction. An existing class like that being auto-singletoned is a coroutine-safety bug — STOP and report it.
+- **Classes that capture per-request data in their constructor or accumulate mutable state must not be auto-singletoned** — pick the correct lifetime: `scoped()` for one instance per coroutine/request, `bind()` for a fresh instance per resolution, `build()`/`buildWith()` for direct construction at the call site, `SelfBuilding` for class-controlled construction, or `Transient` when freshness is intrinsic to the whole class hierarchy. An existing class like that being auto-singletoned is a coroutine-safety bug — STOP and report it.
 - **Most classes are safe as auto-singletons:** services, middleware, listeners, factories, formatters — stateless or process-global by nature.
 - **Do not use `build()` as a drop-in freshness replacement for `make()`** when explicit bindings, test swaps, aliases, or resolving callbacks must be honored — it bypasses top-level binding lookups, aliases, and caches by design.
 
 ### Choosing a binding type
 
 - Stateless and shared for the worker lifetime → `singleton()`.
-- Fresh mutable object per resolution → `bind()`.
+- Fresh mutable object per resolution → `bind()`, or `Transient` when that lifetime is intrinsic to the whole class hierarchy.
 - State isolated per coroutine / request → `scoped()`.
-- Concrete class with no separate abstract → don't bind it at all; auto-singletoning covers it.
+- Concrete class with no separate abstract → don't bind it at all; auto-singletoning covers it unless the class implements `Transient` or `SelfBuilding`.
 
 ### Binding patterns
 
@@ -264,7 +265,7 @@ $this->app->singleton('auth', fn ($app) => new AuthManager($app));
 $this->app->singleton(FormatterInterface::class, DefaultFormatter::class);
 ```
 
-**3. Abstract and concrete are the same class — do not bind at all.** Hypervel's container auto-singletons unbound concrete classes on first resolution. An explicit `singleton(Foo::class)` is redundant:
+**3. Abstract and concrete are the same class — do not bind merely to share it.** Hypervel's container auto-singletons unbound concrete classes on first resolution. An explicit `singleton(Foo::class)` is redundant unless the class declares an intrinsic fresh lifetime through `Transient` or `SelfBuilding`:
 
 ```php
 // Wrong: redundant; auto-singleton handles this.
@@ -345,7 +346,7 @@ Decide where state lives before writing code:
 | Immutable metadata shared by all requests | Static property cache or worker-lifetime singleton |
 | Stateless service shared by all requests | `singleton()` or auto-singleton (see Container) |
 | Mutable state for one request, operation, or coroutine | `CoroutineContext` or a `scoped()` binding |
-| Fresh mutable object per resolution | `bind()` or contextual parameters |
+| Fresh mutable object per resolution | `bind()`, contextual parameters, or `Transient` for an intrinsically fresh class hierarchy |
 
 - **Use `Hypervel\Context\CoroutineContext` for invocation-scoped state** — anything that must not be visible to other concurrent coroutines in the same worker. Static properties and singleton fields leak across coroutines: whatever one coroutine sets becomes visible to all others in the worker. Use the established key-naming convention: `__<package>.<key>` value prefix, `_CONTEXT_KEY` / `_CONTEXT_KEY_PREFIX` constant suffixes, public only when other classes or tests reference the constant. Do not use `Hypervel\Support\Facades\Context` as the low-level coroutine store; it provides Laravel-style application context instead.
 - **Configure process-global values only during worker boot** — config is a process-global singleton, so `Config::set()` during request handling changes behavior for every concurrent request in the worker. Never mutate config for request-specific behavior; use `CoroutineContext` or middleware instead. Provider boot-time configuration is fine — it runs once per worker.
