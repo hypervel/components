@@ -15,6 +15,7 @@ use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Container\CircularDependencyException;
 use Hypervel\Contracts\Container\ContextualAttribute;
 use Hypervel\Contracts\Container\SelfBuilding;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Foundation\Application;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
@@ -1480,6 +1481,74 @@ class ContainerTest extends TestCase
         $this->assertSame($first, $second);
     }
 
+    public function testTransientClassIsNotAutoSingletoned(): void
+    {
+        $container = new Container;
+
+        $first = $container->make(TransientStub::class);
+        $second = $container->get(TransientStub::class);
+
+        $this->assertNotSame($first, $second);
+    }
+
+    public function testTransientLifetimeIsInheritedBySubclasses(): void
+    {
+        $container = new Container;
+
+        $first = $container->make(TransientChildStub::class);
+        $second = $container->make(TransientChildStub::class);
+
+        $this->assertNotSame($first, $second);
+    }
+
+    public function testTransientClassCanBeExplicitlySingletoned(): void
+    {
+        $container = new Container;
+        $container->singleton(TransientStub::class);
+
+        $first = $container->make(TransientStub::class);
+        $second = $container->make(TransientStub::class);
+
+        $this->assertSame($first, $second);
+    }
+
+    public function testTransientClassCanBeExplicitlyScoped(): void
+    {
+        $container = new Container;
+        $container->scoped(TransientStub::class);
+
+        $first = $container->make(TransientStub::class);
+        $second = $container->make(TransientStub::class);
+
+        $this->assertSame($first, $second);
+    }
+
+    public function testTransientClassCanBeRegisteredAsAnInstance(): void
+    {
+        $container = new Container;
+        $instance = new TransientStub;
+        $container->instance(TransientStub::class, $instance);
+
+        $this->assertSame($instance, $container->make(TransientStub::class));
+    }
+
+    public function testTransientClassExtendersRunForEveryInstance(): void
+    {
+        $container = new Container;
+        $container->extend(TransientStub::class, function (TransientStub $instance): TransientStub {
+            $instance->marks[] = 'extended';
+
+            return $instance;
+        });
+
+        $first = $container->make(TransientStub::class);
+        $second = $container->make(TransientStub::class);
+
+        $this->assertNotSame($first, $second);
+        $this->assertSame(['extended'], $first->marks);
+        $this->assertSame(['extended'], $second->marks);
+    }
+
     public function testAutoSingletonSkippedWhenParametersProvided()
     {
         $container = new Container;
@@ -1925,6 +1994,15 @@ class AutoSingletonWithParamStub
         public readonly string $value,
     ) {
     }
+}
+
+class TransientStub implements Transient
+{
+    public array $marks = [];
+}
+
+class TransientChildStub extends TransientStub
+{
 }
 
 class SelfBuildingCounterStub implements SelfBuilding

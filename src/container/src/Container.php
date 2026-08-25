@@ -16,6 +16,7 @@ use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Container\ContextualAttribute;
 use Hypervel\Contracts\Container\ContextualBindingBuilder as ContextualBindingBuilderContract;
 use Hypervel\Contracts\Container\SelfBuilding;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Support\ClassMetadataCache;
 use Hypervel\Support\Traits\ReflectsClosures;
 use InvalidArgumentException;
@@ -1225,15 +1226,16 @@ class Container implements ContainerContract
                     }
                 } elseif ($raiseEvents && ! isset($this->bindings[$abstract]) && is_string($concrete) && class_exists($concrete)
                     && ! is_a($concrete, SelfBuilding::class, true)
+                    && ! is_a($concrete, Transient::class, true)
                 ) {
                     // Auto-singleton: unbound concrete classes are cached for Swoole performance.
                     // In Swoole's long-running process model, services are stateless singletons
                     // by design. Re-creating them on every resolution wastes CPU and memory.
                     //
                     // Explicit bind() overrides this — bound classes follow their binding type.
-                    // SelfBuilding classes are excluded — they control their own construction
-                    // via newInstance() and typically read runtime state (config, request data)
-                    // that may change between resolutions. Use explicit singleton() to opt in.
+                    // SelfBuilding classes control their own construction, while Transient
+                    // classes declare that every unbound resolution requires a fresh instance.
+                    // Use an explicit singleton() binding to opt either lifetime into caching.
                     //
                     // Skipped when raiseEvents is false (internal binding resolution via getClosure)
                     // so that concretes resolved as part of scoped/singleton bindings don't get
@@ -1330,7 +1332,8 @@ class Container implements ContainerContract
             && ! isset($this->bindings[$abstract])
             && is_string($concrete)
             && class_exists($concrete)
-            && ! is_a($concrete, SelfBuilding::class, true);
+            && ! is_a($concrete, SelfBuilding::class, true)
+            && ! is_a($concrete, Transient::class, true);
     }
 
     /**

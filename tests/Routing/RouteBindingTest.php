@@ -11,6 +11,7 @@ use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Routing\Route;
 use Hypervel\Routing\RouteBinding;
 use Hypervel\Tests\Routing\RoutingTestCase;
+use LogicException;
 
 class RouteBindingTest extends RoutingTestCase
 {
@@ -23,6 +24,20 @@ class RouteBindingTest extends RoutingTestCase
 
         $callback = RouteBinding::forModel($container, ExplicitRouteBindingUser::class);
         $this->assertInstanceOf(ExplicitRouteBindingUser::class, $callback(1, $route));
+    }
+
+    public function testItUsesAFreshModelForEachExplicitRouteBinding(): void
+    {
+        $container = Container::getInstance();
+        $route = new Route('GET', '/users/{user}', function () {
+        });
+        $callback = RouteBinding::forModel($container, FreshExplicitRouteBindingUser::class);
+
+        $first = $callback(1, $route);
+        $second = $callback(2, $route);
+
+        $this->assertSame(1, $first->getKey());
+        $this->assertSame(2, $second->getKey());
     }
 
     public function testItCannotResolveTheExplicitSoftDeletedModelForTheGivenRoute()
@@ -55,6 +70,22 @@ class ExplicitRouteBindingUser extends Model
     public function resolveRouteBinding(mixed $value, ?string $field = null): ?self
     {
         return new static;
+    }
+}
+
+class FreshExplicitRouteBindingUser extends Model
+{
+    private bool $resolved = false;
+
+    public function resolveRouteBinding(mixed $value, ?string $field = null): ?self
+    {
+        if ($this->resolved) {
+            throw new LogicException('The route binding model was reused.');
+        }
+
+        $this->resolved = true;
+
+        return (new static)->setAttribute($this->getRouteKeyName(), $value);
     }
 }
 

@@ -18,6 +18,7 @@
 - [Resolving](#resolving)
     - [The Make Method](#the-make-method)
     - [Forcing a Fresh Instance](#forcing-a-fresh-instance)
+    - [Transient Classes](#transient-classes)
     - [Self-Building Classes](#self-building-classes)
     - [Automatic Injection](#automatic-injection)
 - [Method Invocation and Injection](#method-invocation-and-injection)
@@ -88,7 +89,7 @@ In this example, hitting your application's `/` route will automatically resolve
 Thankfully, many of the classes you will be writing when building a Hypervel application automatically receive their dependencies via the container, including [controllers](/docs/{{version}}/controllers), [event listeners](/docs/{{version}}/events), [middleware](/docs/{{version}}/middleware), and more. Additionally, you may type-hint dependencies in the `handle` method of [queued jobs](/docs/{{version}}/queues). Once you taste the power of automatic and zero configuration dependency injection it feels impossible to develop without it.
 
 > [!NOTE]
-> Hypervel will auto-singleton (automatically cache) unbound concrete classes for the worker's lifetime — the first resolution of `Service` constructs an instance, and every subsequent resolution returns that same instance until the worker restarts. This is the right default for stateless services. Classes whose constructors capture per-call state should be [bound explicitly](#binding) or resolved with [`build()`](#forcing-a-fresh-instance).
+> Hypervel will auto-singleton (automatically cache) unbound concrete classes for the worker's lifetime — the first resolution of `Service` constructs an instance, and every subsequent resolution returns that same instance until the worker restarts. This is the right default for stateless services. Classes whose constructors capture per-call state should be [bound explicitly](#binding), resolved with [`build()`](#forcing-a-fresh-instance), or marked as [transient](#transient-classes) when freshness is part of the class's design.
 
 <a name="when-to-use-the-container"></a>
 ### When to Utilize the Container
@@ -116,8 +117,9 @@ Because Hypervel runs inside a long-running Swoole worker, instance lifecycles a
 |---|---|---|
 | Fresh instance every call, ignoring all bindings and caches | `build($class)` | Always constructs a new instance. Nested constructor dependencies are still resolved through the container. |
 | Fresh instance with parameter overrides | `buildWith($class, $params)` | Same as `build()` but applies the given parameter overrides during construction. |
+| Class hierarchy always requires a fresh instance | `implements Transient` | Builds a new instance for every unbound `make()` or `get()` call. Explicit bindings still determine the lifetime when present. |
 | Class declares its own factory | `implements SelfBuilding` + static `newInstance()` | Container invokes the static factory with DI on its parameters. Skips auto-singletoning by default; honors any explicit `singleton()` / `scoped()` binding. |
-| Resolve respecting bindings and caching | `make($class)` | Honors `bind()` / `singleton()` / `scoped()`. Auto-singletons unbound concrete classes for the worker's lifetime. |
+| Resolve respecting bindings and caching | `make($class)` | Honors `bind()` / `singleton()` / `scoped()`. Auto-singletons unbound concrete classes unless they implement `Transient` or `SelfBuilding`. |
 | Resolve with parameter overrides | `make($class, $params)` / `makeWith()` | Same as `make()` but contextual parameters bypass all caching. |
 | One instance per worker | `$app->singleton($abstract, ...)` or `#[Singleton]` | Cached for the worker's lifetime. Lives until the worker restarts. |
 | One instance per coroutine (per request / job) | `$app->scoped($abstract, ...)` or `#[Scoped]` | Cached in [CoroutineContext](/docs/{{version}}/coroutine-context) for the lifetime of the coroutine handling the request or job. |
@@ -134,6 +136,7 @@ Most application code does not pick a lifecycle deliberately — it just type-hi
 - **Service that should hold per-request state** (request-derived caches, accumulated context): `scoped()`. The instance dies at the end of the coroutine (request / job).
 - **Service that should be built once and shared for the worker's lifetime** (heavy bootstrap, immutable configuration): `singleton()` is explicit; auto-singletoning achieves the same thing for unbound classes.
 - **Object that takes per-call inputs in its constructor** (builders, view components, form-request-style classes): `bind()` so each `make()` returns fresh, or skip the binding entirely and call `build()` / `buildWith()` at the resolution site.
+- **Class hierarchy whose instances are always mutable and independent** (Eloquent models and similar value holders): implement `Transient` once on the base class so every unbound resolution is fresh.
 
 <a name="per-call-state-on-shared-instances"></a>
 ### Per-Call State on Shared Instances
@@ -158,11 +161,11 @@ $report = $this->app->make(ReportBuilder::class);
 $report = $this->app->build(ReportBuilder::class);
 ```
 
-Alternatively, mark the class with [`SelfBuilding`](#self-building-classes) and leave it unbound — every `make()` will then call `newInstance` and rebuild the instance from scratch.
+When freshness is part of the class's design, implement [`Transient`](#transient-classes). If the class also needs to control how it is constructed, use [`SelfBuilding`](#self-building-classes) instead.
 
 The same caution applies to mutating state on a worker-lifetime singleton at runtime — anything you assign to `$this->foo` on a shared instance persists across every request that worker handles. For per-request state that lives on a shared service, use [CoroutineContext](/docs/{{version}}/coroutine-context) instead of instance properties.
 
-Framework code that ships with Hypervel — view components, form requests, and so on — already routes through the fresh-instance path when needed, so you only need to think about this for your own classes.
+Framework code that ships with Hypervel already chooses the required lifecycle. For example, every Eloquent model is transient, form requests are self-building, and view components use the fresh-instance path.
 
 <a name="binding"></a>
 ## Binding
@@ -218,7 +221,7 @@ App::bind(function (Application $app): Transistor {
 ```
 
 > [!NOTE]
-> You don't need to bind classes the container can resolve via reflection. Hypervel will auto-singleton the resolved instance for the worker's lifetime, which is the right behavior for stateless services. Bind the class explicitly with `bind()` if you need a fresh instance per call, or call [`build()`](#forcing-a-fresh-instance) at the resolution site.
+> You don't need to bind classes the container can resolve via reflection. Hypervel will auto-singleton the resolved instance for the worker's lifetime, which is the right behavior for stateless services. Bind the class explicitly with `bind()` if one registration needs a fresh instance per call, call [`build()`](#forcing-a-fresh-instance) at the resolution site, or implement [`Transient`](#transient-classes) when every unbound resolution of the class hierarchy must be fresh.
 
 <a name="binding-a-singleton"></a>
 #### Binding A Singleton
@@ -746,6 +749,30 @@ $fresh = $this->app->buildWith(Transistor::class, ['id' => 1]);
 Nested constructor dependencies are still resolved through the container, so they pick up bindings, contextual bindings, resolving callbacks, and constructor-parameter attribute injection as normal. For the class being built itself, `build` and `buildWith` skip the container's lifecycle machinery — they bypass binding lookups, contextual binding for that abstract, and resolving callbacks. Class-level attribute callbacks registered via `afterResolvingAttribute()` still fire. `#[Singleton]` and `#[Scoped]` are intentionally ignored by `build()` — they're caching markers that only apply via `make()`. This is what makes `build()` reliable as "always fresh."
 
 `buildWith` is the right choice when a class needs parameter overrides and must not be cached, for example a builder object or a class whose constructor captures per-call state. Internally, Hypervel uses this method to instantiate view components so each render gets a fresh instance even though the component class has no explicit binding.
+
+<a name="transient-classes"></a>
+### Transient Classes
+
+When every instance of a class hierarchy is mutable and independent, implement the `Hypervel\Contracts\Container\Transient` marker interface on its base class. Unbound transient classes are constructed for every `make()` and `get()` call while retaining normal dependency injection, aliases, extenders, and resolving callbacks:
+
+```php
+<?php
+
+namespace App\Reports;
+
+use Hypervel\Contracts\Container\Transient;
+
+abstract class Report implements Transient
+{
+    // ...
+}
+```
+
+Use `Transient` only when freshness belongs to the class itself and every subclass should inherit that lifetime. For a single application registration, use `bind()` instead. Explicit `singleton()`, `scoped()`, `bind()`, and `instance()` registrations continue to control the lifetime of a transient class.
+
+A transient dependency injected into a longer-lived service is retained by that service. If the service needs a fresh instance for each operation, resolve the transient dependency at the call site instead of injecting it through the constructor.
+
+Hypervel's Eloquent `Model` implements `Transient`, so application models use fresh unbound resolutions unless an explicit container registration selects another lifetime. Query hydration and Eloquent's shared model metadata caches use their existing optimized paths.
 
 <a name="self-building-classes"></a>
 ### Self-Building Classes

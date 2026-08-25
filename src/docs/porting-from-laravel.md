@@ -405,10 +405,11 @@ Container lifecycles are adapted for Swoole:
 | One instance per request or job coroutine | `scoped()` |
 | One instance per worker | `singleton()` |
 | Fresh instance at the call site | `build()` or `buildWith()` |
+| Fresh instance for every unbound resolution of a class hierarchy | Implement `Hypervel\Contracts\Container\Transient` on its base class |
 | Resolve using bindings and lifecycle rules | `make()` |
 
 > [!WARNING]
-> Unbound concrete classes are automatically cached for the worker lifetime after their first resolution. If an unbound class captures the current user, tenant, request, or other mutable per-request data in its constructor, ordinary tests may pass while concurrent requests receive another request's state. Register the class with `bind()` for a fresh instance, use `scoped()` for one instance per request or job coroutine, or construct a fresh instance with `build()`.
+> Unbound concrete classes are automatically cached for the worker lifetime after their first resolution. If an unbound class captures the current user, tenant, request, or other mutable per-request data in its constructor, ordinary tests may pass while concurrent requests receive another request's state. Register the class with `bind()` for a fresh instance, use `scoped()` for one instance per request or job coroutine, construct a fresh instance with `build()`, or implement `Transient` when every subclass must always be fresh. Eloquent models already implement `Transient`.
 
 <a name="coroutine-aware-dependencies"></a>
 ### Coroutine-Aware Dependencies
