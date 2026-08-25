@@ -57,4 +57,5 @@ return [
     '87f5ec51-f721-4feb-9fe4-be18c4971894' => 'PassCard',
     '477b05cd-7f78-4fe7-b629-27247f296138' => 'WALLIX Vault',
     '53e7a7a5-e75f-4d3d-9483-12fc779cdf23' => 'Password Depot',
+    'cb6f6666-38ea-4873-9161-ff456a82d316' => 'iPass Secure Auth',
 ];
