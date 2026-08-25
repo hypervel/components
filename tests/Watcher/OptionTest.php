@@ -51,6 +51,7 @@ class OptionTest extends TestCase
         $this->assertSame('app', $paths[0]->path);
         $this->assertSame(WatchPathType::Directory, $paths[0]->type);
         $this->assertNull($paths[0]->pattern);
+        $this->assertTrue($paths[0]->recursive);
     }
 
     public function testFromConfigParsesGlobWithExtension(): void
@@ -62,6 +63,7 @@ class OptionTest extends TestCase
         $this->assertSame('config', $paths[0]->path);
         $this->assertSame(WatchPathType::Directory, $paths[0]->type);
         $this->assertSame('config/**/*.php', $paths[0]->pattern);
+        $this->assertTrue($paths[0]->recursive);
     }
 
     public function testFromConfigParsesCompoundExtensionGlob(): void
@@ -73,6 +75,7 @@ class OptionTest extends TestCase
         $this->assertSame('resources', $paths[0]->path);
         $this->assertSame(WatchPathType::Directory, $paths[0]->type);
         $this->assertSame('resources/**/*.blade.php', $paths[0]->pattern);
+        $this->assertTrue($paths[0]->recursive);
     }
 
     public function testFromConfigParsesMiddleWildcard(): void
@@ -84,6 +87,7 @@ class OptionTest extends TestCase
         $this->assertSame('app', $paths[0]->path);
         $this->assertSame(WatchPathType::Directory, $paths[0]->type);
         $this->assertSame('app/*/Actions/*.php', $paths[0]->pattern);
+        $this->assertTrue($paths[0]->recursive);
     }
 
     public function testFromConfigParsesQuestionMarkGlob(): void
@@ -95,6 +99,7 @@ class OptionTest extends TestCase
         $this->assertSame('routes', $paths[0]->path);
         $this->assertSame(WatchPathType::Directory, $paths[0]->type);
         $this->assertSame('routes/?.php', $paths[0]->pattern);
+        $this->assertFalse($paths[0]->recursive);
     }
 
     public function testFromConfigParsesBraceGlob(): void
@@ -106,6 +111,7 @@ class OptionTest extends TestCase
         $this->assertSame('config', $paths[0]->path);
         $this->assertSame(WatchPathType::Directory, $paths[0]->type);
         $this->assertSame('config/{app,queue}.php', $paths[0]->pattern);
+        $this->assertFalse($paths[0]->recursive);
     }
 
     public function testFromConfigParsesBracketGlob(): void
@@ -117,6 +123,7 @@ class OptionTest extends TestCase
         $this->assertSame('lang', $paths[0]->path);
         $this->assertSame(WatchPathType::Directory, $paths[0]->type);
         $this->assertSame('lang/[a-z][a-z].php', $paths[0]->pattern);
+        $this->assertFalse($paths[0]->recursive);
     }
 
     public function testFromConfigParsesSpecificFile(): void
@@ -128,6 +135,7 @@ class OptionTest extends TestCase
         $this->assertSame('.env', $paths[0]->path);
         $this->assertSame(WatchPathType::File, $paths[0]->type);
         $this->assertNull($paths[0]->pattern);
+        $this->assertFalse($paths[0]->recursive);
     }
 
     public function testFromConfigParsesDotlessFile(): void
@@ -172,23 +180,111 @@ class OptionTest extends TestCase
         $this->assertSame('.env', $paths[1]->path);
     }
 
+    public function testFromConfigNormalizesPathsBeforeParsingAndDeduplicating(): void
+    {
+        $option = Option::fromConfig([
+            'watch' => [
+                'app/',
+                './app',
+                'app/./',
+                'app//',
+                '.',
+                './',
+                './/',
+                '../packages/foo/',
+                'app/../outside/',
+                'app//*.php',
+                './app/*.php',
+                'app/./*.php',
+            ],
+        ], $this->tempDir);
+
+        $paths = $option->getWatchPaths();
+
+        $this->assertCount(5, $paths);
+        $this->assertSame('app', $paths[0]->path);
+        $this->assertSame('.', $paths[1]->path);
+        $this->assertSame('../packages/foo', $paths[2]->path);
+        $this->assertSame('app/../outside', $paths[3]->path);
+        $this->assertSame('app', $paths[4]->path);
+        $this->assertSame('app/*.php', $paths[4]->pattern);
+    }
+
+    public function testFromConfigUsesDirectoryBeforeWildcardAsGlobBase(): void
+    {
+        $option = Option::fromConfig([
+            'watch' => ['.env*', 'app/Foo*.php'],
+        ], $this->tempDir);
+
+        $paths = $option->getWatchPaths();
+
+        $this->assertSame('.', $paths[0]->path);
+        $this->assertSame('.env*', $paths[0]->pattern);
+        $this->assertFalse($paths[0]->recursive);
+        $this->assertSame('app', $paths[1]->path);
+        $this->assertSame('app/Foo*.php', $paths[1]->pattern);
+        $this->assertFalse($paths[1]->recursive);
+    }
+
+    public function testFromConfigRejectsAnEmptyWatchEntry(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Watcher paths must not be empty.');
+
+        Option::fromConfig(['watch' => ['']], $this->tempDir);
+    }
+
+    public function testFromConfigRejectsAnAbsoluteWatchEntry(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Watcher paths must be relative to the application base path.');
+
+        Option::fromConfig(['watch' => ['/app']], $this->tempDir);
+    }
+
+    public function testFromConfigRequiresAtLeastOneWatchPath(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The watcher requires at least one watch path.');
+
+        Option::fromConfig([], $this->tempDir);
+    }
+
+    public function testFromConfigRejectsAnExplicitlyEmptyWatchList(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The watcher requires at least one watch path.');
+
+        Option::fromConfig(['watch' => []], $this->tempDir);
+    }
+
+    public function testFromConfigAcceptsCommandLinePathsWithoutConfiguredPaths(): void
+    {
+        $option = Option::fromConfig([], $this->tempDir, extraPaths: ['app']);
+
+        $this->assertSame('app', $option->getWatchPaths()[0]->path);
+    }
+
     public function testFromConfigUsesDefaultDriver(): void
     {
-        $option = Option::fromConfig([], $this->tempDir);
+        $option = Option::fromConfig(['watch' => ['.env']], $this->tempDir);
 
         $this->assertSame(ScanFileDriver::class, $option->getDriver());
     }
 
     public function testFromConfigUsesConfiguredDriver(): void
     {
-        $option = Option::fromConfig(['driver' => FswatchDriver::class], $this->tempDir);
+        $option = Option::fromConfig([
+            'driver' => FswatchDriver::class,
+            'watch' => ['.env'],
+        ], $this->tempDir);
 
         $this->assertSame(FswatchDriver::class, $option->getDriver());
     }
 
     public function testFromConfigUsesDefaultScanInterval(): void
     {
-        $option = Option::fromConfig([], $this->tempDir);
+        $option = Option::fromConfig(['watch' => ['.env']], $this->tempDir);
 
         $this->assertSame(2000, $option->getScanInterval());
     }
@@ -196,7 +292,7 @@ class OptionTest extends TestCase
     public function testShippedConfigMatchesSourceDefaults(): void
     {
         $config = require dirname(__DIR__, 2) . '/src/watcher/config/watcher.php';
-        $option = Option::fromConfig([], $this->tempDir);
+        $option = Option::fromConfig(['watch' => ['.env']], $this->tempDir);
 
         $this->assertSame($option->getDriver(), $config['driver']);
         $this->assertSame($option->getScanInterval(), $config['scan_interval']);
@@ -204,7 +300,10 @@ class OptionTest extends TestCase
 
     public function testFromConfigUsesConfiguredScanInterval(): void
     {
-        $option = Option::fromConfig(['scan_interval' => 1500], $this->tempDir);
+        $option = Option::fromConfig([
+            'watch' => ['.env'],
+            'scan_interval' => 1500,
+        ], $this->tempDir);
 
         $this->assertSame(1500, $option->getScanInterval());
     }
@@ -222,7 +321,10 @@ class OptionTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The watcher scan interval must be greater than 0.');
 
-        Option::fromConfig(['scan_interval' => -1], $this->tempDir);
+        Option::fromConfig([
+            'watch' => ['.env'],
+            'scan_interval' => -1,
+        ], $this->tempDir);
     }
 
     public function testScanIntervalSecondsConversion(): void
@@ -271,6 +373,7 @@ class OptionTest extends TestCase
         $this->assertSame('.', $paths[0]->path);
         $this->assertSame(WatchPathType::Directory, $paths[0]->type);
         $this->assertSame('**/*.php', $paths[0]->pattern);
+        $this->assertTrue($paths[0]->recursive);
     }
 
     public function testConstructorDirectlyWithWatchPaths(): void
