@@ -13,13 +13,26 @@ use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\NullOutput;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
 
 class ServerRestartStrategyTest extends TestCase
 {
-    public function testConstructorDoesNotRequirePidFileConfiguration(): void
+    public function testConstructorDefaultsMissingDaemonizeSettingToFalse(): void
+    {
+        $this->app->instance('config', new Repository([
+            'server' => ['settings' => ['pid_file' => '/tmp/test.pid']],
+            'watcher' => ['bin' => PHP_BINARY, 'command' => ['artisan', 'serve']],
+        ]));
+
+        $strategy = new ServerRestartStrategy($this->app, new NullOutput);
+
+        $this->assertInstanceOf(ServerRestartStrategy::class, $strategy);
+    }
+
+    public function testConstructorAcceptsExplicitForegroundMode(): void
     {
         $this->app->instance('config', new Repository([
             'server' => ['settings' => ['daemonize' => false]],
@@ -104,12 +117,89 @@ class ServerRestartStrategyTest extends TestCase
 
     public function testStopIsIdempotentWithoutAnOwnedProcess(): void
     {
-        $strategy = $this->createProbeStrategy();
+        $output = new BufferedOutput;
+        $strategy = $this->createProbeStrategy($output);
 
         $strategy->stop();
         $strategy->stop();
 
         $this->assertSame([], $strategy->signals);
+        $this->assertSame('', $output->fetch());
+    }
+
+    public function testSuccessfulSignalPrintsOnlyTheStopMessage(): void
+    {
+        $output = new BufferedOutput;
+        $strategy = $this->createProbeStrategy($output);
+        $strategy->publishProcessIdForTest(1000);
+
+        $strategy->terminateForTest();
+
+        $this->assertSame([[1000, SIGTERM]], $strategy->signals);
+        $this->assertSame("Stop server...\n", $output->fetch());
+    }
+
+    #[DataProvider('signalFailureProvider')]
+    public function testFailedSignalsAreReported(false|Throwable $outcome): void
+    {
+        $output = new BufferedOutput;
+        $strategy = $this->createProbeStrategy($output);
+        $strategy->publishProcessIdForTest(1000);
+        $strategy->signalOutcomes = [$outcome];
+
+        $strategy->terminateForTest();
+
+        $this->assertSame([[1000, SIGTERM]], $strategy->signals);
+        $this->assertSame("Stop server...\nStop server failed.\n", $output->fetch());
+    }
+
+    public static function signalFailureProvider(): array
+    {
+        return [
+            'native failure' => [false],
+            'thrown failure' => [new RuntimeException('expected signal failure')],
+        ];
+    }
+
+    public function testStopOutputFailureDoesNotPreventSignalling(): void
+    {
+        $output = new class extends NullOutput {
+            public function writeln(
+                string|iterable $messages,
+                int $options = self::OUTPUT_NORMAL,
+            ): void {
+                throw new RuntimeException('expected output failure');
+            }
+        };
+        $strategy = $this->createProbeStrategy($output);
+        $strategy->publishProcessIdForTest(1000);
+
+        $strategy->terminateForTest();
+
+        $this->assertSame([[1000, SIGTERM]], $strategy->signals);
+    }
+
+    public function testStopSignalsTheCurrentProcessAfterOutputChangesOwnership(): void
+    {
+        $output = new class extends NullOutput {
+            public ?ServerRestartStrategyProbe $strategy = null;
+
+            public function writeln(
+                string|iterable $messages,
+                int $options = self::OUTPUT_NORMAL,
+            ): void {
+                if ($messages === 'Stop server...') {
+                    $this->strategy?->publishProcessIdForTest(2000);
+                }
+            }
+        };
+        $strategy = $this->createProbeStrategy($output);
+        $output->strategy = $strategy;
+        $strategy->publishProcessIdForTest(1000);
+
+        $strategy->terminateForTest();
+
+        $this->assertSame([[2000, SIGTERM]], $strategy->signals);
     }
 
     public function testStopSignalsTheExactOwnedProcess(): void
@@ -403,6 +493,9 @@ class ServerRestartStrategyProbe extends ServerRestartStrategy
     /** @var list<array{int, int}> */
     public array $signals = [];
 
+    /** @var list<bool|Throwable> */
+    public array $signalOutcomes = [];
+
     public int $openCalls = 0;
 
     public int $reloadCalls = 0;
@@ -474,7 +567,13 @@ class ServerRestartStrategyProbe extends ServerRestartStrategy
     {
         $this->signals[] = [$pid, $signal];
 
-        return true;
+        $outcome = array_shift($this->signalOutcomes) ?? true;
+
+        if ($outcome instanceof Throwable) {
+            throw $outcome;
+        }
+
+        return $outcome;
     }
 
     protected function reloadEnvironment(): void
@@ -498,6 +597,22 @@ class ServerRestartStrategyProbe extends ServerRestartStrategy
     public function publishedProcessId(): ?int
     {
         return $this->processId;
+    }
+
+    /**
+     * Publish a process ID for a termination test.
+     */
+    public function publishProcessIdForTest(?int $processId): void
+    {
+        $this->processId = $processId;
+    }
+
+    /**
+     * Terminate the published process for a test.
+     */
+    public function terminateForTest(): void
+    {
+        $this->terminateServer();
     }
 
     /**

@@ -9,21 +9,20 @@ use Hypervel\Engine\Channel;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Watcher\Option;
 use Symfony\Component\Finder\Exception\DirectoryNotFoundException;
-use Symfony\Component\Finder\SplFileInfo;
+use Symfony\Component\Finder\Finder;
+use UnexpectedValueException;
 
 class ScanFileDriver extends AbstractDriver
 {
     protected Filesystem $filesystem;
 
-    /**
-     * @var null|array<string, string>
-     */
+    /** @var null|array<string, string> */
     protected ?array $lastFileHashes = null;
 
     public function __construct(
-        protected Option $option,
-        private StdoutLoggerInterface $logger,
-        ?Filesystem $filesystem = null
+        Option $option,
+        protected StdoutLoggerInterface $logger,
+        ?Filesystem $filesystem = null,
     ) {
         parent::__construct($option);
 
@@ -35,8 +34,7 @@ class ScanFileDriver extends AbstractDriver
      */
     public function watch(Channel $channel): void
     {
-        $seconds = $this->option->getScanIntervalSeconds();
-        $this->watchAtInterval($seconds, function () use ($channel): void {
+        $this->watchAtInterval($this->option->getScanIntervalSeconds(), function () use ($channel): void {
             $this->processFileHashes($channel, $this->getWatchFileHashes());
         });
     }
@@ -48,38 +46,38 @@ class ScanFileDriver extends AbstractDriver
      */
     protected function processFileHashes(Channel $channel, array $currentFileHashes): void
     {
-        if ($this->lastFileHashes !== null && $this->lastFileHashes !== $currentFileHashes) {
-            // Added files (in current but not in last).
+        if ($this->lastFileHashes !== null) {
             $addedFiles = array_diff_key($currentFileHashes, $this->lastFileHashes);
-            foreach (array_keys($addedFiles) as $pathName) {
-                $channel->push($pathName);
-            }
-
-            // Deleted files (in last but not in current).
             $deletedFiles = array_diff_key($this->lastFileHashes, $currentFileHashes);
-            foreach (array_keys($deletedFiles) as $pathName) {
-                $channel->push($pathName);
-            }
-
-            // Modified files (same path, different hash).
             $modifiedFiles = [];
+
             foreach ($currentFileHashes as $pathName => $fileHash) {
                 if (isset($this->lastFileHashes[$pathName]) && $this->lastFileHashes[$pathName] !== $fileHash) {
                     $modifiedFiles[] = $pathName;
                 }
             }
 
-            $this->logger->debug(sprintf(
-                '%s Watching: Total:%d, Change:%d, Add:%d, Delete:%d.',
-                self::class,
-                count($currentFileHashes),
-                count($modifiedFiles),
-                count($addedFiles),
-                count($deletedFiles),
-            ));
+            if ($addedFiles !== [] || $deletedFiles !== [] || $modifiedFiles !== []) {
+                $this->logger->debug(sprintf(
+                    '%s Watching: Total:%d, Change:%d, Add:%d, Delete:%d.',
+                    self::class,
+                    count($currentFileHashes),
+                    count($modifiedFiles),
+                    count($addedFiles),
+                    count($deletedFiles),
+                ));
 
-            foreach ($modifiedFiles as $pathName) {
-                $channel->push($pathName);
+                foreach (array_keys($addedFiles) as $pathName) {
+                    $channel->push($pathName);
+                }
+
+                foreach (array_keys($deletedFiles) as $pathName) {
+                    $channel->push($pathName);
+                }
+
+                foreach ($modifiedFiles as $pathName) {
+                    $channel->push($pathName);
+                }
             }
         }
 
@@ -94,41 +92,61 @@ class ScanFileDriver extends AbstractDriver
     protected function getWatchFileHashes(): array
     {
         $fileHashes = [];
-        $basePath = null;
-
-        // Scan watched directories.
+        $basePathLength = strlen(base_path()) + 1;
         $directoryPaths = $this->option->getDirectoryPaths();
-        $directoryTargets = $this->resolveTargets($directoryPaths);
+        $targetGroups = $this->groupWatchPathsByTarget($directoryPaths);
 
-        foreach ($directoryPaths as $index => $watchPath) {
+        foreach ($targetGroups as $target => $group) {
             try {
-                $allFiles = $this->filesystem->allFiles($directoryTargets[$index]);
-            } catch (DirectoryNotFoundException) {
-                continue;
-            }
+                $finder = Finder::create()
+                    ->files()
+                    ->ignoreDotFiles(false)
+                    ->ignoreUnreadableDirs()
+                    ->in($target);
 
-            /** @var SplFileInfo $obj */
-            foreach ($allFiles as $obj) {
-                $pathName = $obj->getPathName();
-                $basePath ??= base_path();
-                $relativePath = substr($pathName, strlen($basePath) + 1);
-                if (! $watchPath->matches($relativePath)) {
-                    continue;
+                if (! $group['recursive']) {
+                    $finder->depth(0);
                 }
-                $fileHash = $this->hashFile($pathName);
-                if ($fileHash !== null) {
-                    $fileHashes[$pathName] = $fileHash;
+
+                foreach ($finder as $file) {
+                    $pathName = $file->getPathname();
+
+                    if (isset($fileHashes[$pathName])) {
+                        continue;
+                    }
+
+                    // Finder preserves the target spelling, unlike fswatch's canonicalized output.
+                    $relativePath = substr($pathName, $basePathLength);
+
+                    foreach ($group['watchPaths'] as $watchPath) {
+                        if (! $watchPath->matches($relativePath)) {
+                            continue;
+                        }
+
+                        $fileHash = $this->hashFile($pathName);
+
+                        if ($fileHash !== null) {
+                            $fileHashes[$pathName] = $fileHash;
+                        }
+
+                        break;
+                    }
                 }
+            } catch (DirectoryNotFoundException|UnexpectedValueException) {
+                // RecursiveDirectoryIterator throws while opening an unreadable root before Finder can skip unreadable children.
+                continue;
             }
         }
 
-        // Check individual watched files.
         foreach ($this->resolveTargets($this->option->getFilePaths()) as $pathName) {
-            if (file_exists($pathName)) {
-                $fileHash = $this->hashFile($pathName);
-                if ($fileHash !== null) {
-                    $fileHashes[$pathName] = $fileHash;
-                }
+            if (isset($fileHashes[$pathName]) || ! is_file($pathName)) {
+                continue;
+            }
+
+            $fileHash = $this->hashFile($pathName);
+
+            if ($fileHash !== null) {
+                $fileHashes[$pathName] = $fileHash;
             }
         }
 

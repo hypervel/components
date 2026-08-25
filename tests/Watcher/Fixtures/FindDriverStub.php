@@ -8,8 +8,18 @@ use Hypervel\Watcher\Driver\FindDriver;
 
 class FindDriverStub extends FindDriver
 {
-    protected function scan(array $fileModifyTimes, string $minutes): array
+    protected function scan(): array
     {
-        return [[], ['.env']];
+        return [
+            'files' => ['.env'],
+            'changedComplete' => true,
+            'inventoryComplete' => true,
+            'failureCode' => null,
+        ];
+    }
+
+    public function referenceFilesForTest(): array
+    {
+        return $this->referenceFiles;
     }
 }
