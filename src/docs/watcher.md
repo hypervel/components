@@ -18,14 +18,14 @@
 <a name="introduction"></a>
 ## Introduction
 
-Hypervel application workers remain in memory between requests, so changes to your application code are not loaded until the server restarts. During local development, you may use the file watcher to monitor your application and automatically restart the server when a watched file changes.
+Because Hypervel application workers remain in memory between requests, changes to your application code are not loaded until the server restarts. During local development, you may use the file watcher to monitor your application and automatically restart the server when a watched file changes.
 
 The watcher may also be used by other long-running processes. For example, [Hypervel Horizon](/docs/{{version}}/horizon#automatically-restarting-horizon) uses it to restart Horizon when your application changes.
 
 <a name="running-the-watcher"></a>
 ## Running the Watcher
 
-You may start the development server and watch your application using the `watch` Artisan command:
+To start the development server and watch your application, invoke the `watch` Artisan command:
 
 ```shell
 php artisan watch
@@ -92,7 +92,7 @@ return [
 <a name="watch-paths"></a>
 ### Watch Paths
 
-The `watch` option accepts paths relative to your application's base directory. Each entry may be a directory, a glob pattern, or a specific file:
+The `watch` option accepts directories, glob patterns, and specific files relative to your application's base directory:
 
 ```php
 'watch' => [
@@ -105,9 +105,18 @@ The `watch` option accepts paths relative to your application's base directory. 
 ],
 ```
 
-At least one path must be provided through the configuration or the command line. Empty paths and paths beginning with `/` are invalid. Repeated and trailing separators and exact `.` segments are normalized, while `..` segments are preserved so you may watch a sibling directory. Use `.` when you deliberately want the application root.
+At least one path must be provided through the configuration or the command line. Paths may not be empty or absolute.
 
-A directory entry watches every file within that directory recursively. A specific file entry only watches that exact file. Plain paths are identified as directories when the watcher starts; a plain path that is not an existing directory is treated as a file.
+Use `.` to watch the application root. A path may also begin with `..` to watch a directory outside your application, such as a package you are developing alongside it. Redundant separators, trailing separators, and `.` path segments are ignored:
+
+```php
+'watch' => [
+    './app',
+    '../packages/example/src/**/*.php',
+],
+```
+
+A directory entry watches every file within that directory recursively, while a specific file entry watches only that file. When the watcher starts, it treats a plain path that names an existing directory as a directory. Otherwise, it treats the path as a file. If you create a configured directory after starting the watcher, restart the command so the path can be classified as a directory.
 
 Glob patterns use Symfony Finder's glob syntax. A single `*` matches within one directory, while `**` may match across directories. You may also use `?` to match one character, braces to match one of several values, and brackets to match a character range.
 
@@ -145,8 +154,8 @@ Hypervel includes several drivers for detecting file changes:
 
 | Driver | Requirements | Detected Changes |
 |---|---|---|
-| `ScanFileDriver` | None | Created, modified, and deleted files |
-| `FindDriver` | `find` | Created, modified, and deleted files |
+| `ScanFileDriver` | None | Created, modified, renamed, and deleted files |
+| `FindDriver` | `find` | Created, modified, renamed, and deleted files |
 | `FswatchDriver` | `fswatch` | Created, modified, renamed, and deleted files |
 
 You may select a driver using the `driver` option in your `watcher.php` configuration file:
@@ -158,11 +167,13 @@ You may select a driver using the `driver` option in your `watcher.php` configur
 <a name="choosing-a-driver"></a>
 ### Choosing a Driver
 
-The `ScanFileDriver` is the dependency-free and most portable choice. It detects exact content changes by reading and hashing every matched file on each scan, so its polling I/O grows with the watched tree. If a subtree becomes unreadable, files beneath it are reported as removed and then added again when access returns.
+The `ScanFileDriver` requires no external tools and works on every supported platform. It reads each matched file during every scan, allowing it to detect content changes even when a file's metadata does not change. However, this may result in more disk activity when watching large directory trees. If part of the watched tree becomes unreadable, its files are reported as removed and then added again when access returns.
 
-The `FindDriver` is a useful Unix polling option when `fswatch` is unavailable. It compares filesystem metadata and maintains an inventory for deletions without reading file contents. A rewrite that deliberately preserves its modification time may not be detected, and filesystems with whole-second timestamp precision may miss a rewrite whose timestamp equals the scan cutoff. If a filesystem error prevents a complete inventory, deletion detection is suspended for that scan. If change detection also fails, changes already found may be reported again on later scans until the error is fixed.
+The `FindDriver` uses your system's `find` executable and is a good polling choice on Unix systems. Since it checks filesystem metadata instead of reading file contents, it generally requires less disk activity than the `ScanFileDriver`. However, it cannot detect a rewrite that preserves the file's modification time. On filesystems that record modification times only to the nearest second, a rewrite may also be missed when its timestamp matches the time of the previous scan.
 
-The `FswatchDriver` uses operating system events and has the lowest steady-state work on native filesystems. It requires `fswatch` and depends on the operating system delivering events. On Linux, Hypervel separates shallow and recursive watch roots so each path registers only the directory depth it needs. On macOS, the native backend observes every watched root recursively, so broad roots may deliver extra events that Hypervel filters out.
+If `find` cannot finish listing the watched files, such as when a watched directory cannot be read, deletions are not reported until a later scan completes. If it also cannot finish checking for changes, changes that were already detected may be reported again until the filesystem error is fixed.
+
+The `FswatchDriver` uses operating system events instead of repeatedly scanning your files, giving it the lowest steady-state resource usage on local filesystems. This driver requires the `fswatch` executable and depends on your operating system delivering file events. On Linux, Hypervel registers only the directories required by your watch patterns, reducing inotify usage. On macOS, each watch root is observed recursively, so you should avoid unnecessarily broad roots.
 
 Polling is generally safer when files live in containers, virtual machines, or network mounts that do not reliably forward operating system events.
 
@@ -184,7 +195,7 @@ interface DriverInterface
 }
 ```
 
-The `watch` method should run the watch loop and push each changed file path into the provided channel. The `stop` method should release the driver's resources, unblock its watch loop, and safely handle repeated calls. Hypervel resolves the configured driver through the service container. The driver's constructor may accept the current `Hypervel\Watcher\Option` instance using an `$option` parameter, as well as any other dependencies it needs.
+The `watch` method should run the watch loop and push each changed file path into the provided channel. The `stop` method should release the driver's resources, promptly unblock its watch loop, and safely handle repeated calls. After calling `stop`, Hypervel waits up to one second for `watch` to return before reporting an error. Hypervel resolves the configured driver through the service container. The driver's constructor may accept the current `Hypervel\Watcher\Option` instance using an `$option` parameter, as well as any other dependencies it needs.
 
 Once you have implemented the driver, specify its class in your application's configuration:
 
