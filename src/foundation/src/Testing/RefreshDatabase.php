@@ -6,7 +6,6 @@ namespace Hypervel\Foundation\Testing;
 
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection as DatabaseConnection;
-use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
@@ -40,20 +39,11 @@ trait RefreshDatabase
 
         $this->refreshTestDatabase();
 
-        // For coroutine tests, these run in setUpRefreshDatabaseInCoroutine()
+        // For coroutine tests, this runs in setUpRefreshDatabaseInCoroutine()
         // to maintain correct ordering: transaction → afterRefreshing → test
         if (! $this->runsTestsInCoroutine()) {
             $this->afterRefreshingDatabase();
-            $this->refreshModelBootedStates();
         }
-    }
-
-    /**
-     * Refresh the model booted states.
-     */
-    protected function refreshModelBootedStates(): void
-    {
-        Model::clearBootedModels();
     }
 
     /**
@@ -161,7 +151,6 @@ trait RefreshDatabase
     {
         $this->beginDatabaseTransactionWork();
         $this->afterRefreshingDatabase();
-        $this->refreshModelBootedStates();
     }
 
     /**

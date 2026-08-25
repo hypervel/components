@@ -15,6 +15,8 @@ use Hypervel\Database\ConcurrencyErrorDetector;
 use Hypervel\Database\DatabaseServiceProvider;
 use Hypervel\Database\DetectsConcurrencyErrors;
 use Hypervel\Database\DetectsLostConnections;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\QueueEntityResolver;
 use Hypervel\Database\LostConnectionDetector;
 use Hypervel\Events\Dispatcher;
@@ -27,6 +29,13 @@ use Throwable;
 
 class DatabaseServiceProviderTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        DatabaseServiceProviderBootedModel::$bootedCalls = 0;
+    }
+
     public function testMigrationRepositoryUsesTheCurrentArrayConfiguration(): void
     {
         config(['database.migrations' => [
@@ -170,6 +179,20 @@ class DatabaseServiceProviderTest extends TestCase
         );
     }
 
+    public function testRegisterClearsModelBootStateBeforeApplicationModelsBoot(): void
+    {
+        new DatabaseServiceProviderBootedModel;
+
+        $this->assertSame(1, DatabaseServiceProviderBootedModel::$bootedCalls);
+
+        (new DatabaseServiceProvider($this->app))->register();
+
+        new DatabaseServiceProviderBootedModel;
+
+        $this->assertSame(2, DatabaseServiceProviderBootedModel::$bootedCalls);
+        $this->assertTrue(DatabaseServiceProviderBootedModel::hasGlobalScope('active'));
+    }
+
     public function testNonCoroutineTaskLifecycleListenersAreRegistered(): void
     {
         $events = $this->bootProviderWithTaskCoroutines(false);
@@ -204,5 +227,19 @@ class DatabaseServiceProviderTest extends TestCase
         (new DatabaseServiceProvider($this->app))->boot();
 
         return $events;
+    }
+}
+
+class DatabaseServiceProviderBootedModel extends Model
+{
+    public static int $bootedCalls = 0;
+
+    protected static function booted(): void
+    {
+        ++static::$bootedCalls;
+
+        static::addGlobalScope('active', static function (Builder $builder): void {
+            $builder->whereNotNull('activated_at');
+        });
     }
 }

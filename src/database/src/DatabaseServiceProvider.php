@@ -49,6 +49,10 @@ class DatabaseServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // Application rebuilds must reset model boot state without relying on test cleanup.
+        // Models must not boot until boot() installs their resolver and event dispatcher.
+        Model::clearBootedModels();
+
         $this->registerConnectionServices();
         $this->registerFakerGenerator();
         $this->registerQueueableEntityResolver();
