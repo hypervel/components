@@ -26,6 +26,7 @@ use Hypervel\Jwt\JwtGuard;
 use Hypervel\Jwt\JwtServiceProvider;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use Mockery\MockInterface;
 
 class JwtGuardTest extends TestCase
 {
@@ -640,18 +641,8 @@ class JwtGuardTest extends TestCase
 
     public function testLogoutClearsDecodedPayloadCache(): void
     {
-        $decodeCalls = 0;
         $jwtManager = m::mock(ManagerContract::class);
-        $jwtManager->shouldReceive('decode')
-            ->with('valid-token')
-            ->twice()
-            ->andReturnUsing(function () use (&$decodeCalls): array {
-                if (++$decodeCalls === 1) {
-                    return ['sub' => 1];
-                }
-
-                throw new TokenBlacklistedException('The token has been blacklisted');
-            });
+        $this->stubDecodeThenBlacklisted($jwtManager, 'valid-token', ['sub' => 1]);
         $jwtManager->shouldReceive('invalidate')->with('valid-token', false)->once()->andReturnTrue();
 
         $guard = $this->createGuard(
@@ -966,18 +957,8 @@ class JwtGuardTest extends TestCase
         $provider = m::mock(UserProvider::class);
         $provider->shouldReceive('retrieveById')->with(1)->once()->andReturn($user);
 
-        $decodeCalls = 0;
         $jwtManager = m::mock(ManagerContract::class);
-        $jwtManager->shouldReceive('decode')
-            ->with('valid-token')
-            ->twice()
-            ->andReturnUsing(function () use (&$decodeCalls): array {
-                if (++$decodeCalls === 1) {
-                    return ['sub' => 1];
-                }
-
-                throw new TokenBlacklistedException('The token has been blacklisted');
-            });
+        $this->stubDecodeThenBlacklisted($jwtManager, 'valid-token', ['sub' => 1]);
         $jwtManager->shouldReceive('invalidate')->with('valid-token', false)->once()->andReturnTrue();
 
         $guard = $this->createGuard(provider: $provider, jwtManager: $jwtManager, request: null)
@@ -991,18 +972,8 @@ class JwtGuardTest extends TestCase
 
     public function testInvalidateClearsTheExactTokenPayload(): void
     {
-        $decodeCalls = 0;
         $jwtManager = m::mock(ManagerContract::class);
-        $jwtManager->shouldReceive('decode')
-            ->with('valid-token')
-            ->twice()
-            ->andReturnUsing(function () use (&$decodeCalls): array {
-                if (++$decodeCalls === 1) {
-                    return ['sub' => 1];
-                }
-
-                throw new TokenBlacklistedException('The token has been blacklisted');
-            });
+        $this->stubDecodeThenBlacklisted($jwtManager, 'valid-token', ['sub' => 1]);
         $jwtManager->shouldReceive('invalidate')->with('valid-token', false)->once()->andReturnTrue();
 
         $guard = $this->createGuard(jwtManager: $jwtManager, request: null)
@@ -1206,6 +1177,30 @@ class JwtGuardTest extends TestCase
         $jwtServiceProvider->boot();
 
         $this->assertInstanceOf(JwtGuard::class, $authManager->guard('jwt'));
+    }
+
+    /**
+     * Stub decoding to succeed once and then report a blacklisted token.
+     *
+     * @param array<string, mixed> $payload
+     */
+    protected function stubDecodeThenBlacklisted(
+        ManagerContract&MockInterface $jwtManager,
+        string $token,
+        array $payload,
+    ): void {
+        $decodeCalls = 0;
+
+        $jwtManager->shouldReceive('decode')
+            ->with($token)
+            ->twice()
+            ->andReturnUsing(function () use (&$decodeCalls, $payload): array {
+                if (++$decodeCalls === 1) {
+                    return $payload;
+                }
+
+                throw new TokenBlacklistedException('The token has been blacklisted');
+            });
     }
 
     /**
