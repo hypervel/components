@@ -405,6 +405,20 @@ trait ManagesTransactions
     }
 
     /**
+     * Execute the callback after commit, or immediately when no transaction exists.
+     */
+    public function afterCommitOrNow(callable $callback): void
+    {
+        if ($this->transactionsManager === null && $this->transactionLevel() === 0) {
+            $callback();
+
+            return;
+        }
+
+        $this->afterCommit($callback);
+    }
+
+    /**
      * Execute the callback after a transaction rolls back.
      *
      * The callback belongs to this connection's open transaction stack.
