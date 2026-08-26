@@ -16,6 +16,7 @@ use Hypervel\Auth\RequestGuard;
 use Hypervel\Auth\SessionGuard;
 use Hypervel\Auth\TokenGuard;
 use Hypervel\Cache\CacheManager;
+use Hypervel\Cache\ModelCacheCoordinator;
 use Hypervel\Cache\ModelCacheStoreValidator;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Config\Repository;
@@ -900,13 +901,13 @@ class AuthManagerTest extends TestCase
 
         $cacheManager = m::mock(CacheManager::class);
         $adminRepo = m::mock(CacheRepository::class);
-        $adminRepo->shouldReceive('getStore')->andReturn(m::mock(RedisStore::class));
-        $adminRepo->shouldReceive('forget')
+        $coordinator = m::mock(ModelCacheCoordinator::class);
+        $coordinator->shouldReceive('invalidate')
             ->once()
-            ->with('admin_users:' . AuthManagerCacheAdminStub::class . ':42')
-            ->andReturn(true);
+            ->with($adminRepo, 'admin_users:' . AuthManagerCacheAdminStub::class . ':42');
         $cacheManager->shouldReceive('store')->with('admin-store')->andReturn($adminRepo);
         $container->instance('cache', $cacheManager);
+        $container->instance(ModelCacheCoordinator::class, $coordinator);
 
         $manager->clearUserCache(42, 'admin');
     }
@@ -950,13 +951,13 @@ class AuthManagerTest extends TestCase
 
         $cacheManager = m::mock(CacheManager::class);
         $repo = m::mock(CacheRepository::class);
-        $repo->shouldReceive('getStore')->andReturn(m::mock(RedisStore::class));
-        $repo->shouldReceive('forget')
+        $coordinator = m::mock(ModelCacheCoordinator::class);
+        $coordinator->shouldReceive('invalidate')
             ->once()
-            ->with(EloquentUserProvider::DEFAULT_CACHE_PREFIX . ':' . AuthManagerCacheUserStub::class . ':tenant:42')
-            ->andReturn(true);
+            ->with($repo, EloquentUserProvider::DEFAULT_CACHE_PREFIX . ':' . AuthManagerCacheUserStub::class . ':tenant:42');
         $cacheManager->shouldReceive('store')->with('web-store')->andReturn($repo);
         $container->instance('cache', $cacheManager);
+        $container->instance(ModelCacheCoordinator::class, $coordinator);
 
         EloquentUserProvider::resolveUserCacheKeyUsing(
             fn (mixed $identifier, string $model, ?Model $user): string => 'tenant:' . $identifier,
