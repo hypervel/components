@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Sanctum;
 
 use DateTimeInterface;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Sanctum\Contracts\HasAbilities;
 use Hypervel\Support\Str;
 use UnitEnum;
@@ -24,6 +25,24 @@ trait HasApiTokens
     protected ?HasAbilities $accessToken = null;
 
     /**
+     * Bootstrap the API token concern.
+     */
+    public static function bootHasApiTokens(): void
+    {
+        $invalidateTokenableCache = static function (Model $tokenable): void {
+            if (! config()->boolean('sanctum.cache.enabled', false)) {
+                return;
+            }
+
+            $tokenModel = Sanctum::personalAccessTokenModel();
+            $tokenModel::clearTokenableCache($tokenable);
+        };
+
+        static::saved($invalidateTokenableCache);
+        static::deleted($invalidateTokenableCache);
+    }
+
+    /**
      * Get the access tokens that belong to model.
      *
      * @return PersonalAccessTokenRelation<$this>
@@ -38,7 +57,11 @@ trait HasApiTokens
      */
     protected function newTokenRelation(): PersonalAccessTokenRelation
     {
-        $instance = $this->newRelatedInstance(Sanctum::personalAccessTokenModel());
+        $tokenModel = Sanctum::personalAccessTokenModel();
+
+        // Token authentication resolves through the configured model, so relation
+        // writes must use that model's connection rather than inherit the owner's.
+        $instance = new $tokenModel;
         [$type, $id] = $this->getMorphs('tokenable', null, null);
 
         // This relation owns Sanctum's cache-aware delete contract without

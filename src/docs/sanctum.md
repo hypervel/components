@@ -211,21 +211,29 @@ The `store` option determines which cache store is used. When this value is `nul
 
 The `last_used_at_update_interval` value must be a non-negative integer. Set this option to `0` to update the timestamp after every successful token authentication.
 
-Redis, database, file, storage, Swoole, and stacks containing only supported stores may be used. Stack layers are validated recursively. Array, worker-array, null, session, and failover stores are rejected. Failover is unsuitable because an unavailable primary can retain a stale identity and serve it after recovery.
+Sanctum supports Redis, database, file, and Swoole cache stores that provide atomic locks. Storage, array, worker-array, null, session, failover, and stack stores are not supported. A cache stack may retain a token or user in an upper layer on another worker or node after the entry has been invalidated.
+
+For a multi-node application, choose a cache store whose values and locks are shared by every application node. A local file or Swoole store is suitable only when every request that may use a cached token runs within the same shared scope.
 
 For Redis, `SERIALIZER_NONE`, native PHP, and available igbinary serializers preserve model types. Msgpack is accepted only with `msgpack.php_only=1`. JSON, non-PHP msgpack, and unknown modes are rejected because they can return arrays instead of models. Native serializers bypass `cache.serializable_classes`; use `SERIALIZER_NONE` when class-policy enforcement is required.
 
 Sanctum cache settings and `sanctum.last_used_at` are read during process startup and must not be changed while a worker is serving requests.
 
-Sanctum also caches missing token IDs as `null` results for the configured TTL. This protects your database from repeated lookups for the same revoked or unknown token. Missing tokenable models are not cached because their visibility may depend on the current query context. Because token IDs come from request input, use a cache store with bounded memory or an eviction policy when enabling token caching on public endpoints. Continue to apply your application's normal rate limiting; the cache is not a replacement for request throttling.
+Cache hits do not acquire a lock or query the database. On a cache miss, Sanctum coordinates the database read and cache write with the entry's invalidation lock. Token and tokenable cache fills use the write database connection so a committed revocation or owner change is not replaced by data read from a lagging replica.
 
-The `last_used_at_update_interval` option controls how frequently Sanctum writes a cached token's `last_used_at` timestamp back to the database. The default value is `300`, so the timestamp is updated at most once every five minutes for each token while caching is enabled. The cache TTL should be greater than or equal to this interval so active cached tokens do not expire before the next allowed timestamp write.
+Sanctum caches missing token IDs for the configured TTL. This protects your database from repeated lookups for the same revoked or unknown token. Missing tokenable models are not cached because their visibility may depend on the current query context. Because token IDs come from request input, use a cache store with bounded memory or an eviction policy when enabling token caching on public endpoints. Continue to apply your application's normal rate limiting; the cache is not a replacement for request throttling.
+
+Positive tokenable entries are shared by the model's morph type and identifier instead of being duplicated for each token. Saving or deleting a model that uses `HasApiTokens` clears that model's tokenable entry after its database transaction commits. Soft deletes, restores, and force deletes follow the same behavior.
+
+The `last_used_at_update_interval` option controls how frequently Sanctum writes a cached token's `last_used_at` timestamp back to the database. The default value is `300`, so the timestamp is updated at most once every five minutes for each token while caching is enabled. After this write, the next request performs one indexed token lookup to refill the token entry. The shared tokenable entry remains cached.
 
 Sanctum token caching pairs well with the authentication package's [user lookup cache](/docs/{{version}}/authentication#user-lookup-cache). Token-authenticated routes often need both the personal access token and its user model, so enabling both caches can reduce repeated database reads on hot authenticated endpoints.
 
 The cached token entry never embeds its `tokenable` relation. During authentication, the live token receives the exact tokenable instance used for provider validation before authentication callbacks and events run.
 
-Creating, updating, or deleting a personal access token automatically invalidates its affected cache entries after the database transaction commits. This includes soft deletes, restores, and force deletes performed on token model instances. Deleting through the token relation also invalidates every matched token when caching is enabled:
+Sanctum always reads and writes token records using the database connection configured by your personal access token model, even if the tokenable model uses another connection.
+
+Creating, updating, or deleting a personal access token automatically invalidates its token entry after the database transaction commits. This includes soft deletes, restores, and force deletes performed on token model instances. Deleting through the token relation also invalidates every matched token when caching is enabled:
 
 ```php
 $user->tokens()->delete();
@@ -235,29 +243,25 @@ $user->tokens()->where('name', 'Temporary')->delete();
 
 The relation fixes the matched token set before deletion and invalidates exactly those tokens. A token created concurrently after matching is not included in the deletion. Invalidations run immediately when there is no transaction, wait for the outer commit when there is one, and are discarded on rollback.
 
-Sanctum's internal `last_used_at` write refreshes only the token entry, so it does not defeat the tokenable cache. Raw SQL, quiet or eventless model mutations, arbitrary builder updates, and bulk restores bypass automatic invalidation. Clear both entries explicitly when using those escape hatches:
+Raw SQL, quiet or eventless model mutations, and arbitrary builder updates bypass automatic model events. Clear the affected entry explicitly after using one of these escape hatches:
 
 ```php
 use Hypervel\Sanctum\Sanctum;
 
 $tokenModel = Sanctum::personalAccessTokenModel();
 
+// After changing or deleting a token...
 $tokenModel::clearTokenCache($tokenId);
+
+// After changing or deleting a tokenable model...
+$tokenModel::clearTokenableCache($user);
 ```
+
+These methods use the token or tokenable model's database connection and wait for its outer transaction to commit. A rollback leaves the existing committed cache entry in place.
+
+Invalidation waits for any in-flight cache fill on the same entry. When a transaction scheduled the invalidation and its lock cannot be acquired, the cache lock timeout is thrown from the commit after the database write has committed, rather than leaving the stale token or user cached.
 
 The `sanctum:prune-expired` command also deletes records without immediately clearing their cache entries. These tokens are already expired and cannot authenticate, and their cache entries are removed when the configured cache TTL elapses.
-
-Tokenable model changes do not automatically evict token-ID-keyed entries. The cache TTL is therefore the maximum staleness bound. If a change must be reflected immediately during token authentication, clear the cache for that model's tokens:
-
-```php
-use Hypervel\Sanctum\Sanctum;
-
-$tokenModel = Sanctum::personalAccessTokenModel();
-
-$user->tokens()
-    ->pluck('id')
-    ->each(fn (int|string $tokenId) => $tokenModel::clearTokenCache($tokenId));
-```
 
 <a name="token-prefix"></a>
 ### Token Prefix
