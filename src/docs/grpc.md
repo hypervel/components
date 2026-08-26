@@ -824,7 +824,7 @@ $all = $metadata->all();
 
 You may inspect the collection using the `has` and `isEmpty` methods. `Metadata` is also iterable and countable by key, yielding each key with its list of values.
 
-Non-binary values may only contain printable ASCII characters and may not have surrounding whitespace. Keys ending in `-bin` accept arbitrary binary strings; Hypervel handles their wire encoding automatically. Protocol and transport headers cannot be used as application metadata keys.
+Non-binary values may only contain printable ASCII characters and may not have surrounding whitespace. Keys ending in `-bin` accept arbitrary binary strings; Hypervel handles their wire encoding automatically. Protocol and transport headers cannot be used as application metadata keys. Metadata keys may contain digits, but they cannot be purely numeric because PHP can convert numeric array keys to integers.
 
 <a name="deadlines"></a>
 ## Deadlines

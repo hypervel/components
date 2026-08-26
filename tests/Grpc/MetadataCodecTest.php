@@ -69,6 +69,22 @@ class MetadataCodecTest extends TestCase
         $this->assertFalse($metadata->has('x-invalid'));
     }
 
+    public function testSkipsNumericOnlyHeaderNamesWithoutDiscardingOtherMetadata(): void
+    {
+        $metadata = MetadataCodec::decode([
+            0 => 'discarded',
+            123 => 'discarded',
+            -1 => 'discarded',
+            '08' => 'discarded',
+            '-08' => 'discarded',
+            '-0' => 'discarded',
+            '9223372036854775808' => 'discarded',
+            'x-tag' => 'value',
+        ]);
+
+        $this->assertSame(['x-tag' => ['value']], $metadata->all());
+    }
+
     public function testFiltersPseudoProtocolAndTransportOwnedFields(): void
     {
         $metadata = MetadataCodec::decode([

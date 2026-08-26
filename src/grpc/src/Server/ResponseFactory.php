@@ -552,6 +552,9 @@ class ResponseFactory
     /**
      * Determine whether every outbound field name fits Swoole's server limit.
      *
+     * Metadata rejects purely numeric names before encoding, so supported field
+     * keys cannot be coerced to integers before reaching this string boundary.
+     *
      * @param array<string, mixed> $fields
      */
     private function fieldNamesFit(array $fields): bool

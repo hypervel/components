@@ -105,7 +105,7 @@ class ResponseBridge
         foreach ($response->headers->allPreserveCaseWithoutCookies() as $name => $values) {
             $value = count($values) === 1 ? $values[0] : $values;
 
-            if ($swooleResponse->header($name, $value) === false) {
+            if ($swooleResponse->header((string) $name, $value) === false) {
                 throw new RuntimeException('Unable to set a response header.');
             }
         }
@@ -402,11 +402,11 @@ class ResponseBridge
         $seenNames = [];
 
         foreach ($response->trailers() as $name => $value) {
-            if (! is_string($name) || ! is_string($value)) {
-                throw new RuntimeException('Response trailer names and values must be strings.');
+            if (! is_string($value)) {
+                throw new RuntimeException('Response trailer values must be strings.');
             }
 
-            $normalizedName = static::normalizeTrailerName($name);
+            $normalizedName = static::normalizeTrailerName((string) $name);
 
             if (isset($seenNames[$normalizedName])) {
                 throw new RuntimeException('Response trailer names must be unique after normalization.');
@@ -421,7 +421,8 @@ class ResponseBridge
         }
 
         foreach ($trailers as $name => $value) {
-            if ($swooleResponse->trailer($name, $value) === false) {
+            // PHP coerces all-digit associative keys again when the normalized map is built.
+            if ($swooleResponse->trailer((string) $name, $value) === false) {
                 throw new RuntimeException('Unable to set a response trailer.');
             }
         }

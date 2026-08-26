@@ -98,6 +98,8 @@ class GrpcStreamedResponse extends IterableStreamedResponse implements HasTraile
 
     /**
      * Get the final response trailers.
+     *
+     * @return array<string, string>
      */
     public function trailers(): array
     {
