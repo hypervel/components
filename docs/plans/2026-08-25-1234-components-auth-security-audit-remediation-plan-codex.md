@@ -9,7 +9,7 @@ Resolve audit findings 57–70 across Sanctum, Fortify, Socialite, JWT Auth, and
 The completed code should have these properties:
 
 - shared cache hits remain one ordinary cache read with no lock, database query, tag resolution, or coroutine-state check;
-- cache fills and exact invalidations cannot reorder a committed revocation into a stale positive entry during the normal lock lease;
+- cache fills that lose their lock lease cannot publish after a committed invalidation;
 - transaction rollback never invalidates committed shared state;
 - guard overrides are explicit per-execution state, independent of request token input;
 - request-dependent Socialite redirects are never frozen into worker-lifetime providers;
@@ -66,13 +66,14 @@ public function invalidate(CacheRepository $cache, string $key): void;
 `fill()` follows this protocol:
 
 1. Read the plain repository once. Return immediately when a presence envelope exists.
-2. Only after a miss, require the repository store to implement `LockProvider`; throw the existing `UnsupportedModelCacheStoreException` if it does not.
-3. Attempt a non-blocking per-key lock with a 10-second lease.
+2. Only after a miss, require the repository store to implement `LockProvider` and the produced lock to implement `RefreshableLock`; throw the existing `UnsupportedModelCacheStoreException` if either capability is absent.
+3. Attempt the refreshable per-key lock non-blockingly with a 10-second lease.
 4. When acquired, re-read the plain repository. This avoids a duplicate primary-database read when another fill completed before the waiter acquired the lock.
 5. If still absent, invoke `$read`, which each caller supplies as a write-connection query.
-6. Publish a small private array presence envelope when the value is non-null or `$cacheNull` is true. Resolve optional `$writeCache` only at this point; otherwise write through `$cache`.
-7. Run the critical section through `Lock::get()` so the existing lock implementation releases ownership on both success and failure while preserving the callback exception as primary.
-8. When the lock is not acquired, invoke `$read` and return its result without publishing. This preserves availability without creating an unordered writer.
+6. When the value is publishable, atomically refresh the lock after the authoritative read. If ownership or the lease was lost, return the read result without resolving `$writeCache` or publishing.
+7. After a successful refresh, publish a small private array presence envelope. Resolve optional `$writeCache` only at this point; otherwise write through `$cache`.
+8. Run the critical section through `Lock::get()` so the existing lock implementation releases ownership on both success and failure while preserving the callback exception as primary.
+9. When the lock is not acquired, invoke `$read` and return its result without publishing. This preserves availability without creating an unordered writer.
 
 The implementation must use an explicit `$acquired` flag because `Lock::get()` returns `false` both when acquisition fails and when the callback legitimately returns `false`.
 
@@ -91,13 +92,13 @@ This prevents a lock record from colliding with the cached value on stores that 
 
 The presence envelope must be an array, not an object, for the same reason as `NullSentinel`: restrictive `unserialize(allowed_classes)` policies do not alter arrays. Its marker is package-private and recognition is strict. Do not expose a new cache contract or public envelope type.
 
-The honest concurrency bound is retained in the plan and tests: if a worker pauses for longer than the 10-second lease between its source read and publication, it can publish after a later invalidation. Closing that pathological pause requires lease renewal or fencing across every store, adding materially more machinery than the one indexed read and one cache put being protected. The normal race is fully ordered, and any overrun remains bounded by the configured cache TTL. Do not expose lock timing as user configuration or add a background renewal loop. A genuinely stuck lease may cause more acquisition attempts at the 25-millisecond cadence, but that exceptional cost is preferable to a routine 250-millisecond overshoot after a short fill.
+The post-read refresh closes the supported race without a renewal loop or fencing system: every accepted store atomically verifies the owner and extends the lease, and a fill that already lost ownership cannot publish. Publication is not a transaction with the cache backend; the remaining failure would require lazy writer resolution—including an application-supplied dynamic tag resolver—plus the single cache write to outlive a freshly acknowledged 10-second lease. Do not expose lock timing as user configuration or add background renewal. That machinery would add routine complexity to protect against an exceptional writer-and-backend delay.
 
 ### Supported stores
 
 Tighten `ModelCacheStoreValidator::validate()` itself:
 
-- accept only the known model-safe Redis, database, file, and Swoole store families, whose model serialization is verified and which all provide `LockProvider`; every other store, including `StorageStore`, is rejected by omission, and the coordinator retains its direct capability check at the use boundary;
+- accept only the known model-safe Redis, database, file, and Swoole store families, whose model serialization is verified and whose locks implement `RefreshableLock`; every other store, including `StorageStore`, is rejected by omission, and the coordinator retains direct capability checks at the use boundary;
 - reject every `StackStore`, even though its bottom layer provides locks, because upper-layer values in other workers or nodes cannot be synchronously invalidated;
 - delete recursive stack-layer validation, layer-path parameters, and `stackLocation()` as dead code;
 - preserve Any-mode tag validation for the auth user cache.
@@ -121,7 +122,7 @@ Use `Connection::afterCommitOrNow()` for this settlement rule. It delegates to t
 | Path | Required cost after the change |
 |---|---|
 | Model cache hit | One plain `get`; no lock, query, dynamic tag resolver, or extra context access. |
-| Cold fill, lock won | Initial `get`, lock acquire, in-lock `get`, one primary read, one cache publication, one lock release. An untagged writer performs one ordinary put; a tagged auth writer also maintains its tag indexes within the tagged put. |
+| Cold fill, lock won | Initial `get`, lock acquire, in-lock `get`, one primary read, one atomic lock refresh, one cache publication, one lock release. An untagged writer performs one ordinary put; a tagged auth writer also maintains its tag indexes within the tagged put. |
 | Cold fill, lock lost | Initial `get`, lock attempt, one primary read, no write. |
 | Committed invalidation | One blocking lock acquisition, one exact forget, and one lock release per affected key. |
 | Rolled-back mutation | No cache operation. |
@@ -145,12 +146,15 @@ Add `tests/Cache/ModelCacheCoordinatorTest.php` covering:
 - the lazy writer is never resolved on a hit or non-publishing lock-loss path and is resolved once on publication;
 - false callback results remain distinguishable from failed lock acquisition;
 - lock-loss reads but never publishes;
+- a non-publishing null read does not refresh the lease;
+- lease refresh occurs after the authoritative read and before lazy writer resolution or publication;
+- a fill that loses ownership before refresh returns the read value without resolving the writer or publishing;
 - exceptions release an acquired lock and propagate;
 - invalidation blocks, forgets under the lock, and propagates timeout/failure;
 - invalidation retries a brief lock collision after 25 milliseconds through the real `Lock::block()` loop;
 - fill and invalidation share the same bounded lock identity while data and lock keys differ;
 - one real `WorkerArrayStore` coroutine interleaving proves publication occurs while the shared lock is held, invalidation contends for that lock, and the final operation order is publish then forget;
-- a non-locking store throws `UnsupportedModelCacheStoreException` only after a cache miss.
+- a non-locking store and a lock provider that produces a non-refreshable lock throw `UnsupportedModelCacheStoreException` only after a cache miss.
 
 Update `tests/Cache/ModelCacheStoreValidatorTest.php` for the exact accepted/rejected matrix and simpler stack failure message. Delete tests that exist only for recursive stack-layer paths.
 
@@ -455,7 +459,7 @@ Measure or count rather than infer:
 
 - Findings 57–70 and the same-root auth defects have regression tests and no duplicated master-plan rows.
 - Cache-hit paths are lock-free and meet the operation-count budget.
-- Supported cache fills read from the write connection and exact committed invalidations use the same identity lock.
+- Supported cache fills read from the write connection, refresh ownership before publication, and use the same identity lock as exact committed invalidations.
 - Stack and non-locking model-cache stores fail clearly during startup validation.
 - Tokenable invalidation is O(1) per owner mutation and identity keys are type-stable across supported databases.
 - Guard `setUser()` behavior is request-token independent and coroutine/guard isolated.
