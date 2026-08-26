@@ -118,7 +118,7 @@ class ProfileScriptTest extends TestCase
             );
             $output = $process->getOutput() . $process->getErrorOutput();
 
-            $this->assertNotSame(0, $process->getExitCode(), $output);
+            $this->assertSame(1, $process->getExitCode(), $output);
             $this->assertStringContainsString(
                 'Install the brianium/paratest package to profile tests.',
                 $output,
@@ -202,27 +202,101 @@ class ProfileScriptTest extends TestCase
     }
 
     #[Test]
-    public function itFailsWhenTheRunnerDoesNotWriteTheOwnedReport(): void
+    public function itPreservesEmptyTestSuiteOutcomes(): void
     {
-        $fixturePath = ParallelTesting::tempDir('ComponentsProfileScriptMissingReport');
+        $fixturePath = ParallelTesting::tempDir('ComponentsProfileScriptEmptySuite');
         $filesystem = new Filesystem;
 
         try {
             $filesystem->deleteDirectory($fixturePath);
             $filesystem->makeDirectory($fixturePath, 0700, true);
             $this->writeProfileFixture($filesystem, $fixturePath, 'Fast', 10000, true);
-            $customReportPath = $fixturePath . DIRECTORY_SEPARATOR . 'custom-report.xml';
+
+            [$process, $processId] = $this->runProfiler($fixturePath, [
+                '--filter=ProfileScriptMissingFixtureTest',
+                '--do-not-fail-on-empty-test-suite',
+            ]);
+            $output = $process->getOutput() . $process->getErrorOutput();
+
+            $this->assertSame(0, $process->getExitCode(), $output);
+            $this->assertStringContainsString('No tests executed!', $output);
+            $this->assertStringNotContainsString('Unable to find PHPUnit profile', $output);
+            $this->assertSame([], $this->profilePaths($processId));
 
             [$process, $processId] = $this->runProfiler(
                 $fixturePath,
-                ['--log-junit=' . $customReportPath],
+                ['--filter=ProfileScriptMissingFixtureTest'],
             );
             $output = $process->getOutput() . $process->getErrorOutput();
 
             $this->assertNotSame(0, $process->getExitCode(), $output);
-            $this->assertStringContainsString('Unable to find PHPUnit profile', $output);
-            $this->assertFileExists($customReportPath);
+            $this->assertStringContainsString('No tests executed!', $output);
+            $this->assertStringNotContainsString('Unable to find PHPUnit profile', $output);
             $this->assertSame([], $this->profilePaths($processId));
+        } finally {
+            $filesystem->deleteDirectory($fixturePath);
+        }
+    }
+
+    #[Test]
+    public function itPreservesInformationalCommandsThatProduceNoReport(): void
+    {
+        $fixturePath = ParallelTesting::tempDir('ComponentsProfileScriptInformation');
+        $filesystem = new Filesystem;
+
+        try {
+            $filesystem->deleteDirectory($fixturePath);
+            $filesystem->makeDirectory($fixturePath, 0700, true);
+
+            foreach ([
+                [['--help'], 'Usage:'],
+                [['--version'], 'ParaTest v'],
+                [['-hV'], 'Usage:'],
+            ] as [$arguments, $expectedOutput]) {
+                [$process, $processId] = $this->runProfiler($fixturePath, $arguments);
+                $output = $process->getOutput() . $process->getErrorOutput();
+                $message = sprintf('Failed for arguments [%s].%s%s', implode(' ', $arguments), PHP_EOL, $output);
+
+                $this->assertSame(0, $process->getExitCode(), $message);
+                $this->assertStringContainsString($expectedOutput, $output, $message);
+                $this->assertStringNotContainsString('Unable to find PHPUnit profile', $output, $message);
+                $this->assertSame([], $this->profilePaths($processId), $message);
+            }
+        } finally {
+            $filesystem->deleteDirectory($fixturePath);
+        }
+    }
+
+    #[Test]
+    public function itRejectsCallerSuppliedProfileReportsBeforeRunningTests(): void
+    {
+        $fixturePath = ParallelTesting::tempDir('ComponentsProfileScriptCallerReport');
+        $filesystem = new Filesystem;
+
+        try {
+            $filesystem->deleteDirectory($fixturePath);
+            $filesystem->makeDirectory($fixturePath, 0700, true);
+            $this->writeProfileFixture($filesystem, $fixturePath, 'Fast', 10000, true);
+
+            foreach (['equals', 'separate'] as $syntax) {
+                $customReportPath = $fixturePath . DIRECTORY_SEPARATOR . "{$syntax}-report.xml";
+                $arguments = $syntax === 'equals'
+                    ? ['--log-junit=' . $customReportPath]
+                    : ['--log-junit', $customReportPath];
+
+                [$process, $processId] = $this->runProfiler($fixturePath, $arguments);
+                $output = $process->getOutput() . $process->getErrorOutput();
+                $message = sprintf('Failed for syntax [%s].%s%s', $syntax, PHP_EOL, $output);
+
+                $this->assertSame(1, $process->getExitCode(), $message);
+                $this->assertStringContainsString(
+                    'The profiler manages the --log-junit option.',
+                    $output,
+                    $message,
+                );
+                $this->assertFileDoesNotExist($customReportPath, $message);
+                $this->assertSame([], $this->profilePaths($processId), $message);
+            }
         } finally {
             $filesystem->deleteDirectory($fixturePath);
         }
