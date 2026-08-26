@@ -11,6 +11,7 @@ use Hypervel\Jwt\JwtServiceProvider;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use Override;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class JwtSecretCommandTest extends TestCase
 {
@@ -58,7 +59,7 @@ class JwtSecretCommandTest extends TestCase
         $this->assertSame($originalContents, file_get_contents($environmentFile));
     }
 
-    public function testForceWritesSecretAndAlgorithm(): void
+    public function testForceWritesSecretWithoutAddingAlgorithm(): void
     {
         $environmentFile = $this->app->environmentFilePath();
 
@@ -68,7 +69,32 @@ class JwtSecretCommandTest extends TestCase
         $contents = file_get_contents($environmentFile);
 
         $this->assertMatchesRegularExpression('/^JWT_SECRET=.{64}$/m', $contents);
-        $this->assertStringContainsString('JWT_ALGO=HS256', $contents);
+        $this->assertStringNotContainsString('JWT_ALGO=', $contents);
+    }
+
+    #[DataProvider('algorithmProvider')]
+    public function testForcePreservesConfiguredAlgorithm(string $algorithm): void
+    {
+        $environmentFile = $this->app->environmentFilePath();
+        file_put_contents($environmentFile, "JWT_SECRET=existing-secret\nJWT_ALGO={$algorithm}\n");
+
+        $this->artisan('jwt:secret', ['--force' => true])
+            ->assertSuccessful();
+
+        $contents = file_get_contents($environmentFile);
+
+        $this->assertStringNotContainsString('JWT_SECRET=existing-secret', $contents);
+        $this->assertMatchesRegularExpression('/^JWT_SECRET=.{64}$/m', $contents);
+        $this->assertStringContainsString("JWT_ALGO={$algorithm}", $contents);
+    }
+
+    public static function algorithmProvider(): array
+    {
+        return [
+            'symmetric' => ['HS256'],
+            'RSA' => ['RS256'],
+            'elliptic curve' => ['ES256'],
+        ];
     }
 
     public function testAlwaysNoSkipsExistingSecret(): void
@@ -102,7 +128,7 @@ class JwtSecretCommandTest extends TestCase
     {
         $environmentFile = $this->app->environmentFilePath();
 
-        file_put_contents($environmentFile, "JWT_SECRET=existing-secret\n");
+        file_put_contents($environmentFile, "JWT_SECRET=existing-secret\nJWT_ALGO=RS256\n");
 
         $this->artisan('jwt:secret')
             ->expectsConfirmation('This will invalidate all existing tokens. Are you sure you want to override the JWT secret?', 'yes')
@@ -112,7 +138,7 @@ class JwtSecretCommandTest extends TestCase
 
         $this->assertStringNotContainsString('JWT_SECRET=existing-secret', $contents);
         $this->assertMatchesRegularExpression('/^JWT_SECRET=.{64}$/m', $contents);
-        $this->assertStringContainsString('JWT_ALGO=HS256', $contents);
+        $this->assertStringContainsString('JWT_ALGO=RS256', $contents);
     }
 
     public function testFailsWhenEnvironmentFileIsMissing(): void

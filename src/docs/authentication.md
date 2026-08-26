@@ -246,16 +246,11 @@ AUTH_USER_CACHE_ENABLED=true
 AUTH_USER_CACHE_STORE=redis
 ```
 
-For high-concurrency deployments, Hypervel's default `stack` cache store layers a short-lived Swoole Table cache over Redis. This keeps hot authenticated-user reads in local shared memory for a few seconds while Redis remains the shared backing store:
+Supported stores are `redis`, `database`, `file`, and `swoole`. The selected store must provide atomic locks. Storage, stack, array, worker-array, null, session, and failover stores are rejected. A cache stack may retain a user in an upper layer on another worker or node after the entry has been invalidated.
 
-```ini
-AUTH_USER_CACHE_ENABLED=true
-AUTH_USER_CACHE_STORE=stack
-```
+The `swoole` and `file` stores are available only within their shared local scope. For a multi-node application, choose a cache store whose values and locks are shared by every application node.
 
-Supported stores are `redis`, `database`, `file`, `storage`, `swoole`, and stacks containing only supported stores. Stack layers are validated recursively. The `array`, `worker-array`, `null`, `session`, and `failover` stores are rejected. Failover is unsuitable because an unavailable primary can retain a stale identity and serve it after recovery.
-
-The `swoole` and `file` stores are available only on the application node where they are written. A `storage` store is shared only when its configured filesystem disk is shared by every node. Use a shared store when every application node must observe invalidation immediately.
+Cache hits do not acquire a lock or query the database. On a miss, Hypervel coordinates the database read and cache write with the user's invalidation lock. Cache fills use the write database connection so a committed user change is not replaced by data read from a lagging replica.
 
 For Redis, `SERIALIZER_NONE`, native PHP, and available igbinary serializers preserve model types. Msgpack is accepted only with `msgpack.php_only=1`. JSON, non-PHP msgpack, and unknown modes are rejected because they can return arrays instead of models. Native serializers bypass `cache.serializable_classes`; use `SERIALIZER_NONE` when class-policy enforcement is required.
 
@@ -300,7 +295,7 @@ The resolver receives the identifier and provider model class. When a user is sa
 <a name="user-lookup-cache-invalidation"></a>
 #### Invalidating Cached Users
 
-Cached users are invalidated automatically when the user model is saved or deleted. This includes provider writes such as "remember me" token updates and automatic password rehashing, because those operations save the Eloquent model. Entries that are not cleared expire after the configured `ttl`.
+Cached users are invalidated automatically after the user model's save or delete transaction commits. A rollback leaves the existing committed cache entry in place. This includes provider writes such as "remember me" token updates and automatic password rehashing, because those operations save the Eloquent model. Entries that are not cleared expire after the configured `ttl`.
 
 Writes that bypass Eloquent model events, such as raw queries, mass updates, or pivot table changes for roles and permissions, should clear the cached user manually:
 
@@ -314,6 +309,10 @@ Auth::clearUserCache($admin->getAuthIdentifier(), guard: 'admin');
 ```
 
 `clearUserCache` accepts the same identifier as `retrieveById`, which is normally the user's primary key. When the guard argument is omitted, the current default guard is used.
+
+Manual invalidation follows the provider model's database connection. When called inside a transaction, the cache entry remains unchanged until the outer transaction commits and is left in place if the transaction rolls back. Code that needs the uncommitted value should continue using the model or query result it already owns instead of reading through the shared authentication cache.
+
+Invalidation waits for any in-flight cache fill on the same user. When a transaction scheduled the invalidation and its lock cannot be acquired, the cache lock timeout is thrown from the commit after the database write has committed, rather than leaving the stale user cached.
 
 If `withQuery()` eager-loads relations, the first uncached lookup stores that graph. Declare every application relation and custom container class so later cache hits restore the complete shape.
 
@@ -365,10 +364,9 @@ Then flush the tagged entries:
 Cache::store('auth')->tags(['auth_users'])->flush();
 ```
 
-Auth cache tags require a store that supports tags in `any` mode. Use a Redis store with `tag_mode` set to `any`, or a valid cache stack whose taggable layers are all any-mode stores. The default Redis tag mode is `all`, so use a separate Redis store or stack when enabling auth cache tags.
+Auth cache tags require a Redis store with `tag_mode` set to `any`. The default Redis tag mode is `all`, so use a separate Redis store when enabling auth cache tags.
 
-> [!WARNING]
-> When using a cache stack, treat a non-taggable first layer (L1), such as Swoole, as a short-lived microcache. A tag flush cannot remove matching entries from a non-taggable layer. When that layer is node-local, invalidation on another application node cannot clear its copy either. This is often an acceptable trade-off for faster reads and less traffic to the shared cache. Hypervel's default stack gives its Swoole layer a three-second TTL; keep custom L1 TTLs short, typically 2 to 5 seconds, so stale entries expire quickly.
+Store and tag flushes take effect immediately. They are not delayed until a database transaction commits and do not coordinate with individual cache fills. Use exact `clearUserCache()` invalidation for a database mutation that must become visible atomically after commit.
 
 You may also add dynamic tags based on request-scoped application state. This is useful when every cached user should keep a broad static tag, such as `auth_users`, plus a narrower tag for the current workspace:
 
@@ -387,7 +385,7 @@ public function boot(): void
 }
 ```
 
-Here, `CurrentWorkspace` is the same application-owned class shown in the custom cache key example. Dynamic tags are only applied when static `cache.tags` are configured. Without static tags, the resolver is ignored and writes use the untagged cache. Per-user invalidation via `Auth::clearUserCache()` still works when tags are configured because it forgets the cache key directly.
+Here, `CurrentWorkspace` is the same application-owned class shown in the custom cache key example. Dynamic tags are only applied when static `cache.tags` are configured. Without static tags, the resolver is ignored and writes use the untagged cache. Per-user invalidation via `Auth::clearUserCache()` still works when tags are configured because it invalidates the exact cache key.
 
 You may then clear the cached users for one workspace:
 

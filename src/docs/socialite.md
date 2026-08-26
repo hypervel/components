@@ -58,6 +58,16 @@ These credentials should be placed in your application's `config/services.php` c
 > [!NOTE]
 > If the `redirect` option contains a relative path, it will automatically be resolved to a fully qualified URL.
 
+The X OAuth 2 driver reads its credentials from the `x` key:
+
+```php
+'x' => [
+    'client_id' => env('X_CLIENT_ID'),
+    'client_secret' => env('X_CLIENT_SECRET'),
+    'redirect' => '/auth/x/callback',
+],
+```
+
 You may also define default scopes in the provider configuration. These scopes will be merged with the provider's default scopes:
 
 ```php
@@ -234,7 +244,17 @@ return Socialite::driver('github')
 
 The `setConfig` method stores the override in coroutine-local context, so it is safe to use on cached provider instances. OAuth 2.0 providers understand the `client_id`, `client_secret`, and `redirect` keys. Other keys are also available to custom providers through their provider configuration.
 
-The redirect and callback are separate requests. If you use dynamic credentials, call `setConfig` in both routes so each request receives the same provider configuration.
+The `redirect` override may also be a closure when the callback URL depends on the current request. Pass the closure to `setConfig` instead of defining it in `config/services.php`, since configuration files must remain cacheable:
+
+```php
+return Socialite::driver('github')
+    ->setConfig([
+        'redirect' => fn (): string => route('github.callback'),
+    ])
+    ->redirect();
+```
+
+Socialite evaluates the closure once for the current execution. The redirect and callback are separate requests, so call `setConfig` in both routes to give each request the same dynamic provider configuration.
 
 If you only need to override the callback URL for the current request, you may use the `redirectUrl` method:
 
@@ -384,9 +404,12 @@ An ID token must include the configured client ID in its audience. If the provid
     'client_id' => env('ACME_CLIENT_ID'),
     'client_secret' => env('ACME_CLIENT_SECRET'),
     'redirect' => '/auth/acme/callback',
+    'id_token_alg' => 'RS256',
     'trusted_audiences' => ['https://api.acme.example.com'],
 ],
 ```
+
+The `id_token_alg` option selects the algorithm used to parse and verify the provider's JSON Web Keys. It defaults to `RS256`. Configure another algorithm only when the provider publishes compatible signing keys; unsupported or mismatched algorithms are rejected during JWT verification.
 
 Generic OpenID Connect providers validate a one-time nonce stored in the session. The redirect and callback requests must therefore use the same session.
 

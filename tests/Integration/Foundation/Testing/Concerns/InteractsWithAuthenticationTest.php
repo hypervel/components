@@ -44,6 +44,7 @@ class InteractsWithAuthenticationTest extends TestCase
 
         Schema::table('users', function (Blueprint $table) {
             $table->tinyInteger('is_active')->default(0);
+            $table->string('api_token')->nullable();
         });
 
         User::forceCreate([
@@ -256,6 +257,112 @@ class InteractsWithAuthenticationTest extends TestCase
             ->get('/me')
             ->assertSuccessful()
             ->assertSeeText('Hello taylorotwell');
+    }
+
+    public function testTokenGuardSynchronizesOnlyExplicitUsersAcrossRequests(): void
+    {
+        Route::get('api-user', static function () {
+            return response()->json([
+                'username' => Auth::guard('api')->user()?->username,
+            ]);
+        });
+        Route::post('api-forget-user', static function () {
+            Auth::guard('api')->forgetUser();
+
+            return response()->noContent();
+        });
+
+        $firstUser = User::where('username', 'taylorotwell')->firstOrFail();
+        $secondUser = User::forceCreate([
+            'username' => 'second-user',
+            'email' => 'second@hypervel.org',
+            'password' => bcrypt('password'),
+            'is_active' => true,
+            'api_token' => null,
+        ]);
+        $firstUser->forceFill(['api_token' => 'shared-token'])->save();
+
+        $this->withHeader('Authorization', 'Bearer shared-token')
+            ->getJson('/api-user')
+            ->assertOk()
+            ->assertJson(['username' => 'taylorotwell']);
+
+        $firstUser->forceFill(['api_token' => null])->save();
+        $secondUser->forceFill(['api_token' => 'shared-token'])->save();
+
+        $this->getJson('/api-user')
+            ->assertOk()
+            ->assertJson(['username' => 'second-user']);
+
+        $this->actingAs($firstUser, 'api');
+
+        $this->getJson('/api-user')
+            ->assertOk()
+            ->assertJson(['username' => 'taylorotwell']);
+
+        $this->postJson('/api-forget-user')->assertNoContent();
+
+        $this->getJson('/api-user')
+            ->assertOk()
+            ->assertJson(['username' => $secondUser->username]);
+    }
+
+    public function testRequestGuardSynchronizesOnlyExplicitUsersAcrossRequests(): void
+    {
+        $resolutions = 0;
+        Auth::viaRequest('request-context', function (Request $request) use (&$resolutions) {
+            ++$resolutions;
+
+            return User::find($request->header('X-User-Id'));
+        });
+        config()->set('auth.guards.request-context', [
+            'driver' => 'request-context',
+            'provider' => 'users',
+        ]);
+
+        Route::get('request-user', static function () {
+            return response()->json([
+                'username' => Auth::guard('request-context')->user()?->username,
+            ]);
+        });
+        Route::post('request-forget-user', static function () {
+            Auth::guard('request-context')->forgetUser();
+
+            return response()->noContent();
+        });
+
+        $firstUser = User::where('username', 'taylorotwell')->firstOrFail();
+        $secondUser = User::forceCreate([
+            'username' => 'second-user',
+            'email' => 'second@hypervel.org',
+            'password' => bcrypt('password'),
+            'is_active' => true,
+        ]);
+
+        $this->withHeader('X-User-Id', (string) $firstUser->getKey())
+            ->getJson('/request-user')
+            ->assertOk()
+            ->assertJson(['username' => 'taylorotwell']);
+
+        $this->withHeader('X-User-Id', (string) $secondUser->getKey())
+            ->getJson('/request-user')
+            ->assertOk()
+            ->assertJson(['username' => 'second-user']);
+
+        $this->assertSame(2, $resolutions);
+
+        $this->actingAs($firstUser, 'request-context');
+
+        $this->getJson('/request-user')
+            ->assertOk()
+            ->assertJson(['username' => 'taylorotwell']);
+
+        $this->postJson('/request-forget-user')->assertNoContent();
+
+        $this->getJson('/request-user')
+            ->assertOk()
+            ->assertJson(['username' => 'second-user']);
+        $this->assertSame(3, $resolutions);
     }
 
     public function testActingAsGuestClearsTheUser()

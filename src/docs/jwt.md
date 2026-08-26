@@ -64,7 +64,7 @@ For HMAC algorithms such as `HS256`, generate a signing secret using the `jwt:se
 php artisan jwt:secret
 ```
 
-This command writes `JWT_SECRET` and `JWT_ALGO=HS256` to your `.env` file.
+This command writes `JWT_SECRET` to your `.env` file. It does not add or change `JWT_ALGO`, so an existing HMAC, RSA, or EC algorithm selection is preserved.
 
 You may display a generated secret without writing to `.env`:
 
@@ -544,13 +544,13 @@ Managed claims such as `nbf`, `exp`, `iss`, and `jti` are rebuilt by the package
 <a name="logging-out-and-invalidating-tokens"></a>
 ### Logging Out and Invalidating Tokens
 
-The `logout` method clears the guard's user, token, and decoded payload. When blacklisting is enabled, it invalidates the current token first:
+The `logout` method invalidates the current token and then clears the guard's user, token, and decoded payload:
 
 ```php
 Auth::guard('api')->logout();
 ```
 
-If the blacklist write fails, a `JwtException` is thrown. The guard keeps its current state and does not dispatch the `Logout` event.
+Logout requires blacklisting when a current token exists. If blacklisting is disabled or the blacklist write fails, a `JwtException` is thrown. The guard keeps its current state and does not dispatch the `Logout` event. Calling `logout` without a current token remains harmless and clears local guard state.
 
 To invalidate a token directly, enable the blacklist and call `invalidate`:
 

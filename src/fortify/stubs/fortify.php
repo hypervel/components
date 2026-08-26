@@ -138,14 +138,14 @@ return [
     |--------------------------------------------------------------------------
     |
     | These values select the rate limiters used by Fortify's public endpoints.
-    | Email verification is always rate limited. Omitting its limiter uses
-    | six attempts per minute; the other endpoint limiters may be null.
+    | Email verification is always rate limited. Two-factor challenges use
+    | Fortify's account-scoped limiter by default. Other limiters may be null.
     |
     */
 
     'limiters' => [
         'login' => 'login',
-        'two-factor' => '5,1',
+        'two-factor' => 'two-factor',
         'passkeys' => 'passkeys',
         'verification' => '6,1',
     ],

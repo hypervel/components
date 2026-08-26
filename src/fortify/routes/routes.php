@@ -225,7 +225,7 @@ Route::group(['middleware' => $middleware], function () {
             ->name('passkey.store');
 
         Route::delete(RoutePath::for('passkey.destroy', '/user/passkeys/{passkey}'), [PasskeyRegistrationController::class, 'destroy'])
-            ->middleware($passkeyMiddleware)
+            ->middleware($passkeyManageMiddleware)
             ->name('passkey.destroy');
     }
 });
