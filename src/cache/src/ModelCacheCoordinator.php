@@ -7,6 +7,7 @@ namespace Hypervel\Cache;
 use Closure;
 use Hypervel\Cache\Exceptions\UnsupportedModelCacheStoreException;
 use Hypervel\Contracts\Cache\LockProvider;
+use Hypervel\Contracts\Cache\RefreshableLock;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 
 /**
@@ -64,10 +65,10 @@ class ModelCacheCoordinator
             return $cached[self::ENVELOPE_VALUE_KEY];
         }
 
+        $lock = $this->lock($cache, $key);
         $acquired = false;
-        $result = $this->lockProvider($cache)
-            ->lock($this->lockKey($key), self::FILL_LOCK_SECONDS)
-            ->get(function () use ($cache, $key, $ttl, $read, $cacheNull, $writeCache, &$acquired): mixed {
+        $result = $lock
+            ->get(function () use ($cache, $key, $ttl, $read, $cacheNull, $writeCache, $lock, &$acquired): mixed {
                 $acquired = true;
                 $cached = $cache->get($key);
 
@@ -77,10 +78,18 @@ class ModelCacheCoordinator
 
                 $value = $read();
 
-                if ($value !== null || $cacheNull) {
-                    ($writeCache === null ? $cache : $writeCache())
-                        ->put($key, $this->envelope($value), $ttl);
+                if ($value === null && ! $cacheNull) {
+                    return null;
                 }
+
+                // A source read may outlive the lease. Only publish after atomically
+                // confirming ownership and re-arming the lock for the cache write.
+                if (! $lock->refresh()) {
+                    return $value;
+                }
+
+                ($writeCache === null ? $cache : $writeCache())
+                    ->put($key, $this->envelope($value), $ttl);
 
                 return $value;
             });
@@ -93,8 +102,7 @@ class ModelCacheCoordinator
      */
     public function invalidate(CacheRepository $cache, string $key): void
     {
-        $this->lockProvider($cache)
-            ->lock($this->lockKey($key), self::FILL_LOCK_SECONDS)
+        $this->lock($cache, $key)
             ->betweenBlockedAttemptsSleepFor(self::INVALIDATION_RETRY_MILLISECONDS)
             ->block(
                 self::INVALIDATION_WAIT_SECONDS,
@@ -127,11 +135,11 @@ class ModelCacheCoordinator
     }
 
     /**
-     * Get the repository's lock provider.
+     * Get a refreshable model cache lock.
      *
      * @throws UnsupportedModelCacheStoreException
      */
-    private function lockProvider(CacheRepository $cache): LockProvider
+    private function lock(CacheRepository $cache, string $key): RefreshableLock
     {
         $store = $cache->getStore();
 
@@ -142,7 +150,16 @@ class ModelCacheCoordinator
             ));
         }
 
-        return $store;
+        $lock = $store->lock($this->lockKey($key), self::FILL_LOCK_SECONDS);
+
+        if (! $lock instanceof RefreshableLock) {
+            throw new UnsupportedModelCacheStoreException(sprintf(
+                'Model caching does not support cache store [%s] because it does not provide refreshable atomic locks.',
+                $store::class,
+            ));
+        }
+
+        return $lock;
     }
 
     /**
