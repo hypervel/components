@@ -38,6 +38,7 @@ use Hypervel\Database\Console\WipeCommand;
  * @method static void whenQueryingForLongerThan(\DateTimeInterface|\Carbon\CarbonInterval|int|float $threshold, callable $handler)
  * @method static int affectingStatement(string $query, array $bindings = [])
  * @method static void afterCommit(callable $callback)
+ * @method static void afterCommitOrNow(callable $callback)
  * @method static void afterRollBack(callable $callback)
  * @method static \Hypervel\Database\PdoConnection beforeExecuting(\Closure $callback)
  * @method static \Hypervel\Database\PdoConnection beforeStartingTransaction(\Closure $callback)

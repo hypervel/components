@@ -35,8 +35,8 @@ class ModelCacheStoreValidator
      *
      * Any-mode tags index plain cache keys without changing their storage
      * keys. Model caches can therefore keep direct reads and per-key
-     * invalidation on the plain repository, including when a cache stack
-     * has a local untagged layer above a shared tagged layer.
+     * invalidation on the plain repository while tagged writes maintain
+     * their indexes.
      *
      * @throws UnsupportedModelCacheStoreException
      */
@@ -65,55 +65,39 @@ class ModelCacheStoreValidator
     }
 
     /**
-     * Validate a store and every nested stack layer.
-     *
-     * @param list<int> $layerPath
+     * Validate a model cache store.
      *
      * @throws UnsupportedModelCacheStoreException
      */
-    private function validateStore(Store $store, string $feature, array $layerPath = []): void
+    private function validateStore(Store $store, string $feature): void
     {
         if ($store instanceof StackStore) {
-            foreach ($store->getStores() as $index => $proxy) {
-                $this->validateStore(
-                    $proxy->getStore(),
-                    $feature,
-                    [...$layerPath, $index],
-                );
-            }
-
-            return;
+            throw new UnsupportedModelCacheStoreException(sprintf(
+                '%s cannot use cache stack [%s] because an upper layer can retain an identity cache entry in another worker or node after invalidation.',
+                $feature,
+                $store::class,
+            ));
         }
 
         if ($store instanceof RedisStore) {
-            $this->validateRedisStore($store, $feature, $layerPath);
-
-            return;
-        }
-
-        if ($store instanceof DatabaseStore
+            $this->validateRedisStore($store, $feature);
+        } elseif (! ($store instanceof DatabaseStore
             || $store instanceof FileStore
-            || $store instanceof StorageStore
-            || $store instanceof SwooleStore) {
-            return;
+            || $store instanceof SwooleStore)) {
+            throw new UnsupportedModelCacheStoreException(sprintf(
+                '%s does not support cache store [%s].',
+                $feature,
+                $store::class,
+            ));
         }
-
-        throw new UnsupportedModelCacheStoreException(sprintf(
-            '%s does not support cache store [%s]%s.',
-            $feature,
-            $store::class,
-            $this->stackLocation($layerPath),
-        ));
     }
 
     /**
      * Validate that a Redis serializer preserves model objects.
      *
-     * @param list<int> $layerPath
-     *
      * @throws UnsupportedModelCacheStoreException
      */
-    private function validateRedisStore(RedisStore $store, string $feature, array $layerPath): void
+    private function validateRedisStore(RedisStore $store, string $feature): void
     {
         $connection = $store->getContext()->connectionName();
         /** @var array<array-key, mixed> $options */
@@ -142,7 +126,6 @@ class ModelCacheStoreValidator
                 $feature,
                 $connection,
                 $serializer,
-                $layerPath,
                 'msgpack.php_only=1 is required to preserve model objects',
             );
         }
@@ -152,7 +135,6 @@ class ModelCacheStoreValidator
                 $feature,
                 $connection,
                 $serializer,
-                $layerPath,
                 'the JSON serializer converts model objects to arrays',
             );
         }
@@ -161,7 +143,6 @@ class ModelCacheStoreValidator
             $feature,
             $connection,
             $serializer,
-            $layerPath,
             'the serializer is not verified to preserve model objects',
         );
     }
@@ -179,36 +160,20 @@ class ModelCacheStoreValidator
     /**
      * Throw an unsupported Redis serializer exception.
      *
-     * @param list<int> $layerPath
-     *
      * @throws UnsupportedModelCacheStoreException
      */
     private function rejectRedisSerializer(
         string $feature,
         string $connection,
         int $serializer,
-        array $layerPath,
         string $reason,
     ): never {
         throw new UnsupportedModelCacheStoreException(sprintf(
-            '%s does not support Redis cache connection [%s] with serializer [%d]%s because %s.',
+            '%s does not support Redis cache connection [%s] with serializer [%d] because %s.',
             $feature,
             $connection,
             $serializer,
-            $this->stackLocation($layerPath),
             $reason,
         ));
-    }
-
-    /**
-     * Format a nested stack layer location.
-     *
-     * @param list<int> $layerPath
-     */
-    private function stackLocation(array $layerPath): string
-    {
-        return $layerPath === []
-            ? ''
-            : sprintf(' at stack layer [%s]', implode('.', $layerPath));
     }
 }

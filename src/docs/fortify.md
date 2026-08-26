@@ -296,11 +296,13 @@ public function boot(): void
 <a name="rate-limiting"></a>
 ### Rate Limiting
 
-The package defaults leave `fortify.limiters.login` and `fortify.limiters.passkeys` unset. Login requests then use Fortify's login throttling pipeline, and passkey routes are not throttled unless configured.
+The package defaults leave `fortify.limiters.login` and `fortify.limiters.passkeys` unset. Login requests then use Fortify's login throttling pipeline, and passkey routes are not throttled unless configured. The `fortify.limiters.two-factor` option defaults to Fortify's `two-factor` named limiter.
 
-The published configuration sets those limiters to `login` and `passkeys`, and the published `App\Providers\FortifyServiceProvider` registers matching named rate limiters.
+The published configuration sets the login and passkey limiters to `login` and `passkeys`, and the published `App\Providers\FortifyServiceProvider` registers matching named rate limiters.
 
-The two-factor challenge submit route is throttled by default with `throttle:5,1`. You may set `fortify.limiters.two-factor` to a different throttle string or to a named limiter if your application needs custom keying.
+Fortify's `two-factor` limiter allows five attempts per minute for each challenged account and guard. Changing the request's IP address does not reset that account's limit, and users behind the same IP address do not share a limit. If the challenged account is unexpectedly missing from the login session, the limiter falls back to that session's ID.
+
+You may set `fortify.limiters.two-factor` to a different throttle string or named limiter. Registering another limiter named `two-factor` from your application provider replaces Fortify's default.
 
 Email verification and resend routes are always rate limited. They allow six requests per minute by default; omitting `fortify.limiters.verification` keeps this limit, while another throttle string or named limiter customizes it.
 
@@ -438,6 +440,8 @@ Fortify stores recovery codes as one encrypted JSON value. When a recovery code 
 The two-factor provider defaults to 32-character TOTP secrets. The optional `window` feature option is step-based: a value of `1` accepts the previous, current, and next 30-second periods. Accepted TOTP codes are cached for the full accepted window to prevent replay for as long as Fortify still accepts the code. Hypervel Fortify uses fresh OTPHP TOTP objects with an injected clock, so verification does not mutate shared TOTP engine state in a Swoole worker.
 
 During login, users with enabled two-factor authentication are redirected to the two-factor challenge route. JSON login requests receive a response containing a `two_factor` boolean. The challenge form should submit either a `code` field containing a TOTP code or a `recovery_code` field containing one of the user's recovery codes to `POST /two-factor-challenge`.
+
+Submitting `force=true` to the two-factor enable route rotates the user's secret and recovery codes. When two-factor confirmation is enabled, this also clears the previous confirmation so the new secret must be confirmed before it becomes active.
 
 <a name="passkeys"></a>
 ## Passkeys
@@ -680,6 +684,8 @@ Passkeys use a polymorphic `user` relation by default, backed by `user_type` and
 
 Passwordless passkey login is scoped to the selected guard provider's Eloquent model. A passkey registered to an `Admin` model cannot authenticate a `User` guard, even if the credential ID exists.
 
+The `{passkey}` route binding is scoped to the currently authenticated passkey owner. An authenticated user receives the same not-found response for another user's passkey as for an identifier that does not exist. This owner scope also applies to application routes that use a `{passkey}` parameter; administrative routes that manage another user's passkeys should use a different parameter name and query that passkey explicitly.
+
 The default migration uses Hypervel's configured morph key type. Applications using UUID or ULID owner keys should configure the framework morph key type before running the passkeys migration. Applications that mix owner key storage types should publish and customize the migration while keeping the `user_type` / `user_id` column names. A custom migration must store at least 1,364 case-sensitive characters in `credential_id` and preserve its unique index.
 
 To customize the passkey record itself, extend the package model and select it during boot:
@@ -736,7 +742,7 @@ Standalone routes use the following configuration options:
 | `guard` | The guard selected for standalone routes. An omitted or null value uses the current request guard. |
 | `middleware` | The required middleware applied to every standalone route. |
 | `management_middleware` | The required additional middleware applied when creating or deleting passkeys. |
-| `throttle` | The throttle middleware applied to passkey endpoints. Omission uses `throttle:6,1`; null disables throttling. |
+| `throttle` | The throttle middleware applied to passkey login, confirmation, registration, and deletion endpoints. Omission uses `throttle:6,1`; null disables throttling. |
 | `redirect` | The successful login destination used when no intended URL exists. Omission uses `/`. |
 
 Call `Passkeys::ignoreRoutes()` during boot before registering your own endpoints:

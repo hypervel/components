@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Cache\CacheManager;
-use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\SoftDeletes;
@@ -186,8 +185,7 @@ class PersonalAccessTokenCacheTest extends TestCase
 
         $this->assertNull(PersonalAccessToken::findToken('999|missing'));
         $this->assertSame(1, $this->countQueriesForTable('personal_access_tokens'));
-        $this->assertSame(NullSentinel::VALUE, $this->cacheRepository()->getRaw('sanctum:999'));
-        $this->assertNull($this->cacheRepository()->get('sanctum:999'));
+        $this->assertNull($this->modelCacheValue('sanctum:999'));
 
         DB::flushQueryLog();
 
@@ -288,7 +286,6 @@ class PersonalAccessTokenCacheTest extends TestCase
 
         $this->assertDatabaseMissing('string_key_personal_access_tokens', ['id' => $token->id]);
         $this->assertNull($this->cacheRepository()->getRaw('sanctum:token_01'));
-        $this->assertNull($this->cacheRepository()->getRaw('sanctum:token_01:tokenable'));
     }
 
     public function testPlainTokenLookupIsNotSupported(): void
@@ -326,9 +323,9 @@ class PersonalAccessTokenCacheTest extends TestCase
 
     public function testCreatingTokenClearsAPreexistingNegativeEntry(): void
     {
-        $this->cacheRepository()->rememberNullable('sanctum:1', 300, static fn () => null);
+        $this->assertNull(PersonalAccessToken::findToken('1|missing'));
 
-        $this->assertSame(NullSentinel::VALUE, $this->cacheRepository()->getRaw('sanctum:1'));
+        $this->assertNull($this->modelCacheValue('sanctum:1'));
 
         $token = $this->createToken();
 
@@ -339,16 +336,16 @@ class PersonalAccessTokenCacheTest extends TestCase
 
     public function testCreatingTokenInvalidatesNegativeCacheOnlyAfterOuterCommit(): void
     {
-        $this->cacheRepository()->rememberNullable('sanctum:1', 300, static fn () => null);
+        $this->assertNull(PersonalAccessToken::findToken('1|missing'));
 
         DB::transaction(function (): void {
             DB::transaction(function (): void {
                 $this->createToken();
 
-                $this->assertSame(NullSentinel::VALUE, $this->cacheRepository()->getRaw('sanctum:1'));
+                $this->assertNull($this->modelCacheValue('sanctum:1'));
             });
 
-            $this->assertSame(NullSentinel::VALUE, $this->cacheRepository()->getRaw('sanctum:1'));
+            $this->assertNull($this->modelCacheValue('sanctum:1'));
         });
 
         $this->assertNull($this->cacheRepository()->getRaw('sanctum:1'));
@@ -356,7 +353,7 @@ class PersonalAccessTokenCacheTest extends TestCase
 
     public function testRolledBackTokenCreationKeepsTheCommittedNegativeCacheEntry(): void
     {
-        $this->cacheRepository()->rememberNullable('sanctum:1', 300, static fn () => null);
+        $this->assertNull(PersonalAccessToken::findToken('1|missing'));
 
         try {
             DB::transaction(function (): never {
@@ -368,18 +365,18 @@ class PersonalAccessTokenCacheTest extends TestCase
             // Ignore the expected rollback exception.
         }
 
-        $this->assertSame(NullSentinel::VALUE, $this->cacheRepository()->getRaw('sanctum:1'));
+        $this->assertNull($this->modelCacheValue('sanctum:1'));
         $this->assertDatabaseMissing('personal_access_tokens', ['id' => 1]);
     }
 
     public function testCancelledTokenCreationDoesNotInvalidateNegativeCache(): void
     {
-        $this->cacheRepository()->rememberNullable('sanctum:1', 300, static fn () => null);
+        $this->assertNull(PersonalAccessToken::findToken('1|missing'));
         PersonalAccessToken::creating(static fn (): false => false);
 
         $this->createToken();
 
-        $this->assertSame(NullSentinel::VALUE, $this->cacheRepository()->getRaw('sanctum:1'));
+        $this->assertNull($this->modelCacheValue('sanctum:1'));
         $this->assertDatabaseMissing('personal_access_tokens', ['id' => 1]);
     }
 
@@ -472,7 +469,7 @@ class PersonalAccessTokenCacheTest extends TestCase
         $this->assertTrue($token->last_used_at->equalTo($lastUsedAt));
     }
 
-    public function testCachedLastUsedAtUpdateRunsAfterIntervalAndRefreshesCache(): void
+    public function testCachedLastUsedAtUpdateRunsAfterIntervalAndInvalidatesTokenCache(): void
     {
         $now = $this->freezeTime();
 
@@ -496,12 +493,12 @@ class PersonalAccessTokenCacheTest extends TestCase
             $token->fresh()->last_used_at->format('Y-m-d H:i:s'),
         );
 
-        $cachedToken = $this->cacheRepository()->get("sanctum:{$token->id}");
+        $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
+
+        $cachedToken = PersonalAccessToken::findToken("{$token->id}|secret");
         $this->assertInstanceOf(PersonalAccessToken::class, $cachedToken);
         $this->assertFalse($cachedToken->relationLoaded('tokenable'));
-        $this->assertTrue($cachedToken->relationLoaded('customRelation'));
-        $this->assertInstanceOf(TestUser::class, $cachedToken->getRelation('customRelation'));
-        $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
         $this->assertSame(
             $now->format('Y-m-d H:i:s'),
             $cachedToken->last_used_at->format('Y-m-d H:i:s'),
@@ -516,12 +513,12 @@ class PersonalAccessTokenCacheTest extends TestCase
         $this->assertNotNull($foundToken);
         $this->assertInstanceOf(TestUser::class, PersonalAccessToken::findTokenable($foundToken));
         $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
-        $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
 
         $token->forceFill(['last_used_at' => now()])->save();
 
         $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
-        $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
     }
 
     #[DefineEnvironment('useTimestampDisabledPersonalAccessTokenModel')]
@@ -539,7 +536,7 @@ class PersonalAccessTokenCacheTest extends TestCase
         $token->forceFill(['last_used_at' => now()])->save();
 
         $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
-        $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
     }
 
     #[DefineEnvironment('useCustomTimestampPersonalAccessTokenModel')]
@@ -558,10 +555,10 @@ class PersonalAccessTokenCacheTest extends TestCase
         $token->forceFill(['last_used_at' => now()])->save();
 
         $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
-        $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
     }
 
-    public function testLastUsedAtCacheRefreshRunsAfterTheUpdatedEventForget(): void
+    public function testLastUsedAtCacheInvalidationWaitsForCommit(): void
     {
         $token = $this->createToken();
         $this->warmTokenCache($token);
@@ -569,16 +566,13 @@ class PersonalAccessTokenCacheTest extends TestCase
         DB::transaction(function () use ($token): void {
             $token->updateLastUsedAt();
 
-            $cachedToken = $this->cacheRepository()->getRaw("sanctum:{$token->id}");
+            $cachedToken = $this->modelCacheValue("sanctum:{$token->id}");
             $this->assertInstanceOf(PersonalAccessToken::class, $cachedToken);
             $this->assertNull($cachedToken->last_used_at);
         });
 
-        $cachedToken = $this->cacheRepository()->getRaw("sanctum:{$token->id}");
-        $this->assertInstanceOf(PersonalAccessToken::class, $cachedToken);
-        $this->assertNotNull($cachedToken->last_used_at);
-        $this->assertFalse($cachedToken->relationLoaded('tokenable'));
-        $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+        $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
     }
 
     public function testRolledBackLastUsedAtUpdateKeepsTheCommittedCacheEntry(): void
@@ -596,11 +590,11 @@ class PersonalAccessTokenCacheTest extends TestCase
             // Ignore the expected rollback exception.
         }
 
-        $cachedToken = $this->cacheRepository()->getRaw("sanctum:{$token->id}");
+        $cachedToken = $this->modelCacheValue("sanctum:{$token->id}");
         $this->assertInstanceOf(PersonalAccessToken::class, $cachedToken);
         $this->assertNull($cachedToken->last_used_at);
         $this->assertNull($token->fresh()->last_used_at);
-        $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
     }
 
     public function testSuccessfulLastUsedAtUpdatePreservesModifiedConnectionState(): void
@@ -654,8 +648,7 @@ class PersonalAccessTokenCacheTest extends TestCase
 
         $this->assertNull(PersonalAccessToken::findTokenable(PersonalAccessToken::findOrFail($token->id)));
         $this->assertSame(1, $this->countQueriesForTable('users'));
-        $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
-        $this->assertNull($this->cacheRepository()->get("sanctum:{$token->id}:tokenable"));
+        $this->assertNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
 
         TestUser::forceCreate([
             'id' => $tokenableId,
@@ -671,13 +664,13 @@ class PersonalAccessTokenCacheTest extends TestCase
         $this->assertInstanceOf(TestUser::class, $tokenable);
         $this->assertSame($tokenableId, $tokenable->getKey());
         $this->assertSame(1, $this->countQueriesForTable('users'));
-        $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
     }
 
     public function testInvalidCachedTokenableIsRefreshed(): void
     {
         $token = $this->createToken();
-        $cacheKey = "sanctum:{$token->id}:tokenable";
+        $cacheKey = $this->tokenableCacheKey($token);
 
         $this->assertTrue($this->cacheRepository()->put($cacheKey, 'invalid', 300));
 
@@ -688,7 +681,7 @@ class PersonalAccessTokenCacheTest extends TestCase
         $this->assertInstanceOf(TestUser::class, $tokenable);
         $this->assertSame($token->tokenable_id, $tokenable->getKey());
         $this->assertSame(1, $this->countQueriesForTable('users'));
-        $this->assertInstanceOf(TestUser::class, $this->cacheRepository()->get($cacheKey));
+        $this->assertInstanceOf(TestUser::class, $this->modelCacheValue($cacheKey));
     }
 
     public function testValidTokenableIsCached(): void
@@ -718,7 +711,92 @@ class PersonalAccessTokenCacheTest extends TestCase
         $this->assertSame(0, $this->countQueriesForTable('users'));
     }
 
-    public function testClearTokenCacheForgetsTokenAndTokenableEntries(): void
+    public function testTokensForTheSameOwnerShareOneTokenableCacheEntry(): void
+    {
+        $first = $this->createToken();
+        $second = $first->tokenable->tokens()->create([
+            'name' => 'Second Token',
+            'token' => hash('sha256', 'second-secret'),
+            'abilities' => ['*'],
+        ]);
+
+        DB::enableQueryLog();
+
+        $this->assertInstanceOf(TestUser::class, PersonalAccessToken::findTokenable($first->fresh()));
+        $this->assertSame(1, $this->countQueriesForTable('users'));
+
+        DB::flushQueryLog();
+
+        $this->assertInstanceOf(TestUser::class, PersonalAccessToken::findTokenable($second->fresh()));
+        $this->assertSame(0, $this->countQueriesForTable('users'));
+        $this->assertSame($this->tokenableCacheKey($first), $this->tokenableCacheKey($second));
+    }
+
+    public function testClearTokenableCacheForgetsTheSharedOwnerEntry(): void
+    {
+        $token = $this->createToken();
+        $accessToken = $token->fresh();
+
+        $this->assertInstanceOf(TestUser::class, PersonalAccessToken::findTokenable($accessToken));
+
+        PersonalAccessToken::clearTokenableCache($token->tokenable);
+
+        $this->assertNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $this->assertInstanceOf(TestUser::class, PersonalAccessToken::findTokenable($token->fresh()));
+        $this->assertSame(1, $this->countQueriesForTable('users'));
+    }
+
+    public function testOwnerSaveInvalidatesTokenableCacheOnlyAfterCommit(): void
+    {
+        $token = $this->createToken();
+        $this->warmTokenCache($token);
+        $user = $token->tokenable;
+
+        DB::transaction(function () use ($token, $user): void {
+            $user->forceFill(['name' => 'Updated User'])->save();
+
+            $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
+        });
+
+        $this->assertNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
+        $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
+    }
+
+    public function testRolledBackOwnerSaveKeepsCommittedTokenableCache(): void
+    {
+        $token = $this->createToken();
+        $this->warmTokenCache($token);
+        $user = $token->tokenable;
+
+        try {
+            DB::transaction(function () use ($user): never {
+                $user->forceFill(['name' => 'Rolled Back'])->save();
+
+                throw new RuntimeException('rollback');
+            });
+        } catch (RuntimeException) {
+            // Ignore the expected rollback exception.
+        }
+
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
+    }
+
+    public function testOwnerDeleteInvalidatesOnlyTheTokenableEntry(): void
+    {
+        $token = $this->createToken();
+        $this->warmTokenCache($token);
+
+        $token->tokenable->delete();
+
+        $this->assertNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
+        $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
+    }
+
+    public function testClearTokenCacheForgetsOnlyTheTokenEntry(): void
     {
         $token = $this->createToken();
         $foundToken = PersonalAccessToken::findOrFail($token->id);
@@ -729,7 +807,7 @@ class PersonalAccessTokenCacheTest extends TestCase
         PersonalAccessToken::clearTokenCache($token->id);
 
         $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
-        $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
     }
 
     #[DefineEnvironment('useZeroTokenCacheStore')]
@@ -773,7 +851,7 @@ class PersonalAccessTokenCacheTest extends TestCase
         $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
     }
 
-    public function testUpdatingTokenForgetsTokenAndPositiveTokenableCacheEntries(): void
+    public function testUpdatingTokenForgetsOnlyTheTokenEntry(): void
     {
         $token = $this->createToken();
         $foundToken = PersonalAccessToken::findOrFail($token->id);
@@ -781,12 +859,12 @@ class PersonalAccessTokenCacheTest extends TestCase
         $this->assertTrue($token->is(PersonalAccessToken::findToken($token->id . '|secret')));
         $this->assertTrue($token->tokenable->is(PersonalAccessToken::findTokenable($foundToken)));
         $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
-        $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
 
         $token->forceFill(['name' => 'Updated Token'])->save();
 
         $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
-        $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
     }
 
     public function testUpdatingTokenInvalidatesCacheOnlyAfterCommit(): void
@@ -798,11 +876,11 @@ class PersonalAccessTokenCacheTest extends TestCase
             $token->forceFill(['name' => 'Updated Token'])->save();
 
             $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
-            $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+            $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
         });
 
         $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
-        $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
     }
 
     public function testNestedUpdateInvalidationWaitsForTheOuterCommit(): void
@@ -837,7 +915,7 @@ class PersonalAccessTokenCacheTest extends TestCase
         }
 
         $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
-        $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
     }
 
     public function testInvalidationRunsImmediatelyWithoutManagerOrTransaction(): void
@@ -845,7 +923,6 @@ class PersonalAccessTokenCacheTest extends TestCase
         $token = (new EventPersonalAccessToken)->setConnection('sanctum_secondary');
         $token->setRawAttributes(['id' => 999], true);
         $this->cacheRepository()->put('sanctum:999', $token, 300);
-        $this->cacheRepository()->put('sanctum:999:tokenable', 'cached', 300);
         $connection = DB::connection('sanctum_secondary');
         $manager = $connection->getTransactionManager();
         $connection->unsetTransactionManager();
@@ -857,7 +934,6 @@ class PersonalAccessTokenCacheTest extends TestCase
         }
 
         $this->assertNull($this->cacheRepository()->getRaw('sanctum:999'));
-        $this->assertNull($this->cacheRepository()->getRaw('sanctum:999:tokenable'));
     }
 
     public function testInvalidationFailsClosedWithoutManagerDuringTransaction(): void
@@ -881,7 +957,7 @@ class PersonalAccessTokenCacheTest extends TestCase
         }
     }
 
-    public function testDeletingTokenForgetsTokenAndTokenableCacheEntries(): void
+    public function testDeletingTokenForgetsOnlyTheTokenEntry(): void
     {
         $token = $this->createToken();
         $foundToken = PersonalAccessToken::findOrFail($token->id);
@@ -889,12 +965,12 @@ class PersonalAccessTokenCacheTest extends TestCase
         $this->assertTrue($token->is(PersonalAccessToken::findToken($token->id . '|secret')));
         $this->assertTrue($token->tokenable->is(PersonalAccessToken::findTokenable($foundToken)));
         $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
-        $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
 
         $token->delete();
 
         $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
-        $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
     }
 
     public function testDeletingTokenInvalidatesCacheOnlyAfterCommit(): void
@@ -906,11 +982,11 @@ class PersonalAccessTokenCacheTest extends TestCase
             $token->delete();
 
             $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
-            $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+            $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
         });
 
         $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
-        $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
     }
 
     public function testNestedDeleteInvalidationWaitsForTheOuterCommit(): void
@@ -929,7 +1005,7 @@ class PersonalAccessTokenCacheTest extends TestCase
         });
 
         $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
-        $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
     }
 
     public function testRolledBackTokenDeleteKeepsTheCommittedCacheEntries(): void
@@ -949,14 +1025,14 @@ class PersonalAccessTokenCacheTest extends TestCase
 
         $this->assertDatabaseHas('personal_access_tokens', ['id' => $token->id]);
         $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
-        $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
     }
 
     #[DefineEnvironment('useNamespacedPersonalAccessTokenModel')]
     public function testCustomTokenModelCacheNamespaceIsUsedForEveryCachePath(): void
     {
         $this->createNamespacedTokenTable();
-        $this->cacheRepository()->rememberNullable('custom-sanctum:1', 300, static fn () => null);
+        $this->assertNull(NamespacedPersonalAccessToken::findToken('1|missing'));
 
         $token = $this->createToken();
         $this->assertInstanceOf(NamespacedPersonalAccessToken::class, $token);
@@ -968,18 +1044,23 @@ class PersonalAccessTokenCacheTest extends TestCase
         $this->assertInstanceOf(NamespacedPersonalAccessToken::class, $foundToken);
         $this->assertInstanceOf(TestUser::class, NamespacedPersonalAccessToken::findTokenable($foundToken));
         $this->assertNotNull($this->cacheRepository()->getRaw('custom-sanctum:1'));
-        $this->assertNotNull($this->cacheRepository()->getRaw('custom-sanctum:1:tokenable'));
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token, 'custom-sanctum')));
         $this->assertNull($this->cacheRepository()->getRaw('sanctum:1'));
 
         $foundToken->updateLastUsedAt();
 
-        $this->assertNotNull($this->cacheRepository()->getRaw('custom-sanctum:1'));
-        $this->assertNotNull($this->cacheRepository()->getRaw('custom-sanctum:1:tokenable'));
+        $this->assertNull($this->cacheRepository()->getRaw('custom-sanctum:1'));
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token, 'custom-sanctum')));
+
+        $this->assertInstanceOf(
+            NamespacedPersonalAccessToken::class,
+            NamespacedPersonalAccessToken::findToken('1|secret'),
+        );
 
         $token->forceFill(['name' => 'Updated'])->save();
 
         $this->assertNull($this->cacheRepository()->getRaw('custom-sanctum:1'));
-        $this->assertNull($this->cacheRepository()->getRaw('custom-sanctum:1:tokenable'));
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token, 'custom-sanctum')));
 
         $foundToken = NamespacedPersonalAccessToken::findToken('1|secret');
         $this->assertInstanceOf(NamespacedPersonalAccessToken::class, $foundToken);
@@ -1007,11 +1088,7 @@ class PersonalAccessTokenCacheTest extends TestCase
         );
         $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
 
-        $this->cacheRepository()->rememberNullable(
-            "sanctum:{$token->id}",
-            300,
-            static fn () => null,
-        );
+        $this->assertNull(SoftDeletingPersonalAccessToken::findToken($token->id . '|secret'));
         $token->restore();
 
         $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
@@ -1067,8 +1144,9 @@ class PersonalAccessTokenCacheTest extends TestCase
 
         foreach ([$first->id, $second->id] as $id) {
             $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$id}"));
-            $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$id}:tokenable"));
         }
+
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($first)));
     }
 
     public function testTokenRelationDeletesOnlyTheIdsSelectedBeforeTheDelete(): void
@@ -1148,22 +1226,75 @@ class PersonalAccessTokenCacheTest extends TestCase
 
         $this->assertDatabaseHas('personal_access_tokens', ['id' => $token->id]);
         $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
-        $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
     }
 
     public function testTokenRelationInvalidationWaitsForCommit(): void
     {
-        $token = $this->createToken();
-        $user = $token->tokenable;
-        $this->warmTokenCache($token);
+        $first = $this->createToken();
+        $user = $first->tokenable;
+        $second = $user->tokens()->create([
+            'name' => 'Second Token',
+            'token' => hash('sha256', 'second-secret'),
+            'abilities' => ['*'],
+        ]);
+        $this->warmTokenCache($first);
+        $secondFound = PersonalAccessToken::findToken($second->id . '|second-secret');
+        $this->assertInstanceOf(PersonalAccessToken::class, $secondFound);
 
-        DB::transaction(function () use ($token, $user): void {
-            $this->assertSame(1, $user->tokens()->delete());
-            $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
+        DB::transaction(function () use ($first, $second, $user): void {
+            $this->assertSame(2, $user->tokens()->delete());
+            $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$first->id}"));
+            $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$second->id}"));
         });
 
-        $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
-        $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+        $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$first->id}"));
+        $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$second->id}"));
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($first)));
+    }
+
+    public function testTokenRelationUsesTheConfiguredTokenModelConnectionForCreationAndAuthentication(): void
+    {
+        $this->createSecondaryConnectionTokenTable();
+        $user = TestUser::create([
+            'name' => 'Test User',
+            'email' => 'owner-connection-create@example.com',
+            'password' => password_hash('password', PASSWORD_DEFAULT),
+        ])->setConnection('sanctum_secondary');
+
+        $token = $user->tokens()->create([
+            'name' => 'Test Token',
+            'token' => hash('sha256', 'secret'),
+            'abilities' => ['*'],
+        ]);
+
+        $this->assertDatabaseHas('personal_access_tokens', ['id' => $token->id]);
+        $this->assertSame(
+            0,
+            DB::connection('sanctum_secondary')->table('personal_access_tokens')->count(),
+        );
+        $this->assertInstanceOf(
+            PersonalAccessToken::class,
+            PersonalAccessToken::findToken($token->id . '|secret'),
+        );
+    }
+
+    public function testTokenRelationDeletionIgnoresAnUnrelatedOwnerConnectionTransaction(): void
+    {
+        $this->createSecondaryConnectionTokenTable();
+        $token = $this->createToken();
+        $user = $token->tokenable->setConnection('sanctum_secondary');
+        $this->warmTokenCache($token);
+        $connection = DB::connection('sanctum_secondary');
+        $connection->beginTransaction();
+
+        try {
+            $this->assertSame(1, $user->tokens()->delete());
+            $this->assertDatabaseMissing('personal_access_tokens', ['id' => $token->id]);
+            $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
+        } finally {
+            $connection->rollBack();
+        }
     }
 
     #[DefineEnvironment('useSecondaryConnectionPersonalAccessTokenModel')]
@@ -1183,7 +1314,6 @@ class PersonalAccessTokenCacheTest extends TestCase
         $this->assertInstanceOf(SecondaryConnectionPersonalAccessToken::class, $token);
         $foundToken = SecondaryConnectionPersonalAccessToken::findToken($token->id . '|secret');
         $this->assertInstanceOf(SecondaryConnectionPersonalAccessToken::class, $foundToken);
-        $this->cacheRepository()->put("sanctum:{$token->id}:tokenable", 'cached', 300);
         $connection = DB::connection('sanctum_secondary');
         $connection->beginTransaction();
 
@@ -1199,7 +1329,6 @@ class PersonalAccessTokenCacheTest extends TestCase
         }
 
         $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
-        $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
     }
 
     #[DefineEnvironment('useSecondaryConnectionPersonalAccessTokenModel')]
@@ -1219,7 +1348,6 @@ class PersonalAccessTokenCacheTest extends TestCase
         $this->assertInstanceOf(SecondaryConnectionPersonalAccessToken::class, $token);
         $foundToken = SecondaryConnectionPersonalAccessToken::findToken($token->id . '|secret');
         $this->assertInstanceOf(SecondaryConnectionPersonalAccessToken::class, $foundToken);
-        $this->cacheRepository()->put("sanctum:{$token->id}:tokenable", 'cached', 300);
         $connection = DB::connection('sanctum_secondary');
         $manager = $connection->getTransactionManager();
         $connection->unsetTransactionManager();
@@ -1242,7 +1370,6 @@ class PersonalAccessTokenCacheTest extends TestCase
         }
 
         $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
-        $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
     }
 
     public function testRolledBackTokenRelationDeleteKeepsCommittedCache(): void
@@ -1263,7 +1390,7 @@ class PersonalAccessTokenCacheTest extends TestCase
 
         $this->assertDatabaseHas('personal_access_tokens', ['id' => $token->id]);
         $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
-        $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+        $this->assertNotNull($this->cacheRepository()->getRaw($this->tokenableCacheKey($token)));
     }
 
     #[DefineEnvironment('disableTokenCache')]
@@ -1374,6 +1501,32 @@ class PersonalAccessTokenCacheTest extends TestCase
 
         $this->assertInstanceOf(PersonalAccessToken::class, $foundToken);
         $this->assertInstanceOf(TestUser::class, PersonalAccessToken::findTokenable($foundToken));
+    }
+
+    /**
+     * Get a value from its model-cache presence envelope.
+     */
+    protected function modelCacheValue(string $key): mixed
+    {
+        $envelope = $this->cacheRepository()->getRaw($key);
+
+        $this->assertIsArray($envelope);
+        $this->assertSame('present', $envelope['__hypervel_model_cache'] ?? null);
+        $this->assertArrayHasKey('value', $envelope);
+
+        return $envelope['value'];
+    }
+
+    /**
+     * Build the tokenable identity cache key used by the test model.
+     */
+    protected function tokenableCacheKey(PersonalAccessToken $token, string $prefix = 'sanctum'): string
+    {
+        $morphType = (string) $token->getAttribute('tokenable_type');
+        $id = (string) $token->getAttribute('tokenable_id');
+        $identity = strlen($morphType) . ":{$morphType}|" . strlen($id) . ":{$id}";
+
+        return "{$prefix}:tokenable:" . hash('xxh128', $identity);
     }
 
     /**

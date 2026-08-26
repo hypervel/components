@@ -33,34 +33,12 @@ class PersonalAccessTokenRelation extends MorphMany
         }
 
         $deleted = (clone $this->getQuery())->whereKey($ids)->delete();
+        $tokenModel = $this->getRelated()::class;
 
-        $this->settleInvalidation($ids);
-
-        return $deleted;
-    }
-
-    /**
-     * Clear the selected tokens after their database transaction settles.
-     *
-     * @param array<int, int|string> $ids
-     */
-    protected function settleInvalidation(array $ids): void
-    {
-        $related = $this->getRelated();
-        $connection = $related->getConnection();
-        $tokenModel = $related::class;
-        $callback = static function () use ($ids, $tokenModel): void {
-            foreach ($ids as $id) {
-                $tokenModel::clearTokenCache($id);
-            }
-        };
-
-        if ($connection->getTransactionManager() === null && $connection->transactionLevel() === 0) {
-            $callback();
-
-            return;
+        foreach ($ids as $id) {
+            $tokenModel::clearTokenCache($id);
         }
 
-        $connection->afterCommit($callback);
+        return $deleted;
     }
 }

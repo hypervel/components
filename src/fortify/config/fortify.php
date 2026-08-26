@@ -26,14 +26,14 @@ return [
     | Rate Limiters
     |--------------------------------------------------------------------------
     |
-    | Email verification is always rate limited. Omitting its limiter uses
-    | six attempts per minute; the other endpoint limiters may be null.
+    | Email verification is always rate limited. Two-factor challenges use
+    | Fortify's account-scoped limiter by default. Other limiters may be null.
     |
     */
 
     'limiters' => [
         'login' => null,
-        'two-factor' => '5,1',
+        'two-factor' => 'two-factor',
         'passkeys' => null,
         'verification' => '6,1',
     ],

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Sanctum;
 
 use Carbon\CarbonInterface;
-use Closure;
+use Hypervel\Cache\ModelCacheCoordinator;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
@@ -69,47 +69,15 @@ class PersonalAccessToken extends Model implements HasAbilities
         parent::boot();
 
         static::created(function (self $token): void {
-            if (! config()->boolean('sanctum.cache.enabled', false)) {
-                return;
-            }
-
-            /** @var int|string $id */
-            $id = $token->getKey();
-
-            $token->settleCacheMutation(
-                fn () => static::forgetTokenEntry(static::getCache(), $id)
-            );
+            static::invalidateTokenAfterMutation($token);
         });
 
         static::updated(function (self $token): void {
-            if (! config()->boolean('sanctum.cache.enabled', false)) {
-                return;
-            }
-
-            /** @var int|string $id */
-            $id = $token->getKey();
-            $lastUsedAtOnly = $token->wasOnlyLastUsedAtChanged();
-
-            $token->settleCacheMutation(function () use ($id, $lastUsedAtOnly): void {
-                if ($lastUsedAtOnly) {
-                    static::forgetTokenEntry(static::getCache(), $id);
-
-                    return;
-                }
-
-                static::clearTokenCache($id);
-            });
+            static::invalidateTokenAfterMutation($token);
         });
 
         static::deleted(function (self $token): void {
-            if (! config()->boolean('sanctum.cache.enabled', false)) {
-                return;
-            }
-
-            /** @var int|string $id */
-            $id = $token->getKey();
-
-            $token->settleCacheMutation(fn () => static::clearTokenCache($id));
+            static::invalidateTokenAfterMutation($token);
         });
     }
 
@@ -164,12 +132,11 @@ class PersonalAccessToken extends Model implements HasAbilities
      */
     protected static function findTokenUsingCache(string $id): ?static
     {
-        $cache = static::getCache();
-
-        return $cache->rememberNullable(
+        return static::getCacheCoordinator()->fill(
+            static::getCache(),
             static::getCacheKey($id),
             config()->integer('sanctum.cache.ttl', Sanctum::DEFAULT_CACHE_TTL),
-            fn () => static::find($id)?->unsetRelation('tokenable')
+            fn () => static::query()->useWritePdo()->find($id)?->unsetRelation('tokenable'),
         );
     }
 
@@ -186,23 +153,23 @@ class PersonalAccessToken extends Model implements HasAbilities
             return $accessToken->getAttribute('tokenable');
         }
 
-        $cache = static::getCache();
-        /** @var int|string $id */
-        $id = $accessToken->getKey();
-        $cacheKey = static::getCacheKey($id) . ':tokenable';
+        $morphType = (string) $accessToken->getAttribute('tokenable_type');
+        /** @var int|string $morphId */
+        $morphId = $accessToken->getAttribute('tokenable_id');
 
-        // A scoped miss may be visible in another query context, so cache only positive tokenables.
-        $tokenable = $cache->get($cacheKey);
+        $tokenable = static::getCacheCoordinator()->fill(
+            static::getCache(),
+            static::getTokenableCacheKey($morphType, $morphId),
+            config()->integer('sanctum.cache.ttl', Sanctum::DEFAULT_CACHE_TTL),
+            function () use ($accessToken): ?Authenticatable {
+                $tokenable = $accessToken->tokenable()->useWritePdo()->getResults();
 
-        if (! $tokenable instanceof Authenticatable) {
-            $tokenable = $accessToken->getAttribute('tokenable');
+                return $tokenable instanceof Authenticatable ? $tokenable : null;
+            },
+            cacheNull: false,
+        );
 
-            if ($tokenable instanceof Authenticatable) {
-                $cache->put($cacheKey, $tokenable, config()->integer('sanctum.cache.ttl', Sanctum::DEFAULT_CACHE_TTL));
-            } else {
-                $tokenable = null;
-            }
-        }
+        $tokenable = $tokenable instanceof Authenticatable ? $tokenable : null;
 
         $accessToken->setRelation('tokenable', $tokenable);
 
@@ -229,21 +196,32 @@ class PersonalAccessToken extends Model implements HasAbilities
     }
 
     /**
-     * Clear token cache.
+     * Clear the cached personal access token.
      */
     public static function clearTokenCache(int|string $tokenId): void
     {
         $cache = static::getCache();
-        static::forgetTokenEntry($cache, $tokenId);
-        $cache->forget(static::getCacheKey($tokenId) . ':tokenable');
+        $coordinator = static::getCacheCoordinator();
+
+        (new static)->getConnection()->afterCommitOrNow(
+            fn () => $coordinator->invalidate($cache, static::getCacheKey($tokenId)),
+        );
     }
 
     /**
-     * Forget the cached personal access token entry.
+     * Clear the cached tokenable model.
      */
-    protected static function forgetTokenEntry(CacheRepository $cache, int|string $tokenId): void
+    public static function clearTokenableCache(Model $tokenable): void
     {
-        $cache->forget(static::getCacheKey($tokenId));
+        $cache = static::getCache();
+        $coordinator = static::getCacheCoordinator();
+        /** @var int|string $morphId */
+        $morphId = $tokenable->getKey();
+        $cacheKey = static::getTokenableCacheKey($tokenable->getMorphClass(), $morphId);
+
+        $tokenable->getConnection()->afterCommitOrNow(
+            fn () => $coordinator->invalidate($cache, $cacheKey),
+        );
     }
 
     /**
@@ -280,47 +258,25 @@ class PersonalAccessToken extends Model implements HasAbilities
         }
 
         $connection->setRecordModificationState($hasModifiedRecords);
-
-        if ($cacheEnabled) {
-            /** @var int|string $id */
-            $id = $this->getKey();
-            $snapshot = $this->withoutRelation('tokenable');
-            $ttl = config()->integer('sanctum.cache.ttl', Sanctum::DEFAULT_CACHE_TTL);
-
-            $this->settleCacheMutation(
-                fn () => static::getCache()->put(static::getCacheKey($id), $snapshot, $ttl)
-            );
-        }
     }
 
     /**
-     * Determine whether only the last-used timestamp changed.
+     * Invalidate a token entry after its model mutation settles.
      */
-    protected function wasOnlyLastUsedAtChanged(): bool
+    protected static function invalidateTokenAfterMutation(self $token): void
     {
-        $changes = $this->getChanges();
-
-        if (($updatedAt = $this->getUpdatedAtColumn()) !== null) {
-            unset($changes[$updatedAt]);
-        }
-
-        return array_keys($changes) === ['last_used_at'];
-    }
-
-    /**
-     * Run a cache mutation after its database transaction settles.
-     */
-    protected function settleCacheMutation(Closure $callback): void
-    {
-        $connection = $this->getConnection();
-
-        if ($connection->getTransactionManager() === null && $connection->transactionLevel() === 0) {
-            $callback();
-
+        if (! config()->boolean('sanctum.cache.enabled', false)) {
             return;
         }
 
-        $connection->afterCommit($callback);
+        /** @var int|string $id */
+        $id = $token->getKey();
+        $cache = static::getCache();
+        $coordinator = static::getCacheCoordinator();
+
+        $token->getConnection()->afterCommitOrNow(
+            fn () => $coordinator->invalidate($cache, static::getCacheKey($id)),
+        );
     }
 
     /**
@@ -337,11 +293,30 @@ class PersonalAccessToken extends Model implements HasAbilities
     }
 
     /**
-     * Get cache key for token and tokenable.
+     * Get the model cache coordinator.
+     */
+    protected static function getCacheCoordinator(): ModelCacheCoordinator
+    {
+        return Container::getInstance()->make(ModelCacheCoordinator::class);
+    }
+
+    /**
+     * Get the cache key for a token.
      */
     protected static function getCacheKey(int|string $tokenId): string
     {
         $prefix = config()->string('sanctum.cache.prefix', 'sanctum');
         return "{$prefix}:{$tokenId}";
+    }
+
+    /**
+     * Get the cache key for a tokenable model identity.
+     */
+    protected static function getTokenableCacheKey(string $morphType, int|string $morphId): string
+    {
+        $id = (string) $morphId;
+        $identity = strlen($morphType) . ":{$morphType}|" . strlen($id) . ":{$id}";
+
+        return static::getCacheKey('tokenable') . ':' . hash('xxh128', $identity);
     }
 }

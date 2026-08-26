@@ -256,6 +256,47 @@ class DatabaseTransactionsTest extends TestCase
         $this->connection('second_connection')->afterCommit($callback);
     }
 
+    public function testAfterCommitOrNowRunsImmediatelyWithoutAManagerOrTransaction(): void
+    {
+        $called = false;
+
+        $this->connection()->afterCommitOrNow(function () use (&$called): void {
+            $called = true;
+        });
+
+        $this->assertTrue($called);
+    }
+
+    public function testAfterCommitOrNowDelegatesToTheTransactionManager(): void
+    {
+        $transactionManager = m::mock(new DatabaseTransactionsManager);
+        $callback = static function (): void {
+        };
+
+        $transactionManager->shouldReceive('addCallback')
+            ->once()
+            ->with($callback, 'second_connection');
+
+        $this->connection('second_connection')->setTransactionManager($transactionManager);
+        $this->connection('second_connection')->afterCommitOrNow($callback);
+    }
+
+    public function testAfterCommitOrNowRequiresAManagerDuringATransaction(): void
+    {
+        $connection = $this->connection();
+        $connection->beginTransaction();
+
+        try {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('Transactions Manager has not been set.');
+
+            $connection->afterCommitOrNow(static function (): void {
+            });
+        } finally {
+            $connection->rollBack();
+        }
+    }
+
     public function testAfterRollbackRegistersTheCurrentConnectionName(): void
     {
         $transactionManager = m::mock(new DatabaseTransactionsManager);

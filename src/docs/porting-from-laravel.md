@@ -461,6 +461,7 @@ When porting Laravel configuration, pay particular attention to these current di
 - Hypervel password broker records explicitly declare their `database` or `cache` driver.
 - Hypervel's shipped background, deferred, Beanstalkd, SQS, Redis, and failover queues dispatch after commit by default; sync and database do not. A copied Laravel queue config restores Laravel's before-commit behavior. Beanstalkd records also require `port`. See the [queue guide](/docs/{{version}}/queues).
 - The scheduling cache store is configured through `cache.schedule_store` and `SCHEDULE_CACHE_STORE`. Laravel's older `SCHEDULE_CACHE_DRIVER` name is not supported.
+- Hypervel Socialite's X OAuth 2 driver reads `services.x`. Rename Laravel's legacy `services.x-oauth-2` configuration key when porting an application.
 
 Application code should keep request-specific values in the request, session, context, or coroutine context instead of changing config values while the server is running.
 
