@@ -17,6 +17,9 @@ use Hypervel\Fortify\Http\Responses\TwoFactorEnabledResponse;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Passkeys\Passkeys;
+use Hypervel\RateLimiter\Limit;
+use Hypervel\RateLimiter\RateLimiter;
+use Hypervel\Session\Store;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Tests\Fortify\Fixtures\FixedClock;
 use OTPHP\TOTP;
@@ -24,6 +27,7 @@ use Psr\Clock\ClockInterface;
 use ReflectionClass;
 use ReflectionMethod;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\Session\Storage\Handler\NullSessionHandler;
 
 class FortifyServiceProviderTest extends TestCase
 {
@@ -89,9 +93,58 @@ class FortifyServiceProviderTest extends TestCase
         $this->unsetEnvironmentValue('PASSKEYS_TIMEOUT');
 
         $config = require dirname(__DIR__, 2) . '/src/fortify/config/fortify.php';
+        $stub = require dirname(__DIR__, 2) . '/src/fortify/stubs/fortify.php';
 
         $this->assertSame('6,1', $config['limiters']['verification']);
+        $this->assertSame('two-factor', $config['limiters']['two-factor']);
+        $this->assertSame('two-factor', $stub['limiters']['two-factor']);
         $this->assertSame(Passkeys::DEFAULT_TIMEOUT, $config['passkeys']['timeout']);
+    }
+
+    public function testDefaultTwoFactorLimiterScopesAttemptsByGuardAndAccount(): void
+    {
+        $callback = $this->app->make(RateLimiter::class)->limiter('two-factor');
+        $this->assertInstanceOf(Closure::class, $callback);
+
+        $first = $callback($this->challengeRequest('session-a', 'web', 1, '192.0.2.1'));
+        $sameAccountFromAnotherIp = $callback($this->challengeRequest('session-b', 'web', 1, '192.0.2.2'));
+        $otherAccount = $callback($this->challengeRequest('session-c', 'web', 2, '192.0.2.1'));
+        $otherGuard = $callback($this->challengeRequest('session-d', 'admin', 1, '192.0.2.1'));
+
+        $this->assertInstanceOf(Limit::class, $first);
+        $this->assertSame(5, $first->maxAttempts);
+        $this->assertSame(60, $first->decaySeconds);
+        $this->assertSame($first->key, $sameAccountFromAnotherIp->key);
+        $this->assertNotSame($first->key, $otherAccount->key);
+        $this->assertNotSame($first->key, $otherGuard->key);
+    }
+
+    public function testDefaultTwoFactorLimiterFallsBackToTheChallengeSession(): void
+    {
+        $callback = $this->app->make(RateLimiter::class)->limiter('two-factor');
+        $this->assertInstanceOf(Closure::class, $callback);
+        $firstSessionId = str_repeat('a', 40);
+        $secondSessionId = str_repeat('b', 40);
+
+        $first = $callback($this->challengeRequest($firstSessionId));
+        $second = $callback($this->challengeRequest($secondSessionId, 'web'));
+
+        $this->assertSame($firstSessionId, $first->key);
+        $this->assertSame($secondSessionId, $second->key);
+    }
+
+    public function testApplicationCanReplaceTheDefaultTwoFactorLimiter(): void
+    {
+        $rateLimiter = $this->app->make(RateLimiter::class);
+        $rateLimiter->for('two-factor', static fn (): Limit => Limit::perMinute(9)->by('application'));
+
+        $callback = $rateLimiter->limiter('two-factor');
+        $this->assertInstanceOf(Closure::class, $callback);
+
+        $limit = $callback($this->challengeRequest('session-a', 'web', 1));
+
+        $this->assertSame(9, $limit->maxAttempts);
+        $this->assertSame('application', $limit->key);
     }
 
     public function testOmittedPasskeySettingsUseTheApplicationAndPackageDefaults(): void
@@ -147,6 +200,33 @@ class FortifyServiceProviderTest extends TestCase
         $instanceB = $this->app->make(RedirectsIfTwoFactorAuthenticatable::class);
 
         $this->assertNotSame($instanceA, $instanceB);
+    }
+
+    /**
+     * Create a two-factor challenge request with session identity state.
+     */
+    private function challengeRequest(
+        string $sessionId,
+        ?string $guard = null,
+        int|string|null $id = null,
+        string $ip = '192.0.2.1',
+    ): Request {
+        $request = Request::create('/two-factor-challenge', 'POST', server: ['REMOTE_ADDR' => $ip]);
+        $request->setHypervelSession($session = new Store(
+            'fortify',
+            new NullSessionHandler,
+            $sessionId,
+        ));
+
+        if ($guard !== null) {
+            $session->put('login.guard', $guard);
+        }
+
+        if ($id !== null) {
+            $session->put('login.id', $id);
+        }
+
+        return $request;
     }
 }
 

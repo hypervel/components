@@ -52,6 +52,8 @@ use Hypervel\Fortify\Http\Responses\TwoFactorLoginResponse;
 use Hypervel\Fortify\Http\Responses\VerifyEmailResponse;
 use Hypervel\Http\Request;
 use Hypervel\Passkeys\Passkeys;
+use Hypervel\RateLimiter\Limit;
+use Hypervel\Support\Facades\RateLimiter;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
 use Psr\Clock\ClockInterface;
@@ -136,12 +138,33 @@ class FortifyServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->configureRateLimiting();
+
         if ($this->app->runningInConsole()) {
             $this->configurePublishing();
             $this->registerCommands();
         }
 
         $this->configureRoutes();
+    }
+
+    /**
+     * Configure the package's default rate limiters.
+     */
+    protected function configureRateLimiting(): void
+    {
+        RateLimiter::for('two-factor', function (Request $request): Limit {
+            $session = $request->session();
+            $guard = $session->get('login.guard');
+            $id = $session->get('login.id');
+
+            $key = is_string($guard) && $guard !== ''
+                && (is_int($id) || is_string($id)) && (string) $id !== ''
+                    ? $guard . '|' . $id
+                    : $session->getId();
+
+            return Limit::perMinute(5)->by($key);
+        });
     }
 
     /**
