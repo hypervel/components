@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Cache;
 use __PHP_Incomplete_Class;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\CacheManager;
+use Hypervel\Cache\MemoizedStore;
 use Hypervel\Cache\NullStore;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\StorageStore;
@@ -498,6 +499,31 @@ class CacheManagerTest extends TestCase
         $this->assertSame('bar', $cacheManager->store('forget')->get('foo'));
         $cacheManager->forgetDriver('forget');
         $this->assertNull($cacheManager->store('forget')->get('foo'));
+    }
+
+    public function testForgetDriverForgetsTheCallingCoroutinesMemoizedRepository(): void
+    {
+        $app = $this->getApp([
+            'cache' => [
+                'stores' => [
+                    'array' => ['driver' => 'array'],
+                ],
+            ],
+        ]);
+        $cacheManager = new CacheManager($app);
+        $firstRepository = $cacheManager->memo('array');
+        $firstMemoizedStore = $firstRepository->getStore();
+
+        $this->assertInstanceOf(MemoizedStore::class, $firstMemoizedStore);
+
+        $cacheManager->forgetDriver('array');
+
+        $secondRepository = $cacheManager->memo('array');
+        $secondMemoizedStore = $secondRepository->getStore();
+
+        $this->assertInstanceOf(MemoizedStore::class, $secondMemoizedStore);
+        $this->assertNotSame($firstRepository, $secondRepository);
+        $this->assertNotSame($firstMemoizedStore->getInnerStore(), $secondMemoizedStore->getInnerStore());
     }
 
     public function testThrowExceptionWhenUnknownDriverIsUsed()

@@ -33,6 +33,14 @@ class MemoizedStore implements CanFlushLocks, LockProvider, RawReadable, Store
     }
 
     /**
+     * Get the underlying cache store.
+     */
+    public function getInnerStore(): Store
+    {
+        return $this->repository->getStore();
+    }
+
+    /**
      * Retrieve an item from the cache by key.
      *
      * Store contract method — returns the value with sentinels unwrapped to null,
