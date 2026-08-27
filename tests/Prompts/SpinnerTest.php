@@ -214,7 +214,12 @@ class SpinnerAnimationFixture extends Spinner
 
         $this->rendering = true;
         $this->renderStarted->push(true);
-        $this->renderRelease->pop();
+        // This is a deadlock bound, not a rendering timing expectation.
+        $released = $this->renderRelease->pop(5);
         $this->rendering = false;
+
+        if ($released !== true) {
+            throw new RuntimeException('Timed out waiting to release the spinner animation render.');
+        }
     }
 }
