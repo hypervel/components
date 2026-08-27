@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Prompts;
 
+use Exception;
 use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\Prompt;
@@ -145,6 +146,28 @@ class SearchPromptTest extends TestCase
 
         $this->assertSame('green', $result);
         Prompt::assertOutputContains('Please choose green.');
+    }
+
+    public function testCancelledZeroIsRenderedInsteadOfThePlaceholder(): void
+    {
+        $cancelled = new Exception('Cancelled.');
+        Prompt::cancelUsing(fn () => throw $cancelled);
+        Prompt::fake(['0', Key::CTRL_C]);
+
+        $thrown = null;
+
+        try {
+            search('Value', fn (): array => [], placeholder: 'placeholder');
+        } catch (Exception $exception) {
+            $thrown = $exception;
+        }
+
+        $output = Prompt::strippedContent();
+        $cancelFrame = substr($output, strrpos($output, ' ┌'));
+
+        $this->assertSame($cancelled, $thrown);
+        $this->assertStringContainsString('│ 0 ', $cancelFrame);
+        $this->assertStringNotContainsString('placeholder', $cancelFrame);
     }
 
     public function testCanFallBack(): void

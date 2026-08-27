@@ -164,6 +164,19 @@ class AutoCompletePromptTest extends TestCase
         Prompt::assertOutputContains('Please enter your name.');
     }
 
+    public function testCancelledZeroIsRenderedInsteadOfThePlaceholder(): void
+    {
+        Prompt::fake(['0', Key::CTRL_C]);
+
+        autocomplete('Value', ['One'], placeholder: 'placeholder');
+
+        $output = Prompt::strippedContent();
+        $cancelFrame = substr($output, strrpos($output, ' ┌'));
+
+        $this->assertStringContainsString('│ 0 ', $cancelFrame);
+        $this->assertStringNotContainsString('placeholder', $cancelFrame);
+    }
+
     public function testCanFallBack()
     {
         Prompt::fallbackWhen(true);

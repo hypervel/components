@@ -61,6 +61,19 @@ class TextPromptTest extends TestCase
         Prompt::assertOutputContains('Cancelled.');
     }
 
+    public function testCancelledZeroIsRenderedInsteadOfThePlaceholder(): void
+    {
+        Prompt::fake(['0', Key::CTRL_C]);
+
+        text(label: 'Value', placeholder: 'placeholder');
+
+        $output = Prompt::strippedContent();
+        $cancelFrame = substr($output, strrpos($output, ' ┌'));
+
+        $this->assertStringContainsString('│ 0 ', $cancelFrame);
+        $this->assertStringNotContainsString('placeholder', $cancelFrame);
+    }
+
     public function testBackspaceKeyRemovesCharacter(): void
     {
         Prompt::fake(['J', 'e', 'z', Key::BACKSPACE, 's', 's', Key::ENTER]);

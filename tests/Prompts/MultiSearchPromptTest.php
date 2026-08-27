@@ -319,6 +319,35 @@ class MultiSearchPromptTest extends TestCase
         Prompt::assertOutputContains('Please choose green.');
     }
 
+    public function testCancelledZeroIsRenderedInsteadOfThePlaceholder(): void
+    {
+        Prompt::fake(['0', Key::CTRL_C]);
+
+        multisearch('Value', fn (): array => [], placeholder: 'placeholder');
+
+        $output = Prompt::strippedContent();
+        $cancelFrame = substr($output, strrpos($output, ' ┌'));
+
+        $this->assertStringContainsString('│ 0 ', $cancelFrame);
+        $this->assertStringNotContainsString('placeholder', $cancelFrame);
+    }
+
+    public function testSupportsEmacsNavigationKeys(): void
+    {
+        Prompt::fake([Key::CTRL_N, Key::CTRL_N, Key::CTRL_P, Key::SPACE, Key::ENTER]);
+
+        $result = multisearch(
+            'Colors',
+            fn (): array => [
+                'red' => 'Red',
+                'green' => 'Green',
+                'blue' => 'Blue',
+            ],
+        );
+
+        $this->assertSame(['red'], $result);
+    }
+
     public function testSupportsTheHomeAndEndKeysWhileNavigatingOptions()
     {
         Prompt::fake([Key::DOWN, Key::END[0], Key::SPACE, Key::HOME[0], Key::SPACE, Key::ENTER]);
