@@ -73,7 +73,11 @@ class Utils
         $text = preg_replace('/\e\][^\x07\e]*(?:\x07|\e\\\)/', '', $text);
         $text = preg_replace('/<(info|comment|question|error)>(.*?)<\/\1>/', '$2', $text);
 
-        return preg_replace('/<(?:(?:[fb]g|options)=[a-z,;]+)+>(.*?)<\/>/i', '$1', $text);
+        do {
+            $text = preg_replace('/<(?:(?:[fb]g|options)=[a-z,;]+)+>(.*?)<\/>/i', '$1', $text, -1, $count);
+        } while ($count > 0);
+
+        return $text;
     }
 
     /**

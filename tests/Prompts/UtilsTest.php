@@ -47,6 +47,10 @@ class UtilsTest extends TestCase
         yield 'unterminated OSC' => ["Ready\e]8;;https://hypervel.org", "Ready\e]8;;https://hypervel.org"];
         yield 'Symfony named tag' => ['<info>Ready</info>', 'Ready'];
         yield 'Symfony inline tag' => ['<fg=green;options=bold>Ready</>', 'Ready'];
+        yield 'nested Symfony inline tags' => ['<fg=green>Your action, <fg=yellow>UserName</>?</>', 'Your action, UserName?'];
+        yield 'deeply nested Symfony inline tags' => ['<fg=green>A<fg=yellow>B<fg=red>C</>D</>E</>', 'ABCDE'];
+        yield 'sibling nested Symfony inline tags' => ['<fg=green>Hello <fg=yellow>World</></> and <fg=red>Foo <fg=blue>Bar</></>', 'Hello World and Foo Bar'];
+        yield 'ordinary angle brackets' => ['Use <value> or <other>.', 'Use <value> or <other>.'];
         yield 'plain text' => ['Ready', 'Ready'];
     }
 }
