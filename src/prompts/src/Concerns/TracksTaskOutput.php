@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Prompts\Concerns;
 
+use Hypervel\Prompts\Support\Utils;
 use Hypervel\Prompts\Themes\Default\Concerns\InteractsWithStrings;
 
 /**
@@ -12,6 +13,16 @@ use Hypervel\Prompts\Themes\Default\Concerns\InteractsWithStrings;
 trait TracksTaskOutput
 {
     use InteractsWithStrings;
+
+    private const string CONTROL_MODE_ESCAPE = 'escape';
+
+    private const string CONTROL_MODE_CSI_PARAMETERS = 'csi-parameters';
+
+    private const string CONTROL_MODE_CSI_INTERMEDIATES = 'csi-intermediates';
+
+    private const string CONTROL_MODE_OSC = 'osc';
+
+    private const string CONTROL_MODE_STRING = 'string';
 
     /**
      * The log index where the current partial started, or null if not streaming.
@@ -45,6 +56,10 @@ trait TracksTaskOutput
 
     private int $partialWordWidth = 0;
 
+    private int $partialWordBytes = 0;
+
+    private string $partialTrailingGrapheme = '';
+
     /**
      * The real separator awaiting the next word, or null for a long-word cut.
      *
@@ -53,6 +68,14 @@ trait TracksTaskOutput
     private ?array $partialJoinToken = null;
 
     private string $partialInputBuffer = '';
+
+    private ?string $partialControlMode = null;
+
+    private string $partialControlBuffer = '';
+
+    private int $partialControlBytes = 0;
+
+    private bool $partialControlEscapePending = false;
 
     /**
      * Canonical active SGR sequences keyed by terminal attribute.
@@ -71,12 +94,11 @@ trait TracksTaskOutput
     protected function addLogLines(string $line): void
     {
         $this->resetTaskOutputTracking();
-        $width = $this->taskOutputWidth();
-        $logicalLines = preg_split('/\r\n|\n/', $line);
-
-        foreach ($logicalLines as $logicalLine) {
-            array_push($this->logs, ...$this->ansiWordwrap($logicalLine, $width, cutLongWords: true));
-        }
+        array_push($this->logs, ...$this->ansiWordwrap(
+            str_replace("\r\n", "\n", $line),
+            $this->taskOutputWidth(),
+            cutLongWords: true,
+        ));
 
         $this->trimTaskLogs();
     }
@@ -101,6 +123,7 @@ trait TracksTaskOutput
     {
         if ($this->partialStartIndex === null) {
             $this->partialStartIndex = count($this->logs);
+            $this->partialHasUnfinishedLine = true;
         }
 
         $this->partialInputBuffer .= $chunk;
@@ -139,8 +162,11 @@ trait TracksTaskOutput
         $this->partialLineUnset = true;
         $this->partialWordTokens = [];
         $this->partialWordWidth = 0;
+        $this->partialWordBytes = 0;
+        $this->partialTrailingGrapheme = '';
         $this->partialJoinToken = null;
         $this->partialInputBuffer = '';
+        $this->resetPartialControl();
         $this->partialSgr = [];
         $this->partialLink = '';
         $this->partialHasUnfinishedLine = false;
@@ -156,20 +182,17 @@ trait TracksTaskOutput
         $cursor = 0;
 
         while ($cursor < $bufferLength) {
+            if ($this->partialControlMode !== null) {
+                if ($this->consumePartialControlByte($buffer[$cursor])) {
+                    ++$cursor;
+                }
+
+                continue;
+            }
+
             if ($buffer[$cursor] === "\e") {
-                $escape = $this->readPartialEscape($buffer, $cursor, $final);
-
-                if ($escape === null) {
-                    break;
-                }
-
-                if ($escape['complete']) {
-                    $this->applyPartialEscape($escape['sequence']);
-                } else {
-                    $this->consumePartialText($escape['sequence']);
-                }
-
-                $cursor += $escape['length'];
+                $this->startPartialControl();
+                ++$cursor;
 
                 continue;
             }
@@ -199,93 +222,192 @@ trait TracksTaskOutput
         }
 
         $this->partialInputBuffer = substr($buffer, $cursor);
+
+        if ($final) {
+            $this->resetPartialControl();
+        }
     }
 
     /**
-     * Read one terminal escape sequence without mutating the input buffer.
-     *
-     * @return null|array{sequence: string, length: int, complete: bool}
+     * Start one terminal control at an ESC byte.
      */
-    private function readPartialEscape(string $buffer, int $offset, bool $final): ?array
+    private function startPartialControl(): void
     {
-        $length = strlen($buffer);
-        $remainingLength = $length - $offset;
+        $this->partialControlMode = self::CONTROL_MODE_ESCAPE;
+        $this->partialControlBuffer = "\e";
+        $this->partialControlBytes = 1;
+        $this->partialControlEscapePending = false;
+    }
 
-        if ($remainingLength === 1) {
-            if (! $final) {
-                return null;
-            }
+    /**
+     * Consume one byte of the active terminal control.
+     *
+     * Return false when the byte must be reprocessed after a local abort.
+     */
+    private function consumePartialControlByte(string $byte): bool
+    {
+        $ordinal = ord($byte);
 
-            return ['sequence' => "\e", 'length' => 1, 'complete' => false];
-        }
+        if ($this->partialControlMode === self::CONTROL_MODE_ESCAPE) {
+            if ($this->partialControlBuffer === "\e") {
+                if ($byte === '[') {
+                    $this->appendPartialControlByte($byte);
+                    $this->partialControlMode = self::CONTROL_MODE_CSI_PARAMETERS;
 
-        if ($buffer[$offset + 1] === '[') {
-            $position = $offset + 2;
-
-            while ($position < $length && ord($buffer[$position]) >= 0x30 && ord($buffer[$position]) <= 0x3F) {
-                ++$position;
-            }
-
-            while ($position < $length && ord($buffer[$position]) >= 0x20 && ord($buffer[$position]) <= 0x2F) {
-                ++$position;
-            }
-
-            if ($position >= $length || ord($buffer[$position]) < 0x40 || ord($buffer[$position]) > 0x7E) {
-                if (! $final) {
-                    return null;
+                    return true;
                 }
 
-                return [
-                    'sequence' => substr($buffer, $offset),
-                    'length' => $remainingLength,
-                    'complete' => false,
-                ];
-            }
+                if ($byte === ']') {
+                    $this->appendPartialControlByte($byte);
+                    $this->partialControlMode = self::CONTROL_MODE_OSC;
 
-            $escapeLength = $position - $offset + 1;
-
-            return [
-                'sequence' => substr($buffer, $offset, $escapeLength),
-                'length' => $escapeLength,
-                'complete' => true,
-            ];
-        }
-
-        if ($buffer[$offset + 1] === ']') {
-            $bell = strpos($buffer, "\x07", $offset + 2);
-            $stringTerminator = strpos($buffer, "\e\\", $offset + 2);
-            $end = match (true) {
-                $bell === false => $stringTerminator === false ? null : $stringTerminator + 2,
-                $stringTerminator === false => $bell + 1,
-                default => min($bell + 1, $stringTerminator + 2),
-            };
-
-            if ($end === null) {
-                if (! $final) {
-                    return null;
+                    return true;
                 }
 
-                return [
-                    'sequence' => substr($buffer, $offset),
-                    'length' => $remainingLength,
-                    'complete' => false,
-                ];
+                if (in_array($byte, ['P', 'X', '^', '_'], true)) {
+                    $this->appendPartialControlByte($byte);
+                    $this->partialControlMode = self::CONTROL_MODE_STRING;
+
+                    return true;
+                }
             }
 
-            $escapeLength = $end - $offset;
+            if ($ordinal >= 0x20 && $ordinal <= 0x2F) {
+                $this->appendPartialControlByte($byte);
 
-            return [
-                'sequence' => substr($buffer, $offset, $escapeLength),
-                'length' => $escapeLength,
-                'complete' => true,
-            ];
+                return true;
+            }
+
+            if ($ordinal >= 0x30 && $ordinal <= 0x7E) {
+                $this->appendPartialControlByte($byte);
+                $this->completePartialControl();
+
+                return true;
+            }
+
+            $this->resetPartialControl();
+
+            return false;
         }
 
-        return [
-            'sequence' => substr($buffer, $offset, 2),
-            'length' => 2,
-            'complete' => true,
-        ];
+        if ($this->partialControlMode === self::CONTROL_MODE_CSI_PARAMETERS) {
+            if ($ordinal >= 0x30 && $ordinal <= 0x3F) {
+                $this->appendPartialControlByte($byte);
+
+                return true;
+            }
+
+            if ($ordinal >= 0x20 && $ordinal <= 0x2F) {
+                $this->appendPartialControlByte($byte);
+                $this->partialControlMode = self::CONTROL_MODE_CSI_INTERMEDIATES;
+
+                return true;
+            }
+
+            if ($ordinal >= 0x40 && $ordinal <= 0x7E) {
+                $this->appendPartialControlByte($byte);
+                $this->completePartialControl();
+
+                return true;
+            }
+
+            $this->resetPartialControl();
+
+            return false;
+        }
+
+        if ($this->partialControlMode === self::CONTROL_MODE_CSI_INTERMEDIATES) {
+            if ($ordinal >= 0x20 && $ordinal <= 0x2F) {
+                $this->appendPartialControlByte($byte);
+
+                return true;
+            }
+
+            if ($ordinal >= 0x40 && $ordinal <= 0x7E) {
+                $this->appendPartialControlByte($byte);
+                $this->completePartialControl();
+
+                return true;
+            }
+
+            $this->resetPartialControl();
+
+            return false;
+        }
+
+        if ($this->partialControlEscapePending) {
+            if ($byte === '\\') {
+                $this->appendPartialControlByte($byte);
+                $this->completePartialControl();
+
+                return true;
+            }
+
+            // The pending ESC starts a new control when it is not an ST terminator.
+            $this->resetPartialControl();
+            $this->startPartialControl();
+
+            return false;
+        }
+
+        if ($byte === "\x07") {
+            $this->appendPartialControlByte($byte);
+            $this->completePartialControl();
+
+            return true;
+        }
+
+        $this->appendPartialControlByte($byte);
+
+        if ($byte === "\e") {
+            $this->partialControlEscapePending = true;
+        }
+
+        return true;
+    }
+
+    /**
+     * Append a byte while retaining no more than the fixed control ceiling.
+     */
+    private function appendPartialControlByte(string $byte): void
+    {
+        ++$this->partialControlBytes;
+
+        if ($this->partialControlBuffer === '') {
+            return;
+        }
+
+        if ($this->partialControlBytes > Utils::MAX_UNBREAKABLE_BYTES) {
+            $this->partialControlBuffer = '';
+
+            return;
+        }
+
+        $this->partialControlBuffer .= $byte;
+    }
+
+    /**
+     * Apply and clear one complete terminal control.
+     */
+    private function completePartialControl(): void
+    {
+        $sequence = $this->partialControlBuffer;
+        $this->resetPartialControl();
+
+        if ($sequence !== '') {
+            $this->applyPartialEscape($sequence);
+        }
+    }
+
+    /**
+     * Reset the active terminal-control parser.
+     */
+    private function resetPartialControl(): void
+    {
+        $this->partialControlMode = null;
+        $this->partialControlBuffer = '';
+        $this->partialControlBytes = 0;
+        $this->partialControlEscapePending = false;
     }
 
     /**
@@ -298,15 +420,29 @@ trait TracksTaskOutput
         }
 
         if (! $final) {
-            for ($suffixLength = 1; $suffixLength <= min(3, strlen($text)); ++$suffixLength) {
-                $prefix = substr($text, 0, -$suffixLength);
+            $length = strlen($text);
 
-                if ($prefix !== '' && mb_check_encoding($prefix, 'UTF-8')) {
-                    return strlen($prefix);
+            for ($suffixLength = min(3, $length); $suffixLength >= 1; --$suffixLength) {
+                $leadPosition = $length - $suffixLength;
+                $requiredLength = match (true) {
+                    ord($text[$leadPosition]) >= 0xC2 && ord($text[$leadPosition]) <= 0xDF => 2,
+                    ord($text[$leadPosition]) >= 0xE0 && ord($text[$leadPosition]) <= 0xEF => 3,
+                    ord($text[$leadPosition]) >= 0xF0 && ord($text[$leadPosition]) <= 0xF4 => 4,
+                    default => null,
+                };
+
+                if ($requiredLength === null || $suffixLength >= $requiredLength) {
+                    continue;
                 }
-            }
 
-            return 0;
+                for ($position = $leadPosition + 1; $position < $length; ++$position) {
+                    if (ord($text[$position]) < 0x80 || ord($text[$position]) > 0xBF) {
+                        continue 2;
+                    }
+                }
+
+                return $leadPosition;
+            }
         }
 
         return strlen($text);
@@ -331,6 +467,7 @@ trait TracksTaskOutput
                 $this->partialHasUnfinishedLine = true;
             } else {
                 $this->finishPartialLogicalLine();
+                $this->partialHasUnfinishedLine = true;
             }
 
             $offset = $separatorOffset + strlen($separator);
@@ -352,7 +489,7 @@ trait TracksTaskOutput
             return;
         }
 
-        $link = $this->resolveOsc8Link($escape);
+        $link = Utils::resolveOsc8Link($escape);
 
         if ($link !== null) {
             $this->partialLink = $link;
@@ -366,21 +503,44 @@ trait TracksTaskOutput
     {
         $token = $this->partialToken($text);
 
-        if ($this->partialWordWidth + $token['width'] <= $this->taskOutputWidth()) {
+        if ($this->partialWordWidth + $token['width'] <= $this->taskOutputWidth()
+            && $this->partialWordBytes + strlen($text) <= Utils::MAX_UNBREAKABLE_BYTES) {
             $this->appendPartialWordToken($token);
 
             return;
         }
 
-        if (preg_match_all('/\X/u', $text, $matches) === false) {
-            $matches = [str_split($text)];
-        }
+        $graphemes = Utils::graphemes($this->partialTrailingGrapheme . $text);
+        $consumedBytes = strlen($this->partialTrailingGrapheme);
 
-        foreach ($matches[0] as $character) {
+        foreach ($graphemes as $character) {
+            if ($consumedBytes >= strlen($character)) {
+                $consumedBytes -= strlen($character);
+
+                continue;
+            }
+
+            if ($consumedBytes > 0) {
+                $character = substr($character, $consumedBytes);
+                $consumedBytes = 0;
+            }
+
             $token = $this->partialToken($character);
+            $exceedsWidth = $this->partialWordWidth + $token['width'] > $this->taskOutputWidth();
+            $continuedGraphemeBytes = null;
+
+            if ($this->partialWordTokens !== [] && ($exceedsWidth
+                || $this->partialWordBytes + strlen($character) > Utils::MAX_UNBREAKABLE_BYTES)) {
+                $continuedGraphemeBytes = Utils::continuedGraphemeBytes(
+                    $this->partialTrailingGrapheme,
+                    $character,
+                );
+            }
 
             if ($this->partialWordTokens !== []
-                && $this->partialWordWidth + $token['width'] > $this->taskOutputWidth()) {
+                && (($exceedsWidth && $continuedGraphemeBytes === null)
+                    || ($continuedGraphemeBytes !== null
+                        && $continuedGraphemeBytes > Utils::MAX_UNBREAKABLE_BYTES))) {
                 $this->completePartialWord();
             }
 
@@ -407,6 +567,11 @@ trait TracksTaskOutput
         }
 
         $this->partialWordWidth += $token['width'];
+        $this->partialWordBytes += strlen($token['text']);
+        $grapheme = $this->partialTrailingGrapheme . $token['text'];
+        $this->partialTrailingGrapheme = preg_match('/\X\z/u', $grapheme, $matches) === 1
+            ? $matches[0]
+            : '';
         $this->partialHasUnfinishedLine = true;
     }
 
@@ -428,7 +593,12 @@ trait TracksTaskOutput
         $wrapped = ! $this->partialLineUnset && $candidateWidth > $this->taskOutputWidth();
 
         if ($wrapped) {
-            $this->storePartialLine();
+            if ($this->partialLineTokens === []) {
+                $this->resetPartialLine();
+            } else {
+                $this->storePartialLine();
+            }
+
             $this->partialLineTokens = $this->partialWordTokens;
             $this->partialLineWidth = $this->partialWordWidth;
         } else {
@@ -443,6 +613,8 @@ trait TracksTaskOutput
         $this->partialLineUnset = false;
         $this->partialWordTokens = [];
         $this->partialWordWidth = 0;
+        $this->partialWordBytes = 0;
+        $this->partialTrailingGrapheme = '';
         $this->partialJoinToken = null;
         $this->partialHasUnfinishedLine = true;
 
@@ -545,7 +717,9 @@ trait TracksTaskOutput
             return [$this->renderPartialTokens($tokens)];
         }
 
-        $lines = [$this->renderPartialTokens($this->partialLineTokens)];
+        $lines = $this->partialLineTokens === []
+            ? []
+            : [$this->renderPartialTokens($this->partialLineTokens)];
 
         if ($this->partialWordTokens !== []) {
             $lines[] = $this->renderPartialTokens($this->partialWordTokens);

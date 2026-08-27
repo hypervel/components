@@ -11,6 +11,7 @@ use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\Support\InProcessLogger;
 use Hypervel\Prompts\Support\Logger;
 use Hypervel\Prompts\Support\TaskFrame;
+use Hypervel\Prompts\Support\Utils;
 use Hypervel\Prompts\Task;
 use Hypervel\Prompts\Themes\Default\TaskRenderer;
 use Hypervel\Tests\TestCase;
@@ -761,7 +762,7 @@ class TaskTest extends TestCase
         $this->assertSame(['first', 'second'], $task->logs);
     }
 
-    public function testIncrementalPartialCommitPreservesIncompleteEscapesLiterally(): void
+    public function testIncrementalPartialCommitDiscardsIncompleteControls(): void
     {
         Prompt::fake();
 
@@ -775,25 +776,354 @@ class TaskTest extends TestCase
         $oscLogger->partial("abc\e]8;;https://hypervel.org");
         $oscLogger->commitPartial();
 
-        $this->assertSame(["abc\e[31"], $csiTask->logs);
-        $this->assertSame(["abc\e]8;;https://hypervel.org"], $oscTask->logs);
+        $dcsTask = new Task(limit: 10);
+        $dcsLogger = new InProcessLogger($dcsTask);
+        $dcsLogger->partial("abc\ePsecret");
+        $dcsLogger->commitPartial();
+
+        $this->assertSame(['abc'], $csiTask->logs);
+        $this->assertSame(['abc'], $oscTask->logs);
+        $this->assertSame(['abc'], $dcsTask->logs);
     }
 
     public function testCompleteNonFormattingControlsAreRemovedFromEveryTaskOutputPath(): void
     {
         Prompt::fake();
 
+        $output = "a\e7b\e(Bc\ePsecret\e\\d\e_secret\e\\e\e[1G\e[2Kf\e]0;title\x07";
+
         $completeTask = new Task(limit: 10);
         (new ReflectionMethod($completeTask, 'addLogLines'))
-            ->invoke($completeTask, "before\e[1G\e[2Kafter\e]0;title\x07");
+            ->invoke($completeTask, $output);
 
         $partialTask = new Task(limit: 10);
         $partialLogger = new InProcessLogger($partialTask);
-        $partialLogger->partial("before\e[1G\e[2Kafter\e]0;title\x07");
+        $partialLogger->partial($output);
         $partialLogger->commitPartial();
 
-        $this->assertSame(['beforeafter'], $completeTask->logs);
+        $this->assertSame(['abcdef'], $completeTask->logs);
         $this->assertSame($completeTask->logs, $partialTask->logs);
+    }
+
+    public function testIncrementalControlsMatchCompleteOutputAcrossEveryChunkBoundary(): void
+    {
+        Prompt::fake();
+
+        $cases = [
+            "a\e[31mred\e[0mb",
+            "a\e]8;;https://example.com\e\\link\e]8;;\e\\b",
+            "a\e(Bb",
+            "a\ePsecret\e\\b",
+            "a\e_secret\e\\b",
+            "a\e[12\ntext",
+            "a\e]title\e[31mred\e[0m",
+            "a\e\e[32mgreen",
+        ];
+
+        foreach ($cases as $output) {
+            $completeTask = new Task(limit: 10);
+            (new ReflectionMethod($completeTask, 'addLogLines'))->invoke($completeTask, $output);
+
+            for ($offset = 1; $offset < strlen($output); ++$offset) {
+                $partialTask = new Task(limit: 10);
+                $logger = new InProcessLogger($partialTask);
+                $logger->partial(substr($output, 0, $offset));
+                $logger->partial(substr($output, $offset));
+                $logger->commitPartial();
+
+                $this->assertSame(
+                    $completeTask->logs,
+                    $partialTask->logs,
+                    "Failed split at byte {$offset} for " . json_encode($output),
+                );
+            }
+        }
+    }
+
+    public function testCompleteAndIncrementalLogicalLinesMatchAcrossEveryChunkBoundary(): void
+    {
+        Prompt::fake();
+        Prompt::terminal()->shouldReceive('cols')->andReturn(14); // @phpstan-ignore-line
+
+        // Task Logger formatting covers terminal controls, not Symfony style markup.
+        $cases = [
+            '',
+            "a\n",
+            "\n",
+            "a\n\n",
+            "a\r\n",
+            "\e[31mred\nstill red\e[0m",
+            "a\n\e[31mb\e[0m",
+            "a\n\e]8;;https://example.com\e\\b\e]8;;\e\\",
+            "aaa\n\e[31mbb bb bb\e[0m",
+        ];
+
+        foreach ($cases as $output) {
+            $completeTask = new Task(limit: 10);
+            (new ReflectionMethod($completeTask, 'addLogLines'))->invoke($completeTask, $output);
+
+            for ($offset = 0; $offset <= strlen($output); ++$offset) {
+                $partialTask = new Task(limit: 10);
+                $logger = new InProcessLogger($partialTask);
+                $logger->partial(substr($output, 0, $offset));
+                $logger->partial(substr($output, $offset));
+                $logger->commitPartial();
+
+                $this->assertSame(
+                    $completeTask->logs,
+                    $partialTask->logs,
+                    "Failed logical-line split at byte {$offset} for " . json_encode($output),
+                );
+            }
+        }
+    }
+
+    public function testCompleteAndIncrementalGraphemeWrappingMatchesAcrossEveryChunkBoundary(): void
+    {
+        Prompt::fake();
+        Prompt::terminal()->shouldReceive('cols')->andReturn(11); // @phpstan-ignore-line
+
+        foreach ([
+            "e\u{0301}",
+            '👩‍👩‍👧‍👦',
+            '👍🏽',
+            '🇺🇸',
+            '1️⃣',
+            "\u{1100}\u{1161}",
+            'का',
+        ] as $grapheme) {
+            $completeTask = new Task(limit: 10);
+            (new ReflectionMethod($completeTask, 'addLogLines'))->invoke($completeTask, $grapheme);
+
+            for ($offset = 0; $offset <= strlen($grapheme); ++$offset) {
+                $partialTask = new Task(limit: 10);
+                $logger = new InProcessLogger($partialTask);
+                $logger->partial(substr($grapheme, 0, $offset));
+                $logger->partial(substr($grapheme, $offset));
+                $logger->commitPartial();
+
+                $this->assertSame(
+                    $completeTask->logs,
+                    $partialTask->logs,
+                    "Failed grapheme split at byte {$offset} for " . json_encode($grapheme),
+                );
+            }
+        }
+    }
+
+    public function testOversizedGraphemesStayLosslessBoundedAndConsistentAcrossOutputPaths(): void
+    {
+        Prompt::fake();
+        Prompt::terminal()->shouldReceive('cols')->andReturn(20); // @phpstan-ignore-line
+        $grapheme = 'e' . str_repeat("\u{0301}", 3000);
+        $limit = 3;
+
+        $completeTask = new Task(limit: $limit);
+        $addLogLines = new ReflectionMethod($completeTask, 'addLogLines');
+
+        for ($index = 0; $index < $limit + 2; ++$index) {
+            $addLogLines->invoke($completeTask, $grapheme);
+        }
+
+        $partialTask = new Task(limit: $limit);
+        $singleChunkLogger = new InProcessLogger($partialTask);
+        $singleChunkLogger->partial($grapheme);
+        $singleChunkLogger->commitPartial();
+
+        $streamedTask = new Task(limit: $limit);
+        $streamedLogger = new InProcessLogger($streamedTask);
+
+        foreach (str_split($grapheme, 97) as $chunk) {
+            $streamedLogger->partial($chunk);
+        }
+
+        $streamedLogger->commitPartial();
+
+        $expected = new Task(limit: $limit);
+        $addLogLines->invoke($expected, $grapheme);
+
+        $this->assertSame($expected->logs, $partialTask->logs);
+        $this->assertSame($expected->logs, $streamedTask->logs);
+        $this->assertSame($grapheme, implode('', $expected->logs));
+
+        foreach ([$completeTask, $partialTask, $streamedTask] as $task) {
+            $this->assertLessThanOrEqual($limit, count($task->logs));
+            $this->assertLessThanOrEqual(
+                $limit * Utils::MAX_UNBREAKABLE_BYTES,
+                array_sum(array_map(strlen(...), $task->logs)),
+            );
+
+            foreach ($task->logs as $line) {
+                $this->assertLessThanOrEqual(Utils::MAX_UNBREAKABLE_BYTES, strlen($line));
+            }
+        }
+    }
+
+    public function testWordWrapOverflowNeverCreatesBlankPartialRowsAcrossEveryChunkBoundary(): void
+    {
+        Prompt::fake();
+        Prompt::terminal()->shouldReceive('cols')->andReturn(12); // @phpstan-ignore-line
+
+        $cases = [
+            'aaaa  bbbb',
+            ' aaaa',
+            'aaaa bbbb',
+            'a  b',
+            '     ',
+        ];
+
+        foreach ($cases as $output) {
+            $completeTask = new Task(limit: 10);
+            (new ReflectionMethod($completeTask, 'addLogLines'))->invoke($completeTask, $output);
+
+            for ($offset = 0; $offset <= strlen($output); ++$offset) {
+                $partialTask = new Task(limit: 10);
+                $logger = new InProcessLogger($partialTask);
+                $prefix = substr($output, 0, $offset);
+
+                $logger->partial($prefix);
+
+                if ($prefix !== '') {
+                    $this->assertNotContains(
+                        '',
+                        $partialTask->logs,
+                        "Blank row after prefix at byte {$offset} for " . json_encode($output),
+                    );
+                }
+
+                $logger->partial(substr($output, $offset));
+
+                $this->assertNotContains(
+                    '',
+                    $partialTask->logs,
+                    "Blank row after final chunk at byte {$offset} for " . json_encode($output),
+                );
+                $this->assertSame(
+                    $completeTask->logs,
+                    $partialTask->logs,
+                    "Preview mismatch at byte {$offset} for " . json_encode($output),
+                );
+
+                $logger->commitPartial();
+
+                $this->assertSame(
+                    $completeTask->logs,
+                    $partialTask->logs,
+                    "Commit mismatch at byte {$offset} for " . json_encode($output),
+                );
+            }
+        }
+    }
+
+    public function testCommittingWithoutStartingPartialOutputIsANoOp(): void
+    {
+        Prompt::fake();
+        $task = new Task(limit: 10);
+        $logger = new InProcessLogger($task);
+
+        $logger->commitPartial();
+
+        $this->assertSame([], $task->logs);
+    }
+
+    public function testGenericEscFinalsAreNotReinterpretedAsSpecializedIntroducers(): void
+    {
+        Prompt::fake();
+
+        foreach (['(', '()'] as $intermediates) {
+            foreach (['P', 'X', '[', ']', '^', '_'] as $final) {
+                $output = "a\e{$intermediates}{$final}Z";
+                $completeTask = new Task(limit: 10);
+                (new ReflectionMethod($completeTask, 'addLogLines'))->invoke($completeTask, $output);
+
+                $this->assertSame(['aZ'], $completeTask->logs);
+
+                for ($offset = 1; $offset < strlen($output); ++$offset) {
+                    $partialTask = new Task(limit: 10);
+                    $logger = new InProcessLogger($partialTask);
+                    $logger->partial(substr($output, 0, $offset));
+                    $logger->partial(substr($output, $offset));
+                    $logger->commitPartial();
+
+                    $this->assertSame(
+                        $completeTask->logs,
+                        $partialTask->logs,
+                        "Failed generic ESC split at byte {$offset} for " . json_encode($output),
+                    );
+                }
+            }
+        }
+    }
+
+    public function testIncrementalParserRecoversLocallyFromMalformedControlsAndRepeatedEscapes(): void
+    {
+        Prompt::fake();
+        $task = new Task(limit: 10);
+        $logger = new InProcessLogger($task);
+
+        $logger->partial("a\e[12\ntext \e]8;;https://example.com\e[31mred\e[0m \e\e[32mgreen");
+        $logger->commitPartial();
+
+        $this->assertSame([
+            'a',
+            "text \e[31mred\e[0m \e[32mgreen\e[0m",
+        ], $task->logs);
+    }
+
+    public function testIncrementalControlStateHasAFixedCeilingAndRecoversAfterTermination(): void
+    {
+        Prompt::fake();
+
+        foreach (["\e[" . str_repeat('1', 5000), "\e]0;" . str_repeat('x', 5000)] as $control) {
+            $task = new Task(limit: 10);
+            $logger = new InProcessLogger($task);
+
+            foreach (str_split($control, 17) as $chunk) {
+                $logger->partial($chunk);
+            }
+
+            $this->assertLessThanOrEqual(
+                4096,
+                strlen((new ReflectionProperty($task, 'partialControlBuffer'))->getValue($task)),
+            );
+            $this->assertLessThanOrEqual(3, strlen((new ReflectionProperty($task, 'partialInputBuffer'))->getValue($task)));
+
+            $logger->partial(str_starts_with($control, "\e[") ? 'mvisible' : "\x07visible");
+            $logger->commitPartial();
+
+            $this->assertSame(['visible'], $task->logs);
+            $this->assertNull((new ReflectionProperty($task, 'partialControlMode'))->getValue($task));
+            $this->assertSame('', (new ReflectionProperty($task, 'partialControlBuffer'))->getValue($task));
+        }
+
+        $zeroLimitTask = new Task(limit: 0);
+        $zeroLimitLogger = new InProcessLogger($zeroLimitTask);
+
+        foreach (str_split("\e]0;" . str_repeat('x', 5000), 17) as $chunk) {
+            $zeroLimitLogger->partial($chunk);
+        }
+
+        $this->assertSame([], $zeroLimitTask->logs);
+        $this->assertSame('', (new ReflectionProperty($zeroLimitTask, 'partialControlBuffer'))->getValue($zeroLimitTask));
+    }
+
+    public function testInvalidUtf8DoesNotStallBeforeSplitCodepoints(): void
+    {
+        Prompt::fake();
+
+        foreach (['é', '€', '😀'] as $character) {
+            $task = new Task(limit: 10);
+            $logger = new InProcessLogger($task);
+            $split = strlen($character) - 1;
+
+            $logger->partial("a\xffb" . substr($character, 0, $split));
+            $this->assertLessThanOrEqual(3, strlen((new ReflectionProperty($task, 'partialInputBuffer'))->getValue($task)));
+
+            $logger->partial(substr($character, $split) . "c\x80");
+            $logger->commitPartial();
+
+            $this->assertSame(["a\xffb{$character}c\x80"], $task->logs);
+        }
     }
 
     public function testIncrementalPartialParsingUsesSharedEffectiveSgrState(): void
