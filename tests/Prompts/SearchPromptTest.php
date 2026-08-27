@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Prompts;
 
+use Exception;
 use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\Prompt;
@@ -147,6 +148,28 @@ class SearchPromptTest extends TestCase
         Prompt::assertOutputContains('Please choose green.');
     }
 
+    public function testCancelledZeroIsRenderedInsteadOfThePlaceholder(): void
+    {
+        $cancelled = new Exception('Cancelled.');
+        Prompt::cancelUsing(fn () => throw $cancelled);
+        Prompt::fake(['0', Key::CTRL_C]);
+
+        $thrown = null;
+
+        try {
+            search('Value', fn (): array => [], placeholder: 'placeholder');
+        } catch (Exception $exception) {
+            $thrown = $exception;
+        }
+
+        $output = Prompt::strippedContent();
+        $cancelFrame = substr($output, strrpos($output, ' ┌'));
+
+        $this->assertSame($cancelled, $thrown);
+        $this->assertStringContainsString('│ 0 ', $cancelFrame);
+        $this->assertStringNotContainsString('placeholder', $cancelFrame);
+    }
+
     public function testCanFallBack(): void
     {
         Prompt::fallbackWhen(true);
@@ -185,6 +208,23 @@ class SearchPromptTest extends TestCase
         );
 
         $this->assertSame('blue', $result);
+    }
+
+    public function testNavigationPopulatesMatchesWhenACustomRendererDoesNotReadThem(): void
+    {
+        Prompt::fake([Key::DOWN, Key::ENTER]);
+        Prompt::addTheme('without-search-matches', [SearchPrompt::class => SearchPromptRendererWithoutMatches::class]);
+        Prompt::theme('without-search-matches');
+        $calls = 0;
+
+        $result = search('Color', function () use (&$calls): array {
+            ++$calls;
+
+            return ['red' => 'Red', 'blue' => 'Blue'];
+        });
+
+        $this->assertSame('red', $result);
+        $this->assertSame(1, $calls);
     }
 
     public function testFailsWhenNonInteractive(): void
@@ -229,5 +269,23 @@ class SearchPromptTest extends TestCase
         Prompt::assertOutputContains('Please choose green.');
 
         Prompt::validateUsing(fn () => null);
+    }
+}
+
+class SearchPromptRendererWithoutMatches
+{
+    /**
+     * Create a new renderer instance.
+     */
+    public function __construct(protected SearchPrompt $prompt)
+    {
+    }
+
+    /**
+     * Render the prompt without reading its matches.
+     */
+    public function __invoke(): string
+    {
+        return '';
     }
 }

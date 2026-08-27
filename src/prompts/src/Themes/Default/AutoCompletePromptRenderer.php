@@ -16,18 +16,19 @@ class AutoCompletePromptRenderer extends Renderer
     public function __invoke(AutoCompletePrompt $prompt): string
     {
         $maxWidth = $prompt->terminal()->cols() - 6;
+        $value = $prompt->value();
 
         return match ($prompt->state) {
             'submit' => (string) $this
                 ->box(
                     $this->dim($this->truncate($prompt->label, $prompt->terminal()->cols() - 6)),
-                    $this->truncate($prompt->value(), $maxWidth),
+                    $this->truncate($value, $maxWidth),
                 ),
 
             'cancel' => (string) $this
                 ->box(
                     $this->truncate($prompt->label, $prompt->terminal()->cols() - 6),
-                    $this->strikethrough($this->dim($this->truncate($prompt->value() ?: $prompt->placeholder, $maxWidth))),
+                    $this->strikethrough($this->dim($this->truncate($value === '' ? $prompt->placeholder : $value, $maxWidth))),
                     color: 'red',
                 )
                 ->error($prompt->cancelMessage),
