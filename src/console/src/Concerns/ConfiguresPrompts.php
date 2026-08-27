@@ -221,8 +221,11 @@ trait ConfiguresPrompts
      */
     private function validateFallbackPrompt(Prompt $prompt, mixed $value): mixed
     {
-        return $prompt->validateIntrinsic($value)
-            ?? (is_callable($prompt->validate)
+        $intrinsicError = $prompt->validateIntrinsic($value);
+
+        return is_string($intrinsicError) && $intrinsicError !== ''
+            ? $intrinsicError
+            : (is_callable($prompt->validate)
                 ? ($prompt->validate)($value)
                 : $this->validatePrompt($value, $prompt->validate));
     }

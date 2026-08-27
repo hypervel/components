@@ -75,6 +75,25 @@ class PromptLifecycleTest extends TestCase
         $this->assertSame(1, $transformCalls);
     }
 
+    public function testEmptyIntrinsicResultContinuesToConfiguredValidation(): void
+    {
+        $validationCalls = 0;
+        $prompt = new EmptyIntrinsicTextPrompt(
+            label: 'Value',
+            validate: function (string $value) use (&$validationCalls): string {
+                ++$validationCalls;
+
+                return "Rejected [{$value}].";
+            },
+        );
+
+        (new ReflectionMethod(Prompt::class, 'validate'))->invoke($prompt, 'a');
+
+        $this->assertSame(1, $validationCalls);
+        $this->assertSame('error', (new ReflectionProperty(Prompt::class, 'state'))->getValue($prompt));
+        $this->assertSame('Rejected [a].', (new ReflectionProperty(Prompt::class, 'error'))->getValue($prompt));
+    }
+
     public function testCancellationReturnsTheCurrentTransformedValueWithoutASubmission(): void
     {
         Prompt::fake([Key::CTRL_C]);
@@ -246,5 +265,16 @@ class PromptLifecycleTest extends TestCase
         $this->assertNotSame($previousOutput, $currentOutput = $output->invoke(null));
         $this->assertInstanceOf(ConsoleOutput::class, $currentOutput);
         $this->assertNotSame($previousTerminal, Prompt::terminal());
+    }
+}
+
+class EmptyIntrinsicTextPrompt extends TextPrompt
+{
+    /**
+     * Validate rules intrinsic to the prompt type.
+     */
+    public function validateIntrinsic(mixed $value): ?string
+    {
+        return '';
     }
 }

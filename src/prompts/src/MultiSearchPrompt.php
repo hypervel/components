@@ -54,8 +54,8 @@ class MultiSearchPrompt extends Prompt
         $this->initializeScrolling(null);
 
         $this->on('key', fn ($key) => match ($key) {
-            Key::UP, Key::UP_ARROW, Key::SHIFT_TAB, Key::CTRL_P => $this->highlightPrevious(count($this->matches), true),
-            Key::DOWN, Key::DOWN_ARROW, Key::TAB, Key::CTRL_N => $this->highlightNext(count($this->matches), true),
+            Key::UP, Key::UP_ARROW, Key::SHIFT_TAB, Key::CTRL_P => $this->highlightPrevious(count($this->matches()), true),
+            Key::DOWN, Key::DOWN_ARROW, Key::TAB, Key::CTRL_N => $this->highlightNext(count($this->matches()), true),
             Key::oneOf(Key::HOME, $key) => $this->highlighted !== null ? $this->highlight(0) : null,
             Key::oneOf(Key::END, $key) => $this->highlighted !== null ? $this->highlight(count($this->matches()) - 1) : null,
             Key::SPACE => $this->highlighted !== null ? $this->toggleHighlighted() : null,

@@ -370,6 +370,26 @@ class ConfiguresPromptsTest extends TestCase
         $this->assertSame(0, $command->validationCalls);
     }
 
+    public function testEmptyIntrinsicFallbackResultContinuesToFrameworkValidation(): void
+    {
+        $command = new class extends Command {
+            public int $validationCalls = 0;
+
+            protected function validatePrompt(mixed $value, mixed $rules): ?string
+            {
+                ++$this->validationCalls;
+
+                return "Rejected [{$value}].";
+            }
+        };
+        $prompt = new ConfiguresPromptsEmptyIntrinsicTextPrompt('Test', validate: ['required']);
+
+        $error = (new ReflectionMethod($command, 'validateFallbackPrompt'))->invoke($command, $prompt, 'value');
+
+        $this->assertSame('Rejected [value].', $error);
+        $this->assertSame(1, $command->validationCalls);
+    }
+
     #[DataProvider('requiredFallbackDataProvider')]
     public function testFallbackRequiredValidationUsesInteractiveEmptySemantics(
         bool|string $required,
@@ -666,6 +686,17 @@ class ConfiguresPromptsTest extends TestCase
         $expectations($factory);
 
         return $command->run(new ArrayInput([]), new NullOutput);
+    }
+}
+
+class ConfiguresPromptsEmptyIntrinsicTextPrompt extends TextPrompt
+{
+    /**
+     * Validate rules intrinsic to the prompt type.
+     */
+    public function validateIntrinsic(mixed $value): ?string
+    {
+        return '';
     }
 }
 

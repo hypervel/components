@@ -348,6 +348,23 @@ class MultiSearchPromptTest extends TestCase
         $this->assertSame(['red'], $result);
     }
 
+    public function testNavigationPopulatesMatchesWhenACustomRendererDoesNotReadThem(): void
+    {
+        Prompt::fake([Key::DOWN, Key::SPACE, Key::ENTER]);
+        Prompt::addTheme('without-multisearch-matches', [MultiSearchPrompt::class => MultiSearchPromptRendererWithoutMatches::class]);
+        Prompt::theme('without-multisearch-matches');
+        $calls = 0;
+
+        $result = multisearch('Colors', function () use (&$calls): array {
+            ++$calls;
+
+            return ['red' => 'Red', 'blue' => 'Blue'];
+        });
+
+        $this->assertSame(['red'], $result);
+        $this->assertSame(1, $calls);
+    }
+
     public function testSupportsTheHomeAndEndKeysWhileNavigatingOptions()
     {
         Prompt::fake([Key::DOWN, Key::END[0], Key::SPACE, Key::HOME[0], Key::SPACE, Key::ENTER]);
@@ -441,5 +458,23 @@ class MultiSearchPromptTest extends TestCase
         );
 
         $this->assertSame([], $result);
+    }
+}
+
+class MultiSearchPromptRendererWithoutMatches
+{
+    /**
+     * Create a new renderer instance.
+     */
+    public function __construct(protected MultiSearchPrompt $prompt)
+    {
+    }
+
+    /**
+     * Render the prompt without reading its matches.
+     */
+    public function __invoke(): string
+    {
+        return '';
     }
 }

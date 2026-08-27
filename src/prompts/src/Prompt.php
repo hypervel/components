@@ -535,7 +535,7 @@ abstract class Prompt
 
         $error = $this->validateIntrinsic($value);
 
-        if ($error === null) {
+        if ($error === null || $error === '') {
             $validateUsing = static::getValidateUsing();
 
             if (! isset($this->validate) && $validateUsing === null) {

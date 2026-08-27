@@ -1695,7 +1695,7 @@ TextPrompt::fallbackUsing(function (TextPrompt $prompt) use ($input, $output) {
 
             $error = $prompt->validateIntrinsic($value);
 
-            if ($error === null && is_callable($prompt->validate)) {
+            if (($error === null || $error === '') && is_callable($prompt->validate)) {
                 $error = ($prompt->validate)($value);
             }
 

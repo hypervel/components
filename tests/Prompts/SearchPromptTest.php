@@ -210,6 +210,23 @@ class SearchPromptTest extends TestCase
         $this->assertSame('blue', $result);
     }
 
+    public function testNavigationPopulatesMatchesWhenACustomRendererDoesNotReadThem(): void
+    {
+        Prompt::fake([Key::DOWN, Key::ENTER]);
+        Prompt::addTheme('without-search-matches', [SearchPrompt::class => SearchPromptRendererWithoutMatches::class]);
+        Prompt::theme('without-search-matches');
+        $calls = 0;
+
+        $result = search('Color', function () use (&$calls): array {
+            ++$calls;
+
+            return ['red' => 'Red', 'blue' => 'Blue'];
+        });
+
+        $this->assertSame('red', $result);
+        $this->assertSame(1, $calls);
+    }
+
     public function testFailsWhenNonInteractive(): void
     {
         $this->expectException(NonInteractiveValidationException::class);
@@ -252,5 +269,23 @@ class SearchPromptTest extends TestCase
         Prompt::assertOutputContains('Please choose green.');
 
         Prompt::validateUsing(fn () => null);
+    }
+}
+
+class SearchPromptRendererWithoutMatches
+{
+    /**
+     * Create a new renderer instance.
+     */
+    public function __construct(protected SearchPrompt $prompt)
+    {
+    }
+
+    /**
+     * Render the prompt without reading its matches.
+     */
+    public function __invoke(): string
+    {
+        return '';
     }
 }
