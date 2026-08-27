@@ -26,12 +26,12 @@ class GridRenderer extends Renderer
         }
 
         $items = array_map(
-            fn ($item) => $this->truncate($item, max(1, $grid->maxWidth - 5)),
+            fn (string $item): string => $this->truncate($item, max(1, $grid->maxWidth - 5)),
             $grid->items,
         );
 
         $maxWidth = $grid->maxWidth - 2;
-        $cellWidth = max(array_map(fn ($item) => mb_strwidth($this->stripEscapeSequences($item)), $items)) + 4;
+        $cellWidth = max(array_map(fn (string $item): int => mb_strwidth($this->stripEscapeSequences($item)), $items)) + 4;
         $maxColumns = max(1, (int) floor(($maxWidth - 1) / ($cellWidth + 1)));
         $columnCount = max(1, $this->balancedColumnCount(count($items), $maxColumns));
 
