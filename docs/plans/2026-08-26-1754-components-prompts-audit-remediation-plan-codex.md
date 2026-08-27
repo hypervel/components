@@ -35,8 +35,8 @@ Measured costs that constrain the design:
 1. Public and protected Laravel APIs stay compatible unless this plan records a concrete reason they cannot. Retain a protected extension seam whenever its contract remains satisfiable under the new design. Remove such a seam only when its contract cannot be honored and an override would silently stop running; every such removal requires the README difference and source `REMOVED:` note.
 2. Prompt transforms run once for each successful submitted/default/fallback candidate. The value returned is the exact value validated.
 3. Intrinsic prompt rules run before caller rules and use the transformed candidate in every execution mode.
-4. Task IPC preserves payload bytes and message boundaries under partial/coalesced reads. Parent-to-child traffic is framed; the renderer acknowledgement remains the intentionally raw one-byte reverse signal.
-5. Task transport, partial layout, and retained memory scale linearly and remain bounded by visible output plus an unfinished token/escape sequence.
+4. Task IPC preserves payload bytes and message boundaries under partial/coalesced reads. Parent-to-child traffic is framed; the renderer acknowledgement remains the intentionally raw one-byte reverse signal. Complete and incremental output paths expose the same visible text for the same terminal controls.
+5. Task transport, partial layout, and retained memory scale linearly. Plain-text carry is limited to one structural UTF-8 suffix, and any input unit that normal parsing cannot break has one fixed 4096-byte ceiling.
 6. No animation frame may be written after final settlement starts. An animation render failure must not disappear in a child coroutine.
 7. DataTable scans search-invariant source cells once per prompt instance. Terminal resizes refit in O(column count).
 8. No process-global or static cache is added. New mutable objects are operation-local and are not container-resolved services.
@@ -91,7 +91,7 @@ Refactor the private validation pipeline to:
 4. run the caller closure or configured framework validator;
 5. preserve the existing string-or-null validator-result contract.
 
-The existing no-external-rules short circuit moves below required and intrinsic validation and applies only when intrinsic validation returned no error, immediately before caller/global validation. A prompt with neither `$validate` nor `validateUsing` must still run and honor `validateIntrinsic()`. Pin this with standalone Number tests that configure neither validation source and still enforce integer grammar, overflow, min, and max.
+The existing no-external-rules short circuit moves below required and intrinsic validation and applies only when intrinsic validation returned a nonempty error, immediately before caller/global validation. Both `null` and `''` mean that intrinsic validation passed; only a nonempty string blocks caller/global validation. A prompt with neither `$validate` nor `validateUsing` must still run and honor `validateIntrinsic()`. Pin this with standalone Number tests that configure neither validation source and still enforce integer grammar, overflow, min, and max, plus a custom prompt whose empty intrinsic result still reaches a rejecting configured validator.
 
 Invoke the configured global validation closure as `($prompt, $value)`, where `$value` is that same transformed candidate. Update Console's installed closure to validate the second argument instead of re-reading `$prompt->value()`. Existing user-defined zero/one-argument PHP closures continue to accept the additional argument because PHP ignores surplus arguments to user-defined closures; do not add a `func_num_args()` compatibility shim. Framework array rules now observe transforms without temporary Prompt state or a second transform call. Document the callback shape in the `validateUsing()` docblock.
 
@@ -111,8 +111,11 @@ private function transformFallbackAnswer(Prompt $prompt, mixed $answer): mixed
 
 private function validateFallbackPrompt(Prompt $prompt, mixed $value): mixed
 {
-    return $prompt->validateIntrinsic($value)
-        ?? (is_callable($prompt->validate)
+    $intrinsicError = $prompt->validateIntrinsic($value);
+
+    return is_string($intrinsicError) && $intrinsicError !== ''
+        ? $intrinsicError
+        : (is_callable($prompt->validate)
             ? ($prompt->validate)($value)
             : $this->validatePrompt($value, $prompt->validate));
 }
@@ -275,10 +278,16 @@ Files:
 - `src/prompts/src/Support/Logger.php`
 - `src/prompts/src/Support/InProcessLogger.php`
 - `src/prompts/src/Themes/Default/Concerns/InteractsWithStrings.php` only where shared parsing support is genuinely needed;
+- `src/prompts/src/Support/Utils.php`
 - `tests/Prompts/LoggerTest.php`
 - `tests/Prompts/TaskTest.php`
+- `src/prompts/src/Themes/Default/CalloutRenderer.php`
+- `src/prompts/src/Themes/Default/Concerns/DrawsBoxes.php`
 - `tests/Prompts/AnsiWordwrapTest.php`
+- `tests/Prompts/CalloutTest.php`
+- `tests/Prompts/MultiByteWordWrapTest.php`
 - `tests/Prompts/ParseAnsiTextTest.php`
+- `tests/Prompts/UtilsTest.php`
 
 `Logger::partial()` sends only the new chunk. It must not append to or transmit `streamBuffer`. `commitPartial()` sends an empty commit frame.
 
@@ -294,20 +303,50 @@ Retain Task's protected `?int $partialStartIndex = null` under its exact name, t
 
 Retain protected `Task::addLogLines(string $line): void` under its exact Laravel name and signature, with its wrapping/ring-buffer internals delegated to the concern. Also retain protected `Task::replacePartialLines(string $text): void`: reset only the current incremental partial state, then consume the supplied full text as one fresh partial input. The optimized Logger/IPC path never calls this full-prefix compatibility seam, so preserving it adds no hot-path accumulation or repeated processing.
 
+Complete messages stay on the faster `ansiWordwrap()` path rather than passing through the incremental parser, which costs roughly two to four times as much for whole payloads. Normalize CRLF to LF once, then wrap the entire message in one call so SGR and OSC 8 state can span logical lines. While aligning parsed source characters with wrapped visible lines, `ansiWordwrap()` skips source LF bytes as separators removed by `mbWordwrap()`; never skip a lone carriage return. This shared fix also covers multiline Stream and Callout output without adding a cross-line state carrier or another parser.
+
+Task Logger styling supports ANSI terminal controls, including SGR and OSC 8, rather than Symfony style markup. Complete-versus-incremental parity applies to plain text and those supported controls; do not add a second cross-chunk markup parser for an input Laravel does not define as part of the Task Logger contract.
+
 The incremental partial layout retains only:
 
 - visible wrapped log lines up to Task's existing limit;
 - the unfinished logical line/current word needed for wrapping;
-- an incomplete multibyte or escape-sequence suffix;
+- at most the three-byte suffix that can be the start of a split UTF-8 codepoint;
+- an unfinished terminal-control buffer no larger than 4096 bytes, plus its small parser mode;
+- an indivisible grapheme fragment no larger than the same fixed ceiling;
 - active SGR state and OSC 8 hyperlink state.
 
 Completed discarded prefixes are never retained or reprocessed. Long unbroken words are split at terminal width so the unfinished token is bounded. Commit makes current partial output permanent and resets incremental state; stable status/reset also clear the partial state.
 
 Mirror `mbWordwrap()`'s word model instead of maintaining a separator queue: each space completes the current word, consecutive spaces therefore complete empty words, and the one implicit join column is dropped only when the next word wraps. Retain the real join token only for its SGR/link attributes; a long-word cut uses the same one-column candidate with no emitted join token. Track whether the current line is unset because an empty-but-set line has distinct leading-space behavior. Coalesce each complete UTF-8 word fragment that fits as one token and fall back to grapheme tokens only when the fragment needs cutting.
 
-Scan the receive buffer with one local byte cursor and retain the unconsumed suffix once per drain; never slice the remaining buffer after every escape. Hold a trailing carriage return for the next chunk so split CRLF is recognized, while a confirmed lone carriage return remains ordinary content. Complete SGR and valid OSC 8 update formatting state, other complete terminal controls are discarded, and a final incomplete CSI/OSC is emitted literally and counts toward width.
+Correct the shared `mbWordwrap()` boundary because Textarea calls it directly with long-word cutting enabled. Normalize the effective width to at least one before the short-line check. In the cut loop, skip every word whose `mb_strwidth()` already fits. Split over-width words through one internal `Utils` grapheme helper shared with Task's incremental path. The helper uses PCRE Unicode graphemes (`\X`), falls back to the current byte-preserving `mb_str_split()` behavior for malformed UTF-8, and losslessly splits any single grapheme beyond the shared 4096-byte unbreakable-input ceiling at UTF-8 codepoint boundaries. Both paths ask the same PCRE boundary check whether adjacent fragments remain one grapheme; keep them atomic across width or chunk boundaries only while their combined bytes remain within the ceiling. This preserves combining, modifier, flag, keycap, Hangul, Indic, and ZWJ clusters without a Unicode property registry, preview delay, or complete/incremental exception, while pathological Zalgo output remains bounded.
 
-Move the bounded effective-SGR updater and OSC 8 resolver into `InteractsWithStrings`, shared by `parseAnsiText()` and Task's incremental parser. The SGR map tracks fixed terminal attributes, including indexed/RGB underline color through codes 58/59; arbitrary codes remain in one bounded fallback slot. This fixes cumulative and selective-reset styling for Task, Stream, and Callout without a general terminal parser or user-derived map keys. Always run complete Task log lines through the corrected `ansiWordwrap()` so fitting and wrapped lines use the same control-sequence rules and canonical effective style.
+When an allowed grapheme itself is wider than the target, never append the still-empty preceding fragment. Accept the first word onto an unset line even when that indivisible word exceeds the width, rather than emitting a leading blank. When a later word wraps from an empty-but-set line, do not store that zero-character overflow line; the pending implicit join is dropped by wrapping. Apply the same narrow suppression in both incremental emitters: reset an empty wrapped line instead of storing it during word completion, and omit the same empty line from the unfinished-word preview. Preserve nonempty whitespace-only lines, the intentional empty preview from `partial('')`, and explicit LF/CRLF blank lines. Remove the `\p{Cf}` width-two shortcut and measure every word with `mb_strwidth()`, matching the incremental path. This deliberately uses one consistent and conservative width model: PHP measures many ZWJ emoji wider than terminals display them. Do not add separator-carry state, a terminal cell-width engine, width cache, or second wrapping algorithm to optimize display-only mismatches.
+
+Clamp Callout's `minWidth` to `max(1, min($this->minWidth, terminal columns - 6))` before resolving any content, so plain text and all three list renderers wrap against the same live terminal width. Keep the corresponding `max(1, ...)` safeguard in `DrawsBoxes::box()` because that trait also serves renderers that do not pre-resolve content. Two direct clamps at distinct lifecycle boundaries are clearer than a width-lifecycle helper.
+
+Scan each chunk once with one local byte cursor; never rescan a growing unfinished control from its introducer. Hold a trailing carriage return for the next chunk so split CRLF is recognized, while a confirmed lone carriage return remains ordinary content. On invalid non-final UTF-8 input, inspect only the final three bytes structurally: retain exactly a suffix that starts with a valid two-, three-, or four-byte lead, contains only the available continuation bytes, and is shorter than the required sequence. Consume every preceding byte even when it contains invalid UTF-8. Stray continuations, invalid leads, and complete invalid sequences must make forward progress.
+
+Starting a partial region represents its first logical line even when the first chunk is empty. Consuming LF or CRLF finishes the current line and immediately starts the next logical line, including a trailing empty line. A commit without any preceding partial remains a no-op because no region exists. This keeps `partial('')`, trailing/repeated newlines, and protected `replacePartialLines('')` aligned with complete-output and upstream behavior without special cases.
+
+Implement one operation-local terminal-control scanner. The shared 4096-byte unbreakable-input constant also bounds its retained control prefix; after the ceiling the scanner discards retained bytes while continuing only its small mode state. Match the specialized introducers before the generic grammar because `[`, `]`, `P`, `X`, `^`, and `_` are themselves valid generic final bytes:
+
+- CSI is `ESC [` followed by parameter bytes `0x30–0x3f`, then intermediate bytes `0x20–0x2f`, then one final byte `0x40–0x7e`;
+- OSC is `ESC ]` and ends at BEL or ST;
+- DCS, SOS, PM, and APC begin with `ESC P`, `ESC X`, `ESC ^`, and `ESC _` and end at ST. A BEL is invalid in these string controls and recovers by discarding through the BEL;
+- every other ESC sequence is `ESC`, zero or more intermediate bytes `0x20–0x2f`, and one final byte `0x30–0x7e`;
+- do not recognize 8-bit C1 introducers because their byte values are ambiguous with UTF-8 continuation bytes.
+
+The scanner uses one mode field covering generic ESC, CSI parameter/intermediate phases, OSC, and the other string controls; one pending-ESC bit distinguishes ST from a malformed bare ESC. It retains a control only while it remains within the fixed ceiling. Beyond that ceiling it drops the retained bytes but continues the same small state until completion or local abort, so memory remains bounded without rendering control payload as text. Complete SGR and valid OSC 8 update formatting state; every other complete control is discarded.
+
+Recognize specialized CSI/OSC/string introducers only while the retained control is exactly `ESC`. After one or more generic intermediate bytes, every byte in the final range completes that generic control, including `[`, `]`, `P`, `X`, `^`, and `_`; do not add another parser mode for a phase already represented by the retained prefix.
+
+Malformed controls abort locally instead of swallowing later output. A byte invalid for the current CSI or generic-ESC phase ends and discards that prefix, then is reprocessed normally. Inside OSC or another string control, `ESC \\` terminates through ST; a bare ESC followed by anything else aborts the string and reprocesses that ESC as a new control. This reprocessing always starts at a later byte than the discarded introducer and must guarantee forward progress for repeated ESC input. At end of input, discard any unfinished control rather than re-emitting raw terminal bytes.
+
+Keep the bounded effective-SGR updater in `InteractsWithStrings`, shared by `parseAnsiText()` and Task's incremental parser. The SGR map tracks fixed terminal attributes, including indexed/RGB underline color through codes 58/59; arbitrary codes remain in one bounded fallback slot. Treat a colon-form parameter such as `4:3` or `38:2:...` as one complete raw parameter: use its leading integer only to choose the fixed attribute slot, preserve the full token, and do not consume later semicolon parameters. This fixes cumulative, colon-form, and selective-reset styling for Task, Stream, and Callout without a general terminal parser or user-derived map keys.
+
+Keep `parseAnsiText()`, Task's scanner, and `Utils::stripEscapeSequences()` aligned on visible bytes. Complete parsing removes generic ESC controls, character-set designators, DCS/SOS/PM/APC with their payloads, malformed locally aborted prefixes, and final incomplete controls. `parseAnsiText()` retains state only for SGR and valid OSC 8. `Utils` owns one capture-free OSC 8 grammar, composes it into the typed formatting fragment shared with the scrollbar helper, and resolves link state through one internal static method. Validate with the grammar first, then split the already-validated body at its first separator to preserve semicolons in the URI; do not add redundant fallback handling for a missing separator. Do not add a public parser, formatter registry, styled-string object, or payload interpretation. Always run complete Task log lines through the corrected `ansiWordwrap()` so fitting and wrapped lines use the same control rules and canonical effective style.
 
 One reset method clears every concern-owned parser/partial field while retaining rendered logs. All operation reset, ordinary-line replacement, stable settlement, and partial commit paths use it, so committed partial lines cannot be replayed by a later partial.
 
@@ -318,8 +357,8 @@ Preserve current terminal semantics:
 - do not split a lone carriage return, which command-line tools use for in-place redraw;
 - continue removing cursor-reset/erase sequences from ordinary output;
 - preserve styles and hyperlinks across chunk boundaries and close/reopen them correctly across displayed lines;
-- handle chunks split within UTF-8, CSI, and OSC 8 sequences;
-- handle CRLF split across chunks and preserve a final incomplete CSI/OSC literally;
+- handle chunks split within UTF-8, CSI, OSC 8, generic ESC, and string-control sequences;
+- handle CRLF split across chunks and discard a final incomplete control;
 - avoid redundant reset accumulation;
 - preserve the fast path when a pending plain-text line has no escape sequence and fits the width.
 
@@ -327,7 +366,7 @@ Use an effective wrap width of at least one column. A zero log limit discards co
 
 Tests must demonstrate that output and retained memory grow linearly for many small chunks, with final parity for process and in-process modes, including empty payloads and interior blank lines. Retain direct coverage of the three protected Laravel Task methods and the protected partial-region boundary: complete-line append, full partial replacement, framed receive/decode, and `partialStartIndex` movement/reset. Pin both socketless base-Logger no-op behavior and in-process partial forwarding through the shared `partial()` method. Rewrite the negative-limit state seed and sub-label assertions that call deleted Hypervel-only public bridges to go through `InProcessLogger`; do not preserve test-only bridge calls. Timing assertions do not belong in CI; add or document a reproducible local benchmark comparing the branch base and final implementation for 1k/2k/4k chunks.
 
-Also pin consecutive partials across commit, exact-width and repeated-space wrapping, escape-heavy linear scanning, complete non-formatting control removal, final-incomplete escape preservation, split CRLF, cumulative/sequential SGR, selective resets, and SGR 58/59. Put shared ANSI state regressions in `ParseAnsiTextTest` and `AnsiWordwrapTest` so Stream and Callout are covered at their owning boundary; Task tests cover the incremental and complete-line paths.
+Also pin consecutive partials across commit, exact-width and repeated-space wrapping, escape-heavy linear scanning, complete non-formatting control removal, final-incomplete control discard, split CRLF, cumulative/sequential SGR, selective resets, SGR 58/59, and colon-form SGR such as `4:3` and `38:2:...;1`. Add unconditional complete-versus-incremental parity for empty output, trailing/repeated blank lines, formatting spanning a newline, formatting beginning after a newline, and wrapped content whose formatting begins after a newline, across every possible chunk split; separately prove a bare partial commit is a no-op. Add parity cases for every split of short valid controls; malformed CSI/OSC followed by visible output; repeated ESC forward progress; generic controls with one and two intermediates followed by each specialized-introducer byte as their final; `ESC ( B` character-set designation; DCS/APC payload removal; controls exceeding the 4096-byte ceiling; bound/reset behavior with a zero log limit; and complete-line, partial, and stripped-width agreement. Put multiline `ansiWordwrap()` regressions and shared ANSI state regressions in `AnsiWordwrapTest`, `ParseAnsiTextTest`, and `UtilsTest` so Stream and Callout are covered at their owning boundary; Task tests cover the incremental and complete-line paths. In `MultiByteWordWrapTest`, cover combining, modifier, flag, keycap, Hangul, Indic, and ZWJ graphemes; every split of representative clusters; an oversized grapheme split losslessly at the shared ceiling; a wide grapheme narrower than the target in both cut modes; the absence of leading, empty, and ZWJ-only overflow rows; malformed UTF-8 fallback; zero/negative width normalization; and unchanged nonempty whitespace-only lines. Extend the every-split complete-versus-incremental Task harness with the same grapheme set, an oversized combining cluster, double-space over-width words, and a leading separator before an over-width word; keep parity unconditional and explicit blank logical lines byte-for-byte intact. Assert that complete and incremental retained entries stay within `limit × ceiling`, including repeated complete lines and streamed/single-chunk oversized clusters. At every chunk boundary assert that wrap overflow never creates a zero-character row; assert preview/commit equality only after the final chunk because a pending separator may legitimately appear in an intermediate preview and then be dropped when the next word wraps. In `CalloutTest`, cover narrow plain, bulleted, numbered, and key-value content and prove the rendered frame remains within the terminal.
 
 ### 5. Join animation ownership before settlement
 
@@ -372,9 +411,11 @@ Tests compare both handler identity and async mode before/during/after coroutine
 Files:
 
 - `src/prompts/src/Prompt.php`
+- `src/prompts/src/SearchPrompt.php`
 - `src/prompts/src/MultiSearchPrompt.php`
 - `tests/Prompts/PromptLifecycleTest.php`
 - `tests/Prompts/DataTablePromptTest.php`
+- `tests/Prompts/SearchPromptTest.php`
 - `tests/Prompts/MultiSearchPromptTest.php`
 
 Add one nullable transient return-state field to Prompt. When Ctrl-U cannot revert, record the current state before showing the error. On the next key, restore that recorded state and clear it. Ordinary validation errors continue restoring to `active`; do not create a generic state-machine abstraction.
@@ -382,6 +423,8 @@ Add one nullable transient return-state field to Prompt. When Ctrl-U cannot reve
 This keeps DataTable search active after the message and lets the next key update its search query. Test browse, search, and ordinary validation recovery.
 
 Add `Key::CTRL_P` and `Key::CTRL_N` to MultiSearch's existing previous/next arms. They must preserve the match cache and boundary behavior exactly like arrow keys.
+
+Do not let navigation depend on a renderer populating the nullable match cache. In every up/down/tab/shift-tab/Ctrl-P/Ctrl-N arm in Search and MultiSearch, call the memoized `matches()` accessor before counting. The default renderer has already populated it on the normal path, so this remains O(1); a custom theme registered through `Prompt::addTheme()` that does not render options now receives the same navigation semantics without rerunning its options callback. Test both prompts with a minimal custom renderer that never reads matches.
 
 ### 8. Cache and correct DataTable natural layout
 
@@ -428,12 +471,13 @@ Files:
 - new `tests/Prompts/InteractsWithStringsTest.php`
 - `tests/Prompts/DataTablePromptTest.php`
 
-Add one protected helper to `InteractsWithStrings` that replaces the last visible grapheme while preserving trailing escape sequences and display width. `DrawsScrollbars` explicitly uses `InteractsWithStrings` instead of relying on consumers also using `DrawsBoxes`.
+Add one protected helper to `InteractsWithStrings` that replaces the last visible grapheme while preserving trailing formatting and display width. `DrawsScrollbars` explicitly uses `InteractsWithStrings` instead of relying on consumers also using `DrawsBoxes`. Its inputs are raw option labels rather than `parseAnsiText()` output, so it must sanitize terminal controls itself.
 
 Contract:
 
 - empty input or input whose stripped visible width is zero is returned unchanged before matching, so a line containing only terminal escapes or style tags cannot expose one of their bytes as a grapheme;
-- split the suffix with one escape-aware pattern shaped as `/(\X)((?:(?:CSI)|(?:OSC)|(?:STYLE_CLOSE))*)$/u`; use the same complete CSI and OSC grammars as `Utils::stripEscapeSequences()`, and let `STYLE_CLOSE` cover every closing token that the same helper treats as zero-width (`</info>`, `</comment>`, `</question>`, `</error>`, and `</>`). Capture the last visible grapheme separately from the entire trailing zero-width suffix and re-emit that suffix after the replacement;
+- first discard incomplete, malformed, and complete non-formatting terminal controls with the shared `Utils` grammar, preserving only formatting that can affect the visible line;
+- split the suffix with one escape-aware pattern shaped as `/(?<grapheme>\X)(?<suffix>(?:(?:SGR)|(?:OSC_8)|(?:STYLE_CLOSE))*)$/u`; deliberately narrow the alternatives to CSI ending in `m` and a complete OSC 8 command with its required parameter/URI separator, rather than depending on prior sanitization to make broader CSI/OSC alternatives safe. Let `STYLE_CLOSE` cover every closing token that the same helper treats as zero-width (`</info>`, `</comment>`, `</question>`, `</error>`, and `</>`). Capture the last visible grapheme separately from the entire trailing zero-width suffix and re-emit that suffix after the replacement;
 - invalid UTF-8 is unchanged; require the escape-aware `preg_match(...)` result to be exactly `1` so both a non-match and `false` from `PREG_BAD_UTF8_ERROR` return the original line;
 - replace the whole final grapheme, including combining marks and ZWJ emoji;
 - preserve trailing SGR resets and OSC 8 closes after the replacement;
@@ -441,7 +485,7 @@ Contract:
 
 Use PCRE's Unicode grapheme cluster (`\X`) support plus `mb_strwidth`; do not add an `ext-intl` dependency for `grapheme_*` functions.
 
-Use the helper in both the generic scrollbar trait and DataTable's multiline-aware manual scrollbar. Remove both byte-oriented `preg_replace('/.$/')` paths. Explicitly test an exact-width styled line such as `ESC[2mabcdefghijESC[22m`: replace `j`, preserve the complete trailing reset after the scrollbar glyph, and never treat the reset's final `m` as visible content. Cover the same suffix preservation for an OSC 8 close and Symfony named/inline closing tags. Escape-only and style-tag-only inputs remain byte-for-byte unchanged. Do not build a general styled-string object.
+Use the helper in both the generic scrollbar trait and DataTable's multiline-aware manual scrollbar. Remove both byte-oriented `preg_replace('/.$/')` paths. Explicitly test an exact-width styled line such as `ESC[2mabcdefghijESC[22m`: replace `j`, preserve the complete trailing reset after the scrollbar glyph, and never treat the reset's final `m` as visible content. Cover the same suffix preservation for an OSC 8 close and Symfony named/inline closing tags. Add raw-label cases for incomplete CSI/OSC, a complete malformed OSC 8 command, malformed OSC followed by SGR and visible text, generic ESC, character-set designation, DCS/APC payloads, and unchanged display width after sanitization. Escape-only and style-tag-only inputs remain byte-for-byte unchanged. Pin that the capture-free formatting fragment can be embedded twice in one regex and still match. Do not build a general styled-string object.
 
 ### 10. Apply the remaining focused correctness fixes and upstream updates
 
@@ -460,10 +504,10 @@ Changes:
 
 1. `eraseLines($count)` returns immediately for nonpositive counts. For each positive line, erase and move up one line only when another line remains, producing exact behavior for 1 and N.
 2. Make Prompt's static output and terminal declarations nullable and initialized to null. `flushState()` forgets the output and validation coroutine-context keys and resets both static fields to null; accessors retain lazy `??=` construction. Do not flush unrelated coroutine context.
-3. Port current Laravel nested inline-style stripping into centralized `Utils::stripEscapeSequences()` so nested matching tags are removed until stable.
-4. Port current Laravel Grid truncation before width/cell computation, using `max(1, maxWidth - 5)` and measuring the truncated values used for layout.
+3. Strip each valid Symfony style tag independently in centralized `Utils::stripEscapeSequences()`, rather than requiring matched pairs. One pass therefore handles nested and unclosed tags and more completely matches the intent of Laravel's repeated matched-pair removal without retaining its loop. Recognize the built-in named styles case-sensitively and the inline `fg`, `bg`, `options`, and `href` keys case-insensitively, including hex and bright color values, semicolon-separated attributes, and escaped angle brackets. Do not consume an escaped opening bracket. Leave unknown/custom tags literal because the formatter registry is unavailable at this low-level hot path. Pin these distinctions with a curated agreement table against Symfony's undecorated `OutputFormatter`; do not instantiate a formatter on the measurement hot path or add randomized CI fuzzing.
+4. Port current Laravel Grid truncation before width/cell computation, using `max(1, maxWidth - 5)` and measuring the truncated values used for layout. Type the two touched callbacks as `fn (string $item): string` and `fn (string $item): int` under Hypervel's full-typing rule.
 
-Tests cover escape output for erase counts -1/0/1/3, context-key removal without whole-context loss, lazy output/terminal re-creation, nested styles, ordinary text containing angle brackets, long Grid items, narrow widths, and unchanged balanced layout.
+Tests cover escape output for erase counts -1/0/1/3, context-key removal without whole-context loss, lazy output/terminal re-creation, nested and inline Symfony styles (`#rrggbb`, bright colors, combined attributes, and href), escaped angle brackets, unknown/custom tags, long Grid items, narrow widths, and unchanged balanced layout.
 
 ## Documentation and package metadata
 
@@ -476,7 +520,7 @@ Files:
 Documentation rules:
 
 - Use Laravel prose in `src/docs/prompts.md`.
-- Keep behavioral documentation proportional: Number is an integer prompt, valid defaults may be integers, transforms precede validation, custom fallback implementations can call `validateIntrinsic()`, and Task partial output retains its public semantics. Update the custom fallback example's truthy default/required checks so the documentation does not retain the same `"0"` bug fixed in source. Guard custom validation with `is_callable()` before invocation so documented array rules do not fatal, and show `validateIntrinsic()` ahead of that caller validation.
+- Keep behavioral documentation proportional: Number is an integer prompt, valid defaults may be integers, transforms precede validation, custom fallback implementations can call `validateIntrinsic()`, and Task partial output retains its public semantics. Update the custom fallback example's truthy default/required checks so the documentation does not retain the same `"0"` bug fixed in source. Guard custom validation with `is_callable()` before invocation and continue to caller validation when `validateIntrinsic()` returns either `null` or `''`, matching source semantics.
 - Do not document binary framing, caches, channels, benchmark internals, or bug history in user docs.
 - Add only the three deliberate incompatible protected-API differences to README `Differences From Laravel`: Logger's `prefix()` is absent because binary framing requires subclasses to override `write()` rather than emit text prefixes; NumberPrompt's `wrapValidation()` is replaced by `validateIntrinsic()` because validation is centralized in the base pipeline; and DataTableRenderer's fused `computeColumnWidths()` is replaced by prompt-owned `naturalColumnMetrics()` plus renderer-owned `fitColumnWidths()` because those values have different invalidation keys. `validateIntrinsic()` is otherwise an additive extension hook and belongs in the canonical user documentation. Current upstream has no matching test for the removed Logger or Number method; do not invent `REMOVED:` test comments.
 - Do not add these fixes to `src/docs/porting-from-laravel.md`; they do not change normal application/package porting decisions.
@@ -539,7 +583,7 @@ Run before/after Task partial and DataTable render benchmarks outside CI and rec
 Do not add any of the following unless implementation exposes a new, concrete requirement and the plan is amended after review:
 
 - pipe/version negotiation or base64 Task transport;
-- arbitrary frame/output caps beyond Task's existing visible limit;
+- arbitrary frame/output caps beyond Task's existing visible limit and the one fixed incomplete-control safety ceiling;
 - a generic event bus or production counters;
 - Task whole-prefix buffering;
 - Swoole coroutine cancellation for animation settlement;
