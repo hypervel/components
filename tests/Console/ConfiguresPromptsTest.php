@@ -10,6 +10,7 @@ use Hypervel\Console\OutputStyle;
 use Hypervel\Console\View\Components\Factory;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Prompts\PausePrompt;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\TextPrompt;
 use Hypervel\Support\Facades\Artisan;
@@ -22,11 +23,17 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
 use function Hypervel\Prompts\autocomplete;
+use function Hypervel\Prompts\confirm;
 use function Hypervel\Prompts\datatable;
+use function Hypervel\Prompts\multisearch;
 use function Hypervel\Prompts\multiselect;
 use function Hypervel\Prompts\number;
+use function Hypervel\Prompts\password;
+use function Hypervel\Prompts\search;
 use function Hypervel\Prompts\select;
 use function Hypervel\Prompts\suggest;
+use function Hypervel\Prompts\text;
+use function Hypervel\Prompts\textarea;
 
 class ConfiguresPromptsTest extends TestCase
 {
@@ -157,6 +164,270 @@ class ConfiguresPromptsTest extends TestCase
 
         $this->assertSame(Command::FAILURE, $status);
         $this->assertNull($command->answer);
+    }
+
+    #[DataProvider('fallbackTransformDataProvider')]
+    public function testEveryFallbackTransformsItsAnswerExactlyOnce(
+        Closure $prompt,
+        Closure $expectations,
+        mixed $expected,
+    ): void {
+        Prompt::fallbackWhen(true);
+
+        $this->assertSame($expected, $this->runPrompt($prompt, $expectations));
+    }
+
+    public static function fallbackTransformDataProvider(): array
+    {
+        return [
+            'text' => [
+                fn () => text('Test', transform: fn (string $value): string => $value . '!'),
+                fn ($components) => $components->expects('ask')->with('Test', null)->andReturn('value'),
+                'value!',
+            ],
+            'textarea' => [
+                fn () => textarea('Test', transform: fn (string $value): string => $value . '!'),
+                fn ($components) => $components->expects('ask')->with('Test', null, multiline: true)->andReturn('value'),
+                'value!',
+            ],
+            'number' => [
+                fn () => number('Test', transform: fn (int $value): int => $value + 1),
+                fn ($components) => $components->expects('ask')->with('Test', null)->andReturn('1'),
+                2,
+            ],
+            'password' => [
+                fn () => password('Test', transform: fn (string $value): string => $value . '!'),
+                fn ($components) => $components->expects('secret')->with('Test')->andReturn('value'),
+                'value!',
+            ],
+            'pause' => [
+                function (): bool {
+                    $prompt = new PausePrompt('Test');
+                    $prompt->transform = fn (bool $value): bool => ! $value;
+
+                    return $prompt->prompt();
+                },
+                fn ($components) => $components->expects('ask')->with('Test')->andReturnNull(),
+                true,
+            ],
+            'confirm' => [
+                fn () => confirm('Test', transform: fn (bool $value): bool => ! $value),
+                fn ($components) => $components->expects('confirm')->with('Test', true)->andReturnTrue(),
+                false,
+            ],
+            'select' => [
+                fn () => select('Test', ['a'], transform: fn (string $value): string => $value . '!'),
+                fn ($components) => $components->expects('choice')->with('Test', ['a'], null)->andReturn('a'),
+                'a!',
+            ],
+            'multiselect' => [
+                fn () => multiselect('Test', ['a'], transform: fn (array $values): array => [...$values, 'b']),
+                fn ($components) => $components->expects('choice')->with('Test', ['None', 'a'], 'None', null, true)->andReturn(['a']),
+                ['a', 'b'],
+            ],
+            'datatable' => [
+                fn () => datatable(['Name'], [['Taylor']], label: 'Test', transform: fn (int $value): string => "row-{$value}"),
+                fn ($components) => $components->expects('choice')->with('Test', [1 => '1: Name: Taylor'])->andReturn('1'),
+                'row-0',
+            ],
+            'suggest' => [
+                fn () => suggest('Test', ['value'], transform: fn (string $value): string => $value . '!'),
+                fn ($components) => $components->expects('askWithCompletion')->with('Test', ['value'], null)->andReturn('value'),
+                'value!',
+            ],
+            'autocomplete' => [
+                fn () => autocomplete('Test', ['value'], transform: fn (string $value): string => $value . '!'),
+                fn ($components) => $components->expects('askWithCompletion')->with('Test', ['value'], null)->andReturn('value'),
+                'value!',
+            ],
+            'search' => [
+                fn () => search('Test', fn (): array => ['a'], transform: fn (string $value): string => $value . '!'),
+                function ($components): void {
+                    $components->expects('ask')->with('Test')->andReturn('query');
+                    $components->expects('choice')->with('Test', ['a'], null)->andReturn('a');
+                },
+                'a!',
+            ],
+            'multisearch' => [
+                fn () => multisearch('Test', fn (): array => ['a'], transform: fn (array $values): array => [...$values, 'b']),
+                function ($components): void {
+                    $components->expects('ask')->with('Test')->andReturn('query');
+                    $components->expects('choice')->with('Test', ['None', 'a'], 'None', null, true)->andReturn(['a']);
+                },
+                ['a', 'b'],
+            ],
+        ];
+    }
+
+    #[DataProvider('zeroDefaultDataProvider')]
+    public function testFallbackReadersPreserveZeroDefaults(Closure $prompt, Closure $expectations, mixed $expected): void
+    {
+        Prompt::fallbackWhen(true);
+
+        $this->assertSame($expected, $this->runPrompt($prompt, $expectations));
+    }
+
+    public static function zeroDefaultDataProvider(): array
+    {
+        return [
+            'text' => [
+                fn () => text('Test', default: '0'),
+                fn ($components) => $components->expects('ask')->with('Test', '0')->andReturn('answer'),
+                'answer',
+            ],
+            'textarea' => [
+                fn () => textarea('Test', default: '0'),
+                fn ($components) => $components->expects('ask')->with('Test', '0', multiline: true)->andReturn('answer'),
+                'answer',
+            ],
+            'number' => [
+                fn () => number('Test', default: 0),
+                fn ($components) => $components->expects('ask')->with('Test', 0)->andReturn('1'),
+                1,
+            ],
+            'suggest' => [
+                fn () => suggest('Test', ['answer'], default: '0'),
+                fn ($components) => $components->expects('askWithCompletion')->with('Test', ['answer'], '0')->andReturn('answer'),
+                'answer',
+            ],
+            'autocomplete' => [
+                fn () => autocomplete('Test', ['answer'], default: '0'),
+                fn ($components) => $components->expects('askWithCompletion')->with('Test', ['answer'], '0')->andReturn('answer'),
+                'answer',
+            ],
+        ];
+    }
+
+    public function testFrameworkRulesValidateTheTransformedFallbackAnswer(): void
+    {
+        Prompt::fallbackWhen(true);
+
+        $command = new class extends Command {
+            public mixed $answer = null;
+
+            public mixed $validatedValue = null;
+
+            public mixed $validatedRules = null;
+
+            public function handle(): void
+            {
+                $this->answer = text(
+                    'Test',
+                    validate: ['required'],
+                    transform: fn (string $value): string => $value . '!',
+                );
+            }
+
+            protected function validatePrompt(mixed $value, mixed $rules): ?string
+            {
+                $this->validatedValue = $value;
+                $this->validatedRules = $rules;
+
+                return null;
+            }
+        };
+
+        $this->runCommand(
+            $command,
+            fn ($components) => $components->expects('ask')->with('Test', null)->andReturn('value'),
+        );
+
+        $this->assertSame('value!', $command->answer);
+        $this->assertSame('value!', $command->validatedValue);
+        $this->assertSame(['required'], $command->validatedRules);
+    }
+
+    public function testIntrinsicFallbackValidationPrecedesFrameworkRules(): void
+    {
+        Prompt::fallbackWhen(true);
+
+        $command = new class extends Command {
+            public int $validationCalls = 0;
+
+            public function handle(): void
+            {
+                number('Test', validate: ['integer'], min: 1);
+            }
+
+            protected function validatePrompt(mixed $value, mixed $rules): ?string
+            {
+                ++$this->validationCalls;
+
+                return null;
+            }
+        };
+
+        $status = $this->runCommand(
+            $command,
+            function ($components): void {
+                $components->expects('ask')->with('Test', null)->andReturn('0');
+                $components->expects('error')->with('Must be at least 1');
+            },
+            runningUnitTests: true,
+        );
+
+        $this->assertSame(Command::FAILURE, $status);
+        $this->assertSame(0, $command->validationCalls);
+    }
+
+    #[DataProvider('requiredFallbackDataProvider')]
+    public function testFallbackRequiredValidationUsesInteractiveEmptySemantics(
+        bool|string $required,
+        mixed $value,
+        string $message,
+    ): void {
+        Prompt::fallbackWhen(true);
+
+        $command = new class($required, $value) extends Command {
+            public function __construct(
+                private bool|string $requiredValue,
+                private mixed $value,
+            ) {
+                parent::__construct();
+            }
+
+            public function handle(): void
+            {
+                $this->promptUntilValid(fn (): mixed => $this->value, $this->requiredValue, null);
+            }
+        };
+
+        $status = $this->runCommand(
+            $command,
+            fn ($components) => $components->expects('error')->with($message),
+            runningUnitTests: true,
+        );
+
+        $this->assertSame(Command::FAILURE, $status);
+    }
+
+    public static function requiredFallbackDataProvider(): array
+    {
+        return [
+            'null' => [true, null, 'Required.'],
+            'empty custom message' => ['', '', 'Required.'],
+            'zero custom message' => ['0', '', '0'],
+            'false value' => [true, false, 'Required.'],
+            'empty array' => [true, [], 'Required.'],
+        ];
+    }
+
+    public function testFalseRequiredFlagAllowsFalseFallbackAnswers(): void
+    {
+        Prompt::fallbackWhen(true);
+
+        $command = new class extends Command {
+            public mixed $answer = null;
+
+            public function handle(): void
+            {
+                $this->answer = $this->promptUntilValid(fn (): bool => false, false, null);
+            }
+        };
+
+        $this->runCommand($command, fn (): null => null);
+
+        $this->assertFalse($command->answer);
     }
 
     public function testAutoCompleteFallbackWithArrayOptions(): void
@@ -422,7 +693,9 @@ class ConfiguresPromptsNestedParentCommand extends Command
 
         $validation = (new ReflectionMethod(Prompt::class, 'getValidateUsing'))->invoke(null);
 
-        $validation(new TextPrompt('Test', validate: 'required'));
+        $prompt = new TextPrompt('Test', validate: 'required');
+
+        $validation($prompt, $prompt->value());
     }
 
     protected function validatePrompt(mixed $value, mixed $rules): ?string

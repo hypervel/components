@@ -91,6 +91,21 @@ abstract class Prompt
     protected bool $terminalStateRestored = true;
 
     /**
+     * Whether this prompt has already been invoked.
+     */
+    private bool $prompted = false;
+
+    /**
+     * The transformed value accepted by a successful submission.
+     */
+    private mixed $submittedValue = null;
+
+    /**
+     * The prompt state to restore after a transient error.
+     */
+    private ?string $stateBeforeTransientError = null;
+
+    /**
      * The custom validation callback.
      */
     protected static ?Closure $validateUsing = null;
@@ -105,12 +120,12 @@ abstract class Prompt
     /**
      * The output instance.
      */
-    protected static OutputInterface $output;
+    protected static ?OutputInterface $output = null;
 
     /**
      * The terminal instance.
      */
-    protected static Terminal $terminal;
+    protected static ?Terminal $terminal = null;
 
     /**
      * Get the value of the prompt.
@@ -118,10 +133,23 @@ abstract class Prompt
     abstract public function value(): mixed;
 
     /**
+     * Validate rules intrinsic to the prompt type.
+     */
+    public function validateIntrinsic(mixed $value): ?string
+    {
+        return null;
+    }
+
+    /**
      * Render the prompt and listen for input.
      */
     public function prompt(): mixed
     {
+        if ($this->prompted) {
+            throw new RuntimeException('This prompt has already been invoked.');
+        }
+
+        $this->prompted = true;
         $operationFailure = null;
 
         try {
@@ -175,7 +203,9 @@ abstract class Prompt
                         throw new FormRevertedException;
                     }
 
-                    return Result::from($this->transformedValue());
+                    return Result::from(
+                        $this->state === 'submit' ? $this->submittedValue : $this->transformedValue(),
+                    );
                 }
 
                 // Continue looping.
@@ -330,6 +360,8 @@ abstract class Prompt
 
     /**
      * Set the custom validation callback.
+     *
+     * @param Closure(Prompt, mixed): (null|string) $callback
      */
     public static function validateUsing(Closure $callback): void
     {
@@ -411,9 +443,12 @@ abstract class Prompt
      */
     protected function submit(): void
     {
-        $this->validate($this->transformedValue());
+        $value = $this->transformedValue();
+
+        $this->validate($value);
 
         if ($this->state !== 'error') {
+            $this->submittedValue = $value;
             $this->state = 'submit';
         }
     }
@@ -424,7 +459,8 @@ abstract class Prompt
     private function handleKeyPress(string $key): bool
     {
         if ($this->state === 'error') {
-            $this->state = 'active';
+            $this->state = $this->stateBeforeTransientError ?? 'active';
+            $this->stateBeforeTransientError = null;
         }
 
         $this->emit('key', $key);
@@ -435,6 +471,7 @@ abstract class Prompt
 
         if ($key === Key::CTRL_U) {
             if (! self::$revertUsing) {
+                $this->stateBeforeTransientError = $this->state;
                 $this->state = 'error';
                 $this->error = 'This cannot be reverted.';
 
@@ -496,17 +533,21 @@ abstract class Prompt
             return;
         }
 
-        $validateUsing = static::getValidateUsing();
+        $error = $this->validateIntrinsic($value);
 
-        if (! isset($this->validate) && $validateUsing === null) {
-            return;
+        if ($error === null) {
+            $validateUsing = static::getValidateUsing();
+
+            if (! isset($this->validate) && $validateUsing === null) {
+                return;
+            }
+
+            $error = match (true) {
+                is_callable($this->validate) => ($this->validate)($value),
+                $validateUsing !== null => $validateUsing($this, $value),
+                default => throw new RuntimeException('The validation logic is missing.'),
+            };
         }
-
-        $error = match (true) {
-            is_callable($this->validate) => ($this->validate)($value),
-            $validateUsing !== null => $validateUsing($this),
-            default => throw new RuntimeException('The validation logic is missing.'),
-        };
 
         if (! is_string($error) && ! is_null($error)) {
             throw new RuntimeException('The validator must return a string or null.');
@@ -544,8 +585,11 @@ abstract class Prompt
         static::$cancelUsing = null;
         static::$validateUsing = null;
         static::$revertUsing = null;
-        static::$output = new ConsoleOutput;
-        static::$terminal = new Terminal;
+        static::$output = null;
+        static::$terminal = null;
+
+        CoroutineContext::forget(self::OUTPUT_CONTEXT_KEY);
+        CoroutineContext::forget(self::VALIDATE_USING_CONTEXT_KEY);
 
         static::resetCursor();
         static::resetFallback();

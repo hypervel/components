@@ -35,104 +35,136 @@ trait ConfiguresPrompts
 
         Prompt::interactive(($input->isInteractive() && defined('STDIN') && stream_isatty(STDIN)) || $this->hypervel->runningUnitTests());
 
-        Prompt::validateUsing(fn (Prompt $prompt) => $this->validatePrompt($prompt->value(), $prompt->validate));
+        Prompt::validateUsing(fn (Prompt $prompt, mixed $value) => $this->validatePrompt($value, $prompt->validate));
 
         if (windows_os() || $this->hypervel->runningUnitTests()) {
             Prompt::fallbackWhen(true);
         }
 
         TextPrompt::fallbackUsing(fn (TextPrompt $prompt) => $this->promptUntilValid(
-            fn () => $this->components->ask($prompt->label, $prompt->default ?: null) ?? '',
+            fn () => $this->transformFallbackAnswer(
+                $prompt,
+                $this->components->ask($prompt->label, $prompt->default === '' ? null : $prompt->default) ?? '',
+            ),
             $prompt->required,
-            $prompt->validate
+            fn (mixed $value) => $this->validateFallbackPrompt($prompt, $value),
         ));
 
         TextareaPrompt::fallbackUsing(fn (TextareaPrompt $prompt) => $this->promptUntilValid(
-            fn () => $this->components->ask($prompt->label, $prompt->default ?: null, multiline: true) ?? '',
+            fn () => $this->transformFallbackAnswer(
+                $prompt,
+                $this->components->ask($prompt->label, $prompt->default === '' ? null : $prompt->default, multiline: true) ?? '',
+            ),
             $prompt->required,
-            $prompt->validate
+            fn (mixed $value) => $this->validateFallbackPrompt($prompt, $value),
         ));
 
         NumberPrompt::fallbackUsing(fn (NumberPrompt $prompt) => $this->promptUntilValid(
-            fn () => $this->numberFallback($prompt),
+            fn () => $this->transformFallbackAnswer($prompt, $this->numberFallback($prompt)),
             $prompt->required,
-            $prompt->validate
+            fn (mixed $value) => $this->validateFallbackPrompt($prompt, $value),
         ));
 
         PasswordPrompt::fallbackUsing(fn (PasswordPrompt $prompt) => $this->promptUntilValid(
-            fn () => $this->components->secret($prompt->label) ?? '',
+            fn () => $this->transformFallbackAnswer($prompt, $this->components->secret($prompt->label) ?? ''),
             $prompt->required,
-            $prompt->validate
+            fn (mixed $value) => $this->validateFallbackPrompt($prompt, $value),
         ));
 
         PausePrompt::fallbackUsing(fn (PausePrompt $prompt) => $this->promptUntilValid(
-            function () use ($prompt) {
+            function () use ($prompt): mixed {
                 $this->components->ask($prompt->message);
 
-                return $prompt->value();
+                return $this->transformFallbackAnswer($prompt, $prompt->value());
             },
             $prompt->required,
-            $prompt->validate
+            fn (mixed $value) => $this->validateFallbackPrompt($prompt, $value),
         ));
 
         ConfirmPrompt::fallbackUsing(fn (ConfirmPrompt $prompt) => $this->promptUntilValid(
-            fn () => $this->components->confirm($prompt->label, $prompt->default),
+            fn () => $this->transformFallbackAnswer(
+                $prompt,
+                $this->components->confirm($prompt->label, $prompt->default),
+            ),
             $prompt->required,
-            $prompt->validate
+            fn (mixed $value) => $this->validateFallbackPrompt($prompt, $value),
         ));
 
         SelectPrompt::fallbackUsing(fn (SelectPrompt $prompt) => $this->promptUntilValid(
-            fn () => $this->selectFallback($prompt->label, $prompt->options, $prompt->default),
+            fn () => $this->transformFallbackAnswer(
+                $prompt,
+                $this->selectFallback($prompt->label, $prompt->options, $prompt->default),
+            ),
             false,
-            $prompt->validate
+            fn (mixed $value) => $this->validateFallbackPrompt($prompt, $value),
         ));
 
         MultiSelectPrompt::fallbackUsing(fn (MultiSelectPrompt $prompt) => $this->promptUntilValid(
-            fn () => $this->multiselectFallback($prompt->label, $prompt->options, $prompt->default, $prompt->required),
+            fn () => $this->transformFallbackAnswer(
+                $prompt,
+                $this->multiselectFallback($prompt->label, $prompt->options, $prompt->default, $prompt->required),
+            ),
             $prompt->required,
-            $prompt->validate
+            fn (mixed $value) => $this->validateFallbackPrompt($prompt, $value),
         ));
 
         DataTablePrompt::fallbackUsing(fn (DataTablePrompt $prompt) => $this->promptUntilValid(
-            fn () => $this->datatableFallback($prompt),
+            fn () => $this->transformFallbackAnswer($prompt, $this->datatableFallback($prompt)),
             $prompt->required,
-            $prompt->validate
+            fn (mixed $value) => $this->validateFallbackPrompt($prompt, $value),
         ));
 
         SuggestPrompt::fallbackUsing(fn (SuggestPrompt $prompt) => $this->promptUntilValid(
-            fn () => $this->components->askWithCompletion($prompt->label, $this->completionOptions($prompt->options), $prompt->default ?: null) ?? '',
+            fn () => $this->transformFallbackAnswer(
+                $prompt,
+                $this->components->askWithCompletion(
+                    $prompt->label,
+                    $this->completionOptions($prompt->options),
+                    $prompt->default === '' ? null : $prompt->default,
+                ) ?? '',
+            ),
             $prompt->required,
-            $prompt->validate
+            fn (mixed $value) => $this->validateFallbackPrompt($prompt, $value),
         ));
 
         AutoCompletePrompt::fallbackUsing(fn (AutoCompletePrompt $prompt) => $this->promptUntilValid(
-            fn () => $this->components->askWithCompletion($prompt->label, $this->completionOptions($prompt->options), $prompt->default ?: null) ?? '',
+            fn () => $this->transformFallbackAnswer(
+                $prompt,
+                $this->components->askWithCompletion(
+                    $prompt->label,
+                    $this->completionOptions($prompt->options),
+                    $prompt->default === '' ? null : $prompt->default,
+                ) ?? '',
+            ),
             $prompt->required,
-            $prompt->validate
+            fn (mixed $value) => $this->validateFallbackPrompt($prompt, $value),
         ));
 
         SearchPrompt::fallbackUsing(fn (SearchPrompt $prompt) => $this->promptUntilValid(
-            function () use ($prompt) {
+            function () use ($prompt): mixed {
                 $query = $this->components->ask($prompt->label);
 
                 $options = ($prompt->options)($query);
 
-                return $this->selectFallback($prompt->label, $options);
+                return $this->transformFallbackAnswer($prompt, $this->selectFallback($prompt->label, $options));
             },
             false,
-            $prompt->validate
+            fn (mixed $value) => $this->validateFallbackPrompt($prompt, $value),
         ));
 
         MultiSearchPrompt::fallbackUsing(fn (MultiSearchPrompt $prompt) => $this->promptUntilValid(
-            function () use ($prompt) {
+            function () use ($prompt): mixed {
                 $query = $this->components->ask($prompt->label);
 
                 $options = ($prompt->options)($query);
 
-                return $this->multiselectFallback($prompt->label, $options, required: $prompt->required);
+                return $this->transformFallbackAnswer(
+                    $prompt,
+                    $this->multiselectFallback($prompt->label, $options, required: $prompt->required),
+                );
             },
             $prompt->required,
-            $prompt->validate
+            fn (mixed $value) => $this->validateFallbackPrompt($prompt, $value),
         ));
     }
 
@@ -151,8 +183,9 @@ trait ConfiguresPrompts
         while (true) {
             $result = $prompt();
 
-            if ($required && ($result === '' || $result === [] || $result === false)) {
-                $this->components->error(is_string($required) ? $required : 'Required.');
+            // Keep this empty set synchronized with Prompt::isInvalidWhenRequired().
+            if ($required !== false && ($result === '' || $result === [] || $result === false || $result === null)) {
+                $this->components->error(is_string($required) && strlen($required) > 0 ? $required : 'Required.');
 
                 if ($this->hypervel->runningUnitTests()) {
                     throw new PromptValidationException;
@@ -173,6 +206,25 @@ trait ConfiguresPrompts
 
             return $result;
         }
+    }
+
+    /**
+     * Transform a fallback answer.
+     */
+    private function transformFallbackAnswer(Prompt $prompt, mixed $answer): mixed
+    {
+        return $prompt->transform === null ? $answer : ($prompt->transform)($answer);
+    }
+
+    /**
+     * Validate a fallback answer.
+     */
+    private function validateFallbackPrompt(Prompt $prompt, mixed $value): mixed
+    {
+        return $prompt->validateIntrinsic($value)
+            ?? (is_callable($prompt->validate)
+                ? ($prompt->validate)($value)
+                : $this->validatePrompt($value, $prompt->validate));
     }
 
     /**
@@ -252,9 +304,12 @@ trait ConfiguresPrompts
      */
     private function numberFallback(NumberPrompt $prompt): int|string
     {
-        $answer = $this->components->ask($prompt->label, $prompt->default ?: null) ?? '';
+        $answer = $this->components->ask(
+            $prompt->label,
+            $prompt->default === '' ? null : $prompt->default,
+        ) ?? '';
 
-        return is_numeric($answer) ? (int) $answer : (string) $answer;
+        return NumberPrompt::parseInteger((string) $answer) ?? (string) $answer;
     }
 
     /**
