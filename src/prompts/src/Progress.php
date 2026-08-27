@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Prompts;
 
 use Closure;
+use Hypervel\Coroutine\Coroutine;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
@@ -122,7 +123,7 @@ class Progress extends Prompt
         $this->prevFrame = '';
         $this->capturePreviousNewLines();
 
-        if (function_exists('pcntl_signal')) {
+        if (function_exists('pcntl_signal') && ! Coroutine::inCoroutine()) {
             $this->originalSignalHandler = pcntl_signal_get_handler(SIGINT);
             $this->originalAsync = pcntl_async_signals(true);
             $progress = WeakReference::create($this);
