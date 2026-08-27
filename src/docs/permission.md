@@ -49,7 +49,9 @@
 - [Wildcard Permissions](#wildcard-permissions)
 - [Polymorphic Models](#polymorphic-models)
 - [Custom Models](#custom-models)
+    - [Permission Database Connection](#permission-database-connection)
     - [Custom Pivot Models](#custom-pivot-models)
+    - [Deleting Models](#deleting-models)
 - [UUID and ULID Keys](#uuid-and-ulid-keys)
 - [Caching](#caching)
 - [Testing and Seeding](#testing-and-seeding)
@@ -1144,6 +1146,8 @@ setPermissionsTeamId($team->getKey());
 $user->assignRole('writer');
 ```
 
+Select the current team before changing a model's roles or direct permissions, including when assigning a global role. Every assignment belongs to the active team, so a missing selection throws `TeamNotSelected` before the package queries or writes authorization data.
+
 You may also pass a team model:
 
 ```php
@@ -1277,6 +1281,13 @@ After creating custom models, update the permission configuration:
 ],
 ```
 
+<a name="permission-database-connection"></a>
+### Permission Database Connection
+
+All five permission tables, including pivot writes, use the configured Permission model's database connection. The configured Role and Permission models must use that same connection name. Role relation reads use the Role connection, while pivot writes and cache settlement use the Permission connection, so separate connection names would break transaction consistency even when they point to the same database.
+
+A subject model may use another connection. When it lives in a physically separate database, reverse relations and subject query scopes are unavailable because they compile joins to the permission tables on the subject connection.
+
 <a name="custom-pivot-models"></a>
 ### Custom Pivot Models
 
@@ -1320,6 +1331,15 @@ If you use a custom role or permission model that uses `SoftDeletes`, soft-delet
 
 Use hard deletes for roles and permissions when assignments should be removed permanently.
 
+<a name="deleting-models"></a>
+### Deleting Models
+
+When you hard delete a subject model that uses `HasRoles` or `HasPermissions`, the package removes its assignments after the model row is deleted successfully. When the subject and permission storage use the same connection, the row deletion and assignment cleanup run in one transaction. When they use different connection names, assignment cleanup runs only after the subject transaction commits. If another transaction is already open on the subject connection, the delete uses a savepoint so a same-connection cleanup failure rolls back only that delete operation.
+
+If your model defines its own `delete` method, it overrides the transaction supplied by the permission trait. Keep the model deletion and its events inside one transaction so the row and assignment cleanup cannot settle separately.
+
+The `deleteQuietly` method intentionally skips model events, including permission validation and cleanup. Subject assignment tables do not have a foreign key to the subject model, so a quiet delete may leave assignment rows behind. Use the normal `delete` method when those assignments should be removed.
+
 <a name="uuid-and-ulid-keys"></a>
 ## UUID and ULID Keys
 
@@ -1358,6 +1378,8 @@ Integer, UUID, and ULID Role, Permission, partition, and subject keys are suppor
 
 The permission registrar caches role and permission metadata using the configured cache store. Hot checks also use Hypervel's memo cache layer for the current coroutine, so repeated checks in one request or job avoid repeated cache-store reads.
 
+The cache store must keep cached values and refreshable atomic locks on the same backend. Stack and failover stores are not supported because their values and locks may use different backends. Hypervel validates this requirement on the first cache miss, while cache hits remain lock-free.
+
 By default, cache identities are application-wide. When [row partitioning](#row-partitioning) is enabled, every relevant shared and coroutine-local identity includes the current partition automatically. Cache namespacing alone is not row isolation; use `resolvePartitionUsing` so database queries, pivot writes, relations, commands, cache entries, and invalidation all share the same fail-closed boundary.
 
 Built-in mutation methods refresh the relevant cache automatically:
@@ -1379,7 +1401,7 @@ $user->syncPermissionEffects(
 );
 ```
 
-Exact subject assignment mutations forget that subject's affected assignment entry. Role or Permission catalog mutations invalidate only the affected partition and advance only that partition's assignment token. Raw or bulk writes bypass lifecycle invalidation and require an explicit reset in each affected established partition.
+Exact subject assignment mutations forget that subject's affected assignment entry. Replacing every subject assigned to a Role or Permission through `syncModels` advances the active partition's assignment token because a concurrent assignment cannot be enumerated safely across every supported database. Role or Permission catalog mutations invalidate only the affected partition's catalog. Hard or force deletion of a Role or Permission, and an explicit cache reset, also advance only that partition's assignment token. Raw or bulk writes bypass lifecycle invalidation and require an explicit reset in each affected established partition.
 
 You may clear cached permission data with the command:
 
@@ -1472,7 +1494,7 @@ Prefer policies and Gate checks when authorization depends on both the user and 
 
 Permission checks use cached role and permission data after the first lookup. Model role assignments and direct permission assignments have their own cache keys. Those keys include the model type, model key, active partition when enabled, active team when team-scoped, and the partition-specific assignment token.
 
-Warm authorization checks execute no database queries. A cold catalog uses three queries. Enabling row partitioning does not add queries: it adds one bound, indexed predicate to existing SQL and one value to pivot inserts. The partition resolver is an in-memory Context lookup. Exact subject mutations forget exact cache identities, while catalog-wide changes advance only the affected partition's assignment token so older entries expire naturally through the configured TTL.
+Warm authorization checks execute no database queries. A cold catalog uses three queries. Enabling row partitioning does not add queries: it adds one bound, indexed predicate to existing SQL and one value to pivot inserts. The partition resolver is an in-memory Context lookup. Exact subject mutations forget exact cache identities. Catalog changes invalidate only the affected catalog, while bulk reverse synchronization, hard or force deletion, and explicit cache resets advance the affected partition's assignment token so older entries expire naturally through the configured TTL.
 
 Saved permission replacements perform one additional relationship query only when assignment events are enabled and a listener is registered for `PermissionDetachedEvent`. When a custom pivot is configured, methods that return Permission models load the relationship once for the model in the current coroutine and reuse it on later calls. Authorization and permission-name checks remain query-free after the permission cache is warm.
 
@@ -1507,12 +1529,14 @@ $exception->getRequiredRoles();
 $exception->getRequiredPermissions();
 ```
 
-Partition registration and isolation failures use focused exceptions:
+Configuration and context failures use focused exceptions:
 
+- `PermissionConnectionMismatch` when a Role or Permission model write uses a different connection name from the configured Permission model;
 - `PermissionPartitionAlreadyConfigured` when registration is repeated or occurs after registrar initialization;
 - `PermissionPartitionNotResolved` when enabled partition context is missing;
 - `PermissionPartitionViolation` when a model or pivot conflicts with its captured partition, attempts to change an immutable partition, or lacks a valid persisted partition value;
-- `PermissionPartitionModelNotSupported` when partition mode is configured with a Role or Permission model that does not extend the package base.
+- `PermissionPartitionModelNotSupported` when partition mode is configured with a Role or Permission model that does not extend the package base;
+- `TeamNotSelected` when teams are enabled and a write is attempted without a selected current team.
 
 <a name="differences-from-spatie-laravel-permission"></a>
 ## Differences From Spatie Laravel Permission
