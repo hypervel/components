@@ -109,19 +109,27 @@ private function transformFallbackAnswer(Prompt $prompt, mixed $answer): mixed
     return $prompt->transform === null ? $answer : ($prompt->transform)($answer);
 }
 
-private function validateFallbackPrompt(Prompt $prompt, mixed $value): mixed
+private function validateFallbackPrompt(Prompt $prompt, mixed $value): ?string
 {
     $intrinsicError = $prompt->validateIntrinsic($value);
 
-    return is_string($intrinsicError) && $intrinsicError !== ''
-        ? $intrinsicError
-        : (is_callable($prompt->validate)
-            ? ($prompt->validate)($value)
-            : $this->validatePrompt($value, $prompt->validate));
+    if (is_string($intrinsicError) && $intrinsicError !== '') {
+        return $intrinsicError;
+    }
+
+    $error = is_callable($prompt->validate)
+        ? ($prompt->validate)($value)
+        : $this->validatePrompt($value, $prompt->validate);
+
+    if (! is_string($error) && $error !== null) {
+        throw new RuntimeException('The validator must return a string or null.');
+    }
+
+    return $error;
 }
 ```
 
-Apply both helpers uniformly to all thirteen framework fallback registrations. The base intrinsic hook is free for other prompt types and avoids special-case drift when a second prompt gains intrinsic validation. Keep the helper return type `mixed`: `promptUntilValid()` rejects only a nonempty string, while an existing user validation closure may return any value. Narrowing the helper to `?string` would change the protected Laravel fallback seam. Do not route fallback validation through `Prompt::validateUsing()`; `promptUntilValid()` already reaches `validatePrompt()` and doing both would validate twice.
+Apply both helpers uniformly to all thirteen framework fallback registrations. The base intrinsic hook is free for other prompt types and avoids special-case drift when a second prompt gains intrinsic validation. The private validation adapter enforces the same `string|null` result contract and exception message as interactive Prompt validation. Keep the protected Laravel-compatible `promptUntilValid()` signature and its mixed callback contract unchanged; do not route fallback validation through `Prompt::validateUsing()`, because `promptUntilValid()` already reaches `validatePrompt()` and doing both would validate twice.
 
 Change the required check to `$required !== false` and mirror `Prompt::isInvalidWhenRequired()`'s empty set: `''`, `[]`, `false`, and `null`. Use a custom required message only when the configured string is nonempty, matching interactive behavior; `required: ''` reports `Required.`, while `required: '0'` reports `0`. Keep a concise comment linking the two manually synchronized rules. `SelectPrompt` remains unaffected because its framework fallback passes `false` for required.
 
@@ -135,6 +143,7 @@ Tests must prove:
 - interactive framework array rules receive the transformed candidate rather than the raw value returned by the Prompt;
 - all framework fallbacks use intrinsic-before-caller validation without double-running the framework validator;
 - closure and array rules retain their existing dispatch;
+- callable fallback validators returning `false`, `true`, an integer, or an array throw the same contract exception as interactive validation;
 - `required: ''` and `required: '0'` still mean required, and `null` is rejected through the protected fallback seam;
 - zero defaults survive all five affected fallback readers;
 - second use of an input Prompt fails immediately even when the first use returned early or threw, while repeatable display components retain their override behavior.
@@ -377,6 +386,7 @@ Files:
 - `src/prompts/src/Task.php`
 - `src/prompts/composer.json`
 - `tests/Prompts/{Spinner,SpinnerNonCoroutine,Task,CoroutineCreateFailure}Test.php`
+- `tests/Prompts/CoroutineSafetyTest.php`
 
 The animation owner contains exactly:
 
@@ -393,6 +403,10 @@ Spinner and coroutine Task must stop/join before final erase, final render, or t
 Declare `hypervel/engine` directly in the Prompts split package because source imports `Channel`; do not rely on `hypervel/coroutine`'s transitive dependency. The root monorepo already directly requires `hypervel/engine`, so its dependency list needs no change.
 
 Tests suspend an in-flight render and prove settlement waits for it, cover immediate and normal completion, callback failure, animation-render failure, coroutine-creation failure, cursor restoration, absence of late frames, and unchanged non-coroutine Spinner behavior. Also cover an animation render dying before settlement: the stop push must not block, and a `false` join result must not obscure the captured render failure or become a new failure by itself.
+
+Fixture-only animation release waits use a checked five-second deadlock bound, not a production timing expectation. A missing release throws from the fixture so `PromptAnimation::stop()` can join and preserve the primary operation failure instead of letting Swoole unwind a parked test coroutine as a false pass. Production settlement remains unbounded because no render may outlive it.
+
+Rewrite `CoroutineSafetyTest` child execution through keyed `parallel()` calls so child exceptions are captured and all PHPUnit assertions remain in the parent. Keep one capacity-one, `true`-only ordering barrier in each of the five two-coroutine isolation tests: callback A must read only after callback B has written, or process-global leakage can pass undetected. Wait through one private helper with the same checked five-second deadlock bound. The bound is required because `Parallel::wait()` itself waits indefinitely for every callback; `parallel()` alone cannot recover a callback parked on an unbounded barrier. Remove result channels and raw `go()` orchestration. The child-to-parent and Task sublabel tests return observations directly from `parallel()`, while the additive fallback test remains behaviorally unchanged. Add `: void` to every currently untyped test method in the edited file.
 
 ### 6. Keep process signals out of coroutine Progress
 
@@ -520,7 +534,7 @@ Files:
 Documentation rules:
 
 - Use Laravel prose in `src/docs/prompts.md`.
-- Keep behavioral documentation proportional: Number is an integer prompt, valid defaults may be integers, transforms precede validation, custom fallback implementations can call `validateIntrinsic()`, and Task partial output retains its public semantics. Update the custom fallback example's truthy default/required checks so the documentation does not retain the same `"0"` bug fixed in source. Guard custom validation with `is_callable()` before invocation and continue to caller validation when `validateIntrinsic()` returns either `null` or `''`, matching source semantics.
+- Keep behavioral documentation proportional: Number is an integer prompt, valid defaults may be integers, transforms precede validation, custom fallback implementations can call `validateIntrinsic()`, and Task partial output retains its public semantics. Update the custom fallback example's truthy default/required checks so the documentation does not retain the same `"0"` bug fixed in source. Guard custom validation with `is_callable()` before invocation, continue to caller validation when `validateIntrinsic()` returns either `null` or `''`, and reject non-string/non-null validator results with the same exception as interactive validation.
 - Do not document binary framing, caches, channels, benchmark internals, or bug history in user docs.
 - Add only the three deliberate incompatible protected-API differences to README `Differences From Laravel`: Logger's `prefix()` is absent because binary framing requires subclasses to override `write()` rather than emit text prefixes; NumberPrompt's `wrapValidation()` is replaced by `validateIntrinsic()` because validation is centralized in the base pipeline; and DataTableRenderer's fused `computeColumnWidths()` is replaced by prompt-owned `naturalColumnMetrics()` plus renderer-owned `fitColumnWidths()` because those values have different invalidation keys. `validateIntrinsic()` is otherwise an additive extension hook and belongs in the canonical user documentation. Current upstream has no matching test for the removed Logger or Number method; do not invent `REMOVED:` test comments.
 - Do not add these fixes to `src/docs/porting-from-laravel.md`; they do not change normal application/package porting decisions.
