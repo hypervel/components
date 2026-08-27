@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Traits;
 
+use Hypervel\Permission\Models\Permission as BasePermission;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\DB;
@@ -29,6 +30,31 @@ class HasPermissionsWithCustomModelsTest extends HasPermissionsTest
     public function testItCanUseCustomModelPermission(): void
     {
         $this->assertSame(Permission::class, $this->testUserPermission::class);
+    }
+
+    public function testBasePermissionRequestsReuseTheConfiguredCustomCatalogAndPrimaryKey(): void
+    {
+        $registrar = app(PermissionRegistrar::class);
+        $registrar->getPermissions();
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $indexed = $registrar->getPermissions(
+            ['id' => $this->testUserPermission->getKey()],
+            true,
+            BasePermission::class,
+        )->sole();
+        $fallback = $registrar->getPermissions(
+            ['id' => $this->testUserPermission->getKey(), 'name' => $this->testUserPermission->name],
+            true,
+            BasePermission::class,
+        )->sole();
+        $found = BasePermission::findById($this->testUserPermission->getKey());
+
+        $this->assertInstanceOf(Permission::class, $indexed);
+        $this->assertTrue($indexed->is($fallback));
+        $this->assertTrue($indexed->is($found));
+        $this->assertSame([], DB::getQueryLog());
     }
 
     public function testFindOrCreateRestoresSoftDeletedPermission(): void
@@ -108,6 +134,8 @@ class HasPermissionsWithCustomModelsTest extends HasPermissionsTest
     public function testItDoesNotDetachUsersWhenSoftDeleting(): void
     {
         $this->testUser->givePermissionTo($this->testUserPermission);
+        $registrar = app(PermissionRegistrar::class);
+        $token = $registrar->modelAssignmentCacheToken();
 
         DB::enableQueryLog();
         $this->testUserPermission->delete();
@@ -123,6 +151,7 @@ class HasPermissionsWithCustomModelsTest extends HasPermissionsTest
                 ->where('permission_test_id', $permission->getKey())
                 ->count(),
         );
+        $this->assertSame($token, $registrar->modelAssignmentCacheToken());
     }
 
     public function testItDoesDetachRolesAndUsersWhenForceDeleting(): void
@@ -130,6 +159,8 @@ class HasPermissionsWithCustomModelsTest extends HasPermissionsTest
         $permissionId = $this->testUserPermission->getKey();
         $this->testUserRole->givePermissionTo($permissionId);
         $this->testUser->givePermissionTo($permissionId);
+        $registrar = app(PermissionRegistrar::class);
+        $token = $registrar->modelAssignmentCacheToken();
 
         DB::enableQueryLog();
         $this->testUserPermission->forceDelete();
@@ -150,6 +181,7 @@ class HasPermissionsWithCustomModelsTest extends HasPermissionsTest
                 ->where('permission_test_id', $permissionId)
                 ->count(),
         );
+        $this->assertNotSame($token, $registrar->modelAssignmentCacheToken());
     }
 
     public function testItTouchesWhenAssigningNewPermissions(): void

@@ -6,6 +6,7 @@ namespace Hypervel\Permission;
 
 use Composer\InstalledVersions;
 use Hypervel\Cache\CacheManager;
+use Hypervel\Cache\ModelCacheCoordinator;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
@@ -42,6 +43,7 @@ class PermissionServiceProvider extends ServiceProvider
             $app->make(CacheManager::class),
             $app->make('config'),
             $app,
+            $app->make(ModelCacheCoordinator::class),
         ));
 
         $this->registerModelBindings();

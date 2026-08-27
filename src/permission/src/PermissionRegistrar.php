@@ -6,6 +6,7 @@ namespace Hypervel\Permission;
 
 use Closure;
 use Hypervel\Cache\CacheManager;
+use Hypervel\Cache\ModelCacheCoordinator;
 use Hypervel\Container\Container as BaseContainer;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Auth\Access\Authorizable;
@@ -14,6 +15,7 @@ use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Database\Connection;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
@@ -21,12 +23,15 @@ use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Permission\Contracts\Permission as PermissionContract;
 use Hypervel\Permission\Contracts\PermissionsTeamResolver;
 use Hypervel\Permission\Contracts\Role as RoleContract;
+use Hypervel\Permission\Exceptions\PermissionConnectionMismatch;
 use Hypervel\Permission\Exceptions\PermissionPartitionAlreadyConfigured;
 use Hypervel\Permission\Exceptions\PermissionPartitionModelNotSupported;
 use Hypervel\Permission\Exceptions\PermissionPartitionNotResolved;
 use Hypervel\Permission\Exceptions\PermissionPartitionViolation;
+use Hypervel\Permission\Exceptions\TeamNotSelected;
 use Hypervel\Permission\Models\Permission;
 use Hypervel\Permission\Models\Role;
+use Hypervel\Permission\Support\PermissionCacheSettlement;
 use Hypervel\Permission\Support\PermissionPartition;
 use Hypervel\Permission\Support\PermissionRelationContext;
 use Hypervel\Support\Arr;
@@ -63,6 +68,14 @@ class PermissionRegistrar
     public const string WILDCARD_PERMISSION_INDEX_CONTEXT_KEY = '__permission.wildcard_index';
 
     public const string MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY = '__permission.model_via_role_permissions';
+
+    protected const string MODEL_DIRECT_PERMISSIONS_CONTEXT_KEY = '__permission.model_direct_permissions';
+
+    protected const string MODEL_CLASS_CATALOG_CONTEXT_KEY = '__permission.model_class_catalog';
+
+    protected const string DIRTY_CACHE_TOKENS_CONTEXT_KEY = '__permission.dirty_cache_tokens';
+
+    protected const string DIRTY_CACHE_VALUES_CONTEXT_KEY = '__permission.dirty_cache_values';
 
     protected static ?string $partitionColumn = null;
 
@@ -116,6 +129,7 @@ class PermissionRegistrar
         protected CacheManager $cacheManager,
         protected ConfigRepository $config,
         protected Container $app,
+        protected ModelCacheCoordinator $modelCacheCoordinator,
     ) {
         static::$initialized = true;
         $this->loadedRelationProvenance = new WeakMap;
@@ -233,6 +247,18 @@ class PermissionRegistrar
 
         if (! $partition->matches($actual)) {
             throw PermissionPartitionViolation::forModel($model, $partition, $actual);
+        }
+    }
+
+    /**
+     * Ensure a Role or Permission model uses the permission storage connection.
+     */
+    public function ensureModelUsesPermissionConnection(Model $model): void
+    {
+        $expectedConnection = $this->getPermissionConnection()->getName() ?? '';
+
+        if (($model->getConnection()->getName() ?? '') !== $expectedConnection) {
+            throw PermissionConnectionMismatch::forModel($model, $expectedConnection);
         }
     }
 
@@ -408,6 +434,213 @@ class PermissionRegistrar
     }
 
     /**
+     * Remember a shared value unless its transaction-local view is dirty.
+     *
+     * @param Closure(): mixed $read
+     */
+    private function rememberSharedOrDirtyValue(
+        string $cacheKey,
+        Closure $read,
+    ): mixed {
+        if (! $this->cacheKeyIsDirty($cacheKey)) {
+            return $this->modelCacheCoordinator->fill(
+                $this->cacheRepository(),
+                $cacheKey,
+                $this->cacheExpirationTime,
+                $read,
+            );
+        }
+
+        return $this->rememberDirtyCacheValue(
+            $cacheKey,
+            $this->permissionConnectionIdentity(),
+            $read,
+        );
+    }
+
+    /**
+     * Remember a transaction-local source value for an exact cache key.
+     *
+     * @param Closure(): mixed $read
+     */
+    private function rememberDirtyCacheValue(
+        string $cacheKey,
+        string $sourceIdentity,
+        Closure $read,
+    ): mixed {
+        $values = CoroutineContext::get(self::DIRTY_CACHE_VALUES_CONTEXT_KEY, []);
+
+        if (array_key_exists($sourceIdentity, $values[$cacheKey] ?? [])) {
+            return $values[$cacheKey][$sourceIdentity];
+        }
+
+        $value = $read();
+        $values[$cacheKey][$sourceIdentity] = $value;
+        CoroutineContext::set(self::DIRTY_CACHE_VALUES_CONTEXT_KEY, $values);
+
+        return $value;
+    }
+
+    /**
+     * Settle one exact cache invalidation on the mutation connection.
+     *
+     * @param Closure(): void $clearRuntime
+     */
+    private function settleCacheMutation(
+        string $cacheKey,
+        Closure $clearRuntime,
+    ): void {
+        $this->clearDirtyCacheValues($cacheKey);
+        $clearRuntime();
+
+        $this->afterCommitOnce(
+            $cacheKey,
+            function (PermissionCacheSettlement $settlement) use ($cacheKey, $clearRuntime): void {
+                $this->clearDirtyCacheValues($cacheKey);
+                $clearRuntime();
+                $this->modelCacheCoordinator->invalidate($this->cacheRepository(), $cacheKey);
+            },
+            function (PermissionCacheSettlement $settlement) use ($cacheKey, $clearRuntime): void {
+                $this->clearDirtyCacheValues($cacheKey);
+                $clearRuntime();
+            },
+        );
+    }
+
+    /**
+     * Run one settlement callback per key and mutation connection.
+     *
+     * @param Closure(PermissionCacheSettlement): void $commit
+     * @param Closure(PermissionCacheSettlement): void $rollBack
+     */
+    private function afterCommitOnce(
+        string $cacheKey,
+        Closure $commit,
+        Closure $rollBack,
+    ): PermissionCacheSettlement {
+        $connection = $this->getPermissionConnection();
+        $connectionName = $connection->getName() ?? '';
+        $settlement = new PermissionCacheSettlement($connectionName);
+
+        // Registration must happen before execution mode is known; RefreshDatabase makes raw depth unreliable.
+        $connection->afterCommitOrNow(function () use (
+            $cacheKey,
+            $commit,
+            $connectionName,
+            $settlement,
+        ): void {
+            $settlement->callbackRanImmediately = true;
+
+            if (! $settlement->deferred) {
+                $commit($settlement);
+
+                return;
+            }
+
+            if (! $settlement->ownsToken || ! $this->settlementTokenMatches($cacheKey, $connectionName, $settlement)) {
+                return;
+            }
+
+            $this->removeSettlementToken($cacheKey, $connectionName);
+            $commit($settlement);
+        });
+
+        if ($settlement->callbackRanImmediately) {
+            return $settlement;
+        }
+
+        $settlement->deferred = true;
+        $tokens = CoroutineContext::get(self::DIRTY_CACHE_TOKENS_CONTEXT_KEY, []);
+
+        if (($owner = $tokens[$cacheKey][$connectionName] ?? null) instanceof PermissionCacheSettlement) {
+            // Each nested record owns rollback cleanup without requiring a transaction-record identity map.
+            $connection->afterRollBack(fn () => $rollBack($owner));
+
+            return $owner;
+        }
+
+        // The context retains the object, so direct identity cannot be reused while this marker is live.
+        $tokens[$cacheKey][$connectionName] = $settlement;
+        CoroutineContext::set(self::DIRTY_CACHE_TOKENS_CONTEXT_KEY, $tokens);
+        $settlement->ownsToken = true;
+
+        // An abandoned transaction leaves this key safely dirty only until its coroutine ends.
+        $connection->afterRollBack(function () use (
+            $cacheKey,
+            $connectionName,
+            $settlement,
+            $rollBack,
+        ): void {
+            if (! $this->settlementTokenMatches($cacheKey, $connectionName, $settlement)) {
+                return;
+            }
+
+            $this->removeSettlementToken($cacheKey, $connectionName);
+            $rollBack($settlement);
+        });
+
+        return $settlement;
+    }
+
+    /**
+     * Determine whether an exact cache key has an unsettled mutation.
+     */
+    private function cacheKeyIsDirty(string $cacheKey): bool
+    {
+        $tokens = CoroutineContext::get(self::DIRTY_CACHE_TOKENS_CONTEXT_KEY, []);
+
+        return ($tokens[$cacheKey] ?? []) !== [];
+    }
+
+    /**
+     * Determine whether a mutation still owns its settlement token.
+     */
+    private function settlementTokenMatches(string $cacheKey, string $connection, object $owner): bool
+    {
+        $tokens = CoroutineContext::get(self::DIRTY_CACHE_TOKENS_CONTEXT_KEY, []);
+
+        return ($tokens[$cacheKey][$connection] ?? null) === $owner;
+    }
+
+    /**
+     * Get the settlement owned by a connection for an exact cache key.
+     */
+    private function settlementForConnection(
+        string $cacheKey,
+        string $connection,
+    ): ?PermissionCacheSettlement {
+        $tokens = CoroutineContext::get(self::DIRTY_CACHE_TOKENS_CONTEXT_KEY, []);
+        $settlement = $tokens[$cacheKey][$connection] ?? null;
+
+        return $settlement instanceof PermissionCacheSettlement ? $settlement : null;
+    }
+
+    /**
+     * Remove one mutation settlement token.
+     */
+    private function removeSettlementToken(string $cacheKey, string $connection): void
+    {
+        $tokens = CoroutineContext::get(self::DIRTY_CACHE_TOKENS_CONTEXT_KEY, []);
+        unset($tokens[$cacheKey][$connection]);
+
+        if (($tokens[$cacheKey] ?? []) === []) {
+            unset($tokens[$cacheKey]);
+        }
+
+        CoroutineContext::set(self::DIRTY_CACHE_TOKENS_CONTEXT_KEY, $tokens);
+    }
+
+    /**
+     * Clear transaction-local source values for an exact cache key.
+     */
+    private function clearDirtyCacheValues(string $cacheKey): void
+    {
+        $values = CoroutineContext::get(self::DIRTY_CACHE_VALUES_CONTEXT_KEY, []);
+        unset($values[$cacheKey]);
+        CoroutineContext::set(self::DIRTY_CACHE_VALUES_CONTEXT_KEY, $values);
+    }
+
+    /**
      * Set the current permissions team id.
      */
     public function setPermissionsTeamId(int|string|Model|null $id): void
@@ -421,6 +654,22 @@ class PermissionRegistrar
     public function getPermissionsTeamId(): int|string|null
     {
         return $this->teamResolver->getPermissionsTeamId();
+    }
+
+    /**
+     * Ensure a team-scoped mutation has a selected team.
+     */
+    public function ensureTeamIsSelectedForMutation(?PermissionRelationContext $context = null): void
+    {
+        if (! $this->teams || ($context !== null && ! $context->teamScoped)) {
+            return;
+        }
+
+        $team = $context === null ? $this->getPermissionsTeamId() : $context->team;
+
+        if ($team === null) {
+            throw TeamNotSelected::create();
+        }
     }
 
     /**
@@ -461,9 +710,52 @@ class PermissionRegistrar
         $this->clearPermissionRuntimeStateFor($partition);
         $this->bumpModelAssignmentCacheTokenFor($partition);
 
-        return $this->cacheRepository()->forget(
+        return $this->modelCacheCoordinator->invalidate(
+            $this->cacheRepository(),
             $this->partitionedCacheKey($this->cacheKey, $partition),
         );
+    }
+
+    /**
+     * Invalidate the permission catalog after a model mutation settles.
+     */
+    public function invalidatePermissionCatalogAfterMutation(
+        ?PermissionPartition $partition,
+    ): void {
+        $this->settleCacheMutation(
+            $this->partitionedCacheKey($this->cacheKey, $partition),
+            fn () => $this->clearPermissionRuntimeStateFor($partition),
+        );
+    }
+
+    /**
+     * Rotate the model assignment cache namespace after a model mutation settles.
+     */
+    public function rotateModelAssignmentCacheTokenAfterMutation(
+        ?PermissionPartition $partition,
+    ): void {
+        $partition = $this->resolvedPartitionArgument($partition);
+        $cacheKey = $this->partitionedCacheKey($this->modelCacheTokenKey, $partition);
+
+        $settlement = $this->afterCommitOnce(
+            $cacheKey,
+            function (PermissionCacheSettlement $settlement) use ($cacheKey): void {
+                $this->cacheRepository()->forever(
+                    $cacheKey,
+                    $this->newModelAssignmentCacheToken(),
+                );
+            },
+            function (PermissionCacheSettlement $settlement) use ($cacheKey): void {
+                // A surviving outer mutation needs a fresh namespace after this savepoint's view is discarded.
+                if ($this->settlementTokenMatches($cacheKey, $settlement->connectionName, $settlement)) {
+                    $settlement->provisionalToken = $this->newModelAssignmentCacheToken();
+                }
+            },
+        );
+
+        if ($settlement->deferred) {
+            $settlement->provisionalToken = $this->newModelAssignmentCacheToken();
+        }
     }
 
     /**
@@ -505,20 +797,26 @@ class PermissionRegistrar
     ): void {
         $cache = $this->cacheRepository();
 
-        $cache->forget($this->modelCacheKeyForIdentity(
-            $this->modelRolesCacheKeyPrefix,
-            $morphType,
-            $modelKey,
-            $partition,
-            $team,
-        ));
-        $cache->forget($this->modelCacheKeyForIdentity(
-            $this->modelPermissionsCacheKeyPrefix,
-            $morphType,
-            $modelKey,
-            $partition,
-            $team,
-        ));
+        $this->modelCacheCoordinator->invalidate(
+            $cache,
+            $this->modelCacheKeyForIdentity(
+                $this->modelRolesCacheKeyPrefix,
+                $morphType,
+                $modelKey,
+                $partition,
+                $team,
+            ),
+        );
+        $this->modelCacheCoordinator->invalidate(
+            $cache,
+            $this->modelCacheKeyForIdentity(
+                $this->modelPermissionsCacheKeyPrefix,
+                $morphType,
+                $modelKey,
+                $partition,
+                $team,
+            ),
+        );
 
         $runtimeKey = $this->modelRuntimeCacheKeyForIdentity(
             $morphType,
@@ -528,7 +826,53 @@ class PermissionRegistrar
         );
 
         $this->forgetRuntimeCacheItem(self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY, $runtimeKey);
+        $this->forgetRuntimeCacheItem(self::MODEL_DIRECT_PERMISSIONS_CONTEXT_KEY, $runtimeKey);
         $this->forgetRuntimeCacheItem(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, $runtimeKey);
+    }
+
+    /**
+     * Invalidate assignment caches after a model mutation settles.
+     */
+    public function invalidateModelAssignmentCacheAfterMutation(
+        Model $model,
+        ?PermissionPartition $partition,
+        int|string|null $team,
+    ): void {
+        $this->invalidateModelAssignmentCacheForIdentityAfterMutation(
+            $model->getMorphClass(),
+            (string) $model->getKey(),
+            $partition,
+            $team,
+        );
+    }
+
+    /**
+     * Invalidate assignment caches for an exact identity after a mutation settles.
+     */
+    public function invalidateModelAssignmentCacheForIdentityAfterMutation(
+        string $morphType,
+        int|string $modelKey,
+        ?PermissionPartition $partition,
+        int|string|null $team,
+    ): void {
+        $runtimeKey = $this->modelRuntimeCacheKeyForIdentity(
+            $morphType,
+            $modelKey,
+            $partition,
+            $team,
+        );
+        $clearRuntime = function () use ($runtimeKey): void {
+            $this->forgetRuntimeCacheItem(self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY, $runtimeKey);
+            $this->forgetRuntimeCacheItem(self::MODEL_DIRECT_PERMISSIONS_CONTEXT_KEY, $runtimeKey);
+            $this->forgetRuntimeCacheItem(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, $runtimeKey);
+        };
+
+        foreach ([$this->modelRolesCacheKeyPrefix, $this->modelPermissionsCacheKeyPrefix] as $prefix) {
+            $this->settleCacheMutation(
+                $this->modelCacheKeyForIdentity($prefix, $morphType, $modelKey, $partition, $team),
+                $clearRuntime,
+            );
+        }
     }
 
     /**
@@ -551,13 +895,16 @@ class PermissionRegistrar
         ?PermissionPartition $partition,
         int|string|null $team,
     ): void {
-        $this->cacheRepository()->forget($this->modelCacheKeyForIdentity(
-            $this->modelRolesCacheKeyPrefix,
-            $model->getMorphClass(),
-            (string) $model->getKey(),
-            $partition,
-            $team,
-        ));
+        $this->modelCacheCoordinator->invalidate(
+            $this->cacheRepository(),
+            $this->modelCacheKeyForIdentity(
+                $this->modelRolesCacheKeyPrefix,
+                $model->getMorphClass(),
+                (string) $model->getKey(),
+                $partition,
+                $team,
+            ),
+        );
 
         $runtimeKey = $this->modelRuntimeCacheKeyForIdentity(
             $model->getMorphClass(),
@@ -568,6 +915,53 @@ class PermissionRegistrar
 
         $this->forgetRuntimeCacheItem(self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY, $runtimeKey);
         $this->forgetRuntimeCacheItem(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, $runtimeKey);
+    }
+
+    /**
+     * Invalidate a model's role cache after a mutation settles.
+     */
+    public function invalidateModelRoleCacheAfterMutation(
+        Model $model,
+        ?PermissionPartition $partition,
+        int|string|null $team,
+    ): void {
+        $this->invalidateModelRoleCacheForIdentityAfterMutation(
+            $model->getMorphClass(),
+            (string) $model->getKey(),
+            $partition,
+            $team,
+        );
+    }
+
+    /**
+     * Invalidate an exact model identity's role cache after a mutation settles.
+     */
+    public function invalidateModelRoleCacheForIdentityAfterMutation(
+        string $morphType,
+        int|string $modelKey,
+        ?PermissionPartition $partition,
+        int|string|null $team,
+    ): void {
+        $runtimeKey = $this->modelRuntimeCacheKeyForIdentity(
+            $morphType,
+            $modelKey,
+            $partition,
+            $team,
+        );
+
+        $this->settleCacheMutation(
+            $this->modelCacheKeyForIdentity(
+                $this->modelRolesCacheKeyPrefix,
+                $morphType,
+                $modelKey,
+                $partition,
+                $team,
+            ),
+            function () use ($runtimeKey): void {
+                $this->forgetRuntimeCacheItem(self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY, $runtimeKey);
+                $this->forgetRuntimeCacheItem(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, $runtimeKey);
+            },
+        );
     }
 
     /**
@@ -590,13 +984,16 @@ class PermissionRegistrar
         ?PermissionPartition $partition,
         int|string|null $team,
     ): void {
-        $this->cacheRepository()->forget($this->modelCacheKeyForIdentity(
-            $this->modelPermissionsCacheKeyPrefix,
-            $model->getMorphClass(),
-            (string) $model->getKey(),
-            $partition,
-            $team,
-        ));
+        $this->modelCacheCoordinator->invalidate(
+            $this->cacheRepository(),
+            $this->modelCacheKeyForIdentity(
+                $this->modelPermissionsCacheKeyPrefix,
+                $model->getMorphClass(),
+                (string) $model->getKey(),
+                $partition,
+                $team,
+            ),
+        );
 
         $runtimeKey = $this->modelRuntimeCacheKeyForIdentity(
             $model->getMorphClass(),
@@ -605,7 +1002,55 @@ class PermissionRegistrar
             $team,
         );
 
+        $this->forgetRuntimeCacheItem(self::MODEL_DIRECT_PERMISSIONS_CONTEXT_KEY, $runtimeKey);
         $this->forgetRuntimeCacheItem(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, $runtimeKey);
+    }
+
+    /**
+     * Invalidate a model's permission cache after a mutation settles.
+     */
+    public function invalidateModelPermissionCacheAfterMutation(
+        Model $model,
+        ?PermissionPartition $partition,
+        int|string|null $team,
+    ): void {
+        $this->invalidateModelPermissionCacheForIdentityAfterMutation(
+            $model->getMorphClass(),
+            (string) $model->getKey(),
+            $partition,
+            $team,
+        );
+    }
+
+    /**
+     * Invalidate an exact model identity's permission cache after a mutation settles.
+     */
+    public function invalidateModelPermissionCacheForIdentityAfterMutation(
+        string $morphType,
+        int|string $modelKey,
+        ?PermissionPartition $partition,
+        int|string|null $team,
+    ): void {
+        $runtimeKey = $this->modelRuntimeCacheKeyForIdentity(
+            $morphType,
+            $modelKey,
+            $partition,
+            $team,
+        );
+
+        $this->settleCacheMutation(
+            $this->modelCacheKeyForIdentity(
+                $this->modelPermissionsCacheKeyPrefix,
+                $morphType,
+                $modelKey,
+                $partition,
+                $team,
+            ),
+            function () use ($runtimeKey): void {
+                $this->forgetRuntimeCacheItem(self::MODEL_DIRECT_PERMISSIONS_CONTEXT_KEY, $runtimeKey);
+                $this->forgetRuntimeCacheItem(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, $runtimeKey);
+            },
+        );
     }
 
     /**
@@ -640,6 +1085,26 @@ class PermissionRegistrar
     }
 
     /**
+     * Remember a model's hydrated direct permissions.
+     *
+     * @param Closure(): BaseCollection $callback
+     */
+    public function rememberModelDirectPermissions(Model $model, Closure $callback): BaseCollection
+    {
+        $key = $this->modelRuntimeCacheKey($model);
+        $items = CoroutineContext::get(self::MODEL_DIRECT_PERMISSIONS_CONTEXT_KEY, []);
+
+        if (isset($items[$key]) && $items[$key] instanceof BaseCollection) {
+            return $items[$key];
+        }
+
+        $items[$key] = $callback();
+        CoroutineContext::set(self::MODEL_DIRECT_PERMISSIONS_CONTEXT_KEY, $items);
+
+        return $items[$key];
+    }
+
+    /**
      * Remember a model's role assignment ids.
      *
      * @param Closure(): array<int, array<string, mixed>> $callback
@@ -647,9 +1112,11 @@ class PermissionRegistrar
      */
     public function rememberModelRoleAssignments(Model $model, Closure $callback): array
     {
-        return $this->cacheRepository()->remember(
-            $this->modelCacheKey($this->modelRolesCacheKeyPrefix, $model),
-            $this->cacheExpirationTime,
+        $cacheKey = $this->modelCacheKey($this->modelRolesCacheKeyPrefix, $model);
+
+        /** @var array<int, array<string, mixed>> */
+        return $this->rememberSharedOrDirtyValue(
+            $cacheKey,
             $callback,
         );
     }
@@ -662,9 +1129,11 @@ class PermissionRegistrar
      */
     public function rememberModelPermissionAssignments(Model $model, Closure $callback): array
     {
-        return $this->cacheRepository()->remember(
-            $this->modelCacheKey($this->modelPermissionsCacheKeyPrefix, $model),
-            $this->cacheExpirationTime,
+        $cacheKey = $this->modelCacheKey($this->modelPermissionsCacheKeyPrefix, $model);
+
+        /** @var array<int, array{is_denied: bool, ...<string, int|string>}> */
+        return $this->rememberSharedOrDirtyValue(
+            $cacheKey,
             $callback,
         );
     }
@@ -739,9 +1208,25 @@ class PermissionRegistrar
     public function modelAssignmentCacheToken(?PermissionPartition $partition = null): string
     {
         $partition = $this->resolvedPartitionArgument($partition);
+        $cacheKey = $this->partitionedCacheKey($this->modelCacheTokenKey, $partition);
+
+        if ($this->cacheKeyIsDirty($cacheKey)) {
+            $settlement = $this->settlementForConnection(
+                $cacheKey,
+                $this->permissionConnectionIdentity(),
+            );
+
+            if ($settlement !== null) {
+                if ($settlement->provisionalToken === null) {
+                    throw new LogicException('The provisional permission cache token must be a string.');
+                }
+
+                return $settlement->provisionalToken;
+            }
+        }
 
         return $this->cacheRepository()->rememberForever(
-            $this->partitionedCacheKey($this->modelCacheTokenKey, $partition),
+            $cacheKey,
             fn (): string => $this->newModelAssignmentCacheToken(),
         );
     }
@@ -882,6 +1367,8 @@ class PermissionRegistrar
         CoroutineContext::forget(self::PERMISSION_CATALOG_CONTEXT_KEY);
         CoroutineContext::forget(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY);
         CoroutineContext::forget(self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY);
+        CoroutineContext::forget(self::MODEL_DIRECT_PERMISSIONS_CONTEXT_KEY);
+        CoroutineContext::forget(self::MODEL_CLASS_CATALOG_CONTEXT_KEY);
     }
 
     /**
@@ -905,6 +1392,14 @@ class PermissionRegistrar
         );
         $this->forgetRuntimeCacheItemsForPartition(
             self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY,
+            $partition,
+        );
+        $this->forgetRuntimeCacheItemsForPartition(
+            self::MODEL_DIRECT_PERMISSIONS_CONTEXT_KEY,
+            $partition,
+        );
+        $this->forgetRuntimeCacheItemsForPartition(
+            self::MODEL_CLASS_CATALOG_CONTEXT_KEY,
             $partition,
         );
     }
@@ -1024,10 +1519,9 @@ class PermissionRegistrar
         }
 
         /** @var array{permissions: array<int, array<string, mixed>>, roles: array<int, array<string, mixed>>, hasDeniedRolePermissions: bool} $payload */
-        $payload = $this->cacheRepository()->remember(
+        $payload = $this->rememberSharedOrDirtyValue(
             $contextKey,
-            $this->cacheExpirationTime,
-            fn () => $this->getSerializedPermissionsForCache(),
+            fn (): array => $this->getSerializedPermissionsForCache(),
         );
 
         $roles = $this->getHydratedRoleCollection($payload['roles']);
@@ -1058,15 +1552,29 @@ class PermissionRegistrar
      */
     public function getPermissions(array $params = [], bool $onlyOne = false, ?string $permissionClass = null): Collection
     {
-        if ($permissionClass !== null && $permissionClass !== $this->permissionClass) {
-            $this->validatePermissionClass($permissionClass);
+        $permissionClass ??= $this->permissionClass;
 
+        if ($permissionClass !== $this->permissionClass) {
+            $this->validatePermissionClass($permissionClass);
+        }
+
+        if (! is_a($this->permissionClass, $permissionClass, true)) {
             return $this->filterModels(
-                $this->getPermissionsWithRoles($permissionClass),
+                $this->modelClassCatalog(
+                    'permission',
+                    $permissionClass,
+                    fn (): Collection => $this->getPermissionsWithRoles($permissionClass),
+                ),
                 $params,
                 $onlyOne,
             );
         }
+
+        $params = $this->normalizeConfiguredModelKeyFilter(
+            $params,
+            $permissionClass,
+            $this->permissionClass,
+        );
 
         $indexed = $this->indexedModels($params, $onlyOne, 'permission');
 
@@ -1084,15 +1592,29 @@ class PermissionRegistrar
      */
     public function getRoles(array $params = [], bool $onlyOne = false, ?string $roleClass = null): Collection
     {
-        if ($roleClass !== null && $roleClass !== $this->roleClass) {
-            $this->validateRoleClass($roleClass);
+        $roleClass ??= $this->roleClass;
 
+        if ($roleClass !== $this->roleClass) {
+            $this->validateRoleClass($roleClass);
+        }
+
+        if (! is_a($this->roleClass, $roleClass, true)) {
             return $this->filterModels(
-                $roleClass::select()->get(),
+                $this->teamScopedRoles($this->modelClassCatalog(
+                    'role',
+                    $roleClass,
+                    fn (): Collection => $roleClass::select()->get(),
+                )),
                 $params,
                 $onlyOne,
             );
         }
+
+        $params = $this->normalizeConfiguredModelKeyFilter(
+            $params,
+            $roleClass,
+            $this->roleClass,
+        );
 
         $indexed = $this->indexedModels($params, $onlyOne, 'role');
 
@@ -1100,7 +1622,73 @@ class PermissionRegistrar
             return $indexed;
         }
 
-        return $this->filterModels($this->permissionCatalog()['roles'], $params, $onlyOne);
+        return $this->filterModels(
+            $this->teamScopedRoles($this->permissionCatalog()['roles']),
+            $params,
+            $onlyOne,
+        );
+    }
+
+    /**
+     * Get a class-specific catalog for the current coroutine and partition.
+     *
+     * @param Closure(): Collection $load
+     */
+    private function modelClassCatalog(string $type, string $modelClass, Closure $load): Collection
+    {
+        $key = implode(':', [
+            $this->partitionRuntimePrefix($this->resolvePartition()),
+            $type,
+            PermissionPartition::encodeCacheSegment($modelClass),
+        ]);
+        $catalogs = CoroutineContext::get(self::MODEL_CLASS_CATALOG_CONTEXT_KEY, []);
+
+        if (isset($catalogs[$key]) && $catalogs[$key] instanceof Collection) {
+            return $catalogs[$key];
+        }
+
+        $catalogs[$key] = $load();
+        CoroutineContext::set(self::MODEL_CLASS_CATALOG_CONTEXT_KEY, $catalogs);
+
+        return $catalogs[$key];
+    }
+
+    /**
+     * Normalize a requested base model's primary-key filter to the configured model.
+     *
+     * @param array<string, mixed> $params
+     * @param class-string $requestedClass
+     * @param class-string $configuredClass
+     * @return array<string, mixed>
+     */
+    private function normalizeConfiguredModelKeyFilter(
+        array $params,
+        string $requestedClass,
+        string $configuredClass,
+    ): array {
+        $requestedKey = Guard::getModelKeyName($requestedClass);
+        $configuredKey = Guard::getModelKeyName($configuredClass);
+
+        if ($requestedKey === $configuredKey || ! array_key_exists($requestedKey, $params)) {
+            return $params;
+        }
+
+        $params[$configuredKey] = $params[$requestedKey];
+        unset($params[$requestedKey]);
+
+        return $params;
+    }
+
+    /**
+     * Filter roles to the current team boundary.
+     */
+    private function teamScopedRoles(Collection $roles): Collection
+    {
+        if (! $this->teams) {
+            return $roles;
+        }
+
+        return $roles->filter(fn (Model $role): bool => $this->roleMatchesCurrentTeam($role));
     }
 
     /**
@@ -1258,6 +1846,40 @@ class PermissionRegistrar
     }
 
     /**
+     * Get the connection that owns permission storage.
+     */
+    public function getPermissionConnection(): Connection
+    {
+        return (new $this->permissionClass)->getConnection();
+    }
+
+    /**
+     * Get the normalized identity of the permission storage connection.
+     */
+    private function permissionConnectionIdentity(): string
+    {
+        return $this->getPermissionConnection()->getName() ?? '';
+    }
+
+    /**
+     * Run a permission-storage mutation in step with its subject transaction.
+     *
+     * @param Closure(): void $mutation
+     */
+    public function runPermissionStorageMutationAfterSubjectCommit(
+        Connection $subjectConnection,
+        Closure $mutation,
+    ): void {
+        if (($subjectConnection->getName() ?? '') === ($this->getPermissionConnection()->getName() ?? '')) {
+            $mutation();
+
+            return;
+        }
+
+        $subjectConnection->afterCommitOrNow($mutation);
+    }
+
+    /**
      * Get the current global permission cache key.
      */
     public function getCacheKey(): string
@@ -1389,7 +2011,7 @@ class PermissionRegistrar
     }
 
     /**
-     * Get the cache repository.
+     * Get the unmemoized repository for observing committed shared cache state.
      */
     public function getCacheRepository(): Repository
     {

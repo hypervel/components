@@ -16,10 +16,29 @@ trait RefreshesPermissionCache
      */
     public static function bootRefreshesPermissionCache(): void
     {
+        static::saving(function (Model $model): void {
+            Container::getInstance()
+                ->make(PermissionRegistrar::class)
+                ->ensureModelUsesPermissionConnection($model);
+        });
+
+        static::deleting(function (Model $model): void {
+            $registrar = Container::getInstance()->make(PermissionRegistrar::class);
+            $registrar->ensureModelUsesPermissionConnection($model);
+            $partition = static::permissionPartitionForLifecycle($model, $registrar);
+
+            // Catalog invalidation includes transactional soft deletes; assignment rotation is hard-delete only.
+            $registrar->invalidatePermissionCatalogAfterMutation($partition);
+
+            if (static::shouldDeletePermissionAssignments($model)) {
+                $registrar->rotateModelAssignmentCacheTokenAfterMutation($partition);
+            }
+        });
+
         static::saved(function (Model $model): void {
             $registrar = Container::getInstance()->make(PermissionRegistrar::class);
 
-            $registrar->forgetCachedPermissionsFor(
+            $registrar->invalidatePermissionCatalogAfterMutation(
                 static::permissionPartitionForLifecycle($model, $registrar),
             );
         });
@@ -27,7 +46,7 @@ trait RefreshesPermissionCache
         static::deleted(function (Model $model): void {
             $registrar = Container::getInstance()->make(PermissionRegistrar::class);
 
-            $registrar->forgetCachedPermissionsFor(
+            $registrar->invalidatePermissionCatalogAfterMutation(
                 static::permissionPartitionForLifecycle($model, $registrar),
             );
         });
