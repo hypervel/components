@@ -55,7 +55,7 @@ Record the boot-baseline/execution-override semantic shared by Notification, Num
 - Hypervel worker singletons retain only boot-time immutable/baseline state. Request, job, command, and test overrides belong in CoroutineContext and are cleaned at execution boundaries. This is an architectural adaptation, not a port of Laravel's process-per-request mutable-static assumptions.
 - Framework-owned pooled database/auth objects retain resolvers and names, never borrowed connections. The Laravel-compatible direct ConnectionInterface constructor form remains available for non-pooled callers and test doubles.
 - Most fixes remove work, bound memory by correct lifetime, preserve a fast path, or add only constant-time state checks.
-- Finding 43 coordinates only cache misses and mutations; its cache-hit path remains lock-free. Findings 78-79 replace an unverifiable freshness shortcut with one authoritative row read per existing node at a structural mutation boundary; ordinary tree reads remain unchanged. Reverb recovery is an operator command with zero steady-state cost. Queue timeout behavior remains unchanged because the proposed drain would weaken its safety contract.
+- Findings 78-79 replace an unverifiable freshness shortcut with one authoritative row read per existing node at a structural mutation boundary; ordinary tree reads remain unchanged. Reverb recovery is an operator command with zero steady-state cost. Queue timeout behavior remains unchanged because the proposed drain would weaken its safety contract.
 - No fix may add periodic polling, arbitrary eviction thresholds, a distributed lock on every request/cache hit, metadata shortcuts with delayed correctness, or a new abstraction whose only purpose is an unsupported failure mode.
 - Performance and scalability claims must be measured during implementation for the affected hot paths. A fix does not land if its package benchmark/load test shows a material regression that is not inherent to the required correctness guarantee; revise the design instead.
 - Load tests must cover high-cardinality input and long worker lifetimes, not only request latency: retained memory must converge to the natural live/configured keyspace, and temporary request/job state must disappear at execution teardown.
@@ -104,7 +104,7 @@ Each row is an implementation requirement. Test names are descriptive; use the r
 | 34 | Port current Laravel's array-capable multibyte Str::substrReplace implementation, including array offset/length/replacement behavior and key preservation. Correct the scalar negative-length calculation as part of the port: the current Str::substrReplace('Hello', 'X', 2, -1) produces HeXello instead of HeXo. | Scalar parity including the explicit negative-length example; arrays with scalar and array replacements; offset/length arrays; associative keys; negative offsets and lengths; multibyte strings; mismatched replacement lengths. |
 | 35 | For built-in UUID/ULID codecs, identify binary values by the unambiguous 16-byte storage length and validate textual 36/26-byte forms separately. Leave the generic public BinaryCodec heuristic available to custom codecs. Runtime sampling confirmed that roughly one in sixteen thousand random v4-shaped UUID payloads can be valid UTF-8 and NUL-free, so this is ordinary data loss at scale rather than a purely theoretical collision. | Deterministic valid-UTF-8, NUL-free 16-byte UUID/ULID payloads round-trip through casts and database bindings; a fixed previously misclassified v4 payload; textual forms; invalid lengths; custom codec behavior unchanged. |
 
-### Scout, permission, Sentry, Telescope, and foundation
+### Scout, Sentry, Telescope, and foundation
 
 | ID | Proposed implementation | Required tests |
 |---:|---|---|
@@ -115,11 +115,6 @@ Each row is an implementation requirement. Test names are descriptive; use the r
 | 40 | Remove the silent Typesense per-page clamp. Validate the documented Typesense maximum before sending and throw a descriptive InvalidArgumentException when callers request more than the engine supports, so paginator metadata can never disagree with the query. | Exact-limit pagination; over-limit failure before network call; page/current/total metadata for valid values; simple and length-aware paths. |
 | 41 | Restrict the primary-key integer fast path to models whose Scout key name equals their Eloquent primary key name. Within that path, use the primary key name, type, and qualified column consistently, and validate decimal strings against PHP_INT_MAX without casting first. Models with a custom Scout key use the normal search path; there is no getScoutKeyType API from which to infer a safe custom-key optimization. The audit's claim that upstream consistently used getKeyName was wrong, but the mixed identities are still semantically broken. | PostgreSQL overflow string produces no integer-cast query error; max boundary; ordinary integer-primary-key fast path; custom Scout key name bypasses the primary-key optimization; string/UUID primary key; result identity mapping. |
 | 42 | Assign the callback-transformed raw result before mapping models and before computing total/hasMore. Make rawResult, models, and paginator metadata describe the same payload. | Callback changes hits and count; length-aware and simple pagination; raw result exposure and mapped models agree; unchanged callback path. |
-| 43 | Centralize permission cache settlement on the mutation's actual connection. Outside a transaction, invalidate immediately. Inside one, clear current execution hydration, mark affected catalog/model keys dirty so reads bypass shared and execution memos, and invalidate shared keys only after commit; rollback only clears dirty/runtime state. Serialize assignment-cache misses and their exact committed invalidations with per-key locks; hits remain lock-free. Keep nested rollback bookkeeping scoped to the actual transaction record. Do not replace exact invalidation with the existing partition-global assignment token: shared keys already include that token, and bumping it per model mutation would invalidate every model in the partition and orphan old entries until TTL. Validate lock support only when this cache is enabled. | The mutating transaction sees its own grant/revoke without publishing it; concurrent executions keep pre-commit state; commit invalidates even after a forced stale re-prime; rollback never publishes uncommitted rows and restores fresh reads; fill-vs-commit barriers; nested savepoint rollback; catalog, role, permission, team, partition, and pivot paths; cache hits perform no lock or new remote operation; cold-fill lock cost is measured. |
-| 44 | Add an execution-local memo for hydrated direct permissions, parallel to the via-role memo. Memoize only non-loaded hydration and clear it from every model permission/assignment invalidation path. | One hasPermissionTo call hydrates direct permissions once; repeated calls query once; invalidation, team change, partition change, and sibling execution isolation. |
-| 45 | Apply role team filtering in the shared fallback/filter path so every catalog bypass retains the current-team boundary, including both a requested role-class mismatch and the complex-parameter/catalog fallback. Include only global roles and roles for the current team. | Same role name on another team never matches through either fallback; class-mismatch and complex-parameter cases; current-team and global roles match; null-team behavior follows the explicit policy from 47. |
-| 46 | Use the cached catalog when the configured role class is compatible with the requested base class. For a genuinely incompatible valid class, memoize one class/partition catalog per execution and then apply current-team filtering. | Compatible subclass uses the shared cache; incompatible class makes one query per execution; invalidation clears it; team and cache partition separation. |
-| 47 | Make team-scoped writes fail early with a named package exception when no team is selected, matching the shipped non-nullable assignment pivots. Keep null-team reads fail-closed as an empty relation so checks cannot leak assignments from another team; document that nullable team IDs apply to global Role records, not subject-assignment pivots. | assignRole, givePermissionTo, sync operations, queued model writes, and direct pivot paths with no team; configured team success; null-team reads return no subject assignments and never broaden the query; exception and docs name the missing team context. |
 | 48 | Port both Sentry Monolog handlers fully to Monolog 3 LogRecord APIs. Use isHandling and Level comparisons; create modified records with LogRecord::with; make doWrite consume LogRecord and strip exception data from a local context copy. | Single and batch records; highest handled level; context enrichment survives; exception context is handled once; below-threshold records drop; immutable original record remains valid. |
 | 49 | Give Hub an explicit mutable baseline Scope and consult `Application::isBooted()` through the Application contract. `configureScope` before boot completes mutates the baseline; after boot during an execution it mutates the cloned context scope. Do not add a Sentry-specific boot predicate or infer lifecycle from coroutine presence. | AppServiceProvider/Sentry provider boot tags and user data appear in later requests; sibling request mutations are isolated; nested push/pop scopes; queue/console/HTTP execution entry; flush resets baseline and context; shared porting-guide entry documents the semantic. |
 | 50 | Null-guard internal trace frames in sentry:test before reading filename or line. | Trace containing internal/null-file frame; ordinary frame formatting; command still sends the diagnostic event. |
@@ -228,15 +223,14 @@ Use package-sized commits that remain reviewable and bisectable. The following o
 
 1. Worker-default and execution-state primitives: 25, 33, 49, 103.
 2. Pool/resource ownership: 10-12, 22, 27-29, 81, 155.
-3. Transaction/cache consistency: 43-47, using their package-specific lock and publication designs.
-4. Nested-set authoritative mutation preparation and relation guards: 78-80.
-5. Mail and data representation: 21, 30-35, 82, 94-98.
-6. Search and request pipelines: 36-42, 71-77, 99-102.
-7. Observability: 48-55.
-8. Reverb recovery command and runbook: 112, with no runtime state-model change.
-9. Queue cleanup: only the two valid parts of 154; 153 deliberately stays unchanged.
-10. Vonage notification channel port followed by Horizon wiring: 160.
-11. Remaining package-local correctness work by package, followed by performance/docs/cleanup.
+3. Nested-set authoritative mutation preparation and relation guards: 78-80.
+4. Mail and data representation: 21, 30-35, 82, 94-98.
+5. Search and request pipelines: 36-42, 71-77, 99-102.
+6. Observability: 48-55.
+7. Reverb recovery command and runbook: 112, with no runtime state-model change.
+8. Queue cleanup: only the two valid parts of 154; 153 deliberately stays unchanged.
+9. Vonage notification channel port followed by Horizon wiring: 160.
+10. Remaining package-local correctness work by package, followed by performance/docs/cleanup.
 
 Do not combine unrelated packages merely because their findings have the same severity.
 
@@ -247,7 +241,7 @@ For every changed test file:
 1. From the components repository root, run that exact test file immediately with `./vendor/bin/phpunit --no-progress path/to/Test.php`.
 2. For deterministic concurrency tests, run the exact file repeatedly and under the parallel runner where supported.
 3. Run the complete affected package test directory after its individual files pass.
-4. Run integration suites for every affected external system: MySQL/MariaDB and PostgreSQL for permission/database semantics; Redis for Reverb/cache; filesystem cloud adapter tests where credentials/fixtures are provided.
+4. Run integration suites for every affected external system: MySQL/MariaDB and PostgreSQL for database semantics; Redis for Reverb/cache; filesystem cloud adapter tests where credentials/fixtures are provided.
 
 Additional required checks:
 
