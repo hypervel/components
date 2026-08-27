@@ -31,6 +31,8 @@ trait RefreshesPermissionCache
             $registrar->invalidatePermissionCatalogAfterMutation($partition);
 
             if (static::shouldDeletePermissionAssignments($model)) {
+                // Rotate before the row disappears so deleted listeners cannot publish a false revocation;
+                // a later veto may waste one namespace but cannot make authorization state incorrect.
                 $registrar->rotateModelAssignmentCacheTokenAfterMutation($partition);
             }
         });

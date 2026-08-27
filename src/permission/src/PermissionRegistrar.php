@@ -489,22 +489,33 @@ class PermissionRegistrar
     private function settleCacheMutation(
         string $cacheKey,
         Closure $clearRuntime,
-    ): void {
+    ): bool {
         $this->clearDirtyCacheValues($cacheKey);
         $clearRuntime();
 
+        $invalidationResult = null;
+
         $this->afterCommitOnce(
             $cacheKey,
-            function (PermissionCacheSettlement $settlement) use ($cacheKey, $clearRuntime): void {
+            function (PermissionCacheSettlement $settlement) use (
+                $cacheKey,
+                $clearRuntime,
+                &$invalidationResult,
+            ): void {
                 $this->clearDirtyCacheValues($cacheKey);
                 $clearRuntime();
-                $this->modelCacheCoordinator->invalidate($this->cacheRepository(), $cacheKey);
+                $invalidationResult = $this->modelCacheCoordinator->invalidate(
+                    $this->cacheRepository(),
+                    $cacheKey,
+                );
             },
             function (PermissionCacheSettlement $settlement) use ($cacheKey, $clearRuntime): void {
                 $this->clearDirtyCacheValues($cacheKey);
                 $clearRuntime();
             },
         );
+
+        return $invalidationResult ?? true;
     }
 
     /**
@@ -696,6 +707,9 @@ class PermissionRegistrar
 
     /**
      * Flush the permission cache.
+     *
+     * Return the backend result when settled immediately, or true once the
+     * reset is registered against an open transaction.
      */
     public function forgetCachedPermissions(): bool
     {
@@ -707,12 +721,12 @@ class PermissionRegistrar
      */
     public function forgetCachedPermissionsFor(?PermissionPartition $partition): bool
     {
-        $this->clearPermissionRuntimeStateFor($partition);
-        $this->bumpModelAssignmentCacheTokenFor($partition);
+        $partition = $this->resolvedPartitionArgument($partition);
+        $this->rotateModelAssignmentCacheTokenAfterMutation($partition);
 
-        return $this->modelCacheCoordinator->invalidate(
-            $this->cacheRepository(),
+        return $this->settleCacheMutation(
             $this->partitionedCacheKey($this->cacheKey, $partition),
+            fn () => $this->clearPermissionRuntimeStateFor($partition),
         );
     }
 
@@ -1229,30 +1243,6 @@ class PermissionRegistrar
             $cacheKey,
             fn (): string => $this->newModelAssignmentCacheToken(),
         );
-    }
-
-    /**
-     * Bump the model assignment cache token.
-     */
-    public function bumpModelAssignmentCacheToken(): string
-    {
-        return $this->bumpModelAssignmentCacheTokenFor($this->resolvePartition());
-    }
-
-    /**
-     * Bump the model assignment cache token for an explicit partition.
-     */
-    public function bumpModelAssignmentCacheTokenFor(?PermissionPartition $partition): string
-    {
-        $partition = $this->resolvedPartitionArgument($partition);
-        $token = $this->newModelAssignmentCacheToken();
-
-        $this->cacheRepository()->forever(
-            $this->partitionedCacheKey($this->modelCacheTokenKey, $partition),
-            $token,
-        );
-
-        return $token;
     }
 
     /**

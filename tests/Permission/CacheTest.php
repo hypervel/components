@@ -78,7 +78,8 @@ class CacheTest extends TestCase
 
         $firstToken = $registrar->modelAssignmentCacheToken();
 
-        $registrar->forgetCachedPermissions();
+        $this->assertTrue($registrar->forgetCachedPermissions());
+        $this->assertFalse($registrar->forgetCachedPermissions());
 
         $this->assertMatchesRegularExpression('/^[0-7][0-9A-HJKMNP-TV-Z]{25}$/', $firstToken);
         $this->assertNotSame($firstToken, $registrar->modelAssignmentCacheToken());

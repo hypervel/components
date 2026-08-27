@@ -151,6 +151,113 @@ class PermissionCacheTransactionTest extends TestCase
         $this->assertSame($this->testUserRole->getKey(), Role::findByName('testRole')->getKey());
     }
 
+    public function testExplicitResetSettlesAfterCommit(): void
+    {
+        $this->useSharedPermissionCache();
+        $registrar = $this->app->make(PermissionRegistrar::class);
+        $registrar->getRoles();
+        $cache = $registrar->getCacheRepository();
+        $catalogCacheKey = $registrar->getCacheKey();
+        $tokenCacheKey = config()->string('permission.cache.keys.model_token');
+        $catalogPayload = $cache->get($catalogCacheKey);
+        $assignmentToken = $registrar->modelAssignmentCacheToken();
+
+        $this->assertTrue($cache->has($catalogCacheKey));
+        $this->assertSame($assignmentToken, $cache->get($tokenCacheKey));
+
+        $this->testUserRole->getConnection()->transaction(function () use (
+            $assignmentToken,
+            $cache,
+            $catalogCacheKey,
+            $catalogPayload,
+            $registrar,
+            $tokenCacheKey,
+        ): void {
+            $this->assertTrue($registrar->forgetCachedPermissions());
+            $this->assertSame($catalogPayload, $cache->get($catalogCacheKey));
+            $this->assertSame($assignmentToken, $cache->get($tokenCacheKey));
+        });
+
+        $this->assertFalse($cache->has($catalogCacheKey));
+        $this->assertNotSame($assignmentToken, $cache->get($tokenCacheKey));
+    }
+
+    public function testExplicitResetIsDiscardedOnRollback(): void
+    {
+        $this->useSharedPermissionCache();
+        $registrar = $this->app->make(PermissionRegistrar::class);
+        $registrar->getRoles();
+        $cache = $registrar->getCacheRepository();
+        $catalogCacheKey = $registrar->getCacheKey();
+        $tokenCacheKey = config()->string('permission.cache.keys.model_token');
+        $catalogPayload = $cache->get($catalogCacheKey);
+        $assignmentToken = $registrar->modelAssignmentCacheToken();
+        $connection = $this->testUserRole->getConnection();
+        $rolesTable = config()->string('permission.table_names.roles');
+
+        $this->assertTrue($cache->has($catalogCacheKey));
+        $this->assertSame($assignmentToken, $cache->get($tokenCacheKey));
+
+        $connection->beginTransaction();
+
+        try {
+            $connection->table($rolesTable)->insert([
+                'name' => 'uncommitted-reset-role',
+                'guard_name' => 'web',
+            ]);
+            $this->assertTrue($registrar->forgetCachedPermissions());
+            $this->assertTrue($registrar->getRoles()->contains('name', 'uncommitted-reset-role'));
+            $this->assertSame($catalogPayload, $cache->get($catalogCacheKey));
+            $this->assertSame($assignmentToken, $cache->get($tokenCacheKey));
+        } finally {
+            $connection->rollBack();
+        }
+
+        $this->assertSame(0, $connection->table($rolesTable)->where('name', 'uncommitted-reset-role')->count());
+        $this->assertSame($catalogPayload, $cache->get($catalogCacheKey));
+        $this->assertSame($assignmentToken, $cache->get($tokenCacheKey));
+    }
+
+    public function testExplicitResetInRolledBackSavepointDoesNotSettleWithOuterCommit(): void
+    {
+        $this->useSharedPermissionCache();
+        $registrar = $this->app->make(PermissionRegistrar::class);
+        $registrar->getRoles();
+        $cache = $registrar->getCacheRepository();
+        $catalogCacheKey = $registrar->getCacheKey();
+        $tokenCacheKey = config()->string('permission.cache.keys.model_token');
+        $catalogPayload = $cache->get($catalogCacheKey);
+        $assignmentToken = $registrar->modelAssignmentCacheToken();
+        $connection = $this->testUserRole->getConnection();
+
+        $this->assertTrue($cache->has($catalogCacheKey));
+        $this->assertSame($assignmentToken, $cache->get($tokenCacheKey));
+
+        $connection->transaction(function () use (
+            $assignmentToken,
+            $cache,
+            $catalogCacheKey,
+            $catalogPayload,
+            $connection,
+            $registrar,
+            $tokenCacheKey,
+        ): void {
+            $connection->beginTransaction();
+
+            try {
+                $this->assertTrue($registrar->forgetCachedPermissions());
+            } finally {
+                $connection->rollBack();
+            }
+
+            $this->assertSame($catalogPayload, $cache->get($catalogCacheKey));
+            $this->assertSame($assignmentToken, $cache->get($tokenCacheKey));
+        });
+
+        $this->assertSame($catalogPayload, $cache->get($catalogCacheKey));
+        $this->assertSame($assignmentToken, $cache->get($tokenCacheKey));
+    }
+
     public function testRolledBackReverseSyncCannotPublishAssignmentsUnderTheCommittedToken(): void
     {
         $this->useSharedPermissionCache();
