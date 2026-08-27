@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Prompts;
 
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Engine\Channel;
 use Hypervel\Prompts\Output\BufferedConsoleOutput;
 use Hypervel\Prompts\Prompt;
+use Hypervel\Prompts\Support\InProcessLogger;
 use Hypervel\Prompts\Support\Logger;
+use Hypervel\Prompts\Support\TaskFrame;
 use Hypervel\Prompts\Task;
 use Hypervel\Prompts\Themes\Default\TaskRenderer;
 use Hypervel\Tests\TestCase;
@@ -143,7 +147,7 @@ class TaskTest extends TestCase
     {
         Prompt::fake();
         $task = new Task(label: 'My Task', limit: 10);
-        $task->appendLogLine('kept');
+        (new InProcessLogger($task))->line('kept');
         $task->limit = -1;
         $callbackRuns = 0;
 
@@ -331,7 +335,7 @@ class TaskTest extends TestCase
         Prompt::assertOutputContains('Assets built');
     }
 
-    public function testCoroutinePathHandlesPartialLogging()
+    public function testCoroutinePathHandlesPartialLogging(): void
     {
         Prompt::fake();
 
@@ -339,7 +343,7 @@ class TaskTest extends TestCase
             label: 'Running...',
             callback: function (Logger $logger) {
                 $logger->partial('hello ');
-                $logger->partial('hello world');
+                $logger->partial('world');
                 $logger->commitPartial();
                 $logger->line('after commit');
 
@@ -410,42 +414,54 @@ class TaskTest extends TestCase
         $this->assertSame('hello world', $task->logs[1]);
     }
 
-    public function testCommitsPartialLinesSoTheyBecomePermanent()
+    public function testCommitsPartialLinesSoTheyBecomePermanent(): void
     {
         Prompt::fake();
 
         $task = new Task(label: 'Test', limit: 10);
 
-        $addLogLines = new ReflectionMethod($task, 'addLogLines');
-        $replacePartialLines = new ReflectionMethod($task, 'replacePartialLines');
-
-        $replacePartialLines->invoke($task, 'streamed text');
-
-        // Simulate commitpartial by clearing the index
+        $logger = new InProcessLogger($task);
         $partialStartIndex = new ReflectionProperty($task, 'partialStartIndex');
-        $partialStartIndex->setValue($task, null);
 
-        // Now add a new line — it should append, not replace
-        $addLogLines->invoke($task, 'new line');
+        $logger->partial('streamed text');
+        $this->assertSame(0, $partialStartIndex->getValue($task));
+
+        $logger->commitPartial();
+        $this->assertNull($partialStartIndex->getValue($task));
+
+        $logger->line('new line');
 
         $this->assertCount(2, $task->logs);
         $this->assertSame('streamed text', $task->logs[0]);
         $this->assertSame('new line', $task->logs[1]);
     }
 
-    public function testClearsLogsWhenStableMessageReceived()
+    public function testCommittedPartialLinesAreNotReplayedByTheNextPartial(): void
+    {
+        Prompt::fake();
+        $task = new Task(label: 'Test', limit: 10);
+        $logger = new InProcessLogger($task);
+
+        $logger->partial('first');
+        $logger->commitPartial();
+        $logger->partial('second');
+        $logger->commitPartial();
+
+        $this->assertSame(['first', 'second'], $task->logs);
+    }
+
+    public function testClearsLogsWhenStableMessageReceived(): void
     {
         Prompt::fake();
 
         $task = new Task(label: 'Test', limit: 10);
 
-        $addLogLines = new ReflectionMethod($task, 'addLogLines');
-        $addLogLines->invoke($task, 'log line');
+        $logger = new InProcessLogger($task);
+        $logger->line('log line');
 
         $this->assertCount(1, $task->logs);
 
-        $task->stableMessages[] = ['type' => 'success', 'message' => 'Done!'];
-        $task->logs = [];
+        $logger->success('Done!');
 
         $this->assertEmpty($task->logs);
         $this->assertCount(1, $task->stableMessages);
@@ -453,25 +469,22 @@ class TaskTest extends TestCase
         $this->assertSame('Done!', $task->stableMessages[0]['message']);
     }
 
-    public function testTrimsStableMessagesToMaxStableMessages()
+    public function testTrimsStableMessagesToMaxStableMessages(): void
     {
         $task = new Task(label: 'Test', limit: 10);
         $task->maxStableMessages = 2;
+        $logger = new InProcessLogger($task);
 
-        $task->stableMessages[] = ['type' => 'success', 'message' => 'First'];
-        $task->stableMessages[] = ['type' => 'success', 'message' => 'Second'];
-        $task->stableMessages[] = ['type' => 'success', 'message' => 'Third'];
-
-        while (count($task->stableMessages) > $task->maxStableMessages) {
-            array_shift($task->stableMessages);
-        }
+        $logger->success('First');
+        $logger->success('Second');
+        $logger->success('Third');
 
         $this->assertCount(2, $task->stableMessages);
         $this->assertSame('Second', $task->stableMessages[0]['message']);
         $this->assertSame('Third', $task->stableMessages[1]['message']);
     }
 
-    public function testReceivesMessagesThroughSocketProtocol()
+    public function testReceivesMessagesThroughSocketProtocol(): void
     {
         Prompt::fake();
 
@@ -482,13 +495,14 @@ class TaskTest extends TestCase
         // Create a socket pair to simulate IPC
         $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
 
-        $id = $task->identifier;
-
-        // Write messages from the "parent" side
-        fwrite($sockets[1], "plain log line\n");
-        fwrite($sockets[1], "{$id}_label:New Label\n");
-        fwrite($sockets[1], "another log line\n");
-        fwrite($sockets[1], "{$id}_success:Step complete\n");
+        fwrite(
+            $sockets[1],
+            TaskFrame::encode(null, "plain\nlog\0line")
+            . TaskFrame::encode('label', 'New Label')
+            . TaskFrame::encode(null, 'another log line')
+            . TaskFrame::encode('success', 'Step complete')
+            . TaskFrame::encode(null, "after\nsettlement\0line"),
+        );
         fclose($sockets[1]);
 
         stream_set_blocking($sockets[0], false);
@@ -498,11 +512,10 @@ class TaskTest extends TestCase
         $this->assertSame('New Label', $task->label);
         $this->assertCount(1, $task->stableMessages);
         $this->assertSame(['type' => 'success', 'message' => 'Step complete'], $task->stableMessages[0]);
-        // Logs cleared when stable message received, so only post-stable logs remain
-        $this->assertEmpty($task->logs);
+        $this->assertSame(['after', "settlement\0line"], $task->logs);
     }
 
-    public function testHandlesPartialMessagesThroughSocketProtocol()
+    public function testHandlesPartialMessagesThroughSocketProtocol(): void
     {
         Prompt::fake();
 
@@ -512,13 +525,14 @@ class TaskTest extends TestCase
 
         $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
 
-        $id = $task->identifier;
-
-        fwrite($sockets[1], "existing line\n");
-        fwrite($sockets[1], "{$id}_partial:hello \n");
-        fwrite($sockets[1], "{$id}_partial:hello world \n");
-        fwrite($sockets[1], "{$id}_commitpartial:\n");
-        fwrite($sockets[1], "after commit\n");
+        fwrite(
+            $sockets[1],
+            TaskFrame::encode(null, 'existing line')
+            . TaskFrame::encode('partial', 'hello ')
+            . TaskFrame::encode('partial', 'world ')
+            . TaskFrame::encode('commitpartial', '')
+            . TaskFrame::encode(null, 'after commit'),
+        );
         fclose($sockets[1]);
 
         stream_set_blocking($sockets[0], false);
@@ -531,7 +545,7 @@ class TaskTest extends TestCase
         $this->assertSame('after commit', $task->logs[2]);
     }
 
-    public function testStripsCursorResetControlSequencesFromLogLines()
+    public function testStripsCursorResetControlSequencesFromLogLines(): void
     {
         Prompt::fake();
 
@@ -541,7 +555,7 @@ class TaskTest extends TestCase
 
         $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
 
-        fwrite($sockets[1], "before\e[1G\e[2Kafter\n");
+        fwrite($sockets[1], TaskFrame::encode(null, "before\e[1G\e[2Kafter"));
         fclose($sockets[1]);
 
         stream_set_blocking($sockets[0], false);
@@ -551,7 +565,7 @@ class TaskTest extends TestCase
         $this->assertSame('beforeafter', $task->logs[0]);
     }
 
-    public function testUpdatesLabelThroughSocketProtocol()
+    public function testUpdatesLabelThroughSocketProtocol(): void
     {
         Prompt::fake();
 
@@ -561,9 +575,7 @@ class TaskTest extends TestCase
 
         $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
 
-        $id = $task->identifier;
-
-        fwrite($sockets[1], "{$id}_label:Updated Label\n");
+        fwrite($sockets[1], TaskFrame::encode('label', 'Updated Label'));
         fclose($sockets[1]);
 
         stream_set_blocking($sockets[0], false);
@@ -588,8 +600,7 @@ class TaskTest extends TestCase
         $receiveMessages = new ReflectionMethod($task, 'receiveMessages');
         $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
 
-        $id = $task->identifier;
-        fwrite($sockets[1], "{$id}_sublabel:Now doing a thing\n");
+        fwrite($sockets[1], TaskFrame::encode('sublabel', 'Now doing a thing'));
         fclose($sockets[1]);
 
         stream_set_blocking($sockets[0], false);
@@ -603,7 +614,7 @@ class TaskTest extends TestCase
         $previousBudget = $task->maxStableMessages;
 
         $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
-        fwrite($sockets[1], "{$id}_sublabel:\n");
+        fwrite($sockets[1], TaskFrame::encode('sublabel', ''));
         fclose($sockets[1]);
         stream_set_blocking($sockets[0], false);
         $receiveMessages->invoke($task, $sockets[0]);
@@ -625,7 +636,8 @@ class TaskTest extends TestCase
             ['type' => 'success', 'message' => 'three'],
         ];
 
-        $task->updateSubLabel('Now doing a thing');
+        $logger = new InProcessLogger($task);
+        $logger->subLabel('Now doing a thing');
 
         $this->assertSame('Now doing a thing', $task->subLabel);
         $this->assertLessThan(3, $task->maxStableMessages);
@@ -633,10 +645,253 @@ class TaskTest extends TestCase
 
         $previousBudget = $task->maxStableMessages;
 
-        $task->updateSubLabel('');
+        $logger->subLabel('');
 
         $this->assertSame('', $task->subLabel);
         $this->assertSame($previousBudget + 1, $task->maxStableMessages);
+    }
+
+    public function testProcessAndInProcessMessagesProduceTheSameTaskState(): void
+    {
+        Prompt::fake();
+
+        $inProcessTask = new Task(label: 'Initial', limit: 10);
+        $logger = new InProcessLogger($inProcessTask);
+        $logger->label('Updated');
+        $logger->subLabel('Working');
+        $logger->line("first\n\nsecond");
+        $logger->partial('streamed ');
+        $logger->partial('output');
+        $logger->commitPartial();
+        $logger->warning('Done');
+        $logger->line('after');
+
+        $processTask = new Task(label: 'Initial', limit: 10);
+        $receiveMessages = new ReflectionMethod($processTask, 'receiveMessages');
+        $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+        fwrite(
+            $sockets[1],
+            TaskFrame::encode('label', 'Updated')
+            . TaskFrame::encode('sublabel', 'Working')
+            . TaskFrame::encode(null, "first\n\nsecond")
+            . TaskFrame::encode('partial', 'streamed ')
+            . TaskFrame::encode('partial', 'output')
+            . TaskFrame::encode('commitpartial', '')
+            . TaskFrame::encode('warning', 'Done')
+            . TaskFrame::encode(null, 'after'),
+        );
+        fclose($sockets[1]);
+        stream_set_blocking($sockets[0], false);
+        $receiveMessages->invoke($processTask, $sockets[0]);
+        fclose($sockets[0]);
+
+        $this->assertSame($inProcessTask->label, $processTask->label);
+        $this->assertSame($inProcessTask->subLabel, $processTask->subLabel);
+        $this->assertSame($inProcessTask->logs, $processTask->logs);
+        $this->assertSame($inProcessTask->stableMessages, $processTask->stableMessages);
+    }
+
+    public function testPreservesBlankLinesInCompleteAndPartialOutput(): void
+    {
+        Prompt::fake();
+        $task = new Task(limit: 10);
+        $logger = new InProcessLogger($task);
+
+        $logger->line("a\n\nb");
+        $this->assertSame(['a', '', 'b'], $task->logs);
+
+        $logger->partial("c\n\nd");
+        $this->assertSame(['a', '', 'b', 'c', '', 'd'], $task->logs);
+
+        $logger->commitPartial();
+        $this->assertSame(['a', '', 'b', 'c', '', 'd'], $task->logs);
+    }
+
+    public function testIncrementalPartialParsingHandlesSplitUtf8AnsiAndHyperlinks(): void
+    {
+        Prompt::fake();
+        $task = new Task(limit: 10);
+        $logger = new InProcessLogger($task);
+        $character = 'é';
+
+        $logger->partial(substr($character, 0, 1));
+        $logger->partial(substr($character, 1) . " \e[31");
+        $logger->partial("mred\e[0m \e]8;;https://example.com\e");
+        $logger->partial("\\link\e]8;;\e\\");
+
+        $this->assertSame(
+            "é \e[31mred\e[0m \e]8;;https://example.com\e\\link\e]8;;\e\\",
+            $task->logs[0],
+        );
+    }
+
+    public function testIncrementalPartialWrappingMatchesCompleteWordWrapping(): void
+    {
+        Prompt::fake();
+        Prompt::terminal()->shouldReceive('cols')->andReturn(13); // @phpstan-ignore-line
+
+        $cases = [
+            'abc d' => ['abc', 'd'],
+            'ab cd' => ['ab', 'cd'],
+            'abc ' => ['abc'],
+            'a  b' => ['a ', 'b'],
+            'abcdef gh' => ['abc', 'def', 'gh'],
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $task = new Task(limit: 10);
+            $logger = new InProcessLogger($task);
+            $logger->partial($input);
+            $logger->commitPartial();
+
+            $this->assertSame($expected, $task->logs, "Failed wrapping [{$input}].");
+        }
+    }
+
+    public function testIncrementalPartialParsingHandlesCrLfSplitAcrossChunks(): void
+    {
+        Prompt::fake();
+        $task = new Task(limit: 10);
+        $logger = new InProcessLogger($task);
+
+        $logger->partial("first\r");
+        $logger->partial("\nsecond");
+        $logger->commitPartial();
+
+        $this->assertSame(['first', 'second'], $task->logs);
+    }
+
+    public function testIncrementalPartialCommitPreservesIncompleteEscapesLiterally(): void
+    {
+        Prompt::fake();
+
+        $csiTask = new Task(limit: 10);
+        $csiLogger = new InProcessLogger($csiTask);
+        $csiLogger->partial("abc\e[31");
+        $csiLogger->commitPartial();
+
+        $oscTask = new Task(limit: 10);
+        $oscLogger = new InProcessLogger($oscTask);
+        $oscLogger->partial("abc\e]8;;https://hypervel.org");
+        $oscLogger->commitPartial();
+
+        $this->assertSame(["abc\e[31"], $csiTask->logs);
+        $this->assertSame(["abc\e]8;;https://hypervel.org"], $oscTask->logs);
+    }
+
+    public function testCompleteNonFormattingControlsAreRemovedFromEveryTaskOutputPath(): void
+    {
+        Prompt::fake();
+
+        $completeTask = new Task(limit: 10);
+        (new ReflectionMethod($completeTask, 'addLogLines'))
+            ->invoke($completeTask, "before\e[1G\e[2Kafter\e]0;title\x07");
+
+        $partialTask = new Task(limit: 10);
+        $partialLogger = new InProcessLogger($partialTask);
+        $partialLogger->partial("before\e[1G\e[2Kafter\e]0;title\x07");
+        $partialLogger->commitPartial();
+
+        $this->assertSame(['beforeafter'], $completeTask->logs);
+        $this->assertSame($completeTask->logs, $partialTask->logs);
+    }
+
+    public function testIncrementalPartialParsingUsesSharedEffectiveSgrState(): void
+    {
+        Prompt::fake();
+        $task = new Task(limit: 10);
+        $logger = new InProcessLogger($task);
+
+        $logger->partial("\e[1mBold \e[58;2;255;0;0munderlined\e[59m text");
+        $logger->commitPartial();
+
+        $this->assertSame([
+            "\e[1mBold \e[0m\e[1m\e[58;2;255;0;0munderlined\e[0m\e[1m text\e[0m",
+        ], $task->logs);
+    }
+
+    public function testIncrementalPartialStateIsBoundedByVisibleOutput(): void
+    {
+        Prompt::fake();
+        Prompt::terminal()->shouldReceive('cols')->andReturn(14); // @phpstan-ignore-line
+        $task = new Task(limit: 3);
+        $logger = new InProcessLogger($task);
+
+        for ($index = 0; $index < 1000; ++$index) {
+            $logger->partial('x');
+        }
+
+        $this->assertSame(['xxxx', 'xxxx', 'xxxx'], $task->logs);
+        $this->assertSame('', (new ReflectionProperty($task, 'partialInputBuffer'))->getValue($task));
+        $this->assertLessThanOrEqual(3, count((new ReflectionProperty($task, 'partialLines'))->getValue($task)));
+        $this->assertLessThanOrEqual(4, count((new ReflectionProperty($task, 'partialLineTokens'))->getValue($task)));
+        $this->assertLessThanOrEqual(4, count((new ReflectionProperty($task, 'partialWordTokens'))->getValue($task)));
+    }
+
+    public function testPartialBoundaryTracksRingBufferTrimmingAndResetsOnStableOutput(): void
+    {
+        Prompt::fake();
+        $task = new Task(limit: 2);
+        $logger = new InProcessLogger($task);
+        $partialStartIndex = new ReflectionProperty($task, 'partialStartIndex');
+
+        $logger->line('prefix');
+        $logger->partial("one\ntwo\nthree");
+
+        $this->assertSame(['two', 'three'], $task->logs);
+        $this->assertSame(0, $partialStartIndex->getValue($task));
+
+        $logger->success('complete');
+
+        $this->assertSame([], $task->logs);
+        $this->assertNull($partialStartIndex->getValue($task));
+    }
+
+    public function testCoroutineTaskWaitsForAnInFlightAnimationBeforeSettling(): void
+    {
+        Prompt::fake();
+        $task = new TaskAnimationFixture('Running');
+        $task->interval = 1;
+
+        $result = $task->run(function (Logger $logger) use ($task): string {
+            $this->assertTrue($task->renderStarted->pop(1));
+
+            Coroutine::fork(function () use ($task): void {
+                usleep(20_000);
+                $task->renderRelease->push(true);
+            });
+
+            return 'done';
+        });
+
+        $this->assertSame('done', $result);
+        $this->assertFalse($task->rendering);
+        $renderCalls = $task->renderCalls;
+        usleep(150_000);
+        $this->assertSame($renderCalls, $task->renderCalls);
+    }
+
+    public function testCoroutineTaskSurfacesAnimationRenderFailure(): void
+    {
+        Prompt::fake();
+        $failure = new RuntimeException('animation failed');
+        $task = new TaskAnimationFixture('Running');
+        $task->interval = 1;
+        $task->renderFailure = $failure;
+        $callbackRan = false;
+        $thrown = null;
+
+        try {
+            $task->run(function (Logger $logger) use (&$callbackRan): void {
+                $callbackRan = true;
+                usleep(5_000);
+            });
+        } catch (RuntimeException $exception) {
+            $thrown = $exception;
+        }
+
+        $this->assertSame($failure, $thrown);
+        $this->assertTrue($callbackRan);
     }
 
     public function testRendererDisplaysSubLabel(): void
@@ -734,5 +989,49 @@ class TaskTest extends TestCase
         $finishRendering->invoke($task);
 
         $this->assertStringContainsString("\e[J", Prompt::content());
+    }
+}
+
+class TaskAnimationFixture extends Task
+{
+    /** @var Channel<true> */
+    public Channel $renderStarted;
+
+    /** @var Channel<true> */
+    public Channel $renderRelease;
+
+    public int $renderCalls = 0;
+
+    public bool $rendering = false;
+
+    public ?RuntimeException $renderFailure = null;
+
+    public function __construct(string $label)
+    {
+        parent::__construct($label);
+
+        $this->renderStarted = new Channel(1);
+        $this->renderRelease = new Channel(1);
+    }
+
+    /**
+     * Render the task while exposing animation lifecycle checkpoints.
+     */
+    protected function render(): void
+    {
+        ++$this->renderCalls;
+
+        if ($this->renderCalls !== 2) {
+            return;
+        }
+
+        if ($this->renderFailure !== null) {
+            throw $this->renderFailure;
+        }
+
+        $this->rendering = true;
+        $this->renderStarted->push(true);
+        $this->renderRelease->pop();
+        $this->rendering = false;
     }
 }
