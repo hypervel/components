@@ -141,7 +141,7 @@ class DatabaseTransactionsManager
 
         $this->setCommittedTransactions($forOtherConnections->values());
 
-        $forThisConnection->map->executeCallbacks();
+        $this->executeCommitCallbacks($forThisConnection);
 
         return $forThisConnection;
     }
@@ -279,6 +279,28 @@ class DatabaseTransactionsManager
         }
 
         return $removedTransactions;
+    }
+
+    /**
+     * Execute commit callbacks for every detached transaction.
+     *
+     * @param Collection<int, DatabaseTransactionRecord> $transactions
+     */
+    protected function executeCommitCallbacks(Collection $transactions): void
+    {
+        $exception = null;
+
+        foreach ($transactions as $transaction) {
+            try {
+                $transaction->executeCallbacks();
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 
     /**

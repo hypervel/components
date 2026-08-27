@@ -512,28 +512,93 @@ class DatabaseTransactionsManagerTest extends TestCase
         ], $callbacks);
     }
 
-    public function testCommitCallbacksRemainStopOnFirst(): void
+    public function testCommitCallbacksExhaustEveryRecordAndPreserveTheEarliestFailure(): void
     {
         $manager = new DatabaseTransactionsManager;
         $callbacks = [];
-        $failure = new RuntimeException('commit callback failure');
+        $earliest = new RuntimeException('deepest failure');
+        $later = new RuntimeException('outer failure');
+
         $manager->begin('default', 1);
-        $manager->addCallback(function () use (&$callbacks, $failure): void {
-            $callbacks[] = 'first';
-            throw $failure;
+        $manager->addCallback(function () use (&$callbacks, $later): void {
+            $callbacks[] = 'outer first';
+            throw $later;
         });
         $manager->addCallback(function () use (&$callbacks): void {
-            $callbacks[] = 'second';
+            $callbacks[] = 'outer second';
         });
+
+        $manager->begin('default', 2);
+        $manager->addCallback(function () use (&$callbacks, $earliest): void {
+            $callbacks[] = 'deepest first';
+            throw $earliest;
+        });
+        $manager->addCallback(function () use (&$callbacks): void {
+            $callbacks[] = 'deepest second';
+        });
+        $manager->commit('default', 2, 1);
+
+        $caught = null;
 
         try {
             $manager->commit('default', 1, 0);
-            $this->fail('Expected the commit callback to fail.');
         } catch (RuntimeException $exception) {
-            $this->assertSame($failure, $exception);
+            $caught = $exception;
         }
 
-        $this->assertSame(['first'], $callbacks);
+        $this->assertSame($earliest, $caught);
+        $this->assertSame([
+            'deepest first',
+            'deepest second',
+            'outer first',
+            'outer second',
+        ], $callbacks);
+        $this->assertCount(0, $manager->getPendingTransactions());
+        $this->assertCount(0, $manager->getCommittedTransactions());
+    }
+
+    public function testCommitFailurePreservesStagedAndPendingRecordsForOtherConnections(): void
+    {
+        $manager = new DatabaseTransactionsManager;
+        $callbacks = [];
+        $failure = new RuntimeException('connection A failed');
+
+        $manager->begin('B', 1);
+        $manager->begin('B', 2);
+        $manager->addCallback(function () use (&$callbacks): void {
+            $callbacks[] = 'B';
+        }, 'B');
+        $manager->commit('B', 2, 1);
+
+        $manager->begin('A', 1);
+        $manager->addCallback(static fn (): never => throw $failure, 'A');
+
+        $caught = null;
+
+        try {
+            $manager->commit('A', 1, 0);
+        } catch (RuntimeException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
+        $this->assertSame([], $callbacks);
+
+        $pending = $manager->getPendingTransactions();
+        $this->assertCount(1, $pending);
+        $this->assertSame('B', $pending[0]->connection);
+        $this->assertSame(1, $pending[0]->level);
+
+        $committed = $manager->getCommittedTransactions();
+        $this->assertCount(1, $committed);
+        $this->assertSame('B', $committed[0]->connection);
+        $this->assertSame(2, $committed[0]->level);
+
+        $manager->commit('B', 1, 0);
+
+        $this->assertSame(['B'], $callbacks);
+        $this->assertCount(0, $manager->getPendingTransactions());
+        $this->assertCount(0, $manager->getCommittedTransactions());
     }
 
     public function testCallbackForRollbackIsNotExecutedIfNoTransactions()
