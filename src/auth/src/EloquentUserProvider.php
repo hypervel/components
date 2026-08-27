@@ -17,6 +17,7 @@ use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use InvalidArgumentException;
 use SensitiveParameter;
+use Throwable;
 
 class EloquentUserProvider implements UserProvider
 {
@@ -558,12 +559,22 @@ class EloquentUserProvider implements UserProvider
                 $container = Container::getInstance();
                 $cacheManager = $container->make('cache');
                 $coordinator = $container->make(ModelCacheCoordinator::class);
+                $exception = null;
 
+                // Every configured store must be attempted even if another store is unavailable.
                 foreach (static::$cachedProviders[$modelClass] ?? [] as $descriptor) {
-                    $coordinator->invalidate(
-                        $cacheManager->store($descriptor['storeName']),
-                        $descriptor['prefix'] . ':' . $modelClass . ':' . $identifierSegment,
-                    );
+                    try {
+                        $coordinator->invalidate(
+                            $cacheManager->store($descriptor['storeName']),
+                            $descriptor['prefix'] . ':' . $modelClass . ':' . $identifierSegment,
+                        );
+                    } catch (Throwable $throwable) {
+                        $exception ??= $throwable;
+                    }
+                }
+
+                if ($exception !== null) {
+                    throw $exception;
                 }
             };
 

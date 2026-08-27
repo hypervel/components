@@ -400,6 +400,38 @@ class EloquentUserProviderCacheTest extends TestCase
         $user->save();
     }
 
+    public function testModelEventInvalidationExhaustsDescriptorsAndPreservesTheEarliestFailure(): void
+    {
+        $repoA = $this->stubCache('redis-a');
+        $repoB = $this->stubCache('redis-b');
+
+        $user = User::query()->firstOrFail();
+        $keyA = self::DEFAULT_KEY_PREFIX . ':' . User::class . ':' . $user->getAuthIdentifier();
+        $keyB = 'admin_users:' . User::class . ':' . $user->getAuthIdentifier();
+        $earliest = new RuntimeException('first store failed');
+        $later = new RuntimeException('second store failed');
+
+        $this->cacheCoordinator->shouldReceive('invalidate')->once()->with($repoA, $keyA)->andThrow($earliest);
+        $this->cacheCoordinator->shouldReceive('invalidate')->once()->with($repoB, $keyB)->andThrow($later);
+
+        $providerA = new EloquentUserProvider($this->app->make('hash'), User::class);
+        $providerA->enableCache('redis-a');
+
+        $providerB = new EloquentUserProvider($this->app->make('hash'), User::class);
+        $providerB->enableCache('redis-b', 300, 'admin_users');
+
+        $caught = null;
+
+        try {
+            $user->name = 'Updated';
+            $user->save();
+        } catch (RuntimeException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($earliest, $caught);
+    }
+
     public function testChangingProviderModelKeepsBothModelKeyspacesInvalidatable(): void
     {
         $user = User::query()->firstOrFail();
