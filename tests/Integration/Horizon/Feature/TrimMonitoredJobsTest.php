@@ -8,14 +8,17 @@ use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Events\MasterSupervisorLooped;
 use Hypervel\Horizon\Listeners\TrimMonitoredJobs;
 use Hypervel\Horizon\MasterSupervisor;
+use Hypervel\Horizon\Repositories\RedisJobRepository;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
 
 class TrimMonitoredJobsTest extends IntegrationTestCase
 {
-    public function testTrimmerHasACooldownPeriod()
+    public function testTrimmerHasACooldownPeriod(): void
     {
+        config()->set('horizon.trim', []);
+
         $trim = new TrimMonitoredJobs;
 
         $repository = m::mock(JobRepository::class);
@@ -24,6 +27,7 @@ class TrimMonitoredJobsTest extends IntegrationTestCase
 
         // Should not be called first time since date is initialized...
         $trim->handle(new MasterSupervisorLooped(m::mock(MasterSupervisor::class)));
+        $this->assertSame(intdiv(RedisJobRepository::DEFAULT_MONITORED_JOB_RETENTION, 12), $trim->frequency);
 
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(1600));
 

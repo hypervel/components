@@ -17,7 +17,7 @@ class Mutex
      * Acquire a mutex lock for the given key.
      *
      * @param float $timeout Timeout in seconds (-1 for unlimited)
-     * @return bool True if lock acquired, false if timeout or channel closing
+     * @return bool True when the acquisition token was accepted, false when the push failed
      */
     public static function lock(string $key, float $timeout = -1): bool
     {
@@ -26,29 +26,32 @@ class Mutex
         }
 
         $channel = static::$channels[$key];
-        $channel->push(1, $timeout);
-        if ($channel->isTimeout() || $channel->isClosing()) {
-            return false;
-        }
 
-        return true;
+        return $channel->push(1, $timeout);
     }
 
     /**
      * Release a mutex lock for the given key.
      *
      * @param float $timeout Timeout in seconds
-     * @return bool True if unlocked successfully, false if timeout (unlock called more than once)
+     * @return bool True when a held token was released, false when no token was held or the pop failed
      */
     public static function unlock(string $key, float $timeout = 5): bool
     {
-        if (isset(static::$channels[$key])) {
-            $channel = static::$channels[$key];
-            $channel->pop($timeout);
-            if ($channel->isTimeout()) {
-                // unlock more than once
-                return false;
-            }
+        if (! isset(static::$channels[$key])) {
+            return false;
+        }
+
+        $channel = static::$channels[$key];
+
+        if ($channel->getLength() === 0 || $channel->pop($timeout) === false) {
+            return false;
+        }
+
+        // A fast waiter may have released this channel and published a replacement.
+        if ((static::$channels[$key] ?? null) === $channel && $channel->getLength() === 0) {
+            unset(static::$channels[$key]);
+            $channel->close();
         }
 
         return true;

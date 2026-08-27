@@ -24,11 +24,6 @@ class StatusCommand extends BaseCommand
     protected string $description = 'Show the status of each migration';
 
     /**
-     * The migrator instance.
-     */
-    protected Migrator $migrator;
-
-    /**
      * Create a new migration rollback command instance.
      */
     public function __construct(Migrator $migrator)

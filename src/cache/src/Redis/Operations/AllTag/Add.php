@@ -8,8 +8,6 @@ use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
 
-use function Hypervel\Support\now;
-
 /**
  * Store an item in the cache if it doesn't exist, with all tag tracking.
  *
@@ -24,6 +22,9 @@ use function Hypervel\Support\now;
  */
 class Add
 {
+    /**
+     * Create a new add operation instance.
+     */
     public function __construct(
         private readonly StoreContext $context,
         private readonly Serialization $serialization,
@@ -35,12 +36,14 @@ class Add
      *
      * @param string $key The cache key (already namespaced by caller)
      * @param mixed $value The value to store
-     * @param int $seconds TTL in seconds
+     * @param int $seconds TTL in seconds; values below one are stored for one second
      * @param array<string> $tagIds Array of tag identifiers
      * @return bool True if the key was added (didn't exist), false if it already existed
      */
     public function execute(string $key, mixed $value, int $seconds, array $tagIds): bool
     {
+        $seconds = max(1, $seconds);
+
         if ($this->context->isCluster()) {
             return $this->executeCluster($key, $value, $seconds, $tagIds);
         }
@@ -57,7 +60,7 @@ class Add
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds) {
             $prefix = $this->context->prefix();
-            $score = now()->addSeconds($seconds)->getTimestamp();
+            $score = $this->context->expirationScore($seconds);
 
             // Pipeline the ZADD operations for tag tracking
             if (! empty($tagIds)) {
@@ -74,7 +77,7 @@ class Add
             $result = $connection->set(
                 $prefix . $key,
                 $this->serialization->serialize($connection, $value),
-                ['EX' => max(1, $seconds), 'NX']
+                ['EX' => $seconds, 'NX']
             );
 
             return (bool) $result;
@@ -91,7 +94,7 @@ class Add
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds) {
             $prefix = $this->context->prefix();
-            $score = now()->addSeconds($seconds)->getTimestamp();
+            $score = $this->context->expirationScore($seconds);
 
             // ZADD to each tag's sorted set (sequential - cross-slot)
             foreach ($tagIds as $tagId) {
@@ -102,7 +105,7 @@ class Add
             $result = $connection->set(
                 $prefix . $key,
                 $this->serialization->serialize($connection, $value),
-                ['EX' => max(1, $seconds), 'NX']
+                ['EX' => $seconds, 'NX']
             );
 
             return (bool) $result;

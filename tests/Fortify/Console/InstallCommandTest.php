@@ -10,6 +10,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Fortify\Console\InstallCommand;
 use Hypervel\Fortify\Features;
 use Hypervel\Fortify\FortifyServiceProvider;
+use Hypervel\Passkeys\Passkeys;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Testing\Fixtures\CleanupActions;
 use Mockery as m;
@@ -80,6 +81,8 @@ class InstallCommandTest extends TestCase
 
         $this->assertTrue($config['lowercase_usernames']);
         $this->assertNotContains(Features::emailVerification(), $config['features']);
+        $this->assertSame('6,1', $config['limiters']['verification']);
+        $this->assertSame(Passkeys::DEFAULT_TIMEOUT, $config['passkeys']['timeout']);
 
         foreach ($this->publishedSupportFiles() as $file) {
             $this->assertFileExists($file);

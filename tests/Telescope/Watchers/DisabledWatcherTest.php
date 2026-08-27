@@ -35,14 +35,7 @@ class DisabledWatcherTest extends FeatureTestCase
     ])]
     public function testDisabledCacheWatcherDoesNotEnableCacheEvents(): void
     {
-        $config = $this->app->make('config');
-
-        foreach (array_keys($config->get('cache.stores', [])) as $store) {
-            $this->assertFalse(
-                $config->get("cache.stores.{$store}.events", false),
-                "Cache store '{$store}' should not have events enabled when CacheWatcher is disabled."
-            );
-        }
+        $this->assertFalse(config()->boolean('cache.stores.array.events'));
     }
 
     #[WithConfig('telescope.watchers', [

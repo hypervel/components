@@ -25,7 +25,9 @@ $workingPath = is_string($installedRootPath) && $installedRootPath !== ''
     : getcwd();
 
 if ($workingPath === false) {
-    throw new RuntimeException('Unable to determine the project working directory.');
+    fwrite(STDERR, 'Unable to determine the project working directory.' . PHP_EOL);
+
+    exit(1);
 }
 
 $workingPath = realpath($workingPath) ?: $workingPath;
@@ -35,7 +37,24 @@ $binaryDirectory = isset($_composer_bin_dir) && is_string($_composer_bin_dir)
 $paraTestPath = $binaryDirectory . DIRECTORY_SEPARATOR . 'paratest';
 
 if (! is_file($paraTestPath)) {
-    throw new RuntimeException('Install the brianium/paratest package to profile tests.');
+    fwrite(STDERR, 'Install the brianium/paratest package to profile tests.' . PHP_EOL);
+
+    exit(1);
+}
+
+$arguments = array_slice($argv, 1);
+
+foreach ($arguments as $argument) {
+    if ($argument === '--log-junit' || str_starts_with($argument, '--log-junit=')) {
+        fwrite(
+            STDERR,
+            'The profiler manages the --log-junit option. '
+                . 'Remove it, or run ParaTest directly to control the report path.'
+                . PHP_EOL,
+        );
+
+        exit(1);
+    }
 }
 
 $reportPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'hypervel-test-profile-'
@@ -45,7 +64,7 @@ $process = new Process([
     PHP_BINARY,
     $paraTestPath,
     '--log-junit=' . $reportPath,
-    ...array_slice($argv, 1),
+    ...$arguments,
 ], cwd: $workingPath);
 $process->setTimeout(null);
 
@@ -61,11 +80,7 @@ try {
         fwrite($type === Process::ERR ? STDERR : STDOUT, $output);
     });
 
-    if (! is_file($reportPath)) {
-        if ($exitCode === 0) {
-            throw new RuntimeException(sprintf('Unable to find PHPUnit profile [%s].', $reportPath));
-        }
-    } else {
+    if (is_file($reportPath)) {
         $tests = [];
 
         $document = new DOMDocument;
@@ -73,6 +88,7 @@ try {
         $reportLoaded = @$document->load($reportPath);
 
         if (! $reportLoaded && $exitCode === 0) {
+            // Throwing lets the finally block remove the unreadable temporary report.
             throw new RuntimeException(sprintf('Unable to read PHPUnit profile [%s].', $reportPath));
         }
 

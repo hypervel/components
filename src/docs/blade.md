@@ -2068,7 +2068,7 @@ use Hypervel\Support\Facades\Blade;
 public function boot(): void
 {
     Blade::if('disk', function (string $value) {
-        return config('filesystems.default') === $value;
+        return config()->string('filesystems.default') === $value;
     });
 }
 ```

@@ -72,7 +72,7 @@ abstract class Controller
 
         $path = $request->getPathInfo();
 
-        if ($prefix = config('reverb.servers.reverb.path')) {
+        if ($prefix = config()->string('reverb.servers.reverb.path')) {
             $path = '/' . ltrim(Str::after($path, rtrim($prefix, '/')), '/');
         }
 

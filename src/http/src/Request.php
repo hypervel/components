@@ -17,14 +17,19 @@ use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Uri;
 use Override;
+use ReflectionProperty;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Exception\ConflictingHeadersException;
 use Symfony\Component\HttpFoundation\Exception\SessionNotFoundException;
 use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
+use Symfony\Component\HttpFoundation\FileBag;
+use Symfony\Component\HttpFoundation\HeaderBag;
 use Symfony\Component\HttpFoundation\HeaderUtils;
 use Symfony\Component\HttpFoundation\InputBag;
 use Symfony\Component\HttpFoundation\IpUtils;
+use Symfony\Component\HttpFoundation\ParameterBag;
 use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
+use Symfony\Component\HttpFoundation\ServerBag;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
 
 /**
@@ -145,7 +150,52 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      */
     protected bool $isForwardedValidValue = true;
 
+    /**
+     * Transport URI associated with a precomputed path.
+     */
+    protected ?string $transportRequestUri = null;
+
+    /**
+     * Raw accessors for Symfony's hooked request bag properties.
+     *
+     * @var array<string, ReflectionProperty>
+     */
+    private static array $baseRequestProperties = [];
+
     // Request::capture() is omitted because the Swoole bridge creates each request.
+
+    /**
+     * Create a request, optionally reusing headers and path data prepared by the transport.
+     */
+    public function __construct(
+        array $query = [],
+        array $request = [],
+        array $attributes = [],
+        array $cookies = [],
+        array $files = [],
+        array $server = [],
+        mixed $content = null,
+        ?HeaderBag $headers = null,
+        ?string $pathInfo = null,
+    ) {
+        if ($headers === null) {
+            parent::__construct($query, $request, $attributes, $cookies, $files, $server, $content);
+
+            return;
+        }
+
+        $this->initializeWithHeaderBag(
+            $query,
+            $request,
+            $attributes,
+            $cookies,
+            $files,
+            $server,
+            $content,
+            $headers,
+            $pathInfo,
+        );
+    }
 
     /**
      * Initialize the request data.
@@ -160,11 +210,88 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
 
         parent::initialize($query, $request, $attributes, $cookies, $files, $server, $content);
 
+        $this->transportRequestUri = null;
+
         $this->trustedProxiesValue = [];
         $this->trustedHeaderSetValue = -1;
         $this->trustedHostPatternsValue = [];
         $this->trustedHostsValue = [];
         $this->resetTrustedRequestCaches();
+    }
+
+    /**
+     * Initialize request bags while retaining headers already normalized by the transport.
+     */
+    protected function initializeWithHeaderBag(
+        array $query,
+        array $request,
+        array $attributes,
+        array $cookies,
+        array $files,
+        array $server,
+        mixed $content,
+        HeaderBag $headers,
+        ?string $pathInfo,
+    ): void {
+        $this->startedAtTimestamp = (float) ($server['REQUEST_TIME_FLOAT'] ?? microtime(true));
+
+        $server['REQUEST_TIME_FLOAT'] ??= $this->startedAtTimestamp;
+        $server['REQUEST_TIME'] ??= (int) $this->startedAtTimestamp;
+
+        $this->setBaseRequestProperty('request', new InputBag($request));
+        $this->setBaseRequestProperty('query', new InputBag($query));
+        $this->setBaseRequestProperty('attributes', new ParameterBag($attributes));
+        $this->setBaseRequestProperty('cookies', new InputBag($cookies));
+        $this->setBaseRequestProperty('files', new FileBag($files));
+        $this->setBaseRequestProperty('server', new ServerBag($server));
+        $this->setBaseRequestProperty('headers', $headers);
+
+        $this->content = $content;
+        $this->languages = null;
+        $this->charsets = null;
+        $this->encodings = null;
+        $this->acceptableContentTypes = null;
+        $this->pathInfo = $pathInfo;
+        $this->transportRequestUri = $pathInfo === null ? null : (string) $server['REQUEST_URI'];
+        $this->requestUri = null;
+        $this->baseUrl = null;
+        $this->basePath = null;
+        $this->method = null;
+        $this->format = null;
+
+        $this->trustedProxiesValue = [];
+        $this->trustedHeaderSetValue = -1;
+        $this->trustedHostPatternsValue = [];
+        $this->trustedHostsValue = [];
+        $this->resetTrustedRequestCaches();
+    }
+
+    /**
+     * Set a Symfony Request bag without triggering its public-property deprecation hook.
+     */
+    private function setBaseRequestProperty(string $name, object $value): void
+    {
+        $property = self::$baseRequestProperties[$name]
+            ??= new ReflectionProperty(SymfonyRequest::class, $name);
+
+        $property->setRawValue($this, $value);
+    }
+
+    /**
+     * Return the precomputed transport path unless middleware rewrote its URI.
+     */
+    #[Override]
+    public function getPathInfo(): string
+    {
+        if ($this->transportRequestUri !== null) {
+            if ($this->server->get('REQUEST_URI') !== $this->transportRequestUri) {
+                $this->pathInfo = null;
+            }
+
+            $this->transportRequestUri = null;
+        }
+
+        return parent::getPathInfo();
     }
 
     /**
@@ -394,8 +521,24 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      */
     public function is(mixed ...$patterns): bool
     {
-        return (new Collection($patterns))
-            ->contains(fn ($pattern) => Str::is($pattern, $this->decodedPath()));
+        // Global middleware runs this per request, so the path is decoded once
+        // for the whole list rather than per pattern, and matched without
+        // wrapping the patterns in a Collection. Resolving it lazily also keeps
+        // Collection::contains()'s behavior of never touching the subject when
+        // there is nothing to match against.
+        if ($patterns === []) {
+            return false;
+        }
+
+        $path = $this->decodedPath();
+
+        foreach ($patterns as $pattern) {
+            if (Str::is($pattern, $path)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -411,8 +554,22 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      */
     public function fullUrlIs(mixed ...$patterns): bool
     {
-        return (new Collection($patterns))
-            ->contains(fn ($pattern) => Str::is($pattern, $this->fullUrl()));
+        // See is(). The empty check matters more here: rebuilding the URL
+        // resolves the host, which validates it and can throw, so an empty
+        // pattern list has to stay the no-op Collection::contains() made it.
+        if ($patterns === []) {
+            return false;
+        }
+
+        $url = $this->fullUrl();
+
+        foreach ($patterns as $pattern) {
+            if (Str::is($pattern, $url)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

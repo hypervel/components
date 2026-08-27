@@ -113,6 +113,89 @@ class CacheStorageStoreTest extends TestCase
         $this->assertNull($store->get('foo'));
     }
 
+    public function testIncrementPreservesAbsoluteExpiryAtFractionalSecond(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+
+        $disk = new ArrayFilesystem;
+        $store = new StorageStore($disk, 'cache');
+
+        $this->assertTrue($store->put('counter', 1, 1));
+        $this->assertSame(2, $store->increment('counter'));
+        $this->assertStringStartsWith('0000001002', (string) $disk->get($store->path('counter')));
+
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1001.000000'));
+
+        $this->assertSame(2, $store->get('counter'));
+
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1002.000000'));
+
+        $this->assertNull($store->get('counter'));
+    }
+
+    public function testIncrementPreservesForeverExpiryAtFractionalSecond(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+
+        $disk = new ArrayFilesystem;
+        $store = new StorageStore($disk, 'cache');
+
+        $this->assertTrue($store->forever('counter', 1));
+        $this->assertSame(2, $store->increment('counter'));
+        $this->assertStringStartsWith('9999999999', (string) $disk->get($store->path('counter')));
+        $this->assertSame(2, $store->get('counter'));
+    }
+
+    public function testIncrementSupportsLaravelShapedPayloadOverrides(): void
+    {
+        $store = new class(new ArrayFilesystem, 'cache') extends StorageStore {
+            public ?int $writtenDuration = null;
+
+            public ?int $writtenExpiresAt = null;
+
+            public function put(string $key, mixed $value, int $seconds): bool
+            {
+                $this->writtenDuration = $seconds;
+
+                return true;
+            }
+
+            protected function getPayload(string $key): array
+            {
+                return ['data' => 1, 'time' => 30];
+            }
+
+            protected function putWithExpiresAt(string $key, mixed $value, int $expiresAt): bool
+            {
+                $this->writtenExpiresAt = $expiresAt;
+
+                return true;
+            }
+        };
+
+        $this->assertSame(2, $store->increment('counter'));
+        $this->assertSame(30, $store->writtenDuration);
+        $this->assertNull($store->writtenExpiresAt);
+    }
+
+    public function testPayloadRetainsLaravelRemainingTimeAlongsideAbsoluteExpiry(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC(1000));
+        $store = new class(new ArrayFilesystem, 'cache') extends StorageStore {
+            public function payload(string $key): array
+            {
+                return $this->getPayload($key);
+            }
+        };
+
+        $this->assertTrue($store->put('key', 'value', 30));
+        $this->assertSame([
+            'data' => 'value',
+            'time' => 30,
+            'expiresAt' => 1030,
+        ], $store->payload('key'));
+    }
+
     public function testTouchUpdatesExpiration(): void
     {
         CarbonImmutable::setTestNow($now = CarbonImmutable::now());

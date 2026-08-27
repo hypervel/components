@@ -221,6 +221,8 @@ If two custom whole-driver disks may safely share a pool despite having differen
 
 The `Hypervel\Pool` component provides the lower-level foundation used by Hypervel's database and Redis connection pools. It is also available to package authors who need to manage another connection type.
 
+Hypervel's database pool owns borrowing, deadlines, heartbeat cancellation, and idle connection recycling. Each database connection owns its protocol-specific health check, reconnection, cleanup, and reuse rules. Therefore, PDO, native, and HTTP database drivers can use the same pool without exposing their underlying client to the pool component.
+
 <a name="defining-a-connection-pool"></a>
 ### Defining a Connection Pool
 

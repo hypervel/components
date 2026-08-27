@@ -114,6 +114,20 @@ class AuthRequestGuardTest extends TestCase
         $this->assertTrue($guard->hasUser());
     }
 
+    public function testSetUserOverridesTheResolverAcrossRequestChanges(): void
+    {
+        RequestContext::set(Request::create('/first'));
+
+        $resolvedUser = m::mock(Authenticatable::class);
+        $explicitUser = m::mock(Authenticatable::class);
+        $guard = new RequestGuard('custom', fn () => $resolvedUser, $this->app);
+
+        $guard->setUser($explicitUser);
+        RequestContext::set(Request::create('/second'));
+
+        $this->assertSame($explicitUser, $guard->user());
+    }
+
     public function testForgetUserClearsCachedUser()
     {
         RequestContext::set(Request::create('/'));
@@ -168,6 +182,15 @@ class AuthRequestGuardTest extends TestCase
 
         $this->assertSame($request1, $seenRequests[0]);
         $this->assertSame($request2, $seenRequests[1]);
+    }
+
+    public function testAuthContextKeysIncludeOnlyDurableExplicitState(): void
+    {
+        $guard = new RequestGuard('custom', fn () => null, $this->app);
+
+        $this->assertSame([
+            '__auth.guards.custom.user.explicit',
+        ], $guard->getAuthContextKeys());
     }
 
     public function testValidateCallsCallbackWithCredentialsRequest()

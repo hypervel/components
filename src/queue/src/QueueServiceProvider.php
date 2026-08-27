@@ -8,7 +8,6 @@ use Closure;
 use Hypervel\Contracts\Database\ModelIdentifier;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
-use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Queue\Connectors\BackgroundConnector;
@@ -46,7 +45,7 @@ use InvalidArgumentException;
 use Laravel\SerializableClosure\SerializableClosure;
 use Throwable;
 
-class QueueServiceProvider extends ServiceProvider implements ReloadsConfiguration
+class QueueServiceProvider extends ServiceProvider
 {
     use SerializesAndRestoresModelIdentifiers;
 
@@ -86,22 +85,6 @@ class QueueServiceProvider extends ServiceProvider implements ReloadsConfigurati
         ]);
 
         $this->registerLaravelInteropAliases();
-    }
-
-    /**
-     * Reload configuration-derived worker state.
-     *
-     * Boot-only. Request-time use replaces shared queue connections while
-     * concurrent coroutines may still be using the previous objects.
-     */
-    public function reloadConfiguration(): void
-    {
-        if ($this->app->resolved('queue')) {
-            $this->app->make('queue')->forgetConnections();
-        }
-
-        $this->app->forgetInstance('queue.connection');
-        $this->app->forgetInstance('queue.failer');
     }
 
     /**

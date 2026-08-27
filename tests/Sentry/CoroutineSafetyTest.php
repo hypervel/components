@@ -11,7 +11,7 @@ use Hypervel\Database\Events\TransactionBeginning;
 use Hypervel\Sentry\Features\CacheFeature;
 use Hypervel\Sentry\Integration;
 use Hypervel\Sentry\Tracing\EventHandler as TracingEventHandler;
-use Hypervel\Tests\TestCase;
+use Mockery as m;
 use Sentry\SentrySdk;
 use Sentry\Tracing\TransactionContext;
 use Swoole\Coroutine\Channel;
@@ -22,7 +22,7 @@ use Swoole\Coroutine\Channel;
  * Verifies that instance properties and static properties used for per-request
  * mutable state are properly isolated between concurrent coroutines.
  */
-class CoroutineSafetyTest extends TestCase
+class CoroutineSafetyTest extends SentryTestCase
 {
     public function testIntegrationTransactionNameIsIsolatedPerCoroutine()
     {
@@ -53,7 +53,7 @@ class CoroutineSafetyTest extends TestCase
 
     public function testTracingEventHandlerSpanStacksAreIsolatedPerCoroutine()
     {
-        $handler = new TracingEventHandler([]);
+        $handler = new TracingEventHandler(config()->array('sentry.tracing'));
 
         // We need a transaction on the hub for span operations to work
         $hub = SentrySdk::getCurrentHub();
@@ -61,12 +61,8 @@ class CoroutineSafetyTest extends TestCase
         $transaction->setSampled(true);
         $hub->setSpan($transaction);
 
-        $connection = new Connection(
-            static fn (): null => null,
-            'database',
-            '',
-            ['driver' => 'sqlite', 'name' => 'parent'],
-        );
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getName')->once()->andReturn('parent');
         $handler->transactionBeginning(new TransactionBeginning($connection));
 
         // Verify parent has a span on its stack

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope;
 
-use DateTimeInterface;
+use Carbon\CarbonInterface;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Support\Str;
@@ -50,7 +50,7 @@ class IncomingEntry
     /**
      * The DateTime that indicates when the entry was recorded.
      */
-    public DateTimeInterface $recordedAt;
+    public CarbonInterface $recordedAt;
 
     /**
      * Create a new incoming entry instance.
@@ -287,7 +287,7 @@ class IncomingEntry
             'family_hash' => $this->familyHash,
             'type' => $this->type,
             'content' => $this->content,
-            'created_at' => $this->recordedAt->toDateTimeString(), // @phpstan-ignore-line
+            'created_at' => $this->recordedAt->toDateTimeString(),
         ];
     }
 }

@@ -159,7 +159,7 @@ class LogManager implements LoggerInterface
             $underlyingLogger = $logger->getLogger();
 
             if (method_exists($underlyingLogger, 'pushProcessor')) {
-                $underlyingLogger->pushProcessor($this->makeContextProcessor()); // @phpstan-ignore method.notFound
+                $underlyingLogger->pushProcessor($this->makeContextProcessor());
             }
 
             if ($cache) {
@@ -620,19 +620,6 @@ class LogManager implements LoggerInterface
         if (isset($this->channels[$driver])) {
             unset($this->channels[$driver]);
         }
-    }
-
-    /**
-     * Forget all resolved log channels.
-     *
-     * Boot or tests only. Mutates the singleton's channel cache; concurrent
-     * coroutines may already hold channels that next resolution will replace.
-     */
-    public function forgetChannels(): static
-    {
-        $this->channels = [];
-
-        return $this;
     }
 
     /**

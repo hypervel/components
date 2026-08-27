@@ -29,7 +29,7 @@ class IndexCommandTest extends TestCase
         $manager->shouldReceive('engine')->once()->andReturn($engine);
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('string')->with('scout.prefix', '')->andReturn('prod_');
+        $config->shouldReceive('string')->with('scout.prefix')->andReturn('prod_');
 
         $command = $this->command('posts', '0');
         $command->shouldReceive('info')->once()->with('Synchronized index ["prod_posts"] successfully.');
@@ -52,7 +52,7 @@ class IndexCommandTest extends TestCase
         $manager->shouldReceive('engine')->once()->andReturn($engine);
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('string')->with('scout.prefix', '')->andReturn('prod_');
+        $config->shouldReceive('string')->with('scout.prefix')->andReturn('prod_');
         $config->shouldReceive('string')->with('scout.driver')->andReturn('meilisearch');
         $config->shouldReceive('get')
             ->with('scout.meilisearch.index-settings.posts')
@@ -76,7 +76,7 @@ class IndexCommandTest extends TestCase
         $manager->shouldReceive('engine')->once()->andReturn($engine);
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('string')->with('scout.prefix', '')->andReturn('prod_');
+        $config->shouldReceive('string')->with('scout.prefix')->andReturn('prod_');
         $config->shouldReceive('string')->with('scout.driver')->andReturn('meilisearch');
         $config->shouldReceive('get')->with('scout.meilisearch.index-settings.posts')->andReturn(null);
         $config->shouldReceive('get')
@@ -99,7 +99,7 @@ class IndexCommandTest extends TestCase
         $manager = m::mock(EngineManager::class);
         $manager->shouldReceive('engine')->once()->andReturn($engine);
         $config = m::mock(Repository::class);
-        $config->shouldReceive('string')->with('scout.prefix', '')->andReturn('prod_');
+        $config->shouldReceive('string')->with('scout.prefix')->andReturn('prod_');
         $config->shouldReceive('string')->with('scout.driver')->andReturn('meilisearch');
         $config->shouldReceive('get')->with('scout.meilisearch.index-settings.posts')->andReturn(null);
         $config->shouldReceive('get')->with('scout.meilisearch.index-settings.prod_posts')->andReturn(null);
@@ -134,7 +134,7 @@ class IndexCommandTest extends TestCase
         $manager->shouldReceive('engine')->once()->andReturn($engine);
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('string')->with('scout.prefix', '')->andReturn('');
+        $config->shouldReceive('string')->with('scout.prefix')->andReturn('');
 
         $command = $this->command('posts');
         $command->shouldNotReceive('info');

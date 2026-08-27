@@ -11,6 +11,9 @@ class Flush
 {
     private const int CHUNK_SIZE = 1000;
 
+    /**
+     * Create a new flush operation instance.
+     */
     public function __construct(
         private readonly StoreContext $context,
         private readonly GetEntries $getEntries,
@@ -40,7 +43,7 @@ class Flush
         $isCluster = $this->context->isCluster();
 
         $entries = $this->getEntries->execute($tagIds)
-            ->map(fn (string $key) => $prefix . $key);
+            ->map(fn (string $key): string => $prefix . $key);
 
         foreach ($entries->chunk(self::CHUNK_SIZE) as $chunk) {
             $keys = $chunk->all();
@@ -49,7 +52,7 @@ class Flush
                 continue;
             }
 
-            $this->context->withConnection(function (RedisConnection $connection) use ($keys, $isCluster) {
+            $this->context->withConnection(function (RedisConnection $connection) use ($keys, $isCluster): void {
                 // Cluster keys may occupy different slots and cannot share a pipeline.
                 if ($isCluster) {
                     $connection->del(...$keys);
@@ -86,9 +89,9 @@ class Flush
             return;
         }
 
-        $this->context->withConnection(function (RedisConnection $connection) use ($tagNames) {
+        $this->context->withConnection(function (RedisConnection $connection) use ($tagNames): void {
             $tagKeys = array_map(
-                fn (string $name) => $this->context->tagHashKey($name),
+                fn (string $name): string => $this->context->tagHashKey($name),
                 $tagNames
             );
 

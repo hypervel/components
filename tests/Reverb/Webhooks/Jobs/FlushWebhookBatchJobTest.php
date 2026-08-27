@@ -176,18 +176,11 @@ class FlushWebhookBatchJobTest extends ReverbTestCase
      */
     protected function defaultWebhookConfig(): array
     {
-        return [
-            'url' => 'https://example.com/webhook',
-            'events' => ['channel_occupied', 'channel_vacated'],
-            'headers' => [],
-            'batching' => [
-                'enabled' => true,
-                'max_events' => 50,
-                'max_payload_bytes' => 262144,
-            ],
-            'retries' => 3,
-            'retry_delay' => 1,
-            'timeout' => 5,
-        ];
+        $config = $this->webhookConfig();
+        $config['url'] = 'https://example.com/webhook';
+        $config['events'] = ['channel_occupied', 'channel_vacated'];
+        $config['batching']['enabled'] = true;
+
+        return $config;
     }
 }

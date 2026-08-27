@@ -12,7 +12,7 @@ use Hypervel\Queue\WorkerStopReason;
 use Hypervel\Sentry\Features\ConsoleIntegration as ConsoleFeature;
 use Hypervel\Sentry\Features\QueueFeature;
 use Hypervel\Sentry\Integration;
-use Hypervel\Sentry\SdkCapabilities;
+use Hypervel\Sentry\SentryConfig;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Sentry\ClientInterface;
@@ -177,15 +177,12 @@ class FlushLifecycleTest extends TestCase
                 ],
             ],
         ]);
+        $sentryConfig = new SentryConfig($config, 'sentry');
         $container = m::mock(Container::class);
         $container->shouldReceive('make')
-            ->once()
-            ->with('config')
-            ->andReturn($config);
-        $container->shouldReceive('make')
-            ->once()
-            ->with(SdkCapabilities::class)
-            ->andReturn(new SdkCapabilities($config));
+            ->twice()
+            ->with(SentryConfig::class)
+            ->andReturn($sentryConfig);
         $feature = new ConsoleFeature($container);
 
         $this->withHub(new Hub($client), static function () use ($feature): void {

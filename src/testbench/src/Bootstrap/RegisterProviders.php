@@ -26,7 +26,6 @@ class RegisterProviders extends \Hypervel\Foundation\Bootstrap\RegisterProviders
             }
         }
 
-        /* @phpstan-ignore return.type */
         return tap(
             array_merge($providers, static::$merge, array_values($packageProviders ?? [])),
             static function (): void {

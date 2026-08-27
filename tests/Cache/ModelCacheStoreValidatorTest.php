@@ -37,7 +37,6 @@ class ModelCacheStoreValidatorTest extends TestCase
         foreach ([
             m::mock(DatabaseStore::class),
             m::mock(FileStore::class),
-            m::mock(StorageStore::class),
             m::mock(SwooleStore::class),
             $this->redisStore(),
         ] as $store) {
@@ -111,6 +110,7 @@ class ModelCacheStoreValidatorTest extends TestCase
             new NullStore,
             m::mock(SessionStore::class),
             m::mock(FailoverStore::class),
+            m::mock(StorageStore::class),
         ] as $store) {
             try {
                 $validator->validate($this->repository($store), 'Sanctum token cache');
@@ -122,80 +122,17 @@ class ModelCacheStoreValidatorTest extends TestCase
         }
     }
 
-    public function testAcceptsEveryLeafInANestedSupportedStack(): void
-    {
-        $stack = new StackStore([
-            m::mock(FileStore::class),
-            new StackStore([
-                m::mock(StorageStore::class),
-                $this->redisStore(),
-            ]),
-            m::mock(DatabaseStore::class),
-        ]);
-
-        $this->validator()->validate($this->repository($stack), 'Auth user cache');
-
-        $this->assertTrue(true);
-    }
-
-    public function testReportsTheFullPathToANestedUnsupportedLayer(): void
-    {
-        $stack = new StackStore([
-            m::mock(FileStore::class),
-            new StackStore([
-                m::mock(StorageStore::class),
-                new ArrayStore,
-            ]),
-        ]);
-
-        try {
-            $this->validator()->validate($this->repository($stack), 'Auth user cache');
-            $this->fail('Expected the nested array store to be rejected.');
-        } catch (UnsupportedModelCacheStoreException $exception) {
-            $this->assertStringContainsString('Auth user cache', $exception->getMessage());
-            $this->assertStringContainsString(ArrayStore::class, $exception->getMessage());
-            $this->assertStringContainsString('stack layer [1.1]', $exception->getMessage());
-        }
-    }
-
-    public function testRejectsFailoverInsideANestedStack(): void
-    {
-        $failover = m::mock(FailoverStore::class);
-        $stack = new StackStore([
-            m::mock(FileStore::class),
-            new StackStore([
-                m::mock(StorageStore::class),
-                $failover,
-            ]),
-        ]);
-
-        try {
-            $this->validator()->validate($this->repository($stack), 'Sanctum token cache');
-            $this->fail('Expected the nested failover store to be rejected.');
-        } catch (UnsupportedModelCacheStoreException $exception) {
-            $this->assertStringContainsString($failover::class, $exception->getMessage());
-            $this->assertStringContainsString('stack layer [1.1]', $exception->getMessage());
-        }
-    }
-
-    public function testReportsTheLayerForARejectedRedisSerializerInsideAStack(): void
+    public function testRejectsStacksBecauseOtherWorkersAndNodesCanRetainUpperLayerCopies(): void
     {
         $stack = new StackStore([
             m::mock(FileStore::class),
             $this->redisStore(),
         ]);
-        $validator = $this->validator(
-            connectionOptions: ['serializer' => Redis::SERIALIZER_JSON],
-        );
 
-        try {
-            $validator->validate($this->repository($stack), 'Auth user cache');
-            $this->fail('Expected the nested Redis serializer to be rejected.');
-        } catch (UnsupportedModelCacheStoreException $exception) {
-            $this->assertStringContainsString('connection [cache]', $exception->getMessage());
-            $this->assertStringContainsString('serializer [' . Redis::SERIALIZER_JSON . ']', $exception->getMessage());
-            $this->assertStringContainsString('stack layer [1]', $exception->getMessage());
-        }
+        $this->expectException(UnsupportedModelCacheStoreException::class);
+        $this->expectExceptionMessage('can retain an identity cache entry in another worker or node');
+
+        $this->validator()->validate($this->repository($stack), 'Auth user cache');
     }
 
     public function testAcceptsAbsentAndDisabledRedisSerializersWithoutOpeningAConnection(): void

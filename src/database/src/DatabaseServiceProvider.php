@@ -8,7 +8,6 @@ use Faker\Factory as FakerFactory;
 use Faker\Generator as FakerGenerator;
 use Hypervel\Contracts\Database\ConcurrencyErrorDetector as ConcurrencyErrorDetectorContract;
 use Hypervel\Contracts\Database\LostConnectionDetector as LostConnectionDetectorContract;
-use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Contracts\Queue\EntityResolver;
 use Hypervel\Core\Events\BeforeServerFork;
 use Hypervel\Core\Events\BeforeWorkerStart;
@@ -43,13 +42,17 @@ use Hypervel\Database\Schema\SchemaProxy;
 use Hypervel\Support\ServiceProvider;
 use Swoole\Constant;
 
-class DatabaseServiceProvider extends ServiceProvider implements ReloadsConfiguration
+class DatabaseServiceProvider extends ServiceProvider
 {
     /**
      * Register the service provider.
      */
     public function register(): void
     {
+        // Application rebuilds must reset model boot state without relying on test cleanup.
+        // Models must not boot until boot() installs their resolver and event dispatcher.
+        Model::clearBootedModels();
+
         $this->registerConnectionServices();
         $this->registerFakerGenerator();
         $this->registerQueueableEntityResolver();
@@ -57,15 +60,9 @@ class DatabaseServiceProvider extends ServiceProvider implements ReloadsConfigur
         $this->app->singleton('db.resolver', fn ($app) => $app->make(ConnectionResolver::class));
 
         $this->app->singleton('migration.repository', function ($app) {
-            $migrations = $app->make('config')->get('database.migrations');
-
-            $table = is_array($migrations)
-                ? ($migrations['table'] ?? 'migrations')
-                : $migrations;
-
             return new DatabaseMigrationRepository(
                 $app->make('db'),
-                $table,
+                $app->make('config')->string('database.migrations.table'),
             );
         });
 
@@ -102,18 +99,6 @@ class DatabaseServiceProvider extends ServiceProvider implements ReloadsConfigur
             TableCommand::class,
             WipeCommand::class,
         ]);
-    }
-
-    /**
-     * Reload configuration-derived worker state.
-     *
-     * Boot-only. Request-time use clears the shared connection resolver while
-     * concurrent coroutines may still be using connections from it.
-     */
-    public function reloadConfiguration(): void
-    {
-        $this->app->forgetInstance('db.resolver');
-        $this->app->forgetInstance(ConnectionResolver::class);
     }
 
     /**
@@ -174,7 +159,7 @@ class DatabaseServiceProvider extends ServiceProvider implements ReloadsConfigur
         }
 
         $this->app->scoped(FakerGenerator::class, function ($app, $parameters) {
-            $locale = $parameters['locale'] ?? $app->make('config')->get('app.faker_locale', 'en_US');
+            $locale = $parameters['locale'] ?? $app->make('config')->string('app.faker_locale');
 
             return FakerFactory::create($locale);
         });

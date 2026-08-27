@@ -58,10 +58,8 @@ class BenchmarkContext
 
     /**
      * Get the cache repository for this context.
-     *
-     * @return Repository
      */
-    public function getStore(): \Hypervel\Contracts\Cache\Repository
+    public function getStore(): Repository
     {
         /** @var Repository */
         return $this->cacheManager->store($this->storeName);
@@ -122,7 +120,7 @@ class BenchmarkContext
     /**
      * Get patterns to match all tag storage structures with a given tag name prefix.
      *
-     * Returns patterns for BOTH tag modes to ensure complete cleanup
+     * Returns patterns for both tag modes to ensure complete cleanup
      * regardless of current mode (important for --compare-tag-modes):
      * - Any mode: {cachePrefix}_any:tag:{tagNamePrefix}*
      * - All mode: {cachePrefix}_all:tag:{tagNamePrefix}*
@@ -145,7 +143,7 @@ class BenchmarkContext
     /**
      * Get patterns to match all cache value keys with a given key prefix.
      *
-     * Returns patterns for BOTH tag modes to ensure complete cleanup
+     * Returns patterns for both tag modes to ensure complete cleanup
      * regardless of current mode (important for --compare-tag-modes):
      * - Untagged keys: {cachePrefix}{keyPrefix}* (same in both modes)
      * - Tagged keys in all mode: {cachePrefix}{xxh128}:{keyPrefix}* (namespaced)
@@ -274,7 +272,7 @@ class BenchmarkContext
         }
 
         // 3. Clean up any remaining tag storage structures matching benchmark prefix
-        // Uses patterns for BOTH modes to ensure complete cleanup after --compare-tag-modes
+        // Uses patterns for both modes to ensure complete cleanup after --compare-tag-modes
         foreach ($this->getTagStoragePatterns(self::KEY_PREFIX) as $pattern) {
             $this->flushKeysByPattern($storeInstance, $pattern);
         }
@@ -282,15 +280,15 @@ class BenchmarkContext
         // 4. Any mode: clean up benchmark entries from the tag registry
         if ($this->isAnyMode()) {
             $context = $storeInstance->getContext();
-            $context->withConnection(function ($connection) use ($context) {
+            $context->withConnection(function (RedisConnection $connection) use ($context): void {
                 $registryKey = $context->registryKey();
                 $members = $connection->zRange($registryKey, 0, -1);
-                $benchMembers = array_filter(
+                $benchmarkMembers = array_filter(
                     $members,
-                    fn ($m) => str_starts_with($m, self::KEY_PREFIX)
+                    fn (string $member): bool => str_starts_with($member, self::KEY_PREFIX)
                 );
-                if (! empty($benchMembers)) {
-                    $connection->zrem($registryKey, ...$benchMembers);
+                if (! empty($benchmarkMembers)) {
+                    $connection->zrem($registryKey, ...$benchmarkMembers);
                 }
             });
         }
@@ -300,12 +298,12 @@ class BenchmarkContext
      * Flush keys by pattern using RedisConnection::flushByPattern().
      *
      * @param RedisStore $store The Redis store instance
-     * @param string $pattern The pattern to match (should include cache prefix, NOT OPT_PREFIX)
+     * @param string $pattern The pattern to match (should include cache prefix, not OPT_PREFIX)
      */
     private function flushKeysByPattern(RedisStore $store, string $pattern): void
     {
         $store->getContext()->withConnection(
-            fn (RedisConnection $connection) => $connection->flushByPattern($pattern)
+            fn (RedisConnection $connection): int => $connection->flushByPattern($pattern)
         );
     }
 }

@@ -14,11 +14,17 @@ use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
  */
 final class TaggedRememberCheck implements CheckInterface
 {
+    /**
+     * Get the human-readable name of this check.
+     */
     public function name(): string
     {
         return 'Tagged Remember Operations';
     }
 
+    /**
+     * Run the check and return results.
+     */
     public function run(DoctorContext $context): CheckResult
     {
         $result = new CheckResult;
@@ -37,13 +43,13 @@ final class TaggedRememberCheck implements CheckInterface
         if ($context->isAnyMode()) {
             // Any mode: direct get works
             $result->assert(
-                $value === 'remembered-value' && $context->cache->get($rememberKey) === 'remembered-value', // @phpstan-ignore identical.alwaysTrue (diagnostic assertion)
+                $value === 'remembered-value' && $context->cache->get($rememberKey) === 'remembered-value',
                 'remember() with tags stores and returns value'
             );
         } else {
             // All mode: must use tagged get
             $result->assert(
-                $value === 'remembered-value' && $context->cache->tags([$tag])->get($rememberKey) === 'remembered-value', // @phpstan-ignore identical.alwaysTrue (diagnostic assertion)
+                $value === 'remembered-value' && $context->cache->tags([$tag])->get($rememberKey) === 'remembered-value',
                 'remember() with tags stores and returns value'
             );
         }
@@ -57,13 +63,13 @@ final class TaggedRememberCheck implements CheckInterface
         if ($context->isAnyMode()) {
             // Any mode: direct get works
             $result->assert(
-                $value === 'forever-value' && $context->cache->get($foreverKey) === 'forever-value', // @phpstan-ignore identical.alwaysTrue (diagnostic assertion)
+                $value === 'forever-value' && $context->cache->get($foreverKey) === 'forever-value',
                 'rememberForever() with tags stores and returns value'
             );
         } else {
             // All mode: must use tagged get
             $result->assert(
-                $value === 'forever-value' && $context->cache->tags([$tag])->get($foreverKey) === 'forever-value', // @phpstan-ignore identical.alwaysTrue (diagnostic assertion)
+                $value === 'forever-value' && $context->cache->tags([$tag])->get($foreverKey) === 'forever-value',
                 'rememberForever() with tags stores and returns value'
             );
         }

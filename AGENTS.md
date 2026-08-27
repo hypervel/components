@@ -6,7 +6,7 @@ Hypervel is a standalone Laravel-style Swoole framework. The public API should s
 
 Laravel is the main API reference. Hyperf is a historical and architectural reference for some lower-level Swoole/coroutine packages, but Hypervel code should follow current Hypervel patterns rather than copying Hyperf structure mechanically.
 
-Most work in this repo today is framework bug fixing and enhancement, or porting Laravel packages. Hyperf-to-Hypervel porting is largely done — the conversion guide lives in `docs/ai/porting-hyperf.md`, read when maintaining previously ported code or doing the occasional remaining port.
+Most work in this repo today is framework bug fixes and enhancements, or porting Laravel packages and updates. `docs/ai/porting-hyperf.md` applies only to the rare Hyperf package or update port.
 
 This file is intentionally detailed because agents trained on Laravel will otherwise assume Laravel's request lifecycle and miss Hypervel's Swoole/coroutine constraints.
 
@@ -125,6 +125,7 @@ The Working rules and the Avoid overengineering rules apply to all work in this 
 - **One file at a time** — never work on multiple files simultaneously. This governs manual editing; package-manager and formatter runs may touch multiple files.
 - **Never use Write to overwrite files** — always use Edit for targeted updates.
 - **Always use `cp` to copy files and `mv` to move/rename** — never read → write new version → delete old version.
+- **Copy before splitting** — When a new file or class is primarily extracted from existing code, use `cp` to copy the primary source first and then update the copy rather than rebuilding it from individual pieces. Copy any additional blocks, including comments and docblocks, into the destination before removing them from their source.
 - **Grep broadly — never assume a subdir** — when searching for any symbol, class, method, or pattern, grep across the whole `src/` (or `tests/`) tree, not a specific package subdir. Assumptions about where something lives produce false negatives.
 - **Read the source before describing behavior** — never state how code behaves from memory or Laravel assumptions. Hypervel's coroutine runtime breaks many Laravel assumptions; if you haven't read the relevant source, read it first.
 - **Treat past owner decisions as context, not constraints** — Previous owner approvals and completed plans explain history but do not determine the best design today. Never retain or reject a design merely because it was previously approved; decide from current requirements, code, and evidence.
@@ -136,7 +137,7 @@ The Working rules and the Avoid overengineering rules apply to all work in this 
 
 - **Use one source of truth** — Put all user documentation in `src/docs/`. Package READMEs are intentionally minimal, not a second documentation surface, and must not duplicate user documentation.
 - **Write user documentation in Laravel-docs prose** — Use the simple, direct, human-friendly style of first-party Laravel documentation. Prefer natural explanations and examples over implementation language; avoid internal jargon, stiff wording, and needless detail.
-- **Keep the Laravel porting guide current and focused** — Whenever a framework change introduces, changes, or removes a public API, feature, configuration surface, or supported integration in a way that a Laravel application or package porter genuinely must account for, update `src/docs/porting-from-laravel.md` in the same change. Hard boot or runtime failures, silent semantic differences, and commonly used framework surfaces normally qualify. Internal implementation differences, performance work that preserves the public contract, incidental source drift, package-specific details, and narrow edge cases that do not change normal porting decisions do not. The guide is a high-signal starting context for humans and LLMs, not an exhaustive framework diff or dumping ground. Treat its context size as a design constraint: keep additions concise and action-oriented, link to the canonical feature documentation instead of duplicating its detail, and remove stale or duplicated guidance whenever editing the guide.
+- **Keep the Laravel porting guide current and focused** — Whenever a framework change introduces, changes, or removes a public API, feature, behavior, configuration surface, or supported integration in a way that a Laravel application or package porter genuinely must account for, update `src/docs/porting-from-laravel.md` in the same change. Do not add entries for things like bug fixes, internal implementation differences, performance work that preserves the public contract, incidental source drift, or narrow edge cases unless they change what a porter needs to do. The guide is a high-signal starting context for humans and LLMs, not an exhaustive framework diff or dumping ground. Treat its context size as a design constraint: keep additions concise and action-oriented, link to the canonical feature documentation instead of duplicating its detail, and remove stale or duplicated guidance whenever editing the guide.
 
 #### Package READMEs
 
@@ -169,6 +170,7 @@ Build complete, long-term solutions, not MVPs or local workarounds. A broad chan
 ### Code conventions
 
 - **New Hypervel-owned code and packages must be Laravel-style** — Design new packages and public surfaces as if they were first-party Laravel packages ported to and enhanced for Hypervel. APIs, naming, class responsibilities, code patterns, and directory structure must be ergonomic, intuitive, and immediately familiar to Laravel developers, while internals remain coroutine-safe and optimized for Hypervel's long-lived Swoole runtime and high-performance requirements. Apply the requirements under [Audit changes during modification and code review](#audit-changes-during-modification-and-code-review) from initial design onward.
+- **Reserve `assert*` methods for testing APIs** — Use prefixes such as `ensure*` or `validate*` for runtime guards.
 - **Modern PHP 8.4+ with full typing** — use constructor property promotion, readonly properties, enums, match expressions, named arguments, and attributes where they fit. Every file declares `strict_types=1`; parameters, return types, properties, and class constants are natively typed wherever PHP and the inherited API permit (e.g. `resource` cannot be represented as a native PHP type). PHP does not allow return types on `__construct()` or `__destruct()`.
 - **Newly written classes use dependency injection** — inject contracts (e.g. `Repository $config`, `CacheRepository $cache`) via constructor or method injection rather than helpers, facades, or `new` for framework services. Dependencies become explicit in signatures and tests swap them in directly, without facade-mocking machinery. Fall back to `Container::getInstance()->make(...)` only where injection isn't possible — static contexts and traits, like the testing package's Concerns. Helpers (`config()`, `cache()`) are fine in non-class contexts such as route and config files.
 - **Never convert ported code to dependency injection** — ported code keeps its upstream facade, helper, and instantiation style. Converting it restructures classes and breaks 1:1 upstream mergeability.
@@ -177,7 +179,7 @@ Build complete, long-term solutions, not MVPs or local workarounds. A broad chan
 - **Use Laravel observer conventions** — place Eloquent observers in a top-level `Observers/` directory. Register model-specific observers with `#[ObservedBy(...)]`; use `observe()` only for dynamic registration or observers supplied automatically by a reusable concern.
 - **Use attributed local scopes** — define local Eloquent query scopes as protected methods marked with `#[Scope]`, rather than legacy public `scopeFoo()` methods. Use separate scope classes only for genuine global scopes.
 - **No class docblocks unless warranted** — only add a class-level docblock if something unusual or complex needs explanation: purpose, architectural role, usage patterns. Never write one that inventories the class — trait lists, method summaries, "registers X, configures Y" — that duplicates the members' own docblocks and goes stale. Method docblocks (title only, Laravel-style, imperative mood: "Return", not "Returns") are always added. A body can accompany the title for complex methods that need further explanation.
-- **Add comments where they're genuinely useful** — a short WHY for logic that isn't obvious from reading the code, the reason behind a bug fix, or logic that's coupled to code in other files and hard to understand in isolation. Don't comment what the code does, and don't annotate framework divergences, routine casts, or type normalizations. Match the surrounding comment density.
+- **Add comments only where they're genuinely useful** — a short WHY for logic that isn't obvious from reading the code, the reason behind a bug fix, or logic that's coupled to code in other files and hard to understand in isolation. Avoid unnecessary code comments; don't comment what the code does, and don't annotate framework divergences, routine casts, or type normalizations.
 - **Don't make classes final by default** — keep classes open; add `final` only when it protects a real invariant or avoids a concrete framework/API problem, e.g. immutability, coroutine-safety, or a security guarantee.
 - **Place methods logically, not at the end** — group new methods with related ones (getters with getters, setters with setters). Two exceptions: preserve upstream order when merging ported code (see Porting rules), and `flushState()` has its own placement rule (see Static state and test cleanup).
 - **Only extract methods when justified** — extract only when the logic is complex enough to benefit from a name, it's likely to be reused, or two or more methods call it. Don't extract a simple one-liner with a single caller.
@@ -190,15 +192,27 @@ Build complete, long-term solutions, not MVPs or local workarounds. A broad chan
 - **Use semantic column types in migrations** — `jsonb()` over `json()`, `uuid()` / `foreignUuid()` / `uuidMorphs()` over strings for UUIDs, `ipAddress()` and `macAddress()` over `string()`. PostgreSQL gets the real types (`jsonb`, `uuid`, `inet`, `macaddr`); the other supported databases fall back automatically to compatible types.
 - **No arbitrary string lengths** — use `->string('name')`, not `->string('name', 100)`. Don't invent limits; specify a length only when the domain or protocol defines one — exact (UUID: 36, ULID: 26, sha-256 hex token: 64) or a defined maximum (IPv6 address: 45).
 - **No database enums** — use string columns plus PHP enums. Adding a value to a database enum requires a migration.
-- **Prefer `timestamp` over `timestampTz` in migrations** — store times in UTC with plain `timestamp` columns, matching the normal convention in Laravel and Hypervel first-party migrations. Reserve `timestampTz` for columns that genuinely need database-level timezone semantics, such as integrating with an existing timezone-aware schema or columns written by clients in different session timezones. The schema API supports both — this is a column-choice convention, not an API restriction.
+- **Use `dateTime` for arbitrary dates** — use `dateTime` instead of `timestamp` for scheduled dates, expiry dates, historical dates, and similar arbitrary dates. Keep `timestamp` for dates recorded when an action happens, such as `created_at`, `updated_at`, and `deleted_at`. On MySQL and MariaDB, `timestamp` only supports 1970–2038.
+- **Prefer `timestamp` over `timestampTz` in migrations** — store times in UTC with plain `timestamp` columns, matching the normal convention in Laravel and Hypervel first-party migrations. Reserve `timestampTz` for columns that genuinely need database-level timezone semantics, such as existing timezone-aware schemas or columns written under different session timezones. The schema API supports both — this is a column-choice convention, not an API restriction.
 - **Guard optional event dispatches with `hasListeners()`** — before constructing and dispatching framework events, guard them with `hasListeners()` so hot paths skip event overhead when nobody is listening. Bare `*` listeners are passive observers and do not count; targeted wildcards do. Do not guard dispatches where dispatching is the side effect, such as jobs, broadcasts, webhooks, or command bus calls.
 - **Use `Sleep::usleep()` / `Sleep::sleep()` for delays in source code** — `Sleep` is fakeable in tests. Use raw `sleep()` / `usleep()` only where real time must pass, such as test harnesses and external-process polling.
 - **Use `xxh128` for internal non-cryptographic hashing** — cache and context keys, content checksums, and change detection. It is faster than `sha256`, which is reserved for trust boundaries: stored credential digests, signatures, and anything an attacker gains by forging. Seed it when the hashed value comes from user input, as `SwooleStore` does for its physical table keys.
 - **Use immutable dates by default** — Hypervel defaults to `Hypervel\Support\CarbonImmutable`, including where Laravel uses mutable Carbon. Create public or application-configurable dates through the `Date` facade or date helpers, and use exact `CarbonImmutable` for framework-owned internal or held values. Type configurable Carbon boundaries as `CarbonInterface` and native or third-party boundaries as `DateTimeInterface`. Capture the return value of every date modifier whose result must persist. Use `Hypervel\Support\Carbon` only for explicit mutable opt-out or conversion behavior.
-- **Use typed config getters and avoid duplicate defaults** — prefer `$config->string()`, `$config->integer()`, `$config->float()`, `$config->boolean()`, and `$config->array()` over `$config->get()` for values that cannot be null. Do not pass a code-level fallback when the framework or package config defines the key; missing or misspelled keys should fail loudly instead of silently using a second default. Framework and package defaults are shallow-merged with application config. `mergeableOptions()` is only for named groups such as connections or stores: application entries replace matching defaults, while other default entries remain. Other nested arrays are replaced as a whole. Keep a fallback when a setting inside one of those replaced arrays is intentionally optional.
+- **Always use American English spelling** — E.g., "behavior" vs "behaviour", "utilize" vs "utilise".
+
+### Configuration
+
+These rules apply to all code, including ported code.
+
+- Always use typed getters for values with one non-null type. Only use `get()` when null, union, or mixed values are meaningful. Add a test for any supported null behavior.
+- Cast environment-backed booleans and numbers in config files; if `null` is supported, cast only non-null values. Consumers must not repeat those casts. When a factory accepts raw configuration records, normalize types and documented optional defaults once at that boundary; never supply missing required members.
+- Required settings live in shipped config and must not have a code-level fallback, so missing or misspelled keys fail loudly.
+- Intentionally optional settings keep one owning fallback and remain discoverable in config or feature documentation. Document what omission or null means.
+- Framework and package defaults are shallow-merged with application config. `mergeableOptions()` is only for named groups such as connections or stores: application entries replace matching defaults, while other default entries remain. Other nested arrays are replaced as a whole.
+- Replaceable named and nested records must apply documented optional defaults at their owning boundary; missing required members must still fail.
+- A non-obvious fallback value shared by multiple source paths must have an owning constant. If user-facing config exposes the same default, keep its concrete value readable and add a focused test asserting that it matches the constant. Do not create constants for obvious source fallbacks such as `true`, `false`, `null`, `[]`, or `'default'`.
 - **Env var naming** — Ported config keeps upstream names. New Hypervel-specific settings should use the established prefix for the package or subsystem that owns the value (`SERVER_`, `CACHE_`, `REDIS_`, etc.). Determine ownership semantically, not from the config filename: aggregate files such as `app.php` contain multiple domains, and `APP_` is for genuinely application-wide settings. If a value mirrors another config key, reuse that key's environment variable instead of defining a duplicate.
 - **Use `resolve...Using` for Hypervel-owned config resolvers** — prefer this naming for callbacks that resolve config-derived values, unless an established Laravel domain convention already exists, such as `redirectUsing()`.
-- **Always use American English spelling** — E.g., "behavior" vs "behaviour", "utilize" vs "utilise".
 
 ## Container
 
@@ -206,7 +220,7 @@ Hypervel's container keeps Laravel's named API surface — `bind()`, `singleton(
 
 ### Resolution semantics vs Laravel
 
-The critical difference: **unbound concrete classes are auto-singletoned**. In Laravel, `make()` on a class with no binding builds a fresh instance every call. In Hypervel, the first resolution caches the instance (in `$autoSingletons`) for the worker lifetime — in Swoole's long-running process model services are stateless singletons by design, and re-creating them on every resolution wastes CPU and memory. Explicit bindings override this (bound classes follow their binding type), and `SelfBuilding` classes are excluded.
+The critical difference: **unbound concrete classes are auto-singletoned**. In Laravel, `make()` on a class with no binding builds a fresh instance every call. In Hypervel, the first resolution caches the instance (in `$autoSingletons`) for the worker lifetime — in Swoole's long-running process model services are stateless singletons by design, and re-creating them on every resolution wastes CPU and memory. Explicit bindings override this (bound classes follow their binding type), and `SelfBuilding` and `Transient` classes are excluded.
 
 | Registration | Laravel | Hypervel |
 |---|---|---|
@@ -217,19 +231,20 @@ The critical difference: **unbound concrete classes are auto-singletoned**. In L
 | `make($abstract, $params)` / `makeWith()` | Contextual build — never cached | Same — parameters bypass the singleton, scoped, and auto-singleton caches |
 | `build($concrete)` | Constructs the concrete directly, bypassing bindings and caches for the top-level class | Same; Hypervel adds `buildWith($concrete, $params)`. Nested constructor dependencies still resolve through the container |
 | `implements SelfBuilding` | Container calls the class's static `newInstance()` | Same, and it also skips auto-singletoning |
+| `implements Transient` | No equivalent marker | Unbound resolutions are always fresh; explicit bindings still determine the lifetime. Eloquent models inherit this marker from `Model` |
 
 Rules that follow from this:
 
-- **Classes that capture per-request data in their constructor or accumulate mutable state must not be auto-singletoned** — pick the correct lifetime: `scoped()` for one instance per coroutine/request, `bind()` for a fresh instance per resolution, `build()`/`buildWith()` for direct construction at the call site, or `SelfBuilding` for class-controlled construction. An existing class like that being auto-singletoned is a coroutine-safety bug — STOP and report it.
+- **Classes that capture per-request data in their constructor or accumulate mutable state must not be auto-singletoned** — pick the correct lifetime: `scoped()` for one instance per coroutine/request, `bind()` for a fresh instance per resolution, `build()`/`buildWith()` for direct construction at the call site, `SelfBuilding` for class-controlled construction, or `Transient` when freshness is intrinsic to the whole class hierarchy. An existing class like that being auto-singletoned is a coroutine-safety bug — STOP and report it.
 - **Most classes are safe as auto-singletons:** services, middleware, listeners, factories, formatters — stateless or process-global by nature.
 - **Do not use `build()` as a drop-in freshness replacement for `make()`** when explicit bindings, test swaps, aliases, or resolving callbacks must be honored — it bypasses top-level binding lookups, aliases, and caches by design.
 
 ### Choosing a binding type
 
 - Stateless and shared for the worker lifetime → `singleton()`.
-- Fresh mutable object per resolution → `bind()`.
+- Fresh mutable object per resolution → `bind()`, or `Transient` when that lifetime is intrinsic to the whole class hierarchy.
 - State isolated per coroutine / request → `scoped()`.
-- Concrete class with no separate abstract → don't bind it at all; auto-singletoning covers it.
+- Concrete class with no separate abstract → don't bind it at all; auto-singletoning covers it unless the class implements `Transient` or `SelfBuilding`.
 
 ### Binding patterns
 
@@ -250,7 +265,7 @@ $this->app->singleton('auth', fn ($app) => new AuthManager($app));
 $this->app->singleton(FormatterInterface::class, DefaultFormatter::class);
 ```
 
-**3. Abstract and concrete are the same class — do not bind at all.** Hypervel's container auto-singletons unbound concrete classes on first resolution. An explicit `singleton(Foo::class)` is redundant:
+**3. Abstract and concrete are the same class — do not bind merely to share it.** Hypervel's container auto-singletons unbound concrete classes on first resolution. An explicit `singleton(Foo::class)` is redundant unless the class declares an intrinsic fresh lifetime through `Transient` or `SelfBuilding`:
 
 ```php
 // Wrong: redundant; auto-singleton handles this.
@@ -331,11 +346,12 @@ Decide where state lives before writing code:
 | Immutable metadata shared by all requests | Static property cache or worker-lifetime singleton |
 | Stateless service shared by all requests | `singleton()` or auto-singleton (see Container) |
 | Mutable state for one request, operation, or coroutine | `CoroutineContext` or a `scoped()` binding |
-| Fresh mutable object per resolution | `bind()` or contextual parameters |
+| Fresh mutable object per resolution | `bind()`, contextual parameters, or `Transient` for an intrinsically fresh class hierarchy |
 
 - **Use `Hypervel\Context\CoroutineContext` for invocation-scoped state** — anything that must not be visible to other concurrent coroutines in the same worker. Static properties and singleton fields leak across coroutines: whatever one coroutine sets becomes visible to all others in the worker. Use the established key-naming convention: `__<package>.<key>` value prefix, `_CONTEXT_KEY` / `_CONTEXT_KEY_PREFIX` constant suffixes, public only when other classes or tests reference the constant. Do not use `Hypervel\Support\Facades\Context` as the low-level coroutine store; it provides Laravel-style application context instead.
 - **Configure process-global values only during worker boot** — config is a process-global singleton, so `Config::set()` during request handling changes behavior for every concurrent request in the worker. Never mutate config for request-specific behavior; use `CoroutineContext` or middleware instead. Provider boot-time configuration is fine — it runs once per worker.
 - **Name static cache properties for what they store** — not with a `Cache` suffix; static properties in Swoole workers are caches by nature. Exception: matching an existing Laravel-ported pattern in the same class (e.g. `$classCastCache`, `$attributeCastCache` on `HasAttributes`).
+- **Bound worker-lifetime lookup caches** — any internal lookup cache retained across requests in a worker—for example, in static properties or singleton instances—must have a naturally limited set of keys or discard entries that are safe to recompute. Do not add a size limit merely to hide growth from request- or user-derived keys. This governs framework-derived caches, not application-owned cache stores such as the `worker-array` driver.
 - **Review worker-lifetime state explicitly** — whenever a change introduces or modifies static properties/caches, singletons or other long-lived state, STOP and report the Swoole persistence impact (memory leaks, cross-request behavior) with a recommendation.
 - **Document worker-lifetime mutators** — when adding or touching a public method that mutates static state, singleton-held configuration, manager registries, cached drivers, global callbacks, or other worker-lifetime state, add a short warning to the method docblock if the method is intended only for boot-time configuration or tests. Use the tag-first format so humans and LLMs can recognize it quickly:
   - `Boot-only.` — for startup configuration methods
@@ -650,7 +666,7 @@ If a test fails with a type error, the source code type may be wrong — not the
 
 Tests that require external services (databases, Redis, HTTP servers, search engines) that can't run in every environment go in `tests/Integration/{PackageName}/`. The exception is tests that call freely-available external APIs (e.g., the Guzzle tests hitting the public Pokemon API) — those can stay in regular `tests/` since they need no local service configuration.
 
-**Optimize integration tests for parallel testing** — ParaTest runs tests concurrently. Set up only the tables and services each test needs. Keep database cases in one data-provider test when splitting them would make schema setup compete. Load the full schema only when testing migrations or schema parity; do not hide avoidable slowness with longer timeouts.
+**Optimize integration tests for parallel testing** — ParaTest runs tests concurrently. Use `RefreshDatabase` by default and `DatabaseTruncation` when transaction depth zero is required; reserve `DatabaseMigrations` for migration behavior or a genuinely fresh migrated schema/baseline. Set up only the tables and services each test needs. Keep database cases in one data-provider test when splitting them would make schema setup compete. Load the full schema only when testing migrations or schema parity; do not hide avoidable slowness with longer timeouts.
 
 Service workflows enumerate their test directories explicitly. Adding a service-specific directory requires adding it to the matching workflow; using the service trait provides isolation and skip behavior but does not make CI discover the test.
 
@@ -729,7 +745,7 @@ Full PHPStan runs through `composer fix` at checkpoints. During implementation, 
 When porting Laravel packages, whether first-party or third-party, keep them as close to 1:1 with upstream as possible so future changes are easy to merge. The exceptions are:
 - Modernizing PHP types, including native parameter, return, property, and class-constant types, plus other appropriate PHP 8.4+ features, strict types, and strict comparisons
 - Converting mutable Laravel date construction to Hypervel's immutable date conventions, typing configurable factory output as `CarbonInterface`, and capturing date-modifier return values
-- Converting container array access (`$app['events']`) and dynamic service-property access (`$app->events`) in ported code to named container methods, and untyped `$config->get()` calls to typed getters where the key isn't nullable (see Container and the typed-getter rule under Development Conventions)
+- Converting container array access (`$app['events']`) and dynamic service-property access (`$app->events`) in ported code to named container methods, and applying the Configuration rules to ported config and its consumers
 - Adding Laravel-style title docblocks to methods (not classes — see Development Conventions)
 - For ported Laravel packages: making them coroutine-safe, adding Swoole performance enhancements (e.g., static property caching), making them pass PHPStan
 - Not porting upstream framework-specific integrations that only make sense in the source framework (for example packages, drivers) unless Hypervel intentionally has an equivalent surface
@@ -745,7 +761,7 @@ Hyperf is a historical reference rather than an ongoing merge target. For the ra
 
 When working on a package, check its README for the upstream reference before making changes. Most Hypervel packages are ports of Laravel first-party or third-party ecosystem packages, such as Spatie packages. Most low-level Swoole infrastructure packages were originally ported from Hyperf, and a few packages are Hypervel-specific.
 
-Before porting Hyperf code or modifying a Hyperf-ported package, read `docs/ai/porting-hyperf.md` — it covers the conversion mechanics: container calls, ConfigProvider migration, listener/event conversion, and Hyperf test porting.
+Read `docs/ai/porting-hyperf.md` only when porting a Hyperf package or update.
 
 ### Source workflow
 

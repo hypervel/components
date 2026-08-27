@@ -80,7 +80,7 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
             return static::default();
         }
 
-        if (! is_callable($callback) && ! $callback instanceof static) { // @phpstan-ignore instanceof.alwaysTrue, booleanAnd.alwaysFalse (callable values like closures are not instances)
+        if (! is_callable($callback) && ! $callback instanceof static) {
             throw new InvalidArgumentException('The given callback should be callable or an instance of ' . static::class);
         }
 
@@ -183,10 +183,6 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
     public function passes(string $attribute, mixed $value): bool
     {
         $this->messages = [];
-
-        if (! is_string($value) && ! (is_object($value) && method_exists($value, '__toString'))) {
-            return false;
-        }
 
         $validator = Validator::make(
             $this->data,

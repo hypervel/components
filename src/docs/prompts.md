@@ -199,7 +199,7 @@ $story = textarea(
 <a name="number"></a>
 ### Number
 
-The `number` function will prompt the user with the given question, accept their numeric input, and then return it. The `number` function allows the user to use the up and down arrow keys to manipulate the number:
+The `number` function will prompt the user with the given question, accept a signed integer, and then return it. By default, valid input is returned as an integer. The `number` function allows the user to use the up and down arrow keys to manipulate the number:
 
 ```php
 use function Hypervel\Prompts\number;
@@ -1055,6 +1055,8 @@ $name = text(
 );
 ```
 
+The transformed value is passed to required, intrinsic, and additional validation before being returned.
+
 <a name="forms"></a>
 ## Forms
 
@@ -1674,23 +1676,38 @@ use Symfony\Component\Console\Question\Question;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 TextPrompt::fallbackUsing(function (TextPrompt $prompt) use ($input, $output) {
-    $question = (new Question($prompt->label, $prompt->default ?: null))
+    $question = (new Question(
+        $prompt->label,
+        $prompt->default === '' ? null : $prompt->default,
+    ))
         ->setValidator(function ($answer) use ($prompt) {
-            if ($prompt->required && $answer === null) {
+            $value = $prompt->transform === null
+                ? ($answer ?? '')
+                : ($prompt->transform)($answer ?? '');
+
+            if ($prompt->required !== false && in_array($value, ['', [], false, null], true)) {
                 throw new \RuntimeException(
-                    is_string($prompt->required) ? $prompt->required : 'Required.'
+                    is_string($prompt->required) && $prompt->required !== ''
+                        ? $prompt->required
+                        : 'Required.'
                 );
             }
 
-            if ($prompt->validate) {
-                $error = ($prompt->validate)($answer ?? '');
+            $error = $prompt->validateIntrinsic($value);
 
-                if ($error) {
-                    throw new \RuntimeException($error);
-                }
+            if (($error === null || $error === '') && is_callable($prompt->validate)) {
+                $error = ($prompt->validate)($value);
             }
 
-            return $answer;
+            if (! is_string($error) && $error !== null) {
+                throw new \RuntimeException('The validator must return a string or null.');
+            }
+
+            if (is_string($error) && $error !== '') {
+                throw new \RuntimeException($error);
+            }
+
+            return $value;
         });
 
     return (new SymfonyStyle($input, $output))
@@ -1699,6 +1716,8 @@ TextPrompt::fallbackUsing(function (TextPrompt $prompt) use ($input, $output) {
 ```
 
 Fallbacks must be configured individually for each prompt class. The closure will receive an instance of the prompt class and must return an appropriate type for the prompt.
+
+Custom prompt classes may override the `validateIntrinsic` method to enforce rules that belong to the prompt type itself. Custom fallback implementations should call this method before invoking any validation callback supplied by the caller, as shown above.
 
 <a name="testing"></a>
 ## Testing

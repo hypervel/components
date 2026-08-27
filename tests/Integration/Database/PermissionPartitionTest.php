@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database;
 
+use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Blueprint;
@@ -51,15 +52,45 @@ class PermissionPartitionTest extends DatabaseTestCase
         );
 
         $config->set([
-            'permission.models.permission' => PartitionedPermission::class,
-            'permission.models.role' => PartitionedRole::class,
-            'permission.models.default_model' => GlobalPartitionUser::class,
+            'permission.models' => [
+                'permission' => PartitionedPermission::class,
+                'role' => PartitionedRole::class,
+                'team' => null,
+                'default_model' => GlobalPartitionUser::class,
+            ],
             'permission.column_names.model_morph_key' => 'model_test_id',
+            'permission.column_names.team_foreign_key' => 'team_id',
             'permission.column_names.role_pivot_key' => 'role_test_id',
             'permission.column_names.permission_pivot_key' => 'permission_test_id',
-            'permission.cache.store' => 'array',
-            'auth.guards.web' => ['driver' => 'session', 'provider' => 'users'],
-            'auth.providers.users' => ['driver' => 'eloquent', 'model' => GlobalPartitionUser::class],
+            'permission.cache' => [
+                'expiration_seconds' => 86400,
+                'store' => 'array',
+                'keys' => [
+                    'roles' => 'hypervel.permission.cache.roles',
+                    'model_roles' => 'hypervel.permission.cache.model.roles',
+                    'model_permissions' => 'hypervel.permission.cache.model.permissions',
+                    'model_token' => 'hypervel.permission.cache.model.token',
+                ],
+                'column_names_except' => ['created_at', 'updated_at', 'deleted_at'],
+            ],
+            'auth.guards.web' => [
+                'driver' => 'session',
+                'provider' => 'users',
+                'passwords' => 'users',
+                'password_timeout' => null,
+                'remember' => null,
+            ],
+            'auth.providers.users' => [
+                'driver' => 'eloquent',
+                'model' => GlobalPartitionUser::class,
+                'cache' => [
+                    'enabled' => false,
+                    'store' => null,
+                    'ttl' => 300,
+                    'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
+                    'tags' => null,
+                ],
+            ],
             'cache.default' => 'array',
             'cache.stores.array' => ['driver' => 'array'],
         ]);

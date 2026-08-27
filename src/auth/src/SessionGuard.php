@@ -48,6 +48,10 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
 
     /**
      * The number of minutes that the "remember me" cookie should be valid for.
+     *
+     * This defaults to the recommended 400-day browser cookie lifetime limit.
+     *
+     * @see https://datatracker.ietf.org/doc/draft-ietf-httpbis-rfc6265bis/#section-5.5
      */
     protected int $rememberDuration = 576000;
 

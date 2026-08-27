@@ -21,6 +21,7 @@ use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\InvalidPayloadException;
+use Hypervel\Queue\Jobs\DatabaseJobRecord;
 use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Queue\Queue;
 use Hypervel\Support\CarbonImmutable;
@@ -31,9 +32,22 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use RuntimeException;
 use stdClass;
+use TypeError;
 
 class QueueDatabaseQueueUnitTest extends TestCase
 {
+    public function testRetryAfterMustBeAnInteger(): void
+    {
+        $this->expectException(TypeError::class);
+
+        new DatabaseQueue(
+            resolver: m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            retryAfter: null,
+        );
+    }
+
     public function testQueueNamesPreserveZeroAndDefaultEmptyString(): void
     {
         $queue = new TestDatabaseQueue(
@@ -47,6 +61,62 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertSame('default', $queue->getQueue(null));
         $this->assertSame('default', $queue->getQueue(''));
         $this->assertSame('0', $queue->getQueue('0'));
+    }
+
+    public function testLockForPoppingUsesOneConnectionAndConfiguredVersion(): void
+    {
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $connection = m::mock(ConnectionInterface::class);
+        $resolver->shouldReceive('connection')->once()->with(null)->andReturn($connection);
+        $connection->shouldReceive('getDriverName')->once()->andReturn('mysql');
+        $connection->shouldReceive('getConfig')->once()->with('version')->andReturn('8.0.1');
+        $connection->shouldNotReceive('getServerVersion');
+
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver,
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+
+        $this->assertSame('FOR UPDATE SKIP LOCKED', $queue->lockForPopping());
+    }
+
+    #[DataProvider('databaseLockProvider')]
+    public function testLockForPoppingUsesDriverOwnedServerVersion(
+        string $driver,
+        string $version,
+        bool|string $expected,
+    ): void {
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $connection = m::mock(ConnectionInterface::class);
+        $resolver->shouldReceive('connection')->once()->with(null)->andReturn($connection);
+        $connection->shouldReceive('getDriverName')->once()->andReturn($driver);
+        $connection->shouldReceive('getConfig')->once()->with('version')->andReturnNull();
+        $connection->shouldReceive('getServerVersion')->once()->andReturn($version);
+
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver,
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+
+        $this->assertSame($expected, $queue->lockForPopping());
+    }
+
+    public static function databaseLockProvider(): array
+    {
+        return [
+            'mysql' => ['mysql', '8.0.1', 'FOR UPDATE SKIP LOCKED'],
+            'old mysql' => ['mysql', '5.7.44', true],
+            'mariadb' => ['mysql', '5.5.5-10.6.1-MariaDB', 'FOR UPDATE SKIP LOCKED'],
+            'postgres' => ['pgsql', '9.5', 'FOR UPDATE SKIP LOCKED'],
+            'vitess' => ['mysql', '19.0.0-vitess', 'FOR UPDATE SKIP LOCKED'],
+            'planetscale' => ['mysql', '19.0.0-PlanetScale', 'FOR UPDATE SKIP LOCKED'],
+        ];
     }
 
     #[DataProvider('pushJobsDataProvider')]
@@ -94,10 +164,11 @@ class QueueDatabaseQueueUnitTest extends TestCase
         ];
     }
 
-    public function testDelayedPushProperlyPushesJobOntoDatabase(): void
+    #[DataProvider('delayedJobDeadlineProvider')]
+    public function testDelayedPushNeverRunsBeforeRequestedDeadline(DateInterval|DateTimeInterface|int $delay): void
     {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
         $now = CarbonImmutable::now();
-        CarbonImmutable::setTestNow($now);
 
         $uuid = Str::uuid();
 
@@ -108,7 +179,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             connection: null,
             table: 'table',
             default: 'default',
-            currentTime: 1732502704,
+            currentTime: 1000,
         );
         $queue->setContainer($container = m::spy(Container::class));
         $connection = m::mock(ConnectionInterface::class);
@@ -117,17 +188,26 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
         $query->shouldReceive('insertGetId')->once()->andReturnUsing(function ($array) use ($uuid, $now) {
             $this->assertSame('default', $array['queue']);
-            $this->assertSame(json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'delay' => 10]), $array['payload']);
+            $this->assertSame(json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'delay' => 1]), $array['payload']);
             $this->assertEquals(0, $array['attempts']);
             $this->assertNull($array['reserved_at']);
-            $this->assertIsInt($array['available_at']);
+            $this->assertSame(1002, $array['available_at']);
 
             return 1;
         });
 
-        $queue->later(10, 'foo', ['data']);
+        $queue->later($delay, 'foo', ['data']);
 
         $container->shouldHaveReceived('bound')->with('events')->twice();
+    }
+
+    public static function delayedJobDeadlineProvider(): array
+    {
+        return [
+            'integer' => [1],
+            'interval' => [new DateInterval('PT1S')],
+            'absolute date' => [CarbonImmutable::createFromTimestampUTC('1001.100000')],
+        ];
     }
 
     public function testPushIncludesBatchIdInPayloadForBatchableJob()
@@ -459,6 +539,16 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertArrayHasKey('payload', array_slice($record, -1, 1, true));
     }
 
+    public function testReservedTimestampRoundsUpAtFractionalSecond(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+        $record = (object) ['attempts' => 0, 'reserved_at' => null];
+        $job = new DatabaseJobRecord($record);
+
+        $this->assertSame(1001, $job->touch());
+        $this->assertSame(1001, $record->reserved_at);
+    }
+
     public function testPendingJobs(): void
     {
         [$queue, $query] = $this->createInspectionQueue();
@@ -709,6 +799,14 @@ class TestDatabaseQueue extends DatabaseQueue
     protected function currentTime(): int
     {
         return $this->currentTime;
+    }
+
+    /**
+     * Get the lock used when popping a job.
+     */
+    public function lockForPopping(): bool|string
+    {
+        return $this->getLockForPopping();
     }
 
     protected function availableAt(DateInterval|DateTimeInterface|int|null $delay = 0): int

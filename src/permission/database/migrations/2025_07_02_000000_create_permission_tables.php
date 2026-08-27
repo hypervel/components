@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Hypervel\Database\Migrations\Migration;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Support\Facades\Schema;
 
 return new class extends Migration {
@@ -12,15 +13,19 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        $teams = (bool) config('permission.teams');
-        $tableNames = (array) config('permission.table_names');
-        $columnNames = (array) config('permission.column_names');
-        $pivotRole = $columnNames['role_pivot_key'] ?? 'role_id';
-        $pivotPermission = $columnNames['permission_pivot_key'] ?? 'permission_id';
-        $teamForeignKey = $columnNames['team_foreign_key'] ?? 'team_id';
-        $modelMorphKey = $columnNames['model_morph_key'] ?? 'model_id';
+        $tableNames = config()->get('permission.table_names');
 
-        throw_if($tableNames === [], 'Error: config/permission.php not loaded. Run [php artisan config:clear] and try again.');
+        throw_if(! is_array($tableNames) || $tableNames === [], 'Error: config/permission.php not loaded. Run [php artisan config:clear] and try again.');
+
+        $teams = config()->boolean('permission.teams');
+        $columnNames = config()->array('permission.column_names');
+        $pivotRole = $columnNames['role_pivot_key'] ?? PermissionRegistrar::DEFAULT_ROLE_PIVOT_KEY;
+        $pivotPermission = $columnNames['permission_pivot_key'] ?? PermissionRegistrar::DEFAULT_PERMISSION_PIVOT_KEY;
+        $teamForeignKey = array_key_exists('team_foreign_key', $columnNames)
+            ? $columnNames['team_foreign_key']
+            : PermissionRegistrar::DEFAULT_TEAM_FOREIGN_KEY;
+        $modelMorphKey = $columnNames['model_morph_key'];
+
         throw_if($teams && $teamForeignKey === '', 'Error: team_foreign_key on config/permission.php not loaded. Run [php artisan config:clear] and try again.');
 
         Schema::create($tableNames['permissions'], static function (Blueprint $table): void {
@@ -112,9 +117,11 @@ return new class extends Migration {
             $table->primary([$pivotPermission, $pivotRole], 'role_has_permissions_permission_id_role_id_primary');
         });
 
+        $cacheStore = config()->string('permission.cache.store', 'default');
+
         app('cache')
-            ->store(config('permission.cache.store') !== 'default' ? config('permission.cache.store') : null)
-            ->forget(config('permission.cache.keys.roles'));
+            ->store($cacheStore !== 'default' ? $cacheStore : null)
+            ->forget(config()->string('permission.cache.keys.roles', PermissionRegistrar::ROLE_CATALOG_CACHE_KEY));
     }
 
     /**
@@ -122,9 +129,9 @@ return new class extends Migration {
      */
     public function down(): void
     {
-        $tableNames = (array) config('permission.table_names');
+        $tableNames = config()->get('permission.table_names');
 
-        throw_if($tableNames === [], 'Error: config/permission.php not found and defaults could not be merged. Please publish the package configuration before proceeding, or drop the tables manually.');
+        throw_if(! is_array($tableNames) || $tableNames === [], 'Error: config/permission.php not found and defaults could not be merged. Please publish the package configuration before proceeding, or drop the tables manually.');
 
         Schema::dropIfExists($tableNames['role_has_permissions']);
         Schema::dropIfExists($tableNames['model_has_roles']);

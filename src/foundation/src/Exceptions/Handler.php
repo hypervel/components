@@ -951,7 +951,7 @@ class Handler implements ExceptionHandlerContract
      */
     protected function prepareResponse(Request $request, Throwable $e): Response|RedirectResponse
     {
-        if (! $this->isHttpException($e) && config('app.debug')) {
+        if (! $this->isHttpException($e) && config()->boolean('app.debug')) {
             return $this->toHypervelResponse($this->convertExceptionToResponse($e), $e)->prepare($request);
         }
 
@@ -983,7 +983,7 @@ class Handler implements ExceptionHandlerContract
     protected function renderExceptionContent(Throwable $e): string
     {
         try {
-            if (config('app.debug')) {
+            if (config()->boolean('app.debug')) {
                 if ($this->container->bound(ExceptionRenderer::class)) {
                     return $this->renderExceptionWithCustomRenderer($e);
                 }
@@ -992,9 +992,9 @@ class Handler implements ExceptionHandlerContract
                 }
             }
 
-            return $this->renderExceptionWithSymfony($e, config('app.debug'));
+            return $this->renderExceptionWithSymfony($e, config()->boolean('app.debug'));
         } catch (Throwable $e) {
-            return $this->renderExceptionWithSymfony($e, config('app.debug'));
+            return $this->renderExceptionWithSymfony($e, config()->boolean('app.debug'));
         }
     }
 
@@ -1037,7 +1037,7 @@ class Handler implements ExceptionHandlerContract
                     $e->getHeaders()
                 );
             } catch (Throwable $t) {
-                config('app.debug') && throw $t;
+                config()->boolean('app.debug') && throw $t;
 
                 $this->report($t);
             }
@@ -1114,7 +1114,7 @@ class Handler implements ExceptionHandlerContract
      */
     protected function convertExceptionToArray(Throwable $e): array
     {
-        return config('app.debug') ? [
+        return config()->boolean('app.debug') ? [
             'message' => $e->getMessage(),
             'exception' => get_class($e),
             'file' => $e->getFile(),

@@ -475,7 +475,7 @@ class Builder implements BuilderContract
             return [];
         }
 
-        if (! is_array(array_first($values))) { /* @phpstan-ignore function.alreadyNarrowedType */
+        if (! is_array(array_first($values))) {
             $values = [$values];
         }
 
@@ -660,7 +660,6 @@ class Builder implements BuilderContract
         try {
             return $this->withSavepointIfNeeded(fn () => $this->create(array_merge($attributes, value($values))));
         } catch (UniqueConstraintViolationException $e) {
-            // @phpstan-ignore return.type (first() returns hydrated TModel, not stdClass)
             return $this->useWritePdo()->where($attributes)->first() ?? throw $e;
         }
     }
@@ -935,6 +934,13 @@ class Builder implements BuilderContract
 
     /**
      * Invoke the "after query" modification callbacks.
+     *
+     * A callback that replaces the collection type owns the resulting type change.
+     *
+     * @template TCollection of BaseCollection
+     *
+     * @param TCollection $result
+     * @return TCollection
      */
     public function applyAfterQueryCallbacks(BaseCollection $result): BaseCollection
     {
@@ -1379,7 +1385,7 @@ class Builder implements BuilderContract
      */
     public function hasNamedScope(string $scope): bool
     {
-        return $this->model && $this->model->hasNamedScope($scope); // @phpstan-ignore booleanAnd.leftAlwaysTrue (model can be null before setModel() is called)
+        return $this->model && $this->model->hasNamedScope($scope);
     }
 
     /**

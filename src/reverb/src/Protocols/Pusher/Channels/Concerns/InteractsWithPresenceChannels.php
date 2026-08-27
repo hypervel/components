@@ -59,7 +59,7 @@ trait InteractsWithPresenceChannels
             $app = $connection->app();
 
             if ($presenceUserId !== '' && $app->hasWebhooks()) {
-                $smoothingMs = (int) ($app->webhooks()['disconnect_smoothing_ms'] ?? 3000);
+                $smoothingMs = $app->webhooks()['disconnect_smoothing_ms'];
 
                 $cancelledLocally = app(DeferredWebhookManager::class)->cancelMemberRemoved(
                     $app->id(),
@@ -120,7 +120,7 @@ trait InteractsWithPresenceChannels
             $app = $connection->app();
 
             if ($app->hasWebhooks()) {
-                $delayMs = (int) ($app->webhooks()['disconnect_smoothing_ms'] ?? 3000);
+                $delayMs = $app->webhooks()['disconnect_smoothing_ms'];
                 $manager = app(DeferredWebhookManager::class);
 
                 if ($delayMs > 0 && $connection->isDisconnecting() && ! $manager->isDraining()) {

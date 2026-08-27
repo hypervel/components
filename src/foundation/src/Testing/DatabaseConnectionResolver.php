@@ -9,11 +9,11 @@ use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Pool\ConnectionInterface as PoolConnectionInterface;
+use Hypervel\Database\CachedConnectionResolver;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionName;
 use Hypervel\Database\ConnectionResolver;
-use Hypervel\Database\FlushableConnectionResolver;
 use Hypervel\Database\Pool\DbPool;
 use LogicException;
 use Throwable;
@@ -28,7 +28,7 @@ use function Hypervel\Support\enum_value;
  * assertion helpers. The resolver therefore retains each borrowed wrapper
  * alongside its bare connection and explicitly discards both at teardown.
  */
-class DatabaseConnectionResolver extends ConnectionResolver implements FlushableConnectionResolver
+class DatabaseConnectionResolver extends ConnectionResolver implements CachedConnectionResolver
 {
     /**
      * Connections for testing environment.
@@ -86,7 +86,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
             if ($connection instanceof Connection) {
                 $connection->resetForPool();
 
-                if ($connection->hasUnknownSessionState()) {
+                if (! $connection->isReusable()) {
                     try {
                         static::discardCachedConnection($cacheKey);
                     } catch (Throwable $throwable) {
@@ -141,6 +141,18 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
         });
 
         static::$rebindingRegistered = true;
+    }
+
+    /**
+     * Get an already resolved connection from the cache.
+     */
+    public function getResolvedConnection(string $name): ?ConnectionInterface
+    {
+        if ($connection = static::$connections[$name] ?? null) {
+            return $connection;
+        }
+
+        return static::$connections[$this->connectionCacheKey($name)] ?? null;
     }
 
     /**

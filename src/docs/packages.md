@@ -235,9 +235,11 @@ If your package's service provider should only be loaded in some environments or
  */
 public function isEnabled(): bool
 {
-    return (bool) config('courier.enabled');
+    return config()->boolean('courier.enabled', false);
 }
 ```
+
+Hypervel calls `isEnabled` before the provider's `register` method, so configuration merged by that provider is not available yet. You may read configuration that the application or framework has already loaded. When an unpublished package option is intentionally optional, as in the example above, provide its fallback here.
 
 <a name="class-map-overrides"></a>
 ### Class Map Overrides
@@ -312,8 +314,16 @@ public function register(): void
     $this->mergeConfigFrom(
         __DIR__.'/../config/courier.php', 'courier'
     );
+
+    $this->app->singleton(CourierManager::class, function ($app) {
+        return new CourierManager(
+            $app->make('config')->array('courier')
+        );
+    });
 }
 ```
+
+After `mergeConfigFrom` returns, the rest of the provider's `register` method may read the merged package configuration, as shown above.
 
 > [!WARNING]
 > This method only merges the first level of the configuration array. If your users partially define a multi-dimensional configuration array, the missing options will not be merged.

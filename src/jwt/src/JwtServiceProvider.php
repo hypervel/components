@@ -7,7 +7,6 @@ namespace Hypervel\Jwt;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Jwt\Console\JwtGenerateCertsCommand;
 use Hypervel\Jwt\Console\JwtSecretCommand;
 use Hypervel\Jwt\Contracts\BlacklistContract;
@@ -17,9 +16,10 @@ use Hypervel\Jwt\Http\Parser\InputSource;
 use Hypervel\Jwt\Http\Parser\Parser;
 use Hypervel\Jwt\Storage\TaggedCache;
 use Hypervel\Support\ServiceProvider;
+use InvalidArgumentException;
 use RuntimeException;
 
-class JwtServiceProvider extends ServiceProvider implements ReloadsConfiguration
+class JwtServiceProvider extends ServiceProvider
 {
     /**
      * Register the service provider.
@@ -101,44 +101,25 @@ class JwtServiceProvider extends ServiceProvider implements ReloadsConfiguration
     }
 
     /**
-     * Reload the worker configuration owned by the provider.
-     *
-     * Boot-only. Calling this while requests are running mutates shared worker
-     * state while concurrent coroutines may still use the previous configuration.
-     */
-    public function reloadConfiguration(): void
-    {
-        if ($this->app->resolved(ClaimFactory::class)) {
-            $this->app->make(ClaimFactory::class)->reloadConfiguration();
-        }
-
-        $this->app->forgetInstance(Parser::class);
-        $this->app->forgetInstance(BlacklistContract::class);
-
-        if ($this->app->resolved('jwt')) {
-            $manager = $this->app->make('jwt');
-
-            if ($manager instanceof JwtManager) {
-                $manager->reloadConfiguration();
-            }
-        }
-    }
-
-    /**
      * Register the JWT authentication guard.
      */
     protected function registerJwtGuard(): void
     {
         $this->callAfterResolving(AuthManager::class, function (AuthManager $authManager) {
             $authManager->extend('jwt', function ($app, $name, $config) use ($authManager) {
-                /** @var null|int $ttl */
                 $ttl = array_key_exists('ttl', $config)
                     ? $config['ttl']
                     : $app->make('config')->get('jwt.ttl');
 
+                if (! is_int($ttl) && $ttl !== null) {
+                    throw new InvalidArgumentException(
+                        "JWT TTL for auth guard [{$name}] must be an integer or null."
+                    );
+                }
+
                 $guard = new JwtGuard(
                     name: $name,
-                    provider: $authManager->createUserProvider($config['provider'] ?? null),
+                    provider: $authManager->createUserProvider($config['provider']),
                     jwtManager: $app->make('jwt'),
                     claimFactory: $app->make(ClaimFactory::class),
                     parser: $app->make(Parser::class),

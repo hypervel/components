@@ -8,9 +8,12 @@ use Hypervel\Console\Command;
 use Hypervel\Console\Events\BeforeHandle;
 use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\Event;
+use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Http\Request;
+use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Storage\EntryModel;
@@ -205,6 +208,26 @@ class TelescopeTest extends FeatureTestCase
             ->dispatch(new BeforeHandle(new RecordingStateCommand('custom:ignored')));
 
         $this->assertFalse(Telescope::isRecording());
+    }
+
+    public function testOmittedRequestAndCommandFiltersUseEmptyLists(): void
+    {
+        $config = config()->array('telescope');
+        unset($config['only_paths'], $config['ignore_paths'], $config['ignore_commands']);
+        config()->set('telescope', $config);
+
+        Telescope::stopRecording();
+        $request = RequestContext::set(Request::create('/recordable'));
+        $this->app->make(EventDispatcher::class)
+            ->dispatch(new RequestReceived($request, null));
+
+        $this->assertTrue(Telescope::isRecording());
+
+        Telescope::stopRecording();
+        $this->app->make(EventDispatcher::class)
+            ->dispatch(new BeforeHandle(new RecordingStateCommand('custom:command')));
+
+        $this->assertTrue(Telescope::isRecording());
     }
 
     public function testSchedulerDaemonDoesNotStartRecording(): void

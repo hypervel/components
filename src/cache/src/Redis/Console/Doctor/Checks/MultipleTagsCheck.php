@@ -11,16 +11,22 @@ use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
  * Tests operations with multiple tags.
  *
  * Flush behavior differs between modes:
- * - Any mode: Flushing ANY tag removes the item
- * - All mode: Flushing requires ALL tags to match
+ * - Any mode: Flushing any tag removes the item
+ * - All mode: Flushing requires all tags to match
  */
 final class MultipleTagsCheck implements CheckInterface
 {
+    /**
+     * Get the human-readable name of this check.
+     */
     public function name(): string
     {
         return 'Multiple Tag Operations';
     }
 
+    /**
+     * Run the check and return results.
+     */
     public function run(DoctorContext $context): CheckResult
     {
         $result = new CheckResult;
@@ -56,7 +62,9 @@ final class MultipleTagsCheck implements CheckInterface
     }
 
     /**
-     * @param array<string> $tags
+     * Test multiple-tag behavior in any-tag mode.
+     *
+     * @param list<string> $tags
      */
     private function testAnyMode(DoctorContext $context, CheckResult $result, array $tags, string $key): void
     {
@@ -73,7 +81,7 @@ final class MultipleTagsCheck implements CheckInterface
 
         $result->assert(
             $context->cache->get($key) === null,
-            'Flushing ANY tag removes the item (any behavior)'
+            'Flushing any tag removes the item (any behavior)'
         );
 
         $result->assert(
@@ -83,7 +91,9 @@ final class MultipleTagsCheck implements CheckInterface
     }
 
     /**
-     * @param array<string> $tags
+     * Test multiple-tag behavior in all-tags mode.
+     *
+     * @param list<string> $tags
      */
     private function testAllMode(DoctorContext $context, CheckResult $result, array $tags, string $key): void
     {
@@ -116,11 +126,11 @@ final class MultipleTagsCheck implements CheckInterface
         // Same order should retrieve
         $sameOrder = $context->cache->tags([$context->prefixed('alpha'), $context->prefixed('beta')])->get($orderKey);
 
-        // Different order creates different namespace - should NOT retrieve
-        $diffOrder = $context->cache->tags([$context->prefixed('beta'), $context->prefixed('alpha')])->get($orderKey);
+        // Different order creates different namespace - should not retrieve
+        $differentOrder = $context->cache->tags([$context->prefixed('beta'), $context->prefixed('alpha')])->get($orderKey);
 
         $result->assert(
-            $sameOrder === 'ordered' && $diffOrder === null,
+            $sameOrder === 'ordered' && $differentOrder === null,
             'Tag order matters - different order creates different namespace'
         );
     }

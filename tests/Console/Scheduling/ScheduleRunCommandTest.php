@@ -70,7 +70,7 @@ class ScheduleRunCommandTest extends TestCase
         $this->handler = m::mock(ExceptionHandler::class);
     }
 
-    public function testForegroundCallbackDispatchesStartingAndFinishedEvents()
+    public function testForegroundCallbackDispatchesStartingAndFinishedEvents(): void
     {
         $eventMutex = m::mock(EventMutex::class);
         $eventMutex->shouldReceive('create')->andReturn(true);
@@ -89,6 +89,20 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertSame($callbackEvent, $this->dispatched[0]->task);
         $this->assertSame($callbackEvent, $this->dispatched[1]->task);
         $this->assertIsFloat($this->dispatched[1]->runtime);
+    }
+
+    public function testFinishedOutputUsesTheSharedRuntimeFormatterWithoutAppendingUnits(): void
+    {
+        $event = new ScheduleRunExitCodeEvent(m::mock(EventMutex::class), 0, 'test:duration');
+        $command = $this->makeCommand(command: new ScheduleRunCommandWithFixedRuntime);
+        $output = $this->captureOutput($command);
+
+        $this->invokeRunEvent($command, $event);
+
+        $rendered = $output->fetch();
+
+        $this->assertSame(1, substr_count($rendered, '1.50s'));
+        $this->assertStringNotContainsString('1.50sms', $rendered);
     }
 
     public function testForegroundTaskEvaluationsUseFiniteCoroutinesWithSelectedLogContext(): void
@@ -219,7 +233,7 @@ class ScheduleRunCommandTest extends TestCase
         EventFacade::assertDispatched(ScheduledTaskFinished::class);
     }
 
-    public function testBackgroundTaskDispatchesAllThreeEvents()
+    public function testBackgroundTaskDispatchesAllThreeEvents(): void
     {
         $eventMutex = m::mock(EventMutex::class);
         $eventMutex->shouldReceive('create')->andReturn(true);
@@ -231,7 +245,7 @@ class ScheduleRunCommandTest extends TestCase
         $event->runInBackground();
 
         $command = $this->makeCommand();
-        $concurrent = new \Hypervel\Coroutine\Concurrent(10);
+        $concurrent = new Concurrent(10);
         (new ReflectionProperty($command, 'concurrent'))->setValue($command, $concurrent);
 
         $this->invokeRunEvents($command, [$event]);
@@ -247,7 +261,7 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertSame($event, $this->dispatched[2]->task);
     }
 
-    public function testBackgroundTaskStillDispatchesBackgroundFinishedOnFailure()
+    public function testBackgroundTaskStillDispatchesBackgroundFinishedOnFailure(): void
     {
         $eventMutex = m::mock(EventMutex::class);
         $eventMutex->shouldReceive('create')->andReturn(true);
@@ -261,7 +275,7 @@ class ScheduleRunCommandTest extends TestCase
         $this->handler->shouldReceive('report')->once()->with($exception);
 
         $command = $this->makeCommand();
-        $concurrent = new \Hypervel\Coroutine\Concurrent(10);
+        $concurrent = new Concurrent(10);
         (new ReflectionProperty($command, 'concurrent'))->setValue($command, $concurrent);
 
         $this->invokeRunEvents($command, [$event]);
@@ -504,7 +518,7 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertSame($callbackEvent, $this->dispatched[0]->task);
     }
 
-    public function testSkippedTaskEventIsGuardedByRegisteredListeners()
+    public function testSkippedTaskEventIsGuardedByRegisteredListeners(): void
     {
         $eventMutex = m::mock(EventMutex::class);
 
@@ -524,7 +538,7 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertSame([], $this->dispatched);
     }
 
-    public function testPausedTaskIsSkippedWithoutRunningFilters()
+    public function testPausedTaskIsSkippedWithoutRunningFilters(): void
     {
         $eventMutex = m::mock(EventMutex::class);
 
@@ -547,7 +561,7 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertSame($callbackEvent, $this->dispatched[0]->task);
     }
 
-    public function testTaskMarkedEvenWhenPausedRunsWhileSchedulerIsPaused()
+    public function testTaskMarkedEvenWhenPausedRunsWhileSchedulerIsPaused(): void
     {
         $runCount = 0;
 
@@ -629,7 +643,7 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertSame(2, $runCount);
     }
 
-    public function testRepeatableEventIsThrottledByLastChecked()
+    public function testRepeatableEventIsThrottledByLastChecked(): void
     {
         $runCount = 0;
 
@@ -772,7 +786,7 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertSame($event, $backgroundFinished[0]->task);
     }
 
-    public function testConcurrentFinishesUseRunLocalExitCodeForSuccessAndFailureCallbacks()
+    public function testConcurrentFinishesUseRunLocalExitCodeForSuccessAndFailureCallbacks(): void
     {
         $eventMutex = m::mock(EventMutex::class);
         $event = new Event($eventMutex, 'test:overlap');
@@ -813,7 +827,7 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertContains('bravo:failure', $results);
     }
 
-    public function testSignalCleanupReleasesMutexesForRunningOwnedEvents()
+    public function testSignalCleanupReleasesMutexesForRunningOwnedEvents(): void
     {
         $eventMutex = m::mock(EventMutex::class);
         $eventMutex->shouldReceive('create')->once()->andReturnTrue();
@@ -833,7 +847,7 @@ class ScheduleRunCommandTest extends TestCase
         $release->invoke($command);
     }
 
-    public function testSignalCleanupDoesNotReleaseMutexesForEventsWithoutOwnedMutexes()
+    public function testSignalCleanupDoesNotReleaseMutexesForEventsWithoutOwnedMutexes(): void
     {
         $eventMutex = m::mock(EventMutex::class);
         $eventMutex->shouldNotReceive('forget');
@@ -850,7 +864,7 @@ class ScheduleRunCommandTest extends TestCase
         $release->invoke($command);
     }
 
-    public function testSignalCleanupHonorsReleaseOnTerminationSignalsFlag()
+    public function testSignalCleanupHonorsReleaseOnTerminationSignalsFlag(): void
     {
         $eventMutex = m::mock(EventMutex::class);
         $eventMutex->shouldReceive('create')->once()->andReturnTrue();
@@ -900,7 +914,7 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertSame([], (new ReflectionProperty($command, 'runningEvents'))->getValue($command));
     }
 
-    public function testRunningEventIsForgottenWhenEventThrows()
+    public function testRunningEventIsForgottenWhenEventThrows(): void
     {
         $eventMutex = m::mock(EventMutex::class);
         $eventMutex->shouldReceive('create')->andReturn(true);
@@ -923,9 +937,11 @@ class ScheduleRunCommandTest extends TestCase
     /**
      * Create a ScheduleRunCommand with mocked dependencies.
      */
-    protected function makeCommand(?Cache $cache = null): ScheduleRunCommand
-    {
-        $command = new ScheduleRunCommand;
+    protected function makeCommand(
+        ?Cache $cache = null,
+        ?ScheduleRunCommand $command = null,
+    ): ScheduleRunCommand {
+        $command ??= new ScheduleRunCommand;
         $command->setHypervel($this->app);
 
         $cache ??= m::mock(Cache::class);
@@ -996,6 +1012,17 @@ class ScheduleRunCommandTest extends TestCase
     {
         $method = new ReflectionMethod($command, 'runEvent');
         $method->invoke($command, $event);
+    }
+}
+
+class ScheduleRunCommandWithFixedRuntime extends ScheduleRunCommand
+{
+    /**
+     * Given a start time, format the total run time for human readability.
+     */
+    protected function runTimeForHumans(float $startTime, ?float $endTime = null): string
+    {
+        return '1.50s';
     }
 }
 

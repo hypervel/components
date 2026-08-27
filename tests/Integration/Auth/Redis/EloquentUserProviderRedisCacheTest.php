@@ -76,6 +76,9 @@ class EloquentUserProviderRedisCacheTest extends TestCase
                 'cache' => [
                     'enabled' => true,
                     'store' => 'auth-redis-none',
+                    'ttl' => 300,
+                    'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
+                    'tags' => null,
                 ],
             ],
         ]);

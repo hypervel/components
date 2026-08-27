@@ -27,7 +27,10 @@ class SnapshotCommand extends Command
      */
     public function handle(Lock $lock, MetricsRepository $metrics): void
     {
-        $seconds = config()->integer('horizon.metrics.snapshot_lock', 300) - 30;
+        $seconds = config()->integer(
+            'horizon.metrics.snapshot_lock',
+            300,
+        ) - 30;
 
         if ($lock->get('metrics:snapshot', $seconds)) {
             $metrics->snapshot();

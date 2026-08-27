@@ -95,7 +95,7 @@ trait Searchable
 
         HasManyThrough::macro('searchable', function (?int $chunk = null): void {
             /** @var HasManyThrough $this */
-            $chunkSize = $chunk ?? config('scout.chunk.searchable', 500);
+            $chunkSize = $chunk ?? config()->integer('scout.chunk.searchable', Scout::DEFAULT_CHUNK_SIZE);
 
             $this->chunkById($chunkSize, function (Collection $models): void {
                 /** @var Collection<int, Model&SearchableInterface> $models */
@@ -112,7 +112,7 @@ trait Searchable
 
         HasManyThrough::macro('unsearchable', function (?int $chunk = null): void {
             /** @var HasManyThrough $this */
-            $chunkSize = $chunk ?? config('scout.chunk.unsearchable', 500);
+            $chunkSize = $chunk ?? config()->integer('scout.chunk.unsearchable', Scout::DEFAULT_CHUNK_SIZE);
 
             $this->chunkById($chunkSize, function (Collection $models): void {
                 /** @var Collection<int, Model&SearchableInterface> $models */
@@ -135,13 +135,13 @@ trait Searchable
             return;
         }
 
-        if (! Scout::isImporting() && static::getScoutConfig('queue.enabled', false)) {
+        if (! Scout::isImporting() && config()->boolean('scout.queue.enabled', false)) {
             $jobClass = Scout::$makeSearchableJob;
             $pendingDispatch = $jobClass::dispatch($models)
                 ->onConnection($models->first()->syncWithSearchUsing())
                 ->onQueue($models->first()->syncWithSearchUsingQueue());
 
-            if (static::getScoutConfig('after_commit', false)) {
+            if (config()->boolean('scout.after_commit')) {
                 $pendingDispatch->afterCommit();
             }
 
@@ -180,13 +180,13 @@ trait Searchable
             return;
         }
 
-        if (! Scout::isImporting() && static::getScoutConfig('queue.enabled', false)) {
+        if (! Scout::isImporting() && config()->boolean('scout.queue.enabled', false)) {
             $jobClass = Scout::$removeFromSearchJob;
             $pendingDispatch = $jobClass::dispatch($models)
                 ->onConnection($models->first()->syncWithSearchUsing())
                 ->onQueue($models->first()->syncWithSearchUsingQueue());
 
-            if (static::getScoutConfig('after_commit', false)) {
+            if (config()->boolean('scout.after_commit')) {
                 $pendingDispatch->afterCommit();
             }
 
@@ -242,7 +242,7 @@ trait Searchable
             'model' => new static,
             'query' => $query,
             'callback' => $callback,
-            'softDelete' => static::usesSoftDelete() && static::getScoutConfig('soft_delete', false),
+            'softDelete' => static::usesSoftDelete() && config()->boolean('scout.soft_delete'),
         ]);
     }
 
@@ -260,7 +260,7 @@ trait Searchable
     public static function makeAllSearchableQuery(): EloquentBuilder
     {
         $self = new static;
-        $softDelete = static::usesSoftDelete() && static::getScoutConfig('soft_delete', false);
+        $softDelete = static::usesSoftDelete() && config()->boolean('scout.soft_delete');
 
         return $self->newQuery()
             ->when(true, fn ($query) => $self->makeAllSearchableUsing($query))
@@ -430,7 +430,7 @@ trait Searchable
      */
     public function searchableAs(): string
     {
-        return static::getScoutConfig('prefix', '') . $this->getTable();
+        return config()->string('scout.prefix') . $this->getTable();
     }
 
     /**
@@ -462,7 +462,7 @@ trait Searchable
      */
     public function syncWithSearchUsing(): ?string
     {
-        return static::getScoutConfig('queue.connection');
+        return config('scout.queue.connection');
     }
 
     /**
@@ -470,7 +470,7 @@ trait Searchable
      */
     public function syncWithSearchUsingQueue(): ?string
     {
-        return static::getScoutConfig('queue.queue');
+        return config('scout.queue.queue');
     }
 
     /**
@@ -547,7 +547,7 @@ trait Searchable
 
             if (! $runner instanceof ConcurrentImportRunner) {
                 $runner = new ConcurrentImportRunner(
-                    (int) static::getScoutConfig('command_concurrency', 50)
+                    config()->integer('scout.command_concurrency')
                 );
                 CoroutineContext::set(self::SCOUT_RUNNER_CONTEXT_KEY, $runner);
             }
@@ -585,15 +585,5 @@ trait Searchable
     protected static function usesSoftDelete(): bool
     {
         return in_array(SoftDeletes::class, class_uses_recursive(static::class), true);
-    }
-
-    /**
-     * Get a Scout configuration value.
-     */
-    protected static function getScoutConfig(string $key, mixed $default = null): mixed
-    {
-        return Container::getInstance()
-            ->make('config')
-            ->get("scout.{$key}", $default);
     }
 }

@@ -24,7 +24,7 @@ class DatabaseWipeCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function testWipeCommandDropsSchemaObjectsAndPurgesConnection()
+    public function testWipeCommandDropsSchemaObjectsAndDisconnectsConnection(): void
     {
         $schemaBuilder = m::mock();
         $schemaBuilder->shouldReceive('dropAllViews')->once();
@@ -33,10 +33,11 @@ class DatabaseWipeCommandTest extends TestCase
 
         $connection = m::mock();
         $connection->shouldReceive('getSchemaBuilder')->times(3)->andReturn($schemaBuilder);
+        $connection->shouldReceive('disconnect')->once();
 
         $db = m::mock();
-        $db->shouldReceive('connection')->times(3)->with('pgsql')->andReturn($connection);
-        $db->shouldReceive('purge')->once()->with('pgsql');
+        $db->shouldReceive('connection')->times(4)->with('pgsql')->andReturn($connection);
+        $db->shouldNotReceive('purge');
 
         $app = new ApplicationDatabaseWipeStub([
             'db' => $db,
@@ -54,20 +55,21 @@ class DatabaseWipeCommandTest extends TestCase
         $this->assertSame(0, $code);
     }
 
-    public function testWipeCommandRoutesToMigrationsConnection()
+    public function testWipeCommandRoutesToMigrationsConnection(): void
     {
         $schemaBuilder = m::mock();
         $schemaBuilder->shouldReceive('dropAllTables')->once();
 
         $connection = m::mock();
         $connection->shouldReceive('getSchemaBuilder')->once()->andReturn($schemaBuilder);
+        $connection->shouldReceive('disconnect')->once();
 
         $db = m::mock();
         // db:wipe --database=pgsql-pooled should route to 'pgsql' because
         // pgsql-pooled has migrations_connection => 'pgsql'. Schema drops
         // need a direct (unpooled) connection.
-        $db->shouldReceive('connection')->once()->with('pgsql')->andReturn($connection);
-        $db->shouldReceive('purge')->once()->with('pgsql');
+        $db->shouldReceive('connection')->twice()->with('pgsql')->andReturn($connection);
+        $db->shouldNotReceive('purge');
 
         $app = new ApplicationDatabaseWipeStub([
             'db' => $db,
@@ -91,7 +93,7 @@ class DatabaseWipeCommandTest extends TestCase
         $this->assertSame(0, $code);
     }
 
-    public function testWipeCommandRoutesThroughDefaultWhenNoDatabaseOptionGiven()
+    public function testWipeCommandRoutesThroughDefaultWhenNoDatabaseOptionGiven(): void
     {
         // Regression for the null-handling fix: db:wipe with no --database
         // should use the configured default — and if that default has a
@@ -102,10 +104,11 @@ class DatabaseWipeCommandTest extends TestCase
 
         $connection = m::mock();
         $connection->shouldReceive('getSchemaBuilder')->once()->andReturn($schemaBuilder);
+        $connection->shouldReceive('disconnect')->once();
 
         $db = m::mock();
-        $db->shouldReceive('connection')->once()->with('pgsql')->andReturn($connection);
-        $db->shouldReceive('purge')->once()->with('pgsql');
+        $db->shouldReceive('connection')->twice()->with('pgsql')->andReturn($connection);
+        $db->shouldNotReceive('purge');
 
         $app = new ApplicationDatabaseWipeStub([
             'db' => $db,
@@ -128,7 +131,7 @@ class DatabaseWipeCommandTest extends TestCase
         $this->assertSame(0, $code);
     }
 
-    public function testWipeCommandHonorsContextOverrideWhenNoDatabaseOptionGiven()
+    public function testWipeCommandHonorsContextOverrideWhenNoDatabaseOptionGiven(): void
     {
         // End-to-end regression for "effective default" at the command level:
         // when an outer scope has set Context (e.g. via DB::usingConnection),
@@ -139,10 +142,11 @@ class DatabaseWipeCommandTest extends TestCase
 
         $connection = m::mock();
         $connection->shouldReceive('getSchemaBuilder')->once()->andReturn($schemaBuilder);
+        $connection->shouldReceive('disconnect')->once();
 
         $db = m::mock();
-        $db->shouldReceive('connection')->once()->with('tenant-direct')->andReturn($connection);
-        $db->shouldReceive('purge')->once()->with('tenant-direct');
+        $db->shouldReceive('connection')->twice()->with('tenant-direct')->andReturn($connection);
+        $db->shouldNotReceive('purge');
 
         $app = new ApplicationDatabaseWipeStub([
             'db' => $db,

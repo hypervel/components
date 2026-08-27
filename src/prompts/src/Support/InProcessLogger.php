@@ -23,68 +23,10 @@ class InProcessLogger extends Logger
     }
 
     /**
-     * Log a line to the task output.
+     * Write a message directly to the Task.
      */
-    public function line(string $message): void
+    protected function write(string $message, ?string $type = null): void
     {
-        $this->task->appendLogLine(rtrim($message));
-    }
-
-    /**
-     * Log a success message.
-     */
-    public function success(string $message): void
-    {
-        $this->task->addStableMessage('success', $message);
-    }
-
-    /**
-     * Log a warning message.
-     */
-    public function warning(string $message): void
-    {
-        $this->task->addStableMessage('warning', $message);
-    }
-
-    /**
-     * Log an error message.
-     */
-    public function error(string $message): void
-    {
-        $this->task->addStableMessage('error', $message);
-    }
-
-    /**
-     * Update the task label.
-     */
-    public function label(string $message): void
-    {
-        $this->task->updateLabel($message);
-    }
-
-    /**
-     * Update the task sub-label. Pass an empty string to clear.
-     */
-    public function subLabel(string $message): void
-    {
-        $this->task->updateSubLabel($message);
-    }
-
-    /**
-     * Append a chunk of text, accumulating on the current line(s).
-     */
-    public function partial(string $chunk): void
-    {
-        $this->streamBuffer .= $chunk;
-        $this->task->replacePartialText($this->streamBuffer);
-    }
-
-    /**
-     * Commit the accumulated partial text and start fresh.
-     */
-    public function commitPartial(): void
-    {
-        $this->streamBuffer = '';
-        $this->task->commitPartialText();
+        $this->task->applyMessage($type, $message);
     }
 }

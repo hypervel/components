@@ -413,7 +413,7 @@ class TaskChildFailureFixture extends TaskProcessFixture
     protected function runRendererProcess($socket): never
     {
         stream_set_blocking($socket, true);
-        fgets($socket);
+        fread($socket, 5);
         fclose($socket);
 
         exit(1);
@@ -493,7 +493,7 @@ class TaskInterruptedWaitFixture extends TaskProcessFixture
     protected function runRendererProcess($socket): never
     {
         stream_set_blocking($socket, true);
-        fgets($socket);
+        fread($socket, 5);
         fclose($socket);
         sleep(2);
 

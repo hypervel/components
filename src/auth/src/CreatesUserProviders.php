@@ -100,19 +100,20 @@ trait CreatesUserProviders
     protected function createEloquentProvider(array $config): EloquentUserProvider
     {
         $provider = new EloquentUserProvider($this->app->make('hash'), $config['model']);
+        $cache = $config['cache'] ?? null;
 
-        if (! empty($config['cache']['enabled'])) {
-            $ttl = $config['cache']['ttl'] ?? 300;
+        if ($cache !== null && ($cache['enabled'] ?? false)) {
+            $ttl = $cache['ttl'] ?? EloquentUserProvider::DEFAULT_CACHE_TTL;
 
             if (! is_int($ttl) || $ttl <= 0) {
                 throw new InvalidArgumentException('The auth user cache TTL must be a positive integer.');
             }
 
             $provider->enableCache(
-                $config['cache']['store'] ?? null,
+                $cache['store'] ?? null,
                 $ttl,
-                $config['cache']['prefix'] ?? 'auth_users',
-                $config['cache']['tags'] ?? null,
+                $cache['prefix'] ?? EloquentUserProvider::DEFAULT_CACHE_PREFIX,
+                $cache['tags'] ?? null,
             );
         }
 

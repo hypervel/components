@@ -41,12 +41,14 @@ class Put
      *
      * @param string $key The cache key (without prefix)
      * @param mixed $value The value to store (will be serialized)
-     * @param int $seconds TTL in seconds (must be > 0)
+     * @param int $seconds TTL in seconds; values below one are stored for one second
      * @param array<int, int|string> $tags Array of tag names (will be cast to strings)
      * @return bool True if successful, false on failure
      */
     public function execute(string $key, mixed $value, int $seconds, array $tags): bool
     {
+        $seconds = max(1, $seconds);
+
         // 1. Cluster Mode: Must use sequential commands
         if ($this->context->isCluster()) {
             return $this->executeCluster($key, $value, $seconds, $tags);
@@ -71,7 +73,7 @@ class Put
             // Store the actual cache value
             $connection->setex(
                 $prefix . $key,
-                max(1, $seconds),
+                $seconds,
                 $this->serialization->serialize($connection, $value)
             );
 
@@ -82,7 +84,7 @@ class Put
 
             if (! empty($tags)) {
                 $multi->sadd($tagsKey, ...$tags);
-                $multi->expire($tagsKey, max(1, $seconds));
+                $multi->expire($tagsKey, $seconds);
             }
 
             $multi->exec();
@@ -149,7 +151,7 @@ class Put
 
             $args = [
                 $this->serialization->serializeForLua($connection, $value), // ARGV[1]
-                max(1, $seconds),                            // ARGV[2]
+                $seconds,                                    // ARGV[2]
                 $this->context->fullTagPrefix(),             // ARGV[3]
                 $this->context->fullRegistryKey(),           // ARGV[4]
                 time(),                                      // ARGV[5]

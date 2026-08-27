@@ -20,18 +20,19 @@ class NumberPromptRenderer extends Renderer
     public function __invoke(NumberPrompt $prompt): string
     {
         $maxWidth = $prompt->terminal()->cols() - 6;
+        $value = (string) $prompt->value();
 
         return match ($prompt->state) {
             'submit' => (string) $this
                 ->box(
                     $this->dim($this->truncate($prompt->label, $prompt->terminal()->cols() - 6)),
-                    $this->truncate((string) $prompt->value(), $maxWidth),
+                    $this->truncate($value, $maxWidth),
                 ),
 
             'cancel' => (string) $this
                 ->box(
                     $this->truncate($prompt->label, $prompt->terminal()->cols() - 6),
-                    $this->strikethrough($this->dim($this->truncate((string) $prompt->value() ?: $prompt->placeholder, $maxWidth))),
+                    $this->strikethrough($this->dim($this->truncate($value === '' ? $prompt->placeholder : $value, $maxWidth))),
                     color: 'red',
                 )
                 ->error('Cancelled.'),
@@ -64,7 +65,8 @@ class NumberPromptRenderer extends Renderer
     {
         $arrows = $this->getArrows($prompt, $color);
         $valueLength = mb_strwidth($this->stripEscapeSequences((string) $value));
-        $padding = $this->minWidth - $valueLength - mb_strwidth($this->stripEscapeSequences($arrows));
+        $minimumWidth = min($this->minWidth, $prompt->terminal()->cols() - 6);
+        $padding = max(0, $minimumWidth - $valueLength - mb_strwidth($this->stripEscapeSequences($arrows)));
 
         return $value . str_repeat(' ', $padding) . $arrows;
     }
@@ -76,25 +78,26 @@ class NumberPromptRenderer extends Renderer
     {
         $upArrow = $this->upArrow;
         $downArrow = $this->downArrow;
+        $value = $prompt->value();
 
         if ($color) {
             $upArrow = $this->{$color}($upArrow);
             $downArrow = $this->{$color}($downArrow);
         }
 
-        if (is_numeric($prompt->value())) {
-            if ((int) $prompt->value() === $prompt->min) {
+        if (is_int($value)) {
+            if ($value === $prompt->min) {
                 $downArrow = $this->dim($downArrow);
             }
 
-            if ((int) $prompt->value() === $prompt->max) {
+            if ($value === $prompt->max) {
                 $upArrow = $this->dim($upArrow);
             }
 
             return $upArrow . $downArrow;
         }
 
-        if ($prompt->value() === '') {
+        if ($value === '') {
             return $upArrow . $downArrow;
         }
 

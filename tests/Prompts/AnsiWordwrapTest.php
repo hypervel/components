@@ -86,6 +86,42 @@ class AnsiWordwrapTest extends TestCase
         $this->assertStringContainsString('Blue', $result[2]);
     }
 
+    public function testPreservesCombinedAttributesAppliedInSeparateSequences(): void
+    {
+        $result = $this->getInstance()->wrap("\e[1mBold \e[31mred\e[0m", 80);
+
+        $this->assertSame([
+            "\e[1mBold \e[0m\e[1m\e[31mred\e[0m",
+        ], $result);
+    }
+
+    public function testSelectiveResetsRemoveOnlyTheirMatchingAttribute(): void
+    {
+        $result = $this->getInstance()->wrap("\e[1;31mbold red\e[22m red\e[39m plain", 80);
+
+        $this->assertSame([
+            "\e[1m\e[31mbold red\e[0m\e[31m red\e[0m plain",
+        ], $result);
+    }
+
+    public function testPreservesUnderlineColorWithoutInterpretingColorComponentsAsAttributes(): void
+    {
+        $result = $this->getInstance()->wrap("\e[4;58;2;255;0;0mred\e[59m underline", 80);
+
+        $this->assertSame([
+            "\e[4m\e[58;2;255;0;0mred\e[0m\e[4m underline\e[0m",
+        ], $result);
+    }
+
+    public function testPreservesColonFormAttributesAndTheirSelectiveResets(): void
+    {
+        $result = $this->getInstance()->wrap("\e[4:3;38:2:255:0:0;1mstyled\e[24:0m colored\e[39;22m plain", 80);
+
+        $this->assertSame([
+            "\e[4:3m\e[38:2:255:0:0m\e[1mstyled\e[0m\e[38:2:255:0:0m\e[1m colored\e[0m plain",
+        ], $result);
+    }
+
     public function testPreservesUnstyledTextThatDoesNotNeedWrapping(): void
     {
         $result = $this->getInstance()->wrap('Short', 80);
@@ -116,6 +152,30 @@ class AnsiWordwrapTest extends TestCase
         $this->assertStringEndsWith("\e]8;;\e\\", $result[1]);
     }
 
+    public function testPreservesFormattingAcrossExplicitNewlines(): void
+    {
+        $this->assertSame(
+            ["\e[31mred\e[0m", "\e[31mstill red\e[0m"],
+            $this->getInstance()->wrap("\e[31mred\nstill red\e[0m", 80),
+        );
+        $this->assertSame(
+            ['a', "\e[31mb\e[0m"],
+            $this->getInstance()->wrap("a\n\e[31mb\e[0m", 80),
+        );
+        $this->assertSame(
+            ['a', "\e]8;;https://example.com\e\\b\e]8;;\e\\"],
+            $this->getInstance()->wrap("a\n\e]8;;https://example.com\e\\b\e]8;;\e\\", 80),
+        );
+    }
+
+    public function testAlignsFormattingAfterANewlineWhenTheFollowingLineWraps(): void
+    {
+        $this->assertSame(
+            ['aaa', "\e[31mbb\e[0m", "\e[31mbb\e[0m", "\e[31mbb\e[0m"],
+            $this->getInstance()->wrap("aaa\n\e[31mbb bb bb\e[0m", 4, cutLongWords: true),
+        );
+    }
+
     public function testHandlesOsc8HyperlinkWithAnsiCodesInside(): void
     {
         $result = $this->getInstance()->wrap("\e]8;;https://example.com\e\\\e[4mLink Text\e[0m\e]8;;\e\\", 80);
@@ -126,12 +186,29 @@ class AnsiWordwrapTest extends TestCase
         $this->assertStringContainsString('Link Text', $result[0]);
     }
 
-    public function testPreservesUnterminatedEscapeSequencesAsLiteralText(): void
+    public function testDiscardsUnterminatedControlSequences(): void
     {
-        $this->assertSame(["abc\e[31"], $this->getInstance()->wrap("abc\e[31", 80));
+        $this->assertSame(['abc'], $this->getInstance()->wrap("abc\e[31", 80));
+        $this->assertSame(['abc'], $this->getInstance()->wrap("abc\e]8;;https://hypervel.org", 80));
+        $this->assertSame(['abc'], $this->getInstance()->wrap("abc\ePsecret", 80));
+    }
+
+    public function testDiscardsCompleteControlsAndRecoversFromMalformedControls(): void
+    {
         $this->assertSame(
-            ["abc\e]8;;https://hypervel.org"],
-            $this->getInstance()->wrap("abc\e]8;;https://hypervel.org", 80),
+            ['abcd', "text \e[31mred\e[0m \e[32mgreen\e[0m"],
+            $this->getInstance()->wrap(
+                "a\e7b\e(Bc\ePsecret\e\\d\e[12\ntext \e]title\e[31mred\e[0m \e\e[32mgreen",
+                80,
+            ),
+        );
+    }
+
+    public function testCanSplitLongWordsAtTheRequestedWidth(): void
+    {
+        $this->assertSame(
+            ['abcd', 'efgh', 'ij'],
+            $this->getInstance()->wrap('abcdefghij', 4, cutLongWords: true),
         );
     }
 
@@ -142,9 +219,9 @@ class AnsiWordwrapTest extends TestCase
 
             protected int $minWidth = 0;
 
-            public function wrap(string $text, int $width): array
+            public function wrap(string $text, int $width, bool $cutLongWords = false): array
             {
-                return $this->ansiWordwrap($text, $width);
+                return $this->ansiWordwrap($text, $width, $cutLongWords);
             }
         };
     }

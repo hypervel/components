@@ -30,7 +30,7 @@ class Processor
     {
         $query->getConnection()->insert($sql, $values);
 
-        $id = $query->getConnection()->getPdo()->lastInsertId($sequence);
+        $id = $query->getConnection()->getLastInsertId($sequence);
 
         return is_numeric($id) ? (int) $id : $id;
     }

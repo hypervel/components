@@ -25,10 +25,8 @@ class ClearCommandTest extends IntegrationTestCase
 
         $config = $app->make('config');
 
-        $config->set('horizon.defaults', [
-            'supervisor-1' => ['connection' => 'redis'],
-        ]);
         $config->set('queue.connections.redis.queue', 'default');
+        $config->set('queue.connections.secondary.queue', 'secondary-default');
         $config->set('queue.connections.0.queue', 'zero-default');
     }
 
@@ -36,9 +34,12 @@ class ClearCommandTest extends IntegrationTestCase
     public function testCommandPreservesZeroAndDefaultsEmptyIdentifiers(
         string $connection,
         string $queue,
+        array $defaults,
         string $expectedConnection,
         string $expectedQueue,
     ): void {
+        config()->set('horizon.defaults', $defaults);
+
         $jobRepository = m::mock(RedisJobRepository::class);
         $jobRepository->shouldReceive('purge')->once()->with($expectedQueue);
         $this->app->instance(JobRepository::class, $jobRepository);
@@ -69,9 +70,12 @@ class ClearCommandTest extends IntegrationTestCase
     public static function queueIdentifierProvider(): array
     {
         return [
-            'zero connection' => ['0', '', '0', 'zero-default'],
-            'zero queue' => ['redis', '0', 'redis', '0'],
-            'empty identifiers' => ['', '', 'redis', 'default'],
+            'zero connection' => ['0', '', [], '0', 'zero-default'],
+            'zero queue' => ['redis', '0', [], 'redis', '0'],
+            'configured default' => ['', '', [
+                'supervisor-1' => ['connection' => 'secondary'],
+            ], 'secondary', 'secondary-default'],
+            'omitted defaults' => ['', '', [], 'redis', 'default'],
         ];
     }
 }

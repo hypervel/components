@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
+use Closure;
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseManager;
+use Hypervel\Database\Events\ConnectionEstablished;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\SQLiteConnection;
+use Hypervel\Database\SQLiteDatabaseDoesNotExistException;
+use Hypervel\Events\Dispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
@@ -171,6 +176,167 @@ class DatabaseManagerTest extends TestCase
         $this->assertNotNull($reconnected->getRawPdo());
     }
 
+    public function testNonPooledReconnectRefreshesInPlaceAndDispatchesOneEventAfterReplacement(): void
+    {
+        $events = new Dispatcher;
+        $this->db->setEventDispatcher($events);
+        $establishedConnections = [];
+        $events->listen(
+            ConnectionEstablished::class,
+            static function (ConnectionEstablished $event) use (&$establishedConnections): void {
+                $establishedConnections[] = $event->connection;
+            }
+        );
+        $manager = $this->db->getDatabaseManager();
+        $connection = $manager->connection();
+        $oldPdo = $connection->getPdo();
+        $connection->enableQueryLog();
+        $connection->select('select 1');
+
+        $reconnected = $manager->reconnect();
+
+        $this->assertSame($connection, $reconnected);
+        $this->assertNotSame($oldPdo, $reconnected->getPdo());
+        $this->assertCount(1, $reconnected->getQueryLog());
+        $this->assertSame([$connection, $connection], $establishedConnections);
+    }
+
+    public function testNonPooledReconnectEagerlyAdoptsCompleteSplitResourceGeneration(): void
+    {
+        $filesystem = new Filesystem;
+        $directory = ParallelTesting::tempDir('DatabaseManagerTest-generation-refresh');
+        $filesystem->deleteDirectory($directory);
+        $filesystem->ensureDirectoryExists($directory);
+
+        $oldReadPath = $directory . '/old-read.sqlite';
+        $oldWritePath = $directory . '/old-write.sqlite';
+        $newReadPath = $directory . '/new-read.sqlite';
+        $newWritePath = $directory . '/new-write.sqlite';
+        $connection = null;
+
+        try {
+            $this->createSqliteUsersDatabase($oldReadPath, 'Old Read');
+            $this->createSqliteUsersDatabase($oldWritePath, 'Old Write');
+            $this->createSqliteUsersDatabase($newReadPath, 'New Read');
+            $this->createSqliteUsersDatabase($newWritePath, 'New Write');
+            $this->db->addConnection([
+                'driver' => 'sqlite',
+                'database' => $oldWritePath,
+                'read' => ['database' => $oldReadPath],
+                'write' => ['database' => $oldWritePath],
+            ], 'generation-refresh');
+
+            $events = new Dispatcher;
+            $this->db->setEventDispatcher($events);
+            $establishedConnections = [];
+            $events->listen(
+                ConnectionEstablished::class,
+                static function (ConnectionEstablished $event) use (&$establishedConnections): void {
+                    $establishedConnections[] = $event->connection;
+                }
+            );
+
+            $manager = $this->db->getDatabaseManager();
+            $connection = $manager->connection('generation-refresh');
+            $oldWritePdo = $connection->getPdo();
+            $oldReadPdo = $connection->getReadPdo();
+            $establishedConnections = [];
+
+            $this->db->addConnection([
+                'driver' => 'sqlite',
+                'database' => $newWritePath,
+                'read' => ['database' => $newReadPath],
+                'write' => ['database' => $newWritePath],
+            ], 'generation-refresh');
+
+            $reconnected = $manager->reconnect('generation-refresh');
+
+            $this->assertSame($connection, $reconnected);
+            $this->assertInstanceOf(PDO::class, $connection->getRawPdo());
+            $this->assertInstanceOf(PDO::class, $connection->getRawReadPdo());
+            $this->assertNotSame($oldWritePdo, $connection->getRawPdo());
+            $this->assertNotSame($oldReadPdo, $connection->getRawReadPdo());
+            $this->assertSame($newWritePath, $connection->getDatabaseName());
+            $this->assertSame($newWritePath, $connection->getConfig('database'));
+            $this->assertSame('New Read', $connection->selectOne('select name from users')->name);
+            $this->assertSame('New Write', $connection->selectFromWriteConnection('select name from users')[0]->name);
+            $this->assertSame([$connection], $establishedConnections);
+        } finally {
+            $connection?->disconnect();
+            $filesystem->deleteDirectory($directory);
+        }
+    }
+
+    public function testFailedNonPooledReconnectPreservesCompleteSplitResourceGeneration(): void
+    {
+        $filesystem = new Filesystem;
+        $directory = ParallelTesting::tempDir('DatabaseManagerTest-generation-refresh-failure');
+        $filesystem->deleteDirectory($directory);
+        $filesystem->ensureDirectoryExists($directory);
+
+        $oldReadPath = $directory . '/old-read.sqlite';
+        $oldWritePath = $directory . '/old-write.sqlite';
+        $newWritePath = $directory . '/new-write.sqlite';
+        $missingReadPath = $directory . '/missing-read.sqlite';
+        $connection = null;
+
+        try {
+            $this->createSqliteUsersDatabase($oldReadPath, 'Old Read');
+            $this->createSqliteUsersDatabase($oldWritePath, 'Old Write');
+            $this->createSqliteUsersDatabase($newWritePath, 'New Write');
+            $this->db->addConnection([
+                'driver' => 'sqlite',
+                'database' => $oldWritePath,
+                'read' => ['database' => $oldReadPath],
+                'write' => ['database' => $oldWritePath],
+            ], 'generation-refresh-failure');
+
+            $events = new Dispatcher;
+            $this->db->setEventDispatcher($events);
+            $establishedConnections = [];
+            $events->listen(
+                ConnectionEstablished::class,
+                static function (ConnectionEstablished $event) use (&$establishedConnections): void {
+                    $establishedConnections[] = $event->connection;
+                }
+            );
+
+            $manager = $this->db->getDatabaseManager();
+            $connection = $manager->connection('generation-refresh-failure');
+            $oldWritePdo = $connection->getPdo();
+            $oldReadPdo = $connection->getReadPdo();
+            $establishedConnections = [];
+
+            $this->db->addConnection([
+                'driver' => 'sqlite',
+                'database' => $newWritePath,
+                'read' => ['database' => $missingReadPath],
+                'write' => ['database' => $newWritePath],
+            ], 'generation-refresh-failure');
+
+            $exception = null;
+
+            try {
+                $manager->reconnect('generation-refresh-failure');
+            } catch (SQLiteDatabaseDoesNotExistException $sqliteException) {
+                $exception = $sqliteException;
+            }
+
+            $this->assertNotNull($exception);
+            $this->assertSame($missingReadPath, $exception->path);
+            $this->assertSame($oldWritePdo, $connection->getRawPdo());
+            $this->assertSame($oldReadPdo, $connection->getRawReadPdo());
+            $this->assertSame($oldWritePath, $connection->getDatabaseName());
+            $this->assertSame($oldWritePath, $connection->getConfig('database'));
+            $this->assertSame('Old Read', $connection->selectOne('select name from users')->name);
+            $this->assertSame('Old Write', $connection->selectFromWriteConnection('select name from users')[0]->name);
+            $this->assertSame([], $establishedConnections);
+        } finally {
+            $connection?->disconnect();
+            $filesystem->deleteDirectory($directory);
+        }
+    }
+
     public function testExtendWorksEndToEndThroughNonPooledPath()
     {
         $custom = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
@@ -264,13 +430,16 @@ class DatabaseManagerTest extends TestCase
                 ],
             ], 'split-reconnect');
 
-            $connection = $this->db->getDatabaseManager()->connection('split-reconnect::read');
+            $manager = $this->db->getDatabaseManager();
+            $connection = $manager->connection('split-reconnect::read');
             $this->assertSame('Read Side', $connection->selectOne('select name from users')->name);
+            $this->assertSame(['split-reconnect::read'], array_keys($manager->getConnections()));
 
             $connection->setPdo(null);
             $connection->reconnectIfMissingConnection();
 
             $this->assertSame('Read Side', $connection->selectOne('select name from users')->name);
+            $this->assertSame(['split-reconnect::read'], array_keys($manager->getConnections()));
         } finally {
             if ($connection instanceof Connection) {
                 $connection->disconnect();
@@ -306,13 +475,16 @@ class DatabaseManagerTest extends TestCase
                 ],
             ], 'split-write-reconnect');
 
-            $connection = $this->db->getDatabaseManager()->connection('split-write-reconnect::write');
+            $manager = $this->db->getDatabaseManager();
+            $connection = $manager->connection('split-write-reconnect::write');
             $this->assertSame('Write Side', $connection->selectOne('select name from users')->name);
+            $this->assertSame(['split-write-reconnect::write'], array_keys($manager->getConnections()));
 
             $connection->setPdo(null);
             $connection->reconnectIfMissingConnection();
 
             $this->assertSame('Write Side', $connection->selectOne('select name from users')->name);
+            $this->assertSame(['split-write-reconnect::write'], array_keys($manager->getConnections()));
         } finally {
             if ($connection instanceof Connection) {
                 $connection->disconnect();
@@ -336,15 +508,20 @@ class DatabaseManagerTest extends TestCase
         ], 'split');
 
         $connection = $this->db->getDatabaseManager()->connection('split::write');
+        $this->assertInstanceOf(PdoConnection::class, $connection);
+        $readPdoResolver = $connection->getRawReadPdo();
+        $this->assertInstanceOf(Closure::class, $readPdoResolver);
         $connection->statement('create table users (id integer primary key, name varchar)');
         $connection->insert('insert into users (name) values (?)', ['Taylor']);
 
         $this->assertSame('split', $connection->getName());
-        $this->assertNull($connection->getConfig(Connection::READ_WRITE_TYPE_CONFIG_KEY));
+        $this->assertSame('write', $connection->getConfig(Connection::READ_WRITE_TYPE_CONFIG_KEY));
+        $this->assertSame("'value'", $connection->escape('value'));
+        $this->assertSame($readPdoResolver, $connection->getRawReadPdo());
         $this->assertSame('Taylor', $connection->selectOne('select name from users')->name);
     }
 
-    public function testReadAndWriteSuffixesAreCompatibilityAliasesForUnsplitConnections(): void
+    public function testReadAndWriteSuffixesRetainTheirRolesForUnsplitConnections(): void
     {
         $manager = $this->db->getDatabaseManager();
 
@@ -355,8 +532,8 @@ class DatabaseManagerTest extends TestCase
         $this->assertInstanceOf(Connection::class, $write);
         $this->assertSame('default', $read->getName());
         $this->assertSame('default', $write->getName());
-        $this->assertNull($read->getConfig(Connection::READ_WRITE_TYPE_CONFIG_KEY));
-        $this->assertNull($write->getConfig(Connection::READ_WRITE_TYPE_CONFIG_KEY));
+        $this->assertSame('read', $read->getConfig(Connection::READ_WRITE_TYPE_CONFIG_KEY));
+        $this->assertSame('write', $write->getConfig(Connection::READ_WRITE_TYPE_CONFIG_KEY));
     }
 
     public function testDirectConnectionSuffixIsRejected(): void

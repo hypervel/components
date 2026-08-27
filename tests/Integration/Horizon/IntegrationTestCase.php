@@ -64,6 +64,7 @@ abstract class IntegrationTestCase extends TestCase
             'retry_after' => 90,
             'block_for' => null,
             'after_commit' => false,
+            'migration_batch_size' => -1,
         ];
         $config->set('queue', $queueConfig);
     }

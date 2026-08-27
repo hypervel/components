@@ -53,7 +53,7 @@ class DeleteAllIndexesCommandTest extends TestCase
             ->once()
             ->andReturn('collection');
 
-        // Must set a non-empty prefix: the safety gate runs BEFORE engine
+        // Must set a non-empty prefix: the safety gate runs before engine
         // resolution, and with an empty prefix we'd hit the refusal message
         // rather than the "does not support" path.
         $config = $this->configWithPrefix('test_');
@@ -198,7 +198,7 @@ class DeleteAllIndexesCommandTest extends TestCase
     {
         $config = m::mock(Repository::class);
         $config->shouldReceive('string')
-            ->with('scout.prefix', '')
+            ->with('scout.prefix')
             ->andReturn($prefix);
 
         return $config;

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Saloon\Http;
 
+use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
@@ -198,10 +199,10 @@ class MockClientTest extends TestCase
             ->with('saloon.connection.name')
             ->andReturn('saloon');
         $config->shouldReceive('string')
-            ->with('saloon.fixtures.path')
+            ->with('saloon.fixtures.path', m::type(Closure::class))
             ->andReturn($this->fixturePath);
         $config->shouldReceive('boolean')
-            ->with('saloon.fixtures.throw_on_missing')
+            ->with('saloon.fixtures.throw_on_missing', false)
             ->andReturn(false);
 
         $manager = new SaloonManager(

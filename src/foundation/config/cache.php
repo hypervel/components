@@ -20,6 +20,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Schedule Cache Store
+    |--------------------------------------------------------------------------
+    |
+    | This store coordinates scheduled tasks across processes and servers.
+    | Set it to null to use the default cache store.
+    |
+    */
+
+    'schedule_store' => env('SCHEDULE_CACHE_STORE'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Cache Stores
     |--------------------------------------------------------------------------
     |
@@ -30,6 +42,16 @@ return [
     | Supported drivers: "array", "worker-array", "database", "file",
     |                    "storage", "redis", "swoole", "stack", "session",
     |                    "failover", "null"
+    |
+    | Database, storage, and Redis stores may define a store-specific prefix;
+    | omission or null inherits the global cache prefix. Nullable connection,
+    | lock connection, and disk values select their manager's default.
+    |
+    | File stores use the operating system's permissions unless "permission"
+    | sets one mode for cache files and generated directories. Cache repository
+    | events are enabled by default; setting "events" to false disables them
+    | for a store. The failover repository disables its outer events because
+    | its backing stores dispatch them.
     |
     */
 

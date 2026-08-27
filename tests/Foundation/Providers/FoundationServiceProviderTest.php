@@ -22,6 +22,7 @@ use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Clock\ClockInterface;
 use ReflectionClass;
+use ReflectionFunction;
 use ReflectionProperty;
 use Symfony\Component\VarDumper\VarDumper;
 
@@ -150,40 +151,8 @@ class FoundationServiceProviderTest extends TestCase
         $this->assertInstanceOf(ArrayMaintenanceMode::class, $driver);
     }
 
-    public function testReloadConfigurationRefreshesTimezoneAndMaintenanceModeState(): void
-    {
-        $manager = $this->app->make(MaintenanceModeManager::class);
-        $initialDriver = new ArrayMaintenanceMode;
-        $refreshedDriver = new ArrayMaintenanceMode;
-        $refreshedDriver->activate(['message' => 'refreshed']);
-        $manager->extend('initial', fn () => $initialDriver);
-        $manager->extend('refreshed', fn () => $refreshedDriver);
-        config([
-            'app.maintenance.driver' => 'initial',
-            'app.maintenance.refresh_interval' => 0,
-        ]);
-
-        $initialMode = $this->app->make(MaintenanceModeContract::class);
-
-        $this->assertFalse($initialMode->active());
-
-        config([
-            'app.maintenance.driver' => 'refreshed',
-            'app.timezone' => 'Pacific/Auckland',
-        ]);
-
-        $this->app->getProvider(FoundationServiceProvider::class)->reloadConfiguration();
-
-        $refreshedMode = $this->app->make(MaintenanceModeContract::class);
-
-        $this->assertSame('Pacific/Auckland', date_default_timezone_get());
-        $this->assertNotSame($initialMode, $refreshedMode);
-        $this->assertTrue($refreshedMode->active());
-        $this->assertSame(['message' => 'refreshed'], $refreshedMode->data());
-    }
-
-    #[DataProvider('explicitDumperFormats')]
-    public function testExplicitDumperFormatInstallsHypervelHandlerAndRestoresEnvironment(
+    #[DataProvider('dumperFormatValues')]
+    public function testSetDumperFormatInstallsHypervelHandlerAndRestoresEnvironment(
         string $format,
         string $expectedDumper,
     ): void {
@@ -203,11 +172,13 @@ class FoundationServiceProviderTest extends TestCase
             (new ReflectionClass($provider))->getMethod('registerDumper')->invoke($provider);
 
             $this->assertSame($format, $_SERVER['VAR_DUMPER_FORMAT']);
-            $this->assertNotSame($sentinelHandler, $handlerProperty->getValue());
-            $this->assertInstanceOf(
-                $expectedDumper,
-                (new ReflectionClass($provider))->getProperty('dumper')->getValue($provider),
+            $handler = $handlerProperty->getValue();
+            $this->assertNotSame($sentinelHandler, $handler);
+            $capturedDumpers = array_filter(
+                (new ReflectionFunction($handler))->getStaticVariables(),
+                static fn (mixed $value): bool => $value instanceof $expectedDumper,
             );
+            $this->assertCount(1, $capturedDumpers);
         } finally {
             unset($_SERVER['VAR_DUMPER_FORMAT']);
             VarDumper::setHandler($originalHandler);
@@ -218,28 +189,13 @@ class FoundationServiceProviderTest extends TestCase
         }
     }
 
-    public static function explicitDumperFormats(): array
+    public static function dumperFormatValues(): array
     {
         return [
             'CLI' => ['cli', CliDumper::class],
             'HTML' => ['html', HtmlDumper::class],
+            'blank' => ['', CliDumper::class],
+            'unknown' => ['unknown', CliDumper::class],
         ];
-    }
-
-    public function testReloadConfigurationUpdatesRetainedDumper(): void
-    {
-        $provider = $this->app->getProvider(FoundationServiceProvider::class);
-        $reflection = new ReflectionClass($provider);
-        $dumper = $reflection->getProperty('dumper')->getValue($provider);
-
-        config(['view.compiled' => '/tmp/reloaded-compiled-views']);
-
-        $provider->reloadConfiguration();
-
-        $this->assertSame($dumper, $reflection->getProperty('dumper')->getValue($provider));
-        $this->assertSame(
-            '/tmp/reloaded-compiled-views',
-            (new ReflectionClass($dumper))->getProperty('compiledViewPath')->getValue($dumper),
-        );
     }
 }

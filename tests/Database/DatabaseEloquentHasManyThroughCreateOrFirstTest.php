@@ -15,7 +15,6 @@ use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
-use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
@@ -409,10 +408,8 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $class = get_class($model);
         $class::setConnectionResolver($resolver);
 
-        $connection->shouldReceive('getPdo')->andReturn($pdo = m::mock(PDO::class));
-
         foreach ($lastInsertIds as $id) {
-            $pdo->expects('lastInsertId')->andReturn($id);
+            $connection->expects('getLastInsertId')->andReturn($id);
         }
     }
 }

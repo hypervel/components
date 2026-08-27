@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Encryption;
 
-use Hypervel\Contracts\Encryption\DecryptException;
 use Hypervel\Encryption\Encrypter;
 use Hypervel\Encryption\EncryptionServiceProvider;
 use Hypervel\Encryption\MissingAppKeyException;
@@ -84,38 +83,12 @@ class EncryptionTest extends TestCase
         $this->assertInstanceOf(Signed::class, $serializable->__serialize()['serializable']);
     }
 
-    public function testReloadConfigurationReplacesKeyDerivedEncryptionState(): void
-    {
-        $provider = new EncryptionServiceProvider($this->app);
-        $encrypter = $this->app->make('encrypter');
-        $encrypted = $encrypter->encryptString('value');
-        $closure = static fn (): string => 'value';
-        $signedClosure = serialize(new SerializableClosure($closure));
-
-        config([
-            'app.key' => 'base64:' . base64_encode(str_repeat('b', 32)),
-            'app.previous_keys' => [],
-        ]);
-        $provider->reloadConfiguration();
-
-        $refreshedEncrypter = $this->app->make('encrypter');
-        $this->assertNotSame($encrypter, $refreshedEncrypter);
-        $this->assertNotSame($signedClosure, serialize(new SerializableClosure($closure)));
-        $this->assertSame('fresh', $refreshedEncrypter->decryptString(
-            $refreshedEncrypter->encryptString('fresh'),
-        ));
-
-        $this->expectException(DecryptException::class);
-
-        $refreshedEncrypter->decryptString($encrypted);
-    }
-
-    public function testReloadConfigurationClearsStaleSerializableClosureSignerWhenKeyIsMissing(): void
+    public function testEncryptionProviderClearsStaleSerializableClosureSignerWhenKeyIsMissing(): void
     {
         SerializableClosure::setSecretKey('stale-key');
         $this->app->make('config')->set('app.key', null);
 
-        (new EncryptionServiceProvider($this->app))->reloadConfiguration();
+        (new EncryptionServiceProvider($this->app))->register();
 
         $serializable = new SerializableClosure(static fn (): string => 'value');
 

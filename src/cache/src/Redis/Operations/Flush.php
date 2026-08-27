@@ -23,7 +23,7 @@ class Flush
     /**
      * Execute the flush operation.
      *
-     * Warning: This removes ALL keys from the Redis database, not just cache keys.
+     * Warning: This removes all keys from the Redis database, not just cache keys.
      */
     public function execute(): bool
     {

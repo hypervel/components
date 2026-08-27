@@ -43,12 +43,13 @@ return [
     | By default, Hypervel Scout uses Coroutine::defer() which executes
     | indexing at coroutine exit (in HTTP requests, typically after the
     | response is emitted). Set 'enabled' to true to use
-    | the queue system instead for durability and retries.
+    | the queue system instead for durability and retries. Omitting the
+    | enabled member keeps deferred, non-queued indexing.
     |
     */
 
     'queue' => [
-        'enabled' => env('SCOUT_QUEUE', false),
+        'enabled' => (bool) env('SCOUT_QUEUE', false),
         'connection' => env('SCOUT_QUEUE_CONNECTION'),
         'queue' => env('SCOUT_QUEUE_NAME'),
     ],
@@ -90,6 +91,7 @@ return [
     | These options allow you to control the maximum chunk size when you are
     | mass importing data into the search engine. This allows you to fine
     | tune each of these chunk sizes based on the power of the servers.
+    | Omitted members use a chunk size of 500.
     |
     */
 
@@ -110,7 +112,7 @@ return [
     |
     */
 
-    'command_concurrency' => env('SCOUT_COMMAND_CONCURRENCY', 50),
+    'command_concurrency' => (int) env('SCOUT_COMMAND_CONCURRENCY', 50),
 
     /*
     |--------------------------------------------------------------------------
@@ -138,7 +140,7 @@ return [
     |
     */
 
-    'identify' => env('SCOUT_IDENTIFY', false),
+    'identify' => (bool) env('SCOUT_IDENTIFY', false),
 
     /*
     |--------------------------------------------------------------------------
@@ -148,12 +150,17 @@ return [
     | Here you may configure your Algolia settings. Algolia is a cloud hosted
     | search engine which works great with Scout out of the box. Just plug
     | in your application ID and admin API key to get started searching.
+    | Timeout values are measured in seconds; null leaves the corresponding
+    | Algolia SDK default unchanged.
     |
     */
 
     'algolia' => [
         'id' => env('ALGOLIA_APP_ID', ''),
         'secret' => env('ALGOLIA_SECRET', ''),
+        'connect_timeout' => null,
+        'read_timeout' => null,
+        'write_timeout' => null,
         'index-settings' => [
             // Per-index settings can be defined here:
             // 'users' => [
@@ -171,6 +178,7 @@ return [
     | Here you may configure your Meilisearch settings. Meilisearch is an open
     | source search engine with minimal configuration. Below, you can state
     | the host and key information for your own Meilisearch installation.
+    | Omitted host and retry members use the values shown below.
     |
     | See: https://www.meilisearch.com/docs/learn/configuration/instance_options
     |
@@ -223,12 +231,12 @@ return [
                 'path' => env('TYPESENSE_PATH', ''),
                 'protocol' => env('TYPESENSE_PROTOCOL', 'http'),
             ],
-            'connection_timeout_seconds' => env('TYPESENSE_CONNECTION_TIMEOUT_SECONDS', 2),
-            'healthcheck_interval_seconds' => env('TYPESENSE_HEALTHCHECK_INTERVAL_SECONDS', 30),
-            'num_retries' => env('TYPESENSE_NUM_RETRIES', 3),
-            'retry_interval_seconds' => env('TYPESENSE_RETRY_INTERVAL_SECONDS', 1),
+            'connection_timeout_seconds' => (int) env('TYPESENSE_CONNECTION_TIMEOUT_SECONDS', 2),
+            'healthcheck_interval_seconds' => (int) env('TYPESENSE_HEALTHCHECK_INTERVAL_SECONDS', 30),
+            'num_retries' => (int) env('TYPESENSE_NUM_RETRIES', 3),
+            'retry_interval_seconds' => (int) env('TYPESENSE_RETRY_INTERVAL_SECONDS', 1),
         ],
-        // 'max_total_results' => env('TYPESENSE_MAX_TOTAL_RESULTS', 1000),
+        // 'max_total_results' => (int) env('TYPESENSE_MAX_TOTAL_RESULTS', 1000),
         'model-settings' => [
             // Per-model settings can be defined here:
             // App\Models\User::class => [

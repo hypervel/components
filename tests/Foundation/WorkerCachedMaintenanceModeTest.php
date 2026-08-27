@@ -103,6 +103,24 @@ class WorkerCachedMaintenanceModeTest extends TestCase
         $this->assertTrue($cached->active());
     }
 
+    public function testSnapshotDoesNotRefreshBeforeIntervalAcrossFractionalSeconds(): void
+    {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::parse('2026-01-01 00:00:00.900000'));
+
+        $driver = m::mock(MaintenanceModeContract::class);
+        $driver->shouldReceive('active')->once()->andReturn(false);
+
+        $cached = new WorkerCachedMaintenanceMode($driver, refreshInterval: 5);
+
+        $this->assertFalse($cached->active());
+
+        // 4.2 seconds have passed, not 5: the whole-second parts differ by 5,
+        // so a truncated timestamp would report the interval as elapsed.
+        CarbonImmutable::setTestNow($now->addSeconds(4.2));
+
+        $this->assertFalse($cached->active());
+    }
+
     public function testActivePayloadRefreshesAfterInterval(): void
     {
         CarbonImmutable::setTestNow($now = CarbonImmutable::parse('2026-01-01 00:00:00'));

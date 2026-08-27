@@ -12,9 +12,8 @@ return [
     |
     | The driver used to detect file changes. Available drivers:
     |
-    | - ScanFileDriver: Hash polling; observes creation, modification, deletion.
-    | - FindDriver: Uses `find -mmin`; observes creation and modification.
-    | - FindNewerDriver: Uses `find -newer`; observes creation and modification.
+    | - ScanFileDriver: Content polling; observes creation, modification, deletion.
+    | - FindDriver: Metadata polling; observes creation, modification, deletion.
     | - FswatchDriver: OS events; observes creation, modification, rename, deletion.
     |
     */
@@ -27,8 +26,8 @@ return [
     |--------------------------------------------------------------------------
     |
     | How often the watcher polls for file changes, in milliseconds. This
-    | applies to all polling-based drivers (ScanFile, Find, FindNewer).
-    | The FswatchDriver uses OS-level events and ignores this setting.
+    | applies to the ScanFileDriver and FindDriver. The FswatchDriver uses
+    | OS-level events and ignores this setting.
     |
     */
 
@@ -39,10 +38,10 @@ return [
     | Watch Paths
     |--------------------------------------------------------------------------
     |
-    | Paths and glob patterns to monitor for changes. Each entry can be
-    | a directory name (watches all files recursively), a glob pattern
-    | (watches matching files only), or a specific file path. See the
-    | Symfony Finder Glob documentation for supported pattern syntax.
+    | Relative paths and glob patterns to monitor for changes. Each entry can
+    | be a directory name (watches all files recursively), a glob pattern
+    | (watches matching files only), or a specific file path. See the Symfony
+    | Finder Glob documentation for supported pattern syntax.
     |
     */
 

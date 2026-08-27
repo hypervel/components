@@ -13,18 +13,18 @@ use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\Query\Builder;
-use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Jobs\DatabaseJob;
 use Hypervel\Queue\Jobs\DatabaseJobRecord;
 use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
-use PDO;
 use Throwable;
 
 class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
 {
+    public const int DEFAULT_RETRY_AFTER = 60;
+
     /**
      * Create a new database queue instance.
      *
@@ -39,7 +39,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
         protected ?string $connection,
         protected string $table,
         protected string $default = 'default',
-        protected ?int $retryAfter = 60,
+        protected int $retryAfter = self::DEFAULT_RETRY_AFTER,
         protected bool $dispatchAfterCommit = false
     ) {
     }
@@ -301,8 +301,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
         // A non-empty deferred group means partitionJobsByAfterCommit() resolved a transactions manager.
         foreach ($afterCommit as $job) {
             /** @var DatabaseTransactionsManager $transactions */
-            $this->addUniqueJobRollbackCallback($transactions, $job);
-            $this->addDebouncedJobRollbackCallback($transactions, $job);
+            $this->addJobRollbackCallback($transactions, $job);
         }
 
         if ($this->afterCommitDispatcher !== null) {
@@ -336,9 +335,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     {
         return Collection::make($jobs)
             ->map(function (object|string $job) use ($data, $queue): array {
-                $delay = is_object($job)
-                    ? $this->getAttributeValue($job, Delay::class, 'delay')
-                    : null;
+                $delay = $this->getJobDelay($job);
 
                 return [
                     'job' => $job,
@@ -460,10 +457,9 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      */
     protected function getLockForPopping(): bool|string
     {
-        /* @phpstan-ignore-next-line */
-        $databaseEngine = $this->getDatabase()->getPdo()->getAttribute(PDO::ATTR_DRIVER_NAME);
-        /* @phpstan-ignore-next-line */
-        $databaseVersion = $this->getDatabase()->getConfig('version') ?? $this->getDatabase()->getPdo()->getAttribute(PDO::ATTR_SERVER_VERSION);
+        $connection = $this->getDatabase();
+        $databaseEngine = $connection->getDriverName();
+        $databaseVersion = $connection->getConfig('version') ?? $connection->getServerVersion();
 
         if (Str::of($databaseVersion)->contains('MariaDB')) {
             $databaseEngine = 'mariadb';
@@ -479,10 +475,6 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
             || ($databaseEngine === 'vitess' && version_compare($databaseVersion, '19.0', '>='))
         ) {
             return 'FOR UPDATE SKIP LOCKED';
-        }
-
-        if ($databaseEngine === 'sqlsrv') {
-            return 'with(rowlock,updlock,readpast)';
         }
 
         return true;

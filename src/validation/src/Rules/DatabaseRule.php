@@ -85,7 +85,7 @@ trait DatabaseRule
             return $this->whereNull($column);
         }
 
-        $value = enum_value($value);
+        $value = $this->normalizeWhereValue($value);
 
         $this->wheres[] = compact('column', 'value');
 
@@ -101,7 +101,7 @@ trait DatabaseRule
             return $this->whereNotIn($column, $value);
         }
 
-        $value = enum_value($value);
+        $value = $this->normalizeWhereValue($value);
 
         return $this->where($column, '!' . $value);
     }
@@ -143,7 +143,7 @@ trait DatabaseRule
     }
 
     /**
-     * Ignore soft deleted models during the existence check.s.
+     * Ignore soft deleted models during the existence checks.
      */
     public function withoutTrashed(string $deletedAtColumn = 'deleted_at'): static
     {
@@ -181,18 +181,13 @@ trait DatabaseRule
     }
 
     /**
-     * Get the database presence rule metadata.
-     *
-     * @return array{table: string, column: string, wheres: array<int, array<string, mixed>>, using: array<int, mixed>}
+     * Normalize a where value for string serialization.
      */
-    public function presenceMetadata(): array
+    protected function normalizeWhereValue(mixed $value): mixed
     {
-        return [
-            'table' => $this->table,
-            'column' => $this->column,
-            'wheres' => $this->wheres,
-            'using' => $this->using,
-        ];
+        $value = enum_value($value);
+
+        return is_bool($value) ? (int) $value : $value;
     }
 
     /**

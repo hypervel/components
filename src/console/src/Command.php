@@ -298,8 +298,8 @@ class Command extends SymfonyCommand
         $callback = function () use ($input, $output, $commandMutex, &$exception): int {
             try {
                 $this->exitCode = $this->executeCommand($input, $output);
-            } catch (Throwable $e) {
-                $exception = $e;
+            } catch (Throwable $throwable) {
+                $exception = $throwable;
                 $this->exitCode = self::FAILURE;
             } finally {
                 try {
@@ -350,7 +350,6 @@ class Command extends SymfonyCommand
                 $this->eventDispatcher->dispatch(new BeforeHandle($this));
             }
 
-            /* @phpstan-ignore-next-line */
             $statusCode = $this->hypervel->call([$this, $method]);
             if (is_int($statusCode)) {
                 $this->exitCode = $statusCode;
@@ -419,7 +418,7 @@ class Command extends SymfonyCommand
             if (! class_exists($command)) {
                 $command = clone $this->getApplication()->find($command);
             } else {
-                $command = $this->hypervel->make($command);
+                $command = clone $this->hypervel->make($command);
             }
         } else {
             $command = clone $command;

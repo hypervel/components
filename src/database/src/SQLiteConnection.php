@@ -13,7 +13,7 @@ use Hypervel\Database\Schema\SqliteSchemaState;
 use Hypervel\Filesystem\Filesystem;
 use Override;
 
-class SQLiteConnection extends Connection
+class SQLiteConnection extends PdoConnection
 {
     /**
      * Get a human-readable name for the given connection driver.
@@ -24,19 +24,21 @@ class SQLiteConnection extends Connection
     }
 
     /**
+     * Get the default database driver name.
+     */
+    protected function getDefaultDriverName(): string
+    {
+        return 'sqlite';
+    }
+
+    /**
      * Run the statement to start a new transaction.
      */
     protected function executeBeginTransactionStatement(): void
     {
-        if (version_compare(PHP_VERSION, '8.4.0', '>=')) {
-            $mode = $this->getConfig('transaction_mode') ?? 'DEFERRED';
+        $mode = $this->getConfig('transaction_mode') ?? 'DEFERRED';
 
-            $this->getPdo()->exec("BEGIN {$mode} TRANSACTION");
-
-            return;
-        }
-
-        $this->getPdo()->beginTransaction();
+        $this->getPdo()->exec("BEGIN {$mode} TRANSACTION");
     }
 
     /**

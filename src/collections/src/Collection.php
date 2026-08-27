@@ -1195,7 +1195,6 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      */
     public function shift(int $count = 1): mixed
     {
-        // @phpstan-ignore smaller.alwaysFalse (defensive validation - native int type allows negative values)
         if ($count < 0) {
             throw new InvalidArgumentException('Number of shifted items may not be less than zero.');
         }
@@ -1242,11 +1241,10 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      */
     public function sliding(int $size = 2, int $step = 1): static
     {
-        // @phpstan-ignore smaller.alwaysFalse (defensive validation - native int type allows non-positive values)
         if ($size < 1) {
             throw new InvalidArgumentException('Size value must be at least 1.');
         }
-        if ($step < 1) { // @phpstan-ignore smaller.alwaysFalse
+        if ($step < 1) {
             throw new InvalidArgumentException('Step value must be at least 1.');
         }
 

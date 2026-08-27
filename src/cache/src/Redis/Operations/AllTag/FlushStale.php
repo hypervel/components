@@ -20,6 +20,9 @@ use function Hypervel\Support\now;
  */
 class FlushStale
 {
+    /**
+     * Create a new flush-stale operation instance.
+     */
     public function __construct(
         private readonly StoreContext $context,
     ) {
@@ -57,7 +60,7 @@ class FlushStale
      */
     private function executePipeline(array $tagIds): void
     {
-        $this->context->withConnection(function (RedisConnection $connection) use ($tagIds) {
+        $this->context->withConnection(function (RedisConnection $connection) use ($tagIds): void {
             $prefix = $this->context->prefix();
             $timestamp = (string) now()->getTimestamp();
 
@@ -80,7 +83,7 @@ class FlushStale
      */
     private function executeCluster(array $tagIds): void
     {
-        $this->context->withConnection(function (RedisConnection $connection) use ($tagIds) {
+        $this->context->withConnection(function (RedisConnection $connection) use ($tagIds): void {
             $prefix = $this->context->prefix();
             $timestamp = (string) now()->getTimestamp();
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Connection;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Builder;
@@ -74,7 +75,7 @@ class DatabaseSchemaBuilderTest extends TestCase
     public function testWithoutForeignKeyConstraintsNestsAcrossBuilderInstances(): void
     {
         $pdo = m::mock(PDO::class);
-        $connection = new Connection($pdo, 'test');
+        $connection = new PdoConnection($pdo, 'test');
         $grammar = m::mock(Grammar::class);
         $connection->setSchemaGrammar($grammar);
 
@@ -96,7 +97,7 @@ class DatabaseSchemaBuilderTest extends TestCase
     public function testWithoutForeignKeyConstraintsUsesTheStatementPathWhilePretending(): void
     {
         $resolutions = 0;
-        $connection = new Connection(
+        $connection = new PdoConnection(
             static function () use (&$resolutions): PDO {
                 ++$resolutions;
 
@@ -124,7 +125,7 @@ class DatabaseSchemaBuilderTest extends TestCase
     public function testWithoutForeignKeyConstraintsMarksTheSessionUnknownWhenRestorationFails(): void
     {
         $pdo = m::mock(PDO::class);
-        $connection = new Connection($pdo, 'test');
+        $connection = new PdoConnection($pdo, 'test');
         $grammar = m::mock(Grammar::class);
         $connection->setSchemaGrammar($grammar);
 
@@ -143,7 +144,7 @@ class DatabaseSchemaBuilderTest extends TestCase
             );
         }
 
-        $this->assertTrue($connection->hasUnknownSessionState());
+        $this->assertFalse($connection->isReusable());
         $this->assertTrue($connection->beginForeignKeyConstraintSuppression());
 
         $connection->endForeignKeyConstraintSuppression();
@@ -152,7 +153,7 @@ class DatabaseSchemaBuilderTest extends TestCase
     public function testWithoutForeignKeyConstraintsPreservesNativeExceptionChainingWhenCallbackAndRestorationFail(): void
     {
         $pdo = m::mock(PDO::class);
-        $connection = new Connection($pdo, 'test');
+        $connection = new PdoConnection($pdo, 'test');
         $grammar = m::mock(Grammar::class);
         $connection->setSchemaGrammar($grammar);
         $callbackFailure = new RuntimeException('callback failed');
@@ -173,7 +174,7 @@ class DatabaseSchemaBuilderTest extends TestCase
             $this->assertSame($callbackFailure, $exception->getPrevious());
         }
 
-        $this->assertTrue($connection->hasUnknownSessionState());
+        $this->assertFalse($connection->isReusable());
     }
 
     public function testHasTableCorrectlyCallsGrammar()

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Fortify;
 
-use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Config\Repository as Config;
 use Hypervel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable;
@@ -51,9 +50,10 @@ use Hypervel\Fortify\Http\Responses\TwoFactorDisabledResponse;
 use Hypervel\Fortify\Http\Responses\TwoFactorEnabledResponse;
 use Hypervel\Fortify\Http\Responses\TwoFactorLoginResponse;
 use Hypervel\Fortify\Http\Responses\VerifyEmailResponse;
-use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Http\Request;
 use Hypervel\Passkeys\Passkeys;
+use Hypervel\RateLimiter\Limit;
+use Hypervel\Support\Facades\RateLimiter;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
 use Psr\Clock\ClockInterface;
@@ -114,22 +114,19 @@ class FortifyServiceProvider extends ServiceProvider
     {
         Passkeys::ignoreRoutes();
 
-        $config = $this->app->make(ConfigRepository::class);
+        $config = $this->app->make(Config::class);
 
-        // Derived config can depend on the worker environment, so replay the operation after config reload rather than its master result.
-        $this->app->make(ConfigMutationTracker::class)->applyAndRecord(
-            $config,
-            static function (ConfigRepository $config): void {
-                $appUrl = $config->string('app.url');
+        /** @var null|string $appUrl */
+        $appUrl = $config->get('app.url');
+        $defaultRelyingPartyId = $appUrl === null ? null : parse_url($appUrl, PHP_URL_HOST);
+        $defaultAllowedOrigins = $appUrl === null ? [] : [$appUrl];
 
-                $config->set([
-                    'passkeys.relying_party_id' => $config->string('fortify.passkeys.relying_party_id', parse_url($appUrl, PHP_URL_HOST)),
-                    'passkeys.allowed_origins' => $config->array('fortify.passkeys.allowed_origins', [$appUrl]),
-                    'passkeys.user_handle_secret' => $config->string('fortify.passkeys.user_handle_secret', $config->string('app.key')),
-                    'passkeys.timeout' => $config->integer('fortify.passkeys.timeout', 60000),
-                ]);
-            },
-        );
+        $config->set([
+            'passkeys.relying_party_id' => $config->get('fortify.passkeys.relying_party_id', $defaultRelyingPartyId),
+            'passkeys.allowed_origins' => $config->get('fortify.passkeys.allowed_origins', $defaultAllowedOrigins),
+            'passkeys.user_handle_secret' => $config->get('fortify.passkeys.user_handle_secret', $config->get('app.key')),
+            'passkeys.timeout' => $config->integer('fortify.passkeys.timeout', Passkeys::DEFAULT_TIMEOUT),
+        ]);
 
         Passkeys::redirectUsing(
             static fn (Request $request): string => Fortify::redirects('login', request: $request),
@@ -141,12 +138,33 @@ class FortifyServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->configureRateLimiting();
+
         if ($this->app->runningInConsole()) {
             $this->configurePublishing();
             $this->registerCommands();
         }
 
         $this->configureRoutes();
+    }
+
+    /**
+     * Configure the package's default rate limiters.
+     */
+    protected function configureRateLimiting(): void
+    {
+        RateLimiter::for('two-factor', function (Request $request): Limit {
+            $session = $request->session();
+            $guard = $session->get('login.guard');
+            $id = $session->get('login.id');
+
+            $key = is_string($guard) && $guard !== ''
+                && (is_int($id) || is_string($id)) && (string) $id !== ''
+                    ? $guard . '|' . $id
+                    : $session->getId();
+
+            return Limit::perMinute(5)->by($key);
+        });
     }
 
     /**

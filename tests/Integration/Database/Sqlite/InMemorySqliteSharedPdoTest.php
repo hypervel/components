@@ -556,7 +556,8 @@ class InMemorySqliteSharedPdoTest extends TestCase
                 }
 
                 $this->assertSame($sharedPdo, $connection->getRawPdo());
-                $this->assertSame($sharedPdo, $connection->getRawReadPdo());
+                $this->assertNull($connection->getRawReadPdo());
+                $this->assertSame($sharedPdo, $connection->getReadPdo());
                 $this->assertSame(0, $connection->transactionLevel());
                 $this->assertFalse($sharedPdo->inTransaction());
                 $this->assertNull(

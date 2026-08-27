@@ -474,7 +474,7 @@ Cover:
 - no command is invoked twice;
 - Redis and Valkey integration confirms synchronized server-error equality where a stable command can produce it.
 
-Delete replay assertions. In `src/boost/docs/redis.md`, delete only the framework replay sentence. Keep native phpredis `retry_interval`, `max_retries`, and backoff documentation.
+Delete replay assertions. In `src/boost/docs/redis.md`, delete only the framework replay sentence. Keep native PhpRedis `max_retries` and backoff documentation; Hypervel does not expose `retry_interval` because its complete backoff policy replaces that initial seed before issuing a command.
 
 ## 3. Replace subscriber EOF framing with exact RESP2 decoding
 

@@ -31,23 +31,63 @@ class PasswordConfirmationTest extends TestCase
         $this->assertSame(900, PasswordConfirmation::timeout($config, 'admin'));
     }
 
-    public function testTimeoutFallsBackToGlobal(): void
+    public function testExplicitNullTimeoutInheritsGlobal(): void
     {
         $config = new Repository([
             'auth' => [
                 'password_timeout' => 3600,
+                'guards' => [
+                    'admin' => [
+                        'password_timeout' => null,
+                    ],
+                ],
             ],
         ]);
 
         $this->assertSame(3600, PasswordConfirmation::timeout($config, 'admin'));
     }
 
-    public function testTimeoutFailsWhenShippedGlobalSettingIsMissing(): void
+    public function testMissingGuardTimeoutInheritsGlobal(): void
     {
+        $config = new Repository([
+            'auth' => [
+                'password_timeout' => 3600,
+                'guards' => [
+                    'admin' => [],
+                ],
+            ],
+        ]);
+
+        $this->assertSame(3600, PasswordConfirmation::timeout($config, 'admin'));
+    }
+
+    public function testTimeoutFailsWhenGlobalSettingIsMissing(): void
+    {
+        $config = new Repository([
+            'auth' => [
+                'guards' => [
+                    'admin' => [
+                        'password_timeout' => null,
+                    ],
+                ],
+            ],
+        ]);
+
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Configuration value for key [auth.password_timeout] must be an integer, NULL given.');
 
-        PasswordConfirmation::timeout(new Repository, 'admin');
+        PasswordConfirmation::timeout($config, 'admin');
+    }
+
+    public function testShippedWebGuardInheritsGlobalTimeout(): void
+    {
+        $auth = require __DIR__ . '/../../src/foundation/config/auth.php';
+        $config = new Repository(['auth' => $auth]);
+
+        $this->assertSame(
+            $config->integer('auth.password_timeout'),
+            PasswordConfirmation::timeout($config, 'web')
+        );
     }
 
     public function testTimeoutFailsFastOnMalformedGuardValue(): void

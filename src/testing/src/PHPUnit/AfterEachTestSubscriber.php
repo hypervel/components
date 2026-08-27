@@ -154,7 +154,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Coroutine\Locker::flushState();
         \Hypervel\Coroutine\Mutex::flushState();
         \Hypervel\Database\Capsule\Manager::flushState();
-        \Hypervel\Database\Connection::flushState();
+        \Hypervel\Database\PdoConnection::flushState();
         \Hypervel\Database\Console\DumpCommand::flushState();
         \Hypervel\Database\Console\Migrations\FreshCommand::flushState();
         \Hypervel\Database\Console\Migrations\RefreshCommand::flushState();
@@ -296,7 +296,6 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Testing\TestResponse::flushState();
         \Hypervel\Testing\TestView::flushState();
         \Hypervel\Translation\Translator::flushState();
-        \Hypervel\Validation\Console\BenchmarkValidationCommand::flushState();
         \Hypervel\Validation\Rule::flushState();
         \Hypervel\Validation\Rules\Date::flushState();
         \Hypervel\Validation\Rules\Email::flushState();

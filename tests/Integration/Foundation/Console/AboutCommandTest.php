@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Foundation\Console;
 
+use Hypervel\Foundation\Console\AboutCommand;
+use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\Attributes\WithEnv;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\Assert;
@@ -26,6 +28,18 @@ class AboutCommandTest extends TestCase
 
             $this->assertArrayHasKey('aop_proxies', $output['cache']);
         });
+    }
+
+    public function testItDisplaysAnEmptyUrlWhenTheApplicationHasNoCanonicalUrl(): void
+    {
+        config(['app.url' => null]);
+        $this->withoutMockingConsoleOutput();
+
+        $this->artisan(AboutCommand::class, ['--json' => null]);
+
+        $output = json_decode(Artisan::output(), true);
+
+        $this->assertSame('', $output['environment']['url']);
     }
 
     #[WithEnv('VIEW_COMPILED_PATH', __DIR__ . '/Fixtures/compiled-views')]

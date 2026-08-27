@@ -26,7 +26,12 @@ class SanctumRoutesTest extends TestCase
 
     protected function disableRoutes(ApplicationContract $app): void
     {
-        $app->make('config')->set('sanctum.routes', false);
+        $configRepository = $app->make('config');
+        $config = $configRepository->array('sanctum');
+        unset($config['prefix']);
+        $config['routes'] = false;
+
+        $configRepository->set('sanctum', $config);
     }
 
     public function testCsrfCookieRouteUsesTheExpectedNameUriAndMiddleware(): void

@@ -78,7 +78,7 @@ class InteractsWithDatabaseTest extends TestCase
         $connection->shouldReceive('raw')->once()->andReturnUsing(
             static fn (string $value): Expression => new Expression($value),
         );
-        $connection->shouldReceive('getPdo->quote')->once()->andReturnUsing(
+        $connection->shouldReceive('escape')->once()->andReturnUsing(
             static fn (string $value): string => "'{$value}'",
         );
 

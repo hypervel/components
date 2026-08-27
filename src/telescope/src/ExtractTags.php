@@ -94,8 +94,8 @@ class ExtractTags
     protected static function targetsFor(mixed $job): array
     {
         switch (true) {
-            case $job instanceof BroadcastEvent: // @phpstan-ignore-line
-                return [$job->event]; // @phpstan-ignore-line
+            case $job instanceof BroadcastEvent:
+                return [$job->event];
             case $job instanceof CallQueuedListener:
                 return [static::extractEvent($job)];
             case $job instanceof SendQueuedMailable:

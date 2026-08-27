@@ -29,7 +29,7 @@ class StartSsr extends Command
      */
     public function handle(): int
     {
-        if (! config('inertia.ssr.enabled', true)) {
+        if (! config()->boolean('inertia.ssr.enabled', true)) {
             $this->error('Inertia SSR is not enabled. Enable it via the `inertia.ssr.enabled` config option.');
 
             return self::FAILURE;
@@ -52,9 +52,9 @@ class StartSsr extends Command
             $this->warn('Using a default bundle instead: "' . $bundle . '"');
         }
 
-        $runtime = $this->option('runtime') ?? config('inertia.ssr.runtime', 'node');
+        $runtime = $this->option('runtime') ?? config()->string('inertia.ssr.runtime', 'node');
 
-        if (config('inertia.ssr.ensure_runtime_exists', false) && ! (new ExecutableFinder)->find($runtime)) {
+        if (config()->boolean('inertia.ssr.ensure_runtime_exists', false) && ! (new ExecutableFinder)->find($runtime)) {
             $this->error('SSR runtime "' . $runtime . '" could not be found.');
 
             return self::FAILURE;

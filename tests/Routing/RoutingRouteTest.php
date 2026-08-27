@@ -504,6 +504,21 @@ class RoutingRouteTest extends TestCase
         unset($_SERVER['__test.route_inject']);
     }
 
+    public function testZeroArgumentCallableRetainsExtraRouteArguments(): void
+    {
+        $router = $this->getRouter();
+        $arguments = null;
+
+        $router->get('foo/{value}', function () use (&$arguments) {
+            $arguments = func_get_args();
+
+            return 'hello';
+        });
+
+        $this->assertSame('hello', $router->dispatch(Request::create('foo/bar', 'GET'))->getContent());
+        $this->assertSame(['bar'], $arguments);
+    }
+
     public function testNullValuesCanBeInjectedIntoRoutes()
     {
         $container = new Container;
@@ -1790,6 +1805,26 @@ class RoutingRouteTest extends TestCase
         ]);
 
         $this->assertSame('otwell', $router->dispatch(Request::create('foo/taylor', 'GET'))->getContent());
+    }
+
+    public function testCustomImplicitBindingCallbackRunsForRouteWithoutParameters(): void
+    {
+        $router = $this->getRouter();
+        $calls = 0;
+
+        $router->substituteImplicitBindingsUsing(function ($container, $route, $default) use (&$calls) {
+            ++$calls;
+
+            return $default();
+        });
+
+        $router->get('foo', [
+            'middleware' => SubstituteBindings::class,
+            'uses' => fn () => 'ok',
+        ]);
+
+        $this->assertSame('ok', $router->dispatch(Request::create('foo', 'GET'))->getContent());
+        $this->assertSame(1, $calls);
     }
 
     public function testImplicitBindingsWhereScopedBindingsArePrevented()

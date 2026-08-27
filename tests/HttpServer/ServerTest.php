@@ -97,6 +97,38 @@ class ServerTest extends TestCase
         $server->onRequest($swooleRequest, $swooleResponse);
     }
 
+    public function testOnRequestWaitsForWorkerStartOnlyOnce(): void
+    {
+        CoordinatorManager::until(Constants::WORKER_START)->resume();
+
+        $kernel = m::mock(KernelContract::class);
+        $kernel->shouldReceive('handle')
+            ->twice()
+            ->with(m::type(Request::class))
+            ->andReturn(new Response('OK'));
+        $kernel->shouldReceive('terminate')->twice();
+
+        $container = m::mock(Container::class);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
+
+        $server = new Server($container);
+        $this->setKernel($server, $kernel);
+
+        $swooleResponse = m::mock(SwooleResponse::class);
+        $swooleResponse->shouldReceive('status')->twice()->with(200)->andReturnTrue();
+        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
+        $swooleResponse->shouldReceive('end')->twice()->with('OK')->andReturnTrue();
+
+        wait(fn () => $server->onRequest($this->createSwooleRequest(), $swooleResponse));
+
+        CoordinatorManager::clear(Constants::WORKER_START);
+
+        wait(
+            fn () => $server->onRequest($this->createSwooleRequest(), $swooleResponse),
+            timeout: 0.1
+        );
+    }
+
     public function testOnRequestSetsRequestInContext(): void
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();

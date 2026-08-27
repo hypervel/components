@@ -28,11 +28,6 @@ class RollbackCommand extends BaseCommand
     protected string $description = 'Rollback the last database migration';
 
     /**
-     * The migrator instance.
-     */
-    protected Migrator $migrator;
-
-    /**
      * Create a new migration rollback command instance.
      */
     public function __construct(Migrator $migrator)

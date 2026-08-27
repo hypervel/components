@@ -6,6 +6,7 @@ namespace Hypervel\Prompts;
 
 use Closure;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Prompts\Support\PromptAnimation;
 use RuntimeException;
 use Throwable;
 
@@ -53,23 +54,21 @@ class Spinner extends Prompt
             return $this->renderStatically($callback);
         }
 
-        /** @var bool $finished */
-        $finished = false;
+        $animation = null;
         $operationFailure = null;
 
         try {
             $this->hideCursor();
             $this->render();
 
-            Coroutine::fork(function () use (&$finished): void {
-                while (! $finished) {
-                    $this->render();
-
+            $animation = new PromptAnimation(
+                render: function (): void {
                     ++$this->count;
-
-                    usleep($this->interval * 1000);
-                }
-            });
+                    $this->render();
+                },
+                interval: $this->interval,
+            );
+            $animation->start();
 
             return $callback();
         } catch (Throwable $exception) {
@@ -77,11 +76,24 @@ class Spinner extends Prompt
 
             throw $exception;
         } finally {
-            $finished = true;
+            $animationFailure = null;
+
+            try {
+                $animationFailure = $animation?->stop();
+            } catch (Throwable $exception) {
+                $animationFailure = $exception;
+            }
+
             $cleanupFailure = $this->settleOperation();
 
-            if ($operationFailure === null && $cleanupFailure !== null) {
-                throw $cleanupFailure;
+            if ($operationFailure === null) {
+                if ($animationFailure !== null) {
+                    throw $animationFailure;
+                }
+
+                if ($cleanupFailure !== null) {
+                    throw $cleanupFailure;
+                }
             }
         }
     }

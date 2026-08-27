@@ -6,10 +6,11 @@ namespace Hypervel\Foundation\Testing;
 
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection as DatabaseConnection;
-use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
 use Hypervel\Foundation\Testing\Traits\CanConfigureMigrationCommands;
+use LogicException;
 
 trait RefreshDatabase
 {
@@ -38,20 +39,11 @@ trait RefreshDatabase
 
         $this->refreshTestDatabase();
 
-        // For coroutine tests, these run in setUpRefreshDatabaseInCoroutine()
+        // For coroutine tests, this runs in setUpRefreshDatabaseInCoroutine()
         // to maintain correct ordering: transaction → afterRefreshing → test
         if (! $this->runsTestsInCoroutine()) {
             $this->afterRefreshingDatabase();
-            $this->refreshModelBootedStates();
         }
-    }
-
-    /**
-     * Refresh the model booted states.
-     */
-    protected function refreshModelBootedStates(): void
-    {
-        Model::clearBootedModels();
     }
 
     /**
@@ -65,7 +57,13 @@ trait RefreshDatabase
             $connectionName = $name ?? $this->getRefreshConnection();
 
             if (isset(RefreshDatabaseState::$inMemoryConnections[$connectionName])) {
-                $database->connection($name)
+                $connection = $database->connection($name);
+
+                if (! $connection instanceof PdoConnection) {
+                    throw new LogicException('In-memory SQLite database testing requires a PDO-backed connection.');
+                }
+
+                $connection
                     ->setPdo(RefreshDatabaseState::$inMemoryConnections[$connectionName])
                     ->setEventDispatcher($this->app->make(Dispatcher::class));
             }
@@ -93,11 +91,10 @@ trait RefreshDatabase
     {
         $config = $this->app->make('config');
         $name ??= $this->getRefreshConnection();
+        $configuration = $config->get("database.connections.{$name}");
 
-        // All supported SQLite memory URI forms need the same refresh lifecycle.
-        return SQLiteDatabase::isInMemory(
-            $config->string("database.connections.{$name}.database")
-        );
+        return is_array($configuration)
+            && SQLiteDatabase::isInMemoryConfiguration($configuration);
     }
 
     /**
@@ -154,7 +151,6 @@ trait RefreshDatabase
     {
         $this->beginDatabaseTransactionWork();
         $this->afterRefreshingDatabase();
-        $this->refreshModelBootedStates();
     }
 
     /**
@@ -190,6 +186,10 @@ trait RefreshDatabase
             if ($this->usingInMemoryDatabase($name)) {
                 $connectionName = $name ?? $this->getRefreshConnection();
 
+                if (! $connection instanceof PdoConnection) {
+                    throw new LogicException('In-memory SQLite database testing requires a PDO-backed connection.');
+                }
+
                 RefreshDatabaseState::$inMemoryConnections[$connectionName] ??= $connection->getPdo();
             }
 
@@ -203,13 +203,11 @@ trait RefreshDatabase
             }
         }
 
-        // Mark the database as migrated only after every connection's PDO
-        // has been cached. Keeping $migrated and $inMemoryConnections in
-        // lockstep means a test that skips between refreshTestDatabase()
-        // and this method (possible under RunTestsInCoroutine, where this
-        // method is deferred to setUpRefreshDatabaseInCoroutine()) leaves
-        // the flag false — so the next test's migrate:fresh runs cleanly
-        // instead of being skipped with no cached PDO to restore.
+        // Mark the database as migrated only after every connection is ready
+        // and each in-memory SQLite PDO has been cached. RunTestsInCoroutine
+        // defers this method, so moving the flag earlier would let a skipped
+        // setup poison the next test: it would skip migrate:fresh without a
+        // cached PDO to restore.
         RefreshDatabaseState::$migrated = true;
     }
 
@@ -226,7 +224,7 @@ trait RefreshDatabase
 
             $connection->unsetEventDispatcher();
 
-            if (! $connection->getPdo()->inTransaction()) {
+            if (! $connection->inTransaction()) {
                 RefreshDatabaseState::$migrated = false;
             }
 

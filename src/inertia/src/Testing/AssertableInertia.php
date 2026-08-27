@@ -96,7 +96,7 @@ class AssertableInertia extends AssertableJson
     {
         PHPUnit::assertSame($value, $this->component, 'Unexpected Inertia page component.');
 
-        if ($shouldExist || (is_null($shouldExist) && config('inertia.testing.ensure_pages_exist', true))) {
+        if ($shouldExist || (is_null($shouldExist) && config()->boolean('inertia.testing.ensure_pages_exist', true))) {
             try {
                 app('inertia.view-finder')->find($value);
             } catch (InvalidArgumentException $exception) {

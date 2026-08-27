@@ -190,22 +190,6 @@ class BeanstalkdQueue extends Queue implements QueueContract
     }
 
     /**
-     * Push an array of jobs onto the queue.
-     */
-    public function bulk(array $jobs, mixed $data = '', ?string $queue = null): mixed
-    {
-        foreach ((array) $jobs as $job) {
-            if (isset($job->delay)) {
-                $this->later($job->delay, $job, $data, $queue);
-            } else {
-                $this->push($job, $data, $queue);
-            }
-        }
-
-        return null;
-    }
-
-    /**
      * Pop the next job off of the queue.
      */
     public function pop(?string $queue = null): ?JobContract

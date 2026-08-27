@@ -48,11 +48,14 @@ class ConnectionResolver implements ConnectionResolverInterface
      */
     protected array $nonCoroutineConnections = [];
 
+    /**
+     * Create a new connection resolver instance.
+     */
     public function __construct(
         protected Container $container
     ) {
         $this->factory = $container->make(PoolFactory::class);
-        $this->default = $container->make('config')->string('database.default', 'default');
+        $this->default = $container->make('config')->string('database.default');
     }
 
     /**

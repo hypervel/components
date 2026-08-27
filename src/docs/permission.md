@@ -163,6 +163,8 @@ You may also customize the pivot and morph column names:
 ],
 ```
 
+The role and permission pivot keys may be omitted or set to `null` to use `role_id` and `permission_id`. Omitting the team foreign key uses `team_id`. Model, table, and morph-key settings remain required because they define the package schema.
+
 <a name="cache"></a>
 ### Cache
 
@@ -184,7 +186,7 @@ return [
 ];
 ```
 
-When `store` is `default`, the application's default cache store is used.
+When `store` is omitted or set to `default`, the application's default cache store is used. The expiration defaults to 24 hours when omitted. Separate keys isolate the permission catalog, model-role assignments, direct model permissions, and the assignment namespace token so mutations can invalidate only the affected data. Omitted key members use the package names shown in the example. The `column_names_except` list removes unneeded model attributes from the cached catalog; required identity, guard, team, and partition columns cannot be excluded.
 
 You may include required role or permission names in authorization exception messages:
 
@@ -192,6 +194,8 @@ You may include required role or permission names in authorization exception mes
 'display_permission_in_exception' => true,
 'display_role_in_exception' => true,
 ```
+
+These options only change the text of `UnauthorizedException` messages. They do not change authorization results or the required names available through the exception's accessors. Keep them disabled when role or permission names are sensitive.
 
 <a name="model-setup"></a>
 ## Model Setup
@@ -1130,6 +1134,8 @@ Teams scope roles and role or permission assignments by a configured team foreig
 ],
 ```
 
+The default team resolver stores the active team ID in coroutine context. You may replace `team_resolver` with a class that implements `Hypervel\Permission\Contracts\PermissionsTeamResolver`.
+
 Use the helpers to set the current team for the current coroutine:
 
 ```php
@@ -1197,6 +1203,8 @@ $user->givePermissionTo('posts,users.create,update,view');
 ```
 
 The wildcard permission or wildcard pattern must exist as a permission record before it can be assigned or checked.
+
+To customize wildcard parsing, configure `wildcard_permission` with a class that implements `Hypervel\Permission\Contracts\Wildcard`.
 
 <a name="polymorphic-models"></a>
 ## Polymorphic Models

@@ -238,7 +238,6 @@ if (! function_exists('bcrypt')) {
      */
     function bcrypt(#[\SensitiveParameter] string $value, array $options = []): string
     {
-        /* @phpstan-ignore-next-line */
         return app('hash')->driver('bcrypt')->make($value, $options);
     }
 }
@@ -301,7 +300,7 @@ if (! function_exists('cache')) {
             return $manager->get($key, $default);
         }
 
-        if (! is_array($key)) { // @phpstan-ignore function.alreadyNarrowedType (validates PHPDoc contract at runtime)
+        if (! is_array($key)) {
             throw new InvalidArgumentException(
                 'When setting a value in the cache, you must pass an array of key / value pairs.'
             );
@@ -441,7 +440,6 @@ if (! function_exists('decrypt')) {
      */
     function decrypt(string $value, bool $unserialize = true): mixed
     {
-        /* @phpstan-ignore-next-line */
         return app('encrypter')->decrypt($value, $unserialize);
     }
 }
@@ -481,7 +479,6 @@ if (! function_exists('encrypt')) {
      */
     function encrypt(#[\SensitiveParameter] mixed $value, bool $serialize = true): string
     {
-        /* @phpstan-ignore-next-line */
         return app('encrypter')->encrypt($value, $serialize);
     }
 }

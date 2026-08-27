@@ -180,7 +180,7 @@ class Config extends Fluent implements ConfigContract
      */
     public function __construct(iterable $attributes = [])
     {
-        parent::__construct(array_replace($this->defaultAttributes, is_array($attributes) ? $attributes : iterator_to_array($attributes))); /* @phpstan-ignore function.alreadyNarrowedType */
+        parent::__construct(array_replace($this->defaultAttributes, is_array($attributes) ? $attributes : iterator_to_array($attributes)));
     }
 
     /**
@@ -223,7 +223,7 @@ class Config extends Fluent implements ConfigContract
                 static fn (?string $path): ?string => transform_relative_path($path, $workingPath)
             );
 
-            if (isset($config['env']) && \is_array($config['env']) && Arr::isAssoc($config['env'])) { /* @phpstan-ignore booleanAnd.rightAlwaysTrue */
+            if (isset($config['env']) && \is_array($config['env']) && Arr::isAssoc($config['env'])) {
                 $config['env'] = parse_environment_variables($config['env']);
             }
         }

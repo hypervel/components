@@ -89,7 +89,7 @@ class Fortify
 
         return (string) (self::config()->get("fortify.redirects.{$redirect}")
             ?? $default
-            ?? self::config()->get('fortify.home'));
+            ?? self::config()->string('fortify.home'));
     }
 
     /**

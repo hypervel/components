@@ -9,6 +9,7 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Foundation\Console\Kernel as FoundationConsoleKernel;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
+use Hypervel\Foundation\Testing\DatabaseTruncation;
 use Hypervel\Foundation\Testing\RefreshDatabaseState;
 use Hypervel\Support\Arr;
 use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
@@ -31,7 +32,7 @@ trait InteractsWithMigrations
 
     protected function setUpInteractsWithMigrations(): void
     {
-        if ($this->usesSqliteInMemoryDatabaseConnection()) {
+        if ($this->usesInMemoryDatabaseForMigrationState()) {
             $this->afterApplicationCreated(static function (): void {
                 static::usesTestingFeature(new ResetRefreshDatabaseState);
             });
@@ -41,6 +42,9 @@ trait InteractsWithMigrations
     protected function tearDownInteractsWithMigrations(): void
     {
         $hasInMemoryConnections = ! empty(RefreshDatabaseState::$inMemoryConnections);
+        $preservesInMemoryDatabase = static::usesTestingConcern(DatabaseTruncation::class)
+            && ! static::usesTestingConcern(DatabaseMigrations::class)
+            && ! static::usesRefreshDatabaseTestingConcern();
         $processors = $this->cachedTestMigratorProcessors;
         $this->cachedTestMigratorProcessors = [];
         $failure = null;
@@ -48,7 +52,11 @@ trait InteractsWithMigrations
         try {
             if (
                 (count($processors) > 0 && static::usesRefreshDatabaseTestingConcern())
-                || ($hasInMemoryConnections && $this->usesSqliteInMemoryDatabaseConnection())
+                || (
+                    ! $preservesInMemoryDatabase
+                    && $hasInMemoryConnections
+                    && $this->usesInMemoryDatabaseForMigrationState()
+                )
             ) {
                 ResetRefreshDatabaseState::run();
             }
@@ -79,9 +87,37 @@ trait InteractsWithMigrations
         /** @var ApplicationContract $app */
         $app = $this->app;
 
+        if (
+            (is_string($paths) || Arr::isList($paths))
+            && $this->shouldRegisterMigrationPaths()
+        ) {
+            /** @var list<string>|string $paths */
+            load_migration_paths($app, $paths);
+
+            return;
+        }
+
+        /** @var array<string, mixed>|string $paths */
+        $this->runMigrationProcessor($app, $this->resolvePackageMigrationsOptions($paths));
+    }
+
+    /**
+     * Determine whether migration paths should be registered for an upcoming migration.
+     */
+    protected function shouldRegisterMigrationPaths(): bool
+    {
         $migrateRefresh = property_exists($this, 'migrateRefresh')
             && (bool) $this->migrateRefresh;
-        $refreshesDatabase = static::usesTestingConcern(DatabaseMigrations::class)
+
+        // List and string paths target the default connection; named options use a processor.
+        return static::usesTestingConcern(DatabaseMigrations::class)
+            || (
+                static::usesTestingConcern(DatabaseTruncation::class)
+                && (
+                    RefreshDatabaseState::$migrated === false
+                    || $this->usesSqliteInMemoryDatabaseConnection()
+                )
+            )
             || (
                 static::usesRefreshDatabaseTestingConcern()
                 && (
@@ -92,19 +128,6 @@ trait InteractsWithMigrations
                     )
                 )
             );
-
-        if (
-            (is_string($paths) || Arr::isList($paths))
-            && $refreshesDatabase
-        ) {
-            /** @var list<string>|string $paths */
-            load_migration_paths($app, $paths);
-
-            return;
-        }
-
-        /** @var array<string, mixed>|string $paths */
-        $this->runMigrationProcessor($app, $this->resolvePackageMigrationsOptions($paths));
     }
 
     /**
@@ -199,6 +222,19 @@ trait InteractsWithMigrations
         array_unshift($this->cachedTestMigratorProcessors, $migrator);
 
         $this->resetApplicationArtisanCommands($app);
+    }
+
+    /**
+     * Determine whether the active database concern retains in-memory state.
+     */
+    protected function usesInMemoryDatabaseForMigrationState(): bool
+    {
+        if (static::usesTestingConcern(DatabaseTruncation::class)) {
+            // Every cached truncation PDO needs the same class-boundary state owner.
+            return $this->usingInMemoryDatabasesForTruncation(); /* @phpstan-ignore method.notFound */
+        }
+
+        return $this->usesSqliteInMemoryDatabaseConnection();
     }
 
     protected function resetApplicationArtisanCommands(ApplicationContract $app): void

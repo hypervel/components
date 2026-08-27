@@ -16,6 +16,7 @@ use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Container\ContextualAttribute;
 use Hypervel\Contracts\Container\ContextualBindingBuilder as ContextualBindingBuilderContract;
 use Hypervel\Contracts\Container\SelfBuilding;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Support\ClassMetadataCache;
 use Hypervel\Support\Traits\ReflectsClosures;
 use InvalidArgumentException;
@@ -83,28 +84,28 @@ class Container implements ContainerContract
      *
      * @var bool[]
      */
-    protected $resolved = [];
+    protected array $resolved = [];
 
     /**
      * The container's bindings.
      *
      * @var array[]
      */
-    protected $bindings = [];
+    protected array $bindings = [];
 
     /**
      * The container's method bindings.
      *
      * @var Closure[]
      */
-    protected $methodBindings = [];
+    protected array $methodBindings = [];
 
     /**
      * The container's shared instances.
      *
      * @var array<string, mixed>
      */
-    protected $instances = [];
+    protected array $instances = [];
 
     /**
      * Auto-singletoned instances for unbound concrete classes.
@@ -116,7 +117,7 @@ class Container implements ContainerContract
      *
      * @var object[]
      */
-    protected $autoSingletons = [];
+    protected array $autoSingletons = [];
 
     /**
      * Cacheable first resolutions currently owned by a coroutine.
@@ -143,119 +144,119 @@ class Container implements ContainerContract
      *
      * @var array<string, true>
      */
-    protected $scopedInstances = [];
+    protected array $scopedInstances = [];
 
     /**
      * The registered type aliases.
      *
      * @var string[]
      */
-    protected $aliases = [];
+    protected array $aliases = [];
 
     /**
      * The registered aliases keyed by the abstract name.
      *
      * @var array[]
      */
-    protected $abstractAliases = [];
+    protected array $abstractAliases = [];
 
     /**
      * The extension closures for services.
      *
      * @var array[]
      */
-    protected $extenders = [];
+    protected array $extenders = [];
 
     /**
      * All of the registered tags.
      *
      * @var array[]
      */
-    protected $tags = [];
+    protected array $tags = [];
 
     /**
      * The contextual binding map.
      *
      * @var array[]
      */
-    public $contextual = [];
+    public array $contextual = [];
 
     /**
      * The contextual attribute handlers.
      *
      * @var array[]
      */
-    public $contextualAttributes = [];
+    public array $contextualAttributes = [];
 
     /**
      * Whether an abstract class has already had its attributes checked for bindings.
      *
      * @var array<class-string, true>
      */
-    protected $checkedForAttributeBindings = [];
+    protected array $checkedForAttributeBindings = [];
 
     /**
      * Whether a class has already been checked for Singleton or Scoped attributes.
      *
      * @var array<class-string, null|"scoped"|"singleton">
      */
-    protected $checkedForSingletonOrScopedAttributes = [];
+    protected array $checkedForSingletonOrScopedAttributes = [];
 
     /**
      * All of the registered rebound callbacks.
      *
      * @var array[]
      */
-    protected $reboundCallbacks = [];
+    protected array $reboundCallbacks = [];
 
     /**
      * All of the global before resolving callbacks.
      *
      * @var Closure[]
      */
-    protected $globalBeforeResolvingCallbacks = [];
+    protected array $globalBeforeResolvingCallbacks = [];
 
     /**
      * All of the global resolving callbacks.
      *
      * @var Closure[]
      */
-    protected $globalResolvingCallbacks = [];
+    protected array $globalResolvingCallbacks = [];
 
     /**
      * All of the global after resolving callbacks.
      *
      * @var Closure[]
      */
-    protected $globalAfterResolvingCallbacks = [];
+    protected array $globalAfterResolvingCallbacks = [];
 
     /**
      * All of the before resolving callbacks by class type.
      *
      * @var array[]
      */
-    protected $beforeResolvingCallbacks = [];
+    protected array $beforeResolvingCallbacks = [];
 
     /**
      * All of the resolving callbacks by class type.
      *
      * @var array[]
      */
-    protected $resolvingCallbacks = [];
+    protected array $resolvingCallbacks = [];
 
     /**
      * All of the after resolving callbacks by class type.
      *
      * @var array[]
      */
-    protected $afterResolvingCallbacks = [];
+    protected array $afterResolvingCallbacks = [];
 
     /**
      * All of the after resolving attribute callbacks by class type.
      *
      * @var array<string, list<Closure>>
      */
-    protected $afterResolvingAttributeCallbacks = [];
+    protected array $afterResolvingAttributeCallbacks = [];
 
     /**
      * The callback used to determine the container's environment.
@@ -379,6 +380,31 @@ class Container implements ContainerContract
         }
 
         return false;
+    }
+
+    /**
+     * Determine if a scoped binding has already been resolved in this coroutine.
+     *
+     * Scoped instances live in coroutine-local context, so this is false at the
+     * start of every request even for a binding resolved many times before.
+     * Callers that would only inspect an instance can use this to avoid paying
+     * for a full resolution — and the construction it implies — when nothing in
+     * the request asked for one.
+     *
+     * Only the scoped resolution path writes this context key, so its presence
+     * already implies the binding is scoped; singletons, auto-singletons and
+     * transient bindings never produce one. An instance() registration that
+     * replaced a scoped binding also counts: it supersedes the scoped lifetime
+     * during resolution — tests swap scoped services this way — so an existing
+     * instance must be reported as resolved rather than skipped.
+     */
+    public function resolvedScoped(string $abstract): bool
+    {
+        $abstract = $this->getAlias($abstract);
+
+        return CoroutineContext::has(self::SCOPED_CONTEXT_PREFIX . $abstract)
+            || ((isset($this->instances[$abstract]) || array_key_exists($abstract, $this->instances))
+                && $this->isScoped($abstract));
     }
 
     /**
@@ -1200,15 +1226,16 @@ class Container implements ContainerContract
                     }
                 } elseif ($raiseEvents && ! isset($this->bindings[$abstract]) && is_string($concrete) && class_exists($concrete)
                     && ! is_a($concrete, SelfBuilding::class, true)
+                    && ! is_a($concrete, Transient::class, true)
                 ) {
                     // Auto-singleton: unbound concrete classes are cached for Swoole performance.
                     // In Swoole's long-running process model, services are stateless singletons
                     // by design. Re-creating them on every resolution wastes CPU and memory.
                     //
                     // Explicit bind() overrides this — bound classes follow their binding type.
-                    // SelfBuilding classes are excluded — they control their own construction
-                    // via newInstance() and typically read runtime state (config, request data)
-                    // that may change between resolutions. Use explicit singleton() to opt in.
+                    // SelfBuilding classes control their own construction, while Transient
+                    // classes declare that every unbound resolution requires a fresh instance.
+                    // Use an explicit singleton() binding to opt either lifetime into caching.
                     //
                     // Skipped when raiseEvents is false (internal binding resolution via getClosure)
                     // so that concretes resolved as part of scoped/singleton bindings don't get
@@ -1305,7 +1332,8 @@ class Container implements ContainerContract
             && ! isset($this->bindings[$abstract])
             && is_string($concrete)
             && class_exists($concrete)
-            && ! is_a($concrete, SelfBuilding::class, true);
+            && ! is_a($concrete, SelfBuilding::class, true)
+            && ! is_a($concrete, Transient::class, true);
     }
 
     /**

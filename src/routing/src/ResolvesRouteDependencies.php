@@ -57,6 +57,10 @@ trait ResolvesRouteDependencies
      */
     public function resolveMethodDependencies(array $parameters, array $reflectedParameters): array
     {
+        if ($reflectedParameters === []) {
+            return $parameters;
+        }
+
         $instanceCount = 0;
 
         $values = array_values($parameters);

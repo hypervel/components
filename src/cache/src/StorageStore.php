@@ -74,10 +74,7 @@ class StorageStore implements Store
      */
     public function put(string $key, mixed $value, int $seconds): bool
     {
-        return $this->disk->put(
-            $this->path($key),
-            $this->expirationHeader($seconds) . serialize($value)
-        ) !== false;
+        return $this->putWithExpiresAt($key, $value, $this->expiration($seconds));
     }
 
     /**
@@ -98,9 +95,16 @@ class StorageStore implements Store
     public function increment(string $key, int $value = 1): int
     {
         $raw = $this->getPayload($key);
+        $expiresAt = $raw['expiresAt'] ?? null;
 
-        return tap(((int) $raw['data']) + $value, function (int $newValue) use ($key, $raw): void {
-            $this->put($key, $newValue, $raw['time'] ?? 0);
+        return tap(((int) $raw['data']) + $value, function (int $newValue) use ($key, $raw, $expiresAt): void {
+            if ($expiresAt === null) {
+                $this->put($key, $newValue, $raw['time'] ?? 0);
+
+                return;
+            }
+
+            $this->putWithExpiresAt($key, $newValue, $expiresAt);
         });
     }
 
@@ -164,7 +168,20 @@ class StorageStore implements Store
     }
 
     /**
+     * Store an item with an absolute expiration timestamp.
+     */
+    protected function putWithExpiresAt(string $key, mixed $value, int $expiresAt): bool
+    {
+        return $this->disk->put(
+            $this->path($key),
+            $this->expiresAtHeader($expiresAt) . serialize($value)
+        ) !== false;
+    }
+
+    /**
      * Retrieve an item and expiry time from the cache by key.
+     *
+     * @return array{data: mixed, time: ?int, expiresAt: ?int}
      */
     protected function getPayload(string $key): array
     {
@@ -175,11 +192,13 @@ class StorageStore implements Store
                 return $this->emptyPayload();
             }
 
-            $expire = (int) substr($contents, 0, 10);
+            $expiresAt = (int) substr($contents, 0, 10);
         } catch (Exception) {
             return $this->emptyPayload();
         }
-        if ($this->currentTime() >= $expire) {
+        $currentTime = $this->currentTime();
+
+        if ($currentTime >= $expiresAt) {
             $this->forget($key);
 
             return $this->emptyPayload();
@@ -193,9 +212,10 @@ class StorageStore implements Store
             return $this->emptyPayload();
         }
 
-        $time = $expire - $this->currentTime();
+        // Keep Laravel's remaining duration for subclasses; internal rewrites use the exact deadline.
+        $time = $expiresAt - $currentTime;
 
-        return ['data' => $data, 'time' => $time];
+        return compact('data', 'time', 'expiresAt');
     }
 
     /**
@@ -216,10 +236,12 @@ class StorageStore implements Store
 
     /**
      * Get a default empty payload for the cache.
+     *
+     * @return array{data: mixed, time: ?int, expiresAt: ?int}
      */
     protected function emptyPayload(): array
     {
-        return ['data' => null, 'time' => null];
+        return ['data' => null, 'time' => null, 'expiresAt' => null];
     }
 
     /**
@@ -245,9 +267,9 @@ class StorageStore implements Store
     /**
      * Get the fixed-width expiration header for a cache item.
      */
-    protected function expirationHeader(int $seconds): string
+    protected function expiresAtHeader(int $expiresAt): string
     {
-        return sprintf('%010d', $this->expiration($seconds));
+        return sprintf('%010d', $expiresAt);
     }
 
     /**

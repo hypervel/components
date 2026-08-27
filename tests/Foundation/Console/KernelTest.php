@@ -6,13 +6,17 @@ namespace Hypervel\Tests\Foundation\Console;
 
 use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Console\Command;
+use Hypervel\Console\Scheduling\CacheEventMutex;
+use Hypervel\Console\Scheduling\CacheSchedulingMutex;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\BootProviders;
 use Hypervel\Foundation\Console\Kernel;
 use Hypervel\Foundation\Events\Terminating;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use ReflectionMethod;
@@ -27,6 +31,11 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class KernelTest extends TestCase
 {
+    protected function useTokyoApplicationTimezone(ApplicationContract $app): void
+    {
+        $app->make('config')->set('app.timezone', 'Asia/Tokyo');
+    }
+
     public function testHandleCatchesExceptionsAndReturnsOne()
     {
         $handler = m::mock(ExceptionHandlerContract::class);
@@ -109,6 +118,36 @@ class KernelTest extends TestCase
 
         $this->assertNotNull($bootstrappedWith);
         $this->assertNotContains(BootProviders::class, $bootstrappedWith);
+    }
+
+    #[DefineEnvironment('useTokyoApplicationTimezone')]
+    public function testMissingScheduleTimezoneUsesTheApplicationTimezone(): void
+    {
+        $event = $this->app->make(KernelContract::class)
+            ->resolveConsoleSchedule()
+            ->call(static fn (): null => null);
+
+        $this->assertSame('Asia/Tokyo', $event->nextRunDate()->getTimezone()->getName());
+    }
+
+    public function testNullScheduleCacheUsesTheDefaultStoreForBothMutexes(): void
+    {
+        $this->app->make('config')->set('cache.schedule_store', null);
+
+        $this->app->make(KernelContract::class)->resolveConsoleSchedule();
+
+        $this->assertNull($this->app->make(CacheEventMutex::class)->store);
+        $this->assertNull($this->app->make(CacheSchedulingMutex::class)->store);
+    }
+
+    public function testConfiguredScheduleCacheUsesTheSelectedStoreForBothMutexes(): void
+    {
+        $this->app->make('config')->set('cache.schedule_store', 'scheduling');
+
+        $this->app->make(KernelContract::class)->resolveConsoleSchedule();
+
+        $this->assertSame('scheduling', $this->app->make(CacheEventMutex::class)->store);
+        $this->assertSame('scheduling', $this->app->make(CacheSchedulingMutex::class)->store);
     }
 
     public function testReportExceptionDelegatesToExceptionHandler()

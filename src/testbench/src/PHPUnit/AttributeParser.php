@@ -98,7 +98,7 @@ class AttributeParser
     protected static function resolveAttribute(ReflectionAttribute $attribute): array
     {
         $instance = isset(class_implements($attribute->getName())[Resolvable::class])
-            ? transform($attribute->newInstance(), static fn (Resolvable $instance) => $instance->resolve()) // @phpstan-ignore argument.unresolvableType
+            ? transform($attribute->newInstance(), static fn (Resolvable $instance) => $instance->resolve())
             : $attribute->newInstance();
 
         if ($instance === null) {

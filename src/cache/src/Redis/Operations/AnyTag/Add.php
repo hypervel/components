@@ -30,12 +30,14 @@ class Add
      *
      * @param string $key The cache key (without prefix)
      * @param mixed $value The value to store (will be serialized)
-     * @param null|int $seconds TTL in seconds, or null for no expiration
+     * @param null|int $seconds TTL in seconds; null means no expiration and values below one are stored for one second
      * @param array<int, int|string> $tags Array of tag names (will be cast to strings)
      * @return bool True if item was added, false if it already exists
      */
     public function execute(string $key, mixed $value, ?int $seconds, array $tags): bool
     {
+        $seconds = $seconds === null ? null : max(1, $seconds);
+
         // 1. Cluster Mode: Must use sequential commands
         if ($this->context->isCluster()) {
             return $this->executeCluster($key, $value, $seconds, $tags);
@@ -56,7 +58,7 @@ class Add
             // First try to add the key with NX flag
             $options = $seconds === null
                 ? ['NX']
-                : ['EX' => max(1, $seconds), 'NX'];
+                : ['EX' => $seconds, 'NX'];
 
             $added = $connection->set(
                 $prefix . $key,
@@ -81,7 +83,7 @@ class Add
                 $multi->sadd($tagsKey, ...$tags);
 
                 if ($seconds !== null) {
-                    $multi->expire($tagsKey, max(1, $seconds));
+                    $multi->expire($tagsKey, $seconds);
                 }
 
                 $multi->exec();
@@ -137,7 +139,7 @@ class Add
 
             $args = [
                 $this->serialization->serializeForLua($connection, $value), // ARGV[1]
-                $seconds === null ? 0 : max(1, $seconds),    // ARGV[2]
+                $seconds ?? 0,                               // ARGV[2]
                 $this->context->fullTagPrefix(),             // ARGV[3]
                 $this->context->fullRegistryKey(),           // ARGV[4]
                 time(),                                      // ARGV[5]

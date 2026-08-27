@@ -556,6 +556,18 @@ class ResponseFactoryTest extends TestCase
         $this->assertInstanceOf(\Hypervel\Inertia\Response::class, $response);
     }
 
+    public function testWillNotThrowExceptionIfPageExistenceSettingIsOmitted(): void
+    {
+        config()->set('inertia.pages', [
+            'paths' => [],
+            'extensions' => [],
+        ]);
+
+        $response = (new ResponseFactory)->render('foo');
+
+        $this->assertInstanceOf(\Hypervel\Inertia\Response::class, $response);
+    }
+
     public function testCanResolveComponentNameBeforeRendering(): void
     {
         $calledWith = null;

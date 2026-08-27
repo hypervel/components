@@ -194,9 +194,9 @@ class CacheDatabaseStoreTest extends TestCase
 
     public function testValueIsUpserted()
     {
-        $store = $this->getMockBuilder(DatabaseStore::class)->onlyMethods(['getTime'])->setConstructorArgs($this->getMocks())->getMock();
-        [$table] = $this->mockTable($store);
-        $store->expects($this->once())->method('getTime')->willReturn(1);
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC(1));
+
+        [$store, $table] = $this->getStore();
         $table->shouldReceive('upsert')->once()->with([['key' => 'prefixfoo', 'value' => serialize('bar'), 'expiration' => 61]], 'key')->andReturnTrue();
 
         $result = $store->put('foo', 'bar', 60);
@@ -205,9 +205,9 @@ class CacheDatabaseStoreTest extends TestCase
 
     public function testValueIsUpsertedOnPostgres()
     {
-        $store = $this->getMockBuilder(DatabaseStore::class)->onlyMethods(['getTime'])->setConstructorArgs($this->getPostgresMocks())->getMock();
-        [$table] = $this->mockTable($store);
-        $store->expects($this->once())->method('getTime')->willReturn(1);
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC(1));
+
+        [$store, $table] = $this->getPostgresStore();
         $table->shouldReceive('upsert')->once()->with([['key' => 'prefixfoo', 'value' => base64_encode(serialize("\0")), 'expiration' => 61]], 'key')->andReturn(1);
 
         $result = $store->put('foo', "\0", 60);
@@ -216,9 +216,9 @@ class CacheDatabaseStoreTest extends TestCase
 
     public function testValueIsUpsertedOnSqlite()
     {
-        $store = $this->getMockBuilder(DatabaseStore::class)->onlyMethods(['getTime'])->setConstructorArgs($this->getSqliteMocks())->getMock();
-        [$table] = $this->mockTable($store);
-        $store->expects($this->once())->method('getTime')->willReturn(1);
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC(1));
+
+        [$store, $table] = $this->getSqliteStore();
         $table->shouldReceive('upsert')->once()->with([['key' => 'prefixfoo', 'value' => base64_encode(serialize("\0")), 'expiration' => 61]], 'key')->andReturn(1);
 
         $result = $store->put('foo', "\0", 60);
@@ -255,10 +255,9 @@ class CacheDatabaseStoreTest extends TestCase
 
     public function testPutManyReturnsTrueWhenUpsertAffectsNoRows(): void
     {
-        $store = $this->getMockBuilder(DatabaseStore::class)->onlyMethods(['getTime'])->setConstructorArgs($this->getMocks())->getMock();
-        [$table] = $this->mockTable($store);
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC(1));
 
-        $store->expects($this->once())->method('getTime')->willReturn(1);
+        [$store, $table] = $this->getStore();
         $table->shouldReceive('upsert')->once()->with([['key' => 'prefixfoo', 'value' => serialize('bar'), 'expiration' => 61]], 'key')->andReturn(0);
 
         $this->assertTrue($store->putMany(['foo' => 'bar'], 60));
@@ -266,10 +265,9 @@ class CacheDatabaseStoreTest extends TestCase
 
     public function testPutReturnsTrueWhenDelegatedUpsertAffectsNoRows(): void
     {
-        $store = $this->getMockBuilder(DatabaseStore::class)->onlyMethods(['getTime'])->setConstructorArgs($this->getMocks())->getMock();
-        [$table] = $this->mockTable($store);
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC(1));
 
-        $store->expects($this->once())->method('getTime')->willReturn(1);
+        [$store, $table] = $this->getStore();
         $table->shouldReceive('upsert')->once()->with([['key' => 'prefixfoo', 'value' => serialize('bar'), 'expiration' => 61]], 'key')->andReturn(0);
 
         $this->assertTrue($store->put('foo', 'bar', 60));
@@ -292,6 +290,35 @@ class CacheDatabaseStoreTest extends TestCase
         }))->andReturn(1);
 
         $this->assertTrue($store->add('foo', 'bar', 10));
+    }
+
+    public function testFractionalSecondWritesNeverExpireBeforeRequestedDeadline(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+
+        [$store, $table] = $this->getStore();
+
+        $table->shouldReceive('upsert')->once()->with([
+            ['key' => 'prefixfoo', 'value' => serialize('bar'), 'expiration' => 1002],
+        ], 'key')->andReturn(1);
+
+        $this->assertTrue($store->put('foo', 'bar', 1));
+
+        $table->shouldReceive('whereIn')->once()->with('key', ['prefixnew'])->andReturn($table);
+        $table->shouldReceive('get')->once()->andReturn(new Collection);
+        $table->shouldReceive('insertOrIgnore')->once()->with([
+            'key' => 'prefixnew',
+            'value' => serialize('value'),
+            'expiration' => 1002,
+        ])->andReturn(1);
+
+        $this->assertTrue($store->add('new', 'value', 1));
+
+        $table->shouldReceive('where')->once()->with('key', '=', 'prefixtouched')->andReturn($table);
+        $table->shouldReceive('where')->once()->with('expiration', '>', 1000)->andReturn($table);
+        $table->shouldReceive('update')->once()->with(['expiration' => 1002])->andReturn(1);
+
+        $this->assertTrue($store->touch('touched', 1));
     }
 
     public function testAddReturnsFalseIfKeyExists()
@@ -374,6 +401,8 @@ class CacheDatabaseStoreTest extends TestCase
 
     public function testTouchExtendsTtl()
     {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC(0));
+
         $store = $this->getMockBuilder(DatabaseStore::class)->onlyMethods(['getTime'])->setConstructorArgs($this->getMocks())->getMock();
         [$table] = $this->mockTable($store);
 
@@ -386,6 +415,8 @@ class CacheDatabaseStoreTest extends TestCase
 
     public function testTouchExtendsTtlOnPostgres()
     {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC(0));
+
         $store = $this->getMockBuilder(DatabaseStore::class)->onlyMethods(['getTime'])->setConstructorArgs($this->getPostgresMocks())->getMock();
         [$table] = $this->mockTable($store);
 
@@ -398,6 +429,8 @@ class CacheDatabaseStoreTest extends TestCase
 
     public function testTouchExtendsTtlOnSqlite()
     {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC(0));
+
         $store = $this->getMockBuilder(DatabaseStore::class)->onlyMethods(['getTime'])->setConstructorArgs($this->getSqliteMocks())->getMock();
         [$table] = $this->mockTable($store);
 

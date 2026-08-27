@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Concerns;
 
+/**
+ * Resolve dump sources for consumers that provide $basePath and $compiledViewPath properties.
+ */
 trait ResolvesDumpSource
 {
     use ResolvesSourceHref;
@@ -119,17 +122,6 @@ trait ResolvesDumpSource
         }
 
         return $file;
-    }
-
-    /**
-     * Set the compiled view path used for source resolution.
-     *
-     * Boot-only. Request-time use changes shared worker configuration while
-     * concurrent coroutines may still be resolving dump sources.
-     */
-    public function setCompiledViewPath(string $compiledViewPath): void
-    {
-        $this->compiledViewPath = $compiledViewPath;
     }
 
     /**

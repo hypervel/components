@@ -28,12 +28,29 @@ class MySqlConnector extends Connector implements ConnectorInterface
         if (! empty($config['database'])
             && (! isset($config['use_db_after_connecting'])
              || $config['use_db_after_connecting'])) {
-            $connection->exec("use `{$config['database']}`;");
+            $database = str_replace('`', '``', $config['database']);
+
+            $connection->exec("use `{$database}`;");
         }
 
         $this->configureConnection($connection, $config);
 
         return $connection;
+    }
+
+    /**
+     * Get the PDO options based on the configuration.
+     */
+    public function getOptions(array $config): array
+    {
+        $options = parent::getOptions($config);
+
+        if (isset($config['connect_timeout'])
+            && ! array_key_exists(PDO::ATTR_TIMEOUT, $config['options'] ?? [])) {
+            $options[PDO::ATTR_TIMEOUT] = (int) ceil($config['connect_timeout']);
+        }
+
+        return $options;
     }
 
     /**

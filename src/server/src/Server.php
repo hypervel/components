@@ -100,7 +100,11 @@ class Server implements ServerInterface
                 if ($slaveServer === false) {
                     throw new ServerException("Failed to listen on server port [{$host}:{$port}].");
                 }
-                $server->getSettings() && $slaveServer->set(array_replace($config->getSettings(), $server->getSettings()));
+                $settings = array_replace($config->getSettings(), $server->getSettings());
+                // Swoole declares this method void, but malformed SNI settings warn and return false.
+                if ($slaveServer->set($settings) === false) {
+                    throw new ServerException("Failed to configure server [{$name}].");
+                }
                 $this->registerSwooleEvents($slaveServer, $callbacks, $name);
                 ServerManager::add($name, [$type, $slaveServer]);
             }

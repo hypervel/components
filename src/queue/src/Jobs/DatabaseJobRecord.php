@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Jobs;
 
-use Hypervel\Support\InteractsWithTime;
+use Hypervel\Support\CarbonImmutable;
 use stdClass;
 
 /**
@@ -14,8 +14,6 @@ use stdClass;
  */
 class DatabaseJobRecord
 {
-    use InteractsWithTime;
-
     /**
      * Create a new job record instance.
      */
@@ -39,7 +37,7 @@ class DatabaseJobRecord
      */
     public function touch(): int
     {
-        $this->record->reserved_at = $this->currentTime();
+        $this->record->reserved_at = CarbonImmutable::now()->ceilSecond()->getTimestamp();
 
         return $this->record->reserved_at;
     }

@@ -17,10 +17,11 @@ use Hypervel\Prompts\Terminal;
 use Hypervel\Prompts\TextPrompt;
 use Hypervel\Tests\TestCase;
 use ReflectionProperty;
+use RuntimeException;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\NullOutput;
 
-use function Hypervel\Coroutine\go;
+use function Hypervel\Coroutine\parallel;
 use function Hypervel\Prompts\spin;
 use function Hypervel\Prompts\task;
 
@@ -42,157 +43,158 @@ class CoroutineSafetyTest extends TestCase
         return Closure::bind(fn () => Prompt::getValidateUsing(), null, Prompt::class)();
     }
 
-    public function testOutputIsIsolatedBetweenCoroutines()
+    /**
+     * Wait for a coroutine ordering signal.
+     */
+    private function waitForCoroutineSignal(Channel $barrier): void
+    {
+        // This is a deadlock bound, not a scheduling timing expectation.
+        if ($barrier->pop(5) !== true) {
+            throw new RuntimeException('Timed out waiting for a coroutine ordering signal.');
+        }
+    }
+
+    public function testOutputIsIsolatedBetweenCoroutines(): void
     {
         $outputA = new BufferedOutput;
         $outputB = new NullOutput;
 
-        $channel = new Channel(2);
         $barrier = new Channel(1);
 
-        go(function () use ($outputA, $channel, $barrier) {
-            Prompt::setOutput($outputA);
-            $barrier->pop(); // Wait for coroutine B to set its output
-            $channel->push($this->getPromptOutput());
-        });
+        $results = parallel([
+            'a' => function () use ($outputA, $barrier): mixed {
+                Prompt::setOutput($outputA);
+                $this->waitForCoroutineSignal($barrier);
 
-        go(function () use ($outputB, $channel, $barrier) {
-            Prompt::setOutput($outputB);
-            $barrier->push(true); // Signal coroutine A
-            $channel->push($this->getPromptOutput());
-        });
+                return $this->getPromptOutput();
+            },
+            'b' => function () use ($outputB, $barrier): mixed {
+                Prompt::setOutput($outputB);
+                $barrier->push(true);
 
-        $results = [$channel->pop(), $channel->pop()];
+                return $this->getPromptOutput();
+            },
+        ]);
 
-        $this->assertContains($outputA, $results);
-        $this->assertContains($outputB, $results);
-        $this->assertNotSame($results[0], $results[1]);
+        $this->assertSame($outputA, $results['a']);
+        $this->assertSame($outputB, $results['b']);
     }
 
-    public function testInteractivityIsIsolatedBetweenCoroutines()
+    public function testInteractivityIsIsolatedBetweenCoroutines(): void
     {
-        $channel = new Channel(2);
         $barrier = new Channel(1);
 
-        go(function () use ($channel, $barrier) {
-            Prompt::interactive(true);
-            $barrier->pop(); // Wait for coroutine B
-            $channel->push(Prompt::isInteractive());
-        });
+        $results = parallel([
+            'a' => function () use ($barrier): ?bool {
+                Prompt::interactive(true);
+                $this->waitForCoroutineSignal($barrier);
 
-        go(function () use ($channel, $barrier) {
-            Prompt::interactive(false);
-            $barrier->push(true); // Signal coroutine A
-            $channel->push(Prompt::isInteractive());
-        });
+                return Prompt::isInteractive();
+            },
+            'b' => function () use ($barrier): ?bool {
+                Prompt::interactive(false);
+                $barrier->push(true);
 
-        $results = [$channel->pop(), $channel->pop()];
+                return Prompt::isInteractive();
+            },
+        ]);
 
-        $this->assertContains(true, $results);
-        $this->assertContains(false, $results);
+        $this->assertTrue($results['a']);
+        $this->assertFalse($results['b']);
     }
 
-    public function testValidateUsingIsIsolatedBetweenCoroutines()
+    public function testValidateUsingIsIsolatedBetweenCoroutines(): void
     {
-        $channel = new Channel(2);
         $barrier = new Channel(1);
 
-        go(function () use ($channel, $barrier) {
-            Prompt::validateUsing(fn () => 'error-a');
-            $barrier->pop(); // Wait for coroutine B
-            $callback = $this->getPromptValidateUsing();
-            $channel->push($callback ? $callback() : null);
-        });
+        $results = parallel([
+            'a' => function () use ($barrier): mixed {
+                Prompt::validateUsing(fn () => 'error-a');
+                $this->waitForCoroutineSignal($barrier);
+                $callback = $this->getPromptValidateUsing();
 
-        go(function () use ($channel, $barrier) {
-            Prompt::validateUsing(fn () => 'error-b');
-            $barrier->push(true); // Signal coroutine A
-            $callback = $this->getPromptValidateUsing();
-            $channel->push($callback ? $callback() : null);
-        });
+                return $callback ? $callback() : null;
+            },
+            'b' => function () use ($barrier): mixed {
+                Prompt::validateUsing(fn () => 'error-b');
+                $barrier->push(true);
+                $callback = $this->getPromptValidateUsing();
 
-        $results = [$channel->pop(), $channel->pop()];
+                return $callback ? $callback() : null;
+            },
+        ]);
 
-        $this->assertContains('error-a', $results);
-        $this->assertContains('error-b', $results);
+        $this->assertSame('error-a', $results['a']);
+        $this->assertSame('error-b', $results['b']);
     }
 
-    public function testFallbackWhenIsIsolatedBetweenCoroutines()
+    public function testFallbackWhenIsIsolatedBetweenCoroutines(): void
     {
-        $channel = new Channel(2);
         $barrier = new Channel(1);
 
-        go(function () use ($channel, $barrier) {
-            Prompt::fallbackWhen(true);
-            TextPrompt::fallbackUsing(fn () => 'fallback-a');
-            $barrier->pop(); // Wait for coroutine B
-            $channel->push(TextPrompt::shouldFallback());
-        });
+        $results = parallel([
+            'a' => function () use ($barrier): bool {
+                Prompt::fallbackWhen(true);
+                TextPrompt::fallbackUsing(fn () => 'fallback-a');
+                $this->waitForCoroutineSignal($barrier);
 
-        go(function () use ($channel, $barrier) {
-            Prompt::fallbackWhen(false);
-            TextPrompt::fallbackUsing(fn () => 'fallback-b');
-            $barrier->push(true); // Signal coroutine A
-            $channel->push(TextPrompt::shouldFallback());
-        });
+                return TextPrompt::shouldFallback();
+            },
+            'b' => function () use ($barrier): bool {
+                Prompt::fallbackWhen(false);
+                TextPrompt::fallbackUsing(fn () => 'fallback-b');
+                $barrier->push(true);
 
-        $results = [$channel->pop(), $channel->pop()];
+                return TextPrompt::shouldFallback();
+            },
+        ]);
 
-        // Coroutine A has fallbackWhen(true), coroutine B has fallbackWhen(false)
-        $this->assertContains(true, $results);
-        $this->assertContains(false, $results);
+        $this->assertTrue($results['a']);
+        $this->assertFalse($results['b']);
     }
 
-    public function testFallbackClosuresAreIsolatedBetweenCoroutines()
+    public function testFallbackClosuresAreIsolatedBetweenCoroutines(): void
     {
-        $channel = new Channel(2);
         $barrier = new Channel(1);
 
-        go(function () use ($channel, $barrier) {
-            Prompt::fallbackWhen(true);
-            SelectPrompt::fallbackUsing(fn () => 'select-a');
-            $barrier->pop(); // Wait for coroutine B
-            $channel->push(SelectPrompt::shouldFallback());
-        });
+        $results = parallel([
+            'a' => function () use ($barrier): bool {
+                Prompt::fallbackWhen(true);
+                SelectPrompt::fallbackUsing(fn () => 'select-a');
+                $this->waitForCoroutineSignal($barrier);
 
-        go(function () use ($channel, $barrier) {
-            Prompt::fallbackWhen(true);
-            ConfirmPrompt::fallbackUsing(fn () => 'confirm-b');
-            // SelectPrompt should NOT have a fallback in this coroutine
-            $barrier->push(true); // Signal coroutine A
-            $channel->push(SelectPrompt::shouldFallback());
-        });
+                return SelectPrompt::shouldFallback();
+            },
+            'b' => function () use ($barrier): bool {
+                Prompt::fallbackWhen(true);
+                ConfirmPrompt::fallbackUsing(fn () => 'confirm-b');
+                $barrier->push(true);
 
-        $results = [$channel->pop(), $channel->pop()];
+                return SelectPrompt::shouldFallback();
+            },
+        ]);
 
-        // Coroutine A has SelectPrompt fallback, Coroutine B does not
-        $this->assertContains(true, $results);
-        $this->assertContains(false, $results);
+        $this->assertTrue($results['a']);
+        $this->assertFalse($results['b']);
     }
 
-    public function testFallbackWhenIsAdditiveWithinCoroutineContext()
+    public function testFallbackWhenIsAdditiveWithinCoroutineContext(): void
     {
         TextPrompt::fallbackUsing(fn () => 'result');
 
         Prompt::fallbackWhen(true);
         $this->assertTrue(TextPrompt::shouldFallback());
 
-        // Once enabled, fallbackWhen(false) should NOT disable it (additive behavior)
+        // Once enabled, fallbackWhen(false) should not disable it (additive behavior)
         Prompt::fallbackWhen(false);
         $this->assertTrue(TextPrompt::shouldFallback());
     }
 
-    public function testChildCoroutineDoesNotLeakToParent()
+    public function testChildCoroutineDoesNotLeakToParent(): void
     {
-        $channel = new Channel(1);
-
-        // Set a value in a child coroutine
-        go(function () use ($channel) {
+        parallel([function (): void {
             Prompt::setOutput(new BufferedOutput);
-            $channel->push(true);
-        });
-
-        $channel->pop();
+        }]);
 
         // The parent coroutine should have its own Context, not affected by the child
         $output = $this->getPromptOutput();
@@ -201,7 +203,7 @@ class CoroutineSafetyTest extends TestCase
         $this->assertNotInstanceOf(BufferedOutput::class, $output);
     }
 
-    public function testSpinnerAnimationCoroutineInheritsPromptContext()
+    public function testSpinnerAnimationCoroutineInheritsPromptContext(): void
     {
         $output = new BufferedConsoleOutput(decorated: true);
 
@@ -220,7 +222,7 @@ class CoroutineSafetyTest extends TestCase
         $this->assertStringContainsString('Loading context', $output->content());
     }
 
-    public function testTaskAnimationCoroutineInheritsPromptContext()
+    public function testTaskAnimationCoroutineInheritsPromptContext(): void
     {
         $output = new BufferedConsoleOutput(decorated: true);
 
@@ -250,30 +252,26 @@ class CoroutineSafetyTest extends TestCase
         $taskB = new Task(label: 'Task B');
         $loggerA = new InProcessLogger($taskA);
         $loggerB = new InProcessLogger($taskB);
-        $channel = new Channel(2);
+        $results = parallel([
+            'a' => function () use ($loggerA, $taskA, $taskB): array {
+                $loggerA->subLabel('Building assets');
+                usleep(5000);
 
-        go(function () use ($loggerA, $taskA, $taskB, $channel) {
-            $loggerA->subLabel('Building assets');
-            usleep(5000);
+                return [$taskA->subLabel, $taskB->subLabel];
+            },
+            'b' => function () use ($loggerB, $taskA, $taskB): array {
+                $loggerB->subLabel('Running migrations');
+                usleep(5000);
 
-            $channel->push([$taskA->subLabel, $taskB->subLabel]);
-        });
+                return [$taskA->subLabel, $taskB->subLabel];
+            },
+        ]);
 
-        go(function () use ($loggerB, $taskA, $taskB, $channel) {
-            $loggerB->subLabel('Running migrations');
-            usleep(5000);
-
-            $channel->push([$taskA->subLabel, $taskB->subLabel]);
-        });
-
-        $first = $channel->pop();
-        $second = $channel->pop();
-
-        $this->assertSame(['Building assets', 'Running migrations'], $first);
-        $this->assertSame(['Building assets', 'Running migrations'], $second);
+        $this->assertSame(['Building assets', 'Running migrations'], $results['a']);
+        $this->assertSame(['Building assets', 'Running migrations'], $results['b']);
     }
 
-    public function testTerminalFlushStateResetsTerminalCaches()
+    public function testTerminalFlushStateResetsTerminalCaches(): void
     {
         $trueColorSupport = new ReflectionProperty(Terminal::class, 'trueColorSupport');
         $foregroundColor = new ReflectionProperty(Terminal::class, 'foregroundColor');

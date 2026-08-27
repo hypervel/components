@@ -12,6 +12,24 @@ use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 
 class ProvisioningPlanTest extends IntegrationTestCase
 {
+    public function testGetUsesNoSharedOptionsWhenDefaultsAreOmitted(): void
+    {
+        $horizonConfig = config()->array('horizon');
+        $supervisor = $horizonConfig['defaults']['supervisor-1'];
+        unset($horizonConfig['defaults']);
+        $horizonConfig['environments'] = [
+            'local' => ['supervisor-1' => $supervisor],
+        ];
+        config()->set('horizon', $horizonConfig);
+
+        $options = ProvisioningPlan::get(MasterSupervisor::name())
+            ->optionsFor('local', 'supervisor-1');
+
+        $this->assertNotNull($options);
+        $this->assertSame('redis', $options->connection);
+        $this->assertSame('default', $options->queue);
+    }
+
     public function testSupervisorsAreAdded()
     {
         $plan = [

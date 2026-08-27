@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 
 use Hypervel\Cache\Redis\Operations\AllTag\AddEntry;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 /**
@@ -12,6 +13,13 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
  */
 class AddEntryTest extends RedisCacheTestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+    }
+
     /**
      * @test
      */
@@ -23,7 +31,7 @@ class AddEntryTest extends RedisCacheTestCase
 
         $connection->shouldReceive('zadd')
             ->once()
-            ->with('prefix:_all:tag:users:entries', now()->timestamp + 300, 'mykey')
+            ->with('prefix:_all:tag:users:entries', 1301, 'mykey')
             ->andReturn($connection);
 
         $connection->shouldReceive('exec')
@@ -143,7 +151,7 @@ class AddEntryTest extends RedisCacheTestCase
 
         $connection->shouldReceive('zadd')
             ->once()
-            ->with('prefix:_all:tag:users:entries', ['GT'], now()->timestamp + 60, 'mykey')
+            ->with('prefix:_all:tag:users:entries', ['GT'], 1061, 'mykey')
             ->andReturn($connection);
 
         $connection->shouldReceive('exec')
@@ -167,11 +175,11 @@ class AddEntryTest extends RedisCacheTestCase
 
         $connection->shouldReceive('zadd')
             ->once()
-            ->with('prefix:_all:tag:users:entries', now()->timestamp + 60, 'mykey')
+            ->with('prefix:_all:tag:users:entries', 1061, 'mykey')
             ->andReturn($connection);
         $connection->shouldReceive('zadd')
             ->once()
-            ->with('prefix:_all:tag:posts:entries', now()->timestamp + 60, 'mykey')
+            ->with('prefix:_all:tag:posts:entries', 1061, 'mykey')
             ->andReturn($connection);
 
         $connection->shouldReceive('exec')
@@ -238,7 +246,7 @@ class AddEntryTest extends RedisCacheTestCase
         // Should use sequential zadd calls directly on connection
         $connection->shouldReceive('zadd')
             ->once()
-            ->with('prefix:_all:tag:users:entries', now()->timestamp + 300, 'mykey')
+            ->with('prefix:_all:tag:users:entries', 1301, 'mykey')
             ->andReturn(1);
 
         $operation = new AddEntry($store->getContext());
@@ -256,7 +264,7 @@ class AddEntryTest extends RedisCacheTestCase
         $connection->shouldNotReceive('pipeline');
 
         // Should use sequential zadd calls for each tag
-        $expectedScore = now()->timestamp + 60;
+        $expectedScore = 1061;
         $connection->shouldReceive('zadd')
             ->once()
             ->with('prefix:_all:tag:users:entries', $expectedScore, 'mykey')

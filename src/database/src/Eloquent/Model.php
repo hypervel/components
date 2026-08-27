@@ -8,6 +8,7 @@ use ArrayAccess;
 use Closure;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Broadcasting\HasBroadcastChannel;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\QueueableCollection;
 use Hypervel\Contracts\Queue\QueueableEntity;
@@ -51,7 +52,7 @@ use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
-abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToString, HasBroadcastChannel, Jsonable, JsonSerializable, QueueableEntity, Stringable, UrlRoutable
+abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToString, HasBroadcastChannel, Jsonable, JsonSerializable, QueueableEntity, Stringable, Transient, UrlRoutable
 {
     use Concerns\HasAttributes;
     use Concerns\HasEvents;
@@ -296,6 +297,13 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * @var array<string, bool>
      */
     protected static array $scopeMethodAttributes = [];
+
+    /**
+     * Cache of whether methods are callable legacy local scopes.
+     *
+     * @var array<string, bool>
+     */
+    protected static array $legacyScopeMethods = [];
 
     /**
      * Cache of soft deletable models.
@@ -547,7 +555,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         static::$classDeclaredAttributes = [];
         static::$classPropertyDeclarers = [];
         static::$guardConfigurations = [];
-        static::$scopeMethodAttributes = [];
+        self::flushScopeCaches();
 
         static::$globalScopes = [];
     }
@@ -1928,7 +1936,6 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         $builderClass = static::$resolvedBuilderClasses[static::class]
             ??= $this->resolveCustomBuilderClass();
 
-        // @phpstan-ignore function.alreadyNarrowedType (defensive: validates custom builder class at runtime)
         if ($builderClass && is_subclass_of($builderClass, Builder::class)) {
             return new $builderClass($query);
         }
@@ -1976,7 +1983,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public function hasNamedScope(string $scope): bool
     {
-        return method_exists($this, 'scope' . ucfirst($scope))
+        return static::isLegacyScopeMethod($scope)
             || static::isScopeMethodWithAttribute($scope);
     }
 
@@ -2015,6 +2022,33 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         return static::$scopeMethodAttributes[$key] = ! $reflection->isPrivate()
             && $reflection->getAttributes(LocalScope::class) !== [];
+    }
+
+    /**
+     * Determine if the given method is a callable legacy local scope.
+     */
+    protected static function isLegacyScopeMethod(string $scope): bool
+    {
+        $key = static::class . "\0" . strtolower($scope);
+
+        if (array_key_exists($key, static::$legacyScopeMethods)) {
+            return static::$legacyScopeMethods[$key];
+        }
+
+        $method = 'scope' . ucfirst($scope);
+
+        // Query-derived dynamic scope names can be arbitrary. Do not retain misses
+        // for nonexistent methods in a long-running worker.
+        if (! method_exists(static::class, $method)) {
+            return false;
+        }
+
+        $reflection = new ReflectionMethod(static::class, $method);
+        $declaredName = $reflection->getName();
+
+        return static::$legacyScopeMethods[$key] = strlen($declaredName) > 5
+            && ! $reflection->isPrivate()
+            && ! ctype_lower($declaredName[5]);
     }
 
     /**
@@ -2075,7 +2109,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         return $this->setKeysForSelectQuery($this->newQueryWithoutScopes())
             ->useWritePdo()
-            ->with(is_string($with) ? func_get_args() : $with) // @phpstan-ignore method.notFound (Eloquent __call forwarding)
+            ->with(is_string($with) ? func_get_args() : $with)
             ->first();
     }
 
@@ -2654,6 +2688,15 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     }
 
     /**
+     * Flush local scope caches.
+     */
+    private static function flushScopeCaches(): void
+    {
+        static::$scopeMethodAttributes = [];
+        static::$legacyScopeMethods = [];
+    }
+
+    /**
      * Flush all static state.
      */
     public static function flushState(): void
@@ -2669,7 +2712,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         static::$classDeclaredAttributes = [];
         static::$classPropertyDeclarers = [];
         static::$guardConfigurations = [];
-        static::$scopeMethodAttributes = [];
+        self::flushScopeCaches();
         static::$modelsShouldPreventLazyLoading = false;
         static::$modelsShouldAutomaticallyEagerLoadRelationships = false;
         static::$lazyLoadingViolationCallback = null;
@@ -2856,12 +2899,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         $keys = get_object_vars($this);
 
-        if (version_compare(PHP_VERSION, '8.4.0', '>=')) {
-            foreach ((new ReflectionClass($this))->getProperties() as $property) {
-                // @phpstan-ignore method.notFound (PHP 8.4+ only, guarded by version check)
-                if ($property->hasHooks()) {
-                    unset($keys[$property->getName()]);
-                }
+        foreach ((new ReflectionClass($this))->getProperties() as $property) {
+            if ($property->hasHooks()) {
+                unset($keys[$property->getName()]);
             }
         }
 

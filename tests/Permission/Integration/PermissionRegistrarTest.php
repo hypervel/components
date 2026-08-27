@@ -13,6 +13,7 @@ use Hypervel\Permission\Exceptions\RoleDoesNotExist;
 use Hypervel\Permission\Models\Permission as HypervelPermission;
 use Hypervel\Permission\Models\Role as HypervelRole;
 use Hypervel\Permission\PermissionRegistrar;
+use Hypervel\Permission\Support\Config;
 use Hypervel\Tests\Permission\Fixtures\Models\Permission as TestPermission;
 use Hypervel\Tests\Permission\Fixtures\Models\Role as TestRole;
 use Hypervel\Tests\Permission\TestCase;
@@ -249,14 +250,72 @@ class PermissionRegistrarTest extends TestCase
         $this->assertFalse(array_key_exists('created_at', $role->getAttributes()));
     }
 
-    public function testInitializeCacheAcceptsDefaultColumnExclusions(): void
+    public function testInitializeCacheUsesOptionalConfigurationDefaults(): void
     {
-        $registrar = $this->app->make(PermissionRegistrar::class);
+        $permissionConfig = config()->array('permission');
+        unset(
+            $permissionConfig['models']['team'],
+            $permissionConfig['models']['default_model'],
+            $permissionConfig['team_resolver'],
+            $permissionConfig['cache']['expiration_seconds'],
+            $permissionConfig['cache']['store'],
+            $permissionConfig['cache']['column_names_except'],
+        );
+        config()->set('permission', $permissionConfig);
 
+        $registrar = $this->app->make(PermissionRegistrar::class);
         $registrar->initializeCache();
+
+        $registrar->setPermissionsTeamId('team-a');
 
         $this->assertSame(HypervelRole::class, $registrar->getRoleClass());
         $this->assertSame(HypervelPermission::class, $registrar->getPermissionClass());
+        $this->assertNull($registrar->getTeamClass());
+        $this->assertNull(Config::defaultModel());
+        $this->assertSame('team-a', $registrar->getPermissionsTeamId());
+        $this->assertSame(86400, $registrar->cacheExpirationTime);
+        $this->assertSame($this->app->make('cache')->store()->getStore(), $registrar->getCacheStore());
+
+        $role = $this->app->make(RoleContract::class)::findByName('testRole');
+
+        $this->assertFalse(array_key_exists('created_at', $role->getAttributes()));
+    }
+
+    public function testNullPivotKeysUseConventionalColumnNames(): void
+    {
+        config([
+            'permission.column_names.role_pivot_key' => null,
+            'permission.column_names.permission_pivot_key' => null,
+        ]);
+
+        $registrar = $this->app->make(PermissionRegistrar::class);
+        $registrar->initializeCache();
+
+        $this->assertSame(PermissionRegistrar::DEFAULT_ROLE_PIVOT_KEY, $registrar->pivotRole);
+        $this->assertSame(PermissionRegistrar::DEFAULT_PERMISSION_PIVOT_KEY, $registrar->pivotPermission);
+    }
+
+    public function testInitializeCacheUsesOptionalSchemaAndCacheKeyDefaults(): void
+    {
+        $permissionConfig = config()->array('permission');
+        unset(
+            $permissionConfig['column_names']['role_pivot_key'],
+            $permissionConfig['column_names']['permission_pivot_key'],
+            $permissionConfig['column_names']['team_foreign_key'],
+            $permissionConfig['cache']['keys']['roles'],
+            $permissionConfig['cache']['keys']['model_roles'],
+            $permissionConfig['cache']['keys']['model_permissions'],
+            $permissionConfig['cache']['keys']['model_token'],
+        );
+        config()->set('permission', $permissionConfig);
+
+        $registrar = $this->app->make(PermissionRegistrar::class);
+        $registrar->initializeCache();
+
+        $this->assertSame(PermissionRegistrar::DEFAULT_ROLE_PIVOT_KEY, $registrar->pivotRole);
+        $this->assertSame(PermissionRegistrar::DEFAULT_PERMISSION_PIVOT_KEY, $registrar->pivotPermission);
+        $this->assertSame(PermissionRegistrar::DEFAULT_TEAM_FOREIGN_KEY, $registrar->teamsKey);
+        $this->assertSame(PermissionRegistrar::ROLE_CATALOG_CACHE_KEY, $registrar->getCacheKey());
     }
 
     public function testInitializeCacheRejectsRequiredDefaultModelColumns(): void

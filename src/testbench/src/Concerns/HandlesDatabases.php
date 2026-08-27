@@ -77,14 +77,10 @@ trait HandlesDatabases
 
         $connection ??= $config->get('database.default');
 
-        /** @var null|array{driver: string, database: string} $database */
-        $database = $config->get("database.connections.{$connection}");
+        $configuration = $config->get("database.connections.{$connection}");
 
-        if ($database === null || $database['driver'] !== 'sqlite') {
-            return false;
-        }
-
-        return SQLiteDatabase::isInMemory($database['database']);
+        return is_array($configuration)
+            && SQLiteDatabase::isInMemoryConfiguration($configuration);
     }
 
     /**

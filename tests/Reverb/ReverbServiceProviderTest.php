@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Reverb;
 
 use Hypervel\Redis\RedisProxy;
-use Hypervel\Reverb\ApplicationManager;
 use Hypervel\Reverb\Contracts\ApplicationProvider;
 use Hypervel\Reverb\Contracts\Logger;
 use Hypervel\Reverb\Loggers\NullLogger;
@@ -13,7 +12,6 @@ use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelConnectionManager;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\Protocols\Pusher\Managers\ArrayChannelManager;
 use Hypervel\Reverb\ReverbServiceProvider;
-use Hypervel\Reverb\ServerProviderManager;
 use Hypervel\Reverb\Webhooks\WebhookBatchBuffer;
 use Hypervel\Support\Facades\Log;
 use Mockery as m;
@@ -105,27 +103,6 @@ class ReverbServiceProviderTest extends ReverbTestCase
         $buffer = $this->app->make(WebhookBatchBuffer::class);
 
         $this->assertSame('queue', $this->bufferRedisConnection($buffer)->getName());
-    }
-
-    public function testReloadConfigurationRefreshesResolvedApplicationsAndWebhookBuffer(): void
-    {
-        $manager = $this->app->make(ApplicationManager::class);
-        $applicationProvider = $manager->driver();
-        $serverProviderManager = $this->app->make(ServerProviderManager::class);
-        $buffer = $this->app->make(WebhookBatchBuffer::class);
-
-        $this->app->make('config')->set([
-            'reverb.apps.apps.0.app_id' => 'refreshed-app',
-            'reverb.servers.reverb.scaling.connection' => 'queue',
-        ]);
-        $this->app->getProvider(ReverbServiceProvider::class)->reloadConfiguration();
-
-        $this->assertSame($manager, $this->app->make(ApplicationManager::class));
-        $this->assertNotSame($applicationProvider, $manager->driver());
-        $this->assertSame('refreshed-app', $manager->driver()->findById('refreshed-app')->id());
-        $this->assertSame($serverProviderManager, $this->app->make(ServerProviderManager::class));
-        $this->assertNotSame($buffer, $refreshedBuffer = $this->app->make(WebhookBatchBuffer::class));
-        $this->assertSame('queue', $this->bufferRedisConnection($refreshedBuffer)->getName());
     }
 
     public function testPreservesCustomChannelManagerBindings(): void

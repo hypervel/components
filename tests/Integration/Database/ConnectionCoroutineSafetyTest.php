@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\WaitGroup;
 use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Pool\DbPool;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Schema\Blueprint;
@@ -357,6 +360,125 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
         $this->assertSame($originalDefault, $resolver->getDefaultConnection());
     }
 
+    public function testCopiedChildrenBorrowIndependentDatabaseConnections(): void
+    {
+        CoroutineContext::set(
+            ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY,
+            'sqlite_readwrite_pool',
+        );
+        $parentConnection = DB::connection();
+        $childrenReady = new Channel(2);
+        $releaseChildren = new Channel(2);
+
+        $childCoroutineIds = [
+            go(static function () use ($childrenReady, $releaseChildren): void {
+                $connection = DB::connection();
+                $childrenReady->push([$connection, $connection->getName()]);
+                $releaseChildren->pop();
+            }, copyContext: true),
+            go(static function () use ($childrenReady, $releaseChildren): void {
+                $connection = DB::connection();
+                $childrenReady->push([$connection, $connection->getName()]);
+                $releaseChildren->pop();
+            }, copyContext: true),
+        ];
+
+        try {
+            [$firstChildConnection, $firstChildName] = $childrenReady->pop(1.0);
+            [$secondChildConnection, $secondChildName] = $childrenReady->pop(1.0);
+
+            $this->assertSame('sqlite_readwrite_pool', $firstChildName);
+            $this->assertSame('sqlite_readwrite_pool', $secondChildName);
+            $this->assertNotSame($parentConnection, $firstChildConnection);
+            $this->assertNotSame($parentConnection, $secondChildConnection);
+            $this->assertNotSame($firstChildConnection, $secondChildConnection);
+        } finally {
+            $releaseChildren->push(true);
+            $releaseChildren->push(true);
+
+            Coroutine::join($childCoroutineIds, 1.0);
+        }
+
+        foreach ($childCoroutineIds as $childCoroutineId) {
+            $this->assertFalse(Coroutine::exists($childCoroutineId));
+        }
+    }
+
+    public function testDetachedCopiedChildOwnsItsSingleSlotPoolCheckout(): void
+    {
+        $allowChildCheckout = new Channel(1);
+        $childBorrowed = new Channel(1);
+        $releaseChild = new Channel(1);
+        $childCoroutineId = new Channel(1);
+
+        $parentCoroutineId = go(static function () use (
+            $allowChildCheckout,
+            $childBorrowed,
+            $releaseChild,
+            $childCoroutineId,
+        ): void {
+            DB::connection('session_context_pool');
+
+            $childCoroutineId->push(go(static function () use (
+                $allowChildCheckout,
+                $childBorrowed,
+                $releaseChild,
+            ): void {
+                $allowChildCheckout->pop();
+                DB::connection('session_context_pool');
+                $childBorrowed->push(true);
+                $releaseChild->pop();
+            }, copyContext: true));
+        });
+
+        $contenderBorrowed = new Channel(1);
+        $releaseContender = new Channel(1);
+        $detachedChildCoroutineId = null;
+        $contenderCoroutineId = null;
+        $parentStillRunning = true;
+        $contenderAcquiredWhileChildHeld = null;
+
+        try {
+            $detachedChildCoroutineId = $childCoroutineId->pop(1.0);
+            $this->assertIsInt($detachedChildCoroutineId);
+            Coroutine::join([$parentCoroutineId], 1.0);
+            $parentStillRunning = Coroutine::exists($parentCoroutineId);
+
+            $allowChildCheckout->push(true);
+            $this->assertTrue($childBorrowed->pop(1.0));
+
+            $contenderCoroutineId = go(static function () use ($contenderBorrowed, $releaseContender): void {
+                DB::connection('session_context_pool');
+                $contenderBorrowed->push(true);
+                $releaseContender->pop();
+            });
+
+            $contenderAcquiredWhileChildHeld = $contenderBorrowed->pop(0.05);
+            $releaseChild->push(true);
+
+            if ($contenderAcquiredWhileChildHeld === false) {
+                $this->assertTrue($contenderBorrowed->pop(1.0));
+            }
+        } finally {
+            $allowChildCheckout->push(true, 0.01);
+            $releaseChild->push(true, 0.01);
+            $releaseContender->push(true, 0.01);
+
+            Coroutine::join(array_values(array_filter([
+                $parentCoroutineId,
+                $detachedChildCoroutineId,
+                $contenderCoroutineId,
+            ], is_int(...))), 1.0);
+        }
+
+        $this->assertFalse($parentStillRunning);
+        $this->assertIsInt($detachedChildCoroutineId);
+        $this->assertIsInt($contenderCoroutineId);
+        $this->assertFalse(Coroutine::exists($detachedChildCoroutineId));
+        $this->assertFalse(Coroutine::exists($contenderCoroutineId));
+        $this->assertFalse($contenderAcquiredWhileChildHeld);
+    }
+
     public function testBeforeExecutingCallbackIsCalled(): void
     {
         $called = false;
@@ -432,7 +554,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
     public function testSessionConfiguratorReadsCoroutineContextOnEachPooledHandOut(): void
     {
         $configurator = new CoroutineSessionConfigurator('session_context_pool');
-        Connection::configureSessionUsing($configurator);
+        PdoConnection::configureSessionUsing($configurator);
         $pool = new DbPool($this->app, 'session_context_pool');
         $firstFinished = new Channel(1);
 
@@ -497,12 +619,12 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
     {
         $connectionName = 'session_shared_connection';
         $configurator = new CoroutineSessionConfigurator($connectionName);
-        Connection::configureSessionUsing($configurator);
+        PdoConnection::configureSessionUsing($configurator);
         CoroutineContext::set(CoroutineSessionConfigurator::CONTEXT_KEY, '0');
         $pdo = new PDO('sqlite::memory:');
         $config = ['name' => $connectionName];
-        $firstConnection = new Connection($pdo, ':memory:', '', $config);
-        $secondConnection = new Connection($pdo, ':memory:', '', $config);
+        $firstConnection = new PdoConnection($pdo, ':memory:', '', $config);
+        $secondConnection = new PdoConnection($pdo, ':memory:', '', $config);
         $configurationStarted = new Channel(1);
         $resumeConfiguration = new Channel(1);
         $configurator->blockedState = '101';
@@ -644,7 +766,7 @@ class CoroutineSessionConfigurator implements SessionConfigurator
     ) {
     }
 
-    public function state(Connection $connection): ?string
+    public function state(PdoConnection $connection): ?string
     {
         ++$this->stateCalls;
 
@@ -653,7 +775,7 @@ class CoroutineSessionConfigurator implements SessionConfigurator
             : null;
     }
 
-    public function apply(PDO $pdo, string $state, Connection $connection): void
+    public function apply(PDO $pdo, string $state, PdoConnection $connection): void
     {
         ++$this->applyCalls;
         $this->appliedStates[] = $state;

@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Integration\Database\Postgres;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Pool\DbPool;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\QueryException;
@@ -51,7 +52,7 @@ class SessionConfiguratorTest extends PostgresTestCase
         parent::setUp();
 
         $this->configurator = new PostgresSessionConfigurator(self::CONNECTION_NAME);
-        Connection::configureSessionUsing($this->configurator);
+        PdoConnection::configureSessionUsing($this->configurator);
         $this->sessionPool = new DbPool($this->app, self::CONNECTION_NAME);
     }
 
@@ -239,7 +240,7 @@ class PostgresSessionConfigurator implements SessionConfigurator
     ) {
     }
 
-    public function state(Connection $connection): ?string
+    public function state(PdoConnection $connection): ?string
     {
         if ($connection->getName() !== $this->connectionName) {
             return null;
@@ -250,7 +251,7 @@ class PostgresSessionConfigurator implements SessionConfigurator
         return $this->desiredState;
     }
 
-    public function apply(PDO $pdo, string $state, Connection $connection): void
+    public function apply(PDO $pdo, string $state, PdoConnection $connection): void
     {
         ++$this->applyCalls;
         $this->appliedStates[] = $state;

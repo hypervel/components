@@ -26,7 +26,6 @@ use Hypervel\Support\Exceptions\MathException;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Json;
 use Hypervel\Support\Str;
-use Hypervel\Validation\Enums\SizeMode;
 use Hypervel\Validation\FakeDnsGetRecordWrapper;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\Unique;
@@ -617,9 +616,10 @@ trait ValidatesAttributes
         }
 
         try {
-            $date = DateTime::createFromFormat('!' . $format, (string) $value, new DateTimeZone('UTC'));
+            $stringValue = (string) $value;
+            $date = DateTime::createFromFormat('!' . $format, $stringValue, new DateTimeZone('UTC'));
 
-            return $date !== false && $date->format($format) == $value;
+            return $date !== false && $date->format($format) === $stringValue;
         } catch (ValueError) {
             return false;
         }
@@ -1102,9 +1102,16 @@ trait ValidatesAttributes
 
     /**
      * Parse the connection / table for the unique / exists rules.
+     *
+     * @return array{0: ?string, 1: string, 2: ?string}
      */
     public function parseTable(string $table): array
     {
+        if (isset($this->parsedTables[$table])) {
+            return $this->parsedTables[$table];
+        }
+
+        $tableParameter = $table;
         [$connection, $table] = str_contains($table, '.') ? explode('.', $table, 2) : [null, $table];
 
         if (str_contains($table, '\\') && class_exists($table) && is_a($table, Model::class, true)) {
@@ -1120,7 +1127,7 @@ trait ValidatesAttributes
             $idColumn = $model->getKeyName();
         }
 
-        return [$connection, $table, $idColumn ?? null];
+        return $this->parsedTables[$tableParameter] = [$connection, $table, $idColumn ?? null];
     }
 
     /**
@@ -1517,11 +1524,7 @@ trait ValidatesAttributes
      */
     public function validateJson(string $attribute, mixed $value): bool
     {
-        if (is_array($value) || is_null($value)) {
-            return false;
-        }
-
-        if (! is_scalar($value) && ! method_exists($value, '__toString')) {
+        if (! is_scalar($value) && ! $value instanceof Stringable) {
             return false;
         }
 
@@ -2474,42 +2477,20 @@ trait ValidatesAttributes
      */
     protected function getSize(string $attribute, mixed $value): float|int|string
     {
-        $hasNumeric = $this->hasRule($attribute, $this->numericRules);
-
-        // This method will determine if the attribute is a number, string, or file and
-        // return the proper size accordingly. If it is a number, then number itself
-        // is the size. If it is a file, we take kilobytes, and for a string the
-        // entire length of the string will be considered the attribute size.
-        if (is_numeric($value) && $hasNumeric) {
-            return $this->ensureExponentWithinAllowedRange($attribute, $this->trim($value));
-        }
-        if (is_array($value)) {
-            return count($value);
-        }
-        if ($value instanceof SplFileInfo) {
-            return $value->getSize() / 1024;
-        }
-
-        return mb_strlen((string) $value);
+        return $this->sizeOf(
+            $attribute,
+            $value,
+            $this->hasRule($attribute, $this->numericRules),
+        );
     }
 
     /**
-     * Compute a value's "size" given a pre-resolved mode.
-     *
-     * Mirrors getSize() but takes an explicit SizeMode instead of scanning
-     * sibling rules at runtime. Uses value-first dispatch: when mode is
-     * Numeric AND the value is numeric, returns the trimmed numeric value;
-     * otherwise falls through to array count / file size / string length.
-     *
-     * This ordering is load-bearing: a mode-first version would throw
-     * NumberFormatException when a `min:X|numeric` rule runs before the
-     * numeric type check with a non-numeric value (e.g., 'abc'). getSize()
-     * falls back to string length in that situation; this helper must match.
+     * Compute the validation size from numeric semantics and runtime value shape.
      */
-    protected function sizeOf(mixed $value, SizeMode $mode): float|int|string
+    protected function sizeOf(string $attribute, mixed $value, bool $numeric): float|int|string
     {
-        if ($mode === SizeMode::Numeric && is_numeric($value)) {
-            return $this->trim($value);
+        if ($numeric && is_numeric($value)) {
+            return $this->ensureExponentWithinAllowedRange($attribute, $this->trim($value));
         }
 
         if (is_array($value)) {
@@ -2613,9 +2594,22 @@ trait ValidatesAttributes
      */
     protected function ensureExponentWithinAllowedRange(string $attribute, mixed $value): mixed
     {
+        if (! is_numeric($value)) {
+            return $value;
+        }
+
+        if (is_float($value) && ! is_finite($value)) {
+            // Downstream size comparisons stringify the result, but PHP warns when NAN is cast.
+            return match (true) {
+                is_nan($value) => 'NAN',
+                $value > 0 => 'INF',
+                default => '-INF',
+            };
+        }
+
         $stringValue = (string) $value;
 
-        if (! is_numeric($value) || ! Str::contains($stringValue, 'e', ignoreCase: true)) {
+        if (! Str::contains($stringValue, 'e', ignoreCase: true)) {
             return $value;
         }
 

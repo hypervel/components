@@ -9,13 +9,13 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Foundation\Application;
 use Hypervel\Jwt\ClaimFactory;
 use Hypervel\Jwt\Contracts\BlacklistContract;
-use Hypervel\Jwt\Contracts\ProviderContract;
 use Hypervel\Jwt\Exceptions\JwtException;
 use Hypervel\Jwt\Exceptions\TokenBlacklistedException;
 use Hypervel\Jwt\Exceptions\TokenExpiredException;
 use Hypervel\Jwt\Exceptions\TokenInvalidException;
 use Hypervel\Jwt\JwtManager;
 use Hypervel\Jwt\Providers\Lcobucci;
+use Hypervel\Jwt\Providers\Provider;
 use Hypervel\Jwt\Validations\ExpiredClaim;
 use Hypervel\Jwt\Validations\NotBeforeClaim;
 use Hypervel\Jwt\Validations\RequiredClaims;
@@ -27,7 +27,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
-use ReflectionProperty;
 use Symfony\Component\Uid\Uuid;
 
 class JwtManagerTest extends TestCase
@@ -117,6 +116,39 @@ class JwtManagerTest extends TestCase
         $this->assertSame($token, $this->createManager()->encode($payload));
     }
 
+    public function testNullSecretSupportsAsymmetricSigning(): void
+    {
+        $application = new Application;
+        $application->instance('config', new Repository([
+            'jwt' => [
+                'blacklist_enabled' => false,
+                'driver' => 'lcobucci',
+                'providers' => [
+                    'jwt' => Lcobucci::class,
+                ],
+                'secret' => null,
+                'algo' => Provider::ALGO_RS256,
+                'keys' => [
+                    'private' => file_get_contents(__DIR__ . '/Fixtures/keys/id_rsa'),
+                    'public' => file_get_contents(__DIR__ . '/Fixtures/keys/id_rsa.pub'),
+                    'passphrase' => null,
+                ],
+            ],
+        ]));
+
+        $manager = new JwtManager($application, m::mock(ClaimFactory::class));
+        $token = $manager->encode([
+            'sub' => 1,
+            'iat' => $this->testNowTimestamp,
+            'custom' => 'value',
+        ]);
+        $payload = $manager->decode($token, validate: false);
+
+        $this->assertSame('1', $payload['sub']);
+        $this->assertSame($this->testNowTimestamp, $payload['iat']);
+        $this->assertSame('value', $payload['custom']);
+    }
+
     public function testConstructorDoesNotResolveBlacklistWhenBlacklistIsDisabled(): void
     {
         $container = m::mock(Container::class);
@@ -129,40 +161,6 @@ class JwtManagerTest extends TestCase
         $manager = new JwtManager($container, m::mock(ClaimFactory::class));
 
         $this->assertFalse($manager->hasBlacklistEnabled());
-    }
-
-    public function testConfigurationCanBeReloadedWithoutLosingCustomCreators(): void
-    {
-        $application = new Application;
-        $config = new Repository([
-            'jwt' => [
-                'blacklist_enabled' => false,
-                'driver' => 'custom',
-                'validations' => [ValidationStub::class],
-            ],
-        ]);
-        $application->instance('config', $config);
-        $manager = new JwtManager($application, m::mock(ClaimFactory::class));
-        $manager->extend('custom', static fn (): ProviderContract => m::mock(ProviderContract::class));
-
-        $firstDriver = $manager->driver();
-        $firstDriver->shouldReceive('decode')->once()->with('token')->andReturn([]);
-        $manager->decode('token');
-
-        $validations = new ReflectionProperty(JwtManager::class, 'validations');
-        $blacklist = new ReflectionProperty(JwtManager::class, 'blacklist');
-        $this->assertNotSame([], $validations->getValue($manager));
-
-        $replacementBlacklist = m::mock(BlacklistContract::class);
-        $application->instance(BlacklistContract::class, $replacementBlacklist);
-        $config->set('jwt.blacklist_enabled', true);
-
-        $manager->reloadConfiguration();
-
-        $this->assertTrue($manager->hasBlacklistEnabled());
-        $this->assertSame($replacementBlacklist, $blacklist->getValue($manager));
-        $this->assertSame([], $validations->getValue($manager));
-        $this->assertNotSame($firstDriver, $manager->driver());
     }
 
     public function testDecodeAToken(): void

@@ -296,11 +296,15 @@ public function boot(): void
 <a name="rate-limiting"></a>
 ### Rate Limiting
 
-The package defaults leave `fortify.limiters.login` and `fortify.limiters.passkeys` unset. Login requests then use Fortify's login throttling pipeline, and passkey routes are not throttled unless configured.
+The package defaults leave `fortify.limiters.login` and `fortify.limiters.passkeys` unset. Login requests then use Fortify's login throttling pipeline, and passkey routes are not throttled unless configured. The `fortify.limiters.two-factor` option defaults to Fortify's `two-factor` named limiter.
 
-The published configuration sets those limiters to `login` and `passkeys`, and the published `App\Providers\FortifyServiceProvider` registers matching named rate limiters.
+The published configuration sets the login and passkey limiters to `login` and `passkeys`, and the published `App\Providers\FortifyServiceProvider` registers matching named rate limiters.
 
-The two-factor challenge submit route is throttled by default with `throttle:5,1`. You may set `fortify.limiters.two-factor` to a different throttle string or to a named limiter if your application needs custom keying.
+Fortify's `two-factor` limiter allows five attempts per minute for each challenged account and guard. Changing the request's IP address does not reset that account's limit, and users behind the same IP address do not share a limit. If the challenged account is unexpectedly missing from the login session, the limiter falls back to that session's ID.
+
+You may set `fortify.limiters.two-factor` to a different throttle string or named limiter. Registering another limiter named `two-factor` from your application provider replaces Fortify's default.
+
+Email verification and resend routes are always rate limited. They allow six requests per minute by default; omitting `fortify.limiters.verification` keeps this limit, while another throttle string or named limiter customizes it.
 
 ```php
 use Hypervel\Http\Request;
@@ -437,6 +441,8 @@ The two-factor provider defaults to 32-character TOTP secrets. The optional `win
 
 During login, users with enabled two-factor authentication are redirected to the two-factor challenge route. JSON login requests receive a response containing a `two_factor` boolean. The challenge form should submit either a `code` field containing a TOTP code or a `recovery_code` field containing one of the user's recovery codes to `POST /two-factor-challenge`.
 
+Submitting `force=true` to the two-factor enable route rotates the user's secret and recovery codes. When two-factor confirmation is enabled, this also clears the previous confirmation so the new secret must be confirmed before it becomes active.
+
 <a name="passkeys"></a>
 ## Passkeys
 
@@ -447,13 +453,26 @@ Passkey registration and deletion routes require [password confirmation](#passwo
 Fortify bridges these settings into the standalone Passkeys package:
 
 ```php
-'passkeys' => [
-    'relying_party_id' => env('PASSKEYS_RELYING_PARTY_ID', parse_url(config('app.url'), PHP_URL_HOST)),
-    'allowed_origins' => env_array('PASSKEYS_ALLOWED_ORIGINS', [config('app.url')]),
-    'user_handle_secret' => env('PASSKEYS_USER_HANDLE_SECRET', config('app.key')),
-    'timeout' => (int) env('PASSKEYS_TIMEOUT', 60000),
-],
+/** @var null|string $appUrl */
+$appUrl = config('app.url');
+$defaultRelyingPartyId = $appUrl === null ? null : parse_url($appUrl, PHP_URL_HOST);
+$defaultAllowedOrigins = $appUrl === null ? [] : [$appUrl];
+
+return [
+    // ...
+
+    'passkeys' => [
+        'relying_party_id' => env('PASSKEYS_RELYING_PARTY_ID', $defaultRelyingPartyId),
+        'allowed_origins' => env_array('PASSKEYS_ALLOWED_ORIGINS', $defaultAllowedOrigins),
+        'user_handle_secret' => env('PASSKEYS_USER_HANDLE_SECRET', config('app.key')),
+        'timeout' => (int) env('PASSKEYS_TIMEOUT', 60000),
+    ],
+];
 ```
+
+Each passkey member may be omitted. Fortify then uses these same application-derived identity values and a 60-second WebAuthn timeout. Explicit null or empty identity values remain explicit and are rejected when a WebAuthn operation first needs them; a configured timeout must be a positive integer.
+
+When your application has no canonical `app.url`, configure `PASSKEYS_RELYING_PARTY_ID` and `PASSKEYS_ALLOWED_ORIGINS` explicitly. Fortify will still boot without them, but a WebAuthn operation will reject the missing values when it first needs them.
 
 Set `PASSKEYS_ALLOWED_ORIGINS` to a comma-separated list when WebAuthn ceremonies should be accepted from more than one origin, such as `https://example.com,https://www.example.com`.
 
@@ -665,6 +684,8 @@ Passkeys use a polymorphic `user` relation by default, backed by `user_type` and
 
 Passwordless passkey login is scoped to the selected guard provider's Eloquent model. A passkey registered to an `Admin` model cannot authenticate a `User` guard, even if the credential ID exists.
 
+The `{passkey}` route binding is scoped to the currently authenticated passkey owner. An authenticated user receives the same not-found response for another user's passkey as for an identifier that does not exist. This owner scope also applies to application routes that use a `{passkey}` parameter; administrative routes that manage another user's passkeys should use a different parameter name and query that passkey explicitly.
+
 The default migration uses Hypervel's configured morph key type. Applications using UUID or ULID owner keys should configure the framework morph key type before running the passkeys migration. Applications that mix owner key storage types should publish and customize the migration while keeping the `user_type` / `user_id` column names. A custom migration must store at least 1,364 case-sensitive characters in `credential_id` and preserve its unique index.
 
 To customize the passkey record itself, extend the package model and select it during boot:
@@ -714,7 +735,15 @@ php artisan vendor:publish --tag=passkeys-migrations
 php artisan migrate
 ```
 
-Standalone routes use `passkeys.guard`, `passkeys.middleware`, `passkeys.management_middleware`, `passkeys.throttle`, and `passkeys.redirect`.
+Standalone routes use the following configuration options:
+
+| Option | Description |
+| --- | --- |
+| `guard` | The guard selected for standalone routes. An omitted or null value uses the current request guard. |
+| `middleware` | The required middleware applied to every standalone route. |
+| `management_middleware` | The required additional middleware applied when creating or deleting passkeys. |
+| `throttle` | The throttle middleware applied to passkey login, confirmation, registration, and deletion endpoints. Omission uses `throttle:6,1`; null disables throttling. |
+| `redirect` | The successful login destination used when no intended URL exists. Omission uses `/`. |
 
 Call `Passkeys::ignoreRoutes()` during boot before registering your own endpoints:
 

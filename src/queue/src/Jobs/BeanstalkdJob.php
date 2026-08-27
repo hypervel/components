@@ -100,7 +100,6 @@ class BeanstalkdJob extends Job
             return $this->attempts;
         }
 
-        /* @phpstan-ignore-next-line */
         $stats = $this->getPheanstalk()->statsJob($this->job);
 
         return $this->attempts = (int) $stats->reserves;

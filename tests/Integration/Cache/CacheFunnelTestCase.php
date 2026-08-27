@@ -201,7 +201,7 @@ abstract class CacheFunnelTestCase extends TestCase
             ->block(0)
             ->acquire();
 
-        $this->expectException(LimiterTimeoutException::class);
+        $exception = null;
 
         try {
             $this->cache()->funnel('lease-reclaim')
@@ -209,17 +209,22 @@ abstract class CacheFunnelTestCase extends TestCase
                 ->releaseAfter(1)
                 ->block(0)
                 ->acquire();
-        } finally {
-            usleep(1_200_000);
-
-            $lease = $this->cache()->funnel('lease-reclaim')
-                ->limit(1)
-                ->releaseAfter(1)
-                ->block(0)
-                ->acquire();
-
-            $this->assertTrue($lease->release());
+        } catch (LimiterTimeoutException $caught) {
+            $exception = $caught;
         }
+
+        $this->assertInstanceOf(LimiterTimeoutException::class, $exception);
+
+        // A ceiled one-second expiry can remain live for almost two seconds.
+        usleep(2_200_000);
+
+        $lease = $this->cache()->funnel('lease-reclaim')
+            ->limit(1)
+            ->releaseAfter(60)
+            ->block(0)
+            ->acquire();
+
+        $this->assertTrue($lease->release());
     }
 
     public function testFunnelLeaseRefreshExtendsLifetime(): void

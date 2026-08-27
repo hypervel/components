@@ -30,6 +30,11 @@ class Server implements OnRequestInterface, BootstrapsForServer
 
     protected ?EventDispatcherContract $event = null;
 
+    /**
+     * Whether this worker has observed the completed worker-start boundary.
+     */
+    protected bool $workerStarted = false;
+
     public function __construct(
         protected Container $container,
     ) {
@@ -73,7 +78,10 @@ class Server implements OnRequestInterface, BootstrapsForServer
         $exception = null;
 
         try {
-            CoordinatorManager::until(Constants::WORKER_START)->yield();
+            if (! $this->workerStarted) {
+                CoordinatorManager::until(Constants::WORKER_START)->yield();
+                $this->workerStarted = true;
+            }
 
             // Capture the raw transport method before any Symfony method-override
             // processing. This avoids SuspiciousOperationException from malformed

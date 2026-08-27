@@ -6,7 +6,6 @@
     - [Merging Configuration](#merging-configuration)
     - [The Boot Method](#the-boot-method)
     - [Service Providers and Long-Running Workers](#service-providers-and-long-running-workers)
-    - [Reloading Worker Configuration](#reloading-worker-configuration)
     - [Conditionally Loading Providers](#conditionally-loading-providers)
     - [Advanced Provider APIs](#advanced-provider-apis)
 - [Registering Providers](#registering-providers)
@@ -61,7 +60,7 @@ class RiakServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(Connection::class, function (Application $app) {
-            return new Connection(config('riak'));
+            return new Connection(config()->array('riak'));
         });
     }
 }
@@ -205,43 +204,6 @@ Hypervel applications run in long-lived Swoole worker processes. The server appl
 
 For this reason, you should not store request-specific state, such as the current user, tenant, request, or response, on a service provider property or singleton service. Store request-specific state in the request, [context](/docs/{{version}}/context), or the lower-level [coroutine context](/docs/{{version}}/coroutine-context).
 
-<a name="reloading-worker-configuration"></a>
-### Reloading Worker Configuration
-
-When the server is reloaded, Hypervel reloads the environment and configuration before each replacement worker begins accepting work. Framework and package providers then refresh the long-lived services they own that were created from the previous configuration.
-
-If your application provider creates a long-lived service from configuration, it may implement the `ReloadsConfiguration` contract. For example, the following provider discards a resolved connection so the next resolution uses the current configuration:
-
-```php
-<?php
-
-namespace App\Providers;
-
-use App\Services\Riak\Connection;
-use Hypervel\Contracts\Foundation\ReloadsConfiguration;
-use Hypervel\Support\ServiceProvider;
-
-class RiakServiceProvider extends ServiceProvider implements ReloadsConfiguration
-{
-    /**
-     * Reload the worker configuration owned by the provider.
-     *
-     * Boot-only. Calling this while requests are running mutates shared worker
-     * state while concurrent coroutines may still use the previous configuration.
-     */
-    public function reloadConfiguration(): void
-    {
-        $this->app->forgetInstance(Connection::class);
-    }
-}
-```
-
-If another shared service keeps a reference to the object, update the existing object instead of forgetting it.
-
-Application provider hooks run after framework and discovered package provider hooks. The `register` and `boot` methods still run only during the server application's initial bootstrap. Worker startup events run after configuration has been refreshed and should be used for work that must happen in every new worker.
-
-For more information about reloading workers and changes that require a full restart, see the [deployment documentation](/docs/{{version}}/deployment#reloading-services).
-
 <a name="conditionally-loading-providers"></a>
 ### Conditionally Loading Providers
 
@@ -253,9 +215,11 @@ You may prevent a service provider from being registered or booted by overriding
  */
 public function isEnabled(): bool
 {
-    return (bool) config('modules.riak.enabled');
+    return config()->boolean('modules.riak.enabled', false);
 }
 ```
+
+Hypervel calls `isEnabled` before the provider's `register` method, so configuration merged by that provider is not available yet. You may read configuration that the application or framework has already loaded. When an unpublished package option is intentionally optional, as in the example above, provide its fallback here.
 
 When this method returns `false`, the provider's `register` and `boot` methods will not be called, its `bindings` and `singletons` properties will not be processed, and the provider will not be marked as loaded.
 

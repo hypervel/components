@@ -51,6 +51,9 @@ class StdoutLogger implements StdoutLoggerInterface
     /** @var array<string, true> */
     private array $logLevels;
 
+    /**
+     * Create a new stdout logger instance.
+     */
     public function __construct(private Repository $config, ?OutputInterface $output = null)
     {
         $this->output = $output ?? new ConsoleOutput;

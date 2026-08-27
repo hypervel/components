@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\RateLimiter;
 
+use Closure;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\RateLimiter\Concerns\CalculatesRateLimits;
@@ -35,10 +36,13 @@ class DatabaseStore implements PrunableStore, Store
     public function consume(string $key, AdmissionPolicy $policy): LimitResult
     {
         $connection = $this->connections->connection($this->connectionName);
-        $this->ensureOutsideTransaction($connection);
+        $this->ensureCanMutate($connection);
 
-        return $connection->transaction(function (ConnectionInterface $connection) use ($key, $policy): LimitResult {
-            [$value, $secondaryValue, $expiresAt] = $this->stateForUpdate($connection, $key);
+        return $this->mutateState($connection, $key, function (
+            ConnectionInterface $connection,
+            array $state,
+        ) use ($key, $policy): LimitResult {
+            [$value, $secondaryValue, $expiresAt] = $state;
             $result = $this->calculateConsume(
                 $policy,
                 $this->currentDatabaseTimeInMicroseconds($connection),
@@ -52,7 +56,7 @@ class DatabaseStore implements PrunableStore, Store
             }
 
             return $result;
-        }, attempts: 3);
+        });
     }
 
     /**
@@ -61,10 +65,13 @@ class DatabaseStore implements PrunableStore, Store
     public function block(string $key, int $durationMicroseconds): CooldownResult
     {
         $connection = $this->connections->connection($this->connectionName);
-        $this->ensureOutsideTransaction($connection);
+        $this->ensureCanMutate($connection);
 
-        return $connection->transaction(function (ConnectionInterface $connection) use ($key, $durationMicroseconds): CooldownResult {
-            [$value, $secondaryValue, $expiresAt] = $this->stateForUpdate($connection, $key);
+        return $this->mutateState($connection, $key, function (
+            ConnectionInterface $connection,
+            array $state,
+        ) use ($key, $durationMicroseconds): CooldownResult {
+            [$value, $secondaryValue, $expiresAt] = $state;
             $result = $this->calculateCooldownBlock(
                 $durationMicroseconds,
                 $this->currentDatabaseTimeInMicroseconds($connection),
@@ -76,7 +83,7 @@ class DatabaseStore implements PrunableStore, Store
             $this->writeState($connection, $key, $value, $secondaryValue, $expiresAt);
 
             return $result;
-        }, attempts: 3);
+        });
     }
 
     /**
@@ -112,10 +119,13 @@ class DatabaseStore implements PrunableStore, Store
     public function recordFailure(string $key, Backoff $backoff): BackoffResult
     {
         $connection = $this->connections->connection($this->connectionName);
-        $this->ensureOutsideTransaction($connection);
+        $this->ensureCanMutate($connection);
 
-        return $connection->transaction(function (ConnectionInterface $connection) use ($key, $backoff): BackoffResult {
-            [$value, $secondaryValue, $expiresAt] = $this->stateForUpdate($connection, $key);
+        return $this->mutateState($connection, $key, function (
+            ConnectionInterface $connection,
+            array $state,
+        ) use ($key, $backoff): BackoffResult {
+            [$value, $secondaryValue, $expiresAt] = $state;
             $result = $this->calculateFailure(
                 $backoff,
                 $this->currentDatabaseTimeInMicroseconds($connection),
@@ -127,7 +137,7 @@ class DatabaseStore implements PrunableStore, Store
             $this->writeState($connection, $key, $value, $secondaryValue, $expiresAt);
 
             return $result;
-        }, attempts: 3);
+        });
     }
 
     /**
@@ -136,7 +146,7 @@ class DatabaseStore implements PrunableStore, Store
     public function clear(string $key): bool
     {
         $connection = $this->connections->connection($this->connectionName);
-        $this->ensureOutsideTransaction($connection);
+        $this->ensureCanMutate($connection);
 
         return $connection
             ->table($this->table)
@@ -157,7 +167,7 @@ class DatabaseStore implements PrunableStore, Store
         }
 
         $connection = $this->connections->connection($this->connectionName);
-        $this->ensureOutsideTransaction($connection);
+        $this->ensureCanMutate($connection);
         $cutoff = $this->currentDatabaseTimeInMicroseconds($connection);
         $pruned = 0;
 
@@ -190,40 +200,95 @@ class DatabaseStore implements PrunableStore, Store
     }
 
     /**
-     * Insert an empty state row if the key does not exist.
+     * Mutate locked state, initializing a missing non-SQLite row in a new transaction.
+     *
+     * @template TResult of BackoffResult|CooldownResult|LimitResult
+     * @param Closure(ConnectionInterface, array{int, int, int}): TResult $callback
+     * @return TResult
      */
-    protected function insertStateRow(ConnectionInterface $connection, string $key): void
+    protected function mutateState(
+        ConnectionInterface $connection,
+        string $key,
+        Closure $callback,
+    ): BackoffResult|CooldownResult|LimitResult {
+        $result = $connection->transaction(function (ConnectionInterface $connection) use ($key, $callback): BackoffResult|CooldownResult|LimitResult|null {
+            $state = $this->stateForUpdate($connection, $key);
+
+            return $state === null ? null : $callback($connection, $state);
+        }, attempts: 3);
+
+        if ($result !== null) {
+            return $result;
+        }
+
+        // End the missing-row transaction so InnoDB releases its gap lock before
+        // initialization. PostgreSQL shares this path so every non-SQLite driver
+        // uses the same initialization order.
+        return $connection->transaction(function (ConnectionInterface $connection) use ($key, $callback): BackoffResult|CooldownResult|LimitResult {
+            return $callback($connection, $this->initializeStateRowForUpdate($connection, $key));
+        }, attempts: 3);
+    }
+
+    /**
+     * Return an empty state row for a physical limiter key.
+     *
+     * @return array{key: string, value: int, secondary_value: int, expires_at: int}
+     */
+    protected function emptyStateRow(string $key): array
     {
-        $connection->table($this->table)->insertOrIgnore([
+        return [
             'key' => $key,
             'value' => 0,
             'secondary_value' => 0,
             'expires_at' => 0,
-        ]);
+        ];
     }
 
     /**
-     * Lock and read state, inserting an empty row when necessary.
+     * Insert an empty state row if the key does not exist.
+     */
+    protected function insertStateRow(ConnectionInterface $connection, string $key): void
+    {
+        $connection->table($this->table)->insertOrIgnore($this->emptyStateRow($key));
+    }
+
+    /**
+     * Initialize and lock state for a missing non-SQLite physical limiter key.
      *
      * @return array{int, int, int}
      */
-    protected function stateForUpdate(ConnectionInterface $connection, string $key): array
+    protected function initializeStateRowForUpdate(ConnectionInterface $connection, string $key): array
     {
-        if ($connection->getDriverName() === 'sqlite') {
-            // SQLite ignores FOR UPDATE, so writing first acquires its database writer lock.
-            $this->insertStateRow($connection, $key);
-        } else {
-            // Lock established rows first. Insert-first makes concurrent InnoDB transactions
-            // repeatedly deadlock while upgrading duplicate-key shared locks.
-            $state = $this->findStateForUpdate($connection, $key);
+        $connection->table($this->table)->upsert(
+            $this->emptyStateRow($key),
+            'key',
+            ['key' => $key],
+        );
 
-            if ($state !== null) {
-                return $state;
-            }
+        $state = $this->findStateForUpdate($connection, $key);
 
-            $this->insertStateRow($connection, $key);
+        // The upsert created or exclusively locked the row, so a concurrent clear or
+        // prune cannot remove it before this transaction's locking read.
+        if ($state === null) {
+            throw new UnexpectedValueException('The database rate limiter state row could not be read after insertion.');
         }
 
+        return $state;
+    }
+
+    /**
+     * Lock and read state, initializing SQLite state under its writer lock.
+     *
+     * @return null|array{int, int, int}
+     */
+    protected function stateForUpdate(ConnectionInterface $connection, string $key): ?array
+    {
+        if ($connection->getDriverName() !== 'sqlite') {
+            return $this->findStateForUpdate($connection, $key);
+        }
+
+        // SQLite ignores FOR UPDATE, so writing first acquires its database writer lock.
+        $this->insertStateRow($connection, $key);
         $state = $this->findStateForUpdate($connection, $key);
 
         if ($state === null) {
@@ -286,14 +351,31 @@ class DatabaseStore implements PrunableStore, Store
     }
 
     /**
-     * Ensure limiter mutations own their database transaction.
+     * Ensure the connection can safely mutate limiter state.
      */
-    protected function ensureOutsideTransaction(ConnectionInterface $connection): void
+    protected function ensureCanMutate(ConnectionInterface $connection): void
     {
         if ($connection->transactionLevel() > 0) {
             throw new LogicException(
                 'Database rate limiter mutations cannot run inside an active transaction on the selected connection. '
                 . 'Configure a dedicated rate limiter connection or call the limiter outside the transaction.'
+            );
+        }
+
+        if ($connection->getDriverName() !== 'pgsql') {
+            return;
+        }
+
+        $isolationLevel = $connection->getConfig('isolation_level');
+
+        // At stronger isolation levels, PostgreSQL can abort a locking read after a
+        // concurrent update commits, exhausting the limiter's transaction attempts.
+        if ($isolationLevel !== null
+            && (! is_string($isolationLevel) || strcasecmp($isolationLevel, 'read committed') !== 0)) {
+            $connectionName = $connection->getName() ?? $this->connectionName ?? 'default';
+
+            throw new InvalidArgumentException(
+                "PostgreSQL database rate limiter connection [{$connectionName}] must use READ COMMITTED transaction isolation."
             );
         }
     }

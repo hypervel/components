@@ -24,6 +24,14 @@ class MariaDbConnection extends MySqlConnection
     }
 
     /**
+     * Get the default database driver name.
+     */
+    protected function getDefaultDriverName(): string
+    {
+        return 'mariadb';
+    }
+
+    /**
      * Determine if the connected database is a MariaDB database.
      */
     public function isMaria(): bool

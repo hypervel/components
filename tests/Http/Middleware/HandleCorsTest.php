@@ -325,6 +325,58 @@ class HandleCorsTest extends TestCase
         return $container;
     }
 
+    public function testPathsWrittenAsAbsoluteUrlsStillMatch(): void
+    {
+        // The full URL is only rebuilt for patterns that could match one, so a
+        // CORS path written as an absolute URL still has to be honored.
+        $response = $this->dispatchPreflight('admin/ping', [
+            'Origin' => 'http://localhost',
+            'Access-Control-Request-Method' => 'POST',
+        ], ['paths' => ['http://localhost/admin/*']]);
+
+        $this->assertSame('http://localhost', $response->headers->get('Access-Control-Allow-Origin'));
+    }
+
+    public function testPathsWrittenAsAbsoluteUrlsDoNotMatchOtherPaths(): void
+    {
+        $response = $this->dispatchPreflight('public/ping', [
+            'Origin' => 'http://localhost',
+            'Access-Control-Request-Method' => 'POST',
+        ], ['paths' => ['http://localhost/admin/*']]);
+
+        $this->assertNull($response->headers->get('Access-Control-Allow-Origin'));
+    }
+
+    public function testPathSubjectsAreResolvedOnceAcrossMultipleCorsPatterns(): void
+    {
+        $request = CountingCorsRequest::create('http://localhost/api/ping', 'OPTIONS');
+        $request->headers->set('Origin', 'http://localhost');
+        $request->headers->set('Access-Control-Request-Method', 'POST');
+
+        $response = $this->makeMiddleware([
+            'paths' => ['missing', 'also-missing', 'api/*'],
+        ])->handle($request, fn () => new Response('', 200));
+
+        $this->assertSame('http://localhost', $response->headers->get('Access-Control-Allow-Origin'));
+        $this->assertSame(1, $request->fullUrlCalls);
+        $this->assertSame(1, $request->decodedPathCalls);
+    }
+
+    public function testAbsoluteCorsUrlMatchDoesNotResolveTheDecodedPath(): void
+    {
+        $request = CountingCorsRequest::create('http://localhost/admin/ping', 'OPTIONS');
+        $request->headers->set('Origin', 'http://localhost');
+        $request->headers->set('Access-Control-Request-Method', 'POST');
+
+        $response = $this->makeMiddleware([
+            'paths' => ['http://localhost/admin/*'],
+        ])->handle($request, fn () => new Response('', 200));
+
+        $this->assertSame('http://localhost', $response->headers->get('Access-Control-Allow-Origin'));
+        $this->assertSame(1, $request->fullUrlCalls);
+        $this->assertSame(0, $request->decodedPathCalls);
+    }
+
     protected function makeRequest(string $method, string $path, array $headers = []): Request
     {
         $request = Request::create('http://localhost/' . ltrim($path, '/'), $method);
@@ -350,5 +402,26 @@ class HandleCorsTest extends TestCase
             $this->makeRequest($method, $path, $headers),
             fn () => new Response('', $status),
         );
+    }
+}
+
+class CountingCorsRequest extends Request
+{
+    public int $fullUrlCalls = 0;
+
+    public int $decodedPathCalls = 0;
+
+    public function fullUrl(): string
+    {
+        ++$this->fullUrlCalls;
+
+        return parent::fullUrl();
+    }
+
+    public function decodedPath(): string
+    {
+        ++$this->decodedPathCalls;
+
+        return parent::decodedPath();
     }
 }

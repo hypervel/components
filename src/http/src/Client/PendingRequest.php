@@ -1651,13 +1651,14 @@ class PendingRequest
      *
      * @param resource|StreamInterface|string $sink
      */
-    protected function sinkStubHandler($sink): Closure
+    protected function sinkStubHandler(mixed $sink): Closure
     {
-        return function ($psrResponse) use ($sink) {
+        return function (ResponseInterface $psrResponse) use ($sink): ResponseInterface {
             $body = $psrResponse->getBody()->getContents();
+            $length = strlen($body);
 
             if (is_string($sink)) {
-                if (@file_put_contents($sink, $body) !== strlen($body)) {
+                if (@file_put_contents($sink, $body) !== $length) {
                     throw new RuntimeException("Unable to write response body to sink [{$sink}].");
                 }
 
@@ -1665,17 +1666,40 @@ class PendingRequest
             }
 
             if (is_resource($sink)) {
-                if (@fwrite($sink, $body) === false) {
-                    throw new RuntimeException('Unable to write to stream');
+                $offset = 0;
+
+                while ($offset < $length) {
+                    $written = @fwrite($sink, $offset === 0 ? $body : substr($body, $offset));
+
+                    if ($written === false || $written === 0) {
+                        throw new RuntimeException('Unable to write to stream');
+                    }
+
+                    $offset += $written;
                 }
 
-                rewind($sink);
+                if (stream_get_meta_data($sink)['seekable'] && ! @rewind($sink)) {
+                    throw new RuntimeException('Unable to rewind stream');
+                }
 
                 return $psrResponse;
             }
 
-            $sink->write($body);
-            $sink->rewind();
+            $offset = 0;
+
+            while ($offset < $length) {
+                $written = $sink->write($offset === 0 ? $body : substr($body, $offset));
+
+                if ($written === 0) {
+                    throw new RuntimeException('Unable to write to stream');
+                }
+
+                $offset += $written;
+            }
+
+            if ($sink->isSeekable()) {
+                $sink->rewind();
+            }
 
             return $psrResponse;
         };

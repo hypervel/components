@@ -45,7 +45,7 @@ class SanctumServiceProvider extends ServiceProvider
         $config = $this->app->make(ConfigRepository::class);
 
         $cache->allowSerializableClassesUsing(function () use ($config): array {
-            if (! $config->boolean('sanctum.cache.enabled')) {
+            if (! $config->boolean('sanctum.cache.enabled', false)) {
                 return [];
             }
 
@@ -119,7 +119,7 @@ class SanctumServiceProvider extends ServiceProvider
      */
     private function validateCacheConfiguration(CacheManager $cache, ConfigRepository $config): void
     {
-        if (! $config->boolean('sanctum.cache.enabled')) {
+        if (! $config->boolean('sanctum.cache.enabled', false)) {
             return;
         }
 
@@ -129,15 +129,18 @@ class SanctumServiceProvider extends ServiceProvider
             throw new InvalidArgumentException('Sanctum cache store must be a string or null.');
         }
 
-        $ttl = $config->get('sanctum.cache.ttl');
+        $ttl = $config->integer('sanctum.cache.ttl', Sanctum::DEFAULT_CACHE_TTL);
 
-        if (! is_int($ttl) || $ttl <= 0) {
+        if ($ttl <= 0) {
             throw new InvalidArgumentException('Sanctum cache TTL must be a positive integer.');
         }
 
-        $interval = $config->get('sanctum.cache.last_used_at_update_interval');
+        $interval = $config->integer(
+            'sanctum.cache.last_used_at_update_interval',
+            Sanctum::DEFAULT_LAST_USED_AT_UPDATE_INTERVAL,
+        );
 
-        if (! is_int($interval) || $interval < 0) {
+        if ($interval < 0) {
             throw new InvalidArgumentException(
                 'Sanctum cache last_used_at_update_interval must be a non-negative integer.'
             );
@@ -160,11 +163,11 @@ class SanctumServiceProvider extends ServiceProvider
 
         $config = $this->app->make(ConfigRepository::class);
 
-        if (! $config->boolean('sanctum.routes', true)) {
+        if (! $config->boolean('sanctum.routes')) {
             return;
         }
 
-        Route::group(['prefix' => $config->string('sanctum.prefix', 'sanctum')], function (): void {
+        Route::group(['prefix' => $config->string('sanctum.prefix')], function (): void {
             Route::get('/csrf-cookie', [CsrfCookieController::class, 'show'])
                 ->middleware('web')
                 ->name('sanctum.csrf-cookie');
@@ -214,7 +217,7 @@ class SanctumServiceProvider extends ServiceProvider
 
         return new SanctumGuard(
             name: $name,
-            provider: $authManager->createUserProvider($config['provider'] ?? null),
+            provider: $authManager->createUserProvider($config['provider']),
             app: $app,
             sessionGuards: $sessionGuards,
             events: $app->bound('events') ? $app->make('events') : null,

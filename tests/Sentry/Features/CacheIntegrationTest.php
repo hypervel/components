@@ -63,7 +63,7 @@ class CacheIntegrationTest extends SentryTestCase
     public function testCacheBreadcrumbIsNotRecordedWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.cache' => false,
+            'sentry' => $this->sentryConfigWith(['breadcrumbs.cache' => false]),
         ]);
 
         $this->assertFalse($this->app->make('config')->boolean('sentry.breadcrumbs.cache'));

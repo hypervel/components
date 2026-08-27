@@ -11,7 +11,6 @@ use Algolia\AlgoliaSearch\Http\GuzzleHttpClient;
 use Algolia\AlgoliaSearch\Support\AlgoliaAgent;
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\HandlerStack;
-use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Contracts\Telescope\TelescopeTag;
 use Hypervel\Foundation\Application as HypervelApplication;
 use Hypervel\Scout\Console\DeleteAllIndexesCommand;
@@ -26,7 +25,7 @@ use Hypervel\Support\ServiceProvider;
 use Meilisearch\Client as MeilisearchClient;
 use Typesense\Client as TypesenseClient;
 
-class ScoutServiceProvider extends ServiceProvider implements ReloadsConfiguration
+class ScoutServiceProvider extends ServiceProvider
 {
     /**
      * Register Scout services.
@@ -53,23 +52,6 @@ class ScoutServiceProvider extends ServiceProvider implements ReloadsConfigurati
         if ($this->app->runningInConsole()) {
             $this->registerPublishing();
             $this->registerCommands();
-        }
-    }
-
-    /**
-     * Reload the worker configuration owned by the provider.
-     *
-     * Boot-only. Calling this while requests are running mutates shared worker
-     * state while concurrent coroutines may still use the previous configuration.
-     */
-    public function reloadConfiguration(): void
-    {
-        if ($this->app->resolved(EngineManager::class)) {
-            $this->app->make(EngineManager::class)->forgetEngines();
-        }
-
-        foreach ([AlgoliaSearchClient::class, MeilisearchClient::class, TypesenseClient::class] as $client) {
-            $this->app->forgetInstance($client);
         }
     }
 
@@ -166,7 +148,7 @@ class ScoutServiceProvider extends ServiceProvider implements ReloadsConfigurati
     {
         $this->app->singleton(TypesenseClient::class, function () {
             $config = $this->app->make('config');
-            $settings = $config->array('scout.typesense.client-settings', []);
+            $settings = $config->array('scout.typesense.client-settings');
 
             // Explicitly inject Guzzle as the HTTP client so Typesense never
             // falls back to PSR-18 auto-discovery, which may resolve to

@@ -276,12 +276,12 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     public function split(string|int $pattern, int $limit = -1, int $flags = 0): Collection
     {
         if (filter_var($pattern, FILTER_VALIDATE_INT) !== false) {
-            return new Collection(mb_str_split($this->value, $pattern)); // @phpstan-ignore return.type
+            return new Collection(mb_str_split($this->value, $pattern));
         }
 
         $segments = preg_split($pattern, $this->value, $limit, $flags);
 
-        return ! empty($segments) ? new Collection($segments) : new Collection; // @phpstan-ignore return.type
+        return ! empty($segments) ? new Collection($segments) : new Collection;
     }
 
     /**

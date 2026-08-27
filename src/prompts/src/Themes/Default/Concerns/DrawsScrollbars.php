@@ -8,6 +8,8 @@ use Hypervel\Support\Collection;
 
 trait DrawsScrollbars
 {
+    use InteractsWithStrings;
+
     /**
      * Render a scrollbar beside the visible items.
      *
@@ -27,8 +29,8 @@ trait DrawsScrollbars
         $lines = $visible instanceof Collection ? $visible->all() : $visible;
 
         $result = array_map(fn ($line, $index) => match ($index) {
-            $scrollPosition => preg_replace('/.$/', $this->{$color}('┃'), $this->pad($line, $width)) ?? '',
-            default => preg_replace('/.$/', $this->gray('│'), $this->pad($line, $width)) ?? '',
+            $scrollPosition => $this->replaceLastVisibleGrapheme($this->pad($line, $width), $this->{$color}('┃')),
+            default => $this->replaceLastVisibleGrapheme($this->pad($line, $width), $this->gray('│')),
         }, array_values($lines), range(0, count($lines) - 1));
 
         return $visible instanceof Collection ? new Collection($result) : $result; // @phpstan-ignore return.type (https://github.com/phpstan/phpstan/issues/11663)

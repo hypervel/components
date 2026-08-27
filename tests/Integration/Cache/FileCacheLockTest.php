@@ -186,7 +186,7 @@ class FileCacheLockTest extends TestCase
 
     public function testLockRefreshWithDefaultSeconds(): void
     {
-        $this->freezeTime();
+        $this->freezeSecond();
 
         $lock = Cache::lock('foo', 10);
         $this->assertTrue($lock->get());
@@ -201,7 +201,7 @@ class FileCacheLockTest extends TestCase
 
     public function testRefreshReturnsFalseAfterExpiry(): void
     {
-        $this->freezeTime();
+        $this->freezeSecond();
 
         $lock = Cache::lock('foo', 10);
         $this->assertTrue($lock->get());
@@ -232,7 +232,7 @@ class FileCacheLockTest extends TestCase
 
     public function testGetRemainingLifetimeReturnsSeconds(): void
     {
-        $this->freezeTime();
+        $this->freezeSecond();
 
         $lock = Cache::lock('foo', 10);
 

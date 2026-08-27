@@ -12,12 +12,14 @@ use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Events\TransactionBeginning;
 use Hypervel\Database\Events\TransactionCommitted;
 use Hypervel\Database\Events\TransactionRolledBack;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Events\PreparingResponse;
 use Hypervel\Routing\Events\ResponsePrepared;
 use Hypervel\Sentry\Tracing\EventHandler;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use Mockery as m;
+use PDO;
 use ReflectionClass;
 use RuntimeException;
 use Sentry\SentrySdk;
@@ -36,7 +38,7 @@ class EventHandlerTest extends SentryTestCase
     {
         $this->expectException(RuntimeException::class);
 
-        $handler = new EventHandler([]);
+        $handler = new EventHandler(config()->array('sentry.tracing'));
 
         /* @noinspection PhpUndefinedMethodInspection */
         $handler->thisIsNotAHandlerAndShouldThrowAnException();
@@ -51,7 +53,7 @@ class EventHandlerTest extends SentryTestCase
 
     public function testTransactionsAndQueriesAreOwnedByTheirExactConnection(): void
     {
-        $handler = new EventHandler([]);
+        $handler = new EventHandler(config()->array('sentry.tracing'));
         $transaction = $this->startTransaction();
         $firstConnection = $this->connection('first');
         $secondConnection = $this->connection('second');
@@ -87,7 +89,7 @@ class EventHandlerTest extends SentryTestCase
 
     public function testResponseAndTransactionSpansUseIndependentOwnership(): void
     {
-        $handler = new EventHandler([]);
+        $handler = new EventHandler(config()->array('sentry.tracing'));
         $transaction = $this->startTransaction();
         $request = Request::create('/response');
         $connection = $this->connection('response');
@@ -113,10 +115,10 @@ class EventHandlerTest extends SentryTestCase
 
     public function testNullQueryTimeCreatesAnInstantaneousSpanWithoutOriginResolution(): void
     {
-        $handler = new EventHandler([
-            'sql_origin' => true,
-            'sql_origin_threshold_ms' => 0,
-        ]);
+        $tracingConfig = config()->array('sentry.tracing');
+        $tracingConfig['sql_origin'] = true;
+        $tracingConfig['sql_origin_threshold_ms'] = 0;
+        $handler = new EventHandler($tracingConfig);
         $transaction = $this->startTransaction();
 
         $handler->queryExecuted(new QueryExecuted(
@@ -137,7 +139,7 @@ class EventHandlerTest extends SentryTestCase
         $connection = m::mock(Connection::class);
         $connection->shouldReceive('getName')->once()->andReturn('throwing');
         $connection->shouldReceive('getDatabaseName')->once()->andThrow(new Error('broken instrumentation'));
-        $handler = new EventHandler([]);
+        $handler = new EventHandler(config()->array('sentry.tracing'));
 
         $handler->queryExecuted(new QueryExecuted('select 1', [], 1.0, $connection));
 
@@ -156,7 +158,7 @@ class EventHandlerTest extends SentryTestCase
             Coroutine::defer(static function () use (&$observedRestoredSpan): void {
                 $observedRestoredSpan = SentrySdk::getCurrentHub()->getSpan();
             });
-            $handler = new EventHandler([]);
+            $handler = new EventHandler(config()->array('sentry.tracing'));
             $connection = $this->connection('abandoned');
             $handler->responsePreparing(new PreparingResponse(Request::create('/abandoned'), 'payload'));
             $responseSpan = $hub->getSpan();
@@ -177,7 +179,7 @@ class EventHandlerTest extends SentryTestCase
 
     private function tryAllEventHandlerMethods(array $methods): void
     {
-        $handler = new EventHandler([]);
+        $handler = new EventHandler(config()->array('sentry.tracing'));
 
         $methods = array_map(static function ($method) {
             return "{$method}Handler";
@@ -199,8 +201,8 @@ class EventHandlerTest extends SentryTestCase
 
     private function connection(string $name): Connection
     {
-        return new Connection(
-            static fn (): null => null,
+        return new SQLiteConnection(
+            new PDO('sqlite::memory:'),
             'database',
             '',
             ['driver' => 'sqlite', 'name' => $name],

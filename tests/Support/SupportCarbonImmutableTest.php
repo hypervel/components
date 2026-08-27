@@ -11,6 +11,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionClass;
 use Symfony\Component\VarDumper\VarDumper;
 
 class SupportCarbonImmutableTest extends TestCase
@@ -131,6 +132,24 @@ class SupportCarbonImmutableTest extends TestCase
 
         $this->assertSame($date, $date->toImmutable());
         $this->assertSame(ImmutableCarbonSubclass::class, $date->toImmutable()::class);
+    }
+
+    public function testMagicModifierMetadataMatchesRuntimeStaticType(): void
+    {
+        $docComment = (new ReflectionClass(CarbonImmutable::class))->getDocComment();
+
+        $this->assertIsString($docComment);
+        preg_match_all('/@method static ([A-Za-z][A-Za-z0-9]*)\(/', $docComment, $matches);
+        $this->assertNotEmpty($matches[1]);
+
+        $date = CarbonImmutable::parse('2026-07-22 12:34:56.123456');
+        $subclass = ImmutableCarbonSubclass::parse('2026-07-22 12:34:56.123456');
+
+        // Every corrected modifier is callable with its documented default arguments.
+        foreach ($matches[1] as $method) {
+            $this->assertSame(CarbonImmutable::class, $date->{$method}()::class, $method);
+            $this->assertSame(ImmutableCarbonSubclass::class, $subclass->{$method}()::class, $method);
+        }
     }
 }
 

@@ -26,6 +26,7 @@ class MetadataCodec
             $wireValues = [];
 
             foreach ($values as $value) {
+                // Metadata rejects purely numeric names before iteration, so every key remains a string.
                 $wireValues[] = str_ends_with($key, '-bin')
                     ? rtrim(base64_encode($value), '=')
                     : $value;
@@ -48,7 +49,7 @@ class MetadataCodec
 
         foreach ($headers as $key => $wireValues) {
             if (! is_string($key)) {
-                throw new ProtocolException('A gRPC metadata header name is not a string.');
+                continue;
             }
 
             $key = strtolower($key);
@@ -57,6 +58,7 @@ class MetadataCodec
                 str_starts_with($key, ':')
                 || str_starts_with($key, 'grpc-')
                 || in_array($key, Metadata::OWNED_KEYS, true)
+                || preg_match('/^-?[0-9]+$/D', $key) === 1
                 || preg_match('/^[0-9a-z_.-]+$/D', $key) !== 1
             ) {
                 continue;

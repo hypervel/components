@@ -21,13 +21,40 @@ use RuntimeException;
 #[WithConfig('telescope.watchers', [
     RedisWatcher::class => true,
 ])]
-#[WithConfig('database.redis.foo', [
-    'host' => '127.0.0.1',
-    'port' => 6379,
-    'database' => 0,
-])]
+#[WithConfig('database.redis.foo', RedisWatcherTest::REDIS_CONNECTION)]
 class RedisWatcherTest extends FeatureTestCase
 {
+    public const array REDIS_CONNECTION = [
+        'url' => null,
+        'scheme' => null,
+        'host' => '127.0.0.1',
+        'username' => null,
+        'password' => null,
+        'port' => 6379,
+        'database' => 0,
+        'name' => null,
+        'timeout' => null,
+        'read_timeout' => 0.0,
+        'context' => [],
+        'options' => [],
+        'prefix' => null,
+        'events' => false,
+        'max_retries' => 3,
+        'backoff_algorithm' => 'decorrelated_jitter',
+        'backoff_base' => 100,
+        'backoff_cap' => 1000,
+        'pool' => [
+            'min_connections' => 1,
+            'max_connections' => 10,
+            'connect_timeout' => 10.0,
+            'wait_timeout' => 3.0,
+            'heartbeat' => -1.0,
+            'heartbeat_timeout' => 1.0,
+            'max_idle_time' => 60.0,
+            'max_lifetime' => -1.0,
+        ],
+    ];
+
     public function testRegisterEnablesRedisEventsForFuturePools(): void
     {
         $this->assertTrue(

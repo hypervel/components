@@ -17,8 +17,10 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\Psr7\NoSeekStream;
 use GuzzleHttp\Psr7\Request as GuzzleRequest;
 use GuzzleHttp\Psr7\Response as Psr7Response;
+use GuzzleHttp\Psr7\StreamDecoratorTrait;
 use GuzzleHttp\Psr7\Utils;
 use GuzzleHttp\TransferStats;
 use Hypervel\Config\Repository as ConfigRepository;
@@ -2937,37 +2939,43 @@ class HttpClientTest extends TestCase
         $this->assertSame(501, $response->status());
     }
 
-    public function testSinkToFile()
+    public function testSinkToFile(): void
     {
         $this->factory->fakeSequence()->push('abc123');
 
-        $destination = __DIR__ . '/Fixtures/sunk.txt';
+        $directory = ParallelTesting::tempDir('HttpClientSink');
+        $filesystem = new Filesystem;
+        $filesystem->deleteDirectory($directory);
+        $filesystem->ensureDirectoryExists($directory);
+        $destination = $directory . '/sunk.txt';
 
-        if (file_exists($destination)) {
-            unlink($destination);
+        try {
+            $this->factory->withOptions(['sink' => $destination])->get('https://example.com');
+
+            $this->assertFileExists($destination);
+            $this->assertSame('abc123', file_get_contents($destination));
+        } finally {
+            $filesystem->deleteDirectory($directory);
         }
-
-        $this->factory->withOptions(['sink' => $destination])->get('https://example.com');
-
-        $this->assertFileExists($destination);
-        $this->assertSame('abc123', file_get_contents($destination));
-
-        unlink($destination);
     }
 
-    public function testSinkToResource()
+    public function testSinkToResource(): void
     {
         $this->factory->fakeSequence()->push('abc123');
 
         $resource = fopen('php://temp', 'w');
 
-        $this->factory->sink($resource)->get('https://example.com');
+        try {
+            $this->factory->sink($resource)->get('https://example.com');
 
-        $this->assertSame(0, ftell($resource));
-        $this->assertSame('abc123', stream_get_contents($resource));
+            $this->assertSame(0, ftell($resource));
+            $this->assertSame('abc123', stream_get_contents($resource));
+        } finally {
+            fclose($resource);
+        }
     }
 
-    public function testSinkWhenStubbedByPath()
+    public function testSinkWhenStubbedByPath(): void
     {
         $this->factory->fake([
             'foo.com/*' => ['page' => 'foo'],
@@ -2975,9 +2983,13 @@ class HttpClientTest extends TestCase
 
         $resource = fopen('php://temp', 'w');
 
-        $this->factory->sink($resource)->get('http://foo.com/test');
+        try {
+            $this->factory->sink($resource)->get('http://foo.com/test');
 
-        $this->assertSame(json_encode(['page' => 'foo']), stream_get_contents($resource));
+            $this->assertSame(json_encode(['page' => 'foo']), stream_get_contents($resource));
+        } finally {
+            fclose($resource);
+        }
     }
 
     public function testSinkToPsrStreamWhenFaked(): void
@@ -2990,6 +3002,132 @@ class HttpClientTest extends TestCase
 
         $this->assertSame(0, $stream->tell());
         $this->assertSame('abc123', $stream->getContents());
+    }
+
+    public function testPartialPsrSinkWritesTheCompleteBody(): void
+    {
+        $this->factory->fakeSequence()->push('abc123');
+
+        $inner = Utils::streamFor('');
+        $stream = new PrefixWriteStream($inner, 2);
+
+        $this->factory->sink($stream)->get('https://example.com');
+
+        $this->assertSame(3, $stream->writeCount);
+        $this->assertSame(0, $stream->tell());
+        $this->assertSame('abc123', $stream->getContents());
+    }
+
+    public function testZeroProgressPsrSinkFailsAndRecordsTheRequest(): void
+    {
+        $this->factory->fakeSequence()->push('abc123');
+        $stream = new PrefixWriteStream(Utils::streamFor(''), 0);
+
+        try {
+            $this->factory->sink($stream)->get('https://example.com');
+            $this->fail('RuntimeException was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Unable to write to stream', $exception->getMessage());
+        }
+
+        $this->factory->assertSentCount(1);
+        $this->factory->assertSent(fn (Request $request, ?Response $response): bool => $request->url() === 'https://example.com'
+            && $response === null);
+    }
+
+    public function testNonseekableResourceSinkReceivesTheCompleteBody(): void
+    {
+        $this->factory->fakeSequence()->push('abc123');
+        [$sink, $reader] = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+
+        try {
+            $this->factory->sink($sink)->get('https://example.com');
+
+            $this->assertSame('abc123', fread($reader, 6));
+        } finally {
+            fclose($sink);
+            fclose($reader);
+        }
+    }
+
+    public function testNonseekablePsrSinkReceivesTheCompleteBody(): void
+    {
+        $this->factory->fakeSequence()->push('abc123');
+        $inner = Utils::streamFor('');
+        $stream = new NoSeekStream($inner);
+
+        $this->factory->sink($stream)->get('https://example.com');
+
+        $inner->rewind();
+
+        $this->assertSame('abc123', $inner->getContents());
+    }
+
+    public function testNonblockingResourceSinkFailsAfterWritingAPrefix(): void
+    {
+        $this->factory->fakeSequence()->push('abc123');
+        $scheme = 'httpclientpartialwrite';
+        $this->assertTrue(stream_wrapper_register($scheme, PartialWriteStreamWrapper::class));
+        $sink = fopen($scheme . '://sink', 'w');
+
+        try {
+            $this->assertTrue(stream_set_blocking($sink, false));
+
+            try {
+                $this->factory->sink($sink)->get('https://example.com');
+                $this->fail('RuntimeException was not thrown.');
+            } catch (RuntimeException $exception) {
+                $this->assertSame('Unable to write to stream', $exception->getMessage());
+            }
+
+            $this->assertTrue(is_resource($sink));
+            $this->assertSame('abc', PartialWriteStreamWrapper::$contents);
+        } finally {
+            fclose($sink);
+            stream_wrapper_unregister($scheme);
+        }
+
+        $this->factory->assertSentCount(1);
+    }
+
+    public function testResourceSinkRewindFailureIsPropagated(): void
+    {
+        $this->factory->fakeSequence()->push('abc123');
+        $scheme = 'httpclientrewindfailure';
+        $this->assertTrue(stream_wrapper_register($scheme, RewindFailureStreamWrapper::class));
+        $sink = fopen($scheme . '://sink', 'w');
+
+        try {
+            try {
+                $this->factory->sink($sink)->get('https://example.com');
+                $this->fail('RuntimeException was not thrown.');
+            } catch (RuntimeException $exception) {
+                $this->assertSame('Unable to rewind stream', $exception->getMessage());
+            }
+
+            $this->assertTrue(is_resource($sink));
+            $this->assertSame('abc123', RewindFailureStreamWrapper::$contents);
+        } finally {
+            fclose($sink);
+            stream_wrapper_unregister($scheme);
+        }
+    }
+
+    public function testPsrSinkRewindFailureIsPropagated(): void
+    {
+        $this->factory->fakeSequence()->push('abc123');
+        $failure = new RuntimeException('Unable to rewind PSR stream');
+        $stream = m::mock(StreamInterface::class);
+        $stream->shouldReceive('write')->once()->with('abc123')->andReturn(6);
+        $stream->shouldReceive('isSeekable')->once()->andReturnTrue();
+        $stream->shouldReceive('rewind')->once()->andThrow($failure);
+
+        try {
+            $this->factory->sink($stream)->get('https://example.com');
+            $this->fail('RuntimeException was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
     }
 
     #[DataProvider('failedSinkProvider')]
@@ -5935,5 +6073,92 @@ class PreparedBodyTrackingPendingRequest extends PendingRequest
         ++$this->preparedBodyHandlerBuilds;
 
         return parent::buildPreparedBodyHandler();
+    }
+}
+
+class PrefixWriteStream implements StreamInterface
+{
+    use StreamDecoratorTrait;
+
+    protected StreamInterface $stream;
+
+    public int $writeCount = 0;
+
+    public function __construct(StreamInterface $stream, protected int $prefixLength)
+    {
+        $this->stream = $stream;
+    }
+
+    public function write($string): int
+    {
+        ++$this->writeCount;
+
+        return $this->stream->write(substr($string, 0, $this->prefixLength));
+    }
+}
+
+class PartialWriteStreamWrapper
+{
+    public mixed $context;
+
+    public static string $contents = '';
+
+    public static int $writeCount = 0;
+
+    public function stream_open(string $path, string $mode, int $options, ?string &$openedPath): bool
+    {
+        static::$contents = '';
+        static::$writeCount = 0;
+
+        return true;
+    }
+
+    public function stream_write(string $data): int
+    {
+        ++static::$writeCount;
+
+        if (static::$writeCount > 1) {
+            return 0;
+        }
+
+        static::$contents = substr($data, 0, 3);
+
+        return strlen(static::$contents);
+    }
+
+    public function stream_set_option(int $option, int $argumentOne, ?int $argumentTwo): bool
+    {
+        return true;
+    }
+}
+
+class RewindFailureStreamWrapper
+{
+    public mixed $context;
+
+    public static string $contents = '';
+
+    public function stream_open(string $path, string $mode, int $options, ?string &$openedPath): bool
+    {
+        static::$contents = '';
+
+        return true;
+    }
+
+    public function stream_write(string $data): int
+    {
+        static::$contents .= $data;
+
+        return strlen($data);
+    }
+
+    public function stream_eof(): bool
+    {
+        return false;
+    }
+
+    public function stream_seek(int $offset, int $whence = SEEK_SET): bool
+    {
+        return false;
     }
 }

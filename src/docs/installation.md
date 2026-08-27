@@ -10,8 +10,6 @@
     - [Databases and Migrations](#databases-and-migrations)
     - [Directory Configuration](#directory-configuration)
 - [IDE Support](#ide-support)
-- [Hypervel and AI](#hypervel-and-ai)
-    - [Installing Hypervel Boost](#installing-hypervel-boost)
 - [Next Steps](#next-steps)
     - [Hypervel the Full Stack Framework](#hypervel-the-fullstack-framework)
     - [Hypervel the API Backend](#hypervel-the-api-backend)
@@ -206,42 +204,6 @@ You are free to use any code editor you wish when developing Hypervel applicatio
 For extensive and robust PHP support, take a look at [PhpStorm](https://www.jetbrains.com/phpstorm/), a JetBrains IDE. PhpStorm includes powerful code completion, refactoring, navigation, and debugging tools for PHP applications.
 
 Hypervel's application skeleton includes the `swoole/ide-helper` package in development so IDEs can understand Swoole classes, constants, and functions.
-
-<a name="hypervel-and-ai"></a>
-## Hypervel and AI
-
-[Hypervel Boost](https://github.com/hypervel/boost) is a powerful tool that bridges the gap between AI coding agents and Hypervel applications. Boost provides AI agents with Hypervel-specific context, tools, and guidelines so they can generate more accurate, version-specific code that follows Hypervel conventions.
-
-When you install Boost in your Hypervel application, AI agents gain access to specialized tools including the ability to know which packages you are using, query your database, search the Hypervel documentation, read browser logs, generate tests, and execute code via Tinker.
-
-In addition, Boost gives AI agents access to vectorized Hypervel ecosystem documentation, specific to your installed package versions. This means agents can provide guidance targeted to the exact versions your project uses.
-
-Boost also includes Hypervel-maintained AI guidelines that help agents to follow framework conventions, write appropriate tests, and avoid common pitfalls when generating Hypervel code.
-
-<a name="installing-hypervel-boost"></a>
-### Installing Hypervel Boost
-
-Boost can be installed in Hypervel applications running PHP 8.4 or higher. To get started, install Boost as a development dependency:
-
-```shell
-composer require hypervel/boost --dev
-```
-
-Once installed, run the interactive installer:
-
-```shell
-php artisan boost:install
-```
-
-The installer will auto-detect your IDE and AI agents, allowing you to opt into the features that make sense for your project. Boost respects existing project conventions and does not force opinionated style rules by default.
-
-> [!NOTE]
-> To learn more about Boost, check out the [Hypervel Boost source on GitHub](https://github.com/hypervel/boost).
-
-<a name="adding-custom-ai-guidelines"></a>
-#### Adding Custom AI Guidelines
-
-To augment Hypervel Boost with your own custom AI guidelines, add `.blade.php` or `.md` files to your application's `.ai/guidelines/*` directory. These files will automatically be included with Hypervel Boost's guidelines when you run `boost:install`.
 
 <a name="next-steps"></a>
 ## Next Steps

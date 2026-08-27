@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Redis;
 
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
+use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Facades\Redis;
@@ -52,10 +55,79 @@ class RedisProxyIntegrationTest extends TestCase
         $plain = Redis::connection($plainName);
 
         $serialized->flushdb();
-        $serialized->set('test', 'yyy');
 
-        $this->assertSame('yyy', $serialized->get('test'));
-        $this->assertSame('s:3:"yyy";', $plain->get('test'));
+        foreach ([['nested' => true], (object) ['name' => 'Hypervel'], 42] as $index => $value) {
+            $key = "test:{$index}";
+            $serialized->set($key, $value);
+
+            $this->assertEquals($value, $serialized->get($key));
+            $this->assertSame(serialize($value), $plain->get($key));
+        }
+    }
+
+    public function testSetGetReturnsDecodedPreviousValues(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithOptions(
+            name: 'test_set_get_serializer',
+            options: [
+                'prefix' => '',
+                'serializer' => PhpRedis::SERIALIZER_PHP,
+            ],
+        ));
+        $redis->flushdb();
+        $key = 'set:get';
+
+        $this->assertFalse($redis->set($key, ['version' => 1], ['GET']));
+        $this->assertSame(
+            ['version' => 1],
+            $redis->set($key, 42, ['GET', 'EX' => 60]),
+        );
+
+        $previous = (object) ['version' => 2];
+        $this->assertSame(42, $redis->set($key, $previous, ['GET']));
+        $this->assertEquals($previous, $redis->set($key, 'current', ['GET']));
+        $this->assertSame('current', $redis->get($key));
+    }
+
+    public function testZaddIncrementReturnsFloatScore(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+        $redis->flushdb();
+
+        $this->assertSame(1.5, $redis->zadd('zadd:increment', 'INCR', 1.5, 'member'));
+        $this->assertSame(2.5, $redis->zadd('zadd:increment', 'INCR', 1.0, 'member'));
+    }
+
+    public function testCommandListenerReusesTheOwnedConnection(): void
+    {
+        $connectionName = $this->createRedisConnectionWithOptions(
+            name: 'test_reentrant_listener',
+            options: ['prefix' => ''],
+            maxConnections: 1,
+        );
+        $config = $this->app->make('config');
+        $connectionConfig = $config->array("database.redis.{$connectionName}");
+        $connectionConfig['events'] = true;
+        $connectionConfig['pool']['wait_timeout'] = 0.05;
+        $config->set("database.redis.{$connectionName}", $connectionConfig);
+
+        $redis = Redis::connection($connectionName);
+        $redis->flushdb();
+        $outerKey = 'listener:outer';
+        $nestedValue = null;
+
+        Redis::listen(function (CommandExecuted $event) use ($redis, $outerKey, &$nestedValue): void {
+            if ($event->connectionName === $redis->getName()
+                && strtolower($event->command) === 'set'
+                && ($event->parameters[0] ?? null) === $outerKey) {
+                $nestedValue = $redis->get($outerKey);
+            }
+        });
+
+        $this->assertTrue($redis->set($outerKey, 'written'));
+        $this->assertSame('written', $nestedValue);
+        $this->assertTrue($redis->set('listener:after', 'reusable'));
+        $this->assertSame('reusable', $redis->get('listener:after'));
     }
 
     public function testHyperLogLog(): void
@@ -256,6 +328,141 @@ class RedisProxyIntegrationTest extends TestCase
         $this->assertSame([['C', 'D'], true], $second->pop());
     }
 
+    public function testCopiedSiblingContextsUseDistinctPinnedRedisConnections(): void
+    {
+        $connectionName = $this->createRedisConnectionWithOptions(
+            name: 'test_copied_sibling_connections',
+            options: ['prefix' => ''],
+            maxConnections: 3,
+        );
+        $redis = Redis::connection($connectionName);
+        $redis->multi();
+        $contextKey = RedisProxy::CONNECTION_CONTEXT_PREFIX . $connectionName;
+        $parentConnection = CoroutineContext::get($contextKey);
+        $childrenReady = new Channel(2);
+        $releaseChildren = new Channel(2);
+
+        $childCoroutineIds = [
+            go(static function () use ($redis, $contextKey, $childrenReady, $releaseChildren): void {
+                $redis->multi();
+                $childrenReady->push(CoroutineContext::get($contextKey));
+                $releaseChildren->pop();
+                $redis->discard();
+            }, copyContext: true),
+            go(static function () use ($redis, $contextKey, $childrenReady, $releaseChildren): void {
+                $redis->multi();
+                $childrenReady->push(CoroutineContext::get($contextKey));
+                $releaseChildren->pop();
+                $redis->discard();
+            }, copyContext: true),
+        ];
+
+        $firstChildConnection = $childrenReady->pop(1.0);
+        $secondChildConnection = $childrenReady->pop(1.0);
+
+        try {
+            $this->assertInstanceOf(RedisConnection::class, $parentConnection);
+            $this->assertInstanceOf(RedisConnection::class, $firstChildConnection);
+            $this->assertInstanceOf(RedisConnection::class, $secondChildConnection);
+            $this->assertNotSame($parentConnection, $firstChildConnection);
+            $this->assertNotSame($parentConnection, $secondChildConnection);
+            $this->assertNotSame($firstChildConnection, $secondChildConnection);
+        } finally {
+            $releaseChildren->push(true);
+            $releaseChildren->push(true);
+            Coroutine::join($childCoroutineIds, 1.0);
+            $redis->discard();
+            $redis->releaseContextConnection();
+        }
+
+        foreach ($childCoroutineIds as $childCoroutineId) {
+            $this->assertFalse(Coroutine::exists($childCoroutineId));
+        }
+
+        $this->assertTrue($redis->set('copied:siblings:after', 'healthy'));
+        $this->assertSame('healthy', $redis->get('copied:siblings:after'));
+    }
+
+    public function testDetachedCopiedChildOwnsItsSingleSlotRedisCheckout(): void
+    {
+        $connectionName = $this->createRedisConnectionWithOptions(
+            name: 'test_detached_copied_child',
+            options: ['prefix' => ''],
+            maxConnections: 1,
+        );
+        $redis = Redis::connection($connectionName);
+        $redis->set('copied:detached:value', 'available');
+        $allowChildCheckout = new Channel(1);
+        $childBorrowed = new Channel(1);
+        $releaseChild = new Channel(1);
+        $childCoroutineId = new Channel(1);
+
+        $parentCoroutineId = go(static function () use (
+            $redis,
+            $allowChildCheckout,
+            $childBorrowed,
+            $releaseChild,
+            $childCoroutineId,
+        ): void {
+            $redis->multi();
+            $childCoroutineId->push(go(static function () use (
+                $redis,
+                $allowChildCheckout,
+                $childBorrowed,
+                $releaseChild,
+            ): void {
+                $allowChildCheckout->pop();
+                $redis->multi();
+                $childBorrowed->push(true);
+                $releaseChild->pop();
+                $redis->discard();
+            }, copyContext: true));
+        });
+
+        $contenderFinished = new Channel(1);
+        $detachedChildCoroutineId = null;
+        $contenderCoroutineId = null;
+        $parentStillRunning = true;
+        $contenderResultWhileChildHeld = null;
+
+        try {
+            $detachedChildCoroutineId = $childCoroutineId->pop(1.0);
+            $this->assertIsInt($detachedChildCoroutineId);
+            Coroutine::join([$parentCoroutineId], 1.0);
+            $parentStillRunning = Coroutine::exists($parentCoroutineId);
+
+            $allowChildCheckout->push(true);
+            $this->assertTrue($childBorrowed->pop(1.0));
+
+            $contenderCoroutineId = go(static function () use ($redis, $contenderFinished): void {
+                $contenderFinished->push($redis->get('copied:detached:value'));
+            });
+
+            $contenderResultWhileChildHeld = $contenderFinished->pop(0.05);
+            $releaseChild->push(true);
+
+            if ($contenderResultWhileChildHeld === false) {
+                $this->assertSame('available', $contenderFinished->pop(1.0));
+            }
+        } finally {
+            $allowChildCheckout->push(true, 0.01);
+            $releaseChild->push(true, 0.01);
+
+            Coroutine::join(array_values(array_filter([
+                $parentCoroutineId,
+                $detachedChildCoroutineId,
+                $contenderCoroutineId,
+            ], is_int(...))), 1.0);
+        }
+
+        $this->assertFalse($parentStillRunning);
+        $this->assertIsInt($detachedChildCoroutineId);
+        $this->assertIsInt($contenderCoroutineId);
+        $this->assertFalse(Coroutine::exists($detachedChildCoroutineId));
+        $this->assertFalse(Coroutine::exists($contenderCoroutineId));
+        $this->assertFalse($contenderResultWhileChildHeld);
+    }
+
     public function testPipelineCallbackAndSelect(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
@@ -409,6 +616,93 @@ class RedisProxyIntegrationTest extends TestCase
         // Clean up secondary db
         $redis->select($secondaryDb);
         $redis->del($uniqueKey);
+    }
+
+    public function testHeldConnectionSelectionIsRestoredAfterRelease(): void
+    {
+        if ($this->usingRedisCluster()) {
+            $this->markTestSkipped('Redis Cluster does not support logical databases.');
+        }
+
+        $redis = Redis::connection($this->createRedisConnectionWithOptions(
+            name: 'test_held_select_restore',
+            options: ['prefix' => ''],
+            maxConnections: 1,
+        ));
+        $primaryDatabase = $this->getParallelRedisDb();
+        $secondaryDatabase = $this->getSecondaryRedisDb();
+
+        $redis->withConnection(function (RedisConnection $connection) use ($secondaryDatabase): void {
+            $this->assertTrue($connection->select($secondaryDatabase));
+            $this->assertSame($secondaryDatabase, $connection->client()->getDBNum());
+        });
+        $this->assertSame($primaryDatabase, $this->nativeClient($redis)->getDBNum());
+
+        $redis->withPinnedConnection(function () use ($redis, $secondaryDatabase): void {
+            $this->assertTrue($redis->select($secondaryDatabase));
+            $this->assertSame($secondaryDatabase, $this->nativeClient($redis)->getDBNum());
+        });
+        $this->assertSame($primaryDatabase, $this->nativeClient($redis)->getDBNum());
+    }
+
+    public function testRawPipelineAndTransactionSelectionsAreRestoredAfterExec(): void
+    {
+        if ($this->usingRedisCluster()) {
+            $this->markTestSkipped('Redis Cluster does not support logical databases.');
+        }
+
+        $redis = Redis::connection($this->createRedisConnectionWithOptions(
+            name: 'test_raw_select_restore',
+            options: ['prefix' => ''],
+            maxConnections: 1,
+        ));
+        $primaryDatabase = $this->getParallelRedisDb();
+        $secondaryDatabase = $this->getSecondaryRedisDb();
+        $keys = [];
+
+        foreach (['pipeline', 'transaction'] as $method) {
+            $key = "raw:select:{$method}:" . uniqid();
+            $keys[] = $key;
+            $results = $redis->{$method}(static function (PhpRedis $client) use ($secondaryDatabase, $key): void {
+                $client->select($secondaryDatabase);
+                $client->set($key, 'value');
+            });
+
+            $this->assertSame([true, true], $results);
+            $this->assertSame($primaryDatabase, $this->nativeClient($redis)->getDBNum());
+        }
+
+        try {
+            $this->assertTrue($redis->select($secondaryDatabase));
+
+            foreach ($keys as $key) {
+                $this->assertSame('value', $redis->get($key));
+            }
+        } finally {
+            $redis->del(...$keys);
+            $redis->select($primaryDatabase);
+        }
+    }
+
+    public function testDiscardedRawSelectionDoesNotChangeReleaseDatabase(): void
+    {
+        if ($this->usingRedisCluster()) {
+            $this->markTestSkipped('Redis Cluster does not support logical databases.');
+        }
+
+        $redis = Redis::connection($this->createRedisConnectionWithOptions(
+            name: 'test_discarded_select',
+            options: ['prefix' => ''],
+            maxConnections: 1,
+        ));
+        $primaryDatabase = $this->getParallelRedisDb();
+        $transaction = $redis->multi();
+        $transaction->select($this->getSecondaryRedisDb());
+
+        $this->assertTrue($redis->discard());
+        $redis->releaseContextConnection();
+
+        $this->assertSame($primaryDatabase, $this->nativeClient($redis)->getDBNum());
     }
 
     public function testPipelineCallbackRunsCommands(): void

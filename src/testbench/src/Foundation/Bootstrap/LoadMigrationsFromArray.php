@@ -89,7 +89,7 @@ final class LoadMigrationsFromArray
         )->when(
             $this->includesDefaultMigrations($app),
             static fn (Collection $migrations): Collection => $migrations->push(default_migration_path()),
-        )->filter(static fn (mixed $migration): bool => is_string($migration)) /* @phpstan-ignore function.alreadyNarrowedType */
+        )->filter(static fn (mixed $migration): bool => is_string($migration))
             ->transform(static fn (string $migration): ?string => transform_relative_path($migration, $app->basePath()))
             ->filter(static fn (?string $migration): bool => $migration !== null)
             ->values()

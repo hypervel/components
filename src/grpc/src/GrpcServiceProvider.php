@@ -158,7 +158,6 @@ class GrpcServiceProvider extends ServiceProvider
             ),
         ];
 
-        // Replay the master snapshot; replacement workers cannot change the bound server topology.
         $config->set('server.servers', $servers);
     }
 

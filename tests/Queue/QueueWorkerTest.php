@@ -12,6 +12,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
+use Hypervel\Contracts\Queue\IndexAwareQueue;
 use Hypervel\Contracts\Queue\Interruptible;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\Job as QueueJobContract;
@@ -683,6 +684,27 @@ class QueueWorkerTest extends TestCase
 
         $worker->runNextJob('default', 'high,low', new WorkerOptions);
         $this->assertTrue($lowJob->fired);
+    }
+
+    public function testWorkerPassesQueuePriorityIndexesToAwareConnections(): void
+    {
+        $connection = new WorkerFakeIndexAwareConnection('default', [
+            'high' => [],
+            'low' => [],
+        ]);
+        $worker = new InsomniacWorker(
+            new WorkerFakeManager('default', $connection),
+            $this->events,
+            $this->exceptionHandler,
+            fn () => false,
+        );
+
+        $worker->runNextJob('default', 'high,low', new WorkerOptions);
+
+        $this->assertSame([
+            ['high', 0],
+            ['low', 1],
+        ], $connection->pops);
     }
 
     public function testExceptionIsReportedIfConnectionThrowsExceptionOnJobPop()
@@ -1593,6 +1615,19 @@ class WorkerFakeConnection implements Queue
     public function getConnectionName(): string
     {
         return $this->connectionName;
+    }
+}
+
+class WorkerFakeIndexAwareConnection extends WorkerFakeConnection implements IndexAwareQueue
+{
+    /** @var list<array{null|string, int}> */
+    public array $pops = [];
+
+    public function pop(?string $queue = null, int $index = 0): ?Job
+    {
+        $this->pops[] = [$queue, $index];
+
+        return parent::pop($queue);
     }
 }
 

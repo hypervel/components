@@ -73,11 +73,60 @@ class ConfigTest extends SentryTestCase
         $this->assertNull($this->app->make('config')->get('pools.sentry'));
     }
 
+    public function testLogsChannelLevelUsesCurrentEnvironmentNames(): void
+    {
+        $this->assertSame('warning', $this->withEnvironmentValues([
+            'SENTRY_LOG_LEVEL' => 'warning',
+            'SENTRY_LOGS_LEVEL' => 'error',
+            'LOG_LEVEL' => 'info',
+        ], fn (): string => $this->sentryConfig()['logs_channel_level']));
+
+        $this->assertSame('info', $this->withEnvironmentValues([
+            'SENTRY_LOG_LEVEL' => null,
+            'SENTRY_LOGS_LEVEL' => 'error',
+            'LOG_LEVEL' => 'info',
+        ], fn (): string => $this->sentryConfig()['logs_channel_level']));
+    }
+
     public function testRedisFeatureIsInDefaultFeaturesConfig(): void
     {
         $features = $this->app->make('config')->array('sentry.features');
 
         $this->assertContains(RedisFeature::class, $features);
+    }
+
+    public function testStorageTelemetryIsEnabledByDefault(): void
+    {
+        $config = $this->withEnvironmentValues([
+            'SENTRY_BREADCRUMBS_STORAGE_ENABLED' => null,
+            'SENTRY_TRACE_STORAGE_ENABLED' => null,
+        ], fn (): array => $this->sentryConfig());
+
+        $this->assertTrue($config['breadcrumbs']['storage']);
+        $this->assertTrue($config['tracing']['storage']);
+    }
+
+    public function testBooleanEnvironmentValuesAreNormalized(): void
+    {
+        $config = $this->withEnvironmentValues([
+            'SENTRY_STRICT_TRACE_CONTINUATION' => '1',
+            'SENTRY_ENABLE_METRICS' => '0',
+            'SENTRY_SEND_DEFAULT_PII' => '1',
+            'SENTRY_BREADCRUMBS_SQL_QUERIES_ENABLED' => '1',
+            'SENTRY_BREADCRUMBS_CACHE_ENABLED' => '1',
+            'SENTRY_TRACE_VIEWS_ENABLED' => '1',
+            'SENTRY_TRACE_REDIS_COMMANDS' => '1',
+            'SENTRY_TRACE_SQL_ORIGIN_THRESHOLD_MS' => '250',
+        ], fn (): array => $this->sentryConfig());
+
+        $this->assertTrue($config['strict_trace_continuation']);
+        $this->assertFalse($config['enable_metrics']);
+        $this->assertTrue($config['send_default_pii']);
+        $this->assertTrue($config['breadcrumbs']['sql_queries']);
+        $this->assertTrue($config['breadcrumbs']['cache']);
+        $this->assertTrue($config['tracing']['views']);
+        $this->assertTrue($config['tracing']['redis_commands']);
+        $this->assertSame(250, $config['tracing']['sql_origin_threshold_ms']);
     }
 
     public function testPoolWaitTimeoutDefaultIsSetForFastFail(): void
@@ -104,5 +153,13 @@ class ConfigTest extends SentryTestCase
         $reflection = new ReflectionProperty($transport, 'pool');
 
         return $reflection->getValue($transport);
+    }
+
+    /**
+     * Load the package configuration.
+     */
+    private function sentryConfig(): array
+    {
+        return require dirname(__DIR__, 2) . '/src/sentry/config/sentry.php';
     }
 }

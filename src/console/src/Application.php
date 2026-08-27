@@ -55,6 +55,9 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
      */
     protected bool $commandLoaderSet = false;
 
+    /**
+     * Create a new console application instance.
+     */
     public function __construct(
         protected ApplicationContract $container,
         protected Dispatcher $dispatcher,
@@ -534,17 +537,15 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     #[Override]
     protected function getDefaultInputDefinition(): InputDefinition
     {
-        return tap(parent::getDefaultInputDefinition(), function ($definition) {
+        return tap(parent::getDefaultInputDefinition(), function (InputDefinition $definition): void {
             $definition->addOption($this->getEnvironmentOption());
         });
     }
 
     /**
      * Get the global environment option for the definition.
-     *
-     * @return InputOption
      */
-    protected function getEnvironmentOption()
+    protected function getEnvironmentOption(): InputOption
     {
         return self::createEnvironmentOption();
     }

@@ -82,4 +82,29 @@ class ConfigTest extends ScoutTestCase
         // 5 models / chunk size 2 → 3 events (2+2+1)
         $this->assertSame(3, $eventCount);
     }
+
+    public function testOmittedChunkMembersUseTheDefaultChunkSize(): void
+    {
+        $this->app->make('config')->set('scout.chunk', []);
+
+        for ($i = 1; $i <= 5; ++$i) {
+            SearchableModel::create(['title' => "Model {$i}", 'body' => 'Content']);
+        }
+
+        $imported = 0;
+        $flushed = 0;
+        Event::listen(ModelsImported::class, function () use (&$imported): void {
+            ++$imported;
+        });
+        Event::listen(ModelsFlushed::class, function () use (&$flushed): void {
+            ++$flushed;
+        });
+
+        SearchableModel::makeAllSearchable();
+        SearchableModel::query()->unsearchable();
+        SearchableModel::waitForSearchableJobs();
+
+        $this->assertSame(1, $imported);
+        $this->assertSame(1, $flushed);
+    }
 }

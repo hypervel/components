@@ -87,7 +87,7 @@ trait PreventsCircularRecursion
     {
         static::getRecursionCache()->offsetSet(
             $object,
-            tap(static::getRecursiveCallStack($object), fn (&$stack) => $stack[$hash] = $value),
+            tap(static::getRecursiveCallStack($object), fn (array &$stack) => $stack[$hash] = $value),
         );
 
         return static::getRecursiveCallStack($object)[$hash];

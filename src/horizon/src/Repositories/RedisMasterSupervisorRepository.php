@@ -66,7 +66,11 @@ class RedisMasterSupervisorRepository implements MasterSupervisorRepository
 
         return collect($records)->map(function ($record) {
             return $record['name']
-                ? (object) array_merge($record, ['supervisors' => json_decode($record['supervisors'], true)])
+                ? (object) array_merge($record, [
+                    'supervisors' => json_decode($record['supervisors'], true),
+                    // Redis stores null hash values as empty strings.
+                    'environment' => $record['environment'] === '' ? null : $record['environment'],
+                ])
                 : null;
         })->filter()->all();
     }

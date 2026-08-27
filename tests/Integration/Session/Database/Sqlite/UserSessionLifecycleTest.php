@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Session\Database\Sqlite;
 
+use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Auth\SessionGuard;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -36,10 +37,20 @@ class UserSessionLifecycleTest extends TestCase
             'auth.guards.admin' => [
                 'driver' => 'session',
                 'provider' => 'admins',
+                'passwords' => null,
+                'password_timeout' => null,
+                'remember' => null,
             ],
             'auth.providers.admins' => [
                 'driver' => 'eloquent',
                 'model' => User::class,
+                'cache' => [
+                    'enabled' => false,
+                    'store' => null,
+                    'ttl' => 300,
+                    'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
+                    'tags' => null,
+                ],
             ],
             'auth.providers.users.model' => User::class,
             'hashing.bcrypt.rounds' => 4,

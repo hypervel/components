@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Prompts;
 
 use Closure;
-use RuntimeException;
+use InvalidArgumentException;
 
 class NumberPrompt extends Prompt
 {
     use Concerns\TypedValue;
+
+    private const string INTEGER_PATTERN = '/^[+-]?[0-9]+$/D';
 
     /**
      * Create a new NumberPrompt instance.
@@ -17,7 +19,7 @@ class NumberPrompt extends Prompt
     public function __construct(
         public string $label,
         public string $placeholder = '',
-        public string $default = '',
+        public int|string $default = '',
         public bool|string $required = false,
         public mixed $validate = null,
         public string $hint = '',
@@ -26,13 +28,15 @@ class NumberPrompt extends Prompt
         public ?int $max = null,
         public ?int $step = null,
     ) {
-        $this->trackTypedValue($default);
+        $this->trackTypedValue((string) $default);
 
         $this->step = max(1, $this->step ?? 1);
         $this->min ??= PHP_INT_MIN;
         $this->max ??= PHP_INT_MAX;
 
-        $this->validate = $this->wrapValidation($this->validate);
+        if ($this->min > $this->max) {
+            throw new InvalidArgumentException('The minimum value must not be greater than the maximum value.');
+        }
 
         $this->on('key', function (string $key) {
             match ($key) {
@@ -44,49 +48,78 @@ class NumberPrompt extends Prompt
     }
 
     /**
-     * Wrap the validation logic to include numeric checks.
+     * Parse a signed decimal integer.
      */
-    protected function wrapValidation(mixed $validate): callable
+    public static function parseInteger(string $value): ?int
     {
-        return function ($value) use ($validate) {
-            if ($value !== '' && ! is_numeric($value)) {
-                return 'Must be a number';
+        if (preg_match(self::INTEGER_PATTERN, $value) !== 1) {
+            return null;
+        }
+
+        $negative = $value[0] === '-';
+        $digits = ltrim(ltrim($value, '+-'), '0');
+
+        if ($digits === '') {
+            return 0;
+        }
+
+        $limit = $negative ? ltrim((string) PHP_INT_MIN, '-') : (string) PHP_INT_MAX;
+
+        if (strlen($digits) > strlen($limit)
+            || (strlen($digits) === strlen($limit) && strcmp($digits, $limit) > 0)) {
+            return null;
+        }
+
+        return (int) $value;
+    }
+
+    // REMOVED: Laravel's wrapValidation() conflicts with centralized intrinsic validation.
+    // Override validateIntrinsic() instead.
+
+    /**
+     * Validate rules intrinsic to the number prompt.
+     */
+    public function validateIntrinsic(mixed $value): ?string
+    {
+        if ($value === '' || $value === null) {
+            return null;
+        }
+
+        if (is_int($value)) {
+            return $this->validateBounds($value);
+        }
+
+        if (is_string($value)) {
+            $integer = static::parseInteger($value);
+
+            if ($integer !== null) {
+                return $this->validateBounds($integer);
             }
 
-            if (is_numeric($value)) {
-                if ($value < $this->min) {
-                    return 'Must be at least ' . $this->min;
-                }
-
-                if ($value > $this->max) {
-                    return 'Must be less than ' . $this->max;
-                }
+            if (preg_match(self::INTEGER_PATTERN, $value) === 1) {
+                return $value[0] === '-'
+                    ? 'Must be at least ' . $this->min
+                    : 'Must be at most ' . $this->max;
             }
+        }
 
-            $validateUsing = static::getValidateUsing();
+        return 'Must be an integer';
+    }
 
-            if (! $validate && $validateUsing === null) {
-                return null;
-            }
+    /**
+     * Validate the integer against the configured bounds.
+     */
+    private function validateBounds(int $value): ?string
+    {
+        if ($value < $this->min) {
+            return 'Must be at least ' . $this->min;
+        }
 
-            if (is_callable($validate)) {
-                return $validate($value);
-            }
+        if ($value > $this->max) {
+            return 'Must be at most ' . $this->max;
+        }
 
-            if ($validateUsing !== null) {
-                $wrappedValidate = $this->validate;
-                // Expose the original rules while the generic validator reads $prompt->validate.
-                $this->validate = $validate;
-
-                try {
-                    return $validateUsing($this);
-                } finally {
-                    $this->validate = $wrappedValidate;
-                }
-            }
-
-            throw new RuntimeException('The validation logic is missing.');
-        };
+        return null;
     }
 
     /**
@@ -95,20 +128,19 @@ class NumberPrompt extends Prompt
     protected function increaseValue(): void
     {
         if ($this->typedValue === '') {
-            $this->typedValue = (string) ($this->min === PHP_INT_MIN ? 1 : $this->min);
-            ++$this->cursorPosition;
+            $value = $this->min === PHP_INT_MIN ? 1 : $this->min;
+            $this->typedValue = (string) min($this->max, max($this->min, $value));
+            $this->cursorPosition = mb_strlen($this->typedValue);
 
             return;
         }
 
-        if (is_numeric($this->typedValue)) {
-            $previousValueLength = mb_strlen($this->typedValue);
+        $value = static::parseInteger($this->typedValue);
 
-            $this->typedValue = (string) min($this->max, (int) $this->typedValue + $this->step);
-
-            if (mb_strlen($this->typedValue) > $previousValueLength) {
-                ++$this->cursorPosition;
-            }
+        if ($value !== null) {
+            $value = $value > PHP_INT_MAX - $this->step ? PHP_INT_MAX : $value + $this->step;
+            $this->typedValue = (string) min($this->max, $value);
+            $this->cursorPosition = mb_strlen($this->typedValue);
         }
     }
 
@@ -118,20 +150,19 @@ class NumberPrompt extends Prompt
     protected function decreaseValue(): void
     {
         if ($this->typedValue === '') {
-            $this->typedValue = (string) ($this->max === PHP_INT_MAX ? 0 : $this->max);
-            ++$this->cursorPosition;
+            $value = $this->max === PHP_INT_MAX ? 0 : $this->max;
+            $this->typedValue = (string) min($this->max, max($this->min, $value));
+            $this->cursorPosition = mb_strlen($this->typedValue);
 
             return;
         }
 
-        if (is_numeric($this->typedValue)) {
-            $previousValueLength = mb_strlen($this->typedValue);
+        $value = static::parseInteger($this->typedValue);
 
-            $this->typedValue = (string) max($this->min, (int) $this->typedValue - $this->step);
-
-            if (mb_strlen($this->typedValue) < $previousValueLength) {
-                --$this->cursorPosition;
-            }
+        if ($value !== null) {
+            $value = $value < PHP_INT_MIN + $this->step ? PHP_INT_MIN : $value - $this->step;
+            $this->typedValue = (string) max($this->min, $value);
+            $this->cursorPosition = mb_strlen($this->typedValue);
         }
     }
 
@@ -140,11 +171,9 @@ class NumberPrompt extends Prompt
      */
     public function value(): int|string
     {
-        if (is_numeric($this->typedValue)) {
-            return (int) $this->typedValue;
-        }
+        $value = static::parseInteger($this->typedValue);
 
-        return $this->typedValue;
+        return $value ?? $this->typedValue;
     }
 
     /**
@@ -152,10 +181,10 @@ class NumberPrompt extends Prompt
      */
     public function valueWithCursor(int $maxWidth): string
     {
-        if ($this->value() === '') {
+        if ($this->typedValue === '') {
             return $this->dim($this->addCursor($this->placeholder, 0, $maxWidth));
         }
 
-        return $this->addCursor((string) $this->value(), $this->cursorPosition, $maxWidth);
+        return $this->addCursor($this->typedValue, $this->cursorPosition, $maxWidth);
     }
 }

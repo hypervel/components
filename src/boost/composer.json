@@ -1,7 +1,7 @@
 {
     "name": "hypervel/boost",
     "type": "library",
-    "description": "AI agent tools and guidelines for Hypervel applications.",
+    "description": "Reserved package for future Hypervel AI tooling.",
     "license": "MIT",
     "keywords": [
         "php",

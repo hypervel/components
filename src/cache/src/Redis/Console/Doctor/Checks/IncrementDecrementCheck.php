@@ -15,11 +15,17 @@ use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
  */
 final class IncrementDecrementCheck implements CheckInterface
 {
+    /**
+     * Get the human-readable name of this check.
+     */
     public function name(): string
     {
         return 'Increment/Decrement Operations';
     }
 
+    /**
+     * Run the check and return results.
+     */
     public function run(DoctorContext $context): CheckResult
     {
         $result = new CheckResult;
@@ -76,6 +82,9 @@ final class IncrementDecrementCheck implements CheckInterface
         return $result;
     }
 
+    /**
+     * Test tag expiration metadata in any-tag mode.
+     */
     private function testAnyModeHashTtl(DoctorContext $context, CheckResult $result): void
     {
         // Verify hash field has no expiration for non-TTL key
@@ -86,16 +95,19 @@ final class IncrementDecrementCheck implements CheckInterface
         );
     }
 
+    /**
+     * Test tag expiration metadata in all-tags mode.
+     */
     private function testAllMode(DoctorContext $context, CheckResult $result): void
     {
         // Verify ZSET entry exists for incremented key
         $counterTag = $context->prefixed('counters');
-        $incrKey = $context->prefixed('incr:new');
+        $incrementKey = $context->prefixed('incr:new');
 
         $tagSetKey = $context->tagHashKey($counterTag);
 
         // Compute namespaced key using central source of truth
-        $namespacedKey = $context->namespacedKey([$counterTag], $incrKey);
+        $namespacedKey = $context->namespacedKey([$counterTag], $incrementKey);
 
         // Verify ZSET entry exists
         // Note: increment on non-existent key creates with no TTL, so score should be -1

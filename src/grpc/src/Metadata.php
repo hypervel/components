@@ -51,10 +51,6 @@ final class Metadata implements Countable, IteratorAggregate
         $normalized = [];
 
         foreach ($values as $key => $rawValues) {
-            if (! is_string($key)) {
-                throw new InvalidArgumentException('gRPC metadata keys must be strings.');
-            }
-
             $key = self::normalizeKey($key);
             $rawValues = is_array($rawValues) ? $rawValues : [$rawValues];
 
@@ -200,8 +196,13 @@ final class Metadata implements Countable, IteratorAggregate
     /**
      * Normalize and validate a metadata key.
      */
-    private static function normalizeKey(string $key): string
+    private static function normalizeKey(int|string $key): string
     {
+        // PHP array keys may already be integers, so guard them before the string-only regex.
+        if (is_int($key) || preg_match('/^-?[0-9]+$/D', $key) === 1) {
+            throw new InvalidArgumentException('gRPC metadata keys cannot be purely numeric.');
+        }
+
         $key = strtolower($key);
 
         if (preg_match('/^[0-9a-z_.-]+$/D', $key) !== 1) {

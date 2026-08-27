@@ -206,7 +206,7 @@ class RateLimiter extends MultipleInstanceManager
     protected function createDatabaseDriver(array $config): Store
     {
         $connection = $config['connection'] ?? null;
-        $table = $config['table'] ?? null;
+        $table = $config['table'];
 
         if ($connection !== null && (! is_string($connection) || $connection === '')) {
             throw new InvalidArgumentException('The rate limiter database connection must be null or a non-empty string.');
@@ -228,7 +228,7 @@ class RateLimiter extends MultipleInstanceManager
      */
     protected function createRedisDriver(array $config): Store
     {
-        $connection = $config['connection'] ?? null;
+        $connection = $config['connection'];
 
         if (! is_string($connection) || $connection === '') {
             throw new InvalidArgumentException('The rate limiter Redis connection must be a non-empty string.');
@@ -246,7 +246,7 @@ class RateLimiter extends MultipleInstanceManager
     protected function createSwooleDriver(array $config): Store
     {
         $name = $config['name'] ?? null;
-        $memoryLimitBuffer = $config['memory_limit_buffer'] ?? null;
+        $memoryLimitBuffer = $config['memory_limit_buffer'] ?? 0.05;
 
         if (! is_string($name) || $name === '') {
             throw new InvalidArgumentException(

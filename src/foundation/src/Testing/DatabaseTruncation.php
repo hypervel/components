@@ -5,14 +5,23 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing;
 
 use Hypervel\Contracts\Console\Kernel;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\PdoConnection;
+use Hypervel\Database\SQLiteDatabase;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
 use Hypervel\Foundation\Testing\Traits\CanConfigureMigrationCommands;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use LogicException;
 
+/**
+ * This concern is mutually exclusive with RefreshDatabase and DatabaseMigrations.
+ */
 trait DatabaseTruncation
 {
     use CanConfigureMigrationCommands;
+    use InteractsWithParallelDatabase;
 
     /**
      * The cached names of the database tables for each connection.
@@ -24,6 +33,9 @@ trait DatabaseTruncation
      */
     protected function truncateDatabaseTables(): void
     {
+        $this->ensureParallelDatabaseExists();
+        $this->restoreInMemoryDatabases();
+
         $this->beforeTruncatingDatabase();
 
         // Migrate and seed the database on first run...
@@ -31,6 +43,8 @@ trait DatabaseTruncation
             $this->artisan('migrate:fresh', $this->migrateFreshUsing());
 
             $this->app->make(Kernel::class)->setArtisan(null);
+
+            $this->cacheInMemoryDatabases();
 
             RefreshDatabaseState::$migrated = true;
 
@@ -49,6 +63,86 @@ trait DatabaseTruncation
         }
 
         $this->afterTruncatingDatabase();
+    }
+
+    /**
+     * Restore the in-memory databases between tests.
+     */
+    protected function restoreInMemoryDatabases(): void
+    {
+        if (RefreshDatabaseState::$inMemoryConnections === []) {
+            return;
+        }
+
+        $database = $this->app->make('db');
+        $defaultConnection = $this->app->make('config')->string('database.default');
+
+        foreach ($this->connectionsToTruncate() as $name) {
+            $connectionName = $name ?? $defaultConnection;
+
+            if (isset(RefreshDatabaseState::$inMemoryConnections[$connectionName])) {
+                // The PDO outlives its original application; the dispatcher must not.
+                $connection = $database->connection($name);
+
+                if (! $connection instanceof PdoConnection) {
+                    throw new LogicException('In-memory SQLite database testing requires a PDO-backed connection.');
+                }
+
+                $connection
+                    ->setPdo(RefreshDatabaseState::$inMemoryConnections[$connectionName])
+                    ->setEventDispatcher($this->app->make(Dispatcher::class));
+            }
+        }
+    }
+
+    /**
+     * Cache the in-memory databases after migration.
+     */
+    protected function cacheInMemoryDatabases(): void
+    {
+        $database = $this->app->make('db');
+        $config = $this->app->make('config');
+        $defaultConnection = $config->string('database.default');
+
+        foreach ($this->connectionsToTruncate() as $name) {
+            if ($this->usingInMemoryDatabaseForTruncation($name)) {
+                $connectionName = $name ?? $defaultConnection;
+                $connection = $database->connection($name);
+
+                if (! $connection instanceof PdoConnection) {
+                    throw new LogicException('In-memory SQLite database testing requires a PDO-backed connection.');
+                }
+
+                RefreshDatabaseState::$inMemoryConnections[$connectionName] = $connection->getPdo();
+            }
+        }
+    }
+
+    /**
+     * Determine if any connection being truncated uses an in-memory database.
+     */
+    protected function usingInMemoryDatabasesForTruncation(): bool
+    {
+        foreach ($this->connectionsToTruncate() as $name) {
+            if ($this->usingInMemoryDatabaseForTruncation($name)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Determine if the given connection uses an in-memory database.
+     */
+    protected function usingInMemoryDatabaseForTruncation(?string $name): bool
+    {
+        $config = $this->app->make('config');
+        $name ??= $config->string('database.default');
+        $configuration = $config->get("database.connections.{$name}");
+
+        return is_array($configuration)
+            && SQLiteDatabase::isInMemoryConfiguration($configuration);
     }
 
     /**
@@ -151,10 +245,8 @@ trait DatabaseTruncation
      */
     protected function exceptTables(ConnectionInterface $connection, ?string $connectionName): array
     {
-        $migrations = $this->app->make('config')->get('database.migrations');
-
-        $migrationsTable = is_array($migrations) ? ($migrations['table'] ?? 'migrations') : $migrations;
-        $migrationsTable = $connection->getTablePrefix() . $migrationsTable;
+        $migrationsTable = $connection->getTablePrefix()
+            . $this->app->make('config')->string('database.migrations.table');
 
         return property_exists($this, 'exceptTables') && is_array($this->exceptTables)
             ? array_merge(

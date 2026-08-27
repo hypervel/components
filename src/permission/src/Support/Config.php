@@ -12,6 +12,7 @@ use Hypervel\Permission\Contracts\Wildcard;
 use Hypervel\Permission\Exceptions\TeamModelNotConfigured;
 use Hypervel\Permission\Exceptions\TeamsNotEnabled;
 use Hypervel\Permission\PermissionRegistrar;
+use Hypervel\Permission\WildcardPermission;
 
 class Config
 {
@@ -165,7 +166,7 @@ class Config
      */
     public static function eventsEnabled(): bool
     {
-        return self::repository()->boolean('permission.events_enabled');
+        return self::repository()->boolean('permission.events_enabled', false);
     }
 
     /**
@@ -173,7 +174,7 @@ class Config
      */
     public static function usePassportClientCredentials(): bool
     {
-        return self::repository()->boolean('permission.use_passport_client_credentials');
+        return self::repository()->boolean('permission.use_passport_client_credentials', false);
     }
 
     /**
@@ -181,7 +182,7 @@ class Config
      */
     public static function displayRoleInException(): bool
     {
-        return self::repository()->boolean('permission.display_role_in_exception');
+        return self::repository()->boolean('permission.display_role_in_exception', false);
     }
 
     /**
@@ -189,7 +190,7 @@ class Config
      */
     public static function displayPermissionInException(): bool
     {
-        return self::repository()->boolean('permission.display_permission_in_exception');
+        return self::repository()->boolean('permission.display_permission_in_exception', false);
     }
 
     /**
@@ -197,7 +198,7 @@ class Config
      */
     public static function wildcardPermissionsEnabled(): bool
     {
-        return self::repository()->boolean('permission.enable_wildcard_permission');
+        return self::repository()->boolean('permission.enable_wildcard_permission', false);
     }
 
     /**
@@ -205,6 +206,6 @@ class Config
      */
     public static function wildcardPermissionClass(): string
     {
-        return self::repository()->string('permission.wildcard_permission');
+        return self::repository()->string('permission.wildcard_permission', WildcardPermission::class);
     }
 }

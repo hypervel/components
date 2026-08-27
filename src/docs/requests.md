@@ -953,7 +953,7 @@ If you need to access your application's configuration files or database to dete
 use Hypervel\Foundation\Configuration\Middleware;
 
 ->withMiddleware(function (Middleware $middleware): void {
-    $middleware->trustHosts(at: fn () => config('app.trusted_hosts'));
+    $middleware->trustHosts(at: fn () => config()->array('app.trusted_hosts'));
 })
 ```
 

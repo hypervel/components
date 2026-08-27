@@ -36,22 +36,9 @@ class JwtManager extends Manager implements ManagerContract
     ) {
         parent::__construct($container);
 
-        $this->reloadConfiguration();
-    }
-
-    /**
-     * Reload configuration-derived manager state.
-     *
-     * Boot-only. Mutates the worker-shared manager while concurrent coroutines
-     * may still use drivers and validations built from previous configuration.
-     */
-    public function reloadConfiguration(): void
-    {
-        $this->forgetDrivers();
-        $this->validations = [];
         $this->blacklistEnabled = $this->config->boolean('jwt.blacklist_enabled');
         $this->blacklist = $this->blacklistEnabled
-            ? $this->container->make(BlacklistContract::class)
+            ? $container->make(BlacklistContract::class)
             : null;
     }
 

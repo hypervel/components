@@ -34,11 +34,20 @@ class Option
      */
     public static function fromConfig(array $config, string $basePath, array $extraPaths = []): static
     {
-        $rawPaths = array_unique(array_merge($config['watch'] ?? [], $extraPaths));
+        $rawPaths = array_merge($config['watch'] ?? [], $extraPaths);
+
+        if ($rawPaths === []) {
+            throw new InvalidArgumentException('The watcher requires at least one watch path.');
+        }
+
+        $normalizedPaths = [];
+        foreach ($rawPaths as $rawPath) {
+            $normalizedPaths[self::normalizeEntry($rawPath)] = true;
+        }
 
         $watchPaths = array_map(
             fn (string $entry) => self::parseEntry($entry, $basePath),
-            array_values($rawPaths),
+            array_keys($normalizedPaths),
         );
 
         return new static(
@@ -46,6 +55,29 @@ class Option
             watchPaths: $watchPaths,
             scanInterval: $config['scan_interval'] ?? self::DEFAULT_SCAN_INTERVAL,
         );
+    }
+
+    /**
+     * Normalize a watch config entry.
+     */
+    protected static function normalizeEntry(string $entry): string
+    {
+        if ($entry === '') {
+            throw new InvalidArgumentException('Watcher paths must not be empty.');
+        }
+
+        if (str_starts_with($entry, '/')) {
+            throw new InvalidArgumentException('Watcher paths must be relative to the application base path.');
+        }
+
+        $segments = [];
+        foreach (explode('/', $entry) as $segment) {
+            if ($segment !== '' && $segment !== '.') {
+                $segments[] = $segment;
+            }
+        }
+
+        return $segments === [] ? '.' : implode('/', $segments);
     }
 
     /**
@@ -70,11 +102,13 @@ class Option
     protected static function parseGlob(string $glob): WatchPath
     {
         preg_match('/[*?{\[]/', $glob, $matches, PREG_OFFSET_CAPTURE);
-        $wildcardPos = $matches[0][1];
-        $baseDir = rtrim(substr($glob, 0, $wildcardPos), '/');
+        $wildcardPosition = $matches[0][1];
+        $prefix = substr($glob, 0, $wildcardPosition);
+        $slashPosition = strrpos($prefix, '/');
+        $baseDirectory = $slashPosition === false ? '.' : substr($prefix, 0, $slashPosition);
 
         return new WatchPath(
-            path: $baseDir ?: '.',
+            path: $baseDirectory,
             type: WatchPathType::Directory,
             pattern: $glob,
         );
@@ -99,7 +133,7 @@ class Option
     {
         return array_values(array_filter(
             $this->watchPaths,
-            fn (WatchPath $p) => $p->type === WatchPathType::Directory,
+            fn (WatchPath $watchPath) => $watchPath->type === WatchPathType::Directory,
         ));
     }
 
@@ -112,7 +146,7 @@ class Option
     {
         return array_values(array_filter(
             $this->watchPaths,
-            fn (WatchPath $p) => $p->type === WatchPathType::File,
+            fn (WatchPath $watchPath) => $watchPath->type === WatchPathType::File,
         ));
     }
 

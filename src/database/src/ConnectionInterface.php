@@ -11,7 +11,6 @@ use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Query\Grammars\Grammar as QueryGrammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\Schema\Builder as SchemaBuilder;
-use PDO;
 use Throwable;
 use UnitEnum;
 
@@ -26,6 +25,11 @@ interface ConnectionInterface
      * Get a new raw query expression.
      */
     public function raw(mixed $value): Expression;
+
+    /**
+     * Escape a value for safe SQL embedding.
+     */
+    public function escape(mixed $value, bool $binary = false): string;
 
     /**
      * Run a select statement and return a single result.
@@ -57,6 +61,11 @@ interface ConnectionInterface
     public function insert(string $query, array $bindings = []): bool;
 
     /**
+     * Get the last insert ID.
+     */
+    public function getLastInsertId(?string $sequence = null): int|string;
+
+    /**
      * Run an update statement against the database.
      */
     public function update(string $query, array $bindings = []): int;
@@ -77,7 +86,7 @@ interface ConnectionInterface
     public function affectingStatement(string $query, array $bindings = []): int;
 
     /**
-     * Run a raw, unprepared query against the PDO connection.
+     * Run a raw, unprepared query against the connection.
      */
     public function unprepared(string $query): bool;
 
@@ -119,6 +128,11 @@ interface ConnectionInterface
      * @phpstan-impure
      */
     public function transactionLevel(): int;
+
+    /**
+     * Determine whether the connection has an active physical transaction.
+     */
+    public function inTransaction(): bool;
 
     /**
      * Execute the given callback in "dry run" mode.
@@ -176,11 +190,6 @@ interface ConnectionInterface
     public function getPostProcessor(): Processor;
 
     /**
-     * Get the current PDO connection.
-     */
-    public function getPdo(): PDO;
-
-    /**
      * Get the table prefix for the connection.
      */
     public function getTablePrefix(): string;
@@ -206,7 +215,7 @@ interface ConnectionInterface
     public function recordsHaveBeenModified(bool $value = true): void;
 
     /**
-     * Disconnect from the underlying PDO connection.
+     * Disconnect from the underlying driver resources.
      */
     public function disconnect(): void;
 }

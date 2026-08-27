@@ -5,14 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Notifications;
 
 use Hypervel\Context\CoroutineContext;
-use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Contracts\Notifications\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Notifications\Factory as FactoryContract;
-use Hypervel\Notifications\Channels\MailChannel;
 use Hypervel\Notifications\Events\NotificationFailed;
 use Hypervel\Support\ServiceProvider;
 
-class NotificationServiceProvider extends ServiceProvider implements ReloadsConfiguration
+class NotificationServiceProvider extends ServiceProvider
 {
     /**
      * Register the service provider.
@@ -25,21 +23,6 @@ class NotificationServiceProvider extends ServiceProvider implements ReloadsConf
         $this->commands([
             Console\NotificationTableCommand::class,
         ]);
-    }
-
-    /**
-     * Reload configuration-derived worker state.
-     *
-     * Boot-only. Request-time use clears shared notification channels while
-     * concurrent coroutines may still be using them.
-     */
-    public function reloadConfiguration(): void
-    {
-        if ($this->app->resolved(ChannelManager::class)) {
-            $this->app->make(ChannelManager::class)->forgetDrivers();
-        }
-
-        $this->app->forgetInstance(MailChannel::class);
     }
 
     /**

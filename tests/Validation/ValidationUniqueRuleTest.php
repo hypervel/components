@@ -145,6 +145,34 @@ class ValidationUniqueRuleTest extends TestCase
         $this->assertSame('unique:table,column,NULL,id_column,foo,"bar"', (string) $rule);
     }
 
+    public function testItPreservesZeroIgnoredIds(): void
+    {
+        $this->assertSame(
+            'unique:table,column,"0",id',
+            (string) (new Unique('table', 'column'))->ignore(0),
+        );
+        $this->assertSame(
+            'unique:table,column,"0",id',
+            (string) (new Unique('table', 'column'))->ignore('0'),
+        );
+        $this->assertSame(
+            'unique:table,column,"0",id',
+            (string) (new Unique('table', 'column'))->ignore(0.0),
+        );
+    }
+
+    public function testItNormalizesBooleanWhereValues(): void
+    {
+        $this->assertSame(
+            'unique:table,column,NULL,id,active,"0"',
+            (string) (new Unique('table', 'column'))->where('active', false),
+        );
+        $this->assertSame(
+            'unique:table,column,NULL,id,active,"!0"',
+            (string) (new Unique('table', 'column'))->whereNot('active', false),
+        );
+    }
+
     public function testItHandlesWhereWithSpecialValues()
     {
         $rule = new Unique('table', 'column');

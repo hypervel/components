@@ -178,7 +178,7 @@ class PendingRequest
      */
     public function withResource(string $resource): static
     {
-        if (! is_a($resource, ApiResource::class, true)) { // @phpstan-ignore function.alreadyNarrowedType (validates PHPDoc contract at runtime)
+        if (! is_a($resource, ApiResource::class, true)) {
             throw new InvalidArgumentException(
                 sprintf('Resource class `%s` must be `%s` or a subclass.', $resource, ApiResource::class)
             );

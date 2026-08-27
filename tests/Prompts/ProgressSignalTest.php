@@ -14,6 +14,8 @@ use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use ReflectionProperty;
 use RuntimeException;
 
+use function Hypervel\Coroutine\run;
+
 class ProgressSignalTest extends TestCase
 {
     protected bool $runTestsInCoroutine = false;
@@ -110,5 +112,32 @@ class ProgressSignalTest extends TestCase
         $this->assertSame(0, pcntl_wexitstatus($status));
         $this->assertFileExists($observationPath);
         $this->assertSame('1:1:1:1:0', file_get_contents($observationPath));
+    }
+
+    #[RunInSeparateProcess]
+    public function testCoroutineProgressLeavesProcessSignalStateUntouched(): void
+    {
+        Prompt::fake();
+        $previousHandler = static function (): void {
+        };
+
+        pcntl_signal(SIGINT, $previousHandler);
+        pcntl_async_signals(false);
+
+        run(function () use ($previousHandler): void {
+            $progress = new Progress('Working', 1);
+            $progress->start();
+
+            $this->assertSame($previousHandler, pcntl_signal_get_handler(SIGINT));
+            $this->assertFalse(pcntl_async_signals());
+
+            $progress->finish();
+
+            $this->assertSame($previousHandler, pcntl_signal_get_handler(SIGINT));
+            $this->assertFalse(pcntl_async_signals());
+        });
+
+        $this->assertSame($previousHandler, pcntl_signal_get_handler(SIGINT));
+        $this->assertFalse(pcntl_async_signals());
     }
 }

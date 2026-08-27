@@ -11,18 +11,16 @@ trait Erase
      */
     public function eraseLines(int $count): void
     {
-        if (! static::output()->isDecorated()) {
+        if ($count <= 0 || ! static::output()->isDecorated()) {
             return;
         }
 
         $clear = '';
         for ($i = 0; $i < $count; ++$i) {
-            $clear .= "\e[2K" . ($i < $count - 1 ? "\e[{$count}A" : '');
+            $clear .= "\e[2K" . ($i < $count - 1 ? "\e[1A" : '');
         }
 
-        if ($count) {
-            $clear .= "\e[G";
-        }
+        $clear .= "\e[G";
 
         static::writeDirectly($clear);
     }

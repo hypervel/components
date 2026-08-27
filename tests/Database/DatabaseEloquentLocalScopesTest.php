@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\DatabaseEloquentLocalScopesTest;
 
+use BadMethodCallException;
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Testbench\TestCase;
 
@@ -57,6 +59,20 @@ class DatabaseEloquentLocalScopesTest extends TestCase
         $this->assertEquals([true, 'foo'], $query->getBindings());
     }
 
+    public function testPrivateLegacyScopeIsNotDispatched(): void
+    {
+        $this->expectException(BadMethodCallException::class);
+
+        (new ScopedModel)->newQuery()->hidden();
+    }
+
+    public function testScopePrefixedMethodIsNotDispatched(): void
+    {
+        $this->expectException(BadMethodCallException::class);
+
+        (new ScopedModel)->newQuery()->d();
+    }
+
     public function testLocalScopeNestingDoesntDoubleFirstWhereClauseNegation()
     {
         $model = new ScopedModel;
@@ -96,5 +112,14 @@ class ScopedModel extends Model
     public function scopeType($query, $type)
     {
         $query->where('type', $type);
+    }
+
+    public static function scoped(array $attributes): string
+    {
+        return 'scoped';
+    }
+
+    private function scopeHidden(Builder $query): void
+    {
     }
 }

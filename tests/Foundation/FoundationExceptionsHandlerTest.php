@@ -1261,7 +1261,10 @@ class FoundationExceptionsHandlerTest extends TestCase
     protected function getConfig(array $config = []): Repository
     {
         return new Repository(array_merge([
-            'app' => ['url' => 'http://localhost'],
+            'app' => [
+                'debug' => false,
+                'url' => 'http://localhost',
+            ],
             'rate-limiter' => [
                 'default' => 'worker-array',
                 'stores' => [

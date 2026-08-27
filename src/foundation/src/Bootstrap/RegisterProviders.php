@@ -49,7 +49,6 @@ class RegisterProviders
             }
         }
 
-        // Providers are installed in the master, so replay its final topology rather than recomputing it in replacement workers.
         $app->make('config')->set(
             'app.providers',
             array_merge(

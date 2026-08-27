@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Database\Schema;
 
 use Hypervel\Database\Connection;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Support\Collection;
+use LogicException;
 use Override;
 
 class SqliteSchemaState extends SchemaState
@@ -55,6 +57,10 @@ class SqliteSchemaState extends SchemaState
         $database = $this->connection->getDatabaseName();
 
         if (SQLiteDatabase::isInMemory($database)) {
+            if (! $this->connection instanceof PdoConnection) {
+                throw new LogicException('In-memory SQLite schema loading requires a PDO-backed connection.');
+            }
+
             $this->connection->getPdo()->exec($this->files->get($path));
 
             return;

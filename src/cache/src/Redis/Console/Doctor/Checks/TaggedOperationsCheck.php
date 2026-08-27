@@ -17,11 +17,17 @@ use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
  */
 final class TaggedOperationsCheck implements CheckInterface
 {
+    /**
+     * Get the human-readable name of this check.
+     */
     public function name(): string
     {
         return 'Tagged Cache Operations';
     }
 
+    /**
+     * Run the check and return results.
+     */
     public function run(DoctorContext $context): CheckResult
     {
         $result = new CheckResult;
@@ -41,10 +47,10 @@ final class TaggedOperationsCheck implements CheckInterface
             $this->testAnyMode($context, $result, $tag, $key);
         } else {
             // All mode: key is namespaced with xxh128 of tags
-            // Direct get without tags will NOT find the item
+            // Direct get without tags will not find the item
             $result->assert(
                 $context->cache->get($key) === null,
-                'Tagged item NOT retrievable without tags (namespace differs)'
+                'Tagged item not retrievable without tags (namespace differs)'
             );
             $this->testAllMode($context, $result, $tag, $key);
         }
@@ -68,6 +74,9 @@ final class TaggedOperationsCheck implements CheckInterface
         return $result;
     }
 
+    /**
+     * Test tagged operations in any-tag mode.
+     */
     private function testAnyMode(DoctorContext $context, CheckResult $result, string $tag, string $key): void
     {
         // Verify hash structure exists
@@ -90,6 +99,9 @@ final class TaggedOperationsCheck implements CheckInterface
         );
     }
 
+    /**
+     * Test tagged operations in all-tags mode.
+     */
     private function testAllMode(DoctorContext $context, CheckResult $result, string $tag, string $key): void
     {
         // In all mode, get() on tagged cache works

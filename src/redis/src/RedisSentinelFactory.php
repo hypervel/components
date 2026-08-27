@@ -29,8 +29,8 @@ class RedisSentinelFactory
      */
     public function resolveMaster(array $config): array
     {
-        $sentinel = $config['sentinel'] ?? [];
-        $nodes = $sentinel['nodes'] ?? [];
+        $sentinel = $config['sentinel'];
+        $nodes = $sentinel['nodes'];
         $failures = [];
 
         shuffle($nodes);
@@ -62,25 +62,25 @@ class RedisSentinelFactory
                         ? "{$resolved['scheme']}://{$resolved['host']}"
                         : $resolved['host'],
                     'port' => (int) $resolved['port'],
-                    'connectTimeout' => (float) ($sentinel['timeout'] ?? 0),
-                    'readTimeout' => (float) ($sentinel['read_timeout'] ?? 0),
+                    'connectTimeout' => $sentinel['timeout'],
+                    'readTimeout' => $sentinel['read_timeout'],
                 ];
-                $context = $sentinel['context'] ?? [];
-                $password = $sentinel['password'] ?? null;
+                $context = $sentinel['context'];
+                $password = $sentinel['password'];
 
                 if ($context !== []) {
                     $options['ssl'] = $this->normalizeContext($context);
                 }
 
                 if ($password !== null && $password !== '') {
-                    $username = $sentinel['username'] ?? null;
+                    $username = $sentinel['username'];
                     $options['auth'] = $username !== null && $username !== '' && is_string($password)
                         ? [$username, $password]
                         : $password;
                 }
 
                 $master = $this->create($options)->getMasterAddrByName(
-                    (string) ($sentinel['master_name'] ?? '')
+                    $sentinel['master_name']
                 );
 
                 if (is_array($master)
@@ -99,7 +99,7 @@ class RedisSentinelFactory
 
         throw new InvalidRedisConnectionException(sprintf(
             'Unable to resolve Redis master [%s] from Sentinel nodes: %s.',
-            $sentinel['master_name'] ?? '',
+            $sentinel['master_name'],
             implode('; ', $failures),
         ));
     }

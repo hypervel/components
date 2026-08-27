@@ -6,6 +6,8 @@ namespace Hypervel\Coroutine;
 
 use Closure;
 use Hypervel\Container\Container;
+use Hypervel\Coroutine\Exceptions\ChildTerminationTimeoutException;
+use Hypervel\Coroutine\Exceptions\WaitTimeoutException;
 use RuntimeException;
 use Swoole\Runtime;
 
@@ -14,7 +16,9 @@ use Swoole\Runtime;
  * @param int $concurrent if $concurrent is equal to 0, that means unlimited
  * @param array<string>|bool $copyContext When set, parent coroutine context is copied to each child.
  *                                        false = fresh context (default), true or empty array = copy all keys, non-empty array = copy listed keys only.
- *                                        Object values are shared by reference unless they implement Hypervel\Context\ReplicableContext.
+ *                                        Objects stored directly in context are shared by reference by default. Values implementing
+ *                                        Hypervel\Context\ReplicableContext are copied via replicate(), while values implementing
+ *                                        Hypervel\Context\NonCopyableContext are omitted.
  */
 function parallel(array $callables, int $concurrent = 0, bool|array $copyContext = false): array
 {
@@ -31,20 +35,31 @@ function parallel(array $callables, int $concurrent = 0, bool|array $copyContext
  * @param Closure():TReturn $closure
  * @param array<string>|bool $copyContext When set, parent coroutine context is copied to the child.
  *                                        false = fresh context (default), true or empty array = copy all keys, non-empty array = copy listed keys only.
- *                                        Object values are shared by reference unless they implement Hypervel\Context\ReplicableContext.
+ *                                        Objects stored directly in context are shared by reference by default. Values implementing
+ *                                        Hypervel\Context\ReplicableContext are copied via replicate(), while values implementing
+ *                                        Hypervel\Context\NonCopyableContext are omitted.
+ * @param bool $waitForChildTermination Wait without a limit when a cancelled child exceeds the cleanup allowance
  * @return TReturn
+ * @throws WaitTimeoutException When the wait times out
+ * @throws ChildTerminationTimeoutException When a cancelled child outlives the cleanup allowance in strict mode
  */
-function wait(Closure $closure, ?float $timeout = null, bool|array $copyContext = false): mixed
-{
+function wait(
+    Closure $closure,
+    ?float $timeout = null,
+    bool|array $copyContext = false,
+    bool $waitForChildTermination = false,
+): mixed {
     return Container::getInstance()
         ->make(Waiter::class)
-        ->wait($closure, $timeout, $copyContext);
+        ->wait($closure, $timeout, $copyContext, $waitForChildTermination);
 }
 
 /**
  * @param array<string>|bool $copyContext When set, parent coroutine context is copied to the child.
  *                                        false = fresh context (default), true or empty array = copy all keys, non-empty array = copy listed keys only.
- *                                        Object values are shared by reference unless they implement Hypervel\Context\ReplicableContext.
+ *                                        Objects stored directly in context are shared by reference by default. Values implementing
+ *                                        Hypervel\Context\ReplicableContext are copied via replicate(), while values implementing
+ *                                        Hypervel\Context\NonCopyableContext are omitted.
  */
 function co(callable $callable, bool|array $copyContext = false): int
 {
@@ -61,7 +76,9 @@ function co(callable $callable, bool|array $copyContext = false): int
 /**
  * @param array<string>|bool $copyContext When set, parent coroutine context is copied to the child.
  *                                        false = fresh context (default), true or empty array = copy all keys, non-empty array = copy listed keys only.
- *                                        Object values are shared by reference unless they implement Hypervel\Context\ReplicableContext.
+ *                                        Objects stored directly in context are shared by reference by default. Values implementing
+ *                                        Hypervel\Context\ReplicableContext are copied via replicate(), while values implementing
+ *                                        Hypervel\Context\NonCopyableContext are omitted.
  */
 function go(callable $callable, bool|array $copyContext = false): int
 {

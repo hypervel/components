@@ -182,7 +182,7 @@ class DatabaseLock extends Lock implements RefreshableLock
 
         $lockTimeout = $seconds > 0 ? $seconds : $this->defaultTimeoutInSeconds;
 
-        return $this->currentTime() + $lockTimeout;
+        return $this->availableAt($lockTimeout);
     }
 
     /**

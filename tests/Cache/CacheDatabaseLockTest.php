@@ -32,6 +32,29 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertTrue($lock->acquire());
     }
 
+    public function testFractionalSecondAcquireAndRefreshNeverExpireBeforeRequestedDeadline(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+
+        [$lock, $table] = $this->getLock(seconds: 1);
+        $owner = $lock->owner();
+
+        $table->shouldReceive('insert')->once()->with([
+            'key' => 'foo',
+            'owner' => $owner,
+            'expiration' => 1002,
+        ])->andReturn(true);
+
+        $this->assertTrue($lock->acquire());
+
+        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
+        $table->shouldReceive('where')->once()->with('owner', $owner)->andReturn($table);
+        $table->shouldReceive('where')->once()->with('expiration', '>', 1000)->andReturn($table);
+        $table->shouldReceive('update')->once()->with(['expiration' => 1002])->andReturn(1);
+
+        $this->assertTrue($lock->refresh());
+    }
+
     public function testLockCanBeAcquiredIfAlreadyOwnedBySameOwner(): void
     {
         [$lock, $table] = $this->getLock();
@@ -163,7 +186,7 @@ class CacheDatabaseLockTest extends TestCase
 
     public function testLockWithDefaultTimeout(): void
     {
-        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now()->startOfSecond());
 
         [$lock, $table] = $this->getLock(seconds: 0);
 
@@ -186,7 +209,7 @@ class CacheDatabaseLockTest extends TestCase
 
     public function testRefreshExtendsLockExpiration(): void
     {
-        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now()->startOfSecond());
 
         [$lock, $table] = $this->getLock();
         $owner = $lock->owner();
@@ -204,7 +227,7 @@ class CacheDatabaseLockTest extends TestCase
 
     public function testRefreshWithCustomTtl(): void
     {
-        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now()->startOfSecond());
 
         [$lock, $table] = $this->getLock();
         $owner = $lock->owner();
@@ -235,7 +258,7 @@ class CacheDatabaseLockTest extends TestCase
 
     public function testRefreshOnDefaultTimeoutLockReappliesDefaultTimeout(): void
     {
-        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now()->startOfSecond());
 
         [$lock, $table] = $this->getLock(seconds: 0);
         $owner = $lock->owner();

@@ -116,37 +116,23 @@ class DbPool extends Pool
     }
 
     /**
-     * Apply the pool connection deadline through the native driver setting.
+     * Expose the pool connection deadline to the database driver.
      */
     private function configureConnectTimeout(): void
     {
-        $connectTimeout = (int) ceil($this->option->getConnectTimeout());
-        $driver = $this->config['driver'] ?? null;
-
-        if (in_array($driver, ['mysql', 'mariadb'], true)) {
-            /** @var array<int, mixed> $options */
-            $options = $this->config['options'] ?? [];
-
-            if (! array_key_exists(PDO::ATTR_TIMEOUT, $options)) {
-                $options[PDO::ATTR_TIMEOUT] = $connectTimeout;
-                $this->config['options'] = $options;
-            }
-        } elseif ($driver === 'pgsql' && ! array_key_exists('connect_timeout', $this->config)) {
-            $this->config['connect_timeout'] = $connectTimeout;
-        }
+        $this->config['connect_timeout'] ??= $this->option->getConnectTimeout();
     }
 
     /**
      * Create the shared PDO for in-memory SQLite via the factory.
      *
-     * Uses the normal factory pipeline to get all config parsing, driver
-     * extensions, and connection setup. We then extract the PDO and let
-     * the Connection object be garbage collected.
+     * Uses the normal PDO resolver pipeline so initial construction and
+     * refresh produce the same connection subclass.
      */
     protected function createSharedInMemorySqlitePdo(): PDO
     {
         $factory = $this->container->make('db.factory');
-        $connection = $factory->make($this->config, $this->name);
+        $connection = $factory->makeSharedInMemorySqliteConnection($this->config, $this->name);
 
         return $connection->getPdo();
     }

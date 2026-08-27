@@ -183,8 +183,7 @@ class MiddlewareTest extends SentryTestCase
 
     public function testTerminateFinishesTransactionWhenAfterResponseTracingIsDisabled(): void
     {
-        config()->set('sentry.tracing.missing_routes', true);
-        $middleware = new Middleware(false);
+        $middleware = new Middleware(false, true);
         $request = Request::create('/test', 'GET');
 
         $response = $middleware->handle($request, static fn () => new Response('OK'));

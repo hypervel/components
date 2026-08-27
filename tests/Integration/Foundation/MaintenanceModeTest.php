@@ -166,6 +166,15 @@ class MaintenanceModeTest extends TestCase
         $this->assertFileDoesNotExist(storage_path('framework/maintenance.php'));
     }
 
+    public function testDownCommandReportsARelativeBypassPathWithoutACanonicalApplicationUrl(): void
+    {
+        config(['app.url' => null]);
+
+        $this->artisan(DownCommand::class, ['--secret' => 'bypass-secret'])
+            ->expectsOutputToContain('You may bypass maintenance mode via [/bypass-secret].')
+            ->assertExitCode(0);
+    }
+
     public function testMaintenanceModeCanRedirectWithBypassCookie()
     {
         file_put_contents(storage_path('framework/down'), json_encode([

@@ -10,8 +10,9 @@ For the mechanics of porting code (namespace changes, container conversion, serv
 
 ## Files in this directory
 
-- **`sync.yaml`** — state file: last reviewed tag and last ported tag per package. Updated during every session. YAML (not markdown) because raw-in-IDE readability matters more than GitHub rendering for this one.
-- **`<package>.md`** — per-package divergence notes. Created **lazily** when a real divergence is discovered. Never pre-stub empty files. Filename convention: gh repo slug with `/` replaced by `-` (e.g., `laravel-framework.md`, `orchestral-testbench.md`, `spatie-laravel-permission.md`).
+- **`sync.yaml`** — state file: newest release fully reviewed and date of the most recent sync for each package. Updated during every session. Its `notes` field is only for sync-specific operational facts, such as a Composer package name that differs from the GitHub repository or the `laravel/framework` direct-to-branch scan.
+
+Deliberate, lasting differences from Laravel belong in the affected package README under `Differences From Laravel`. Do not create per-package divergence files in this directory.
 
 ## Non-negotiable rules
 
@@ -25,15 +26,15 @@ For the mechanics of porting code (namespace changes, container conversion, serv
 
 ### Step 1 — Read state
 
-Read `sync.yaml` top to bottom. For each package entry, note: the repo slug (top-level key), `release`, `sync_date`, and whether the `notes` field references a `<package>.md` divergence doc.
+Read `sync.yaml` top to bottom. For each package entry, note the repo slug, `release`, `sync_date`, and any operational instructions in `notes`.
 
 ### Step 2 — Process each package
 
 Work through the entries top to bottom. For each package:
 
-**2a. Read divergence notes**
+**2a. Read package guidance**
 
-If the package's `notes` field references a `<package>.md` divergence doc, read it in full before proceeding. Skip this step if there is no divergence doc.
+Before classifying or porting an upstream change, read the README for every Hypervel package it affects. Its `Differences From Laravel` section is the canonical record of deliberate, lasting public differences. Also check the relevant source and tests for comments recording intentionally omitted Laravel APIs or features.
 
 **2b. Find new releases**
 
@@ -66,7 +67,7 @@ gh pr view <number> --repo <repo-slug>
 Propose a classification and reasoning:
 
 - **port** — take this change into Hypervel
-- **skip** — intentionally not taken (state why: Laravel-Cloud-specific, PHP-FPM lifecycle, already diverged per `<package>.md`, already implemented differently in Hypervel, deprecated upstream path, etc.)
+- **skip** — intentionally not taken (state why: Laravel-Cloud-specific, PHP-FPM lifecycle, conflicts with a deliberate difference recorded in the affected package README, already implemented differently in Hypervel, deprecated upstream path, etc.)
 - **defer** — valid but blocked (state what is blocking it and what would unblock)
 
 Wait for user approval on every classification. Never silently skip.
@@ -93,7 +94,7 @@ This check is **only required for `laravel/framework`**. Other packages release 
 
 **2f. Close out the release**
 
-When every PR (and any direct commits) in the release has been decided and committed/recorded, bump `release` in `sync.yaml` to this release's tag. This happens regardless of whether anything was deferred — deferred items are tracked in the session PR body (and in `<package>.md` if the blocker is persistent), not by holding the tag back.
+When every PR (and any direct commits) in the release has been decided and committed/recorded, bump `release` in `sync.yaml` to this release's tag. This happens regardless of whether anything was deferred. Track deferred items in the session PR body and, when they remain worthwhile future work, in `docs/todo.md`; do not hold the tag back.
 
 Then move to the next release for the same package.
 
@@ -148,15 +149,16 @@ If a session is interrupted mid-package:
 
 Never leave `sync.yaml` in a state that misrepresents what was actually done.
 
-## Per-package divergence notes (`<package>.md`)
+## Recording differences and deferred work
 
-Create a divergence note **only** when a real, concrete divergence is discovered that will affect future sync decisions. Contents:
+Do not create package-specific divergence documents in this directory.
 
-- **What Hypervel does differently** — the actual divergence
-- **Why** — the concrete reason (Swoole semantics, architectural decision, deprecated upstream, etc.)
-- **Sync implications** — what kinds of upstream PRs to skip or adapt going forward
+- Record deliberate, lasting public differences from Laravel in the affected package README under `Differences From Laravel`.
+- Record intentionally omitted Laravel APIs or features in the package README, source, and matching test location as required by `AGENTS.md`.
+- Record deferred work in the session PR body and, when it remains worthwhile future work, in `docs/todo.md`.
+- Use `sync.yaml` notes only for operational facts needed to process the upstream package.
 
-Never speculate. Never pre-stub. If you find yourself writing a hypothetical, stop.
+Do not duplicate package guidance in the sync workflow.
 
 ## Prerequisites
 

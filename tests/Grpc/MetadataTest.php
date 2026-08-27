@@ -64,6 +64,20 @@ class MetadataTest extends TestCase
         $this->assertSame($modified, $modified->without('missing'));
     }
 
+    public function testCanRecreateMetadataFromItsNormalizedValues(): void
+    {
+        $metadata = Metadata::make(['x-tag' => ['one', 'two']])
+            ->with('trace-bin', "\x00\xff raw ")
+            ->merge(['x-added' => 'three']);
+
+        $this->assertSame([
+            'x-tag' => ['one', 'two'],
+            'trace-bin' => ["\x00\xff raw "],
+            'x-added' => ['three'],
+        ], $metadata->all());
+        $this->assertSame($metadata->all(), Metadata::make($metadata->all())->all());
+    }
+
     public function testEmptyCollectionHasNoValues(): void
     {
         $metadata = Metadata::make();
@@ -94,6 +108,42 @@ class MetadataTest extends TestCase
             ['authorization' => ['Bearer token']],
             Metadata::make(['Authorization' => 'Bearer token'])->all(),
         );
+    }
+
+    public function testRejectsPurelyNumericKeysAcrossEveryEntryPoint(): void
+    {
+        foreach (['0', '123', '-1', '08', '-08', '-0', '9223372036854775808'] as $key) {
+            $operations = [
+                'make' => static fn (): Metadata => Metadata::make([$key => 'value']),
+                'with' => static fn (): Metadata => Metadata::make()->with($key, 'value'),
+                'merge' => static fn (): Metadata => Metadata::make()->merge([$key => 'value']),
+            ];
+
+            foreach ($operations as $operation => $callback) {
+                try {
+                    $callback();
+                    $this->fail("Expected [{$operation}] to reject metadata key [{$key}].");
+                } catch (InvalidArgumentException $exception) {
+                    $this->assertSame(
+                        'gRPC metadata keys cannot be purely numeric.',
+                        $exception->getMessage(),
+                    );
+                }
+            }
+        }
+    }
+
+    public function testAllowsKeysThatContainDigitsWithoutBeingPurelyNumeric(): void
+    {
+        $metadata = Metadata::make(['x-1' => 'one'])
+            ->with('v2', 'two')
+            ->merge(['a.1.b' => 'three']);
+
+        $this->assertSame([
+            'x-1' => ['one'],
+            'v2' => ['two'],
+            'a.1.b' => ['three'],
+        ], $metadata->all());
     }
 
     public function testRejectsInvalidValueCollections(): void

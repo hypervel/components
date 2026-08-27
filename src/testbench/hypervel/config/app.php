@@ -12,7 +12,5 @@ declare(strict_types=1);
 return [
     'env' => env('APP_ENV', 'workbench'),
 
-    'debug' => (bool) env('APP_DEBUG', false),
-
     'key' => env('APP_KEY', 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF'),
 ];

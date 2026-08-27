@@ -14,6 +14,7 @@ use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\BackgroundQueue;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
@@ -195,6 +196,21 @@ class QueueBackgroundQueueTest extends TestCase
 
         $this->assertInstanceOf(SyncJob::class, $_SERVER['__background.later.test'][0]);
         $this->assertEquals(['foo' => 'bar'], $_SERVER['__background.later.test'][1]);
+    }
+
+    public function testBulkRespectsDelayAttribute(): void
+    {
+        $timer = m::mock(Timer::class);
+        $timer->shouldReceive('after')
+            ->once()
+            ->with(5.0, m::type('Closure'))
+            ->andReturn(1);
+
+        $background = new BackgroundQueue(timer: $timer);
+        $background->setConnectionName('background');
+        $background->setContainer($this->getContainer());
+
+        $this->assertNull($background->bulk([new BackgroundQueueBulkDelayJob]));
     }
 
     public function testLaterSnapshotsMutableJobBeforeTheTimerRuns(): void
@@ -612,6 +628,11 @@ class BackgroundQueueLaterTestHandler
     {
         $_SERVER['__background.later.test'] = func_get_args();
     }
+}
+
+#[Delay(5)]
+class BackgroundQueueBulkDelayJob
+{
 }
 
 class BackgroundQueueSnapshotHandler

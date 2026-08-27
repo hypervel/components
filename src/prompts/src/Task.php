@@ -8,15 +8,16 @@ use Closure;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Prompts\Support\InProcessLogger;
 use Hypervel\Prompts\Support\Logger;
+use Hypervel\Prompts\Support\PromptAnimation;
+use Hypervel\Prompts\Support\TaskFrame;
 use Hypervel\Prompts\Support\Utils;
-use Hypervel\Prompts\Themes\Default\Concerns\InteractsWithStrings;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
 
 class Task extends Prompt
 {
-    use InteractsWithStrings;
+    use Concerns\TracksTaskOutput;
 
     /**
      * How long a Logger write may make no progress.
@@ -33,7 +34,10 @@ class Task extends Prompt
     protected const int RENDERER_SETTLEMENT_MARGIN_MILLISECONDS = 1000;
 
     /**
-     * The renderer settlement acknowledgement byte.
+     * The raw reverse-channel acknowledgement byte.
+     *
+     * Parent-to-renderer messages use TaskFrame; this single byte travels in
+     * the opposite direction only after the renderer has settled completely.
      */
     protected const string RENDERER_ACKNOWLEDGEMENT = "\x06";
 
@@ -99,7 +103,7 @@ class Task extends Prompt
     public int $maxStableMessages = 10;
 
     /**
-     * The identifier for the task.
+     * The identifier retained for Laravel-compatible Task and Logger extension state.
      */
     public string $identifier = '';
 
@@ -109,14 +113,9 @@ class Task extends Prompt
     public bool $finished = false;
 
     /**
-     * Buffer for incomplete lines from non-blocking socket reads.
+     * The incremental process-message decoder.
      */
-    protected string $buffer = '';
-
-    /**
-     * The log index where the current partial started, or null if not streaming.
-     */
-    protected ?int $partialStartIndex = null;
+    private TaskFrame $frameDecoder;
 
     /**
      * Create a new Task instance.
@@ -130,6 +129,7 @@ class Task extends Prompt
         $this->validateLimit();
 
         $this->identifier = uniqid();
+        $this->frameDecoder = new TaskFrame;
     }
 
     /**
@@ -188,176 +188,77 @@ class Task extends Prompt
      */
     protected function receiveMessages($socket): void
     {
-        $prefix = preg_quote($this->identifier, '/');
+        while (($data = fread($socket, 65536)) !== false && $data !== '') {
+            $this->frameDecoder->append($data);
 
-        while (($data = fgets($socket)) !== false) {
-            // Buffer incomplete lines from non-blocking reads.
-            if (! str_ends_with($data, PHP_EOL)) {
-                $this->buffer .= $data;
+            while (($message = $this->frameDecoder->next()) !== null) {
+                $this->applyMessage($message['type'], $message['payload']);
 
-                continue;
-            }
-
-            $line = rtrim($this->buffer . $data, PHP_EOL);
-            $this->buffer = '';
-
-            if ($line === '') {
-                continue;
-            }
-
-            // Check for typed messages: {id}_{type}:{content}
-            if (preg_match('/^' . $prefix . '_(success|warning|error|label|sublabel|reset|partial|commitpartial):(.*)/', $line, $matches)) {
-                $type = $matches[1];
-                $content = $matches[2];
-
-                if ($type === 'reset') {
-                    $this->resetTerminal($this->originalAsync ?? false, $content === '1');
-
+                if ($this->finished) {
                     return;
                 }
+            }
+        }
+    }
 
-                if ($type === 'partial') {
-                    $this->replacePartialLines($content);
+    /**
+     * Apply one decoded Task message.
+     *
+     * @internal
+     */
+    public function applyMessage(?string $type, string $payload): void
+    {
+        if ($type === null) {
+            $this->addLogLines($payload);
 
-                    continue;
-                }
+            return;
+        }
 
-                if ($type === 'commitpartial') {
-                    $this->partialStartIndex = null;
-
-                    continue;
-                }
-
-                if ($type === 'label') {
-                    $this->label = $content;
-                } elseif ($type === 'sublabel') {
-                    $this->subLabel = $content;
-                    $this->recalculateMaxStableMessages();
-                } else {
-                    $this->stableMessages[] = ['type' => $type, 'message' => $content];
-                    $this->logs = [];
-                    $this->partialStartIndex = null;
-                }
-
-                $this->trimStableMessages();
-
-                continue;
+        if ($type === 'reset') {
+            if ($payload !== "\x00" && $payload !== "\x01") {
+                throw new RuntimeException('The prompt renderer received an invalid settlement message.');
             }
 
-            // Regular log line — strip cursor-reset control sequences.
-            $line = preg_replace('/\e\[(?:1)?G\e\[2K/', '', $line);
+            $this->resetTerminal($this->originalAsync ?? false, $payload === "\x01");
 
-            // Wrap and add to ring buffer.
-            $this->addLogLines($line);
-        }
-    }
-
-    /**
-     * Wrap a log line and append to the ring buffer, trimming to the limit.
-     */
-    protected function addLogLines(string $line): void
-    {
-        $width = $this->terminal()->cols() - 10;
-        $plainText = $this->stripEscapeSequences($line);
-
-        if (mb_strwidth($plainText) > $width) {
-            $wrapped = $this->ansiWordwrap($line, $width);
-        } else {
-            $wrapped = [$line];
+            return;
         }
 
-        array_push($this->logs, ...$wrapped);
+        if ($type === 'partial') {
+            $this->consumePartialOutput($payload);
 
-        while (count($this->logs) > $this->limit) {
-            array_shift($this->logs);
-        }
-    }
-
-    /**
-     * Replace the in-progress partial lines with the full accumulated text.
-     */
-    protected function replacePartialLines(string $text): void
-    {
-        if ($this->partialStartIndex === null) {
-            $this->partialStartIndex = count($this->logs);
+            return;
         }
 
-        // Truncate back to where the partial started.
-        $this->logs = array_slice($this->logs, 0, $this->partialStartIndex);
+        if ($type === 'commitpartial') {
+            $this->commitPartialOutput();
 
-        // Wrap and append the full accumulated partial text.
-        $width = $this->terminal()->cols() - 10;
-        $plainText = $this->stripEscapeSequences($text);
-
-        if (mb_strwidth($plainText) > $width) {
-            $wrapped = $this->ansiWordwrap($text, $width);
-        } else {
-            $wrapped = [$text];
+            return;
         }
 
-        array_push($this->logs, ...$wrapped);
+        if ($type === 'label') {
+            $this->label = $payload;
 
-        while (count($this->logs) > $this->limit) {
-            array_shift($this->logs);
-            $this->partialStartIndex = max(0, $this->partialStartIndex - 1);
+            return;
         }
-    }
 
-    /**
-     * Append a log line to the scrolling output area.
-     */
-    public function appendLogLine(string $line): void
-    {
-        // Strip cursor-reset control sequences.
-        $line = preg_replace('/\e\[(?:1)?G\e\[2K/', '', $line);
+        if ($type === 'sublabel') {
+            $this->subLabel = $payload;
+            $this->recalculateMaxStableMessages();
+            $this->trimStableMessages();
 
-        $this->addLogLines($line);
-    }
+            return;
+        }
 
-    /**
-     * Add a stable status message (success, warning, error).
-     */
-    public function addStableMessage(string $type, string $message): void
-    {
-        $this->stableMessages[] = ['type' => $type, 'message' => $message];
+        if (! in_array($type, ['success', 'warning', 'error'], true)) {
+            throw new InvalidArgumentException("Unknown task message type [{$type}].");
+        }
+
+        $this->stableMessages[] = ['type' => $type, 'message' => $payload];
         $this->logs = [];
-        $this->partialStartIndex = null;
+        $this->resetTaskOutputTracking();
 
         $this->trimStableMessages();
-    }
-
-    /**
-     * Update the task label.
-     */
-    public function updateLabel(string $label): void
-    {
-        $this->label = $label;
-    }
-
-    /**
-     * Update the task sub-label.
-     */
-    public function updateSubLabel(string $subLabel): void
-    {
-        $this->subLabel = $subLabel;
-        $this->recalculateMaxStableMessages();
-        $this->trimStableMessages();
-    }
-
-    /**
-     * Replace the in-progress partial text with the full accumulated text.
-     */
-    public function replacePartialText(string $text): void
-    {
-        $this->replacePartialLines($text);
-    }
-
-    /**
-     * Commit the current partial text so it becomes permanent.
-     */
-    public function commitPartialText(): void
-    {
-        $this->partialStartIndex = null;
     }
 
     /**
@@ -390,8 +291,8 @@ class Task extends Prompt
         $this->finished = false;
         $this->logs = [];
         $this->stableMessages = [];
-        $this->buffer = '';
-        $this->partialStartIndex = null;
+        $this->frameDecoder->reset();
+        $this->resetTaskOutputTracking();
         $this->state = 'initial';
         $this->prevFrame = '';
     }
@@ -537,10 +438,9 @@ class Task extends Prompt
 
         if ($rendererFailure === null) {
             try {
-                // A truncated newline-framed message makes a later reset unrecoverable.
                 Utils::writeAll(
                     $this->socket,
-                    $this->identifier . '_reset:' . ($success ? '1' : '0') . PHP_EOL,
+                    TaskFrame::encode('reset', $success ? "\x01" : "\x00"),
                     static::LOGGER_WRITE_TIMEOUT_SECONDS,
                 );
                 $settlementTimeout = $rendererInterval + static::RENDERER_SETTLEMENT_MARGIN_MILLISECONDS;
@@ -580,6 +480,9 @@ class Task extends Prompt
     /**
      * Create the process renderer socket pair.
      *
+     * Subclasses and tests override this seam to exercise socket setup failures
+     * without replacing the process-rendering lifecycle.
+     *
      * @return array{resource, resource}|false
      */
     protected function createSocketPair(): array|false
@@ -589,6 +492,9 @@ class Task extends Prompt
 
     /**
      * Fork the process renderer.
+     *
+     * Subclasses and tests override this seam to exercise fork and reaping
+     * failures without injecting a process abstraction.
      */
     protected function forkProcess(): int
     {
@@ -620,7 +526,7 @@ class Task extends Prompt
                 }
 
                 if (feof($socket)) {
-                    $this->buffer = '';
+                    $this->frameDecoder->finish();
                     $this->resetTerminal($this->originalAsync ?? false, false);
 
                     break;
@@ -840,8 +746,7 @@ class Task extends Prompt
      */
     protected function renderInCoroutine(Closure $callback): mixed
     {
-        /** @var bool $animationFinished */
-        $animationFinished = false;
+        $animation = null;
         $result = null;
         $operationFailure = null;
         $success = false;
@@ -850,13 +755,14 @@ class Task extends Prompt
             $this->hideCursor();
             $this->render();
 
-            Coroutine::fork(function () use (&$animationFinished): void {
-                while (! $animationFinished) {
-                    $this->render();
+            $animation = new PromptAnimation(
+                render: function (): void {
                     ++$this->count;
-                    usleep($this->interval * 1000);
-                }
-            });
+                    $this->render();
+                },
+                interval: $this->interval,
+            );
+            $animation->start();
 
             $logger = new InProcessLogger($this);
 
@@ -864,14 +770,24 @@ class Task extends Prompt
             $success = true;
         } catch (Throwable $exception) {
             $operationFailure = $exception;
-        } finally {
-            $animationFinished = true;
+        }
+
+        $animationFailure = null;
+
+        try {
+            $animationFailure = $animation?->stop();
+        } catch (Throwable $exception) {
+            $animationFailure = $exception;
         }
 
         $cleanupFailure = $this->settleOperation(renderFinalFrame: true, success: $success);
 
         if ($operationFailure !== null) {
             throw $operationFailure;
+        }
+
+        if ($animationFailure !== null) {
+            throw $animationFailure;
         }
 
         if ($cleanupFailure !== null) {

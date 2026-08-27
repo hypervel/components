@@ -13,6 +13,9 @@ use InvalidArgumentException;
 use JsonSerializable;
 use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
+use Stringable;
+use Symfony\Component\HttpFoundation\JsonResponse as SymfonyJsonResponse;
+use TypeError;
 
 class HttpJsonResponseTest extends TestCase
 {
@@ -112,6 +115,45 @@ class HttpJsonResponseTest extends TestCase
         $this->assertSame('bar', $response->getData()->foo);
     }
 
+    #[DataProvider('rawJsonDataProvider')]
+    public function testRawJsonRetainsSymfonyConstructorCompatibility(mixed $data): void
+    {
+        $expected = new SymfonyJsonResponse($data, 201, ['X-Test' => 'value'], true);
+        $response = new JsonResponse($data, 201, ['X-Test' => 'value'], json: true);
+
+        $this->assertSame($expected->getContent(), $response->getContent());
+        $this->assertSame($expected->getStatusCode(), $response->getStatusCode());
+        $this->assertSame('value', $response->headers->get('X-Test'));
+    }
+
+    public static function rawJsonDataProvider(): array
+    {
+        return [
+            'string' => ['{"foo":"bar"}'],
+            'integer' => [123],
+            'float' => [12.5],
+            'Stringable' => [new JsonResponseTestStringableObject],
+        ];
+    }
+
+    #[DataProvider('invalidRawJsonDataProvider')]
+    public function testRawJsonRejectsValuesSymfonyDoesNotAccept(mixed $data): void
+    {
+        $this->expectException(TypeError::class);
+        $this->expectExceptionMessage('If $json is set to true');
+
+        new JsonResponse($data, json: true);
+    }
+
+    public static function invalidRawJsonDataProvider(): array
+    {
+        return [
+            'null' => [null],
+            'array' => [[]],
+            'ordinary object' => [new stdClass],
+        ];
+    }
+
     public function testDataRoundTripsAtTheMaximumSupportedNestingDepth(): void
     {
         $value = 'leaf';
@@ -165,5 +207,13 @@ class JsonResponseTestArrayableObject implements Arrayable
     public function toArray(): array
     {
         return ['foo' => 'bar'];
+    }
+}
+
+class JsonResponseTestStringableObject implements Stringable
+{
+    public function __toString(): string
+    {
+        return '{"foo":"bar"}';
     }
 }

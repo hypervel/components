@@ -27,17 +27,26 @@ final class RedisVersionCheck implements EnvironmentCheckInterface
 
     private bool $connectionFailed = false;
 
+    /**
+     * Create a new Redis version check instance.
+     */
     public function __construct(
         private readonly RedisConnection $redis,
         private readonly string $taggingMode,
     ) {
     }
 
+    /**
+     * Get the human-readable name of this check.
+     */
     public function name(): string
     {
         return 'Redis/Valkey Version';
     }
 
+    /**
+     * Run the check and return results.
+     */
     public function run(): CheckResult
     {
         $result = new CheckResult;
@@ -63,9 +72,9 @@ final class RedisVersionCheck implements EnvironmentCheckInterface
 
             // Version requirement only applies to any mode
             if ($this->taggingMode === 'any') {
-                $versionOk = version_compare($this->serviceVersion, $requiredVersion, '>=');
+                $versionIsSupported = version_compare($this->serviceVersion, $requiredVersion, '>=');
                 $result->assert(
-                    $versionOk,
+                    $versionIsSupported,
                     "{$this->serviceName} version >= {$requiredVersion} (required for any tagging mode)"
                 );
             } else {
@@ -74,14 +83,17 @@ final class RedisVersionCheck implements EnvironmentCheckInterface
                     "{$this->serviceName} version check skipped (all mode has no version requirement)"
                 );
             }
-        } catch (Throwable $e) {
+        } catch (Throwable $exception) {
             $this->connectionFailed = true;
-            $result->assert(false, 'Redis/Valkey server is reachable: ' . $e->getMessage());
+            $result->assert(false, 'Redis/Valkey server is reachable: ' . $exception->getMessage());
         }
 
         return $result;
     }
 
+    /**
+     * Get details about how to fix a failed check.
+     */
     public function getFixInstructions(): ?string
     {
         if ($this->connectionFailed) {

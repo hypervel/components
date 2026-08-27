@@ -169,7 +169,7 @@ class TwoFactorLoginRequest extends FormRequest
             throw new RuntimeException('Fortify two-factor login requires an Eloquent authentication guard provider.');
         }
 
-        $provider = $guard->getProvider(); /* @phpstan-ignore method.notFound (getProvider() is on GuardHelpers, not the guard contract) */
+        $provider = $guard->getProvider();
 
         if (! $provider instanceof EloquentUserProvider) {
             throw new RuntimeException('Fortify two-factor login requires an Eloquent authentication guard provider.');

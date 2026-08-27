@@ -35,7 +35,7 @@ class ServerRestartStrategy implements RestartStrategy
     ) {
         $config = $container->make('config');
 
-        if ($config->boolean('server.settings.daemonize')) {
+        if ($config->boolean('server.settings.daemonize', false)) {
             throw new InvalidArgumentException('Please set `server.settings.daemonize` to false');
         }
 
@@ -102,10 +102,26 @@ class ServerRestartStrategy implements RestartStrategy
     }
 
     /**
+     * Return the currently published server process ID.
+     *
+     * The value may change while hooked output yields to another coroutine.
+     *
+     * @phpstan-impure
+     */
+    protected function currentProcessId(): ?int
+    {
+        return $this->processId;
+    }
+
+    /**
      * Terminate the currently published server process.
      */
     protected function terminateServer(): void
     {
+        if ($this->currentProcessId() === null) {
+            return;
+        }
+
         try {
             $this->output->writeln('Stop server...');
         } catch (Throwable) {
@@ -113,19 +129,29 @@ class ServerRestartStrategy implements RestartStrategy
 
         // No yielding work may occur after this read: the PID belongs to the
         // exact unreaped child retained by the owner coroutine.
-        $pid = $this->processId;
+        $pid = $this->currentProcessId();
 
         if ($pid === null) {
             return;
         }
 
         try {
-            $this->signalProcess($pid, SIGTERM);
-        } catch (Throwable) {
-            try {
-                $this->output->writeln('<error>Stop server failed.</error>');
-            } catch (Throwable) {
+            if ($this->signalProcess($pid, SIGTERM) === false) {
+                $this->reportStopFailure();
             }
+        } catch (Throwable) {
+            $this->reportStopFailure();
+        }
+    }
+
+    /**
+     * Report a failed server termination.
+     */
+    protected function reportStopFailure(): void
+    {
+        try {
+            $this->output->writeln('<error>Stop server failed.</error>');
+        } catch (Throwable) {
         }
     }
 

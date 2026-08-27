@@ -150,7 +150,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
      */
     protected function createXDriver(): XProvider
     {
-        $config = $this->config->get('services.x') ?? $this->config->get('services.x-oauth-2');
+        $config = $this->config->get('services.x');
 
         return $this->buildOAuth2Provider(
             XProvider::class,
@@ -219,9 +219,10 @@ class SocialiteManager extends Manager implements Contracts\Factory
             $this->container->make('request'),
             $config['client_id'],
             $config['client_secret'],
-            $this->formatRedirectUrl($config),
+            $config['redirect'],
             Arr::get($config, 'guzzle', [])
-        ))->withConfig($config);
+        ))->withConfig($config)
+            ->withRedirectFormatter(fn (array $config): string => $this->formatRedirectUrl($config));
     }
 
     /**

@@ -4,19 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
-use Hypervel\Contracts\Validation\ImplicitRule;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Validation\Enums\CheckType;
-use Hypervel\Validation\Enums\SizeMode;
-use Stringable;
 
 /**
  * Compile pipe-string or array rules into an AttributePlan.
  *
  * Each rule part becomes either an InlineCheck (fast, match-dispatched) or a
  * DelegatedCheck (calls existing validate*() methods). The compiler resolves
- * sibling context (size mode, date format, array presence) to bake compile-time
- * decisions into check params.
+ * sibling context (numeric semantics, date format, array presence) to bake
+ * compile-time decisions into check params.
  */
 final class RuleCompiler
 {
@@ -26,16 +23,30 @@ final class RuleCompiler
      * Used for the base Validator class. Subclasses use compileAllDelegated().
      *
      * @param list<mixed> $rules As produced by ValidationRuleParser::explode()
+     * @param list<string> $numericRules Rules which activate numeric size semantics
      */
-    public static function compile(array $rules): AttributePlan
+    public static function compile(array $rules, array $numericRules): AttributePlan
     {
         $plan = new AttributePlan;
+        $parsedRules = array_map(
+            static fn (mixed $rule): array => ValidationRuleParser::parse($rule),
+            $rules,
+        );
 
-        $context = self::collectContext($rules);
-        $plan->sizeMode = $context['sizeMode'];
+        foreach ($parsedRules as [, $parameters]) {
+            if (array_any($parameters, static fn (mixed $parameter): bool => ! is_scalar($parameter))) {
+                foreach ($rules as $index => $rule) {
+                    self::compileRuleDelegated($rule, $plan, $parsedRules[$index]);
+                }
 
-        foreach ($rules as $rule) {
-            self::compileRule($rule, $plan, $context);
+                return $plan;
+            }
+        }
+
+        $context = self::collectContext($parsedRules, $numericRules);
+
+        foreach ($rules as $index => $rule) {
+            self::compileRule($rule, $parsedRules[$index], $plan, $context);
         }
 
         return $plan;
@@ -44,18 +55,14 @@ final class RuleCompiler
     /**
      * Compile all rules as DelegatedCheck (no inlining).
      *
-     * Used for Validator subclasses which may override validate*() methods.
-     * Shares the same flag pre-resolution so the execution loop's attribute-level
-     * logic (sometimes, excluded) still works.
+     * Used for Validator subclasses. Retains meta flags for attribute-level
+     * gating while keeping every declared rule available to delegated execution.
      *
      * @param list<mixed> $rules As produced by ValidationRuleParser::explode()
      */
     public static function compileAllDelegated(array $rules): AttributePlan
     {
         $plan = new AttributePlan;
-
-        $context = self::collectContext($rules);
-        $plan->sizeMode = $context['sizeMode'];
 
         foreach ($rules as $rule) {
             self::compileRuleDelegated($rule, $plan);
@@ -67,32 +74,27 @@ final class RuleCompiler
     /**
      * Pre-scan all rule parts to collect compile-time context.
      *
-     * @return array{sizeMode: ?SizeMode, dateFormat: ?string, hasSiblingArrayRule: bool}
+     * @param list<array{0: mixed, 1: array<int, mixed>}> $parsedRules
+     * @param list<string> $numericRules
+     * @return array{numeric: bool, dateFormat: ?string, hasSiblingArrayRule: bool}
      */
-    private static function collectContext(array $rules): array
+    private static function collectContext(array $parsedRules, array $numericRules): array
     {
-        /** @var list<SizeMode> $modes */
-        $modes = [];
+        $numeric = false;
         $dateFormat = null;
         $hasSiblingArrayRule = false;
 
-        foreach ($rules as $rule) {
-            [$parsedName, $parsedParams] = ValidationRuleParser::parse($rule);
-
+        foreach ($parsedRules as [$parsedName, $parsedParameters]) {
             if (! is_string($parsedName)) {
                 continue;
             }
 
-            if (($mode = self::resolveSizeMode($parsedName)) !== null) {
-                $modes[] = $mode;
+            if (in_array($parsedName, $numericRules, true)) {
+                $numeric = true;
             }
 
-            if ($dateFormat === null && $parsedName === 'DateFormat') {
-                $format = $parsedParams[0] ?? null;
-
-                if (is_scalar($format) || $format instanceof Stringable) {
-                    $dateFormat = (string) $format;
-                }
+            if ($dateFormat === null && $parsedName === 'DateFormat' && isset($parsedParameters[0])) {
+                $dateFormat = (string) $parsedParameters[0];
             }
 
             if ($parsedName === 'Array') {
@@ -100,96 +102,42 @@ final class RuleCompiler
             }
         }
 
-        $uniqueModes = array_values(array_unique($modes, SORT_REGULAR));
-        $sizeMode = count($uniqueModes) === 1 ? $uniqueModes[0] : null;
-
         return [
-            'sizeMode' => $sizeMode,
+            'numeric' => $numeric,
             'dateFormat' => $dateFormat,
             'hasSiblingArrayRule' => $hasSiblingArrayRule,
         ];
     }
 
     /**
-     * Map a parsed rule name to the SizeMode it implies.
-     *
-     * Returns null for rules that don't imply a size mode.
-     */
-    private static function resolveSizeMode(string $parsedName): ?SizeMode
-    {
-        return match ($parsedName) {
-            'String' => SizeMode::String,
-            'Numeric', 'Integer' => SizeMode::Numeric,
-            'Array' => SizeMode::Array,
-            'File', 'Image' => SizeMode::File,
-            default => null,
-        };
-    }
-
-    /**
      * Compile a single rule into the plan, attempting to inline where possible.
      *
-     * Handles four input forms: RuleContract objects, Exists/Unique Stringable
-     * objects, raw non-string values, and string rule tokens. String rules are
-     * parsed, flags are resolved, and eligible rules are compiled as InlineCheck.
+     * RuleContract objects remain intact. Other rules are parsed, flags are
+     * resolved, and eligible string rules are compiled as InlineCheck.
      * Everything else becomes a DelegatedCheck.
      *
-     * @param array{sizeMode: ?SizeMode, dateFormat: ?string, hasSiblingArrayRule: bool} $context
+     * @param array{0: mixed, 1: array<int, mixed>} $parsedRule
+     * @param array{numeric: bool, dateFormat: ?string, hasSiblingArrayRule: bool} $context
      */
-    private static function compileRule(mixed $rule, AttributePlan $plan, array $context): void
+    private static function compileRule(mixed $rule, array $parsedRule, AttributePlan $plan, array $context): void
     {
         if ($rule instanceof RuleContract) {
-            if ($rule instanceof ImplicitRule) {
-                $plan->hasImplicitRule = true;
-            }
             $plan->checks[] = new DelegatedCheck(
                 ruleName: '',
                 parameters: [],
-                ruleObject: $rule,
                 originalRule: $rule,
             );
             return;
         }
 
-        if ($rule instanceof Rules\Exists || $rule instanceof Rules\Unique) {
-            [$ruleName, $parameters] = ValidationRuleParser::parse($rule);
-            $plan->checks[] = new DelegatedCheck(
-                ruleName: $ruleName,
-                parameters: $parameters,
-                ruleObject: $rule,
-                originalRule: $rule,
-            );
+        [$ruleName, $parameters] = $parsedRule;
+
+        if (! is_string($ruleName) || $ruleName === '') {
             return;
         }
 
-        if (! is_string($rule)) {
-            [$parsedName, $parsedParams] = ValidationRuleParser::parse($rule);
-            if (! is_string($parsedName) || $parsedName === '') {
-                return;
-            }
-            $plan->checks[] = new DelegatedCheck(
-                ruleName: $parsedName,
-                parameters: $parsedParams,
-                originalRule: $rule,
-            );
-            return;
-        }
-
-        [$ruleName, $parameters] = ValidationRuleParser::parse($rule);
-
-        if ($ruleName === '') {
-            return;
-        }
-
-        // required sets a flag AND falls through to produce a DelegatedCheck.
-        // It is a real validation rule whose validateRequired() can fail.
-        if ($ruleName === 'Required') {
-            $plan->required = true;
-            $plan->hasImplicitRule = true;
-        }
-
-        // nullable/bail/sometimes are pure meta-flags — their validate*() methods
-        // are no-ops returning true, so they don't need checks.
+        // The exact base plan needs nullable/bail/sometimes only as meta-flags.
+        // compileRuleDelegated() also emits them so subclass hooks still run.
         if ($ruleName === 'Nullable') {
             $plan->nullable = true;
             return;
@@ -209,10 +157,6 @@ final class RuleCompiler
             return;
         }
 
-        if (self::isImplicitRule($ruleName)) {
-            $plan->hasImplicitRule = true;
-        }
-
         $plan->checks[] = new DelegatedCheck(
             ruleName: $ruleName,
             parameters: $parameters,
@@ -223,74 +167,34 @@ final class RuleCompiler
     /**
      * Compile a single rule as DelegatedCheck only (no inlining).
      *
-     * Used by compileAllDelegated() for Validator subclasses. Handles the
-     * same input forms and flag resolution as compileRule() but skips the
-     * tryInline() step — everything becomes a DelegatedCheck.
+     * Handles the same input forms and flag resolution as compileRule() but
+     * skips tryInline() so every declared rule becomes a DelegatedCheck.
+     *
+     * @param null|array{0: mixed, 1: array<int, mixed>} $parsedRule
      */
-    private static function compileRuleDelegated(mixed $rule, AttributePlan $plan): void
+    private static function compileRuleDelegated(mixed $rule, AttributePlan $plan, ?array $parsedRule = null): void
     {
         if ($rule instanceof RuleContract) {
-            if ($rule instanceof ImplicitRule) {
-                $plan->hasImplicitRule = true;
-            }
             $plan->checks[] = new DelegatedCheck(
                 ruleName: '',
                 parameters: [],
-                ruleObject: $rule,
                 originalRule: $rule,
             );
             return;
         }
 
-        if ($rule instanceof Rules\Exists || $rule instanceof Rules\Unique) {
-            [$ruleName, $parameters] = ValidationRuleParser::parse($rule);
-            $plan->checks[] = new DelegatedCheck(
-                ruleName: $ruleName,
-                parameters: $parameters,
-                ruleObject: $rule,
-                originalRule: $rule,
-            );
+        [$ruleName, $parameters] = $parsedRule ?? ValidationRuleParser::parse($rule);
+
+        if (! is_string($ruleName) || $ruleName === '') {
             return;
         }
 
-        if (! is_string($rule)) {
-            [$parsedName, $parsedParams] = ValidationRuleParser::parse($rule);
-            if (! is_string($parsedName) || $parsedName === '') {
-                return;
-            }
-            $plan->checks[] = new DelegatedCheck(
-                ruleName: $parsedName,
-                parameters: $parsedParams,
-                originalRule: $rule,
-            );
-            return;
-        }
-
-        [$ruleName, $parameters] = ValidationRuleParser::parse($rule);
-
-        if ($ruleName === '') {
-            return;
-        }
-
-        if ($ruleName === 'Required') {
-            $plan->required = true;
-            $plan->hasImplicitRule = true;
-        }
         if ($ruleName === 'Nullable') {
             $plan->nullable = true;
-            return;
-        }
-        if ($ruleName === 'Bail') {
+        } elseif ($ruleName === 'Bail') {
             $plan->bail = true;
-            return;
-        }
-        if ($ruleName === 'Sometimes') {
+        } elseif ($ruleName === 'Sometimes') {
             $plan->sometimes = true;
-            return;
-        }
-
-        if (self::isImplicitRule($ruleName)) {
-            $plan->hasImplicitRule = true;
         }
 
         $plan->checks[] = new DelegatedCheck(
@@ -305,7 +209,7 @@ final class RuleCompiler
      *
      * Returns null if the rule is not inline-eligible (it will become a DelegatedCheck).
      *
-     * @param array{sizeMode: ?SizeMode, dateFormat: ?string, hasSiblingArrayRule: bool} $context
+     * @param array{numeric: bool, dateFormat: ?string, hasSiblingArrayRule: bool} $context
      */
     private static function tryInline(string $ruleName, array $parameters, array $context): ?InlineCheck
     {
@@ -377,9 +281,7 @@ final class RuleCompiler
                 : new InlineCheck(
                     CheckType::In,
                     array_map(
-                        static fn (mixed $parameter): mixed => is_scalar($parameter) || $parameter instanceof Stringable
-                            ? (string) $parameter
-                            : $parameter,
+                        static fn (mixed $parameter): string => (string) $parameter,
                         $parameters,
                     ),
                     parameters: $parameters,
@@ -389,9 +291,7 @@ final class RuleCompiler
                 : new InlineCheck(
                     CheckType::NotIn,
                     array_map(
-                        static fn (mixed $parameter): mixed => is_scalar($parameter) || $parameter instanceof Stringable
-                            ? (string) $parameter
-                            : $parameter,
+                        static fn (mixed $parameter): string => (string) $parameter,
                         $parameters,
                     ),
                     parameters: $parameters,
@@ -418,20 +318,20 @@ final class RuleCompiler
     /**
      * Try to inline a min/max/size rule as a size check.
      *
-     * Returns null when there's no parameter, the parameter isn't numeric,
-     * or the size mode couldn't be resolved (ambiguous sibling type rules).
-     * Thresholds are stored as raw numeric strings so BigNumber comparison
-     * preserves decimal precision.
+     * Returns null when there's no numeric parameter.
      */
     private static function tryInlineSize(CheckType $type, array $parameters, array $context): ?InlineCheck
     {
-        if (! isset($parameters[0]) || ! is_numeric($parameters[0]) || $context['sizeMode'] === null) {
+        if (! isset($parameters[0]) || ! is_numeric($parameters[0])) {
             return null;
         }
 
         return new InlineCheck(
             $type,
-            ['n' => $parameters[0], 'mode' => $context['sizeMode']],
+            [
+                'numeric' => $context['numeric'],
+                'threshold' => self::compileSizeThreshold($parameters[0]),
+            ],
             parameters: $parameters,
         );
     }
@@ -439,24 +339,42 @@ final class RuleCompiler
     /**
      * Try to inline a between rule as a size-between check.
      *
-     * Returns null when the parameter count is wrong, bounds aren't numeric,
-     * or the size mode couldn't be resolved.
+     * Returns null when the parameter count is wrong or bounds aren't numeric.
      */
     private static function tryInlineSizeBetween(array $parameters, array $context): ?InlineCheck
     {
         if (count($parameters) !== 2
             || ! is_numeric($parameters[0])
             || ! is_numeric($parameters[1])
-            || $context['sizeMode'] === null
         ) {
             return null;
         }
 
         return new InlineCheck(
             CheckType::SizeBetween,
-            ['min' => $parameters[0], 'max' => $parameters[1], 'mode' => $context['sizeMode']],
+            [
+                'numeric' => $context['numeric'],
+                'minimum' => self::compileSizeThreshold($parameters[0]),
+                'maximum' => self::compileSizeThreshold($parameters[1]),
+            ],
             parameters: $parameters,
         );
+    }
+
+    /**
+     * Normalize and classify a size threshold for execution.
+     *
+     * @return array{raw: string, integer: ?int}
+     */
+    private static function compileSizeThreshold(mixed $threshold): array
+    {
+        $rawThreshold = trim((string) $threshold);
+        $integerThreshold = filter_var($rawThreshold, FILTER_VALIDATE_INT);
+
+        return [
+            'raw' => $rawThreshold,
+            'integer' => $integerThreshold === false ? null : $integerThreshold,
+        ];
     }
 
     /**
@@ -480,7 +398,7 @@ final class RuleCompiler
      * those must go through DelegatedCheck where compareDates() resolves the
      * referenced attribute's value.
      *
-     * @param array{sizeMode: ?SizeMode, dateFormat: ?string, hasSiblingArrayRule: bool} $context
+     * @param array{numeric: bool, dateFormat: ?string, hasSiblingArrayRule: bool} $context
      */
     private static function tryInlineDate(CheckType $type, array $parameters, array $context): ?InlineCheck
     {
@@ -497,25 +415,5 @@ final class RuleCompiler
             ['target' => $parameters[0], 'format' => $context['dateFormat']],
             parameters: $parameters,
         );
-    }
-
-    /**
-     * Determine if a rule name identifies an implicit rule.
-     *
-     * Implicit rules run even when the attribute is absent or empty. This
-     * list mirrors Validator::$implicitRules and is used to set the
-     * hasImplicitRule flag on the compiled plan.
-     */
-    private static function isImplicitRule(string $ruleName): bool
-    {
-        return in_array($ruleName, [
-            'Accepted', 'AcceptedIf', 'Declined', 'DeclinedIf',
-            'Filled',
-            'Missing', 'MissingIf', 'MissingUnless', 'MissingWith', 'MissingWithAll',
-            'Present', 'PresentIf', 'PresentUnless', 'PresentWith', 'PresentWithAll',
-            'Required', 'RequiredIf', 'RequiredIfAccepted', 'RequiredIfDeclined',
-            'RequiredUnless', 'RequiredWith', 'RequiredWithAll',
-            'RequiredWithout', 'RequiredWithoutAll',
-        ], true);
     }
 }

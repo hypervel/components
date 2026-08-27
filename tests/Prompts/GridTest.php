@@ -260,4 +260,38 @@ class GridTest extends TestCase
         Prompt::assertStrippedOutputContains('│ using-fluxui                 │ using-folio-routing  │ using-tailwindcss │');
         Prompt::assertStrippedOutputContains('└──────────────────────────────┴──────────────────────┴───────────────────┘');
     }
+
+    public function testTruncatesItemsThatAreWiderThanTheGrid(): void
+    {
+        Prompt::fake();
+
+        (new Grid([str_repeat('a', 200)], maxWidth: 80))->display();
+
+        $widest = max(array_map(
+            fn (string $line): int => mb_strwidth(rtrim($line)),
+            explode(PHP_EOL, Prompt::strippedContent()),
+        ));
+
+        $this->assertLessThanOrEqual(80, $widest);
+        Prompt::assertStrippedOutputContains('…');
+    }
+
+    public function testNarrowGridStillUsesAPositiveTruncationWidth(): void
+    {
+        Prompt::fake();
+
+        (new Grid(['long item'], maxWidth: 2))->display();
+
+        Prompt::assertStrippedOutputContains('…');
+    }
+
+    public function testLeavesItemsThatAlreadyFitUntouched(): void
+    {
+        Prompt::fake();
+
+        (new Grid(['item1', 'item2'], maxWidth: 80))->display();
+
+        Prompt::assertStrippedOutputContains('│ item1 │ item2 │');
+        Prompt::assertStrippedOutputDoesntContain('…');
+    }
 }

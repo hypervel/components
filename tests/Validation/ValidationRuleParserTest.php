@@ -533,6 +533,56 @@ class ValidationRuleParserTest extends TestCase
         ], $results->rules);
     }
 
+    public function testExplodeCanonicalizesStringableFluentRules(): void
+    {
+        $results = (new ValidationRuleParser(['value' => 'allowed']))->explode([
+            'value' => [
+                Rule::in(['allowed', 'other']),
+                Rule::notIn(['blocked']),
+                Rule::dimensions()->maxWidth(100),
+                Rule::exists('users', 'email'),
+                Rule::unique('users', 'email')->ignore(0),
+            ],
+        ]);
+
+        $this->assertSame([
+            'in:"allowed","other"',
+            'not_in:"blocked"',
+            'dimensions:max_width=100',
+            'exists:users,email',
+            'unique:users,email,"0",id',
+        ], $results->rules['value']);
+    }
+
+    public function testExplodePreservesCallbackBearingPresenceRules(): void
+    {
+        $exists = Rule::exists('users', 'email')->where(static fn ($query) => $query);
+        $unique = Rule::unique('users', 'email')->where(static fn ($query) => $query);
+
+        $results = (new ValidationRuleParser(['email' => 'user@example.com']))->explode([
+            'email' => [$exists, $unique],
+        ]);
+
+        $this->assertSame([$exists, $unique], $results->rules['email']);
+    }
+
+    public function testExplodeEvaluatesConditionalFluentRuleOnce(): void
+    {
+        $calls = 0;
+        $rule = Rule::requiredIf(function () use (&$calls): bool {
+            ++$calls;
+
+            return true;
+        });
+
+        $results = (new ValidationRuleParser(['value' => 'present']))->explode([
+            'value' => [$rule],
+        ]);
+
+        $this->assertSame(['required'], $results->rules['value']);
+        $this->assertSame(1, $calls);
+    }
+
     public function testExplodeExpandsWildcardStringRules(): void
     {
         $parser = new ValidationRuleParser([

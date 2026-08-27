@@ -59,7 +59,6 @@ class Enum implements Rule, Stringable, ValidatorAwareRule
         }
 
         try {
-            /* @phpstan-ignore-next-line */
             $value = $this->type::tryFrom($value);
 
             return ! is_null($value) && $this->isDesirable($value);

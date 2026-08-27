@@ -14,7 +14,7 @@ class DatabaseEventsTest extends SentryTestCase
     public function testSqlQueriesAreRecordedWhenEnabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.sql_queries' => true,
+            'sentry' => $this->sentryConfigWith(['breadcrumbs.sql_queries' => true]),
         ]);
 
         $this->assertTrue($this->app->make('config')->boolean('sentry.breadcrumbs.sql_queries'));
@@ -34,7 +34,7 @@ class DatabaseEventsTest extends SentryTestCase
     public function testSqlBindingsAreRecordedWhenEnabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.sql_bindings' => true,
+            'sentry' => $this->sentryConfigWith(['breadcrumbs.sql_bindings' => true]),
         ]);
 
         $this->assertTrue($this->app->make('config')->boolean('sentry.breadcrumbs.sql_bindings'));
@@ -55,7 +55,7 @@ class DatabaseEventsTest extends SentryTestCase
     public function testSqlQueriesAreRecordedWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.sql_queries' => false,
+            'sentry' => $this->sentryConfigWith(['breadcrumbs.sql_queries' => false]),
         ]);
 
         $this->assertFalse($this->app->make('config')->boolean('sentry.breadcrumbs.sql_queries'));
@@ -73,7 +73,7 @@ class DatabaseEventsTest extends SentryTestCase
     public function testSqlBindingsAreRecordedWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.sql_bindings' => false,
+            'sentry' => $this->sentryConfigWith(['breadcrumbs.sql_bindings' => false]),
         ]);
 
         $this->assertFalse($this->app->make('config')->boolean('sentry.breadcrumbs.sql_bindings'));

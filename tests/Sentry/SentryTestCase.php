@@ -8,6 +8,7 @@ use Hypervel\Config\Repository;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Sentry\SentryServiceProvider;
+use Hypervel\Support\Arr;
 use ReflectionMethod;
 use ReflectionProperty;
 use Sentry\Breadcrumb;
@@ -101,6 +102,24 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
         $this->setupConfig = $config;
 
         $this->reloadApplication();
+    }
+
+    /**
+     * Return the complete shipped Sentry config with test-specific overrides.
+     *
+     * @param array<string, mixed> $overrides
+     *
+     * @return array<string, mixed>
+     */
+    protected function sentryConfigWith(array $overrides): array
+    {
+        $config = config()->array('sentry');
+
+        foreach ($overrides as $key => $value) {
+            Arr::set($config, $key, $value);
+        }
+
+        return $config;
     }
 
     protected function dispatchHypervelEvent(object $event, array $payload = []): void

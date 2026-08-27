@@ -472,6 +472,29 @@ class StorageIntegrationTest extends SentryTestCase
         $this->assertFalse($disk->exists('foo'));
     }
 
+    public function testGlobalFlagsDisableTelemetryWithoutDiskOverrides(): void
+    {
+        $breadcrumbs = config()->array('sentry.breadcrumbs');
+        $breadcrumbs['storage'] = false;
+        $diskConfig = config()->array('filesystems.disks.local');
+        $diskConfig['sentry_disk_name'] = 'local';
+        $diskConfig['sentry_original_driver'] = $diskConfig['driver'];
+        $diskConfig['driver'] = 'sentry';
+        $tracing = config()->array('sentry.tracing');
+        $tracing['storage'] = false;
+
+        $this->resetApplicationWithConfig([
+            'sentry.breadcrumbs' => $breadcrumbs,
+            'sentry.tracing' => $tracing,
+            'filesystems.disks.local' => $diskConfig,
+        ]);
+
+        $disk = Storage::disk('local');
+
+        $this->assertNotInstanceOf(DecoratedFilesystem::class, $disk);
+        $this->assertFalse($disk->exists('foo'));
+    }
+
     public function testResolvingDiskDoesNotModifyConfig(): void
     {
         $this->resetApplicationWithConfig([

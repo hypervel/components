@@ -34,6 +34,11 @@ return [
     |            "postmark", "resend", "cloudflare", "log",
     |            "array", "failover", "roundrobin"
     |
+    | A null SMTP scheme is inferred from its port, while a null timeout leaves
+    | the transport default unchanged. A null log channel uses the default log
+    | channel. Poolable named transports use the shared pool defaults; set
+    | "pool" to false to disable pooling or provide an array of pool options.
+    |
     */
 
     'mailers' => [
@@ -42,7 +47,7 @@ return [
             'scheme' => env('MAIL_SCHEME'),
             'url' => env('MAIL_URL'),
             'host' => env('MAIL_HOST', '127.0.0.1'),
-            'port' => env('MAIL_PORT', 2525),
+            'port' => (int) env('MAIL_PORT', 2525),
             'username' => env('MAIL_USERNAME'),
             'password' => env('MAIL_PASSWORD'),
             'timeout' => null,

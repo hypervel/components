@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
-use Hypervel\Foundation\Providers\FoundationServiceProvider;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\DumpWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
@@ -152,27 +151,6 @@ class DumpWatcherTest extends FeatureTestCase
         VarDumper::dump('single-handler');
 
         $this->assertCount(1, $this->loadTelescopeEntries());
-    }
-
-    public function testFoundationConfigurationReloadPreservesInstalledWatcher(): void
-    {
-        cache()->forever('telescope:dump-watcher', true);
-        $handler = $this->varDumperHandler();
-
-        $this->assertTrue($this->watcherInstalled());
-        $this->assertNotNull($handler);
-
-        config(['view.compiled' => '/tmp/reloaded-compiled-views']);
-        $this->app->getProvider(FoundationServiceProvider::class)->reloadConfiguration();
-
-        $this->assertSame($handler, $this->varDumperHandler());
-
-        VarDumper::dump('recorded-after-reload');
-
-        $entry = $this->loadTelescopeEntries()->first();
-
-        $this->assertSame(EntryType::DUMP, $entry->type);
-        $this->assertStringContainsString('recorded-after-reload', $entry->content['dump']);
     }
 
     public function testFlushStateDropsThePriorApplicationHandlerAndAllowsReregistration(): void

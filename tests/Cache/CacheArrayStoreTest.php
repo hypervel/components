@@ -82,6 +82,19 @@ class CacheArrayStoreTest extends TestCase
         $this->assertSame('value', $store->get('key'));
     }
 
+    public function testTouchDoesNotReviveAnExpiredItem(): void
+    {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
+
+        $store = new ArrayStore;
+        $store->put('key', 'value', 10);
+
+        CarbonImmutable::setTestNow($now->addSeconds(10));
+
+        $this->assertFalse($store->touch('key', 60));
+        $this->assertArrayNotHasKey('key', $store->all(false));
+    }
+
     public function testStoreItemForeverProperlyStoresInArray(): void
     {
         $mock = $this->getMockBuilder(ArrayStore::class)->onlyMethods(['put'])->getMock();
@@ -232,7 +245,7 @@ class CacheArrayStoreTest extends TestCase
     {
         CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
-        $store = new ArrayStore;
+        $store = new InspectableArrayStore;
         $lock = $store->lock('foo', 10);
         $lock->acquire();
 
@@ -244,6 +257,7 @@ class CacheArrayStoreTest extends TestCase
         $this->assertFalse($lock->isLocked());
         $this->assertFalse($lock->isOwnedByCurrentProcess());
         $this->assertNull($lock->getRemainingLifetime());
+        $this->assertSame([], $store->lockRecords());
     }
 
     public function testLockExpirationLowerBoundary(): void
@@ -685,5 +699,13 @@ class CacheArrayStoreTest extends TestCase
 
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(15));
         $this->assertNull($lock->getRemainingLifetime());
+    }
+}
+
+class InspectableArrayStore extends ArrayStore
+{
+    public function lockRecords(): array
+    {
+        return $this->getLockRecords();
     }
 }

@@ -35,7 +35,6 @@ class SlackWebApiChannel
             throw new RuntimeException('Notification is missing `toSlack` method.');
         }
 
-        // @phpstan-ignore-next-line
         $message = $notification->toSlack($notifiable);
 
         $route = $this->determineRoute($notifiable, $notification);

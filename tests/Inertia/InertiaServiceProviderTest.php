@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Inertia;
 
-use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Http\Request;
@@ -95,40 +94,6 @@ class InertiaServiceProviderTest extends TestCase
 
         $this->assertSame('/inertia-pages/Dashboard.vue', $finder->find('Dashboard'));
         $this->assertSame('/inertia-pages/Dashboard.vue', $finder->find('Dashboard'));
-    }
-
-    public function testReloadConfigurationRebuildsAResolvedViewFinderFromCurrentConfig(): void
-    {
-        config()->set('inertia.pages.paths', ['/before']);
-        config()->set('inertia.pages.extensions', ['vue']);
-
-        $files = m::mock(Filesystem::class);
-        $files->shouldReceive('exists')->once()->with('/before/Dashboard.vue')->andReturn(true);
-        $files->shouldReceive('exists')->once()->with('/after/Dashboard.jsx')->andReturn(true);
-        $this->app->instance('files', $files);
-        $gateway = $this->app->make(Gateway::class);
-        $finder = $this->app->make('inertia.view-finder');
-
-        $this->assertSame('/before/Dashboard.vue', $finder->find('Dashboard'));
-
-        config()->set('inertia.pages.paths', ['/after']);
-        config()->set('inertia.pages.extensions', ['jsx']);
-
-        (new InertiaServiceProvider($this->app))->reloadConfiguration();
-
-        $reloadedFinder = $this->app->make('inertia.view-finder');
-        $this->assertNotSame($finder, $reloadedFinder);
-        $this->assertSame('/after/Dashboard.jsx', $reloadedFinder->find('Dashboard'));
-        $this->assertSame($gateway, $this->app->make(Gateway::class));
-    }
-
-    public function testReloadConfigurationDoesNotResolveAnUnusedViewFinder(): void
-    {
-        $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('forgetInstance')->once()->with('inertia.view-finder');
-        $app->shouldNotReceive('make');
-
-        (new InertiaServiceProvider($app))->reloadConfiguration();
     }
 
     public function testInertiaViewFinderDoesNotCacheMisses(): void

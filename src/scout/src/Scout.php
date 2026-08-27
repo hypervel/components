@@ -37,6 +37,11 @@ class Scout
     protected const string DEFAULT_REMOVE_FROM_SEARCH_JOB = RemoveFromSearch::class;
 
     /**
+     * The default number of models processed in each search indexing chunk.
+     */
+    public const int DEFAULT_CHUNK_SIZE = 500;
+
+    /**
      * Coroutine-local context key indicating that scout:import is currently running.
      *
      * Coroutine-local rather than process-global so concurrent coroutines in the

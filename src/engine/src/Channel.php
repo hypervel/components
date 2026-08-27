@@ -20,6 +20,7 @@ class Channel extends \Swoole\Coroutine\Channel implements ChannelInterface
      *
      * @param TValue $data
      * @param float $timeout Timeout in seconds (values less than or equal to zero wait indefinitely)
+     * @phpstan-impure
      */
     public function push(mixed $data, float $timeout = -1): bool
     {
@@ -31,6 +32,7 @@ class Channel extends \Swoole\Coroutine\Channel implements ChannelInterface
      *
      * @param float $timeout Timeout in seconds (values less than or equal to zero wait indefinitely)
      * @return false|TValue Returns false when pop fails
+     * @phpstan-impure Removes a value and may hand the freed slot to a blocked producer.
      */
     public function pop(float $timeout = -1): mixed
     {
@@ -67,6 +69,8 @@ class Channel extends \Swoole\Coroutine\Channel implements ChannelInterface
      * Call only from a deterministic lifecycle path while the Swoole runtime
      * is live. Native channel methods are uncatchably fatal after the native
      * handle is torn down, so destructors must not call this method.
+     *
+     * @phpstan-impure
      */
     public function close(): bool
     {

@@ -8,6 +8,7 @@ use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Horizon\HorizonServiceProvider;
+use Hypervel\Horizon\Repositories\RedisJobRepository;
 use Hypervel\Support\Env;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Tests\TestCase;
@@ -20,12 +21,25 @@ class HorizonConfigTest extends TestCase
         $config = require dirname(__DIR__, 2) . '/src/horizon/config/horizon.php';
 
         $this->assertSame('', $config['proxy_path']);
-        $this->assertSame(300, $config['metrics']['snapshot_lock']);
         $this->assertSame('horizon', $config['path']);
         $this->assertSame('default', $config['use']);
         $this->assertSame(['web'], $config['middleware']);
+        $this->assertSame([
+            'recent' => RedisJobRepository::DEFAULT_RECENT_JOB_RETENTION,
+            'pending' => 60,
+            'completed' => 60,
+            'recent_failed' => RedisJobRepository::DEFAULT_FAILED_JOB_RETENTION,
+            'failed' => RedisJobRepository::DEFAULT_FAILED_JOB_RETENTION,
+            'monitored' => RedisJobRepository::DEFAULT_MONITORED_JOB_RETENTION,
+        ], $config['trim']);
+        $this->assertSame([
+            'job' => 24,
+            'queue' => 24,
+        ], $config['metrics']['trim_snapshots']);
+        $this->assertSame(300, $config['metrics']['snapshot_lock']);
         $this->assertFalse($config['fast_termination']);
         $this->assertSame(64, $config['memory_limit']);
+        $this->assertNull($config['env']);
     }
 
     public function testApplicationMetricsConfigurationReplacesPackageDefaults(): void
@@ -57,7 +71,7 @@ class HorizonConfigTest extends TestCase
                 'horizon' => ['name' => $name],
             ]);
             $app = m::mock(Application::class)->makePartial();
-            $app->shouldReceive('make')->with(ConfigRepository::class)->andReturn($config);
+            $app->shouldReceive('make')->with('config')->andReturn($config);
 
             (new HorizonServiceProviderForTesting($app))->normalize();
 

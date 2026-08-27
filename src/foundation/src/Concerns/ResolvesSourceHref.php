@@ -7,6 +7,9 @@ namespace Hypervel\Foundation\Concerns;
 use Hypervel\Support\Str;
 use Throwable;
 
+/**
+ * Resolve source links for consumers that provide a $basePath property.
+ */
 trait ResolvesSourceHref
 {
     /**

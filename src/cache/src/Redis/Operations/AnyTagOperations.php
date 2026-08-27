@@ -45,6 +45,9 @@ class AnyTagOperations
 
     private ?Prune $prune = null;
 
+    /**
+     * Create a new any-tag operations instance.
+     */
     public function __construct(
         private readonly StoreContext $context,
         private readonly Serialization $serialization,

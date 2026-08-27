@@ -59,7 +59,14 @@ class RequestGuard implements Guard
     {
         self::$nullUserSentinel ??= new stdClass;
 
-        $contextKey = $this->getContextKey();
+        /** @var null|AuthenticatableContract $explicitUser */
+        $explicitUser = CoroutineContext::get($this->getExplicitUserContextKey());
+
+        if ($explicitUser !== null) {
+            return $explicitUser;
+        }
+
+        $contextKey = $this->getResolvedUserContextKey();
         $cached = CoroutineContext::get($contextKey);
 
         if ($cached === self::$nullUserSentinel) {
@@ -98,7 +105,11 @@ class RequestGuard implements Guard
     {
         self::$nullUserSentinel ??= new stdClass;
 
-        $cached = CoroutineContext::get($this->getContextKey());
+        if (CoroutineContext::has($this->getExplicitUserContextKey())) {
+            return true;
+        }
+
+        $cached = CoroutineContext::get($this->getResolvedUserContextKey());
 
         return $cached !== null && $cached !== self::$nullUserSentinel;
     }
@@ -108,7 +119,7 @@ class RequestGuard implements Guard
      */
     public function setUser(AuthenticatableContract $user): static
     {
-        CoroutineContext::set($this->getContextKey(), $user);
+        CoroutineContext::set($this->getExplicitUserContextKey(), $user);
 
         return $this;
     }
@@ -118,27 +129,38 @@ class RequestGuard implements Guard
      */
     public function forgetUser(): static
     {
-        CoroutineContext::forget($this->getContextKey());
+        CoroutineContext::forget($this->getExplicitUserContextKey());
+        CoroutineContext::forget($this->getResolvedUserContextKey());
 
         return $this;
     }
 
     /**
-     * Get durable authentication Context keys for the current request.
+     * Get durable authentication Context keys.
+     *
+     * Per-request resolver caches must not cross a request boundary.
      *
      * @return array<int, string>
      */
     public function getAuthContextKeys(): array
     {
-        return [$this->getContextKey()];
+        return [$this->getExplicitUserContextKey()];
     }
 
     /**
-     * Get the Context key for caching the authenticated user.
+     * Get the Context key for an explicitly assigned user.
      */
-    protected function getContextKey(): string
+    protected function getExplicitUserContextKey(): string
     {
-        return "__auth.guards.{$this->name}.user";
+        return "__auth.guards.{$this->name}.user.explicit";
+    }
+
+    /**
+     * Get the Context key for caching the resolved user.
+     */
+    protected function getResolvedUserContextKey(): string
+    {
+        return "__auth.guards.{$this->name}.user.resolved";
     }
 
     /**

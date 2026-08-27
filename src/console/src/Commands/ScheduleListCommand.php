@@ -54,7 +54,7 @@ class ScheduleListCommand extends Command
      *
      * @throws Exception
      */
-    public function handle()
+    public function handle(): void
     {
         $environments = Arr::wrap($this->option('environment'));
 
@@ -328,7 +328,7 @@ class ScheduleListCommand extends Command
 
             return sprintf(
                 '%s:%s',
-                str_replace($this->hypervel->basePath() . DIRECTORY_SEPARATOR, '', $function->getFileName() ?: ''), /* @phpstan-ignore-line */
+                str_replace($this->hypervel->basePath() . DIRECTORY_SEPARATOR, '', $function->getFileName() ?: ''),
                 $function->getStartLine()
             );
         }

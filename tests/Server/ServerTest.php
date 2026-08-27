@@ -274,6 +274,66 @@ class ServerTest extends TestCase
         ]));
     }
 
+    public function testEverySecondaryServerReceivesGlobalAndOnlyItsOwnSettings(): void
+    {
+        $mainPort = m::mock(SwoolePort::class);
+        $firstSecondary = m::mock(SwoolePort::class);
+        $secondSecondary = m::mock(SwoolePort::class);
+        $nativeServer = m::mock(SwooleServer::class);
+        $nativeServer->ports = [$mainPort];
+        $nativeServer->expects('set')->with([
+            'socket_buffer_size' => 2048,
+            'http_compression' => false,
+            'open_http2_protocol' => true,
+        ])->andReturnTrue();
+        $nativeServer->expects('addlistener')
+            ->with('127.0.0.1', 8001, SWOOLE_SOCK_TCP)
+            ->andReturn($firstSecondary);
+        $firstSecondary->expects('set')->with([
+            'socket_buffer_size' => 4096,
+            'http_compression' => false,
+            'open_http_protocol' => false,
+        ]);
+        $nativeServer->expects('addlistener')
+            ->with('127.0.0.1', 8002, SWOOLE_SOCK_TCP)
+            ->andReturn($secondSecondary);
+        $secondSecondary->expects('set')->with([
+            'socket_buffer_size' => 2048,
+            'http_compression' => false,
+        ]);
+        $server = $this->server(m::mock(Container::class));
+        $server->createWith($nativeServer);
+
+        $server->init(new ServerConfig([
+            'settings' => [
+                'socket_buffer_size' => 2048,
+                'http_compression' => false,
+            ],
+            'servers' => [
+                [
+                    'name' => 'http',
+                    'host' => '127.0.0.1',
+                    'port' => 8000,
+                    'settings' => ['open_http2_protocol' => true],
+                ],
+                [
+                    'name' => 'grpc',
+                    'host' => '127.0.0.1',
+                    'port' => 8001,
+                    'settings' => [
+                        'socket_buffer_size' => 4096,
+                        'open_http_protocol' => false,
+                    ],
+                ],
+                [
+                    'name' => 'metrics',
+                    'host' => '127.0.0.1',
+                    'port' => 8002,
+                ],
+            ],
+        ]));
+    }
+
     public function testListenerCreationFailureStopsConfiguration(): void
     {
         $mainPort = m::mock(SwoolePort::class);

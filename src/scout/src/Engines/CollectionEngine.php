@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout\Engines;
 
-use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -179,7 +178,7 @@ class CollectionEngine extends Engine
         }
 
         if (in_array(SoftDeletes::class, class_uses_recursive(get_class($builder->model)), true)
-            && $this->getScoutConfig('soft_delete', false)
+            && config()->boolean('scout.soft_delete')
         ) {
             /* @phpstan-ignore method.notFound (SoftDeletingScope adds this method) */
             return $query->withTrashed();
@@ -290,15 +289,5 @@ class CollectionEngine extends Engine
     public function deleteIndex(string $name): mixed
     {
         return null;
-    }
-
-    /**
-     * Get a Scout configuration value.
-     */
-    protected function getScoutConfig(string $key, mixed $default = null): mixed
-    {
-        return Container::getInstance()
-            ->make('config')
-            ->get("scout.{$key}", $default);
     }
 }

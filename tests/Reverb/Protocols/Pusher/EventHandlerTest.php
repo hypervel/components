@@ -319,10 +319,10 @@ class EventHandlerTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['cache_miss'],
-        ]);
+        ]));
 
         $this->pusher->subscribe($this->connection, 'cache-test-channel');
 
@@ -338,10 +338,10 @@ class EventHandlerTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['cache_miss'],
-        ]);
+        ]));
 
         // Subscribe first to create the channel, then broadcast to populate cache
         $this->pusher->subscribe($this->connection, 'cache-test-channel');
@@ -366,10 +366,10 @@ class EventHandlerTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['cache_miss'],
-        ]);
+        ]));
 
         // Two connections subscribe to the same empty cache channel
         $this->pusher->subscribe($this->connection, 'cache-test-channel');
@@ -392,10 +392,10 @@ class EventHandlerTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['channel_occupied'], // cache_miss is not in the list
-        ]);
+        ]));
 
         $this->pusher->subscribe($this->connection, 'cache-test-channel');
 

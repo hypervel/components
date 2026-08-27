@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Socialite;
 use Hypervel\Config\Repository;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
 use Hypervel\Socialite\Contracts\Factory;
@@ -16,9 +15,10 @@ use Hypervel\Socialite\SocialiteManager;
 use Hypervel\Socialite\SocialiteServiceProvider;
 use Hypervel\Socialite\Two\GithubProvider;
 use Hypervel\Socialite\Two\GitlabProvider;
+use Hypervel\Socialite\Two\XProvider;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Socialite\Fixtures\OAuthTwoTestProviderStub;
-use Mockery as m;
+use InvalidArgumentException;
 use ReflectionProperty;
 use Swoole\Coroutine\Channel;
 
@@ -67,38 +67,6 @@ class SocialiteManagerTest extends TestCase
         ));
 
         $this->assertSame($manager->driver('custom'), $factory->driver('custom'));
-    }
-
-    public function testProviderReloadClearsDriversButPreservesTheManagerAndCustomCreators(): void
-    {
-        $manager = $this->app->make(SocialiteManager::class);
-        $manager->extend('custom', static fn (Container $container) => new OAuthTwoTestProviderStub(
-            $container->make('request'),
-            'client_id',
-            'client_secret',
-            'redirect'
-        ));
-        $originalGithub = $manager->driver('github');
-        $originalCustom = $manager->driver('custom');
-
-        config()->set('services.github.client_id', 'reloaded-client-id');
-
-        (new SocialiteServiceProvider($this->app))->reloadConfiguration();
-
-        $reloadedGithub = $manager->driver('github')->stateless();
-        $this->assertSame($manager, $this->app->make(SocialiteManager::class));
-        $this->assertNotSame($originalGithub, $reloadedGithub);
-        $this->assertNotSame($originalCustom, $manager->driver('custom'));
-        $this->assertStringContainsString('client_id=reloaded-client-id', $reloadedGithub->redirect()->getTargetUrl());
-    }
-
-    public function testProviderReloadDoesNotResolveAnUnusedManager(): void
-    {
-        $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('resolved')->once()->with(SocialiteManager::class)->andReturnFalse();
-        $app->shouldNotReceive('make');
-
-        (new SocialiteServiceProvider($app))->reloadConfiguration();
     }
 
     public function testGitlabDriverUsesConfiguredHost(): void
@@ -175,6 +143,116 @@ class SocialiteManagerTest extends TestCase
 
     // REMOVED: Laravel Socialite's OAuth 1 and legacy Twitter manager tests do not apply;
     // Hypervel exposes X through OAuth 2 as the "x" driver.
+
+    public function testXDriverUsesCanonicalConfiguration(): void
+    {
+        $this->app->make('config')->set('services.x', [
+            'client_id' => 'x-client-id',
+            'client_secret' => 'x-client-secret',
+            'redirect' => 'https://example.com/x/callback',
+        ]);
+
+        $this->assertInstanceOf(
+            XProvider::class,
+            $this->app->make(SocialiteManager::class)->driver('x'),
+        );
+    }
+
+    public function testXDriverRejectsLegacyOnlyConfiguration(): void
+    {
+        $this->app->make('config')->set([
+            'services.x' => null,
+            'services.x-oauth-2' => [
+                'client_id' => 'legacy-client-id',
+                'client_secret' => 'legacy-client-secret',
+                'redirect' => 'https://example.com/x/callback',
+            ],
+        ]);
+
+        $this->expectException(DriverMissingConfigurationException::class);
+        $this->expectExceptionMessage('Missing required configuration keys [client_id, client_secret, redirect]');
+
+        $this->app->make(SocialiteManager::class)->driver('x');
+    }
+
+    public function testLegacyXDriverNamesRemainUnsupported(): void
+    {
+        $manager = $this->app->make(SocialiteManager::class);
+
+        foreach (['twitter', 'x-oauth-2'] as $driver) {
+            try {
+                $manager->driver($driver);
+                $this->fail("Expected the [{$driver}] driver to be unsupported.");
+            } catch (InvalidArgumentException $exception) {
+                $this->assertSame("Driver [{$driver}] not supported.", $exception->getMessage());
+            }
+        }
+    }
+
+    public function testCachedProviderResolvesClosureRedirectForEachExecution(): void
+    {
+        $this->app->make('config')->set('services.github.redirect', static fn (): string => request()->getSchemeAndHttpHost() . '/callback');
+        RequestContext::set(Request::create('https://initial.example.com/login'));
+
+        $manager = $this->app->make(SocialiteManager::class);
+        $manager->driver('github');
+
+        [$tenantAUrl, $tenantBUrl] = parallel([
+            function () use ($manager): string {
+                RequestContext::set(Request::create('https://tenant-a.example.com/login'));
+
+                return $manager->driver('github')->stateless()->redirect()->getTargetUrl();
+            },
+            function () use ($manager): string {
+                RequestContext::set(Request::create('https://tenant-b.example.com/login'));
+
+                return $manager->driver('github')->stateless()->redirect()->getTargetUrl();
+            },
+        ]);
+
+        $this->assertStringContainsString(urlencode('https://tenant-a.example.com/callback'), $tenantAUrl);
+        $this->assertStringContainsString(urlencode('https://tenant-b.example.com/callback'), $tenantBUrl);
+    }
+
+    public function testCachedProviderFormatsRelativeRedirectForEachExecution(): void
+    {
+        $this->app->make('config')->set('services.github.redirect', '/callback');
+        RequestContext::set(Request::create('https://initial.example.com/login'));
+
+        $manager = $this->app->make(SocialiteManager::class);
+        $manager->driver('github');
+
+        [$tenantAUrl, $tenantBUrl] = parallel([
+            function () use ($manager): string {
+                RequestContext::set(Request::create('https://tenant-a.example.com/login'));
+
+                return $manager->driver('github')->stateless()->redirect()->getTargetUrl();
+            },
+            function () use ($manager): string {
+                RequestContext::set(Request::create('https://tenant-b.example.com/login'));
+
+                return $manager->driver('github')->stateless()->redirect()->getTargetUrl();
+            },
+        ]);
+
+        $this->assertStringContainsString(urlencode('https://tenant-a.example.com/callback'), $tenantAUrl);
+        $this->assertStringContainsString(urlencode('https://tenant-b.example.com/callback'), $tenantBUrl);
+    }
+
+    public function testBuildOAuth2ProviderPreservesRedirectFormatterExtensionPoint(): void
+    {
+        $manager = new RedirectFormattingSocialiteManager($this->app);
+        $provider = $manager->buildOAuth2Provider(GithubProvider::class, [
+            'client_id' => 'github-client-id',
+            'client_secret' => 'github-client-secret',
+            'redirect' => '/callback',
+        ])->stateless();
+
+        $this->assertStringContainsString(
+            'redirect_uri=' . urlencode('https://formatted.example.com/callback'),
+            $provider->redirect()->getTargetUrl(),
+        );
+    }
 
     public function testItCanInstantiateTheGithubDriverWithScopesFromConfigArray(): void
     {
@@ -425,5 +503,13 @@ class SocialiteManagerTest extends TestCase
         $provider->stateless();
 
         $this->assertStringContainsString('client_id=new-client-id', $provider->redirect()->getTargetUrl());
+    }
+}
+
+class RedirectFormattingSocialiteManager extends SocialiteManager
+{
+    protected function formatRedirectUrl(array $config): string
+    {
+        return 'https://formatted.example.com' . value($config['redirect']);
     }
 }

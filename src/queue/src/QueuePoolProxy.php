@@ -7,6 +7,7 @@ namespace Hypervel\Queue;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Contracts\Queue\IndexAwareQueue;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\ObjectPool\Contracts\Factory;
@@ -18,7 +19,7 @@ use Hypervel\Support\Collection;
 use RuntimeException;
 use Throwable;
 
-class QueuePoolProxy extends PoolProxy implements QueueContract
+class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
 {
     /**
      * The logical connection name applied to each borrowed queue.
@@ -206,14 +207,16 @@ class QueuePoolProxy extends PoolProxy implements QueueContract
     /**
      * Pop the next job off of the queue.
      */
-    public function pop(?string $queue = null): ?Job
+    public function pop(?string $queue = null, int $index = 0): ?Job
     {
         $lease = $this->lease();
 
         try {
             /** @var QueueContract $connection */
             $connection = $lease->get();
-            $job = $connection->pop($queue);
+            $job = $connection instanceof IndexAwareQueue
+                ? $connection->pop($queue, $index)
+                : $connection->pop($queue);
 
             if ($job === null) {
                 $lease->release();

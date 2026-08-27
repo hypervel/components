@@ -14,11 +14,22 @@ use Hypervel\Routing\Route;
 use Hypervel\Tests\Routing\Fixtures\CategoryBackedEnum;
 use Hypervel\Tests\Routing\Fixtures\CategoryEnum;
 use Hypervel\Tests\Routing\RoutingTestCase;
+use LogicException;
 use ReflectionProperty;
 use WeakMap;
 
 class ImplicitRouteBindingTest extends RoutingTestCase
 {
+    public function testItDoesNotInspectTheActionWhenTheRouteHasNoParameters(): void
+    {
+        $route = new EmptyParameterRoute('GET', '/test', fn () => 'ok');
+        $route->bind(Request::create('/test'));
+
+        ImplicitRouteBinding::resolveForRoute(Container::getInstance(), $route);
+
+        $this->assertSame(0, $route->signatureParameterCalls);
+    }
+
     public function testItCanResolveTheImplicitBackedEnumRouteBindingsForTheGivenRoute(): void
     {
         $action = ['uses' => function (CategoryBackedEnum $category) {
@@ -134,6 +145,24 @@ class ImplicitRouteBindingTest extends RoutingTestCase
         ImplicitRouteBinding::resolveForRoute($container, $route);
     }
 
+    public function testItUsesAFreshModelForEachImplicitRouteBinding(): void
+    {
+        $container = Container::getInstance();
+
+        foreach ([1, 2] as $identifier) {
+            $action = ['uses' => function (FreshImplicitRouteBindingUser $user) {
+                return $user;
+            }];
+            $route = new Route('GET', '/test/{user}', $action);
+            $route->bind(Request::create("/test/{$identifier}"));
+            $route->prepareForSerialization();
+
+            ImplicitRouteBinding::resolveForRoute($container, $route);
+
+            $this->assertSame($identifier, $route->parameter('user')->getKey());
+        }
+    }
+
     public function testItResolvesInvokableObjectSignatureParameters(): void
     {
         $route = new Route(
@@ -205,6 +234,34 @@ class ImplicitRouteBindingTest extends RoutingTestCase
 
 class ImplicitRouteBindingUser extends Model
 {
+}
+
+class FreshImplicitRouteBindingUser extends Model
+{
+    private bool $resolved = false;
+
+    public function resolveRouteBinding(mixed $value, ?string $field = null): ?self
+    {
+        if ($this->resolved) {
+            throw new LogicException('The route binding model was reused.');
+        }
+
+        $this->resolved = true;
+
+        return (new static)->setAttribute($this->getRouteKeyName(), $value);
+    }
+}
+
+class EmptyParameterRoute extends Route
+{
+    public int $signatureParameterCalls = 0;
+
+    public function signatureParameters(array|string $conditions = []): array
+    {
+        ++$this->signatureParameterCalls;
+
+        return parent::signatureParameters($conditions);
+    }
 }
 
 class ImplicitRouteBindingInvoker

@@ -17,10 +17,12 @@ class ErrorPageTest extends TestCase
 
     #[Test]
     #[WithConfig('app.debug', true)]
+    #[WithConfig('app.name', null)]
     public function itCanResolveExceptionPage(): void
     {
         $this->get('/failed')
             ->assertInternalServerError()
+            ->assertSee('<title>Hypervel</title>', false)
             ->assertSee('RuntimeException')
             ->assertSee('Bad route!');
     }

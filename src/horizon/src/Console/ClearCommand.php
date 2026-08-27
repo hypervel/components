@@ -40,7 +40,7 @@ class ClearCommand extends Command
         $connection = $this->argument('connection');
 
         if ($connection === null || $connection === '') {
-            $connection = array_first(config('horizon.defaults'))['connection'] ?? 'redis';
+            $connection = array_first(config()->array('horizon.defaults', []))['connection'] ?? 'redis';
         }
 
         $queue = $this->getQueue($connection);

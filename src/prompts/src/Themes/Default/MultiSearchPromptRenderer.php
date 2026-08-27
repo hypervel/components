@@ -18,6 +18,7 @@ class MultiSearchPromptRenderer extends Renderer implements Scrolling
     public function __invoke(MultiSearchPrompt $prompt): string
     {
         $maxWidth = $prompt->terminal()->cols() - 6;
+        $searchValue = $prompt->searchValue();
 
         return match ($prompt->state) {
             'submit' => (string) $this
@@ -29,7 +30,7 @@ class MultiSearchPromptRenderer extends Renderer implements Scrolling
             'cancel' => (string) $this
                 ->box(
                     $this->dim($this->truncate($prompt->label, $prompt->terminal()->cols() - 6)),
-                    $this->strikethrough($this->dim($this->truncate($prompt->searchValue() ?: $prompt->placeholder, $maxWidth))),
+                    $this->strikethrough($this->dim($this->truncate($searchValue === '' ? $prompt->placeholder : $searchValue, $maxWidth))),
                     color: 'red',
                 )
                 ->error($prompt->cancelMessage),

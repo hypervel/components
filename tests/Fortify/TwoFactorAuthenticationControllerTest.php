@@ -14,6 +14,7 @@ use Hypervel\Fortify\Events\TwoFactorAuthenticationConfirmed;
 use Hypervel\Fortify\Events\TwoFactorAuthenticationDisabled;
 use Hypervel\Fortify\Events\TwoFactorAuthenticationEnabled;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
@@ -131,6 +132,9 @@ class TwoFactorAuthenticationControllerTest extends TestCase
         $user = $user->fresh();
 
         $oldValue = $user->two_factor_secret;
+        $confirmedAt = now()->startOfSecond();
+
+        $user->forceFill(['two_factor_confirmed_at' => $confirmedAt])->save();
 
         $response = $this->withoutExceptionHandling()->actingAs($user)->postJson(
             '/user/two-factor-authentication',
@@ -149,6 +153,43 @@ class TwoFactorAuthenticationControllerTest extends TestCase
         $this->assertNull($user->two_factor_confirmed_at);
         $this->assertIsArray(json_decode(decrypt($user->two_factor_recovery_codes), true));
         $this->assertNotNull($user->twoFactorQrCodeSvg());
+    }
+
+    #[DefineEnvironment('withConfirmedTwoFactorAuthentication')]
+    public function testForcedTwoFactorAuthenticationRotationClearsConfirmationInTheSameSave(): void
+    {
+        Event::fake();
+
+        $user = UserWithTwoFactor::forceCreate([
+            'name' => 'Taylor Otwell',
+            'email' => 'taylor@laravel.com',
+            'password' => bcrypt('secret'),
+            'two_factor_secret' => encrypt('old-secret'),
+            'two_factor_recovery_codes' => encrypt(json_encode(['old-recovery-code'], JSON_THROW_ON_ERROR)),
+            'two_factor_confirmed_at' => now(),
+        ]);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $response = $this->withoutExceptionHandling()->actingAs($user)->postJson(
+            '/user/two-factor-authentication',
+            ['force' => true],
+        );
+
+        $response->assertOk();
+        Event::assertDispatched(TwoFactorAuthenticationEnabled::class);
+
+        $user = $user->fresh();
+
+        $this->assertNotSame('old-secret', decrypt($user->two_factor_secret));
+        $this->assertNotSame(['old-recovery-code'], json_decode(decrypt($user->two_factor_recovery_codes), true));
+        $this->assertNull($user->two_factor_confirmed_at);
+        $this->assertSame(1, count(array_filter(
+            DB::getQueryLog(),
+            static fn (array $query): bool => str_starts_with(strtolower($query['query'] ?? ''), 'update')
+                && str_contains($query['query'] ?? '', 'users'),
+        )));
     }
 
     public function testTwoFactorAuthenticationSecretKeyCanBeRetrieved(): void

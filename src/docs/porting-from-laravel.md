@@ -250,7 +250,7 @@ class CourierServiceProvider extends ServiceProvider
         );
 
         $this->app->singleton(Courier::class, fn ($app) => new Courier(
-            $app->make('config')->get('courier')
+            $app->make('config')->array('courier')
         ));
     }
 
@@ -312,9 +312,11 @@ Hypervel service providers may override the `isEnabled` method to opt out of reg
  */
 public function isEnabled(): bool
 {
-    return (bool) config('courier.enabled');
+    return config()->boolean('courier.enabled', false);
 }
 ```
+
+Hypervel calls `isEnabled` before the provider's `register` method. Configuration merged by that provider is not available yet, so this method may only read configuration already loaded by the application or framework. The fallback above is intentional because an unpublished package option may be absent.
 
 <a name="deferred-providers"></a>
 ### Deferred Providers
@@ -403,10 +405,11 @@ Container lifecycles are adapted for Swoole:
 | One instance per request or job coroutine | `scoped()` |
 | One instance per worker | `singleton()` |
 | Fresh instance at the call site | `build()` or `buildWith()` |
+| Fresh instance for every unbound resolution of a class hierarchy | Implement `Hypervel\Contracts\Container\Transient` on its base class |
 | Resolve using bindings and lifecycle rules | `make()` |
 
 > [!WARNING]
-> Unbound concrete classes are automatically cached for the worker lifetime after their first resolution. If an unbound class captures the current user, tenant, request, or other mutable per-request data in its constructor, ordinary tests may pass while concurrent requests receive another request's state. Register the class with `bind()` for a fresh instance, use `scoped()` for one instance per request or job coroutine, or construct a fresh instance with `build()`.
+> Unbound concrete classes are automatically cached for the worker lifetime after their first resolution. If an unbound class captures the current user, tenant, request, or other mutable per-request data in its constructor, ordinary tests may pass while concurrent requests receive another request's state. Register the class with `bind()` for a fresh instance, use `scoped()` for one instance per request or job coroutine, construct a fresh instance with `build()`, or implement `Transient` when every subclass must always be fresh. Eloquent models already implement `Transient`.
 
 <a name="coroutine-aware-dependencies"></a>
 ### Coroutine-Aware Dependencies
@@ -450,6 +453,15 @@ protected function mergeableOptions(string $name): array
     return $name === 'courier' ? ['connections'] : [];
 }
 ```
+
+Start from Hypervel's shipped configuration files and reapply your application overrides. Fixed nested arrays are complete values. Collections such as `connections`, `stores`, and `guards` merge by entry name, but an application entry replaces the complete framework entry with the same name. Carry over required members; documented optional members may be omitted.
+
+When porting Laravel configuration, pay particular attention to these current differences:
+
+- Hypervel password broker records explicitly declare their `database` or `cache` driver.
+- Hypervel's shipped background, deferred, Beanstalkd, SQS, Redis, and failover queues dispatch after commit by default; sync and database do not. A copied Laravel queue config restores Laravel's before-commit behavior. Beanstalkd records also require `port`. See the [queue guide](/docs/{{version}}/queues).
+- The scheduling cache store is configured through `cache.schedule_store` and `SCHEDULE_CACHE_STORE`. Laravel's older `SCHEDULE_CACHE_DRIVER` name is not supported.
+- Hypervel Socialite's X OAuth 2 driver reads `services.x`. Rename Laravel's legacy `services.x-oauth-2` configuration key when porting an application.
 
 Application code should keep request-specific values in the request, session, context, or coroutine context instead of changing config values while the server is running.
 
@@ -502,12 +514,18 @@ Hypervel supports MySQL, MariaDB, PostgreSQL, and SQLite database connections. S
 
 Database connections are persistent, pooled worker resources. Define every connection in `config/database.php` before the application boots. Dynamic connection creation through `DB::build()` and `DB::connectUsing()` is not supported. Review pool sizing and any database session state against the [database documentation](/docs/{{version}}/database#connection-pooling).
 
+Laravel's base `Connection` class exposes PDO methods. Hypervel's base `Connection` is driver-neutral, while its built-in SQL connections extend `PdoConnection`. Ported code that calls `getPdo`, `getReadPdo`, or another PDO-specific method should accept or narrow to `PdoConnection`. See [extending database connections](/docs/{{version}}/database#extending-database-connections) when porting a custom driver.
+
+Laravel's nested `direct` connection endpoint and `::direct` suffix are not available. Configure the direct endpoint as a normal named connection and point the pooled connection's `migrations_connection` option at it.
+
+Hypervel's `migrate:fresh` command discovers the connection declared by each migration and resets every resolved target before rebuilding the schema. Keep each migration's connection stable, and split manual cross-connection schema work into separate migrations with explicit connection declarations. See [drop all tables and migrate](/docs/{{version}}/migrations#drop-all-tables-migrate) for details.
+
 <a name="redis"></a>
 ### Redis
 
 Hypervel's Redis integration uses the PhpRedis extension exclusively. Its default `config/database.php` file does not contain a `client` option or `REDIS_CLIENT` environment variable. Remove those Laravel settings when porting configuration. A copied `client` option with any value other than `phpredis` is rejected; Predis is not supported.
 
-Laravel's top-level `database.redis.clusters` configuration is also rejected. Configure Redis Cluster by adding a `cluster` array to a named Redis connection. See the [Redis configuration](/docs/{{version}}/redis#configuration) and [cluster documentation](/docs/{{version}}/redis#clusters).
+Laravel's top-level `database.redis.clusters` configuration is also rejected. Each Hypervel Redis connection selects its standalone, Sentinel, or Cluster topology within the named connection, so begin with the matching Hypervel example instead of adapting Laravel's connection shape. Optional advanced members use their documented defaults when omitted. Hypervel does not support Laravel's `retry_interval` setting; configure retries with `max_retries`, `backoff_algorithm`, `backoff_base`, and `backoff_cap`. Configure Redis Cluster by adding a `cluster` array to a named Redis connection. See the [Redis configuration](/docs/{{version}}/redis#configuration) and [cluster documentation](/docs/{{version}}/redis#clusters).
 
 <a name="cache"></a>
 ### Cache

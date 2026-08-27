@@ -8,6 +8,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
 use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 
 class HorizonCommandTest extends IntegrationTestCase
@@ -21,19 +22,30 @@ class HorizonCommandTest extends IntegrationTestCase
             ->assertExitCode(0);
     }
 
+    #[DataProvider('environmentProvider')]
     #[RunInSeparateProcess]
-    public function testCommandReturnsTheMasterMonitorStatus(): void
-    {
-        $barrierReached = false;
+    public function testCommandUsesTheSelectedEnvironment(
+        ?string $horizonEnvironment,
+        ?string $commandEnvironment,
+        string $expectedEnvironment,
+    ): void {
+        config()->set([
+            'app.env' => 'application',
+            'horizon.env' => $horizonEnvironment,
+        ]);
 
-        Coroutine::create(function () use (&$barrierReached): void {
+        $barrierReached = false;
+        $observedEnvironment = null;
+
+        Coroutine::create(function () use (&$barrierReached, &$observedEnvironment): void {
             try {
                 $masters = app(MasterSupervisorRepository::class);
                 $deadline = hrtime(true) + 10_000_000_000;
 
                 while (hrtime(true) < $deadline) {
-                    if ($masters->find(MasterSupervisor::name()) !== null) {
+                    if (($master = $masters->find(MasterSupervisor::name())) !== null) {
                         $barrierReached = true;
+                        $observedEnvironment = $master->environment;
                         break;
                     }
 
@@ -45,7 +57,22 @@ class HorizonCommandTest extends IntegrationTestCase
             }
         });
 
-        $this->artisan('horizon')->assertExitCode(0);
+        $parameters = $commandEnvironment === null ? [] : ['--environment' => $commandEnvironment];
+
+        $this->artisan('horizon', $parameters)->assertExitCode(0);
         $this->assertTrue($barrierReached, 'Horizon master never registered before the SIGINT barrier.');
+        $this->assertSame($expectedEnvironment, $observedEnvironment);
+    }
+
+    /**
+     * Provide Horizon environment precedence cases.
+     */
+    public static function environmentProvider(): array
+    {
+        return [
+            'application environment' => [null, null, 'application'],
+            'Horizon environment' => ['horizon', null, 'horizon'],
+            'command option' => ['horizon', 'command', 'command'],
+        ];
     }
 }

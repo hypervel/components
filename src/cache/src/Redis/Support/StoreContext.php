@@ -7,6 +7,7 @@ namespace Hypervel\Cache\Redis\Support;
 use Hypervel\Cache\TagMode;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Redis\RedisConnection;
+use Hypervel\Support\CarbonImmutable;
 use Redis;
 
 /**
@@ -28,6 +29,9 @@ class StoreContext
 
     private readonly TagKeyBuilder $tagKeyBuilder;
 
+    /**
+     * Create a new store context instance.
+     */
     public function __construct(
         private readonly RedisFactory $redis,
         private readonly string $connectionName,
@@ -59,6 +63,14 @@ class StoreContext
     public function tagMode(): TagMode
     {
         return $this->tagMode;
+    }
+
+    /**
+     * Get the tag membership score for a cache lifetime.
+     */
+    public function expirationScore(int $seconds): int
+    {
+        return CarbonImmutable::now()->addSeconds($seconds)->ceilSecond()->getTimestamp();
     }
 
     /**
@@ -154,7 +166,7 @@ class StoreContext
     public function optPrefix(): string
     {
         return $this->withConnection(
-            fn (RedisConnection $connection) => (string) $connection->getOption(Redis::OPT_PREFIX)
+            fn (RedisConnection $connection): string => (string) $connection->getOption(Redis::OPT_PREFIX)
         );
     }
 

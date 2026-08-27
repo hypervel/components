@@ -15,7 +15,6 @@ namespace Hypervel\Support\Facades;
  * @method static void flushMacros()
  * @method static void flushParsedKeys()
  * @method static void flushState()
- * @method static void forgetLoadedGroups()
  * @method static array|string get(string $key, array $replace = [], string|null $locale = null, bool $fallback = true)
  * @method static string getFallback()
  * @method static \Hypervel\Contracts\Translation\Loader getLoader()

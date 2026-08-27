@@ -172,7 +172,7 @@ class PropsResolver
     {
         $resolved = $this->resolvePropertyProviders($shared);
 
-        if (! config('inertia.expose_shared_prop_keys', true)) {
+        if (! config()->boolean('inertia.expose_shared_prop_keys')) {
             return $resolved;
         }
 

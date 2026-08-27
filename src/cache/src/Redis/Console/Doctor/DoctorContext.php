@@ -88,7 +88,7 @@ final class DoctorContext
 
     /**
      * Check if the store is configured for 'any' tag mode.
-     * In this mode, flushing ANY matching tag removes the item.
+     * In this mode, flushing any matching tag removes the item.
      */
     public function isAnyMode(): bool
     {
@@ -97,7 +97,7 @@ final class DoctorContext
 
     /**
      * Check if the store is configured for 'all' tag mode.
-     * In this mode, items must match ALL specified tags.
+     * In this mode, items must match all specified tags.
      */
     public function isAllMode(): bool
     {
@@ -124,7 +124,7 @@ final class DoctorContext
      * Get patterns to match all tag storage structures with a given tag name prefix.
      *
      * Used for cleanup operations to delete dynamically-created test tags.
-     * Returns patterns for BOTH tag modes to ensure complete cleanup
+     * Returns patterns for both tag modes to ensure complete cleanup
      * regardless of current mode (e.g., if config changed between runs):
      * - Any mode: {cachePrefix}_any:tag:{tagNamePrefix}*
      * - All mode: {cachePrefix}_all:tag:{tagNamePrefix}*
@@ -146,7 +146,7 @@ final class DoctorContext
      * Get patterns to match all cache value keys with a given key prefix.
      *
      * Used for cleanup operations to delete test cache values.
-     * Returns patterns for BOTH tag modes to ensure complete cleanup
+     * Returns patterns for both tag modes to ensure complete cleanup
      * regardless of current mode (e.g., if config changed between runs):
      * - Untagged keys: {cachePrefix}{keyPrefix}* (same in both modes)
      * - Tagged keys in all mode: {cachePrefix}{xxh128}:{keyPrefix}* (namespaced)

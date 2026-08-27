@@ -258,6 +258,30 @@ class CalloutTest extends TestCase
         $this->assertSame(['123  Value'], $lines);
     }
 
+    public function testNarrowCalloutsWrapEveryContentTypeBeforeDrawingTheBox(): void
+    {
+        Prompt::fake();
+        Prompt::terminal()->shouldReceive('cols')->andReturn(20); // @phpstan-ignore-line
+
+        callout('Narrow', [
+            'plain content wraps here',
+            Element::bulletedList(['bullet content wraps here']),
+            Element::numberedList(['number content wraps here']),
+            Element::keyValueList(['K' => 'value content wraps here']),
+        ]);
+
+        $content = Prompt::strippedContent();
+
+        $this->assertStringContainsString('plain content', $content);
+        $this->assertStringContainsString('· bullet', $content);
+        $this->assertStringContainsString('1. number', $content);
+        $this->assertStringContainsString('K  value', $content);
+
+        foreach (explode(PHP_EOL, $content) as $line) {
+            $this->assertLessThanOrEqual(20, mb_strwidth($line), "Callout line exceeded the terminal width: [{$line}]");
+        }
+    }
+
     public function testCanFallBack(): void
     {
         Prompt::fallbackWhen(true);

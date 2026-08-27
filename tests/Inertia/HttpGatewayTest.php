@@ -647,15 +647,14 @@ class HttpGatewayTest extends TestCase
         $this->assertNotNull($this->gateway->dispatch(['page' => self::EXAMPLE_PAGE_OBJECT]));
     }
 
-    public function testItDoesNotThrowExceptionWhenThrowOnErrorIsDisabled(): void
+    public function testItDoesNotThrowExceptionWhenThrowOnErrorIsOmitted(): void
     {
         Event::fake([SsrRenderFailed::class]);
 
-        config([
-            'inertia.ssr.enabled' => true,
-            'inertia.ssr.bundle' => __DIR__ . '/Fixtures/ssr-bundle.js',
-            'inertia.ssr.throw_on_error' => false,
-        ]);
+        config(['inertia.ssr' => [
+            'enabled' => true,
+            'bundle' => __DIR__ . '/Fixtures/ssr-bundle.js',
+        ]]);
 
         $this->mockSsrClient([
             new GuzzleResponse(500, [], json_encode([
@@ -912,6 +911,31 @@ class HttpGatewayTest extends TestCase
 
         // Verify the client is memoized (same instance on second call)
         $this->assertSame($client, $method->invoke($gateway));
+    }
+
+    public function testPartialSsrConfigUsesTransportDefaults(): void
+    {
+        $shippedConfig = $this->withEnvironmentValues([
+            'INERTIA_SSR_CONNECT_TIMEOUT' => null,
+            'INERTIA_SSR_TIMEOUT' => null,
+            'INERTIA_SSR_BACKOFF' => null,
+        ], fn (): array => require dirname(__DIR__, 2) . '/src/inertia/config/inertia.php');
+        config(['inertia.ssr' => []]);
+        HttpGateway::flushState();
+
+        $gateway = new HttpGateway;
+        $client = (new ReflectionMethod($gateway, 'ssrClient'))->invoke($gateway);
+
+        $this->assertSame($shippedConfig['ssr']['connect_timeout'], $client->getConfig('connect_timeout'));
+        $this->assertSame($shippedConfig['ssr']['timeout'], $client->getConfig('timeout'));
+        $this->assertSame('http://127.0.0.1:13714/render', $gateway->getProductionUrl('/render'));
+        $this->assertTrue((new ReflectionMethod($gateway, 'shouldEnsureBundleExists'))->invoke($gateway));
+
+        $startedAt = microtime(true);
+        (new ReflectionMethod($gateway, 'armTransportBackoff'))->invoke($gateway);
+        $unavailableUntil = (new ReflectionProperty(HttpGateway::class, 'ssrUnavailableUntil'))->getValue();
+
+        $this->assertEqualsWithDelta($startedAt + $shippedConfig['ssr']['backoff'], $unavailableUntil, 0.1);
     }
 }
 

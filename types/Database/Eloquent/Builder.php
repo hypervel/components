@@ -30,6 +30,11 @@ function test(
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->withCan([Ability::Edit, 'delete'], $user));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->useWritePdo());
     assertType('Hypervel\Types\Builder\User|null', $query->orderBy('id')->first());
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->whereIn('id', [1])->with('relation'));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orderBy('id')->with('relation'));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->limit(1)->with('relation'));
+    assertType('Hypervel\Database\Query\Builder<int, Hypervel\Types\Builder\User>', $query->dump());
+    assertType('Hypervel\Database\Query\Builder<int, Hypervel\Types\Builder\User>', $query->dumpRawSql());
     assertType('stdClass|null', $query->toBase()->first());
     assertType('stdClass|null', $query->getQuery()->first());
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->with('relation'));
@@ -190,6 +195,7 @@ function test(
     });
 
     assertType('Hypervel\Types\Builder\CommonBuilder<Hypervel\Types\Builder\Post>', Post::query());
+    assertType('Hypervel\Types\Builder\CommonBuilder<Hypervel\Types\Builder\Post>', Post::query()->whereIn('id', [1])->with('comments'));
     assertType('Hypervel\Types\Builder\CommonBuilder<Hypervel\Types\Builder\Post>', Post::query()->whereCan('edit'));
     assertType('Hypervel\Types\Builder\CommonBuilder<Hypervel\Types\Builder\Post>', Post::on());
     assertType('Hypervel\Types\Builder\CommonBuilder<Hypervel\Types\Builder\Post>', Post::onWriteConnection());

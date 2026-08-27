@@ -78,7 +78,7 @@ class ValidationDatabasePresenceVerifierTest extends TestCase
     }
 
     #[DataProvider('connections')]
-    public function testGetExistingValuesUsesRequestedConnectionAndQueryShape(?string $connection): void
+    public function testGetExistingValuesUsesRequestedConnectionAndReturnsDistinctValues(?string $connection): void
     {
         $verifier = new DatabasePresenceVerifier($db = m::mock(ConnectionResolverInterface::class));
         $verifier->setConnection('stateful-connection');
@@ -89,6 +89,7 @@ class ValidationDatabasePresenceVerifierTest extends TestCase
         $builder->shouldReceive('where')->once()->with('uuid', '<>', 'ignored')->andReturnSelf();
         $builder->shouldReceive('whereNull')->once()->with('deleted_at');
         $builder->shouldReceive('where')->once()->with('status', 'active');
+        $builder->shouldReceive('distinct')->once()->andReturnSelf();
         $builder->shouldReceive('pluck')->once()->with('column')->andReturn(new Collection(['first']));
 
         $this->assertSame(['first'], $verifier->getExistingValues(

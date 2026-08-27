@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Unit;
 
-use Hypervel\Support\Env;
+use Hypervel\Scout\Scout;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -32,6 +32,12 @@ class ConfigFileTest extends TestCase
         $this->assertIsArray($config['algolia']);
         $this->assertArrayHasKey('id', $config['algolia']);
         $this->assertArrayHasKey('secret', $config['algolia']);
+        $this->assertArrayHasKey('connect_timeout', $config['algolia']);
+        $this->assertNull($config['algolia']['connect_timeout']);
+        $this->assertArrayHasKey('read_timeout', $config['algolia']);
+        $this->assertNull($config['algolia']['read_timeout']);
+        $this->assertArrayHasKey('write_timeout', $config['algolia']);
+        $this->assertNull($config['algolia']['write_timeout']);
         $this->assertArrayHasKey('index-settings', $config['algolia']);
         $this->assertIsArray($config['algolia']['index-settings']);
     }
@@ -53,119 +59,50 @@ class ConfigFileTest extends TestCase
 
         $this->assertFalse($config['after_commit']);
         $this->assertArrayNotHasKey('after_commit', $config['queue']);
+        $this->assertSame(Scout::DEFAULT_CHUNK_SIZE, $config['chunk']['searchable']);
+        $this->assertSame(Scout::DEFAULT_CHUNK_SIZE, $config['chunk']['unsearchable']);
     }
 
-    public function testMeilisearchRetryDefaultsArePresentInConfigFile(): void
-    {
-        $config = require dirname(__DIR__, 3) . '/src/scout/config/scout.php';
+    #[DataProvider('integerEnvironmentValues')]
+    public function testIntegerEnvironmentValuesAreLoadedAsIntegers(
+        string $environmentKey,
+        string $configKey,
+        string $environmentValue,
+        int $expected,
+    ): void {
+        $config = $this->withEnvironmentValues([
+            $environmentKey => $environmentValue,
+        ], fn (): array => require dirname(__DIR__, 3) . '/src/scout/config/scout.php');
 
-        $this->assertArrayHasKey('meilisearch', $config);
-        $this->assertIsArray($config['meilisearch']);
-
-        $this->assertArrayHasKey('retries', $config['meilisearch']);
-        $this->assertSame(3, $config['meilisearch']['retries']);
-
-        $this->assertArrayHasKey('initial_retry_delay_ms', $config['meilisearch']);
-        $this->assertSame(100, $config['meilisearch']['initial_retry_delay_ms']);
+        $this->assertSame($expected, data_get($config, $configKey));
     }
 
-    public function testMeilisearchRetryEnvironmentValuesAreLoadedAsIntegers(): void
+    /**
+     * Provide integer Scout environment values.
+     *
+     * @return array<string, array{string, string, string, int}>
+     */
+    public static function integerEnvironmentValues(): array
     {
-        $retriesKey = 'MEILISEARCH_RETRIES';
-        $delayKey = 'MEILISEARCH_INITIAL_RETRY_DELAY_MS';
-        $originalRetriesPutenv = getenv($retriesKey);
-        $originalDelayPutenv = getenv($delayKey);
-        $originalRetriesServerExists = array_key_exists($retriesKey, $_SERVER);
-        $originalDelayServerExists = array_key_exists($delayKey, $_SERVER);
-        $originalRetriesServer = $_SERVER[$retriesKey] ?? null;
-        $originalDelayServer = $_SERVER[$delayKey] ?? null;
-        $originalRetriesEnvExists = array_key_exists($retriesKey, $_ENV);
-        $originalDelayEnvExists = array_key_exists($delayKey, $_ENV);
-        $originalRetriesEnv = $_ENV[$retriesKey] ?? null;
-        $originalDelayEnv = $_ENV[$delayKey] ?? null;
-
-        try {
-            unset($_SERVER[$retriesKey], $_SERVER[$delayKey], $_ENV[$retriesKey], $_ENV[$delayKey]);
-            putenv("{$retriesKey}=7");
-            putenv("{$delayKey}=250");
-            Env::flushRepository();
-
-            $config = require dirname(__DIR__, 3) . '/src/scout/config/scout.php';
-
-            $this->assertSame(7, $config['meilisearch']['retries']);
-            $this->assertSame(250, $config['meilisearch']['initial_retry_delay_ms']);
-        } finally {
-            $originalRetriesPutenv === false
-                ? putenv($retriesKey)
-                : putenv("{$retriesKey}={$originalRetriesPutenv}");
-            $originalDelayPutenv === false
-                ? putenv($delayKey)
-                : putenv("{$delayKey}={$originalDelayPutenv}");
-
-            if ($originalRetriesServerExists) {
-                $_SERVER[$retriesKey] = $originalRetriesServer;
-            } else {
-                unset($_SERVER[$retriesKey]);
-            }
-
-            if ($originalDelayServerExists) {
-                $_SERVER[$delayKey] = $originalDelayServer;
-            } else {
-                unset($_SERVER[$delayKey]);
-            }
-
-            if ($originalRetriesEnvExists) {
-                $_ENV[$retriesKey] = $originalRetriesEnv;
-            } else {
-                unset($_ENV[$retriesKey]);
-            }
-
-            if ($originalDelayEnvExists) {
-                $_ENV[$delayKey] = $originalDelayEnv;
-            } else {
-                unset($_ENV[$delayKey]);
-            }
-
-            Env::flushRepository();
-        }
+        return [
+            'command concurrency' => ['SCOUT_COMMAND_CONCURRENCY', 'command_concurrency', '75', 75],
+            'Meilisearch retries' => ['MEILISEARCH_RETRIES', 'meilisearch.retries', '7', 7],
+            'Meilisearch retry delay' => ['MEILISEARCH_INITIAL_RETRY_DELAY_MS', 'meilisearch.initial_retry_delay_ms', '250', 250],
+            'Typesense connection timeout' => ['TYPESENSE_CONNECTION_TIMEOUT_SECONDS', 'typesense.client-settings.connection_timeout_seconds', '4', 4],
+            'Typesense healthcheck interval' => ['TYPESENSE_HEALTHCHECK_INTERVAL_SECONDS', 'typesense.client-settings.healthcheck_interval_seconds', '45', 45],
+            'Typesense retries' => ['TYPESENSE_NUM_RETRIES', 'typesense.client-settings.num_retries', '5', 5],
+            'Typesense retry interval' => ['TYPESENSE_RETRY_INTERVAL_SECONDS', 'typesense.client-settings.retry_interval_seconds', '2', 2],
+        ];
     }
 
     #[DataProvider('booleanEnvironmentValues')]
     public function testBooleanEnvironmentValuesAreLoadedAsBooleans(string $environmentKey, string $configKey): void
     {
-        $originalPutenv = getenv($environmentKey);
-        $originalServerExists = array_key_exists($environmentKey, $_SERVER);
-        $originalServer = $_SERVER[$environmentKey] ?? null;
-        $originalEnvExists = array_key_exists($environmentKey, $_ENV);
-        $originalEnv = $_ENV[$environmentKey] ?? null;
+        $config = $this->withEnvironmentValues([
+            $environmentKey => '1',
+        ], fn (): array => require dirname(__DIR__, 3) . '/src/scout/config/scout.php');
 
-        try {
-            unset($_SERVER[$environmentKey], $_ENV[$environmentKey]);
-            putenv("{$environmentKey}=1");
-            Env::flushRepository();
-
-            $config = require dirname(__DIR__, 3) . '/src/scout/config/scout.php';
-
-            $this->assertTrue($config[$configKey]);
-        } finally {
-            $originalPutenv === false
-                ? putenv($environmentKey)
-                : putenv("{$environmentKey}={$originalPutenv}");
-
-            if ($originalServerExists) {
-                $_SERVER[$environmentKey] = $originalServer;
-            } else {
-                unset($_SERVER[$environmentKey]);
-            }
-
-            if ($originalEnvExists) {
-                $_ENV[$environmentKey] = $originalEnv;
-            } else {
-                unset($_ENV[$environmentKey]);
-            }
-
-            Env::flushRepository();
-        }
+        $this->assertTrue(data_get($config, $configKey));
     }
 
     /**
@@ -176,8 +113,10 @@ class ConfigFileTest extends TestCase
     public static function booleanEnvironmentValues(): array
     {
         return [
+            'queue' => ['SCOUT_QUEUE', 'queue.enabled'],
             'soft deletes' => ['SCOUT_SOFT_DELETE', 'soft_delete'],
             'after commit' => ['SCOUT_AFTER_COMMIT', 'after_commit'],
+            'identify' => ['SCOUT_IDENTIFY', 'identify'],
         ];
     }
 }

@@ -5,15 +5,19 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Auth\Authenticatable as AuthenticatableTrait;
+use Hypervel\Auth\EloquentUserProvider;
+use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Http\Request;
 use Hypervel\Sanctum\Events\TokenAuthenticated;
 use Hypervel\Sanctum\PersonalAccessToken;
 use Hypervel\Sanctum\Sanctum;
+use Hypervel\Sanctum\SanctumGuard;
 use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Sanctum\TransientToken;
 use Hypervel\Support\Facades\DB;
@@ -26,6 +30,8 @@ use Hypervel\Tests\Sanctum\Fixtures\User as SanctumTestUser;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+
+use function Hypervel\Coroutine\parallel;
 
 class GuardTest extends TestCase
 {
@@ -75,10 +81,15 @@ class GuardTest extends TestCase
                 'driver' => 'sanctum',
                 'provider' => 'users',
                 'session_guards' => ['web'],
+                'passwords' => null,
+                'password_timeout' => null,
             ],
             'auth.guards.web' => [
                 'driver' => 'session',
                 'provider' => 'users',
+                'passwords' => 'users',
+                'password_timeout' => null,
+                'remember' => null,
             ],
             'auth.providers.users.model' => TestUser::class,
             'auth.providers.users.driver' => 'eloquent',
@@ -277,6 +288,8 @@ class GuardTest extends TestCase
                 'user_email' => $user->email,
                 'token_id' => $token->id,
             ]);
+
+        $this->assertAuthenticated('sanctum');
     }
 
     public function testAuthenticationUsesTheRequestBearerParser(): void
@@ -337,7 +350,7 @@ class GuardTest extends TestCase
             ]);
     }
 
-    public function testHotTokenAuthenticationDoesNotQueryTokenOrUserTables(): void
+    public function testTokenAuthenticationRefillsAfterLastUsedUpdateThenStaysHot(): void
     {
         [$user, $token, $plainToken] = $this->createUserWithToken();
 
@@ -355,6 +368,21 @@ class GuardTest extends TestCase
 
         $this->assertSame(1, $this->countQueriesForTable('personal_access_tokens'));
         $this->assertSame(1, $this->countQueriesForTable('users'));
+
+        DB::flushQueryLog();
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer ' . $plainToken,
+        ])->getJson('/test/user')
+            ->assertOk()
+            ->assertJson([
+                'authenticated' => true,
+                'user_id' => $user->id,
+                'token_id' => $token->id,
+            ]);
+
+        $this->assertSame(1, $this->countQueriesForTable('personal_access_tokens'));
+        $this->assertSame(0, $this->countQueriesForTable('users'));
 
         DB::flushQueryLog();
 
@@ -449,6 +477,89 @@ class GuardTest extends TestCase
         $this->assertSame($secondToken->id, $authenticatedUsers[1]->currentAccessToken()->id);
     }
 
+    public function testExplicitUserOverridesAnUnrelatedBearerTokenAndForgetRestoresTokenAuthentication(): void
+    {
+        [$tokenUser, , $plainToken] = $this->createUserWithToken();
+        $explicitUser = TestUser::create([
+            'name' => 'Explicit User',
+            'email' => 'explicit@example.com',
+            'password' => password_hash('password', PASSWORD_DEFAULT),
+        ]);
+        $guard = $this->app->make('auth')->guard('sanctum');
+
+        RequestContext::set(Request::create('/', server: [
+            'HTTP_AUTHORIZATION' => 'Bearer unrelated-token',
+        ]));
+        $guard->setUser($explicitUser);
+
+        $this->assertTrue($guard->hasUser());
+        $this->assertSame($explicitUser, $guard->user());
+
+        RequestContext::set(Request::create('/', server: [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $plainToken,
+        ]));
+        $guard->forgetUser();
+
+        $this->assertFalse($guard->hasUser());
+        $this->assertTrue($tokenUser->is($guard->user()));
+    }
+
+    public function testExplicitUsersAreIsolatedByGuardAndCoroutine(): void
+    {
+        $provider = $this->app->make('auth')->createUserProvider('users');
+        $this->assertNotNull($provider);
+        $firstGuard = new SanctumGuard('first', $provider, $this->app, []);
+        $secondGuard = new SanctumGuard('second', $provider, $this->app, []);
+        $firstUser = TestUser::forceCreate([
+            'name' => 'First User',
+            'email' => 'first@example.com',
+            'password' => password_hash('password', PASSWORD_DEFAULT),
+        ]);
+        $secondUser = TestUser::forceCreate([
+            'name' => 'Second User',
+            'email' => 'second@example.com',
+            'password' => password_hash('password', PASSWORD_DEFAULT),
+        ]);
+
+        $firstGuard->setUser($firstUser);
+        $secondGuard->setUser($secondUser);
+
+        $this->assertSame($firstUser, $firstGuard->user());
+        $this->assertSame($secondUser, $secondGuard->user());
+
+        [$firstId, $secondId] = parallel([
+            function () use ($firstGuard, $firstUser): mixed {
+                $firstGuard->setUser($firstUser);
+                usleep(5000);
+
+                return $firstGuard->id();
+            },
+            function () use ($firstGuard, $secondUser): mixed {
+                $firstGuard->setUser($secondUser);
+                usleep(5000);
+
+                return $firstGuard->id();
+            },
+        ]);
+
+        $this->assertSame([$firstUser->id, $secondUser->id], [$firstId, $secondId]);
+        $this->assertSame($firstUser, $firstGuard->user());
+    }
+
+    public function testAuthContextKeysIncludeOnlyDurableExplicitState(): void
+    {
+        $provider = $this->app->make('auth')->createUserProvider('users');
+        $this->assertNotNull($provider);
+        $guard = new SanctumGuard('sanctum', $provider, $this->app, []);
+        RequestContext::set(Request::create('/', server: [
+            'HTTP_AUTHORIZATION' => 'Bearer request-token',
+        ]));
+
+        $this->assertSame([
+            '__auth.guards.sanctum.user.explicit',
+        ], $guard->getAuthContextKeys());
+    }
+
     public function testEmptySessionGuardsIsTokenOnly(): void
     {
         $this->app->make('config')->set('auth.guards.sanctum.session_guards', []);
@@ -486,6 +597,8 @@ class GuardTest extends TestCase
         $this->app->make('config')->set('auth.guards.sanctum', [
             'driver' => 'sanctum',
             'provider' => 'users',
+            'passwords' => null,
+            'password_timeout' => null,
         ]);
         $this->app->make('auth')->forgetGuards();
 
@@ -531,6 +644,8 @@ class GuardTest extends TestCase
             'driver' => 'sanctum',
             'provider' => 'users',
             'session_guards' => [],
+            'passwords' => null,
+            'password_timeout' => null,
         ]);
         $this->app->make('auth')->forgetGuards();
 
@@ -548,6 +663,13 @@ class GuardTest extends TestCase
         $config->set('auth.providers.admins', [
             'driver' => 'eloquent',
             'model' => SanctumTestUser::class,
+            'cache' => [
+                'enabled' => false,
+                'store' => null,
+                'ttl' => 300,
+                'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
+                'tags' => null,
+            ],
         ]);
         $config->set('auth.guards.web.provider', 'admins');
         $this->app->make('auth')->forgetGuards();
@@ -578,6 +700,9 @@ class GuardTest extends TestCase
         $config->set('auth.guards.admin', [
             'driver' => 'session',
             'provider' => 'users',
+            'passwords' => 'users',
+            'password_timeout' => null,
+            'remember' => null,
         ]);
         $config->set('auth.guards.sanctum.session_guards', ['admin', 'web']);
         $this->app->make('auth')->forgetGuards();

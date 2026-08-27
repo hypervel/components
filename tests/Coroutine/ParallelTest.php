@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Coroutine;
 
 use Exception;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Context\NonCopyableContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\ParallelExecutionException;
 use Hypervel\Coroutine\Parallel;
@@ -580,6 +581,25 @@ class ParallelTest extends TestCase
         for ($i = 0; $i < 4; ++$i) {
             $this->assertSame('value', $channel->pop());
         }
+    }
+
+    public function testCopiedContextOmitsNonCopyableValues(): void
+    {
+        $resource = new class implements NonCopyableContext {
+        };
+
+        CoroutineContext::set('resource', $resource);
+        CoroutineContext::set('request_id', 'abc');
+
+        $results = parallel([
+            static fn (): array => [
+                CoroutineContext::get('resource'),
+                CoroutineContext::get('request_id'),
+            ],
+        ], copyContext: true);
+
+        $this->assertSame([[null, 'abc']], $results);
+        $this->assertSame($resource, CoroutineContext::get('resource'));
     }
 
     public function testParallelHelperPassesCopyContextThrough()

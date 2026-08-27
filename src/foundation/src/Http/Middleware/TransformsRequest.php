@@ -39,6 +39,10 @@ class TransformsRequest
      */
     protected function cleanParameterBag(ParameterBag $bag): void
     {
+        if ($bag->count() === 0) {
+            return;
+        }
+
         $bag->replace($this->cleanArray($bag->all()));
     }
 

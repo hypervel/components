@@ -301,16 +301,6 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
     }
 
     /**
-     * Forget all resolved notification drivers.
-     */
-    public function forgetDrivers(): static
-    {
-        // Worker refresh invokes the manager reset through its canonical key;
-        // this fake has no drivers to clear.
-        return $this;
-    }
-
-    /**
      * Set the locale of notifications.
      */
     public function locale(string $locale): static

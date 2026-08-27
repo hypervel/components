@@ -54,6 +54,13 @@ class TokenGuard implements Guard
     {
         self::$nullUserSentinel ??= new stdClass;
 
+        /** @var null|AuthenticatableContract $explicitUser */
+        $explicitUser = CoroutineContext::get($this->getExplicitUserContextKey());
+
+        if ($explicitUser !== null) {
+            return $explicitUser;
+        }
+
         $token = $this->getTokenForRequest();
         $contextKey = $this->getContextKeyForToken($token);
         $cached = CoroutineContext::get($contextKey);
@@ -132,6 +139,10 @@ class TokenGuard implements Guard
     {
         self::$nullUserSentinel ??= new stdClass;
 
+        if (CoroutineContext::has($this->getExplicitUserContextKey())) {
+            return true;
+        }
+
         $cached = CoroutineContext::get($this->getContextKeyForToken($this->getTokenForRequest()));
 
         return $cached !== null && $cached !== self::$nullUserSentinel;
@@ -142,7 +153,7 @@ class TokenGuard implements Guard
      */
     public function setUser(AuthenticatableContract $user): static
     {
-        CoroutineContext::set($this->getContextKeyForToken($this->getTokenForRequest()), $user);
+        CoroutineContext::set($this->getExplicitUserContextKey(), $user);
 
         return $this;
     }
@@ -152,19 +163,30 @@ class TokenGuard implements Guard
      */
     public function forgetUser(): static
     {
+        CoroutineContext::forget($this->getExplicitUserContextKey());
         CoroutineContext::forget($this->getContextKeyForToken($this->getTokenForRequest()));
 
         return $this;
     }
 
     /**
-     * Get durable authentication Context keys for the current request.
+     * Get durable authentication Context keys.
+     *
+     * Per-request token resolution caches must not cross a request boundary.
      *
      * @return array<int, string>
      */
     public function getAuthContextKeys(): array
     {
-        return [$this->getContextKeyForToken($this->getTokenForRequest())];
+        return [$this->getExplicitUserContextKey()];
+    }
+
+    /**
+     * Get the Context key for an explicitly assigned user.
+     */
+    protected function getExplicitUserContextKey(): string
+    {
+        return "__auth.guards.{$this->name}.user.explicit";
     }
 
     /**

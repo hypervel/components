@@ -16,6 +16,7 @@ use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\RelationNotFoundException;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder as BaseBuilder;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Query\Grammars\Grammar;
@@ -3204,7 +3205,7 @@ class DatabaseEloquentBuilderTest extends TestCase
     public function testPipeCallback()
     {
         $query = new Builder(new BaseBuilder(
-            $connection = new Connection(new PDO('sqlite::memory:')),
+            $connection = new PdoConnection(new PDO('sqlite::memory:')),
             new Grammar($connection),
             new Processor,
         ));

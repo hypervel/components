@@ -25,7 +25,7 @@ class HttpWebhookDispatcher implements WebhookDispatcher
         }
 
         $webhooks = $application->webhooks();
-        $allowedEvents = $webhooks['events'] ?? [];
+        $allowedEvents = $webhooks['events'];
 
         // subscription_count has its own opt-in (webhooks.subscription_count boolean)
         // and bypasses the events allowlist — it's already gated by the caller.
@@ -33,14 +33,14 @@ class HttpWebhookDispatcher implements WebhookDispatcher
             return;
         }
 
-        $channelPrefix = $webhooks['filter']['channel_name_starts_with'] ?? null;
+        $channelPrefix = $webhooks['filter']['channel_name_starts_with'];
         if ($channelPrefix !== null && isset($data['channel'])) {
             if (! str_starts_with($data['channel'], $channelPrefix)) {
                 return;
             }
         }
 
-        $channelSuffix = $webhooks['filter']['channel_name_ends_with'] ?? null;
+        $channelSuffix = $webhooks['filter']['channel_name_ends_with'];
         if ($channelSuffix !== null && isset($data['channel'])) {
             if (! str_ends_with($data['channel'], $channelSuffix)) {
                 return;
@@ -49,9 +49,7 @@ class HttpWebhookDispatcher implements WebhookDispatcher
 
         $eventData = $this->buildEventData($application, $event, $data, $connection);
 
-        $batchingEnabled = (bool) ($webhooks['batching']['enabled'] ?? false);
-
-        if ($batchingEnabled) {
+        if ($webhooks['batching']['enabled']) {
             $buffer = app(WebhookBatchBuffer::class);
             $shouldSchedule = $buffer->appendAndCheckSchedule($application->id(), $eventData);
 
@@ -60,7 +58,7 @@ class HttpWebhookDispatcher implements WebhookDispatcher
                     FlushWebhookBatchJob::dispatch($application->id(), $webhooks)
                         ->onQueue('reverb-webhook-flush')
                         ->delay(now()->addMilliseconds(
-                            (int) ($webhooks['batching']['max_delay_ms'] ?? 250)
+                            $webhooks['batching']['max_delay_ms']
                         ));
                 } catch (Throwable $exception) {
                     try {
@@ -85,10 +83,10 @@ class HttpWebhookDispatcher implements WebhookDispatcher
                 $webhooks['url'],
                 $application->key(),
                 $application->secret(),
-                (int) ($webhooks['retries'] ?? 3),
-                (int) ($webhooks['retry_delay'] ?? 1),
-                (int) ($webhooks['timeout'] ?? 5),
-                $webhooks['headers'] ?? [],
+                $webhooks['retries'],
+                $webhooks['retry_delay'],
+                $webhooks['timeout'],
+                $webhooks['headers'],
             );
         }
     }

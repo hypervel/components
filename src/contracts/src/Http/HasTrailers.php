@@ -16,7 +16,7 @@ interface HasTrailers
     /**
      * Get the final response trailers.
      *
-     * @return array<string, string>
+     * @return array<array-key, string>
      */
     public function trailers(): array;
 }

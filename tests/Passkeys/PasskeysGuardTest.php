@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Passkeys;
 
+use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Database\Schema\Blueprint;
@@ -87,8 +88,24 @@ class PasskeysGuardTest extends TestCase
     private function configureAdminGuard(): void
     {
         config()->set([
-            'auth.guards.admin' => ['driver' => 'session', 'provider' => 'admins'],
-            'auth.providers.admins' => ['driver' => 'eloquent', 'model' => Admin::class],
+            'auth.guards.admin' => [
+                'driver' => 'session',
+                'provider' => 'admins',
+                'passwords' => null,
+                'password_timeout' => null,
+                'remember' => null,
+            ],
+            'auth.providers.admins' => [
+                'driver' => 'eloquent',
+                'model' => Admin::class,
+                'cache' => [
+                    'enabled' => false,
+                    'store' => null,
+                    'ttl' => 300,
+                    'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
+                    'tags' => null,
+                ],
+            ],
         ]);
     }
 

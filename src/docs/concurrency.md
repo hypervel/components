@@ -56,7 +56,9 @@ $results['users'];
 $results['orders'];
 ```
 
-Each task receives a copy of the parent coroutine context map. Adding or replacing values in that map does not affect sibling tasks or the parent coroutine. When a copied value is an object, the object reference is shared unless the object implements `Hypervel\Context\ReplicableContext`. See the [coroutine context](/docs/{{version}}/coroutine-context) documentation for more information.
+When using the `coroutine` driver, each task receives a copy of the parent coroutine context. Adding or replacing values in that context does not affect sibling tasks or the parent coroutine. Objects stored directly as context values are shared by default. Values that implement `Hypervel\Context\ReplicableContext` are copied independently, while values that implement `Hypervel\Context\NonCopyableContext` are omitted. Hypervel does not inspect objects nested within arrays or other objects.
+
+For example, a task receives the parent's default database connection name, but it borrows its own database or Redis connection when needed. See the [coroutine context](/docs/{{version}}/coroutine-context) documentation for more information.
 
 To use a specific driver, you may use the `driver` method:
 

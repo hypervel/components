@@ -64,7 +64,7 @@ trait Interactivity
      */
     protected function default(): mixed
     {
-        $default = $this->value();
+        $default = $this->transformedValue();
 
         $this->validate($default);
 

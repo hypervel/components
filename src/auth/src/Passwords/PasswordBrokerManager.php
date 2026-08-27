@@ -20,6 +20,8 @@ use function Hypervel\Support\enum_value;
  */
 class PasswordBrokerManager implements FactoryContract
 {
+    public const int DEFAULT_EXPIRE_MINUTES = 60;
+
     /**
      * The coroutine context key holding the per-request default broker override.
      */
@@ -72,7 +74,7 @@ class PasswordBrokerManager implements FactoryContract
         // aggregate service of sorts providing a convenient interface for resets.
         return new PasswordBroker(
             $this->createTokenRepository($config),
-            $this->app->make('auth')->createUserProvider($config['provider'] ?? null),
+            $this->app->make('auth')->createUserProvider($config['provider']),
             $name,
             $this->app->bound('events') ? $this->app->make('events') : null,
             timeboxDuration: $this->app->make('config')->integer('auth.timebox_duration'),
@@ -91,24 +93,29 @@ class PasswordBrokerManager implements FactoryContract
             $key = base64_decode(substr($key, 7));
         }
 
-        if (isset($config['driver']) && $config['driver'] === 'cache') {
-            return new CacheTokenRepository(
+        $expire = $config['expire'] ?? self::DEFAULT_EXPIRE_MINUTES;
+        $throttle = $config['throttle'] ?? 0;
+
+        return match ($config['driver']) {
+            'cache' => new CacheTokenRepository(
                 $this->app->make('cache')->store($config['store'] ?? null),
                 $this->app->make('hash'),
                 $key,
-                ($config['expire'] ?? 60) * 60,
-                $config['throttle'] ?? 0,
-            );
-        }
-
-        return new DatabaseTokenRepository(
-            $this->app->make('db')->connection($config['connection'] ?? null),
-            $this->app->make('hash'),
-            $config['table'],
-            $key,
-            ($config['expire'] ?? 60) * 60,
-            $config['throttle'] ?? 0,
-        );
+                $expire * 60,
+                $throttle,
+            ),
+            'database' => new DatabaseTokenRepository(
+                $this->app->make('db')->connection($config['connection'] ?? null),
+                $this->app->make('hash'),
+                $config['table'],
+                $key,
+                $expire * 60,
+                $throttle,
+            ),
+            default => throw new InvalidArgumentException(
+                "Password resetter driver [{$config['driver']}] is not defined."
+            ),
+        };
     }
 
     /**
@@ -133,7 +140,7 @@ class PasswordBrokerManager implements FactoryContract
         $config = $this->app->make('config');
         $key = "auth.guards.{$guard}.passwords";
 
-        if (! $config->has($key)) {
+        if ($config->get($key) === null) {
             return null;
         }
 
@@ -179,19 +186,6 @@ class PasswordBrokerManager implements FactoryContract
         }
 
         CoroutineContext::set(self::DEFAULT_BROKER_CONTEXT_KEY, $name);
-    }
-
-    /**
-     * Forget all resolved password brokers.
-     *
-     * Boot or tests only. Mutates the singleton's broker cache; concurrent
-     * coroutines may already hold a broker that next resolution will replace.
-     */
-    public function forgetBrokers(): static
-    {
-        $this->brokers = [];
-
-        return $this;
     }
 
     /**

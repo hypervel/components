@@ -49,11 +49,11 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     protected array $loaded = [];
 
     /**
-     * The translation lines registered at boot.
+     * Translation line operations waiting for their group to load.
      *
      * @var array<string, array<string, array<string, list<array{item: string, value: mixed}>>>>
      */
-    protected array $registeredLines = [];
+    protected array $pendingLines = [];
 
     /**
      * The message selector.
@@ -330,14 +330,16 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
         foreach ($lines as $key => $value) {
             [$group, $item] = explode('.', $key, 2);
 
-            $this->registeredLines[$namespace][$group][$locale][] = [
+            if ($this->isLoaded($namespace, $group, $locale)) {
+                Arr::set($this->loaded, "{$namespace}.{$group}.{$locale}.{$item}", $value);
+
+                continue;
+            }
+
+            $this->pendingLines[$namespace][$group][$locale][] = [
                 'item' => $item,
                 'value' => $value,
             ];
-
-            if ($this->isLoaded($namespace, $group, $locale)) {
-                Arr::set($this->loaded, "{$namespace}.{$group}.{$locale}.{$item}", $value);
-            }
         }
     }
 
@@ -355,11 +357,13 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
         // lines that have already been loaded so that we can easily access them.
         $lines = $this->loader->load($locale, $group, $namespace);
 
-        foreach ($this->registeredLines[$namespace][$group][$locale] ?? [] as $registeredLine) {
-            Arr::set($lines, $registeredLine['item'], $registeredLine['value']);
+        foreach ($this->pendingLines[$namespace][$group][$locale] ?? [] as $pendingLine) {
+            Arr::set($lines, $pendingLine['item'], $pendingLine['value']);
         }
 
         $this->loaded[$namespace][$group][$locale] = $lines;
+
+        unset($this->pendingLines[$namespace][$group][$locale]);
     }
 
     /**
@@ -609,18 +613,6 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     }
 
     /**
-     * Forget the loaded translation groups.
-     *
-     * Boot or tests only. The groups are shared by the worker's Translator instance,
-     * and forgetting them during request handling can expose different loaded state
-     * to concurrent coroutines while the groups are repopulated.
-     */
-    public function forgetLoadedGroups(): void
-    {
-        $this->loaded = [];
-    }
-
-    /**
      * Set the loaded translation groups.
      *
      * Boot-only. The groups are stored on the shared Translator instance and
@@ -629,6 +621,9 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     public function setLoaded(array $loaded): void
     {
         $this->loaded = $loaded;
+
+        // Supplied groups are already loaded, so load() cannot replay pending operations.
+        $this->pendingLines = [];
     }
 
     /**

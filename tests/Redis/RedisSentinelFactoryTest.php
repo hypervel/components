@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
+use Hypervel\Config\Repository;
 use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;
+use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisSentinelFactory;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -14,6 +16,53 @@ use RuntimeException;
 
 class RedisSentinelFactoryTest extends TestCase
 {
+    public function testResolveMasterAcceptsDocumentedMinimalSentinelConfiguration(): void
+    {
+        $sentinel = m::mock(RedisSentinel::class);
+        $sentinel->expects('getMasterAddrByName')
+            ->with('primary')
+            ->andReturn(['10.0.0.1', 6380]);
+        $factory = new class($sentinel) extends RedisSentinelFactory {
+            public array $createdWith = [];
+
+            public function __construct(private RedisSentinel $sentinel)
+            {
+            }
+
+            public function create(array $options = []): RedisSentinel
+            {
+                $this->createdWith[] = $options;
+
+                return $this->sentinel;
+            }
+        };
+        $config = (new RedisConfig(new Repository([
+            'database' => [
+                'redis' => [
+                    'options' => [],
+                    'default' => [
+                        'username' => null,
+                        'password' => null,
+                        'database' => 0,
+                        'sentinel' => [
+                            'enabled' => true,
+                            'nodes' => ['127.0.0.1:26379'],
+                            'master_name' => 'primary',
+                        ],
+                    ],
+                ],
+            ],
+        ])))->connectionConfig('default');
+
+        $this->assertSame(['10.0.0.1', 6380], $factory->resolveMaster($config));
+        $this->assertSame([
+            'host' => '127.0.0.1',
+            'port' => 26379,
+            'connectTimeout' => 0.0,
+            'readTimeout' => 0.0,
+        ], $factory->createdWith[0]);
+    }
+
     public function testResolveMasterFallsBackAcrossNodesAndUsesSentinelSettings(): void
     {
         $first = m::mock(RedisSentinel::class);
@@ -39,16 +88,13 @@ class RedisSentinelFactoryTest extends TestCase
             }
         };
 
-        $master = $factory->resolveMaster([
-            'sentinel' => [
-                'nodes' => ['tcp://127.0.0.1:26379', 'tcp://127.0.0.2:26380'],
-                'master_name' => 'primary',
-                'username' => 'sentinel-user',
-                'password' => '0',
-                'timeout' => 2.5,
-                'read_timeout' => 1.5,
-            ],
-        ]);
+        $master = $factory->resolveMaster($this->sentinelConfig([
+            'nodes' => ['tcp://127.0.0.1:26379', 'tcp://127.0.0.2:26380'],
+            'username' => 'sentinel-user',
+            'password' => '0',
+            'timeout' => 2.5,
+            'read_timeout' => 1.5,
+        ]));
 
         $this->assertSame(['10.0.0.1', 6380], $master);
         $this->assertCount(2, $factory->createdWith);
@@ -83,13 +129,9 @@ class RedisSentinelFactoryTest extends TestCase
             }
         };
 
-        $factory->resolveMaster([
-            'sentinel' => [
-                'nodes' => ['127.0.0.1:26379'],
-                'master_name' => 'primary',
-                'password' => 'secret',
-            ],
-        ]);
+        $factory->resolveMaster($this->sentinelConfig([
+            'password' => 'secret',
+        ]));
 
         $this->assertSame('secret', $factory->createdWith[0]['auth']);
     }
@@ -116,12 +158,9 @@ class RedisSentinelFactoryTest extends TestCase
             }
         };
 
-        $factory->resolveMaster([
-            'sentinel' => [
-                'nodes' => [$node],
-                'master_name' => 'primary',
-            ],
-        ]);
+        $factory->resolveMaster($this->sentinelConfig([
+            'nodes' => [$node],
+        ]));
 
         $this->assertSame($host, $factory->createdWith[0]['host']);
         $this->assertSame(26379, $factory->createdWith[0]['port']);
@@ -157,13 +196,9 @@ class RedisSentinelFactoryTest extends TestCase
             }
         };
 
-        $factory->resolveMaster([
-            'sentinel' => [
-                'nodes' => ['127.0.0.1:26379'],
-                'master_name' => 'primary',
-                'context' => $context,
-            ],
-        ]);
+        $factory->resolveMaster($this->sentinelConfig([
+            'context' => $context,
+        ]));
 
         if ($expected === null) {
             $this->assertArrayNotHasKey('ssl', $factory->createdWith[0]);
@@ -189,15 +224,12 @@ class RedisSentinelFactoryTest extends TestCase
         $factory = new RedisSentinelFactory;
 
         try {
-            $factory->resolveMaster([
-                'sentinel' => [
-                    'nodes' => [
-                        'user:password@127.0.0.1:26379',
-                        'tcp://127.0.0.1:26379/path',
-                    ],
-                    'master_name' => 'primary',
+            $factory->resolveMaster($this->sentinelConfig([
+                'nodes' => [
+                    'user:password@127.0.0.1:26379',
+                    'tcp://127.0.0.1:26379/path',
                 ],
-            ]);
+            ]));
             $this->fail('Expected Sentinel resolution to fail.');
         } catch (InvalidRedisConnectionException $exception) {
             $this->assertStringContainsString(
@@ -216,12 +248,9 @@ class RedisSentinelFactoryTest extends TestCase
         $factory = new RedisSentinelFactory;
 
         try {
-            $factory->resolveMaster([
-                'sentinel' => [
-                    'nodes' => ['fe80::1:2637', '::1'],
-                    'master_name' => 'primary',
-                ],
-            ]);
+            $factory->resolveMaster($this->sentinelConfig([
+                'nodes' => ['fe80::1:2637', '::1'],
+            ]));
             $this->fail('Expected Sentinel resolution to fail.');
         } catch (InvalidRedisConnectionException $exception) {
             $this->assertStringContainsString(
@@ -253,12 +282,9 @@ class RedisSentinelFactoryTest extends TestCase
         };
 
         try {
-            $factory->resolveMaster([
-                'sentinel' => [
-                    'nodes' => ['invalid-node', 'tcp://127.0.0.1:26379'],
-                    'master_name' => 'primary',
-                ],
-            ]);
+            $factory->resolveMaster($this->sentinelConfig([
+                'nodes' => ['invalid-node', 'tcp://127.0.0.1:26379'],
+            ]));
             $this->fail('Expected Sentinel resolution to fail.');
         } catch (InvalidRedisConnectionException $exception) {
             $this->assertStringContainsString('[invalid-node]: invalid node', $exception->getMessage());
@@ -289,11 +315,25 @@ class RedisSentinelFactoryTest extends TestCase
             '[tcp://127.0.0.1:26379]: master was not resolved'
         );
 
-        $factory->resolveMaster([
-            'sentinel' => [
+        $factory->resolveMaster($this->sentinelConfig());
+    }
+
+    /**
+     * Create a complete Sentinel topology block.
+     */
+    private function sentinelConfig(array $overrides = []): array
+    {
+        return [
+            'sentinel' => array_replace([
+                'enabled' => true,
                 'nodes' => ['tcp://127.0.0.1:26379'],
                 'master_name' => 'primary',
-            ],
-        ]);
+                'username' => null,
+                'password' => null,
+                'timeout' => 0.0,
+                'read_timeout' => 0.0,
+                'context' => [],
+            ], $overrides),
+        ];
     }
 }

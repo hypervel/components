@@ -12,6 +12,7 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Integration\Database\Sqlite\SqliteTestCase;
+use Override;
 use UnitEnum;
 
 class EloquentModelConnectionsTest extends SqliteTestCase
@@ -34,7 +35,8 @@ class EloquentModelConnectionsTest extends SqliteTestCase
         ]);
     }
 
-    protected function defineDatabaseMigrations(): void
+    #[Override]
+    protected function afterRefreshingDatabase(): void
     {
         // Clean up any existing tables from previous tests
         Schema::dropIfExists('child');

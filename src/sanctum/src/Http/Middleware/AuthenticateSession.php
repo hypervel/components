@@ -100,7 +100,7 @@ class AuthenticateSession implements AuthenticatesSessions
     {
         $sessionGuards = [];
 
-        foreach ($this->config->array('auth.guards', []) as $guard) {
+        foreach ($this->config->array('auth.guards') as $guard) {
             if (! is_array($guard) || ($guard['driver'] ?? null) !== 'sanctum') {
                 continue;
             }

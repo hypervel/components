@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Watcher;
 use Hypervel\Tests\TestCase;
 use Hypervel\Watcher\WatchPath;
 use Hypervel\Watcher\WatchPathType;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class WatchPathTest extends TestCase
 {
@@ -124,5 +125,31 @@ class WatchPathTest extends TestCase
 
         $this->assertTrue($path->matches('artisan.php'));
         $this->assertFalse($path->matches('app/Foo.php'));
+    }
+
+    #[DataProvider('recursiveWatchPaths')]
+    public function testDeterminesWhetherTraversalMustBeRecursive(
+        string $path,
+        WatchPathType $type,
+        ?string $pattern,
+        bool $recursive,
+    ): void {
+        $this->assertSame($recursive, (new WatchPath($path, $type, $pattern))->recursive);
+    }
+
+    public static function recursiveWatchPaths(): array
+    {
+        return [
+            'plain directory' => ['app', WatchPathType::Directory, null, true],
+            'exact file' => ['.env', WatchPathType::File, null, false],
+            'root file glob' => ['.', WatchPathType::Directory, '.env*', false],
+            'shallow file glob' => ['app', WatchPathType::Directory, 'app/Foo*.php', false],
+            'question-mark glob' => ['routes', WatchPathType::Directory, 'routes/?.php', false],
+            'brace glob' => ['config', WatchPathType::Directory, 'config/{app,queue}.php', false],
+            'middle directory glob' => ['app', WatchPathType::Directory, 'app/*/Actions/*.php', true],
+            'double-star suffix' => ['app', WatchPathType::Directory, 'app/**', true],
+            'recursive glob' => ['app', WatchPathType::Directory, 'app/**/*.php', true],
+            'root recursive glob' => ['.', WatchPathType::Directory, '**/*.php', true],
+        ];
     }
 }

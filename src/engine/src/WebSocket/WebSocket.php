@@ -51,7 +51,7 @@ class WebSocket implements WebSocketInterface
         try {
             while (true) {
                 /** @var false|string|SwFrame $frame */
-                $frame = $this->connection->recv(-1); // @phpstan-ignore arguments.count (recv accepts timeout parameter)
+                $frame = $this->connection->recv(-1);
                 if ($frame === false) {
                     $this->logger?->warning(
                         sprintf(

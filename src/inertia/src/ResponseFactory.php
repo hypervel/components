@@ -306,7 +306,7 @@ class ResponseFactory
             throw new InvalidArgumentException('Component argument must be of type string or a string BackedEnum');
         }
 
-        if (config('inertia.pages.ensure_pages_exist', false)) {
+        if (config()->boolean('inertia.pages.ensure_pages_exist', false)) {
             $this->findComponentOrFail($component);
         }
 
@@ -325,7 +325,7 @@ class ResponseFactory
             $props,
             $state->rootView,
             $this->getVersion(),
-            $state->encryptHistory ?? (bool) config('inertia.history.encrypt', false),
+            $state->encryptHistory ?? config()->boolean('inertia.history.encrypt', false),
             $state->urlResolver,
         );
     }

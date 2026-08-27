@@ -16,11 +16,17 @@ final class LargeDatasetCheck implements CheckInterface
 {
     private const int ITEM_COUNT = 500;
 
+    /**
+     * Get the human-readable name of this check.
+     */
     public function name(): string
     {
         return 'Large Dataset Operations';
     }
 
+    /**
+     * Run the check and return results.
+     */
     public function run(DoctorContext $context): CheckResult
     {
         $result = new CheckResult;
@@ -30,8 +36,12 @@ final class LargeDatasetCheck implements CheckInterface
         // Bulk insert
         $startTime = microtime(true);
 
-        for ($i = 0; $i < $count; ++$i) {
-            $context->cache->tags([$tag])->put($context->prefixed("large:item{$i}"), "value{$i}", 60);
+        for ($itemIndex = 0; $itemIndex < $count; ++$itemIndex) {
+            $context->cache->tags([$tag])->put(
+                $context->prefixed("large:item{$itemIndex}"),
+                "value{$itemIndex}",
+                60
+            );
         }
 
         $insertTime = microtime(true) - $startTime;

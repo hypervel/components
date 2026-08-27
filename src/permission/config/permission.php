@@ -5,9 +5,18 @@ declare(strict_types=1);
 use Hypervel\Permission\DefaultTeamResolver;
 use Hypervel\Permission\Models\Permission;
 use Hypervel\Permission\Models\Role;
-use Hypervel\Permission\WildcardPermission;
 
 return [
+    /*
+    |--------------------------------------------------------------------------
+    | Permission Models
+    |--------------------------------------------------------------------------
+    |
+    | These models back the package's role and permission records. The team
+    | and default models may remain null when their related behavior is unused.
+    |
+    */
+
     'models' => [
         /*
          * The model used to retrieve permissions.
@@ -20,15 +29,27 @@ return [
         'role' => Role::class,
 
         /*
-         * The app-owned team model used by the teams feature.
+         * The app-owned team model used by the teams feature. Set to null when
+         * teams are disabled or the application does not expose a team model.
          */
         'team' => null,
 
         /*
          * The model used when raw IDs are passed to reverse-assignment helpers.
+         * Set to null to use the authenticated guard's user model.
          */
         'default_model' => null,
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Table and Column Names
+    |--------------------------------------------------------------------------
+    |
+    | Runtime relationships and the published migrations both use these names.
+    | Keep any customized values aligned with the application's schema.
+    |
+    */
 
     'table_names' => [
         'roles' => 'roles',
@@ -39,6 +60,10 @@ return [
     ],
 
     'column_names' => [
+        /*
+         * Set these pivot keys to null, or omit them, to use role_id and
+         * permission_id. An omitted team key uses team_id.
+         */
         'role_pivot_key' => null,
         'permission_pivot_key' => null,
         'model_morph_key' => 'model_id',
@@ -46,23 +71,32 @@ return [
     ],
 
     /*
-     * Register the Gate::before permission check so $user->can('permission') works.
+    |--------------------------------------------------------------------------
+    | Permission Checks and Assignment Events
+    |--------------------------------------------------------------------------
+    |
+    | The package may register its Gate permission hook and dispatch the role
+    | and permission attached and detached events. Events are only constructed
+    | when a listener is registered for the corresponding event class.
+    |
      */
+
     'register_permission_check_method' => true,
 
-    /*
-     * Fire role and permission assignment events when listeners are registered.
-     */
     'events_enabled' => false,
 
     /*
-     * Scope roles and assignments by the configured team foreign key.
+    |--------------------------------------------------------------------------
+    | Teams
+    |--------------------------------------------------------------------------
+    |
+    | Teams scope roles and assignments by the configured team foreign key.
+    | A custom resolver must implement the PermissionsTeamResolver contract.
+    |
      */
+
     'teams' => false,
 
-    /*
-     * Resolve the current team id.
-     */
     'team_resolver' => DefaultTeamResolver::class,
 
     /*
@@ -71,33 +105,54 @@ return [
     'use_passport_client_credentials' => false,
 
     /*
-     * Include required permission names in exception messages.
+    |--------------------------------------------------------------------------
+    | Exception Messages
+    |--------------------------------------------------------------------------
+    |
+    | These options expose required role or permission names in authorization
+    | exception messages. Leave them disabled when those names are sensitive.
+    |
      */
+
     'display_permission_in_exception' => false,
 
-    /*
-     * Include required role names in exception messages.
-     */
     'display_role_in_exception' => false,
 
     /*
-     * Enable wildcard permission matching.
+    |--------------------------------------------------------------------------
+    | Wildcard Permissions
+    |--------------------------------------------------------------------------
+    |
+    | Wildcard matching is disabled by default. A custom parser must implement
+    | the Hypervel\Permission\Contracts\Wildcard contract.
+    |
      */
+
     'enable_wildcard_permission' => false,
 
+    // 'wildcard_permission' => Hypervel\Permission\WildcardPermission::class,
+
     /*
-     * The class used to parse wildcard permissions.
-     */
-    'wildcard_permission' => WildcardPermission::class,
+    |--------------------------------------------------------------------------
+    | Permission Cache
+    |--------------------------------------------------------------------------
+    |
+    | Permission data is cached for 24 hours by default. The named cache keys
+    | separate catalog and assignment data so each can be invalidated precisely.
+    | Omitted key members use the package names shown below.
+    | Column exclusions reduce the serialized catalog without hiding required
+    | model, partition, or team columns.
+    |
+    */
 
     'cache' => [
         'expiration_seconds' => 86400,
         'store' => env('PERMISSION_CACHE_STORE', 'default'),
         'keys' => [
-            'roles' => 'hypervel.permission.cache.roles',
-            'model_roles' => 'hypervel.permission.cache.model.roles',
-            'model_permissions' => 'hypervel.permission.cache.model.permissions',
-            'model_token' => 'hypervel.permission.cache.model.token',
+            'roles' => 'hypervel.permission.cache.roles', // Role and permission catalog.
+            'model_roles' => 'hypervel.permission.cache.model.roles', // Per-model role assignments.
+            'model_permissions' => 'hypervel.permission.cache.model.permissions', // Per-model direct permissions.
+            'model_token' => 'hypervel.permission.cache.model.token', // Assignment-version tokens.
         ],
         'column_names_except' => ['created_at', 'updated_at', 'deleted_at'],
     ],

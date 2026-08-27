@@ -206,11 +206,11 @@ class EventDispatcherTest extends ReverbTestCase
     {
         Queue::fake();
 
-        config()->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['cache_miss'],
             'disconnect_smoothing_ms' => 0,
-        ]);
+        ]));
 
         $app = app(ApplicationProvider::class)->findByKey('reverb-key');
         $channels = app(ChannelManager::class)->for($app);

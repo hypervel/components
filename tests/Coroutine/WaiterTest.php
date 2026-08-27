@@ -6,7 +6,9 @@ namespace Hypervel\Tests\Coroutine;
 
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Context\NonCopyableContext;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Exceptions\ChildTerminationTimeoutException;
 use Hypervel\Coroutine\Exceptions\WaitTimeoutException;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Engine\Channel;
@@ -17,6 +19,7 @@ use Hypervel\Tests\TestCase;
 use ReflectionProperty;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Coroutine\wait;
 
@@ -94,6 +97,26 @@ class WaiterTest extends TestCase
         );
 
         $this->assertSame(['value_a', null], $result);
+    }
+
+    public function testCopiedContextOmitsSelectedNonCopyableValues(): void
+    {
+        $resource = new class implements NonCopyableContext {
+        };
+
+        CoroutineContext::set('resource', $resource);
+        CoroutineContext::set('request_id', 'abc');
+
+        $result = wait(
+            static fn (): array => [
+                CoroutineContext::get('resource'),
+                CoroutineContext::get('request_id'),
+            ],
+            copyContext: ['resource', 'request_id'],
+        );
+
+        $this->assertSame([null, 'abc'], $result);
+        $this->assertSame($resource, CoroutineContext::get('resource'));
     }
 
     public function testContextReplicationFailureIsReportedInsteadOfTimingOut(): void
@@ -280,6 +303,27 @@ class WaiterTest extends TestCase
         $this->assertFalse(Coroutine::exists($childCoroutineId));
     }
 
+    public function testStrictTimeoutThrowsTheBaseExceptionWhenTheChildStopsWithinTheCleanupBudget(): void
+    {
+        $childCoroutineId = null;
+        $waiter = new class extends Waiter {
+            protected float $pushTimeout = 0.05;
+        };
+
+        try {
+            $waiter->wait(function () use (&$childCoroutineId): void {
+                $childCoroutineId = Coroutine::id();
+                Coroutine::sleep(0.05);
+            }, 0.001, waitForChildTermination: true);
+            $this->fail('The waiter should time out.');
+        } catch (WaitTimeoutException $exception) {
+        }
+
+        $this->assertSame(WaitTimeoutException::class, $exception::class);
+        $this->assertIsInt($childCoroutineId);
+        $this->assertFalse(Coroutine::exists($childCoroutineId));
+    }
+
     public function testTimeoutReturnsWhenTheChildOutlivesTheCleanupBudget(): void
     {
         $childCoroutineId = null;
@@ -320,6 +364,62 @@ class WaiterTest extends TestCase
         }
 
         $this->assertTrue($childCompleted);
+        $this->assertFalse(Coroutine::exists($childCoroutineId));
+    }
+
+    public function testStrictTimeoutWaitsForChildTerminationAfterTheCleanupBudget(): void
+    {
+        $childCoroutineId = null;
+        $trailingWorkStarted = new Channel(1);
+        $releaseTrailingWork = new Channel(1);
+        $outcome = new Channel(1);
+        $waiter = new class extends Waiter {
+            protected float $pushTimeout = 0.001;
+        };
+
+        Container::getInstance()->instance(Waiter::class, $waiter);
+
+        $waitingCoroutineId = Coroutine::create(function () use (
+            &$childCoroutineId,
+            $outcome,
+            $releaseTrailingWork,
+            $trailingWorkStarted,
+        ): void {
+            try {
+                wait(function () use (&$childCoroutineId, $releaseTrailingWork, $trailingWorkStarted): void {
+                    $childCoroutineId = Coroutine::id();
+
+                    try {
+                        Coroutine::sleep(0.05);
+                    } catch (CanceledException) {
+                        $trailingWorkStarted->push(true);
+                        $releaseTrailingWork->pop();
+                    }
+                }, timeout: 0.002, waitForChildTermination: true);
+
+                $outcome->push('returned');
+            } catch (Throwable $exception) {
+                $outcome->push($exception);
+            }
+        });
+
+        try {
+            $this->assertTrue($trailingWorkStarted->pop(0.01));
+            $this->assertIsInt($childCoroutineId);
+            $this->assertTrue(Coroutine::exists($childCoroutineId));
+            $this->assertFalse($outcome->pop(0.05));
+        } finally {
+            $releaseTrailingWork->push(true);
+            Coroutine::join([$waitingCoroutineId]);
+        }
+
+        $exception = $outcome->pop(0.01);
+
+        $this->assertInstanceOf(ChildTerminationTimeoutException::class, $exception);
+        $this->assertSame(
+            'Channel wait failed, reason: Timed out for 0.002 s and child coroutine did not terminate within 0.001 s',
+            $exception->getMessage(),
+        );
         $this->assertFalse(Coroutine::exists($childCoroutineId));
     }
 }

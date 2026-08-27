@@ -8,7 +8,10 @@ use Carbon\CarbonInterface;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Pool\ConnectionInterface;
+use Hypervel\Database\Connection;
 use Hypervel\Database\Eloquent\Factories\Factory as EloquentFactory;
+use Hypervel\Database\PdoConnection;
+use Hypervel\Database\SessionConfigurator;
 use Hypervel\Encryption\Commands\KeyGenerateCommand;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Http\Client\Factory as HttpFactory;
@@ -41,6 +44,7 @@ use Laravel\SerializableClosure\Serializers\Signed;
 use Mockery as m;
 use Mockery\Exception\InvalidCountException;
 use Override;
+use PDO;
 use ReflectionClass;
 use ReflectionProperty;
 use RuntimeException;
@@ -248,6 +252,57 @@ class AfterEachTestSubscriberTest extends TestCase
             $this->assertSame([], $classes->getValue());
         } finally {
             NestedSet::flushState();
+        }
+    }
+
+    public function testFrameworkCleanupFlushesNeutralAndPdoConnectionState(): void
+    {
+        $macro = 'databaseCleanupProbe';
+        Connection::macro($macro, static fn (): string => 'macro');
+        Connection::resolverFor('cleanup', static fn (): null => null);
+        PdoConnection::configureSessionUsing(new class implements SessionConfigurator {
+            public function state(PdoConnection $connection): ?string
+            {
+                return 'state';
+            }
+
+            public function apply(PDO $pdo, string $state, PdoConnection $connection): void
+            {
+            }
+        });
+
+        $connection = new PdoConnection(
+            new PDO('sqlite::memory:'),
+            ':memory:',
+            '',
+            ['driver' => 'sqlite', 'name' => 'cleanup']
+        );
+        $connection->getPdo();
+
+        $sessionConfigurators = new ReflectionProperty(PdoConnection::class, 'sessionConfigurators');
+        $physicalSessionStates = new ReflectionProperty(PdoConnection::class, 'physicalSessionStates');
+
+        $this->assertTrue(Connection::hasMacro($macro));
+        $this->assertNotNull(Connection::getResolver('cleanup'));
+        $this->assertCount(1, $sessionConfigurators->getValue());
+        $this->assertCount(1, $physicalSessionStates->getValue());
+
+        $subscriber = new class extends AfterEachTestSubscriber {
+            public function flushFrameworkStateForTest(): void
+            {
+                $this->flushFrameworkState();
+            }
+        };
+
+        try {
+            $subscriber->flushFrameworkStateForTest();
+
+            $this->assertFalse(Connection::hasMacro($macro));
+            $this->assertNull(Connection::getResolver('cleanup'));
+            $this->assertSame([], $sessionConfigurators->getValue());
+            $this->assertNull($physicalSessionStates->getValue());
+        } finally {
+            PdoConnection::flushState();
         }
     }
 

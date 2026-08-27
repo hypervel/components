@@ -14,11 +14,17 @@ use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
  */
 final class BasicOperationsCheck implements CheckInterface
 {
+    /**
+     * Get the human-readable name of this check.
+     */
     public function name(): string
     {
         return 'Basic Cache Operations';
     }
 
+    /**
+     * Run the check and return results.
+     */
     public function run(DoctorContext $context): CheckResult
     {
         $result = new CheckResult;
@@ -60,14 +66,14 @@ final class BasicOperationsCheck implements CheckInterface
         // Remember
         $value = $context->cache->remember($context->prefixed('basic:remember'), 60, fn (): string => 'remembered');
         $result->assert(
-            $value === 'remembered' && $context->cache->get($context->prefixed('basic:remember')) === 'remembered', // @phpstan-ignore identical.alwaysTrue (diagnostic assertion)
+            $value === 'remembered' && $context->cache->get($context->prefixed('basic:remember')) === 'remembered',
             'remember() stores and returns closure result'
         );
 
         // RememberForever
         $value = $context->cache->rememberForever($context->prefixed('basic:forever'), fn (): string => 'permanent');
         $result->assert(
-            $value === 'permanent', // @phpstan-ignore identical.alwaysTrue (diagnostic assertion)
+            $value === 'permanent',
             'rememberForever() stores without expiration'
         );
 

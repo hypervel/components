@@ -881,7 +881,7 @@ class Str
         $length = $length - $password->count();
 
         return $password->merge($options->pipe(
-            fn ($c) => Collection::times($length, fn () => $c[random_int(0, $c->count() - 1)]) // @phpstan-ignore argument.type, return.type
+            fn ($c) => Collection::times($length, fn () => $c[random_int(0, $c->count() - 1)])
         ))->shuffle()->implode('');
     }
 
@@ -1015,7 +1015,7 @@ class Str
     {
         try {
             return (string) $value;
-        } catch (Throwable) { // @phpstan-ignore catch.neverThrown (__toString can throw)
+        } catch (Throwable) {
             return $fallback;
         }
     }
@@ -1245,7 +1245,6 @@ class Str
                 $hyphenatedWords = explode('-', $lowercaseWord);
 
                 $hyphenatedWords = array_map(function ($part) use ($minorWords) {
-                    // @phpstan-ignore smallerOrEqual.alwaysTrue (defensive check)
                     return (in_array($part, $minorWords) && mb_strlen($part) <= 3)
                         ? $part
                         : mb_strtoupper(mb_substr($part, 0, 1)) . mb_substr($part, 1);
@@ -1254,7 +1253,7 @@ class Str
                 $words[$i] = implode('-', $hyphenatedWords);
             } else {
                 if (in_array($lowercaseWord, $minorWords)
-                    && mb_strlen($lowercaseWord) <= 3 // @phpstan-ignore smallerOrEqual.alwaysTrue
+                    && mb_strlen($lowercaseWord) <= 3
                     && ! ($i === 0 || in_array(mb_substr($words[$i - 1], -1), $endPunctuation))) {
                     $words[$i] = $lowercaseWord;
                 } else {
@@ -1325,13 +1324,28 @@ class Str
      */
     public static function trim(string $value, ?string $charlist = null): string
     {
-        if ($charlist === null) {
-            $trimDefaultCharacters = " \n\r\t\v\0";
-
-            return preg_replace('~^[\s' . self::INVISIBLE_CHARACTERS . $trimDefaultCharacters . ']+|[\s' . self::INVISIBLE_CHARACTERS . $trimDefaultCharacters . ']+$~u', '', $value) ?? trim($value);
+        if ($charlist !== null) {
+            return trim($value, $charlist);
         }
 
-        return trim($value, $charlist);
+        $trimmed = trim($value);
+
+        if ($trimmed === '') {
+            return '';
+        }
+
+        // Native trim() already consumed its ASCII charlist. Only a multibyte
+        // boundary or form feed can still match the Unicode whitespace set.
+        if (ord($trimmed[0]) < 0x80
+            && ord($trimmed[-1]) < 0x80
+            && $trimmed[0] !== "\f"
+            && $trimmed[-1] !== "\f") {
+            return $trimmed;
+        }
+
+        $trimDefaultCharacters = " \n\r\t\v\0";
+
+        return preg_replace('~^[\s' . self::INVISIBLE_CHARACTERS . $trimDefaultCharacters . ']+|[\s' . self::INVISIBLE_CHARACTERS . $trimDefaultCharacters . ']+$~u', '', $value) ?? $trimmed;
     }
 
     /**

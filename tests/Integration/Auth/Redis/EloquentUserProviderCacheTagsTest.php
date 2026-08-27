@@ -31,7 +31,7 @@ class EloquentUserProviderCacheTagsTest extends TestCase
     use RefreshDatabase;
     use RequiresHashFieldExpiration;
 
-    protected const string DEFAULT_KEY_PREFIX = 'auth_users';
+    protected const string DEFAULT_KEY_PREFIX = EloquentUserProvider::DEFAULT_CACHE_PREFIX;
 
     protected const string STORE_NAME = 'auth_redis';
 

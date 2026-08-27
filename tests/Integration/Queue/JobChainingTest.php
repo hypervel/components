@@ -33,8 +33,14 @@ class JobChainingTest extends QueueTestCase
         parent::defineEnvironment($app);
 
         $app->make('config')->set([
-            'queue.connections.sync1' => ['driver' => 'sync'],
-            'queue.connections.sync2' => ['driver' => 'sync'],
+            'queue.connections.sync1' => [
+                'driver' => 'sync',
+                'after_commit' => false,
+            ],
+            'queue.connections.sync2' => [
+                'driver' => 'sync',
+                'after_commit' => false,
+            ],
         ]);
     }
 

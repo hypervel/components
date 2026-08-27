@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation\ValidationCompiledExecutionTest;
 
+use Brick\Math\Exception\NumberFormatException;
 use Closure;
 use DateTimeImmutable;
 use Hypervel\Contracts\Validation\ImplicitRule;
@@ -17,6 +18,7 @@ use Hypervel\Validation\Rule;
 use Hypervel\Validation\Validator;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
+use SplFileInfo;
 use stdClass;
 use Stringable;
 
@@ -64,12 +66,166 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertStringContainsString('3', $v->errors()->first('name'));
     }
 
+    public function testRuntimeDispatchedSizeRulesMatchCompiledAndDelegatedExecution(): void
+    {
+        $cases = [
+            [['value' => '100'], ['value' => 'max:3'], true],
+            [['value' => '100'], ['value' => 'numeric|max:3'], false],
+            [['value' => '2.00'], ['value' => 'max:3|decimal:2'], true],
+            [['value' => '2.00'], ['value' => 'string|numeric|max:3'], true],
+            [['value' => [1, 2, 3]], ['value' => 'between:2,3'], true],
+            [['value' => new SplFileInfo(__FILE__)], ['value' => 'file|min:0|max:1000'], true],
+            [['value' => 'abc'], ['value' => 'size:3.0000000000000000001'], false],
+        ];
+
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            foreach ($cases as [$data, $rules, $expected]) {
+                $validator = $this->makeValidator($data, $rules, validatorClass: $validatorClass);
+
+                $this->assertSame($expected, $validator->passes(), $validatorClass . ' failed for ' . reset($rules));
+            }
+        }
+    }
+
+    public function testDateFormatRequiresAnExactRoundTripInCompiledAndDelegatedExecution(): void
+    {
+        $cases = [
+            ['1', 'date_format:m', false],
+            ['01', 'date_format:m', true],
+            ['24', 'date_format:Y', false],
+            ['0024', 'date_format:Y', true],
+            ['20250101', 'date_format:Ymd', true],
+            [0, 'date_format:U', true],
+            ['value', [['date_format', "\0"]], false],
+        ];
+
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            foreach ($cases as [$value, $rules, $expected]) {
+                $validator = $this->makeValidator(
+                    ['value' => $value],
+                    ['value' => $rules],
+                    validatorClass: $validatorClass,
+                );
+
+                $this->assertSame($expected, $validator->passes(), $validatorClass . ' failed for ' . (string) $value);
+            }
+        }
+    }
+
+    public function testNonNumericValueWithNumericSiblingUsesItsRuntimeShapeBeforeTypeFailure(): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            $validator = $this->makeValidator(
+                ['value' => 'abc'],
+                ['value' => 'min:3|numeric'],
+                validatorClass: $validatorClass,
+            );
+
+            $this->assertFalse($validator->passes());
+            $this->assertArrayNotHasKey('Min', $validator->failed()['value']);
+            $this->assertArrayHasKey('Numeric', $validator->failed()['value']);
+        }
+    }
+
+    public function testNumericComparisonStateDoesNotLeakIntoInlineSizeMessages(): void
+    {
+        $translator = new Translator(new ArrayLoader, 'en');
+        $translator->addLines([
+            'validation.max.numeric' => 'numeric max',
+            'validation.max.string' => 'string max',
+        ], 'en');
+
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            $validator = new $validatorClass(
+                $translator,
+                ['field' => '123456', 'other' => 2],
+                ['field' => 'string|gt:other|max:5'],
+            );
+
+            $this->assertFalse($validator->passes());
+            $this->assertSame('string max', $validator->errors()->first('field'));
+        }
+    }
+
+    public function testNumericSizeChecksEnforceExponentPolicyExactlyOnce(): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            $calls = 0;
+            $validator = $this->makeValidator(
+                ['value' => '1e2'],
+                ['value' => 'max:200|numeric'],
+                validatorClass: $validatorClass,
+            );
+            $validator->ensureExponentWithinAllowedRangeUsing(
+                function (int $scale, string $attribute, string $value) use (&$calls): bool {
+                    ++$calls;
+
+                    return $scale === 2 && $attribute === 'value' && $value === '1e2';
+                },
+            );
+
+            $this->assertTrue($validator->passes());
+            $this->assertSame(1, $calls);
+        }
+    }
+
+    public function testNonFiniteNumericSizesPreserveNumberFormatExceptionWithoutWarnings(): void
+    {
+        $cases = [
+            [NAN, 'NAN'],
+            [INF, 'INF'],
+            [-INF, '-INF'],
+        ];
+
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            foreach ($cases as [$value, $representation]) {
+                $validator = $this->makeValidator(
+                    ['value' => $value],
+                    ['value' => 'numeric|max:5'],
+                    validatorClass: $validatorClass,
+                );
+
+                try {
+                    $validator->passes();
+                    $this->fail("{$validatorClass} did not reject {$representation}.");
+                } catch (NumberFormatException $exception) {
+                    $this->assertSame(
+                        "Value \"{$representation}\" does not represent a valid number.",
+                        $exception->getMessage(),
+                    );
+                }
+            }
+        }
+    }
+
     public function testBailStopsOnFirstFailure()
     {
         $v = $this->makeValidator(['name' => 123], ['name' => 'bail|string|max:255']);
         $v->passes();
 
         $this->assertCount(1, $v->errors()->get('name'));
+    }
+
+    public function testBailUsesPlaceholderCleanedAttributeKeys(): void
+    {
+        $validator = $this->makeValidator(
+            ['literal.dot' => []],
+            ['literal\.dot' => 'bail|string|integer'],
+        );
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame(['String'], array_keys($validator->failed()['literal.dot']));
+    }
+
+    public function testImplicitFailureStopsUsingPlaceholderCleanedAttributeKeys(): void
+    {
+        $validator = $this->makeValidator(
+            ['literal.dot' => 'no'],
+            ['literal\.dot' => 'accepted|integer'],
+        );
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame(['Accepted'], array_keys($validator->failed()['literal.dot']));
     }
 
     public function testStopOnFirstFailure()
@@ -301,7 +457,187 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
-    public function testPreOptimizationGuardSkipsWithCustomExtensions()
+    public function testSubclassMetaRulesAndStopHookRemainDelegated(): void
+    {
+        $validator = $this->makeValidator(
+            ['name' => 'value'],
+            ['name' => 'nullable|bail|sometimes|string'],
+            validatorClass: ValidationHookTrackingValidator::class,
+        );
+
+        $this->assertTrue($validator->passes());
+        $this->assertSame(1, $validator->nullableCalls);
+        $this->assertSame(1, $validator->bailCalls);
+        $this->assertSame(1, $validator->sometimesCalls);
+        $this->assertGreaterThan(0, $validator->optionalCheckCalls);
+        $this->assertSame(4, $validator->stopCalls);
+    }
+
+    public function testSubclassStopHookCanStopAfterItsFirstFailure(): void
+    {
+        $validator = $this->makeValidator(
+            ['name' => 'invalid'],
+            ['name' => 'integer|string'],
+            validatorClass: ValidationHookTrackingValidator::class,
+        );
+        $validator->alwaysStop = true;
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame(1, $validator->stopCalls);
+        $this->assertSame(['Integer'], array_keys($validator->failed()['name']));
+    }
+
+    public function testSubclassOptionalHookControlsAbsentSometimesAttribute(): void
+    {
+        $validator = $this->makeValidator(
+            [],
+            ['name' => 'sometimes|required'],
+            validatorClass: ValidationHookTrackingValidator::class,
+        );
+        $validator->forceOptional = true;
+
+        $this->assertFalse($validator->passes());
+        $this->assertGreaterThan(0, $validator->optionalCheckCalls);
+        $this->assertArrayHasKey('Required', $validator->failed()['name']);
+    }
+
+    public function testNonScalarParametersAreNotEvaluatedAfterBailStopsTheAttribute(): void
+    {
+        $casts = 0;
+        $parameter = new class($casts) implements Stringable {
+            public function __construct(private int &$casts)
+            {
+            }
+
+            public function __toString(): string
+            {
+                ++$this->casts;
+
+                return 'allowed';
+            }
+        };
+        $validator = $this->makeValidator(
+            ['value' => 'invalid'],
+            ['value' => ['bail', 'integer', ['in', $parameter]]],
+        );
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame(0, $casts);
+        $this->assertSame(['Integer'], array_keys($validator->failed()['value']));
+    }
+
+    public function testReachedNonScalarDateFormatParameterIsCastOnce(): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            $casts = 0;
+            $parameter = new class($casts) implements Stringable {
+                public function __construct(private int &$casts)
+                {
+                }
+
+                public function __toString(): string
+                {
+                    ++$this->casts;
+
+                    return 'Ymd';
+                }
+            };
+            $validator = $this->makeValidator(
+                ['value' => '20250101'],
+                ['value' => [['date_format', $parameter]]],
+                validatorClass: $validatorClass,
+            );
+
+            $this->assertTrue($validator->passes(), $validatorClass);
+            $this->assertSame(1, $casts, $validatorClass);
+        }
+    }
+
+    public function testEscapedDotPresenceRulesSkipAfterAnEarlierFailure(): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            foreach (['exists:users,email', 'unique:users,email'] as $presenceRule) {
+                $calls = 0;
+                $presenceVerifier = new class($calls) implements PresenceVerifierInterface {
+                    public function __construct(private int &$calls)
+                    {
+                    }
+
+                    public function getCount(string $collection, string $column, mixed $value, int|string|null $excludeId = null, ?string $idColumn = null, array $extra = []): int
+                    {
+                        ++$this->calls;
+
+                        return 0;
+                    }
+
+                    public function getMultiCount(string $collection, string $column, array $values, array $extra = []): int
+                    {
+                        ++$this->calls;
+
+                        return 0;
+                    }
+                };
+                $validator = $this->makeValidator(
+                    ['items' => [['literal.dot' => 'invalid']]],
+                    ['items.*.literal\.dot' => "integer|{$presenceRule}"],
+                    validatorClass: $validatorClass,
+                );
+                $validator->setPresenceVerifier($presenceVerifier);
+
+                $this->assertFalse($validator->passes());
+                $this->assertSame(0, $calls);
+                $this->assertTrue($validator->errors()->has('items.0.literal.dot'));
+            }
+        }
+    }
+
+    public function testStringablePresenceCandidateIsNotCastWhenAnEarlierRuleFails(): void
+    {
+        $casts = 0;
+        $value = new class($casts) implements Stringable {
+            public function __construct(private int &$casts)
+            {
+            }
+
+            public function __toString(): string
+            {
+                ++$this->casts;
+
+                return 'user1@example.com';
+            }
+        };
+        $presenceCalls = 0;
+        $presenceVerifier = new class($presenceCalls) implements PresenceVerifierInterface {
+            public function __construct(private int &$presenceCalls)
+            {
+            }
+
+            public function getCount(string $collection, string $column, mixed $value, int|string|null $excludeId = null, ?string $idColumn = null, array $extra = []): int
+            {
+                ++$this->presenceCalls;
+
+                return 1;
+            }
+
+            public function getMultiCount(string $collection, string $column, array $values, array $extra = []): int
+            {
+                ++$this->presenceCalls;
+
+                return 1;
+            }
+        };
+        $validator = $this->makeValidator(
+            ['items' => [['email' => $value]]],
+            ['items.*.email' => 'array|exists:users,email'],
+        );
+        $validator->setPresenceVerifier($presenceVerifier);
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame(0, $casts);
+        $this->assertSame(0, $presenceCalls);
+    }
+
+    public function testUnusedCustomExtensionPreservesExclusionBehavior(): void
     {
         $v = $this->makeValidator(
             ['type' => 'section', 'details' => 'test'],
@@ -464,6 +800,25 @@ class ValidationCompiledExecutionTest extends TestCase
         yield 'not in accepts object' => ['not_in:active', new stdClass, true];
         yield 'in rejects backed enum value' => ['in:active', MembershipStatus::Active, false];
         yield 'not in accepts backed enum value' => ['not_in:active', MembershipStatus::Active, true];
+    }
+
+    public function testJsonRejectsResourcesInCompiledAndDelegatedExecution(): void
+    {
+        $resource = fopen('php://memory', 'r');
+
+        try {
+            foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+                $validator = $this->makeValidator(
+                    ['value' => $resource],
+                    ['value' => 'json'],
+                    validatorClass: $validatorClass,
+                );
+
+                $this->assertFalse($validator->passes());
+            }
+        } finally {
+            fclose($resource);
+        }
     }
 
     public function testMembershipRulesMatchInCompiledAndDelegatedExecution(): void
@@ -864,6 +1219,58 @@ class AlwaysFailStringValidator extends Validator
 
 class DelegatedValidationValidator extends Validator
 {
+}
+
+class ValidationHookTrackingValidator extends Validator
+{
+    public int $nullableCalls = 0;
+
+    public int $bailCalls = 0;
+
+    public int $sometimesCalls = 0;
+
+    public int $optionalCheckCalls = 0;
+
+    public int $stopCalls = 0;
+
+    public bool $alwaysStop = false;
+
+    public bool $forceOptional = false;
+
+    public function validateNullable(): bool
+    {
+        ++$this->nullableCalls;
+
+        return true;
+    }
+
+    public function validateBail(): bool
+    {
+        ++$this->bailCalls;
+
+        return true;
+    }
+
+    public function validateSometimes(): bool
+    {
+        ++$this->sometimesCalls;
+
+        return true;
+    }
+
+    protected function passesOptionalCheck(string $attribute): bool
+    {
+        ++$this->optionalCheckCalls;
+
+        return $this->forceOptional || parent::passesOptionalCheck($attribute);
+    }
+
+    protected function shouldStopValidating(string $attribute): bool
+    {
+        ++$this->stopCalls;
+
+        return $this->alwaysStop || parent::shouldStopValidating($attribute);
+    }
 }
 
 class ValidationStringableValue implements Stringable
