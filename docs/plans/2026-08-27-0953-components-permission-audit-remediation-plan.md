@@ -18,11 +18,10 @@ The work covers:
 - narrow assignment-generation rotation;
 - custom primary-key normalization.
 
-The matching findings in `docs/plans/2026-08-22-0604-components-04-audit-remediation-plan-codex.md` must be removed after implementation because this plan becomes their detailed source of truth. The Passport-related permission TODOs in `docs/todo.md` remain: Passport is not currently ported, so those test gaps are not completed by this work.
+The Passport-related permission TODOs in `docs/todo.md` remain: Passport is not currently ported, so those test gaps are not completed by this work.
 
 ## References
 
-- Audit findings 43–47 in `docs/plans/2026-08-22-0604-components-04-audit-remediation-plan-codex.md`.
 - Current Hypervel permission source under `src/permission/src/`.
 - Current cache coordination under `src/cache/src/ModelCacheCoordinator.php` and `src/cache/src/MemoizedStore.php`.
 - Current permission documentation in `src/docs/permission.md`.
@@ -113,7 +112,7 @@ return $coordinator->fill(
 );
 ```
 
-Do not add a caller-side cache pre-check. `fill()` owns envelope detection and the hot-hit path; a null check would both duplicate work and misread a legitimately cached null. Cold fill holds one per-key lock across source read, lease refresh, and publication. A committed invalidation acquires the same lock before forgetting the key. This prevents a stale reader from publishing after a newer committed mutation.
+Do not add a caller-side cache pre-check. `fill()` owns envelope detection and the hot-hit path; a null check would both duplicate work and misread a legitimately cached null. Cold fill holds one per-key lock across source read, lease refresh, and publication. A committed invalidation acquires the same lock, so it waits for an in-flight fill and removes any value that fill published before releasing the lock. A fill that read before the commit can still publish, and a concurrent hit can observe that value before invalidation removes it. Closing that interval would require version stamps, tombstones, or locking cache hits; none justify losing lock-free hits for this narrow window.
 
 Keep passing the permission package's memoized repository to the coordinator. `MemoizedStore::put()` clears its local memo before writing the inner store, so the first lookup after a cold fill performs one remote read and later execution-local lookups hit the memo. Do not add package-owned memo state or claim that cold fill removes that one repository read.
 
@@ -170,7 +169,7 @@ The commit callback must be registered before immediate versus deferred executio
 
 If a transaction is abandoned without settlement, the stale token is bounded by the coroutine lifetime and safely forces uncached reads for the rest of that coroutine. Add one concise WHY comment at that branch; do not add recovery machinery.
 
-Keep current explicit public cache-reset methods immediate. Package mutation paths derive the permission connection from the registrar rather than the subject or relation direction. Add the narrow domain-named registrar seam needed for catalog-only settlement; do not overload the public full-reset method or introduce a general transaction coordinator.
+Route the explicit public full reset through the same assignment-token rotation and catalog-invalidation settlement paths as model mutations. Normalize an explicit nullable partition once before clearing runtime state or building either shared key, so both halves of the reset target the same resolved partition. Outside a transaction it remains immediate and returns the catalog backend's invalidation result. Inside a transaction it returns `true` once registered or deduplicated against an existing owner, publishes only after commit, and is discarded on rollback. Remove the public immediate token-bump methods: they have no upstream counterpart or production consumer and would remain an unsafe way to publish an uncommitted namespace. Package mutation paths derive the permission connection from the registrar rather than the subject or relation direction. Keep the catalog-only settlement seam domain-named; do not introduce a general transaction coordinator.
 
 ### Dirty read algorithm
 
@@ -276,11 +275,11 @@ Rotate the partition's assignment generation when an uncommitted assignment read
 
 - bulk replacement through `HasAssignedModels::syncModels()`, because concurrent inserts prevent exact enumeration of every removed subject across all supported databases;
 - hard or force deletion of a Role or Permission, because a read after the row or its pivots disappear can publish a false revocation that survives rollback under the committed namespace;
-- the explicit public `forgetCachedPermissions()` / cache-reset surface.
+- the explicit public `forgetCachedPermissions()` / cache-reset surface, settled on the permission connection.
 
 Catalog filtering makes stale extra IDs harmless after a committed hard delete, but it cannot restore an assignment ID omitted by an uncommitted read before rollback. The provisional namespace prevents that false revocation from reaching shared cache. Accept the rare partition-wide cold fill rather than adding a second settlement mode solely to restore the old namespace after commit.
 
-Generation-token writes use `afterCommitOrNow()` on the actual mutation connection and share the same per-token-key/per-connection deduplication rule as exact invalidations. Rollback leaves the prior token in place. When the token changes, do not enumerate or forget subject keys that are now unreachable by design.
+Generation-token writes use `afterCommitOrNow()` on the actual mutation connection and share the same per-token-key/per-connection deduplication rule as exact invalidations. This includes explicit resets: commit publishes the reset, while rollback leaves the prior token and shared catalog in place. When the token changes, do not enumerate or forget subject keys that are now unreachable by design.
 
 ### Exact subject invalidation
 
@@ -288,7 +287,7 @@ Normal subject mutations invalidate only their exact model-role and model-permis
 
 `assignToModels()` and `removeFromModels()` know their affected subjects and keep exact invalidation. `syncModels()` performs one bulk replacement and registers partition-generation rotation inside that transaction for settlement after commit. Do not query old subject identities: a concurrent insert can occur after any portable select and still be removed by the bulk delete. Do not constrain deletion to the discovered identities; that would let concurrent assignments survive a replacement and would create an unbounded `IN` predicate. Portable `DELETE ... RETURNING` is unavailable on MySQL and MariaDB, while locking every assignment path would add hot-path coordination solely to preserve a write-side cache optimization.
 
-Tests must prove that creates, renames, role-permission changes, and soft deletes preserve the generation token; hard/force deletes, `syncModels()`, and explicit reset rotate it; rollback never publishes a provisional token; exact subject mutations leave unrelated warm entries available; and generation rotation remains isolated to the current partition. Also prove a transactional soft delete cannot publish a rolled-back catalog and a same-connection hard delete performs one committed catalog invalidation despite pre/post registration. Do not add timing-based interleaving tests or production test seams for the phantom window.
+Tests must prove that creates, renames, role-permission changes, and soft deletes preserve the generation token; hard/force deletes, `syncModels()`, and explicit reset rotate it; rollback never publishes a provisional token; exact subject mutations leave unrelated warm entries available; and generation rotation remains isolated to the current partition. Prove that an explicit reset settles after a root commit, is discarded by a root rollback, and is also discarded when its inner savepoint rolls back before an otherwise unchanged outer commit. The savepoint regression must inspect the shared repository payload and token directly because reset registration intentionally clears coroutine-local runtime state. Also prove a transactional soft delete cannot publish a rolled-back catalog and a same-connection hard delete performs one committed catalog invalidation despite pre/post registration. Do not add timing-based interleaving tests or production test seams for the phantom window.
 
 ## 4. Memoize hydrated direct permissions per coroutine
 
@@ -386,6 +385,7 @@ Update only the canonical permission documentation in `src/docs/permission.md`:
 - explain that assignment cleanup follows a successful row deletion; same-connection hard deletes wrap the row plus cleanup in one transaction, while different connection names defer cleanup until the subject transaction commits. A consuming model's own `delete()` implementation must preserve the subject transaction boundary, while `deleteQuietly()` intentionally skips validation and cleanup.
 - explain that Role and Permission models must use the configured Permission model's connection name because relation reads, pivot writes, and cache settlement must share one transaction identity; subject models may use another connection, but physically separate subject/permission databases cannot support reverse joins or subject query scopes compiled as one SQL statement;
 - explain that coordinated permission caching requires one lock-capable backend for values and refreshable locks, so stack and failover stores are rejected on the first cold fill.
+- explain that an explicit reset inside a transaction is published after commit, discarded on rollback, and reports success once registered.
 
 Keep the existing partition-isolation statement that changing a Role in one workspace does not clear another workspace's catalog or token; that statement remains accurate.
 
@@ -393,7 +393,7 @@ Do not add this correctness fix to the package README's `Differences From Larave
 
 Keep the README's existing undefined-cache-store difference. Upstream deliberately falls back to the `array` store for an unknown configured cache store; Hypervel deliberately fails fast, so this remains a lasting configuration contract difference.
 
-After the focused implementation and tests are complete, remove findings 43–47 from the master remediation plan. Do not remove the Passport-related permission TODOs.
+Do not remove the Passport-related permission TODOs.
 
 ## 8. Test ownership and verification
 
@@ -463,6 +463,5 @@ Pin that repeated clean role checks do not instantiate the configured Permission
 - `src/database/src/Eloquent/Relations/MorphToMany.php`
 - `src/docs/permission.md`
 - focused existing and new tests listed above
-- the master remediation plan after completion
 
 The exact file set may grow when an existing mutation owner or test owner is discovered during implementation. Any such change must preserve these invariants and be folded into this plan before implementation continues.

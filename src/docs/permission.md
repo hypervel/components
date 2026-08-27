@@ -1419,6 +1419,8 @@ use Hypervel\Permission\PermissionRegistrar;
 app(PermissionRegistrar::class)->forgetCachedPermissions();
 ```
 
+If you reset the cache inside a database transaction, Hypervel applies the reset after the transaction commits and discards it when the transaction rolls back. The method returns `true` once a transactional reset has been registered.
+
 <a name="testing-and-seeding"></a>
 ## Testing and Seeding
 
