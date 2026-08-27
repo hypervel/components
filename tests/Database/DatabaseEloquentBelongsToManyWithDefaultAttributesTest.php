@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
@@ -56,6 +57,11 @@ class DatabaseEloquentBelongsToManyWithDefaultAttributesTest extends TestCase
 
         $builder->shouldReceive('getQuery')->andReturn($mockQueryBuilder = m::mock(QueryBuilder::class));
         $mockQueryBuilder->shouldReceive('getGrammar')->andReturn(m::mock(Grammar::class, ['isExpression' => false]));
+        $connection = m::mock(ConnectionInterface::class);
+        $connection->shouldReceive('table')->andReturnUsing(
+            fn ($table) => $mockQueryBuilder->newQuery()->from($table)
+        );
+        $mockQueryBuilder->shouldReceive('getConnection')->andReturn($connection);
 
         return [$builder, $parent, 'club_user', 'club_id', 'user_id', 'id', 'id', null, false];
     }
