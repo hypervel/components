@@ -68,8 +68,19 @@ class DatabaseTransactionRecord
      */
     public function executeCallbacks(): void
     {
+        $exception = null;
+
+        // The commit is irreversible, so one failure must not discard independent callbacks.
         foreach ($this->callbacks as $callback) {
-            $callback();
+            try {
+                $callback();
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
         }
     }
 
