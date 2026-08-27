@@ -85,6 +85,17 @@ class ParseAnsiTextTest extends TestCase
         ], $segments);
     }
 
+    public function testPreservesColonFormAttributesWithoutConsumingLaterSemicolonAttributes(): void
+    {
+        $segments = $this->getInstance()->parse("\e[4:3;38:2:255:0:0;1mstyled\e[24:0m colored\e[39;22m plain");
+
+        $this->assertSame([
+            ['text' => 'styled', 'codes' => "\e[4:3m\e[38:2:255:0:0m\e[1m", 'link' => ''],
+            ['text' => ' colored', 'codes' => "\e[38:2:255:0:0m\e[1m", 'link' => ''],
+            ['text' => ' plain', 'codes' => '', 'link' => ''],
+        ], $segments);
+    }
+
     public function testParsesEmptyString(): void
     {
         $segments = $this->getInstance()->parse('');
@@ -161,7 +172,7 @@ class ParseAnsiTextTest extends TestCase
         ], $belSegments);
     }
 
-    public function testMalformedHyperlinkSequenceDoesNotCloseTheActiveLink(): void
+    public function testMalformedHyperlinkIsRemovedWithoutClosingTheActiveLink(): void
     {
         $link = "\e]8;;https://hypervel.org\e\\";
         $segments = $this->getInstance()->parse(
@@ -169,12 +180,11 @@ class ParseAnsiTextTest extends TestCase
         );
 
         $this->assertSame([
-            ['text' => 'link', 'codes' => '', 'link' => $link],
-            ['text' => 'tail', 'codes' => '', 'link' => $link],
+            ['text' => 'linktail', 'codes' => '', 'link' => $link],
         ], $segments);
     }
 
-    public function testPreservesSemicolonsInHyperlinkUris(): void
+    public function testPreservesHyperlinkUrisEndingInASemicolon(): void
     {
         $segments = $this->getInstance()->parse("Click \e]8;;https://hypervel.org/?first=1;second=2;\e\\here\e]8;;\e\\.");
 
@@ -195,23 +205,46 @@ class ParseAnsiTextTest extends TestCase
         ], $segments);
     }
 
-    public function testPreservesUnterminatedCsiAsText(): void
+    public function testDiscardsUnterminatedCsi(): void
     {
         $segments = $this->getInstance()->parse("abc\e[31");
 
         $this->assertSame([
             ['text' => 'abc', 'codes' => '', 'link' => ''],
-            ['text' => "\e[31", 'codes' => '', 'link' => ''],
         ], $segments);
     }
 
-    public function testPreservesUnterminatedOscAsText(): void
+    public function testDiscardsUnterminatedOsc(): void
     {
         $segments = $this->getInstance()->parse("abc\e]8;;https://hypervel.org");
 
         $this->assertSame([
             ['text' => 'abc', 'codes' => '', 'link' => ''],
-            ['text' => "\e]8;;https://hypervel.org", 'codes' => '', 'link' => ''],
+        ], $segments);
+    }
+
+    public function testDiscardsGenericAndStringControlsWithoutLosingLaterText(): void
+    {
+        $segments = $this->getInstance()->parse(
+            "a\e7b\e(Bc\ePsecret\e\\d\e_secret\e\\e",
+        );
+
+        $this->assertSame([
+            ['text' => 'abcde', 'codes' => '', 'link' => ''],
+        ], $segments);
+    }
+
+    public function testRecoversLocallyFromMalformedControls(): void
+    {
+        $segments = $this->getInstance()->parse(
+            "a\e[12\ntext \e]8;;https://example.com\e[31mred\e[0m \e\e[32mgreen",
+        );
+
+        $this->assertSame([
+            ['text' => "a\ntext ", 'codes' => '', 'link' => ''],
+            ['text' => 'red', 'codes' => "\e[31m", 'link' => ''],
+            ['text' => ' ', 'codes' => '', 'link' => ''],
+            ['text' => 'green', 'codes' => "\e[32m", 'link' => ''],
         ], $segments);
     }
 

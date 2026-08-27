@@ -54,6 +54,39 @@ class InteractsWithStringsTest extends TestCase
         ];
     }
 
+    #[DataProvider('rawControlLines')]
+    public function testSanitizesRawTerminalControlsBeforeReplacingTheLastGrapheme(string $line, string $expected): void
+    {
+        $result = $this->getInstance()->replace($line, '┃');
+
+        $this->assertSame($expected, $result);
+        $this->assertSame(
+            mb_strwidth(Utils::stripEscapeSequences($line)),
+            mb_strwidth(Utils::stripEscapeSequences($result)),
+        );
+    }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function rawControlLines(): array
+    {
+        return [
+            'incomplete CSI' => ["abc\e[31", 'ab┃'],
+            'incomplete OSC' => ["abc\e]8;;https://example.com", 'ab┃'],
+            'malformed complete OSC 8' => ["abc\e]8;not-a-link\e\\", 'ab┃'],
+            'malformed OSC followed by formatting' => [
+                "a\e]8;;https://example.com\e[31mbc\e[0m",
+                "a\e[31mb┃\e[0m",
+            ],
+            'generic ESC control' => ["ab\e7c", 'ab┃'],
+            'charset designation' => ["ab\e(Bc", 'ab┃'],
+            'DCS payload' => ["ab\ePsecret\e\\c", 'ab┃'],
+            'APC payload' => ["ab\e_secret\e\\c", 'ab┃'],
+            'non-formatting CSI suffix' => ["abc\e[2K", 'ab┃'],
+        ];
+    }
+
     #[DataProvider('linesWithoutVisibleContent')]
     public function testLeavesLinesWithoutVisibleContentUnchanged(string $line): void
     {

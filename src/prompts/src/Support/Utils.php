@@ -12,6 +12,15 @@ use RuntimeException;
  */
 class Utils
 {
+    public const int MAX_UNBREAKABLE_BYTES = 4096;
+
+    private const string OSC8_PATTERN = '\x1B\]8;[^;\x07\x1B]*;[^\x07\x1B]*(?:\x07|\x1B\\\)';
+
+    /**
+     * The terminal formatting sequences preserved by decorated renderers.
+     */
+    public const string TERMINAL_FORMATTING_PATTERN = '(?:\x1B\[[\x30-\x3F]*[\x20-\x2F]*m|' . self::OSC8_PATTERN . ')';
+
     /**
      * The largest chunk offered to a single write attempt.
      */
@@ -69,15 +78,84 @@ class Utils
      */
     public static function stripEscapeSequences(string $text): string
     {
-        $text = preg_replace('/\e\[[\x30-\x3F]*[\x20-\x2F]*[\x40-\x7E]/', '', $text);
-        $text = preg_replace('/\e\][^\x07\e]*(?:\x07|\e\\\)/', '', $text);
-        $text = preg_replace('/<(info|comment|question|error)>(.*?)<\/\1>/', '$2', $text);
+        $text = self::filterTerminalControls($text, preserveFormatting: false);
+        $text = preg_replace(
+            '/(?<!\\\)<(?:\/?(?:info|comment|question|error)|\/|(?i:(?:(?:fg|bg|options|href)=(?:[^;\\\<>]|\\\.)+)(?:;(?:fg|bg|options|href)=(?:[^;\\\<>]|\\\.)+)*))>/',
+            '',
+            $text,
+        );
 
-        do {
-            $text = preg_replace('/<(?:(?:[fb]g|options)=[a-z,;]+)+>(.*?)<\/>/i', '$1', $text, -1, $count);
-        } while ($count > 0);
+        return str_replace(['\<', '\>'], ['<', '>'], $text);
+    }
 
-        return $text;
+    /**
+     * Split text into bounded Unicode grapheme units.
+     *
+     * @return list<string>
+     */
+    public static function graphemes(string $text): array
+    {
+        if (preg_match_all('/\X/u', $text, $matches) === false) {
+            return mb_str_split($text);
+        }
+
+        $graphemes = [];
+
+        foreach ($matches[0] as $grapheme) {
+            while (strlen($grapheme) > self::MAX_UNBREAKABLE_BYTES) {
+                $length = self::MAX_UNBREAKABLE_BYTES;
+
+                while ((ord($grapheme[$length]) & 0xC0) === 0x80) {
+                    --$length;
+                }
+
+                $graphemes[] = substr($grapheme, 0, $length);
+                $grapheme = substr($grapheme, $length);
+            }
+
+            $graphemes[] = $grapheme;
+        }
+
+        return $graphemes;
+    }
+
+    /**
+     * Return the byte length when a fragment continues the trailing grapheme.
+     */
+    public static function continuedGraphemeBytes(string $text, string $next): ?int
+    {
+        if (preg_match('/\X\z/u', $text, $matches) !== 1) {
+            return null;
+        }
+
+        $grapheme = $matches[0] . $next;
+
+        return preg_match('/\A\X\z/u', $grapheme) === 1 ? strlen($grapheme) : null;
+    }
+
+    /**
+     * Remove terminal controls other than SGR and OSC 8 formatting.
+     */
+    public static function sanitizeTerminalFormatting(string $text): string
+    {
+        return self::filterTerminalControls($text, preserveFormatting: true);
+    }
+
+    /**
+     * Resolve a complete OSC 8 sequence to its active hyperlink state.
+     */
+    public static function resolveOsc8Link(string $escape): ?string
+    {
+        if (preg_match('/\A' . self::OSC8_PATTERN . '\z/', $escape) !== 1) {
+            return null;
+        }
+
+        $body = str_ends_with($escape, "\x07")
+            ? substr($escape, 4, -1)
+            : substr($escape, 4, -2);
+        [, $uri] = explode(';', $body, 2);
+
+        return $uri === '' ? '' : $escape;
     }
 
     /**
@@ -174,5 +252,146 @@ class Utils
             $seconds,
             (int) round(($timeout - $seconds) * 1_000_000),
         );
+    }
+
+    /**
+     * Filter terminal controls with local recovery from malformed sequences.
+     */
+    private static function filterTerminalControls(string $text, bool $preserveFormatting): string
+    {
+        if (! str_contains($text, "\e")) {
+            return $text;
+        }
+
+        $filtered = '';
+        $length = strlen($text);
+        $cursor = 0;
+
+        while ($cursor < $length) {
+            $escapePosition = strpos($text, "\e", $cursor);
+
+            if ($escapePosition === false) {
+                $filtered .= substr($text, $cursor);
+
+                break;
+            }
+
+            if ($escapePosition > $cursor) {
+                $filtered .= substr($text, $cursor, $escapePosition - $cursor);
+                $cursor = $escapePosition;
+            }
+
+            if ($cursor + 1 >= $length) {
+                break;
+            }
+
+            $introducer = $text[$cursor + 1];
+
+            if ($introducer === '[') {
+                $position = $cursor + 2;
+
+                while ($position < $length && ord($text[$position]) >= 0x30 && ord($text[$position]) <= 0x3F) {
+                    ++$position;
+                }
+
+                while ($position < $length && ord($text[$position]) >= 0x20 && ord($text[$position]) <= 0x2F) {
+                    ++$position;
+                }
+
+                if ($position >= $length) {
+                    break;
+                }
+
+                if (ord($text[$position]) >= 0x40 && ord($text[$position]) <= 0x7E) {
+                    if ($preserveFormatting && $text[$position] === 'm') {
+                        $filtered .= substr($text, $cursor, $position - $cursor + 1);
+                    }
+
+                    $cursor = $position + 1;
+
+                    continue;
+                }
+
+                // Discard only the malformed prefix; the invalid byte may be visible text.
+                $cursor = $position;
+
+                continue;
+            }
+
+            if ($introducer === ']' || in_array($introducer, ['P', 'X', '^', '_'], true)) {
+                $osc = $introducer === ']';
+                $position = $cursor + 2;
+                $end = null;
+                $abortedAt = null;
+
+                while ($position < $length) {
+                    if ($text[$position] === "\x07") {
+                        $end = $position + 1;
+
+                        break;
+                    }
+
+                    if ($text[$position] === "\e") {
+                        if ($position + 1 >= $length) {
+                            break;
+                        }
+
+                        if ($text[$position + 1] === '\\') {
+                            $end = $position + 2;
+
+                            break;
+                        }
+
+                        $abortedAt = $position;
+
+                        break;
+                    }
+
+                    ++$position;
+                }
+
+                if ($end !== null) {
+                    $sequence = substr($text, $cursor, $end - $cursor);
+
+                    if ($preserveFormatting && $osc && self::resolveOsc8Link($sequence) !== null) {
+                        $filtered .= $sequence;
+                    }
+
+                    $cursor = $end;
+
+                    continue;
+                }
+
+                if ($abortedAt !== null) {
+                    // A bare ESC aborts the malformed string and starts a new control.
+                    $cursor = $abortedAt;
+
+                    continue;
+                }
+
+                break;
+            }
+
+            $position = $cursor + 1;
+
+            while ($position < $length && ord($text[$position]) >= 0x20 && ord($text[$position]) <= 0x2F) {
+                ++$position;
+            }
+
+            if ($position >= $length) {
+                break;
+            }
+
+            if (ord($text[$position]) >= 0x30 && ord($text[$position]) <= 0x7E) {
+                $cursor = $position + 1;
+
+                continue;
+            }
+
+            // Reprocess an invalid byte so repeated ESC controls always make progress.
+            $cursor = $position;
+        }
+
+        return $filtered;
     }
 }

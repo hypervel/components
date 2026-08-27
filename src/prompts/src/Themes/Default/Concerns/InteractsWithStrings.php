@@ -44,14 +44,16 @@ trait InteractsWithStrings
             return $line;
         }
 
-        $pattern = '/(\X)((?:(?:\e\[[\x30-\x3F]*[\x20-\x2F]*[\x40-\x7E])|(?:\e\][^\x07\e]*(?:\x07|\e\\\))|(?:<\/(?:info|comment|question|error)>)|(?:<\/>))*)$/u';
+        // Scrollbar input is raw application text, not output from the ANSI parser.
+        $line = Utils::sanitizeTerminalFormatting($line);
+        $pattern = '/(?<grapheme>\X)(?<suffix>(?:' . Utils::TERMINAL_FORMATTING_PATTERN . '|<\/(?:info|comment|question|error)>|<\/>)*)$/u';
 
         if (preg_match($pattern, $line, $matches, PREG_OFFSET_CAPTURE) !== 1) {
             return $line;
         }
 
-        [$grapheme, $offset] = $matches[1];
-        $suffix = $matches[2][0];
+        [$grapheme, $offset] = $matches['grapheme'];
+        $suffix = $matches['suffix'][0];
         $padding = str_repeat(' ', max(
             0,
             mb_strwidth($grapheme) - mb_strwidth($this->stripEscapeSequences($replacement)),
@@ -80,11 +82,13 @@ trait InteractsWithStrings
         string $break = "\n",
         bool $cut_long_words = false
     ): string {
+        $width = max(1, $width);
         $lines = explode($break, $string);
         $result = [];
 
         foreach ($lines as $originalLine) {
-            if (mb_strwidth($originalLine) <= $width) {
+            if (mb_strwidth($originalLine) <= $width
+                && strlen($originalLine) <= Utils::MAX_UNBREAKABLE_BYTES) {
                 $result[] = $originalLine;
 
                 continue;
@@ -96,15 +100,21 @@ trait InteractsWithStrings
 
             if ($cut_long_words) {
                 foreach ($words as $index => $word) {
-                    $characters = mb_str_split($word);
+                    if (mb_strwidth($word) <= $width
+                        && strlen($word) <= Utils::MAX_UNBREAKABLE_BYTES) {
+                        continue;
+                    }
+
                     $strings = [];
                     $str = '';
 
-                    foreach ($characters as $character) {
+                    foreach (Utils::graphemes($word) as $character) {
                         $tmp = $str . $character;
 
-                        if (mb_strwidth($tmp) > $width) {
+                        if ($str !== '' && (mb_strwidth($tmp) > $width
+                            || strlen($tmp) > Utils::MAX_UNBREAKABLE_BYTES)) {
                             $strings[] = $str;
+
                             $str = $character;
                         } else {
                             $str = $tmp;
@@ -123,11 +133,7 @@ trait InteractsWithStrings
 
             foreach ($words as $word) {
                 $tmp = ($line === null) ? $word : $line . ' ' . $word;
-
-                // Look for zero-width joiner characters (combined emojis)
-                preg_match('/\p{Cf}/u', $word, $joinerMatches);
-
-                $wordWidth = count($joinerMatches) > 0 ? 2 : mb_strwidth($word);
+                $wordWidth = mb_strwidth($word);
 
                 $lineWidth += $wordWidth;
 
@@ -136,10 +142,13 @@ trait InteractsWithStrings
                     ++$lineWidth;
                 }
 
-                if ($lineWidth <= $width) {
+                if ($line === null || $lineWidth <= $width) {
                     $line = $tmp;
                 } else {
-                    $result[] = $line;
+                    if ($line !== '') {
+                        $result[] = $line;
+                    }
+
                     $line = $word;
                     $lineWidth = $wordWidth;
                 }
@@ -190,10 +199,10 @@ trait InteractsWithStrings
             $lineChars = mb_str_split($plainLine);
 
             foreach ($lineChars as $lineChar) {
-                // Find matching character in original (handling spaces removed by wordwrap)
+                // Find the matching source character after wrapping removes separators.
                 while ($charIndex < count($chars) && $chars[$charIndex]['char'] !== $lineChar) {
-                    // Skip spaces that wordwrap removed
-                    if ($chars[$charIndex]['char'] === ' ') {
+                    // mbWordwrap never emits a source newline inside a returned line.
+                    if ($chars[$charIndex]['char'] === ' ' || $chars[$charIndex]['char'] === "\n") {
                         ++$charIndex;
                     } else {
                         break;
@@ -257,6 +266,7 @@ trait InteractsWithStrings
      */
     protected function parseAnsiText(string $text): array
     {
+        $text = Utils::sanitizeTerminalFormatting($text);
         $segments = [];
         $activeSgr = [];
         $currentLink = '';
@@ -339,7 +349,7 @@ trait InteractsWithStrings
                         continue;
                     }
 
-                    $link = $this->resolveOsc8Link($escapeSequence);
+                    $link = Utils::resolveOsc8Link($escapeSequence);
 
                     if ($link !== null) {
                         $currentLink = $link;
@@ -372,7 +382,9 @@ trait InteractsWithStrings
         $codes = $parameters === '' ? ['0'] : explode(';', $parameters);
 
         for ($index = 0; $index < count($codes); ++$index) {
-            $code = $codes[$index] === '' ? 0 : (int) $codes[$index];
+            $rawCode = $codes[$index] === '' ? '0' : $codes[$index];
+            $colon = str_contains($rawCode, ':');
+            $code = (int) ($colon ? strstr($rawCode, ':', before_needle: true) : $rawCode);
 
             if ($code === 0) {
                 $activeSgr = [];
@@ -380,7 +392,7 @@ trait InteractsWithStrings
                 continue;
             }
 
-            if ($code === 38 || $code === 48 || $code === 58) {
+            if (! $colon && ($code === 38 || $code === 48 || $code === 58)) {
                 $count = ($codes[$index + 1] ?? null) === '2' ? 5 : 3;
                 $value = implode(';', array_slice($codes, $index, $count));
                 $attribute = match ($code) {
@@ -403,40 +415,20 @@ trait InteractsWithStrings
                 $code === 8 || $code === 28 => 'conceal',
                 $code === 9 || $code === 29 => 'strike',
                 $code >= 10 && $code <= 19 => 'font',
-                ($code >= 30 && $code <= 37) || ($code >= 90 && $code <= 97) || $code === 39 => 'foreground',
-                ($code >= 40 && $code <= 47) || ($code >= 100 && $code <= 107) || $code === 49 => 'background',
+                ($code >= 30 && $code <= 38) || ($code >= 90 && $code <= 97) || $code === 39 => 'foreground',
+                ($code >= 40 && $code <= 48) || ($code >= 100 && $code <= 107) || $code === 49 => 'background',
                 $code === 51 || $code === 52 || $code === 54 => 'frame',
                 $code === 53 || $code === 55 => 'overline',
-                $code === 59 => 'underlineColor',
+                $code === 58 || $code === 59 => 'underlineColor',
                 default => 'other',
             };
 
             if (in_array($code, [22, 23, 24, 25, 27, 28, 29, 39, 49, 54, 55, 59], true)) {
                 unset($activeSgr[$attribute]);
             } else {
-                $activeSgr[$attribute] = "\e[{$code}m";
+                $value = $colon ? $rawCode : (string) $code;
+                $activeSgr[$attribute] = "\e[{$value}m";
             }
         }
-    }
-
-    /**
-     * Resolve a complete OSC 8 sequence to its active hyperlink state.
-     */
-    protected function resolveOsc8Link(string $escape): ?string
-    {
-        if (! str_starts_with($escape, "\e]8;")) {
-            return null;
-        }
-
-        $body = str_ends_with($escape, "\x07")
-            ? substr($escape, 4, -1)
-            : substr($escape, 4, -2);
-        $separator = strpos($body, ';');
-
-        if ($separator === false) {
-            return null;
-        }
-
-        return substr($body, $separator + 1) === '' ? '' : $escape;
     }
 }
