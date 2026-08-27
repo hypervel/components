@@ -1699,6 +1699,10 @@ TextPrompt::fallbackUsing(function (TextPrompt $prompt) use ($input, $output) {
                 $error = ($prompt->validate)($value);
             }
 
+            if (! is_string($error) && $error !== null) {
+                throw new \RuntimeException('The validator must return a string or null.');
+            }
+
             if (is_string($error) && $error !== '') {
                 throw new \RuntimeException($error);
             }

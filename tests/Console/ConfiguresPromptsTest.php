@@ -390,6 +390,30 @@ class ConfiguresPromptsTest extends TestCase
         $this->assertSame(1, $command->validationCalls);
     }
 
+    #[DataProvider('invalidFallbackValidatorResultDataProvider')]
+    public function testFallbackRejectsInvalidValidatorResults(mixed $result): void
+    {
+        Prompt::fallbackWhen(true);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('The validator must return a string or null.');
+
+        $this->runPrompt(
+            fn () => text('Test', validate: fn (): mixed => $result),
+            fn ($components) => $components->expects('ask')->with('Test', null)->andReturn('value'),
+        );
+    }
+
+    public static function invalidFallbackValidatorResultDataProvider(): array
+    {
+        return [
+            'false' => [false],
+            'true' => [true],
+            'integer' => [0],
+            'array' => [['error']],
+        ];
+    }
+
     #[DataProvider('requiredFallbackDataProvider')]
     public function testFallbackRequiredValidationUsesInteractiveEmptySemantics(
         bool|string $required,

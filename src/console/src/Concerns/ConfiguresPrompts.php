@@ -21,6 +21,7 @@ use Hypervel\Prompts\SuggestPrompt;
 use Hypervel\Prompts\TextareaPrompt;
 use Hypervel\Prompts\TextPrompt;
 use Hypervel\Support\Collection;
+use RuntimeException;
 use stdClass;
 use Symfony\Component\Console\Input\InputInterface;
 
@@ -219,15 +220,23 @@ trait ConfiguresPrompts
     /**
      * Validate a fallback answer.
      */
-    private function validateFallbackPrompt(Prompt $prompt, mixed $value): mixed
+    private function validateFallbackPrompt(Prompt $prompt, mixed $value): ?string
     {
         $intrinsicError = $prompt->validateIntrinsic($value);
 
-        return is_string($intrinsicError) && $intrinsicError !== ''
-            ? $intrinsicError
-            : (is_callable($prompt->validate)
-                ? ($prompt->validate)($value)
-                : $this->validatePrompt($value, $prompt->validate));
+        if (is_string($intrinsicError) && $intrinsicError !== '') {
+            return $intrinsicError;
+        }
+
+        $error = is_callable($prompt->validate)
+            ? ($prompt->validate)($value)
+            : $this->validatePrompt($value, $prompt->validate);
+
+        if (! is_string($error) && $error !== null) {
+            throw new RuntimeException('The validator must return a string or null.');
+        }
+
+        return $error;
     }
 
     /**
