@@ -51,6 +51,40 @@ class ParseAnsiTextTest extends TestCase
         ], $segments);
     }
 
+    public function testCombinesSequentialAttributesAndReplacesOnlyMatchingAttributes(): void
+    {
+        $segments = $this->getInstance()->parse("\e[1mBold \e[31mred \e[32mgreen");
+
+        $this->assertSame([
+            ['text' => 'Bold ', 'codes' => "\e[1m", 'link' => ''],
+            ['text' => 'red ', 'codes' => "\e[1m\e[31m", 'link' => ''],
+            ['text' => 'green', 'codes' => "\e[1m\e[32m", 'link' => ''],
+        ], $segments);
+    }
+
+    public function testSelectiveResetsPreserveUnrelatedAttributes(): void
+    {
+        $segments = $this->getInstance()->parse("\e[1;31mbold red\e[22m red\e[39m plain");
+
+        $this->assertSame([
+            ['text' => 'bold red', 'codes' => "\e[1m\e[31m", 'link' => ''],
+            ['text' => ' red', 'codes' => "\e[31m", 'link' => ''],
+            ['text' => ' plain', 'codes' => '', 'link' => ''],
+        ], $segments);
+    }
+
+    public function testParsesIndexedAndRgbUnderlineColorsWithoutTreatingComponentsAsAttributes(): void
+    {
+        $segments = $this->getInstance()->parse("\e[4;58;5;196mindexed\e[59m underline \e[58;2;255;0;0mrgb\e[59m end");
+
+        $this->assertSame([
+            ['text' => 'indexed', 'codes' => "\e[4m\e[58;5;196m", 'link' => ''],
+            ['text' => ' underline ', 'codes' => "\e[4m", 'link' => ''],
+            ['text' => 'rgb', 'codes' => "\e[4m\e[58;2;255;0;0m", 'link' => ''],
+            ['text' => ' end', 'codes' => "\e[4m", 'link' => ''],
+        ], $segments);
+    }
+
     public function testParsesEmptyString(): void
     {
         $segments = $this->getInstance()->parse('');
@@ -74,7 +108,7 @@ class ParseAnsiTextTest extends TestCase
         $this->assertSame([
             ['text' => 'alpha ', 'codes' => '', 'link' => ''],
             ['text' => 'beta', 'codes' => "\e[32m", 'link' => ''],
-            ['text' => ' gamma', 'codes' => "\e[39m", 'link' => ''],
+            ['text' => ' gamma', 'codes' => '', 'link' => ''],
         ], $segments);
     }
 
@@ -125,6 +159,19 @@ class ParseAnsiTextTest extends TestCase
             ['text' => 'here', 'codes' => '', 'link' => "\e]8;id=hypervel;https://hypervel.org\x07"],
             ['text' => '.', 'codes' => '', 'link' => ''],
         ], $belSegments);
+    }
+
+    public function testMalformedHyperlinkSequenceDoesNotCloseTheActiveLink(): void
+    {
+        $link = "\e]8;;https://hypervel.org\e\\";
+        $segments = $this->getInstance()->parse(
+            $link . "link\e]8;garbage\e\\tail\e]8;;\e\\",
+        );
+
+        $this->assertSame([
+            ['text' => 'link', 'codes' => '', 'link' => $link],
+            ['text' => 'tail', 'codes' => '', 'link' => $link],
+        ], $segments);
     }
 
     public function testPreservesSemicolonsInHyperlinkUris(): void

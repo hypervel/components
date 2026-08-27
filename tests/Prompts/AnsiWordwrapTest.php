@@ -86,6 +86,33 @@ class AnsiWordwrapTest extends TestCase
         $this->assertStringContainsString('Blue', $result[2]);
     }
 
+    public function testPreservesCombinedAttributesAppliedInSeparateSequences(): void
+    {
+        $result = $this->getInstance()->wrap("\e[1mBold \e[31mred\e[0m", 80);
+
+        $this->assertSame([
+            "\e[1mBold \e[0m\e[1m\e[31mred\e[0m",
+        ], $result);
+    }
+
+    public function testSelectiveResetsRemoveOnlyTheirMatchingAttribute(): void
+    {
+        $result = $this->getInstance()->wrap("\e[1;31mbold red\e[22m red\e[39m plain", 80);
+
+        $this->assertSame([
+            "\e[1m\e[31mbold red\e[0m\e[31m red\e[0m plain",
+        ], $result);
+    }
+
+    public function testPreservesUnderlineColorWithoutInterpretingColorComponentsAsAttributes(): void
+    {
+        $result = $this->getInstance()->wrap("\e[4;58;2;255;0;0mred\e[59m underline", 80);
+
+        $this->assertSame([
+            "\e[4m\e[58;2;255;0;0mred\e[0m\e[4m underline\e[0m",
+        ], $result);
+    }
+
     public function testPreservesUnstyledTextThatDoesNotNeedWrapping(): void
     {
         $result = $this->getInstance()->wrap('Short', 80);
@@ -135,6 +162,14 @@ class AnsiWordwrapTest extends TestCase
         );
     }
 
+    public function testCanSplitLongWordsAtTheRequestedWidth(): void
+    {
+        $this->assertSame(
+            ['abcd', 'efgh', 'ij'],
+            $this->getInstance()->wrap('abcdefghij', 4, cutLongWords: true),
+        );
+    }
+
     private function getInstance(): object
     {
         return new class {
@@ -142,9 +177,9 @@ class AnsiWordwrapTest extends TestCase
 
             protected int $minWidth = 0;
 
-            public function wrap(string $text, int $width): array
+            public function wrap(string $text, int $width, bool $cutLongWords = false): array
             {
-                return $this->ansiWordwrap($text, $width);
+                return $this->ansiWordwrap($text, $width, $cutLongWords);
             }
         };
     }

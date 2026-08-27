@@ -32,6 +32,35 @@ trait InteractsWithStrings
     }
 
     /**
+     * Replace the last visible grapheme while preserving trailing formatting.
+     */
+    protected function replaceLastVisibleGrapheme(string $line, string $replacement): string
+    {
+        if ($line === '' || ! mb_check_encoding($line, 'UTF-8')) {
+            return $line;
+        }
+
+        if (mb_strwidth($this->stripEscapeSequences($line)) === 0) {
+            return $line;
+        }
+
+        $pattern = '/(\X)((?:(?:\e\[[\x30-\x3F]*[\x20-\x2F]*[\x40-\x7E])|(?:\e\][^\x07\e]*(?:\x07|\e\\\))|(?:<\/(?:info|comment|question|error)>)|(?:<\/>))*)$/u';
+
+        if (preg_match($pattern, $line, $matches, PREG_OFFSET_CAPTURE) !== 1) {
+            return $line;
+        }
+
+        [$grapheme, $offset] = $matches[1];
+        $suffix = $matches[2][0];
+        $padding = str_repeat(' ', max(
+            0,
+            mb_strwidth($grapheme) - mb_strwidth($this->stripEscapeSequences($replacement)),
+        ));
+
+        return substr($line, 0, $offset) . $padding . $replacement . $suffix;
+    }
+
+    /**
      * Strip ANSI escape sequences from the given text.
      */
     protected function stripEscapeSequences(string $text): string
@@ -131,7 +160,7 @@ trait InteractsWithStrings
      *
      * @return array<int, string>
      */
-    protected function ansiWordwrap(string $text, int $width): array
+    protected function ansiWordwrap(string $text, int $width, bool $cutLongWords = false): array
     {
         // Parse segments and build character array with codes
         $segments = $this->parseAnsiText($text);
@@ -147,7 +176,7 @@ trait InteractsWithStrings
         }
 
         // Word wrap the plain text
-        $wrappedLines = $this->mbWordwrap($plainText, $width, "\n", false);
+        $wrappedLines = $this->mbWordwrap($plainText, $width, "\n", $cutLongWords);
         $plainLines = explode("\n", $wrappedLines);
 
         // Rebuild each wrapped line with ANSI codes
@@ -229,7 +258,7 @@ trait InteractsWithStrings
     protected function parseAnsiText(string $text): array
     {
         $segments = [];
-        $currentCodes = '';
+        $activeSgr = [];
         $currentLink = '';
         $currentText = '';
         $i = 0;
@@ -240,7 +269,7 @@ trait InteractsWithStrings
                 if ($text[$i + 1] === '[') {
                     // Save current segment if it has text
                     if ($currentText !== '') {
-                        $segments[] = ['text' => $currentText, 'codes' => $currentCodes, 'link' => $currentLink];
+                        $segments[] = ['text' => $currentText, 'codes' => implode('', $activeSgr), 'link' => $currentLink];
                         $currentText = '';
                     }
 
@@ -263,7 +292,7 @@ trait InteractsWithStrings
                         ++$i;
 
                         if ($final === 'm') {
-                            $currentCodes = $escapeSequence === "\e[0m" ? '' : $escapeSequence;
+                            $this->updateSgrState($activeSgr, $escapeSequence);
                         }
 
                         continue;
@@ -277,7 +306,7 @@ trait InteractsWithStrings
                 if ($text[$i + 1] === ']') {
                     // Save current segment if it has text
                     if ($currentText !== '') {
-                        $segments[] = ['text' => $currentText, 'codes' => $currentCodes, 'link' => $currentLink];
+                        $segments[] = ['text' => $currentText, 'codes' => implode('', $activeSgr), 'link' => $currentLink];
                         $currentText = '';
                     }
 
@@ -310,16 +339,10 @@ trait InteractsWithStrings
                         continue;
                     }
 
-                    if (str_starts_with($escapeSequence, "\e]8;")) {
-                        // OSC 8 is "\e]8;<params>;<uri>"; an empty URI closes the hyperlink.
-                        $body = str_ends_with($escapeSequence, "\x07")
-                            ? substr($escapeSequence, 4, -1)
-                            : substr($escapeSequence, 4, -2);
-                        $separator = strpos($body, ';');
+                    $link = $this->resolveOsc8Link($escapeSequence);
 
-                        $currentLink = $separator === false || substr($body, $separator + 1) === ''
-                            ? ''
-                            : $escapeSequence;
+                    if ($link !== null) {
+                        $currentLink = $link;
                     }
 
                     continue;
@@ -332,9 +355,88 @@ trait InteractsWithStrings
 
         // Add final segment
         if ($currentText !== '') {
-            $segments[] = ['text' => $currentText, 'codes' => $currentCodes, 'link' => $currentLink];
+            $segments[] = ['text' => $currentText, 'codes' => implode('', $activeSgr), 'link' => $currentLink];
         }
 
         return $segments;
+    }
+
+    /**
+     * Update the bounded set of active SGR attributes.
+     *
+     * @param array<string, string> $activeSgr
+     */
+    protected function updateSgrState(array &$activeSgr, string $escape): void
+    {
+        $parameters = substr($escape, 2, -1);
+        $codes = $parameters === '' ? ['0'] : explode(';', $parameters);
+
+        for ($index = 0; $index < count($codes); ++$index) {
+            $code = $codes[$index] === '' ? 0 : (int) $codes[$index];
+
+            if ($code === 0) {
+                $activeSgr = [];
+
+                continue;
+            }
+
+            if ($code === 38 || $code === 48 || $code === 58) {
+                $count = ($codes[$index + 1] ?? null) === '2' ? 5 : 3;
+                $value = implode(';', array_slice($codes, $index, $count));
+                $attribute = match ($code) {
+                    38 => 'foreground',
+                    48 => 'background',
+                    58 => 'underlineColor',
+                };
+                $activeSgr[$attribute] = "\e[{$value}m";
+                $index += $count - 1;
+
+                continue;
+            }
+
+            $attribute = match (true) {
+                $code === 1 || $code === 2 || $code === 22 => 'intensity',
+                $code === 3 || $code === 23 => 'italic',
+                $code === 4 || $code === 21 || $code === 24 => 'underline',
+                $code === 5 || $code === 6 || $code === 25 => 'blink',
+                $code === 7 || $code === 27 => 'reverse',
+                $code === 8 || $code === 28 => 'conceal',
+                $code === 9 || $code === 29 => 'strike',
+                $code >= 10 && $code <= 19 => 'font',
+                ($code >= 30 && $code <= 37) || ($code >= 90 && $code <= 97) || $code === 39 => 'foreground',
+                ($code >= 40 && $code <= 47) || ($code >= 100 && $code <= 107) || $code === 49 => 'background',
+                $code === 51 || $code === 52 || $code === 54 => 'frame',
+                $code === 53 || $code === 55 => 'overline',
+                $code === 59 => 'underlineColor',
+                default => 'other',
+            };
+
+            if (in_array($code, [22, 23, 24, 25, 27, 28, 29, 39, 49, 54, 55, 59], true)) {
+                unset($activeSgr[$attribute]);
+            } else {
+                $activeSgr[$attribute] = "\e[{$code}m";
+            }
+        }
+    }
+
+    /**
+     * Resolve a complete OSC 8 sequence to its active hyperlink state.
+     */
+    protected function resolveOsc8Link(string $escape): ?string
+    {
+        if (! str_starts_with($escape, "\e]8;")) {
+            return null;
+        }
+
+        $body = str_ends_with($escape, "\x07")
+            ? substr($escape, 4, -1)
+            : substr($escape, 4, -2);
+        $separator = strpos($body, ';');
+
+        if ($separator === false) {
+            return null;
+        }
+
+        return substr($body, $separator + 1) === '' ? '' : $escape;
     }
 }
