@@ -39,6 +39,42 @@ class RequestTest extends TestCase
         $container->make(RequiredArgumentRequestStub::class);
     }
 
+    public function testReplaceHeadersMatchesNamesCaseInsensitively(): void
+    {
+        $request = (new ContainerRequestStub)
+            ->withHeaders([
+                'Authorization' => 'Bearer old',
+                'X-Keep' => 'yes',
+            ])
+            ->replaceHeaders([
+                'authorization' => 'Bearer new',
+                'AUTHORIZATION' => 'Bearer newest',
+            ]);
+
+        $this->assertSame([
+            'X-Keep' => 'yes',
+            'AUTHORIZATION' => 'Bearer newest',
+        ], $request->headers());
+    }
+
+    public function testWithHeadersRemainsAdditive(): void
+    {
+        $request = (new ContainerRequestStub)
+            ->withHeaders(['X-Value' => 'first'])
+            ->withHeaders(['X-Value' => 'second']);
+
+        $this->assertSame(['first', 'second'], $request->headers()['X-Value']);
+    }
+
+    public function testAcceptReplacesTheExistingAcceptHeader(): void
+    {
+        $request = (new ContainerRequestStub)
+            ->accept('text/plain')
+            ->acceptJson();
+
+        $this->assertSame('application/json', $request->headers()['Accept']);
+    }
+
     public function testCloneOwnsIndependentInitializedRequestState(): void
     {
         $request = (new ContainerRequestStub)

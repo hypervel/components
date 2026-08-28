@@ -25,6 +25,6 @@ readonly class HeaderAuthenticator implements Authenticator
      */
     public function set(PendingRequest $pendingRequest): void
     {
-        $pendingRequest->withHeader($this->headerName, $this->accessToken);
+        $pendingRequest->replaceHeaders([$this->headerName => $this->accessToken]);
     }
 }
