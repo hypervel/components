@@ -44,6 +44,8 @@ trait RefreshDatabase
         if (! $this->runsTestsInCoroutine()) {
             $this->afterRefreshingDatabase();
         }
+
+        RefreshDatabaseState::$migrated = true;
     }
 
     /**
@@ -115,8 +117,17 @@ trait RefreshDatabase
             }
 
             $migrateRefresh = property_exists($this, 'migrateRefresh') && (bool) $this->migrateRefresh;
-            if ($migrateRefresh || ! RefreshDatabaseState::$migrated) {
+            if (
+                $migrateRefresh
+                || ! RefreshDatabaseState::$migrated
+                || $this->hasMissingInMemoryDatabaseForRefresh()
+            ) {
+                RefreshDatabaseState::$migrated = false;
+
                 $this->command('migrate:fresh', $this->migrateFreshUsing());
+
+                $this->cacheInMemoryDatabasesForRefresh();
+
                 if ($migrateRefresh) {
                     $this->migrateRefresh = false;
                 }
@@ -134,6 +145,49 @@ trait RefreshDatabase
             $this->beforeApplicationDestroyed(function () {
                 $this->rollbackDatabaseTransactionWork();
             });
+        }
+    }
+
+    /**
+     * Determine if a transacting in-memory database is missing its cached PDO.
+     */
+    protected function hasMissingInMemoryDatabaseForRefresh(): bool
+    {
+        foreach ($this->connectionsToTransact() as $name) {
+            $connectionName = $name ?? $this->getRefreshConnection();
+
+            if (
+                $this->usingInMemoryDatabase($name)
+                && ! isset(RefreshDatabaseState::$inMemoryConnections[$connectionName])
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Cache the transacting in-memory databases after migration.
+     */
+    protected function cacheInMemoryDatabasesForRefresh(): void
+    {
+        $database = null;
+
+        foreach ($this->connectionsToTransact() as $name) {
+            if (! $this->usingInMemoryDatabase($name)) {
+                continue;
+            }
+
+            $database ??= $this->app->make('db');
+            $connectionName = $name ?? $this->getRefreshConnection();
+            $connection = $database->connection($name);
+
+            if (! $connection instanceof PdoConnection) {
+                throw new LogicException('In-memory SQLite database testing requires a PDO-backed connection.');
+            }
+
+            RefreshDatabaseState::$inMemoryConnections[$connectionName] = $connection->getPdo();
         }
     }
 
@@ -183,16 +237,6 @@ trait RefreshDatabase
             // Set the testing transaction manager on the connection
             $connection->setTransactionManager($transactionsManager);
 
-            if ($this->usingInMemoryDatabase($name)) {
-                $connectionName = $name ?? $this->getRefreshConnection();
-
-                if (! $connection instanceof PdoConnection) {
-                    throw new LogicException('In-memory SQLite database testing requires a PDO-backed connection.');
-                }
-
-                RefreshDatabaseState::$inMemoryConnections[$connectionName] ??= $connection->getPdo();
-            }
-
             $dispatcher = $connection->getEventDispatcher();
 
             $connection->unsetEventDispatcher();
@@ -202,13 +246,6 @@ trait RefreshDatabase
                 $connection->setEventDispatcher($dispatcher);
             }
         }
-
-        // Mark the database as migrated only after every connection is ready
-        // and each in-memory SQLite PDO has been cached. RunTestsInCoroutine
-        // defers this method, so moving the flag earlier would let a skipped
-        // setup poison the next test: it would skip migrate:fresh without a
-        // cached PDO to restore.
-        RefreshDatabaseState::$migrated = true;
     }
 
     /**
