@@ -125,7 +125,7 @@ Each row is an implementation requirement. Test names are descriptive; use the r
 | 55 | Keep the cheap process-lifetime memory_get_peak_usage value and Laravel-compatible memory payload key, but label it in the UI/docs as the worker memory peak. Do not add request-delta bookkeeping: concurrent coroutine allocations make that number neither a request peak nor reliably attributable. | Payload key remains compatible; UI/docs say worker peak; value remains monotonic process telemetry; no request context state or extra measurements are introduced. |
 | 56 | Cast non-array Stringable and UriInterface inputs to string before the uri helper's route/string dispatch. Preserve the array route form. | Stringable, league URI, plain string, route array, and invalid unsupported object. |
 
-### Inertia, Saloon, and nested set
+### Inertia and Saloon
 
 | ID | Proposed implementation | Required tests |
 |---:|---|---|
@@ -136,9 +136,6 @@ Each row is an implementation requirement. Test names are descriptive; use the r
 | 75 | Make replaceHeaders replacement case-insensitive and have all authenticators replace Authorization rather than append it. | Default auth then refresh; mixed casing; exactly one newest Authorization value; unrelated headers retained. |
 | 76 | Track pages yielded independently from page numbers. Reset the counter for each iteration/pool, increment after a yielded response, and enforce maxPages from that counter for startPage 0 or 1. | Start pages 0 and 1; max 0, 1, and N; iterator and pool request identical pages/counts; repeated iteration resets. |
 | 77 | Correct Saloon docs: replaceHeaders replaces matching header names and retains unrelated headers. | Documentation review plus 75's behavior tests. |
-| 78 | Remove the freshness-revision optimization and make execution of each pending structural action inside the model save/delete/restore lifecycle the sole database-preflight owner. Relationship fluent setup (`appendOrPrependTo`, `beforeOrAfterNode`, and related helpers) keeps its current/upstream in-memory assertions for immediate feedback but performs no reload; helpers such as `saveAsRoot` that must decide from persisted position defer that decision to the lifecycle boundary. At action execution, action-specific preparation reloads every participating existing node's mutation identity/structural columns once from the write connection, re-asserts against that fresh snapshot, and mutates from it. Remove duplicate `ensureMutationIdentityIsLoaded`/`refreshNodeForMove` preflights, while retaining post-write refreshes where the public API promises an updated target/model and the result is not derivable. This restores the upstream nested-set action shape and improves merge fidelity instead of retaining a Hypervel-only correctness-critical revision cache. A retry after rollback cannot reuse coordinates from the rolled-back attempt. Remove `NodeFreshness` and all revision/rollback bookkeeping; retain structural-identity comparison in a focused `NodeIdentity` helper. | Closure deadlock retry after final structural write; commit-time serialization failure retry; sequential/nested savepoint rollback; successful commit; invalid relationship setup still throws immediately without querying; `saveAsRoot` decides from its action-boundary snapshot; each participating existing node performs exactly one pre-mutation authoritative row read per executed action; fresh action assertions catch changes after fluent setup; query logging distinguishes and preserves required post-write refreshes; new nodes and ordinary reads add none. |
-| 79 | Use the same stateless action-boundary preparation as 78. An execution-local clock misses child writes, while a worker-local clock still cannot observe another process and therefore cannot prove a retained model current. Reloading means coordinates always come from the write connection immediately before the package's mutation logic, and no retained in-memory freshness state is trusted across coroutines, rollbacks, or retries. It does not serialize concurrent writers or close the race between that read and the write; continue requiring application-level serialization to the same table/scope exactly as documented. Bulk `fixTree`/`fixSubtree`/`rebuildTree`/`rebuildSubtree` paths retain their one wholesale snapshot and internal direct-assignment/save path and never add per-node preflights. | Parent-child and sibling-coroutine sequential mutation interleavings; a model passed through a child; retry uses the latest write-connection snapshot; an intentionally unserialized concurrent-writer test/documentation fixture demonstrates that serialization remains required; bulk repair/rebuild query counts stay O(1) reads rather than N+1; no freshness state remains; benchmark the one preflight read within representative serialized structural writes. |
-| 80 | Share relation precondition logic: unsaved parents produce an empty relation, but persisted models missing bounds, parent, or scope columns throw LogicException. Apply it to lazy constraints and eager model preparation for descendants, ancestors, and siblings. | Partial select lazy relation, eager load, and destructive relation call all fail loudly; each missing structural field; unsaved model remains empty. |
 
 ### Database, image, collections duplicate, pagination, JSON Schema, and API client
 
@@ -223,14 +220,13 @@ Use package-sized commits that remain reviewable and bisectable. The following o
 
 1. Worker-default and execution-state primitives: 25, 33, 49, 103.
 2. Pool/resource ownership: 10-12, 22, 27-29, 81, 155.
-3. Nested-set authoritative mutation preparation and relation guards: 78-80.
-4. Mail and data representation: 21, 30-35, 82, 94-98.
-5. Search and request pipelines: 36-42, 71-77, 99-102.
-6. Observability: 48-55.
-7. Reverb recovery command and runbook: 112, with no runtime state-model change.
-8. Queue cleanup: only the two valid parts of 154; 153 deliberately stays unchanged.
-9. Vonage notification channel port followed by Horizon wiring: 160.
-10. Remaining package-local correctness work by package, followed by performance/docs/cleanup.
+3. Mail and data representation: 21, 30-35, 82, 94-98.
+4. Search and request pipelines: 36-42, 71-77, 99-102.
+5. Observability: 48-55.
+6. Reverb recovery command and runbook: 112, with no runtime state-model change.
+7. Queue cleanup: only the two valid parts of 154; 153 deliberately stays unchanged.
+8. Vonage notification channel port followed by Horizon wiring: 160.
+9. Remaining package-local correctness work by package, followed by performance/docs/cleanup.
 
 Do not combine unrelated packages merely because their findings have the same severity.
 
