@@ -14,7 +14,7 @@ trait WithHypervelMigrations
     /**
      * @internal
      */
-    protected function setUpWithHypervelMigrations(): void
+    protected function prepareHypervelMigrations(): void
     {
         $loadHypervelMigrations = static::cachedConfigurationForWorkbench()?->getWorkbenchAttributes()['install'] ?? false;
 

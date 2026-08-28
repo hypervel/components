@@ -38,7 +38,7 @@ trait HandlesDatabases
         });
 
         if (static::usesTestingConcern(WithHypervelMigrations::class)) {
-            $this->setUpWithHypervelMigrations(); /* @phpstan-ignore method.notFound */
+            $this->prepareHypervelMigrations(); /* @phpstan-ignore method.notFound */
         }
 
         TestingFeature::run(

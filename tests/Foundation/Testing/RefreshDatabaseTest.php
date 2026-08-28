@@ -39,6 +39,8 @@ class RefreshDatabaseTest extends TestCase
 
     protected bool $migrateRefresh = true;
 
+    protected ?RuntimeException $afterRefreshingDatabaseException = null;
+
     /**
      * @var list<?string>
      */
@@ -51,6 +53,7 @@ class RefreshDatabaseTest extends TestCase
         $this->seed = false;
         $this->seeder = null;
         $this->connectionsToTransact = [null];
+        $this->afterRefreshingDatabaseException = null;
 
         ResetRefreshDatabaseState::run();
 
@@ -60,6 +63,13 @@ class RefreshDatabaseTest extends TestCase
     protected function setUpTraits(): array
     {
         return [];
+    }
+
+    protected function afterRefreshingDatabase(): void
+    {
+        if ($this->afterRefreshingDatabaseException !== null) {
+            throw $this->afterRefreshingDatabaseException;
+        }
     }
 
     public function testRefreshTestDatabaseDefault()
@@ -225,30 +235,34 @@ class RefreshDatabaseTest extends TestCase
         }
     }
 
-    public function testBeginDatabaseTransactionWorkSetsMigratedAndCachesPdoTogether(): void
+    public function testRefreshDatabaseDoesNotPublishMigratedWhenTheAfterHookFails(): void
     {
-        // Regression test for the RefreshDatabase + RunTestsInCoroutine +
-        // mid-setUp skip bug. The invariant the fix establishes is that
-        // RefreshDatabaseState::$migrated must only become true once the
-        // in-memory PDO has been cached — both pieces of state update in
-        // lockstep inside beginDatabaseTransactionWork().
-
         RefreshDatabaseState::$migrated = false;
-        RefreshDatabaseState::$inMemoryConnections = [];
+        $this->migrateRefresh = false;
+        $this->runTestsInCoroutine = false;
+        $this->afterRefreshingDatabaseException = new RuntimeException('After refresh failed.');
+
+        $kernel = m::mock(KernelContract::class);
+        $kernel->shouldReceive('call')
+            ->once()
+            ->with('migrate:fresh', m::type('array'))
+            ->andReturn(0);
 
         $pdo = m::mock(PDO::class);
         $eventDispatcher = m::mock(Dispatcher::class);
-
         $connection = m::mock(PdoConnection::class);
-        $connection->shouldReceive('setTransactionManager')->once();
         $connection->shouldReceive('getPdo')->once()->andReturn($pdo);
-        $connection->shouldReceive('getEventDispatcher')->once()->andReturn($eventDispatcher);
-        $connection->shouldReceive('unsetEventDispatcher')->once();
+        $connection->shouldReceive('setTransactionManager')->once();
+        $connection->shouldReceive('getEventDispatcher')->twice()->andReturn($eventDispatcher);
+        $connection->shouldReceive('unsetEventDispatcher')->twice();
         $connection->shouldReceive('beginTransaction')->once();
-        $connection->shouldReceive('setEventDispatcher')->once()->with($eventDispatcher);
+        $connection->shouldReceive('inTransaction')->once()->andReturnTrue();
+        $connection->shouldReceive('forgetRecordModificationState')->once();
+        $connection->shouldReceive('rollBack')->once();
+        $connection->shouldReceive('setEventDispatcher')->twice()->with($eventDispatcher);
 
-        $db = m::mock(DatabaseManager::class);
-        $db->shouldReceive('connection')->with(null)->andReturn($connection);
+        $database = m::mock(DatabaseManager::class);
+        $database->shouldReceive('connection')->times(3)->with(null)->andReturn($connection);
 
         $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository([
@@ -259,18 +273,62 @@ class RefreshDatabaseTest extends TestCase
                 ],
             ],
         ]));
-        $this->app->singleton('db', fn () => $db);
+        $this->app->singleton(KernelContract::class, fn () => $kernel);
+        $this->app->singleton('db', fn () => $database);
 
-        $this->beginDatabaseTransactionWork();
+        try {
+            $this->refreshDatabase();
+            $this->fail('Expected the after refresh failure to be rethrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($this->afterRefreshingDatabaseException, $exception);
+        }
 
-        $this->assertTrue(
-            RefreshDatabaseState::$migrated,
-            '$migrated must be true after beginDatabaseTransactionWork() runs',
-        );
+        $this->assertFalse(RefreshDatabaseState::$migrated);
+        $this->assertSame(['default' => $pdo], RefreshDatabaseState::$inMemoryConnections);
+    }
+
+    public function testRefreshDatabaseCachesPdoBeforeMarkingTheDatabaseAsMigrated(): void
+    {
+        RefreshDatabaseState::$migrated = false;
+        RefreshDatabaseState::$inMemoryConnections = [];
+        $this->migrateRefresh = false;
+        $this->runTestsInCoroutine = true;
+
+        $pdo = m::mock(PDO::class);
+        $connection = m::mock(PdoConnection::class);
+        $connection->shouldReceive('getPdo')->once()->andReturnUsing(function () use ($pdo) {
+            $this->assertFalse(RefreshDatabaseState::$migrated);
+
+            return $pdo;
+        });
+
+        $database = m::mock(DatabaseManager::class);
+        $database->shouldReceive('connection')->once()->with(null)->andReturn($connection);
+
+        $kernel = m::mock(KernelContract::class);
+        $kernel->shouldReceive('call')
+            ->once()
+            ->with('migrate:fresh', m::type('array'))
+            ->andReturn(0);
+
+        $this->app = new Application;
+        $this->app->singleton('config', fn () => new Repository([
+            'database' => [
+                'default' => 'default',
+                'connections' => [
+                    'default' => ['driver' => 'sqlite', 'database' => ':memory:'],
+                ],
+            ],
+        ]));
+        $this->app->singleton(KernelContract::class, fn () => $kernel);
+        $this->app->singleton('db', fn () => $database);
+
+        $this->refreshDatabase();
+
+        $this->assertTrue(RefreshDatabaseState::$migrated);
         $this->assertSame(
             ['default' => $pdo],
             RefreshDatabaseState::$inMemoryConnections,
-            'cached PDO must use the resolved default connection name',
         );
     }
 
@@ -334,30 +392,26 @@ class RefreshDatabaseTest extends TestCase
         $this->assertFalse($this->usingInMemoryDatabases());
     }
 
-    public function testBeginDatabaseTransactionWorkCachesOnlyNamedInMemoryConnections(): void
+    public function testRefreshTestDatabaseCachesOnlyNamedInMemoryConnections(): void
     {
         RefreshDatabaseState::$migrated = false;
         RefreshDatabaseState::$inMemoryConnections = [];
+        $this->migrateRefresh = false;
+        $this->runTestsInCoroutine = true;
 
         $memoryPdo = m::mock(PDO::class);
-        $eventDispatcher = m::mock(Dispatcher::class);
-        $fileConnection = m::mock(ConnectionInterface::class);
         $memoryConnection = m::mock(PdoConnection::class);
-
-        foreach ([$fileConnection, $memoryConnection] as $connection) {
-            $connection->shouldReceive('setTransactionManager')->once();
-            $connection->shouldReceive('getEventDispatcher')->once()->andReturn($eventDispatcher);
-            $connection->shouldReceive('unsetEventDispatcher')->once();
-            $connection->shouldReceive('beginTransaction')->once();
-            $connection->shouldReceive('setEventDispatcher')->once()->with($eventDispatcher);
-        }
-
-        $fileConnection->shouldNotReceive('getPdo');
         $memoryConnection->shouldReceive('getPdo')->once()->andReturn($memoryPdo);
 
         $database = m::mock(DatabaseManager::class);
-        $database->shouldReceive('connection')->once()->with('file')->andReturn($fileConnection);
+        $database->shouldNotReceive('connection')->with('file');
         $database->shouldReceive('connection')->once()->with('memory')->andReturn($memoryConnection);
+
+        $kernel = m::mock(KernelContract::class);
+        $kernel->shouldReceive('call')
+            ->once()
+            ->with('migrate:fresh', m::type('array'))
+            ->andReturn(0);
 
         $this->connectionsToTransact = ['file', 'memory'];
         $this->app = new Application;
@@ -374,24 +428,35 @@ class RefreshDatabaseTest extends TestCase
                 ],
             ],
         ]));
+        $this->app->singleton(KernelContract::class, fn () => $kernel);
         $this->app->singleton('db', fn () => $database);
 
-        $this->beginDatabaseTransactionWork();
+        $this->refreshTestDatabase();
 
-        $this->assertTrue(RefreshDatabaseState::$migrated);
+        $this->assertFalse(RefreshDatabaseState::$migrated);
         $this->assertSame(
             ['memory' => $memoryPdo],
             RefreshDatabaseState::$inMemoryConnections,
         );
     }
 
-    public function testBeginDatabaseTransactionWorkRequiresPdoForInMemoryConnection(): void
+    public function testRefreshTestDatabaseRequiresPdoForInMemoryConnection(): void
     {
+        RefreshDatabaseState::$migrated = false;
+        RefreshDatabaseState::$inMemoryConnections = [];
+        $this->migrateRefresh = false;
+        $this->runTestsInCoroutine = true;
+
         $connection = m::mock(ConnectionInterface::class);
-        $connection->shouldReceive('setTransactionManager')->once();
 
         $database = m::mock(DatabaseManager::class);
         $database->shouldReceive('connection')->once()->with(null)->andReturn($connection);
+
+        $kernel = m::mock(KernelContract::class);
+        $kernel->shouldReceive('call')
+            ->once()
+            ->with('migrate:fresh', m::type('array'))
+            ->andReturn(0);
 
         $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository([
@@ -402,12 +467,13 @@ class RefreshDatabaseTest extends TestCase
                 ],
             ],
         ]));
+        $this->app->singleton(KernelContract::class, fn () => $kernel);
         $this->app->singleton('db', fn () => $database);
 
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('In-memory SQLite database testing requires a PDO-backed connection.');
 
-        $this->beginDatabaseTransactionWork();
+        $this->refreshTestDatabase();
     }
 
     public function testRestoreInMemoryDatabaseRequiresPdoConnection(): void
@@ -435,23 +501,19 @@ class RefreshDatabaseTest extends TestCase
         $this->restoreInMemoryDatabase();
     }
 
-    public function testRefreshTestDatabaseLeavesMigratedFalseWhenTransactionWorkNotYetRun(): void
+    public function testRefreshDatabaseRemigratesWhenAnInMemoryPdoCacheIsMissing(): void
     {
-        // Regression test for the skip-window scenario: a RunTestsInCoroutine
-        // test that runs migrate:fresh in refreshTestDatabase() and then
-        // skips before invokeTestMethod() (which calls
-        // beginDatabaseTransactionWork) must NOT leave $migrated=true with
-        // an empty PDO cache — that would poison the next test, which would
-        // skip its own migration and try to restore from an empty cache.
-
-        RefreshDatabaseState::$migrated = false;
+        RefreshDatabaseState::$migrated = true;
         RefreshDatabaseState::$inMemoryConnections = [];
-
-        // Do NOT use the class-level $migrateRefresh=true override; we
-        // want migrate:fresh to run because $migrated is false, not because
-        // $migrateRefresh forces it.
         $this->migrateRefresh = false;
         $this->runTestsInCoroutine = true;
+
+        $pdo = m::mock(PDO::class);
+        $connection = m::mock(PdoConnection::class);
+        $connection->shouldReceive('getPdo')->once()->andReturn($pdo);
+
+        $database = m::mock(DatabaseManager::class);
+        $database->shouldReceive('connection')->once()->with(null)->andReturn($connection);
 
         $kernel = m::mock(KernelContract::class);
         $kernel->shouldReceive('call')
@@ -464,23 +526,81 @@ class RefreshDatabaseTest extends TestCase
             'database' => [
                 'default' => 'default',
                 'connections' => [
-                    'default' => ['database' => ':memory:'],
+                    'default' => ['driver' => 'sqlite', 'database' => ':memory:'],
                 ],
             ],
         ]));
         $this->app->singleton(KernelContract::class, fn () => $kernel);
+        $this->app->singleton('db', fn () => $database);
+
+        $this->refreshDatabase();
+
+        $this->assertTrue(RefreshDatabaseState::$migrated);
+        $this->assertSame(['default' => $pdo], RefreshDatabaseState::$inMemoryConnections);
+    }
+
+    public function testRefreshTestDatabaseSkipsMigrationWhenTheSchemaAndPdoCacheAreReady(): void
+    {
+        $pdo = m::mock(PDO::class);
+        RefreshDatabaseState::$migrated = true;
+        RefreshDatabaseState::$inMemoryConnections = ['default' => $pdo];
+        $this->migrateRefresh = false;
+        $this->runTestsInCoroutine = true;
+
+        $this->app = new Application;
+        $this->app->singleton('config', fn () => new Repository([
+            'database' => [
+                'default' => 'default',
+                'connections' => [
+                    'default' => ['driver' => 'sqlite', 'database' => ':memory:'],
+                ],
+            ],
+        ]));
 
         $this->refreshTestDatabase();
 
-        $this->assertFalse(
-            RefreshDatabaseState::$migrated,
-            '$migrated must stay false until beginDatabaseTransactionWork() has cached the PDO',
-        );
-        $this->assertSame(
-            [],
-            RefreshDatabaseState::$inMemoryConnections,
-            'in-memory PDO cache must stay empty when beginDatabaseTransactionWork() has not run yet',
-        );
+        $this->assertFalse($this->app->resolved(KernelContract::class));
+        $this->assertFalse($this->app->resolved('db'));
+        $this->assertSame(['default' => $pdo], RefreshDatabaseState::$inMemoryConnections);
+    }
+
+    public function testMigrateRefreshReplacesTheCachedInMemoryPdo(): void
+    {
+        $oldPdo = m::mock(PDO::class);
+        $freshPdo = m::mock(PDO::class);
+        RefreshDatabaseState::$migrated = true;
+        RefreshDatabaseState::$inMemoryConnections = ['default' => $oldPdo];
+        $this->migrateRefresh = true;
+        $this->runTestsInCoroutine = true;
+
+        $connection = m::mock(PdoConnection::class);
+        $connection->shouldReceive('getPdo')->once()->andReturn($freshPdo);
+
+        $database = m::mock(DatabaseManager::class);
+        $database->shouldReceive('connection')->once()->with(null)->andReturn($connection);
+
+        $kernel = m::mock(KernelContract::class);
+        $kernel->shouldReceive('call')
+            ->once()
+            ->with('migrate:fresh', m::type('array'))
+            ->andReturn(0);
+
+        $this->app = new Application;
+        $this->app->singleton('config', fn () => new Repository([
+            'database' => [
+                'default' => 'default',
+                'connections' => [
+                    'default' => ['driver' => 'sqlite', 'database' => ':memory:'],
+                ],
+            ],
+        ]));
+        $this->app->singleton(KernelContract::class, fn () => $kernel);
+        $this->app->singleton('db', fn () => $database);
+
+        $this->refreshTestDatabase();
+
+        $this->assertFalse($this->migrateRefresh);
+        $this->assertSame(['default' => $freshPdo], RefreshDatabaseState::$inMemoryConnections);
     }
 
     protected function getMockedDatabase(): DatabaseManager

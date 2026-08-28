@@ -43,8 +43,7 @@ trait InteractsWithMigrations
     {
         $hasInMemoryConnections = ! empty(RefreshDatabaseState::$inMemoryConnections);
         $preservesInMemoryDatabase = static::usesTestingConcern(DatabaseTruncation::class)
-            && ! static::usesTestingConcern(DatabaseMigrations::class)
-            && ! static::usesRefreshDatabaseTestingConcern();
+            && ! static::usesTestingConcern(DatabaseMigrations::class);
         $processors = $this->cachedTestMigratorProcessors;
         $this->cachedTestMigratorProcessors = [];
         $failure = null;
@@ -225,10 +224,17 @@ trait InteractsWithMigrations
     }
 
     /**
-     * Determine whether the active database concern retains in-memory state.
+     * Determine whether the active database concerns retain in-memory state.
      */
     protected function usesInMemoryDatabaseForMigrationState(): bool
     {
+        if (
+            static::usesRefreshDatabaseTestingConcern()
+            && $this->usingInMemoryDatabases() /* @phpstan-ignore method.notFound */
+        ) {
+            return true;
+        }
+
         if (static::usesTestingConcern(DatabaseTruncation::class)) {
             // Every cached truncation PDO needs the same class-boundary state owner.
             return $this->usingInMemoryDatabasesForTruncation(); /* @phpstan-ignore method.notFound */
