@@ -6,17 +6,25 @@ namespace Hypervel\Container\Attributes;
 
 use Attribute;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Container\ContextualAttribute;
+use Hypervel\Contracts\Container\ExecutionScopedAttribute;
 use Hypervel\Log\Context\Repository;
 
 #[Attribute(Attribute::TARGET_PARAMETER)]
-class Context implements ContextualAttribute
+class Context implements ExecutionScopedAttribute
 {
     /**
      * Create a new attribute instance.
      */
     public function __construct(public string $key, public mixed $default = null, public bool $hidden = false)
     {
+    }
+
+    /**
+     * Determine whether the resolved value belongs to the current execution.
+     */
+    public function isExecutionScoped(): bool
+    {
+        return true;
     }
 
     /**

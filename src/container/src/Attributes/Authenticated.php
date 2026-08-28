@@ -7,17 +7,25 @@ namespace Hypervel\Container\Attributes;
 use Attribute;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Container\ContextualAttribute;
+use Hypervel\Contracts\Container\ExecutionScopedAttribute;
 use UnitEnum;
 
 #[Attribute(Attribute::TARGET_PARAMETER)]
-class Authenticated implements ContextualAttribute
+class Authenticated implements ExecutionScopedAttribute
 {
     /**
      * Create a new class instance.
      */
     public function __construct(public UnitEnum|string|null $guard = null)
     {
+    }
+
+    /**
+     * Determine whether the resolved value belongs to the current execution.
+     */
+    public function isExecutionScoped(): bool
+    {
+        return true;
     }
 
     /**
