@@ -428,6 +428,32 @@ Instead of using `?` to represent your parameter bindings, you may execute a que
 $results = DB::select('select * from users where id = :id', ['id' => 1]);
 ```
 
+<a name="binding-binary-values"></a>
+#### Binding Binary Values
+
+When passing an already-encoded binary string directly to the query builder, wrap it in a `BinaryParameter`. This tells the database driver to bind the value as binary instead of text:
+
+```php
+use Hypervel\Database\BinaryParameter;
+use Hypervel\Support\Facades\DB;
+
+$uuid = new BinaryParameter($uuidBytes);
+
+$user = DB::table('users')->where('uuid', $uuid)->first();
+
+DB::table('users')
+    ->where('id', $userId)
+    ->update(['uuid' => $uuid]);
+
+DB::table('users')->upsert(
+    [['uuid' => $uuid, 'name' => 'Taylor']],
+    uniqueBy: ['uuid'],
+    update: ['name'],
+);
+```
+
+The wrapper only expresses binding intent. It does not encode or validate the value, and ordinary text strings should not be wrapped.
+
 <a name="running-an-insert-statement"></a>
 #### Running an Insert Statement
 
