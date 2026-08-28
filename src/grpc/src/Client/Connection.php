@@ -146,11 +146,19 @@ final class Connection
                 return;
             }
 
+            try {
+                $operationTimeout = $this->operationTimeout($deadline);
+            } catch (RpcException $exception) {
+                $state->failWithStatus($exception->status());
+
+                return;
+            }
+
             $state->onAbandon($this->abandonState(...));
             $this->pendingState = $state;
 
             try {
-                $streamId = $client->send($request, $this->operationTimeout($deadline));
+                $streamId = $client->send($request, $operationTimeout);
             } catch (Throwable $throwable) {
                 $failure = $this->connectionException(
                     $throwable,
@@ -264,11 +272,19 @@ final class Connection
             }
 
             try {
+                $operationTimeout = $this->operationTimeout($deadline);
+            } catch (RpcException $exception) {
+                $state->failWithStatus($exception->status());
+
+                throw $exception;
+            }
+
+            try {
                 $client->write(
                     $streamId,
                     $frame,
                     $end,
-                    $this->operationTimeout($deadline),
+                    $operationTimeout,
                 );
             } catch (Throwable $throwable) {
                 $failure = $this->connectionException(

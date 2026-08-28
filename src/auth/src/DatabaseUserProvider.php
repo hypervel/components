@@ -10,18 +10,35 @@ use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Hashing\Hasher as HasherContract;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
 use SensitiveParameter;
 
 class DatabaseUserProvider implements UserProvider
 {
     /**
      * Create a new database user provider.
+     *
+     * Cached providers should receive a resolver because a concrete pooled
+     * connection is returned to its pool when the owning coroutine ends.
      */
     public function __construct(
-        protected ConnectionInterface $connection,
+        protected ConnectionInterface|ConnectionResolverInterface $connection,
         protected HasherContract $hasher,
         protected string $table,
+        protected ?string $connectionName = null,
     ) {
+    }
+
+    /**
+     * Get the database connection.
+     */
+    protected function getConnection(): ConnectionInterface
+    {
+        if ($this->connection instanceof ConnectionResolverInterface) {
+            return $this->connection->connection($this->connectionName);
+        }
+
+        return $this->connection;
     }
 
     /**
@@ -29,7 +46,7 @@ class DatabaseUserProvider implements UserProvider
      */
     public function retrieveById(mixed $identifier): ?UserContract
     {
-        $user = $this->connection->table($this->table)->find($identifier);
+        $user = $this->getConnection()->table($this->table)->find($identifier);
 
         return $this->getGenericUser($user);
     }
@@ -40,7 +57,7 @@ class DatabaseUserProvider implements UserProvider
     public function retrieveByToken(mixed $identifier, #[SensitiveParameter] string $token): ?UserContract
     {
         $user = $this->getGenericUser(
-            $this->connection->table($this->table)->find($identifier)
+            $this->getConnection()->table($this->table)->find($identifier)
         );
 
         return $user && $user->getRememberToken() && hash_equals($user->getRememberToken(), $token)
@@ -53,7 +70,7 @@ class DatabaseUserProvider implements UserProvider
      */
     public function updateRememberToken(UserContract $user, #[SensitiveParameter] string $token): void
     {
-        $this->connection->table($this->table)
+        $this->getConnection()->table($this->table)
             ->where($user->getAuthIdentifierName(), $user->getAuthIdentifier())
             ->update([$user->getRememberTokenName() => $token]);
     }
@@ -76,7 +93,7 @@ class DatabaseUserProvider implements UserProvider
         // First we will add each credential element to the query as a where clause.
         // Then we can execute the query and, if we found a user, return it in a
         // generic "user" object that will be utilized by the Guard instances.
-        $query = $this->connection->table($this->table);
+        $query = $this->getConnection()->table($this->table);
 
         foreach ($credentials as $key => $value) {
             if (is_array($value) || $value instanceof Arrayable) {
@@ -133,7 +150,7 @@ class DatabaseUserProvider implements UserProvider
             return;
         }
 
-        $this->connection->table($this->table)
+        $this->getConnection()->table($this->table)
             ->where($user->getAuthIdentifierName(), $user->getAuthIdentifier())
             ->update([$user->getAuthPasswordName() => $this->hasher->make($credentials['password'])]);
     }

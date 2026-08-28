@@ -66,6 +66,15 @@ abstract class BaseClient
         'server_name',
     ];
 
+    private const array RESERVED_SWOOLE_TLS_SETTING_KEYS = [
+        'ssl_verify_peer',
+        'ssl_cafile',
+        'ssl_cert_file',
+        'ssl_key_file',
+        'ssl_passphrase',
+        'ssl_host_name',
+    ];
+
     private Endpoint $endpoint;
 
     private ClientFactoryInterface $clientFactory;
@@ -179,7 +188,8 @@ abstract class BaseClient
                 'ssl_cert_file' => $tls['certificate'],
                 'ssl_key_file' => $tls['private_key'],
                 'ssl_passphrase' => $tls['passphrase'],
-                'ssl_host_name' => $tls['server_name'] ?? $this->endpoint->host,
+                'ssl_host_name' => $tls['server_name']
+                    ?? rtrim($this->endpoint->host, '.'),
             ]
             : [];
 
@@ -790,6 +800,14 @@ abstract class BaseClient
             throw new InvalidArgumentException(
                 'The gRPC Swoole connect_timeout setting is owned by the first-class connect_timeout option.',
             );
+        }
+
+        foreach (self::RESERVED_SWOOLE_TLS_SETTING_KEYS as $key) {
+            if (array_key_exists($key, $settings)) {
+                throw new InvalidArgumentException(
+                    "The gRPC Swoole {$key} setting is owned by the first-class tls option.",
+                );
+            }
         }
 
         return $settings;

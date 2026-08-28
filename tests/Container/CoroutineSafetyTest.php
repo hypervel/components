@@ -347,6 +347,53 @@ class CoroutineSafetyTest extends TestCase
         $this->assertSame($results['owner'], $results['waiter']);
     }
 
+    public function testTransientBindingDoesNotAdoptAnInFlightDirectResolution(): void
+    {
+        $container = new Container;
+        $dependencyEntered = new Channel(2);
+        $releaseDependency = new Channel(3);
+
+        $container->bind(
+            CoroutineImplicitLifetimeContract::class,
+            CoroutineImplicitLifetimeConcrete::class,
+        );
+        $container->bind(
+            CoroutineImplicitLifetimeDependency::class,
+            function () use ($dependencyEntered, $releaseDependency): CoroutineImplicitLifetimeDependency {
+                $dependencyEntered->push(true);
+                $releaseDependency->pop(1);
+
+                return new CoroutineImplicitLifetimeDependency;
+            },
+        );
+
+        $results = parallel([
+            'direct' => fn () => $container->make(CoroutineImplicitLifetimeConcrete::class),
+            'bound' => function () use ($container, $dependencyEntered) {
+                $dependencyEntered->pop(1);
+
+                return $container->make(CoroutineImplicitLifetimeContract::class);
+            },
+            'release' => function () use ($dependencyEntered, $releaseDependency): bool {
+                $bothConstructionsEntered = $dependencyEntered->pop(1);
+                $releaseDependency->push(true);
+                $releaseDependency->push(true);
+
+                return $bothConstructionsEntered === true;
+            },
+        ]);
+
+        $this->assertTrue($results['release']);
+        $this->assertNotSame($results['direct'], $results['bound']);
+
+        $releaseDependency->push(true);
+
+        $this->assertNotSame(
+            $results['bound'],
+            $container->make(CoroutineImplicitLifetimeContract::class),
+        );
+    }
+
     public function testConcurrentTransientConstructionDoesNotCoordinateOrShare(): void
     {
         $container = new Container;
@@ -721,6 +768,21 @@ class CoroutineCoordinatedService
     public function __construct(public readonly CoroutineCoordinatedDependency $dependency)
     {
         ++self::$constructions;
+    }
+}
+
+interface CoroutineImplicitLifetimeContract
+{
+}
+
+class CoroutineImplicitLifetimeDependency
+{
+}
+
+class CoroutineImplicitLifetimeConcrete implements CoroutineImplicitLifetimeContract
+{
+    public function __construct(public readonly CoroutineImplicitLifetimeDependency $dependency)
+    {
     }
 }
 

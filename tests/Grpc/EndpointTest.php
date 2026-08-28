@@ -56,6 +56,24 @@ class EndpointTest extends TestCase
         $this->assertSame('[2001:db8::1]:50052', $ipv6->peer);
     }
 
+    public function testAcceptsServiceDiscoveryNamesAndHostnameBoundaries(): void
+    {
+        $service = Endpoint::parse('_GRPC._TCP.Service-Name:50051');
+        $absolute = Endpoint::parse('https://Service._GRPC.Example.:8443');
+        $maximum = implode('.', [
+            str_repeat('a', 63),
+            str_repeat('b', 63),
+            str_repeat('c', 63),
+            str_repeat('d', 61),
+        ]);
+
+        $this->assertSame('_grpc._tcp.service-name', $service->host);
+        $this->assertSame('_grpc._tcp.service-name:50051', $service->authority);
+        $this->assertSame('service._grpc.example.', $absolute->host);
+        $this->assertSame('service._grpc.example.:8443', $absolute->authority);
+        $this->assertSame($maximum, Endpoint::parse($maximum)->host);
+    }
+
     public function testRejectsTlsConflictsWithExplicitSchemes(): void
     {
         foreach ([
@@ -93,6 +111,21 @@ class EndpointTest extends TestCase
             'example.test/service',
             'example.test?query=value',
             'example.test#fragment',
+            'service..test',
+            'service.test..',
+            '-service.test',
+            'service-.test',
+            'service$name.test',
+            str_repeat('a', 64) . '.test',
+            implode('.', [
+                str_repeat('a', 63),
+                str_repeat('b', 63),
+                str_repeat('c', 63),
+                str_repeat('d', 62),
+            ]),
+            '127.0.0',
+            '127.0.0.256',
+            'service.123',
         ] as $target) {
             try {
                 Endpoint::parse($target);

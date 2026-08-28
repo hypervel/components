@@ -216,6 +216,30 @@ class FilesystemPoolProxyTest extends TestCase
         $this->assertSame(1, $releaseCalls);
     }
 
+    public function testBoundedReadStreamKeepsTheWholeDriverBorrowedUntilClose(): void
+    {
+        $this->driver->write('file.txt', '0123456789');
+        $releaseCalls = 0;
+        $proxy = $this->proxy(
+            fn (): FilesystemAdapter => $this->filesystem(),
+            function (object $filesystem) use (&$releaseCalls): void {
+                ++$releaseCalls;
+            },
+        );
+
+        $stream = $proxy->readStreamRange('file.txt', 3, 5);
+
+        $this->assertIsResource($stream);
+        $this->assertSame(1, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
+        $this->assertSame(0, $releaseCalls);
+        $this->assertSame('345', stream_get_contents($stream));
+
+        fclose($stream);
+
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
+        $this->assertSame(1, $releaseCalls);
+    }
+
     public function testBorrowScopedAccessorsExposeOnlyTheCurrentDriverBorrow(): void
     {
         $proxy = $this->proxy(fn (): FilesystemAdapter => $this->filesystem());
