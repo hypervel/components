@@ -19,6 +19,7 @@ use Hypervel\Support\Traits\DateHelpers;
  * @method static addSeconds(int|float $value = 1)
  * @method static ceilSecond(float $precision = 1)
  * @method static ceilSeconds(float $precision = 1)
+ * @method static subDay()
  * @method static subMicrosecond()
  * @method static subMinutes(int|float $value = 1)
  * @method static subSeconds(int|float $value = 1)
