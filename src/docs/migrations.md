@@ -1664,6 +1664,18 @@ Alternatively, you may pass an array containing the column name that holds the f
 $table->dropForeign(['user_id']);
 ```
 
+To drop a conventionally named foreign key constraint and its column in a single method call, you may use the `dropConstrainedForeignId` method:
+
+```php
+$table->dropConstrainedForeignId('user_id');
+```
+
+You may use the `dropConstrainedForeignIdFor` method to determine the column name from a model:
+
+```php
+$table->dropConstrainedForeignIdFor(User::class);
+```
+
 When dropping an explicitly named foreign key, you may pass the constraint's columns as the first argument and its name as the second:
 
 ```php
