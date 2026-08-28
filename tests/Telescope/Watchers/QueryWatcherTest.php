@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
+use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Support\CarbonImmutable;
@@ -134,6 +135,49 @@ SQL,
             'select * from records where external_id = FILEMAKER_STRING[=ABC001]',
             $sql,
         );
+    }
+
+    public function testQueryWatcherRendersBinaryParametersWithDriverEscaping(): void
+    {
+        $event = new QueryExecuted(
+            'select ?',
+            [new BinaryParameter("\x00\xFF\x01\x02")],
+            500,
+            DB::connection(),
+        );
+
+        $this->assertSame(
+            "select x'00ff0102'",
+            $this->app->make(QueryWatcher::class)->replaceBindings($event),
+        );
+    }
+
+    public function testQueryWatcherRendersResourceIdentitiesWithoutConsumingLiveResource(): void
+    {
+        $liveResource = fopen('php://memory', 'r');
+        $closedResource = fopen('php://memory', 'r');
+        $liveResourceIdentity = (string) $liveResource;
+        $closedResourceIdentity = (string) $closedResource;
+
+        fclose($closedResource);
+
+        try {
+            $event = new QueryExecuted(
+                'select ?, ?',
+                [$liveResource, $closedResource],
+                500,
+                DB::connection(),
+            );
+
+            $this->assertSame(
+                "select '{$liveResourceIdentity}', '{$closedResourceIdentity}'",
+                $this->app->make(QueryWatcher::class)->replaceBindings($event),
+            );
+            $this->assertTrue(is_resource($liveResource));
+            $this->assertSame(0, ftell($liveResource));
+        } finally {
+            fclose($liveResource);
+        }
     }
 
     public function testQueryWatcherSubstitutesEscapedBindingsLiterally(): void
