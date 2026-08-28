@@ -10,6 +10,10 @@ use Symfony\Component\Uid\Uuid;
 
 class BinaryCodec
 {
+    private const array BUILT_IN_FORMATS = ['uuid', 'ulid'];
+
+    private const int BINARY_LENGTH = 16;
+
     /** @var array<string, array{encode: callable(null|string|Ulid|Uuid): ?string, decode: callable(?string): ?string}> */
     protected static array $customCodecs = [];
 
@@ -32,7 +36,9 @@ class BinaryCodec
      */
     public static function encode(Uuid|Ulid|string|null $value, string $format): ?string
     {
-        if (blank($value)) {
+        $isBuiltInBinary = self::isBuiltInBinary($value, $format);
+
+        if (blank($value) && ! $isBuiltInBinary) {
             return null;
         }
 
@@ -43,12 +49,12 @@ class BinaryCodec
         return match ($format) {
             'uuid' => match (true) {
                 $value instanceof Uuid => $value->toBinary(),
-                self::isBinary($value) => $value,
+                $isBuiltInBinary => $value,
                 default => Uuid::fromString($value)->toBinary(),
             },
             'ulid' => match (true) {
                 $value instanceof Ulid => $value->toBinary(),
-                self::isBinary($value) => $value,
+                $isBuiltInBinary => $value,
                 default => Ulid::fromString($value)->toBinary(),
             },
             default => throw new InvalidArgumentException("Format [{$format}] is invalid."),
@@ -60,7 +66,9 @@ class BinaryCodec
      */
     public static function decode(?string $value, string $format): ?string
     {
-        if (blank($value)) {
+        $isBuiltInBinary = self::isBuiltInBinary($value, $format);
+
+        if (blank($value) && ! $isBuiltInBinary) {
             return null;
         }
 
@@ -69,8 +77,8 @@ class BinaryCodec
         }
 
         return match ($format) {
-            'uuid' => (self::isBinary($value) ? Uuid::fromBinary($value) : Uuid::fromString($value))->toString(),
-            'ulid' => (self::isBinary($value) ? Ulid::fromBinary($value) : Ulid::fromString($value))->toString(),
+            'uuid' => ($isBuiltInBinary ? Uuid::fromBinary($value) : Uuid::fromString($value))->toString(),
+            'ulid' => ($isBuiltInBinary ? Ulid::fromBinary($value) : Ulid::fromString($value))->toString(),
             default => throw new InvalidArgumentException("Format [{$format}] is invalid."),
         };
     }
@@ -82,11 +90,25 @@ class BinaryCodec
      */
     public static function formats(): array
     {
-        return array_unique([...['uuid', 'ulid'], ...array_keys(self::$customCodecs)]);
+        return array_values(array_unique([...self::BUILT_IN_FORMATS, ...array_keys(self::$customCodecs)]));
+    }
+
+    /**
+     * Determine if the value is an unoverridden built-in binary identifier.
+     */
+    private static function isBuiltInBinary(mixed $value, string $format): bool
+    {
+        return is_string($value)
+            && strlen($value) === self::BINARY_LENGTH
+            && in_array($format, self::BUILT_IN_FORMATS, true)
+            && ! isset(self::$customCodecs[$format]);
     }
 
     /**
      * Determine if the given value is binary data.
+     *
+     * This is a content heuristic, not an identifier-format check. Pass UUID
+     * and ULID values through encode() or decode() instead of choosing a parser.
      */
     public static function isBinary(mixed $value): bool
     {
