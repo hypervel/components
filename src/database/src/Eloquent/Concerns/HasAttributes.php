@@ -16,11 +16,13 @@ use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsInboundAttributes;
 use Hypervel\Contracts\Encryption\Encrypter as EncrypterContract;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Eloquent\Attributes\Appends;
 use Hypervel\Database\Eloquent\Attributes\DateFormat;
 use Hypervel\Database\Eloquent\Attributes\Initialize;
 use Hypervel\Database\Eloquent\Attributes\Table;
 use Hypervel\Database\Eloquent\Casts\AsArrayObject;
+use Hypervel\Database\Eloquent\Casts\AsBinary;
 use Hypervel\Database\Eloquent\Casts\AsCollection;
 use Hypervel\Database\Eloquent\Casts\AsEncryptedArrayObject;
 use Hypervel\Database\Eloquent\Casts\AsEncryptedCollection;
@@ -1556,6 +1558,8 @@ trait HasAttributes
 
     /**
      * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
      */
     public function getCasts(): array
     {
@@ -1878,6 +1882,44 @@ trait HasAttributes
     protected function getAttributesForInsert(): array
     {
         return $this->getAttributes();
+    }
+
+    /**
+     * Determine whether the given attribute uses the binary cast.
+     */
+    private function isBinaryCast(?string $cast): bool
+    {
+        return $cast === AsBinary::class
+            || ($cast !== null && str_starts_with($cast, AsBinary::class . ':'));
+    }
+
+    /**
+     * Prepare binary-cast attributes for database binding.
+     *
+     * @param array<string, mixed> $attributes
+     * @return array<string, mixed>
+     */
+    protected function prepareBinaryAttributesForDatabase(array $attributes): array
+    {
+        $casts = $this->getCasts();
+
+        foreach ($attributes as $key => $value) {
+            if (! $this->isBinaryCast($casts[$key] ?? null)) {
+                continue;
+            }
+
+            if (is_resource($value)) {
+                $binary = stream_get_contents($value, offset: 0);
+                rewind($value);
+                $value = $binary;
+            }
+
+            if (is_string($value)) {
+                $attributes[$key] = new BinaryParameter($value);
+            }
+        }
+
+        return $attributes;
     }
 
     /**

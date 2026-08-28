@@ -133,7 +133,7 @@ abstract class Grammar
     protected function wrapSegments(array $segments): string
     {
         return (new Collection($segments))->map(function ($segment, $key) use ($segments) {
-            return $key == 0 && count($segments) > 1
+            return $key === 0 && count($segments) > 1
                 ? $this->wrapTable($segment)
                 : $this->wrapValue($segment);
         })->implode('.');
@@ -210,7 +210,7 @@ abstract class Grammar
     }
 
     /**
-     * Escapes a value for safe SQL embedding.
+     * Escape a value for safe SQL embedding.
      */
     public function escape(string|float|int|bool|null $value, bool $binary = false): string
     {
