@@ -1056,6 +1056,10 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
      */
     public function escape(mixed $value, bool $binary = false): string
     {
+        if ($value instanceof BinaryParameter) {
+            return $this->escapeBinary($value->value);
+        }
+
         if ($value === null) {
             return 'null';
         }
