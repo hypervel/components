@@ -1548,7 +1548,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             throw new MissingAttributeException($this, $this->getKeyName());
         }
 
-        $query->where($this->getKeyName(), '=', $key);
+        $query->where($this->getKeyName(), '=', $this->prepareKeyForDatabase($key));
 
         return $query;
     }
@@ -1558,7 +1558,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     protected function getKeyForSelectQuery(): mixed
     {
-        return $this->original[$this->getKeyName()] ?? $this->getKey();
+        return $this->getRawKeyForQuery();
     }
 
     /**
@@ -1575,7 +1575,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             throw new MissingAttributeException($this, $this->getKeyName());
         }
 
-        $query->where($this->getKeyName(), '=', $key);
+        $query->where($this->getKeyName(), '=', $this->prepareKeyForDatabase($key));
 
         return $query;
     }
@@ -1585,7 +1585,30 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     protected function getKeyForSaveQuery(): mixed
     {
-        return $this->original[$this->getKeyName()] ?? $this->getKey();
+        return $this->getRawKeyForQuery();
+    }
+
+    /**
+     * Get the raw primary key value for a model query.
+     */
+    private function getRawKeyForQuery(): mixed
+    {
+        $keyName = $this->getKeyName();
+
+        return $this->original[$keyName]
+            ?? ($this->isBinaryCast($this->getCasts()[$keyName] ?? null) && array_key_exists($keyName, $this->attributes)
+                ? $this->attributes[$keyName]
+                : $this->getKey());
+    }
+
+    /**
+     * Prepare the primary key for database binding.
+     */
+    private function prepareKeyForDatabase(mixed $key): mixed
+    {
+        $keyName = $this->getKeyName();
+
+        return $this->prepareBinaryAttributesForDatabase([$keyName => $key])[$keyName];
     }
 
     /**

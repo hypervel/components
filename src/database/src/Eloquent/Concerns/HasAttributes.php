@@ -1885,6 +1885,15 @@ trait HasAttributes
     }
 
     /**
+     * Determine whether the given attribute uses the binary cast.
+     */
+    private function isBinaryCast(?string $cast): bool
+    {
+        return $cast === AsBinary::class
+            || ($cast !== null && str_starts_with($cast, AsBinary::class . ':'));
+    }
+
+    /**
      * Prepare binary-cast attributes for database binding.
      *
      * @param array<string, mixed> $attributes
@@ -1895,13 +1904,17 @@ trait HasAttributes
         $casts = $this->getCasts();
 
         foreach ($attributes as $key => $value) {
-            $cast = $casts[$key] ?? null;
-
-            if (! is_string($value) || $cast === null) {
+            if (! $this->isBinaryCast($casts[$key] ?? null)) {
                 continue;
             }
 
-            if ($cast === AsBinary::class || str_starts_with($cast, AsBinary::class . ':')) {
+            if (is_resource($value)) {
+                $binary = stream_get_contents($value, offset: 0);
+                rewind($value);
+                $value = $binary;
+            }
+
+            if (is_string($value)) {
                 $attributes[$key] = new BinaryParameter($value);
             }
         }

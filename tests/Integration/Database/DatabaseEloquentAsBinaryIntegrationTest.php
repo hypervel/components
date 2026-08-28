@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Integration\Database;
 use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Eloquent\Casts\AsBinary;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\Schema;
@@ -24,6 +25,13 @@ class DatabaseEloquentAsBinaryIntegrationTest extends TestCase
             $table->increments('id');
             $table->binary('uuid', length: 16, fixed: true)->unique();
             $table->binary('ulid', length: 16, fixed: true);
+        });
+
+        Schema::create('binary_primary_keys', function (Blueprint $table): void {
+            $table->binary('id', length: 16, fixed: true)->primary();
+            $table->string('name');
+            $table->integer('counter')->default(0);
+            $table->timestamp('deleted_at')->nullable();
         });
     }
 
@@ -139,6 +147,111 @@ class DatabaseEloquentAsBinaryIntegrationTest extends TestCase
         $this->assertSame($upsertUuid, $upserted->uuid);
         $this->assertSame($upsertUlid, $upserted->ulid);
     }
+
+    public function testBinaryPrimaryKeysPreserveBindingIntentAcrossModelOperations(): void
+    {
+        $primaryId = '21107c1e-6448-43c2-b80b-40491d165946';
+        $otherId = '550e8400-e29b-41d4-a716-446655440000';
+        $softDeletedId = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+        $primaryBytes = Uuid::fromString($primaryId)->toBinary();
+        $otherBytes = Uuid::fromString($otherId)->toBinary();
+        $softDeletedBytes = Uuid::fromString($softDeletedId)->toBinary();
+        $primaryKey = new BinaryParameter($primaryBytes);
+        $otherKey = new BinaryParameter($otherBytes);
+
+        $model = AsBinaryPrimaryKeyModel::create([
+            'id' => $primaryId,
+            'name' => 'created',
+        ]);
+        AsBinaryPrimaryKeyModel::create([
+            'id' => $otherId,
+            'name' => 'other',
+        ]);
+
+        $this->assertSame($primaryBytes, $model->getAttributes()['id']);
+        $this->assertSame($primaryBytes, $model->getRawOriginal('id'));
+        $this->assertNotInstanceOf(BinaryParameter::class, $model->getAttributes()['id']);
+        $this->assertSame('created', AsBinaryPrimaryKeyModel::query()->findOrFail($primaryKey)->name);
+        $this->assertSame('created', AsBinaryPrimaryKeyModel::query()->whereKey($primaryKey)->value('name'));
+        $this->assertSame(
+            ['other'],
+            AsBinaryPrimaryKeyModel::query()->whereKeyNot($primaryKey)->orderBy('name')->pluck('name')->all()
+        );
+
+        $model->name = 'updated';
+
+        $this->assertTrue($model->save());
+        $this->assertSame('updated', AsBinaryPrimaryKeyModel::query()->findOrFail($primaryKey)->name);
+
+        $unsynced = new AsBinaryPrimaryKeyModel;
+        $unsynced->setRawAttributes([
+            'id' => $otherBytes,
+            'name' => 'updated without an original',
+            'counter' => 0,
+        ]);
+        $unsynced->exists = true;
+
+        $this->assertTrue($unsynced->save());
+        $this->assertSame('updated without an original', AsBinaryPrimaryKeyModel::query()->findOrFail($otherKey)->name);
+
+        $hydrated = AsBinaryPrimaryKeyModel::query()->findOrFail($primaryKey);
+        $hydrated->name = 'first hydrated update';
+        $this->assertTrue($hydrated->save());
+        $hydrated->name = 'second hydrated update';
+        $this->assertTrue($hydrated->save());
+
+        $originalKeyStream = $hydrated->getRawOriginal('id');
+
+        if (is_resource($originalKeyStream)) {
+            $this->assertSame(0, ftell($originalKeyStream));
+        }
+
+        $fresh = $hydrated->fresh();
+
+        $this->assertNotNull($fresh);
+        $this->assertSame('second hydrated update', $fresh->name);
+
+        AsBinaryPrimaryKeyModel::query()->whereKey($primaryKey)->update(['name' => 'refreshed']);
+        $hydrated->refresh();
+
+        $this->assertSame('refreshed', $hydrated->name);
+        $this->assertSame(1, $hydrated->increment('counter'));
+        $this->assertSame(1, AsBinaryPrimaryKeyModel::query()->findOrFail($primaryKey)->counter);
+        $this->assertSame(1, $hydrated->decrement('counter'));
+        $this->assertSame(0, AsBinaryPrimaryKeyModel::query()->findOrFail($primaryKey)->counter);
+        $this->assertNotInstanceOf(BinaryParameter::class, $hydrated->getAttributes()['id']);
+        $this->assertNotInstanceOf(BinaryParameter::class, $hydrated->getRawOriginal('id'));
+
+        $storedPrimaryKey = $model->getConnection()
+            ->table('binary_primary_keys')
+            ->where('id', $primaryKey)
+            ->value('id');
+
+        if (is_resource($storedPrimaryKey)) {
+            $primaryKeyStream = $storedPrimaryKey;
+
+            try {
+                $storedPrimaryKey = stream_get_contents($primaryKeyStream, offset: 0);
+            } finally {
+                fclose($primaryKeyStream);
+            }
+        }
+
+        $this->assertSame($primaryBytes, $storedPrimaryKey);
+        $this->assertTrue($hydrated->delete());
+        $this->assertNull(AsBinaryPrimaryKeyModel::query()->find($primaryKey));
+
+        $softDeleted = SoftDeletingAsBinaryPrimaryKeyModel::create([
+            'id' => $softDeletedId,
+            'name' => 'soft deleted',
+        ]);
+        $softDeletedKey = new BinaryParameter($softDeletedBytes);
+
+        $this->assertTrue($softDeleted->delete());
+        $this->assertNotNull(SoftDeletingAsBinaryPrimaryKeyModel::withTrashed()->find($softDeletedKey));
+        $this->assertTrue($softDeleted->forceDelete());
+        $this->assertNull(SoftDeletingAsBinaryPrimaryKeyModel::withTrashed()->find($softDeletedKey));
+    }
 }
 
 class AsBinaryIdentifierModel extends Model
@@ -159,4 +272,32 @@ class AsBinaryIdentifierModel extends Model
             'ulid' => AsBinary::ulid(),
         ];
     }
+}
+
+class AsBinaryPrimaryKeyModel extends Model
+{
+    protected ?string $table = 'binary_primary_keys';
+
+    protected array $guarded = [];
+
+    protected string $keyType = 'string';
+
+    public bool $incrementing = false;
+
+    public bool $timestamps = false;
+
+    /**
+     * Get the attributes that should be cast.
+     */
+    protected function casts(): array
+    {
+        return [
+            'id' => AsBinary::uuid(),
+        ];
+    }
+}
+
+class SoftDeletingAsBinaryPrimaryKeyModel extends AsBinaryPrimaryKeyModel
+{
+    use SoftDeletes;
 }
