@@ -452,6 +452,15 @@ DB::table('users')->upsert(
 );
 ```
 
+Models with binary primary keys also accept the wrapper in Eloquent's `find`, `whereKey`, and `whereKeyNot` methods:
+
+```php
+use App\Models\Device;
+use Hypervel\Database\BinaryParameter;
+
+$device = Device::query()->find(new BinaryParameter($uuidBytes));
+```
+
 The wrapper only expresses binding intent. It does not encode or validate the value, and ordinary text strings should not be wrapped.
 
 <a name="running-an-insert-statement"></a>

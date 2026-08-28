@@ -526,7 +526,7 @@ Laravel's base `Connection` class exposes PDO methods. Hypervel's base `Connecti
 
 Laravel's nested `direct` connection endpoint and `::direct` suffix are not available. Configure the direct endpoint as a normal named connection and point the pooled connection's `migrations_connection` option at it.
 
-Model casts are not applied to direct query builder operations. When ported code passes already-encoded binary strings to query builder `where`, bulk `update`, or `upsert` calls, wrap them in `Hypervel\Database\BinaryParameter`. See [binding binary values](/docs/{{version}}/database#binding-binary-values) and [binary casting](/docs/{{version}}/eloquent-mutators#binary-casting).
+Model casts are not applied to direct query builder operations or Eloquent key helpers. When ported code passes already-encoded binary strings to query builder `where`, bulk `update`, or `upsert` calls, or to Eloquent `find`, `whereKey`, or `whereKeyNot`, wrap them in `Hypervel\Database\BinaryParameter`. See [binding binary values](/docs/{{version}}/database#binding-binary-values) and [binary casting](/docs/{{version}}/eloquent-mutators#binary-casting).
 
 Hypervel's `migrate:fresh` command discovers the connection declared by each migration and resets every resolved target before rebuilding the schema. Keep each migration's connection stable, and split manual cross-connection schema work into separate migrations with explicit connection declarations. See [drop all tables and migrate](/docs/{{version}}/migrations#drop-all-tables-migrate) for details.
 
