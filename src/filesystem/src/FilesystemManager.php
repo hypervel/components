@@ -628,6 +628,9 @@ class FilesystemManager implements FactoryContract
      */
     public function createScopedDriver(array $config, ?string $name = null): Filesystem
     {
+        // The logical disk name and the serving-route owner can name different disks.
+        // build() would re-derive ownership from the collapsed configuration, so the
+        // outer disk would claim its served ancestor's route and lose the scoped path.
         return $this->resolveConstructionDescriptor(
             $name ?? self::ON_DEMAND_DISK_NAME,
             $name,
