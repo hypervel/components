@@ -37,7 +37,17 @@ class AsBinary implements Castable
 
             public function get(mixed $model, string $key, mixed $value, array $attributes): ?string
             {
-                return BinaryCodec::decode($attributes[$key] ?? null, $this->format);
+                $attribute = $attributes[$key] ?? null;
+
+                if (is_resource($attribute)) {
+                    $attributeStream = $attribute;
+                    $attribute = stream_get_contents($attributeStream, offset: 0);
+
+                    // Keep the PDO stream reusable when raw attributes are copied and rebound.
+                    rewind($attributeStream);
+                }
+
+                return BinaryCodec::decode($attribute, $this->format);
             }
 
             public function set(mixed $model, string $key, mixed $value, array $attributes): array

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\DatabasePdoConnectionTest;
 
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\Events\QueryExecuted;
@@ -524,6 +525,41 @@ class DatabasePdoConnectionTest extends TestCase
         $connection->resetForPool();
 
         $this->assertSame("'read:value'", $connection->escape('value'));
+    }
+
+    public function testBindValuesUsesExplicitBinaryTypeWithoutChangingExistingBindingTypes(): void
+    {
+        $resource = fopen('php://memory', 'r+');
+        $statement = $this->getMockBuilder(PDOStatement::class)
+            ->onlyMethods(['bindValue'])
+            ->getMock();
+        $boundValues = [];
+
+        $statement->expects($this->exactly(4))
+            ->method('bindValue')
+            ->willReturnCallback(function (string|int $parameter, mixed $value, int $type) use (&$boundValues): bool {
+                $boundValues[] = [$parameter, $value, $type];
+
+                return true;
+            });
+
+        try {
+            (new PdoConnection(new PDOStub))->bindValues($statement, [
+                'binary' => new BinaryParameter("\x00\xFF"),
+                'string' => 'value',
+                'integer' => 42,
+                'resource' => $resource,
+            ]);
+
+            $this->assertSame([
+                ['binary', "\x00\xFF", PDO::PARAM_LOB],
+                ['string', 'value', PDO::PARAM_STR],
+                ['integer', 42, PDO::PARAM_INT],
+                ['resource', $resource, PDO::PARAM_LOB],
+            ], $boundValues);
+        } finally {
+            fclose($resource);
+        }
     }
 
     public function testStatementProperlyCallsPDO(): void

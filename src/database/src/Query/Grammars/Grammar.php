@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Query\Grammars;
 
 use Hypervel\Contracts\Database\Query\Expression;
+use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Concerns\CompilesJsonPaths;
 use Hypervel\Database\Grammar as BaseGrammar;
 use Hypervel\Database\Query\Builder;
@@ -1277,6 +1278,10 @@ class Grammar extends BaseGrammar
     public function substituteBindingsIntoRawSql(string $sql, array $bindings): string
     {
         $bindings = array_map(function ($value): string {
+            if ($value instanceof BinaryParameter) {
+                return $this->escape($value->value, true);
+            }
+
             if (is_resource($value) || gettype($value) === 'resource (closed)') {
                 $value = (string) $value;
             }

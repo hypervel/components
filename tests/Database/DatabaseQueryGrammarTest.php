@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
+use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\Expression;
@@ -144,6 +145,42 @@ class DatabaseQueryGrammarTest extends TestCase
         } finally {
             fclose($liveResource);
         }
+    }
+
+    public function testRawSqlBindingSubstitutionUsesDriverBinaryEscapingForBinaryParameters(): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
+        $binary = new BinaryParameter("\x00\xFF");
+
+        $this->assertSame(
+            "select x'00ff'",
+            $connection->getQueryGrammar()->substituteBindingsIntoRawSql('select ?', [$binary])
+        );
+        $this->assertSame(
+            "select * from \"records\" where \"payload\" = x'00ff'",
+            $connection->table('records')->where('payload', $binary)->toRawSql()
+        );
+    }
+
+    public function testRawSqlBindingSubstitutionPreservesGrammarEscapeOverrideSignatureForBinaryParameters(): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
+        $grammar = new class($connection) extends Grammar {
+            public bool $usedBinaryEscape = false;
+
+            public function escape(string|float|int|bool|null $value, bool $binary = false): string
+            {
+                $this->usedBinaryEscape = $binary;
+
+                return parent::escape($value, $binary);
+            }
+        };
+
+        $this->assertSame(
+            "select x'00ff'",
+            $grammar->substituteBindingsIntoRawSql('select ?', [new BinaryParameter("\x00\xFF")])
+        );
+        $this->assertTrue($grammar->usedBinaryEscape);
     }
 
     public function testRawSqlBindingSubstitutionHandlesLongBindingLists(): void
