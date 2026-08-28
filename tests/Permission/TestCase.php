@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Permission;
 
 use Hypervel\Auth\EloquentUserProvider;
+use Hypervel\Cache\CacheManager;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
@@ -353,8 +354,14 @@ abstract class TestCase extends TestbenchTestCase
     protected function flushPermissionState(): void
     {
         Guard::flushState();
-        $this->app->make('cache')->store('array')->clear();
+        $cacheStore = config()->string('permission.cache.store', 'default');
+
+        $this->app->make(CacheManager::class)
+            ->memo($cacheStore === 'default' ? null : $cacheStore)
+            ->clear();
         $this->app->forgetInstance(PermissionRegistrar::class);
+
+        // The store flush does not clear registrar runtime memos held in CoroutineContext.
         $this->app->make(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 

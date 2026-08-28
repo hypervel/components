@@ -279,7 +279,11 @@ class CacheTest extends TestCase
             $roles[1]->pivot->getAttribute($this->registrar->pivotPermission),
         );
 
-        $payload = $this->registrar->getCacheRepository()->get($this->registrar->getCacheKey());
+        $cacheEntry = $this->registrar->getCacheRepository()->get($this->registrar->getCacheKey());
+
+        $this->assertSame('present', $cacheEntry['__hypervel_model_cache']);
+
+        $payload = $cacheEntry['value'];
 
         $matchingRoles = array_filter(
             $payload['roles'],

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\DatabaseEloquentMorphToManyTest;
 
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\MorphToMany;
@@ -135,6 +136,11 @@ class DatabaseEloquentMorphToManyTest extends TestCase
         $grammar->shouldReceive('isExpression')->with(m::type('string'))->andReturnFalse();
         $queryBuilder = m::mock(QueryBuilder::class);
         $queryBuilder->shouldReceive('getGrammar')->andReturn($grammar);
+        $connection = m::mock(ConnectionInterface::class);
+        $connection->shouldReceive('table')->andReturnUsing(
+            fn ($table) => $queryBuilder->newQuery()->from($table)
+        );
+        $queryBuilder->shouldReceive('getConnection')->andReturn($connection);
         $builder->shouldReceive('getQuery')->andReturn($queryBuilder);
 
         return [$builder, $parent, 'taggable', 'taggables', 'taggable_id', 'tag_id', 'id', 'id', 'relation_name', false];

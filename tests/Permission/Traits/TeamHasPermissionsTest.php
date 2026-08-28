@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Traits;
 
+use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\MorphPivot;
 use Hypervel\Permission\Events\PermissionAttachedEvent;
 use Hypervel\Permission\Events\PermissionDetachedEvent;
+use Hypervel\Permission\Exceptions\TeamNotSelected;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Support\Config;
 use Hypervel\Support\ClassInvoker;
@@ -108,6 +110,22 @@ class TeamHasPermissionsTest extends HasPermissionsTest
         $this->assertTrue($this->testUser->hasPermissionTo($this->testUserPermission));
         $this->testUser->getAllPermissions();
         $this->assertSame([], DB::getQueryLog());
+    }
+
+    public function testDirectPermissionHydrationMemoIsSeparatedByTeam(): void
+    {
+        setPermissionsTeamId(1);
+        $this->testUser->givePermissionTo($this->testUserPermission);
+        $teamOne = $this->testUser->getDirectPermissions()->sole();
+        $this->assertSame($teamOne, $this->testUser->getDirectPermissions()->sole());
+
+        setPermissionsTeamId(2);
+        $this->testUser->givePermissionTo($this->testUserPermission);
+        $teamTwo = $this->testUser->getDirectPermissions()->sole();
+        $this->assertNotSame($teamOne, $teamTwo);
+
+        setPermissionsTeamId(1);
+        $this->assertSame($teamOne, $this->testUser->getDirectPermissions()->sole());
     }
 
     public function testItCanSyncOrRemovePermissionsWithoutDetachingDifferentTeams(): void
@@ -389,6 +407,45 @@ class TeamHasPermissionsTest extends HasPermissionsTest
             $this->testUser,
             $this->testUserPermission,
         );
+    }
+
+    public function testPermissionMutationsRequireASelectedTeam(): void
+    {
+        setPermissionsTeamId(null);
+        $unsavedUser = new User(['email' => 'teamless-queued-permission@example.com']);
+
+        $this->assertTeamNotSelected(fn () => $this->testUser->givePermissionTo('edit-articles'));
+        $this->assertTeamNotSelected(fn () => $this->testUser->denyPermissionTo('edit-articles'));
+        $this->assertTeamNotSelected(fn () => $this->testUser->revokePermissionTo('edit-articles'));
+        $this->assertTeamNotSelected(fn () => $this->testUser->syncPermissions());
+        $this->assertTeamNotSelected(fn () => $this->testUser->syncPermissionEffects());
+        $this->assertTeamNotSelected(fn () => $unsavedUser->givePermissionTo('edit-articles'));
+    }
+
+    public function testDirectPermissionRelationWritesRequireASelectedTeam(): void
+    {
+        setPermissionsTeamId(null);
+        $relation = $this->testUser->permissions();
+        $permissionId = $this->testUserPermission->getKey();
+
+        $this->assertTeamNotSelected(fn () => $relation->attach($permissionId));
+        $this->assertTeamNotSelected(fn () => $relation->detach($permissionId));
+        $this->assertTeamNotSelected(fn () => $relation->toggle($permissionId));
+        $this->assertTeamNotSelected(fn () => $relation->sync([$permissionId]));
+        $this->assertTeamNotSelected(fn () => $relation->updateExistingPivot($permissionId, []));
+    }
+
+    /**
+     * Assert a team-scoped mutation rejects missing team context.
+     */
+    private function assertTeamNotSelected(Closure $mutation): void
+    {
+        try {
+            $mutation();
+            $this->fail('Expected the teamless mutation to be rejected.');
+        } catch (TeamNotSelected $exception) {
+            $this->assertStringContainsString('current team', $exception->getMessage());
+        }
     }
 
     /**

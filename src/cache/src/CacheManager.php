@@ -466,6 +466,8 @@ class CacheManager implements FactoryContract
             if (isset($this->stores[$cacheName])) {
                 unset($this->stores[$cacheName]);
             }
+
+            CoroutineContext::forget(self::MEMOIZED_CONTEXT_KEY_PREFIX . $cacheName);
         }
 
         return $this;

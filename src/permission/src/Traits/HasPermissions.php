@@ -71,7 +71,23 @@ trait HasPermissions
     public static function bootHasPermissions(): void
     {
         static::deleting(function (Model $model): void {
-            if (method_exists($model, 'isForceDeleting') && ! $model->isForceDeleting()) {
+            if (! static::shouldDeletePermissionAssignments($model)) {
+                return;
+            }
+
+            // Validate only so a later deleting listener can still veto before assignments are touched.
+            static::requireDeletionModelKey($model);
+
+            if ($model instanceof Permission || $model instanceof Role) {
+                static::permissionRecordDeletionPartition(
+                    $model,
+                    Container::getInstance()->make(PermissionRegistrar::class),
+                );
+            }
+        });
+
+        static::deleted(function (Model $model): void {
+            if (! static::shouldDeletePermissionAssignments($model)) {
                 return;
             }
 
@@ -80,42 +96,111 @@ trait HasPermissions
             }
 
             $registrar = Container::getInstance()->make(PermissionRegistrar::class);
+            $modelKey = static::requireDeletionModelKey($model);
 
             if ($model instanceof Role) {
-                static::deletePermissionRecordAssignments(
-                    $model,
-                    Config::modelHasRolesTable(),
-                    $registrar->pivotRole,
+                $partition = static::permissionRecordDeletionPartition($model, $registrar);
+
+                $registrar->runPermissionStorageMutationAfterSubjectCommit(
+                    $model->getConnection(),
+                    static fn () => $registrar->getPermissionConnection()->transaction(
+                        static fn () => static::deletePermissionRecordAssignments(
+                            $modelKey,
+                            Config::modelHasRolesTable(),
+                            $registrar->pivotRole,
+                            $partition,
+                        ),
+                    ),
                 );
 
                 return;
             }
 
-            $contexts = static::deleteSubjectAssignments(
-                $model,
-                Config::modelHasPermissionsTable(),
-            );
+            $morphType = $model->getMorphClass();
 
-            if ($contexts === null) {
-                $registrar->forgetModelPermissionCache($model);
-            } else {
-                foreach ($contexts as $context) {
-                    $registrar->forgetModelPermissionCacheFor(
-                        $model,
-                        $context->partition,
-                        $context->team,
+            $registrar->runPermissionStorageMutationAfterSubjectCommit(
+                $model->getConnection(),
+                static function () use ($modelKey, $morphType, $registrar): void {
+                    $registrar->getPermissionConnection()->transaction(
+                        static function () use ($modelKey, $morphType, $registrar): void {
+                            $contexts = static::deleteSubjectAssignments(
+                                $morphType,
+                                $modelKey,
+                                Config::modelHasPermissionsTable(),
+                            );
+
+                            if ($contexts === null) {
+                                $registrar->invalidateModelPermissionCacheForIdentityAfterMutation(
+                                    $morphType,
+                                    (string) $modelKey,
+                                    null,
+                                    null,
+                                );
+
+                                return;
+                            }
+
+                            foreach ($contexts as $context) {
+                                $registrar->invalidateModelPermissionCacheForIdentityAfterMutation(
+                                    $morphType,
+                                    (string) $modelKey,
+                                    $context->partition,
+                                    $context->team,
+                                );
+                            }
+                        },
                     );
-                }
-            }
+                },
+            );
 
             $registrar->forgetLoadedRelationProvenance($model, 'permissions');
         });
 
         static::saved(function (Model $model): void {
             if (method_exists($model, 'flushQueuedPermissionAssignments')) {
-                $model->flushQueuedPermissionAssignments();
+                $registrar = Container::getInstance()->make(PermissionRegistrar::class);
+                $registrar->runPermissionStorageMutationAfterSubjectCommit(
+                    $model->getConnection(),
+                    fn () => $model->flushQueuedPermissionAssignments(),
+                );
             }
         });
+    }
+
+    /**
+     * Delete the model and its permission assignments atomically.
+     */
+    public function delete(): int|bool|null
+    {
+        if (! $this->exists || ! static::shouldDeletePermissionAssignments($this)) {
+            return parent::delete();
+        }
+
+        return $this->getConnection()->transaction(
+            fn (): int|bool|null => parent::delete(),
+        );
+    }
+
+    /**
+     * Determine whether deleting the model removes permission assignments.
+     */
+    protected static function shouldDeletePermissionAssignments(Model $model): bool
+    {
+        return ! method_exists($model, 'isForceDeleting') || $model->isForceDeleting();
+    }
+
+    /**
+     * Get the model key required for permission assignment cleanup.
+     */
+    protected static function requireDeletionModelKey(Model $model): mixed
+    {
+        $modelKey = $model->getKey();
+
+        if ($modelKey === null) {
+            throw new MissingAttributeException($model, $model->getKeyName());
+        }
+
+        return $modelKey;
     }
 
     /**
@@ -123,18 +208,15 @@ trait HasPermissions
      *
      * @return null|array<int, PermissionRelationContext>
      */
-    protected static function deleteSubjectAssignments(Model $model, string $table): ?array
-    {
+    protected static function deleteSubjectAssignments(
+        string $morphType,
+        mixed $modelKey,
+        string $table,
+    ): ?array {
         $registrar = Container::getInstance()->make(PermissionRegistrar::class);
-        $connection = $model->getConnection();
+        $connection = $registrar->getPermissionConnection();
         $morphKey = Config::morphKey();
-        $morphType = $model->getMorphClass();
-        $modelKey = $model->getKey();
         $partitionColumn = PermissionRegistrar::partitionColumn();
-
-        if ($modelKey === null) {
-            throw new MissingAttributeException($model, $model->getKeyName());
-        }
 
         if ($partitionColumn === null && ! $registrar->teams) {
             $connection->table($table)
@@ -145,131 +227,121 @@ trait HasPermissions
             return null;
         }
 
-        return $connection->transaction(function () use (
-            $connection,
-            $modelKey,
-            $morphKey,
-            $morphType,
-            $partitionColumn,
-            $registrar,
-            $table,
-        ): array {
-            $columns = [];
+        $columns = [];
+
+        if ($partitionColumn !== null) {
+            $columns[] = $partitionColumn;
+        }
+
+        if ($registrar->teams) {
+            $columns[] = $registrar->teamsKey;
+        }
+
+        $scopes = $connection->table($table)
+            ->select($columns)
+            ->where($morphKey, $modelKey)
+            ->where(Config::MORPH_TYPE, $morphType)
+            ->distinct()
+            ->get();
+        $contexts = [];
+
+        foreach ($scopes as $scope) {
+            $partition = null;
 
             if ($partitionColumn !== null) {
-                $columns[] = $partitionColumn;
-            }
+                $partitionValue = $scope->{$partitionColumn};
 
-            if ($registrar->teams) {
-                $columns[] = $registrar->teamsKey;
-            }
-
-            $scopes = $connection->table($table)
-                ->select($columns)
-                ->where($morphKey, $modelKey)
-                ->where(Config::MORPH_TYPE, $morphType)
-                ->distinct()
-                ->get();
-            $contexts = [];
-
-            foreach ($scopes as $scope) {
-                $partition = null;
-
-                if ($partitionColumn !== null) {
-                    $partitionValue = $scope->{$partitionColumn};
-
-                    if (! is_int($partitionValue) && ! is_string($partitionValue)) {
-                        throw new UnexpectedValueException(sprintf(
-                            'Permission assignment partition column "%s" contained %s; expected int or string.',
-                            $partitionColumn,
-                            get_debug_type($partitionValue),
-                        ));
-                    }
-
-                    $partition = new PermissionPartition($partitionColumn, $partitionValue);
-                }
-
-                $team = $registrar->teams ? $scope->{$registrar->teamsKey} : null;
-
-                if ($team !== null && ! is_int($team) && ! is_string($team)) {
+                if (! is_int($partitionValue) && ! is_string($partitionValue)) {
                     throw new UnexpectedValueException(sprintf(
-                        'Permission assignment team column "%s" contained %s; expected int, string, or null.',
-                        $registrar->teamsKey,
-                        get_debug_type($team),
+                        'Permission assignment partition column "%s" contained %s; expected int or string.',
+                        $partitionColumn,
+                        get_debug_type($partitionValue),
                     ));
                 }
 
-                $contexts[] = new PermissionRelationContext(
-                    $partition,
-                    $registrar->teams,
-                    $team,
-                );
+                $partition = new PermissionPartition($partitionColumn, $partitionValue);
             }
 
-            $connection->table($table)
-                ->where($morphKey, $modelKey)
-                ->where(Config::MORPH_TYPE, $morphType)
-                ->delete();
+            $team = $registrar->teams ? $scope->{$registrar->teamsKey} : null;
 
-            return $contexts;
-        });
+            if ($team !== null && ! is_int($team) && ! is_string($team)) {
+                throw new UnexpectedValueException(sprintf(
+                    'Permission assignment team column "%s" contained %s; expected int, string, or null.',
+                    $registrar->teamsKey,
+                    get_debug_type($team),
+                ));
+            }
+
+            $contexts[] = new PermissionRelationContext(
+                $partition,
+                $registrar->teams,
+                $team,
+            );
+        }
+
+        $connection->table($table)
+            ->where($morphKey, $modelKey)
+            ->where(Config::MORPH_TYPE, $morphType)
+            ->delete();
+
+        return $contexts;
     }
 
     /**
      * Delete assignment pivots owned by a Role or Permission record.
      */
     protected static function deletePermissionRecordAssignments(
-        Model $model,
+        mixed $modelKey,
         string $modelAssignmentsTable,
         string $pivotKey,
+        ?PermissionPartition $partition,
     ): void {
-        $modelKey = $model->getKey();
+        $registrar = Container::getInstance()->make(PermissionRegistrar::class);
+        $connection = $registrar->getPermissionConnection();
+        $modelAssignments = $connection
+            ->table($modelAssignmentsTable)
+            ->where($pivotKey, $modelKey);
+        $rolePermissions = $connection
+            ->table(Config::roleHasPermissionsTable())
+            ->where($pivotKey, $modelKey);
 
-        if ($modelKey === null) {
-            throw new MissingAttributeException($model, $model->getKeyName());
+        if ($partition) {
+            $modelAssignments->where($partition->column, $partition->value);
+            $rolePermissions->where($partition->column, $partition->value);
         }
 
-        $registrar = Container::getInstance()->make(PermissionRegistrar::class);
+        $modelAssignments->delete();
+        $rolePermissions->delete();
+    }
+
+    /**
+     * Resolve and validate a permission record's deletion partition.
+     */
+    protected static function permissionRecordDeletionPartition(
+        Model $model,
+        PermissionRegistrar $registrar,
+    ): ?PermissionPartition {
         $partition = PermissionRegistrar::partitioningEnabled()
             ? $registrar->partitionFromRecord($model)
             : null;
 
-        if ($partition) {
-            /** @var PermissionPartition $current */
-            $current = $registrar->resolvePartition();
-
-            if ($current->column !== $partition->column
-                || ! $current->matches($partition->value)) {
-                throw PermissionPartitionViolation::forModel(
-                    $model,
-                    $current,
-                    $partition->value,
-                );
-            }
+        if (! $partition) {
+            return null;
         }
 
-        $model->getConnection()->transaction(function () use (
-            $model,
-            $modelKey,
-            $modelAssignmentsTable,
-            $partition,
-            $pivotKey,
-        ): void {
-            $modelAssignments = $model->getConnection()
-                ->table($modelAssignmentsTable)
-                ->where($pivotKey, $modelKey);
-            $rolePermissions = $model->getConnection()
-                ->table(Config::roleHasPermissionsTable())
-                ->where($pivotKey, $modelKey);
+        /** @var PermissionPartition $current */
+        $current = $registrar->resolvePartition();
 
-            if ($partition) {
-                $modelAssignments->where($partition->column, $partition->value);
-                $rolePermissions->where($partition->column, $partition->value);
-            }
+        if ($current->column !== $partition->column
+            || ! $current->matches($partition->value)) {
+            throw PermissionPartitionViolation::forModel(
+                $model,
+                $current,
+                $partition->value,
+            );
+        }
 
-            $modelAssignments->delete();
-            $rolePermissions->delete();
-        });
+        return $partition;
     }
 
     /**
@@ -369,95 +441,97 @@ trait HasPermissions
             return $this->relationCollection($this, 'permissions');
         }
 
-        $permissionKey = Guard::getModelKeyName($this->getPermissionClass());
-        $assignments = $registrar->rememberModelPermissionAssignments(
-            $model,
-            fn (): array => $this->permissionAssignmentRelation($context)
-                ->get()
-                ->map(fn (Model $permission): array => [
-                    $permissionKey => $permission->getKey(),
-                    'is_denied' => $this->pivotIsDenied($permission),
-                ])
-                ->values()
-                ->all(),
-        );
+        return $registrar->rememberModelDirectPermissions($model, function () use ($context, $model, $registrar): Collection {
+            $permissionKey = Guard::getModelKeyName($this->getPermissionClass());
+            $assignments = $registrar->rememberModelPermissionAssignments(
+                $model,
+                fn (): array => $this->permissionAssignmentRelation($context)
+                    ->get()
+                    ->map(fn (Model $permission): array => [
+                        $permissionKey => $permission->getKey(),
+                        'is_denied' => $this->pivotIsDenied($permission),
+                    ])
+                    ->values()
+                    ->all(),
+            );
 
-        $permissions = $registrar->getPermissions(
-            [$permissionKey => array_column($assignments, $permissionKey)],
-            false,
-            $this->getPermissionClass(),
-        )->keyBy(fn (Model $permission): string => (string) $permission->getKey());
+            $permissions = $registrar->getPermissions(
+                [$permissionKey => array_column($assignments, $permissionKey)],
+                false,
+                $this->getPermissionClass(),
+            )->keyBy(fn (Model $permission): string => (string) $permission->getKey());
 
-        return Collection::make($assignments)
-            ->map(function (array $assignment) use ($permissions, $model, $permissionKey, $registrar, $context): ?Model {
-                $permission = $permissions->get((string) $assignment[$permissionKey]);
+            return Collection::make($assignments)
+                ->map(function (array $assignment) use ($permissions, $model, $permissionKey, $registrar, $context): ?Model {
+                    $permission = $permissions->get((string) $assignment[$permissionKey]);
 
-                if (! $permission instanceof Model) {
-                    return null;
-                }
-
-                $pivot = [
-                    $registrar->pivotPermission => $permission->getKey(),
-                    Config::morphKey() => $model->getKey(),
-                    Config::MORPH_TYPE => $model->getMorphClass(),
-                    'is_denied' => (bool) $assignment['is_denied'],
-                ];
-
-                if ($registrar->teams) {
-                    $pivot[$registrar->teamsKey] = $context->team;
-                }
-
-                if ($context->partition) {
-                    $pivot[$context->partition->column] = $context->partition->value;
-                }
-
-                $permission = clone $permission;
-                $morphPivot = MorphPivot::fromRawAttributes(
-                    $model,
-                    $pivot,
-                    Config::modelHasPermissionsTable(),
-                    true,
-                );
-                $morphPivot
-                    ->setPivotKeys(Config::morphKey(), $registrar->pivotPermission)
-                    ->setRelatedModel($permission)
-                    ->setMorphType(Config::MORPH_TYPE)
-                    ->setMorphClass($model->getMorphClass());
-
-                $pivotWheres = [];
-                $pivotWhereNulls = [];
-
-                if ($context->partition) {
-                    $pivotWheres[] = [
-                        $context->partition->column,
-                        '=',
-                        $context->partition->value,
-                    ];
-                }
-
-                if ($context->teamScoped) {
-                    if ($context->team === null) {
-                        $pivotWhereNulls[] = [$registrar->teamsKey];
-                    } else {
-                        $pivotWheres[] = [$registrar->teamsKey, '=', $context->team];
+                    if (! $permission instanceof Model) {
+                        return null;
                     }
-                }
 
-                if ($pivotWheres !== [] || $pivotWhereNulls !== []) {
-                    $morphPivot->setPivotConstraints(
-                        wheres: $pivotWheres,
-                        whereIns: [],
-                        whereNulls: $pivotWhereNulls,
-                        whereBetweens: [],
+                    $pivot = [
+                        $registrar->pivotPermission => $permission->getKey(),
+                        Config::morphKey() => $model->getKey(),
+                        Config::MORPH_TYPE => $model->getMorphClass(),
+                        'is_denied' => (bool) $assignment['is_denied'],
+                    ];
+
+                    if ($registrar->teams) {
+                        $pivot[$registrar->teamsKey] = $context->team;
+                    }
+
+                    if ($context->partition) {
+                        $pivot[$context->partition->column] = $context->partition->value;
+                    }
+
+                    $permission = clone $permission;
+                    $morphPivot = MorphPivot::fromRawAttributes(
+                        $model,
+                        $pivot,
+                        Config::modelHasPermissionsTable(),
+                        true,
                     );
-                }
+                    $morphPivot
+                        ->setPivotKeys(Config::morphKey(), $registrar->pivotPermission)
+                        ->setRelatedModel($permission)
+                        ->setMorphType(Config::MORPH_TYPE)
+                        ->setMorphClass($model->getMorphClass());
 
-                $permission->setRelation('pivot', $morphPivot);
+                    $pivotWheres = [];
+                    $pivotWhereNulls = [];
 
-                return $permission;
-            })
-            ->filter()
-            ->values();
+                    if ($context->partition) {
+                        $pivotWheres[] = [
+                            $context->partition->column,
+                            '=',
+                            $context->partition->value,
+                        ];
+                    }
+
+                    if ($context->teamScoped) {
+                        if ($context->team === null) {
+                            $pivotWhereNulls[] = [$registrar->teamsKey];
+                        } else {
+                            $pivotWheres[] = [$registrar->teamsKey, '=', $context->team];
+                        }
+                    }
+
+                    if ($pivotWheres !== [] || $pivotWhereNulls !== []) {
+                        $morphPivot->setPivotConstraints(
+                            wheres: $pivotWheres,
+                            whereIns: [],
+                            whereNulls: $pivotWhereNulls,
+                            whereBetweens: [],
+                        );
+                    }
+
+                    $permission->setRelation('pivot', $morphPivot);
+
+                    return $permission;
+                })
+                ->filter()
+                ->values();
+        });
     }
 
     /**
@@ -929,6 +1003,7 @@ trait HasPermissions
         $model = $this;
         $registrar = $this->permissionRegistrar();
         $context = $this->permissionAssignmentContext($registrar);
+        $registrar->ensureTeamIsSelectedForMutation($context);
         $permissions = $this->collectPermissions($permissions, $context->partition);
 
         if ($permissions === []) {
@@ -970,9 +1045,9 @@ trait HasPermissions
         $model->unsetRelation('permissions');
 
         if ($this instanceof Role) {
-            $registrar->forgetCachedPermissionsFor($context->partition);
+            $registrar->invalidatePermissionCatalogAfterMutation($context->partition);
         } else {
-            $registrar->forgetModelPermissionCacheFor(
+            $registrar->invalidateModelPermissionCacheAfterMutation(
                 $model,
                 $context->partition,
                 $context->team,
@@ -1093,7 +1168,7 @@ trait HasPermissions
             ];
         }
 
-        return $this->getConnection()->transaction(function () use ($context, $desired, $detaching, $relation): array {
+        return $this->permissionRegistrar()->getPermissionConnection()->transaction(function () use ($context, $desired, $detaching, $relation): array {
             $relatedPivotKey = $relation->getRelatedPivotKeyName();
             $pivots = $this->readCurrentAssignmentPivots(
                 $relation,
@@ -1335,7 +1410,10 @@ trait HasPermissions
             return;
         }
 
-        $this->getConnection()->transaction(
+        $registrar = $this->permissionRegistrar();
+        $this->ensureQueuedPermissionAssignmentTeamsSelected($assignments, $registrar);
+
+        $registrar->getPermissionConnection()->transaction(
             fn () => $this->attachQueuedPermissionAssignmentBatches($assignments),
         );
 
@@ -1358,6 +1436,20 @@ trait HasPermissions
                 $assignment['context'],
                 $assignment['pivotClass'],
             );
+        }
+    }
+
+    /**
+     * Ensure queued permission assignments have their required team context.
+     *
+     * @param array<int, array{permissions: array<int, int|string>, pivot: array<string, mixed>, context: PermissionRelationContext, pivotClass: class-string<Pivot>}> $assignments
+     */
+    protected function ensureQueuedPermissionAssignmentTeamsSelected(
+        array $assignments,
+        PermissionRegistrar $registrar,
+    ): void {
+        foreach ($assignments as $assignment) {
+            $registrar->ensureTeamIsSelectedForMutation($assignment['context']);
         }
     }
 
@@ -1385,9 +1477,9 @@ trait HasPermissions
 
         foreach ($contexts as $context) {
             if ($this instanceof Role) {
-                $registrar->forgetCachedPermissionsFor($context->partition);
+                $registrar->invalidatePermissionCatalogAfterMutation($context->partition);
             } else {
-                $registrar->forgetModelPermissionCacheFor(
+                $registrar->invalidateModelPermissionCacheAfterMutation(
                     $this,
                     $context->partition,
                     $context->team,
@@ -1483,6 +1575,7 @@ trait HasPermissions
     {
         $registrar = $this->permissionRegistrar();
         $context = $this->permissionAssignmentContext($registrar);
+        $registrar->ensureTeamIsSelectedForMutation($context);
         $permissions = $this->collectPermissions($permissions, $context->partition);
 
         if (! $this->exists) {
@@ -1524,9 +1617,9 @@ trait HasPermissions
             $this->unsetRelation('permissions');
 
             if ($this instanceof Role) {
-                $registrar->forgetCachedPermissionsFor($context->partition);
+                $registrar->invalidatePermissionCatalogAfterMutation($context->partition);
             } else {
-                $registrar->forgetModelPermissionCacheFor(
+                $registrar->invalidateModelPermissionCacheAfterMutation(
                     $this,
                     $context->partition,
                     $context->team,
@@ -1557,6 +1650,7 @@ trait HasPermissions
     {
         $registrar = $this->permissionRegistrar();
         $context = $this->permissionAssignmentContext($registrar);
+        $registrar->ensureTeamIsSelectedForMutation($context);
 
         $allowedIds = $this->collectPermissions($allowed, $context->partition);
         $deniedIds = $this->collectPermissions($denied, $context->partition);
@@ -1613,9 +1707,9 @@ trait HasPermissions
             $this->unsetRelation('permissions');
 
             if ($this instanceof Role) {
-                $registrar->forgetCachedPermissionsFor($context->partition);
+                $registrar->invalidatePermissionCatalogAfterMutation($context->partition);
             } else {
-                $registrar->forgetModelPermissionCacheFor(
+                $registrar->invalidateModelPermissionCacheAfterMutation(
                     $this,
                     $context->partition,
                     $context->team,
@@ -1641,6 +1735,7 @@ trait HasPermissions
     {
         $registrar = $this->permissionRegistrar();
         $context = $this->permissionAssignmentContext($registrar);
+        $registrar->ensureTeamIsSelectedForMutation($context);
         $storedPermission = $this->getStoredPermission($permission, $context->partition);
         $permissions = $this->collectPermissions($storedPermission, $context->partition);
 
@@ -1665,9 +1760,9 @@ trait HasPermissions
 
         if ($detached > 0) {
             if ($this instanceof Role) {
-                $registrar->forgetCachedPermissionsFor($context->partition);
+                $registrar->invalidatePermissionCatalogAfterMutation($context->partition);
             } else {
-                $registrar->forgetModelPermissionCacheFor(
+                $registrar->invalidateModelPermissionCacheAfterMutation(
                     $this,
                     $context->partition,
                     $context->team,

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Permission\Traits;
 
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Permission\Exceptions\PermissionPartitionViolation;
@@ -37,6 +38,14 @@ trait EnforcesPermissionPartition
     }
 
     /**
+     * Get the connection that owns permission pivots.
+     */
+    protected function getPivotConnection(): ConnectionInterface
+    {
+        return $this->permissionPartitionRegistrar->getPermissionConnection();
+    }
+
+    /**
      * Format an attachment record without allowing partition overrides.
      */
     protected function formatAttachRecord(
@@ -45,6 +54,7 @@ trait EnforcesPermissionPartition
         array $attributes,
         bool $hasTimestamps,
     ): array {
+        $this->ensureTeamIsSelectedForPivotMutation();
         $partition = $this->permissionRelationContext->partition;
 
         if (! $partition) {
@@ -65,6 +75,7 @@ trait EnforcesPermissionPartition
      */
     public function updateExistingPivot(mixed $id, array $attributes, bool $touch = true): int
     {
+        $this->ensureTeamIsSelectedForPivotMutation();
         $partition = $this->permissionRelationContext->partition;
 
         if (! $partition) {
@@ -75,6 +86,16 @@ trait EnforcesPermissionPartition
         unset($attributes[$partition->column]);
 
         return parent::updateExistingPivot($id, $attributes, $touch);
+    }
+
+    /**
+     * Detach pivot records within the captured permission context.
+     */
+    public function detach(mixed $ids = null, bool $touch = true): int
+    {
+        $this->ensureTeamIsSelectedForPivotMutation();
+
+        return parent::detach($ids, $touch);
     }
 
     /**
@@ -139,6 +160,16 @@ trait EnforcesPermissionPartition
                 $attributes[$partition->column],
             );
         }
+    }
+
+    /**
+     * Ensure a team-scoped pivot mutation has a selected team.
+     */
+    private function ensureTeamIsSelectedForPivotMutation(): void
+    {
+        $this->permissionPartitionRegistrar->ensureTeamIsSelectedForMutation(
+            $this->permissionRelationContext,
+        );
     }
 
     /**
