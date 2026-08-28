@@ -394,11 +394,13 @@ class Builder
             return $engine->simplePaginateUsingDatabase($this, $perPage, $pageName, $page)->appends('query', $this->query);
         }
 
-        $rawResults = $engine->paginate($this, $perPage, $page);
+        $rawResults = $this->applyAfterRawSearchCallback(
+            $engine->paginate($this, $perPage, $page)
+        );
         /** @var array<TModel> $mappedModels */
         $mappedModels = $engine->map(
             $this,
-            $this->applyAfterRawSearchCallback($rawResults),
+            $rawResults,
             $this->model
         )->all();
         $results = $this->model->newCollection($mappedModels);
@@ -412,7 +414,7 @@ class Builder
                 'pageName' => $pageName,
             ],
         ])->hasMorePagesWhen(
-            ($perPage * $page) < $engine->getTotalCount($rawResults)
+            ($perPage * $page) < $this->getTotalCount($rawResults)
         )->appends('query', $this->query);
     }
 
@@ -437,11 +439,13 @@ class Builder
             return $engine->paginateUsingDatabase($this, $perPage, $pageName, $page)->appends('query', $this->query);
         }
 
-        $rawResults = $engine->paginate($this, $perPage, $page);
+        $rawResults = $this->applyAfterRawSearchCallback(
+            $engine->paginate($this, $perPage, $page)
+        );
         /** @var array<TModel> $mappedModels */
         $mappedModels = $engine->map(
             $this,
-            $this->applyAfterRawSearchCallback($rawResults),
+            $rawResults,
             $this->model
         )->all();
         $results = $this->model->newCollection($mappedModels);
@@ -529,7 +533,7 @@ class Builder
                 'pageName' => $pageName,
             ],
         ])->hasMorePagesWhen(
-            ($perPage * $page) < $engine->getTotalCount($results)
+            ($perPage * $page) < $this->getTotalCount($results)
         )->appends('query', $this->query);
     }
 
