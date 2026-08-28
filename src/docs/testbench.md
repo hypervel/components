@@ -598,6 +598,7 @@ Hypervel's normal testing traits may be used in Testbench tests:
 ```php
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Foundation\Testing\DatabaseTransactions;
+use Hypervel\Foundation\Testing\DatabaseTruncation;
 use Hypervel\Foundation\Testing\LazilyRefreshDatabase;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 ```
