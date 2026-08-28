@@ -10,6 +10,7 @@ use Exception;
 use Hypervel\Contracts\Database\Eloquent\Builder as BuilderContract;
 use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Concerns\BuildsQueries;
 use Hypervel\Database\Eloquent\Concerns\QueriesRelationships;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
@@ -260,7 +261,7 @@ class Builder implements BuilderContract
         }
 
         if (is_array($id) || $id instanceof Arrayable) {
-            if (in_array($this->model->getKeyType(), ['int', 'integer'])) {
+            if (in_array($this->model->getKeyType(), ['int', 'integer'], true)) {
                 $this->query->whereIntegerInRaw($this->model->getQualifiedKeyName(), $id);
             } else {
                 $this->query->whereIn($this->model->getQualifiedKeyName(), $id);
@@ -269,7 +270,7 @@ class Builder implements BuilderContract
             return $this;
         }
 
-        if ($id !== null && $this->model->getKeyType() === 'string') {
+        if ($id !== null && $this->model->getKeyType() === 'string' && ! $id instanceof BinaryParameter) {
             $id = (string) $id;
         }
 
@@ -286,7 +287,7 @@ class Builder implements BuilderContract
         }
 
         if (is_array($id) || $id instanceof Arrayable) {
-            if (in_array($this->model->getKeyType(), ['int', 'integer'])) {
+            if (in_array($this->model->getKeyType(), ['int', 'integer'], true)) {
                 $this->query->whereIntegerNotInRaw($this->model->getQualifiedKeyName(), $id);
             } else {
                 $this->query->whereNotIn($this->model->getQualifiedKeyName(), $id);
@@ -295,7 +296,7 @@ class Builder implements BuilderContract
             return $this;
         }
 
-        if ($id !== null && $this->model->getKeyType() === 'string') {
+        if ($id !== null && $this->model->getKeyType() === 'string' && ! $id instanceof BinaryParameter) {
             $id = (string) $id;
         }
 
