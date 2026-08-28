@@ -31,7 +31,9 @@ use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Hashing\Hasher as HashContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Query\Builder;
 use Hypervel\Foundation\Auth\User as FoundationUser;
 use Hypervel\Http\Request;
 use Hypervel\Support\Facades\Auth as AuthFacade;
@@ -328,7 +330,7 @@ class AuthManagerTest extends TestCase
         $this->assertFalse((new ReflectionProperty(TokenGuard::class, 'hash'))->getValue($guard));
     }
 
-    public function testCreateDatabaseUserProvider()
+    public function testCreateDatabaseUserProvider(): void
     {
         $manager = new AuthManager($container = $this->getContainer());
 
@@ -339,19 +341,30 @@ class AuthManagerTest extends TestCase
                 'table' => 'users',
             ]);
 
-        $db = m::mock();
-        $db->shouldReceive('connection')
+        $query = m::mock(Builder::class);
+        $query->shouldReceive('find')->once()->with(1)->andReturn(null);
+        $connection = m::mock(ConnectionInterface::class);
+        $connection->shouldReceive('table')->once()->with('users')->andReturn($query);
+        $resolutions = 0;
+        $database = m::mock(ConnectionResolverInterface::class);
+        $database->shouldReceive('connection')
             ->with('foo')
             ->once()
-            ->andReturn(m::mock(ConnectionInterface::class));
+            ->andReturnUsing(function () use (&$resolutions, $connection) {
+                ++$resolutions;
 
-        $container->instance('db', $db);
+                return $connection;
+            });
+
+        $container->instance('db', $database);
         $container->instance('hash', m::mock(HashContract::class));
 
-        $this->assertInstanceOf(
-            DatabaseUserProvider::class,
-            $manager->createUserProvider('foo')
-        );
+        $provider = $manager->createUserProvider('foo');
+
+        $this->assertInstanceOf(DatabaseUserProvider::class, $provider);
+        $this->assertSame(0, $resolutions);
+        $this->assertNull($provider->retrieveById(1));
+        $this->assertSame(1, $resolutions);
     }
 
     public function testDatabaseUserProviderUsesDefaultConnectionWhenOmitted(): void
@@ -360,17 +373,21 @@ class AuthManagerTest extends TestCase
             'driver' => 'database',
             'table' => 'users',
         ]);
-        $database = m::mock();
+        $query = m::mock(Builder::class);
+        $query->shouldReceive('find')->once()->with(1)->andReturn(null);
+        $connection = m::mock(ConnectionInterface::class);
+        $connection->shouldReceive('table')->once()->with('users')->andReturn($query);
+        $database = m::mock(ConnectionResolverInterface::class);
         $database->shouldReceive('connection')
             ->once()
             ->with(null)
-            ->andReturn(m::mock(ConnectionInterface::class));
+            ->andReturn($connection);
         $this->app->instance('db', $database);
 
-        $this->assertInstanceOf(
-            DatabaseUserProvider::class,
-            (new AuthManager($this->app))->createUserProvider('database'),
-        );
+        $provider = (new AuthManager($this->app))->createUserProvider('database');
+
+        $this->assertInstanceOf(DatabaseUserProvider::class, $provider);
+        $this->assertNull($provider->retrieveById(1));
     }
 
     public function testDatabaseUserProviderRequiresDeclaredTable(): void
@@ -378,11 +395,8 @@ class AuthManagerTest extends TestCase
         $this->app->make('config')->set('auth.providers.incomplete', [
             'driver' => 'database',
         ]);
-        $database = m::mock();
-        $database->shouldReceive('connection')
-            ->once()
-            ->with(null)
-            ->andReturn(m::mock(ConnectionInterface::class));
+        $database = m::mock(ConnectionResolverInterface::class);
+        $database->shouldNotReceive('connection');
         $this->app->instance('db', $database);
 
         $this->expectException(ErrorException::class);

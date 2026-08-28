@@ -285,6 +285,81 @@ class ConnectionTest extends TestCase
         $this->assertSame([2.0], $client->writeTimeouts);
     }
 
+    public function testDeadlineExpiringBeforeNativeSendDoesNotTerminateTheConnection(): void
+    {
+        $now = 0;
+        $deadline = Deadline::usingClock(
+            1_000_000_000,
+            static function () use (&$now): int {
+                return $now;
+            },
+        );
+        $client = new ConnectionTestClient;
+        $factory = new ConnectionTestClientFactory($client);
+        $connection = $this->connection($factory);
+        $expired = $this->state($deadline);
+
+        $connection->start(
+            function () use (&$now): Request {
+                $now = 1_000_000_000;
+
+                return $this->request();
+            },
+            $expired,
+            $deadline,
+        );
+
+        $this->assertSame(StatusCode::DeadlineExceeded, $expired->status()->code());
+        $this->assertSame([], $client->sentRequests);
+        $this->assertTrue($connection->isAccepting());
+        $this->assertSame(0, $client->closeCount);
+
+        $sibling = $this->state();
+        $this->start($connection, $this->request(), $sibling);
+        $client->respond($this->trailersOnly(1));
+
+        $this->assertSame(StatusCode::Ok, $sibling->status()->code());
+        $this->assertCount(1, $factory->calls);
+        $this->assertCount(1, $client->sentRequests);
+    }
+
+    public function testDeadlineExpiringBeforeNativeWriteDoesNotTerminateHealthySiblingCalls(): void
+    {
+        $client = new ConnectionTestClient;
+        $connection = $this->connection(new ConnectionTestClientFactory($client));
+        $expired = $this->state();
+        $sibling = $this->state();
+        $this->start($connection, $this->request(pipeline: true), $expired);
+        $this->start($connection, $this->request(pipeline: true), $sibling);
+        $clockReads = 0;
+        $deadline = Deadline::usingClock(
+            1_000_000_000,
+            static function () use (&$clockReads): int {
+                return ++$clockReads >= 3 ? 1_000_000_000 : 0;
+            },
+        );
+
+        try {
+            $connection->write($expired, 'expired', false, $deadline);
+            $this->fail('Expected the local write deadline to expire.');
+        } catch (RpcException $exception) {
+            $this->assertSame(StatusCode::DeadlineExceeded, $exception->status()->code());
+        }
+
+        $this->assertSame(StatusCode::DeadlineExceeded, $expired->status()->code());
+        $this->assertSame([], $client->writes);
+        $this->assertFalse($connection->isClosed());
+        $this->assertSame(0, $client->closeCount);
+
+        $connection->write($sibling, 'healthy', false, Deadline::fromTimeout(null));
+        $client->respond($this->trailersOnly(3));
+
+        $this->assertSame(StatusCode::Ok, $sibling->status()->code());
+        $this->assertSame([
+            ['stream_id' => 3, 'data' => 'healthy', 'end' => false],
+        ], $client->writes);
+    }
+
     public function testHalfClosingRequestBodyKeepsStreamOpenUntilTerminalResponse(): void
     {
         $client = new ConnectionTestClient;

@@ -6,17 +6,25 @@ namespace Hypervel\Container\Attributes;
 
 use Attribute;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Container\ContextualAttribute;
+use Hypervel\Contracts\Container\ExecutionScopedAttribute;
 use ReflectionParameter;
 
 #[Attribute(Attribute::TARGET_PARAMETER)]
-class RouteParameter implements ContextualAttribute
+class RouteParameter implements ExecutionScopedAttribute
 {
     /**
      * Create a new class instance.
      */
     public function __construct(public ?string $parameter = null)
     {
+    }
+
+    /**
+     * Determine whether the resolved value belongs to the current execution.
+     */
+    public function isExecutionScoped(): bool
+    {
+        return true;
     }
 
     /**

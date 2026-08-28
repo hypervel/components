@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Filesystem;
 
 use Hypervel\Contracts\Filesystem\Filesystem;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
@@ -24,9 +25,30 @@ class ReceiveFileTest extends TestCase
                 'receive-file-test%2F.txt',
                 'nested/folder/receive-file-test.txt',
             ]);
+            Storage::disk('scoped-upload')->delete('receive-file-test.txt');
         });
 
         parent::setUp();
+    }
+
+    /**
+     * Set up the application environment.
+     */
+    protected function defineEnvironment(ApplicationContract $app): void
+    {
+        $app->make('config')->set([
+            'filesystems.disks.served-upload' => [
+                'driver' => 'local',
+                'root' => $app->storagePath('app/served-upload'),
+                'url' => '/served-upload',
+                'serve' => true,
+            ],
+            'filesystems.disks.scoped-upload' => [
+                'driver' => 'scoped',
+                'disk' => 'served-upload',
+                'prefix' => 'tenant',
+            ],
+        ]);
     }
 
     public function testItCanReceiveAFile()
@@ -37,6 +59,26 @@ class ReceiveFileTest extends TestCase
 
         $response->assertNoContent();
         Storage::assertExists('receive-file-test.txt', 'Hello World');
+    }
+
+    public function testScopedDiskUploadsThroughItsServedParentRoute(): void
+    {
+        $result = Storage::disk('scoped-upload')
+            ->temporaryUploadUrl('receive-file-test.txt', now()->addMinutes(1));
+
+        $this->assertStringContainsString(
+            '/served-upload/tenant/receive-file-test.txt',
+            $result['url'],
+        );
+
+        $response = $this->call('PUT', $result['url'], [], [], [], [], 'Hello Scoped Upload');
+
+        $response->assertNoContent();
+        Storage::disk('scoped-upload')->assertExists('receive-file-test.txt', 'Hello Scoped Upload');
+        Storage::disk('served-upload')->assertExists(
+            'tenant/receive-file-test.txt',
+            'Hello Scoped Upload',
+        );
     }
 
     public function testStorageFailureReturnsServerError(): void

@@ -7,6 +7,7 @@ namespace Hypervel\Auth\Passwords;
 use Hypervel\Contracts\Auth\CanResetPassword as CanResetPasswordContract;
 use Hypervel\Contracts\Hashing\Hasher as HasherContract;
 use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
@@ -17,17 +18,21 @@ class DatabaseTokenRepository implements TokenRepositoryInterface
     /**
      * Create a new token repository instance.
      *
+     * Cached repositories should receive a resolver because a concrete pooled
+     * connection is returned to its pool when the owning coroutine ends.
+     *
      * @param int $expires the number of seconds a token should remain valid
      * @param int $throttle minimum number of seconds before the user can generate new password reset tokens
      */
     public function __construct(
-        protected ConnectionInterface $connection,
+        protected ConnectionInterface|ConnectionResolverInterface $connection,
         protected HasherContract $hasher,
         protected string $table,
         #[SensitiveParameter]
         protected string $hashKey,
         protected int $expires = 3600,
         protected int $throttle = 60,
+        protected ?string $connectionName = null,
     ) {
     }
 
@@ -147,6 +152,10 @@ class DatabaseTokenRepository implements TokenRepositoryInterface
      */
     public function getConnection(): ConnectionInterface
     {
+        if ($this->connection instanceof ConnectionResolverInterface) {
+            return $this->connection->connection($this->connectionName);
+        }
+
         return $this->connection;
     }
 
@@ -155,7 +164,7 @@ class DatabaseTokenRepository implements TokenRepositoryInterface
      */
     protected function getTable(): Builder
     {
-        return $this->connection->table($this->table);
+        return $this->getConnection()->table($this->table);
     }
 
     /**

@@ -1020,6 +1020,8 @@ class AppServiceProvider extends ServiceProvider
 }
 ```
 
+Database-backed providers that remain cached between requests should accept a `Hypervel\Database\ConnectionResolverInterface` and keep the configured connection name separately. Resolve the connection when each database operation begins instead of constructing the provider with `$app->make('db')->connection(...)`; a pooled connection belongs to the coroutine that borrowed it.
+
 After you have registered the provider using the `provider` method, you may switch to the new user provider in your `auth.php` configuration file. First, define a `provider` that uses your new driver:
 
 ```php

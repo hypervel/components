@@ -27,7 +27,7 @@ use Hypervel\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Hypervel\Contracts\Auth\Guard as GuardContract;
 use Hypervel\Contracts\Container\ContextualAttribute;
 use Hypervel\Contracts\Filesystem\Filesystem;
-use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Filesystem\FilesystemManager;
@@ -166,6 +166,8 @@ class ContextualAttributeBindingTest extends TestCase
             return $manager;
         });
 
+        $this->assertTrue($container->isScoped(AuthedTest::class));
+
         $container->make(AuthedTest::class);
     }
 
@@ -184,6 +186,9 @@ class ContextualAttributeBindingTest extends TestCase
 
             return $manager;
         });
+
+        $this->assertTrue($container->isScoped(CacheTest::class));
+        $this->assertFalse($container->isScoped(OrdinaryCacheTest::class));
 
         $container->make(CacheTest::class);
     }
@@ -207,12 +212,14 @@ class ContextualAttributeBindingTest extends TestCase
         $container = new Container;
         $container->singleton('db', function () {
             $manager = m::mock(DatabaseManager::class);
-            $manager->shouldReceive('connection')->with('foo')->andReturn(m::mock(Connection::class));
-            $manager->shouldReceive('connection')->with('bar')->andReturn(m::mock(Connection::class));
-            $manager->shouldReceive('connection')->with(DatabaseConnectionIntegerBackedEnum::Zero)->andReturn(m::mock(Connection::class));
+            $manager->shouldReceive('connection')->with('foo')->andReturn(m::mock(ConnectionInterface::class));
+            $manager->shouldReceive('connection')->with('bar')->andReturn(m::mock(ConnectionInterface::class));
+            $manager->shouldReceive('connection')->with(DatabaseConnectionIntegerBackedEnum::Zero)->andReturn(m::mock(ConnectionInterface::class));
 
             return $manager;
         });
+
+        $this->assertTrue($container->isScoped(DatabaseTest::class));
 
         $container->make(DatabaseTest::class);
     }
@@ -284,6 +291,8 @@ class ContextualAttributeBindingTest extends TestCase
             return $request;
         });
 
+        $this->assertTrue($container->isScoped(RouteParameterTest::class));
+
         $container->make(RouteParameterTest::class);
     }
 
@@ -306,6 +315,8 @@ class ContextualAttributeBindingTest extends TestCase
         $container = new Container;
 
         ContextRepository::getInstance()->add('foo', 'foo');
+
+        $this->assertTrue($container->isScoped(ContextTest::class));
 
         $instance = $container->make(ContextTest::class);
 
@@ -664,6 +675,13 @@ final class CacheTest
     }
 }
 
+final class OrdinaryCacheTest
+{
+    public function __construct(#[Cache('foo')] CacheRepository $cache)
+    {
+    }
+}
+
 final class ConfigTest
 {
     public function __construct(#[Config('foo')] string $foo, #[Config('bar')] string $bar)
@@ -689,11 +707,11 @@ final class DatabaseTest
 {
     public function __construct(
         #[Database('foo')]
-        Connection $foo,
+        ConnectionInterface $foo,
         #[Database('bar')]
-        Connection $bar,
+        ConnectionInterface $bar,
         #[Database(DatabaseConnectionIntegerBackedEnum::Zero)]
-        Connection $integerBacked,
+        ConnectionInterface $integerBacked,
     ) {
     }
 }

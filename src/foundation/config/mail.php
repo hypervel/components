@@ -30,9 +30,9 @@ return [
     | when delivering an email. You may specify which one you're using for
     | your mailers below. You may also add additional mailers if needed.
     |
-    | Supported: "smtp", "sendmail", "mailgun", "ses-v2",
-    |            "postmark", "resend", "cloudflare", "log",
-    |            "array", "failover", "roundrobin"
+    | Supported: "smtp", "sendmail", "mail", "mailgun",
+    |            "ses-v2", "postmark", "resend", "cloudflare",
+    |            "log", "array", "failover", "roundrobin"
     |
     | A null SMTP scheme is inferred from its port, while a null timeout leaves
     | the transport default unchanged. A null log channel uses the default log

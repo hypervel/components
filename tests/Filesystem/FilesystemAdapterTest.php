@@ -35,6 +35,8 @@ use League\Flysystem\UnableToWriteFile;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\ExpectationFailedException;
+use RuntimeException;
+use stdClass;
 use Swoole\Runtime;
 
 class FilesystemAdapterTest extends TestCase
@@ -511,7 +513,7 @@ class FilesystemAdapterTest extends TestCase
         $this->assertNull($filesystemAdapter->readStream('nonexistent.txt'));
     }
 
-    public function testReadStreamRangePositionsASeekableStream(): void
+    public function testReadStreamRangeBoundsASeekableStream(): void
     {
         $this->filesystem->write('file.txt', '0123456789');
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
@@ -519,8 +521,22 @@ class FilesystemAdapterTest extends TestCase
         $stream = $filesystemAdapter->readStreamRange('file.txt', 3, 5);
 
         $this->assertIsResource($stream);
-        $this->assertSame('3456789', stream_get_contents($stream));
+        $this->assertSame('345', stream_get_contents($stream));
         fclose($stream);
+    }
+
+    public function testReadStreamRangeBoundsRangesBeginningAtZeroAndSingleBytes(): void
+    {
+        $this->filesystem->write('file.txt', '0123456789');
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+
+        foreach ([[0, 2, '012'], [4, 4, '4']] as [$start, $end, $expected]) {
+            $stream = $filesystemAdapter->readStreamRange('file.txt', $start, $end);
+
+            $this->assertIsResource($stream);
+            $this->assertSame($expected, stream_get_contents($stream));
+            fclose($stream);
+        }
     }
 
     public function testReadStreamRangeResolvesSuffixAgainstFileSize(): void
@@ -532,6 +548,30 @@ class FilesystemAdapterTest extends TestCase
 
         $this->assertIsResource($stream);
         $this->assertSame('789', stream_get_contents($stream));
+        fclose($stream);
+    }
+
+    public function testReadStreamRangeAllowsASuffixLargerThanTheFile(): void
+    {
+        $this->filesystem->write('file.txt', '0123456789');
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+
+        $stream = $filesystemAdapter->readStreamRange('file.txt', null, 20);
+
+        $this->assertIsResource($stream);
+        $this->assertSame('0123456789', stream_get_contents($stream));
+        fclose($stream);
+    }
+
+    public function testReadStreamRangeLeavesOpenEndedRangesUnbounded(): void
+    {
+        $this->filesystem->write('file.txt', '0123456789');
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+
+        $stream = $filesystemAdapter->readStreamRange('file.txt', 3, null);
+
+        $this->assertIsResource($stream);
+        $this->assertSame('3456789', stream_get_contents($stream));
         fclose($stream);
     }
 
@@ -584,39 +624,90 @@ class FilesystemAdapterTest extends TestCase
 
         $stream = $filesystemAdapter->readStreamRange('file.txt', 3, 5);
 
-        $this->assertSame($reader, $stream);
-        $this->assertSame('3456789', stream_get_contents($stream));
+        $this->assertIsResource($stream);
+        $this->assertNotSame($reader, $stream);
+        $this->assertSame('345', stream_get_contents($stream));
         fclose($stream);
+        $this->assertFalse(is_resource($reader));
     }
 
-    public function testReadStreamRangeRejectsAnEmptyReadBeforeEof(): void
+    public function testReadStreamRangeClosesTheSourceWithABoundedWrapper(): void
     {
-        Runtime::enableCoroutine(0);
-        $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
-        $this->assertIsArray($sockets);
-        [$reader, $writer] = $sockets;
-        $this->assertTrue(stream_set_blocking($reader, false));
-        $this->assertFalse(stream_get_meta_data($reader)['seekable']);
+        $source = tmpfile();
+        $this->assertIsResource($source);
+        fwrite($source, '0123456789');
+        rewind($source);
+        $filesystemAdapter = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])->makePartial();
+        $filesystemAdapter->shouldReceive('readStream')->once()->with('file.txt')->andReturn($source);
+
+        $stream = $filesystemAdapter->readStreamRange('file.txt', 3, 5);
+
+        $this->assertIsResource($stream);
+        fclose($stream);
+        $this->assertFalse(is_resource($source));
+    }
+
+    public function testReadStreamRangeReturnsNullAndClosesAStalledStreamByDefault(): void
+    {
+        [$reader, $writer] = $this->openStalledNonSeekableStream();
         $filesystemAdapter = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])->makePartial();
         $filesystemAdapter->shouldReceive('readStream')->once()->with('file.txt')->andReturn($reader);
 
+        $this->assertNull($filesystemAdapter->readStreamRange('file.txt', 3, 5));
+
+        $this->assertFalse(is_resource($reader));
+        fclose($writer);
+    }
+
+    public function testReadStreamRangeThrowsAndClosesAStalledStreamWhenConfigured(): void
+    {
+        [$reader, $writer] = $this->openStalledNonSeekableStream();
+        $filesystemAdapter = m::mock(
+            FilesystemAdapter::class,
+            [$this->filesystem, $this->adapter, ['throw' => true]],
+        )->makePartial();
+        $filesystemAdapter->shouldReceive('readStream')->once()->with('file.txt')->andReturn($reader);
+        $failure = null;
+
         try {
             $filesystemAdapter->readStreamRange('file.txt', 3, 5);
-            $this->fail('Expected the stalled stream to be rejected.');
         } catch (UnableToReadFile $exception) {
-            $this->assertStringContainsString(
-                'The stream returned no data while positioning at the requested range.',
-                $exception->getMessage(),
-            );
+            $failure = $exception;
         } finally {
-            if (is_resource($reader)) {
-                fclose($reader);
-            }
-
             fclose($writer);
         }
 
+        $this->assertInstanceOf(UnableToReadFile::class, $failure);
+        $this->assertInstanceOf(RuntimeException::class, $failure->getPrevious());
+        $this->assertStringContainsString(
+            'The stream returned no data while positioning at the requested range.',
+            $failure->getMessage(),
+        );
         $this->assertFalse(is_resource($reader));
+    }
+
+    public function testReadStreamRangeReportsAndClosesAStalledStreamWhenConfigured(): void
+    {
+        [$reader, $writer] = $this->openStalledNonSeekableStream();
+        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler->shouldReceive('report')
+            ->once()
+            ->withArgs(static function (UnableToReadFile $exception): bool {
+                self::assertInstanceOf(RuntimeException::class, $exception->getPrevious());
+
+                return true;
+            });
+        Container::getInstance()->bind(ExceptionHandler::class, static fn () => $exceptionHandler);
+        $filesystemAdapter = m::mock(
+            FilesystemAdapter::class,
+            [$this->filesystem, $this->adapter, ['report' => true]],
+        )->makePartial();
+        $filesystemAdapter->shouldReceive('readStream')->once()->with('file.txt')->andReturn($reader);
+
+        $this->assertNull($filesystemAdapter->readStreamRange('file.txt', 3, 5));
+
+        $this->assertFalse(is_resource($reader));
+        fclose($writer);
     }
 
     public function testStreamInvalidResourceThrows()
@@ -891,6 +982,31 @@ class FilesystemAdapterTest extends TestCase
             ['kind' => 'local-static'],
             $filesystemAdapter->temporaryUploadUrl('file.txt', $expiration),
         );
+    }
+
+    public function testDirectLocalAdapterWithoutADiskNameReportsUnsupportedServingCapabilities(): void
+    {
+        $filesystemAdapter = (new HypervelLocalFilesystemAdapter($this->filesystem, $this->adapter))
+            ->shouldServeSignedUrls(true, static fn (): object => new stdClass);
+
+        $this->assertFalse($filesystemAdapter->providesTemporaryUrls());
+        $this->assertFalse($filesystemAdapter->providesTemporaryUploadUrls());
+
+        foreach ([
+            'This driver does not support creating temporary URLs.' => fn () => $filesystemAdapter->temporaryUrl('file.txt', now()->addMinute()),
+            'This driver does not support creating temporary upload URLs.' => fn () => $filesystemAdapter->temporaryUploadUrl('file.txt', now()->addMinute()),
+        ] as $expectedMessage => $operation) {
+            $failure = null;
+
+            try {
+                $operation();
+            } catch (RuntimeException $exception) {
+                $failure = $exception;
+            }
+
+            $this->assertInstanceOf(RuntimeException::class, $failure);
+            $this->assertSame($expectedMessage, $failure->getMessage());
+        }
     }
 
     public function testCallbackMutatorsCanClearPreviouslyConfiguredCallbacks(): void
@@ -1396,6 +1512,23 @@ class FilesystemAdapterTest extends TestCase
         ));
 
         return $content;
+    }
+
+    /**
+     * Open a non-seekable stream that currently has no readable data.
+     *
+     * @return array{0: resource, 1: resource}
+     */
+    private function openStalledNonSeekableStream(): array
+    {
+        Runtime::enableCoroutine(0);
+        $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+        $this->assertIsArray($sockets);
+        [$reader, $writer] = $sockets;
+        $this->assertTrue(stream_set_blocking($reader, false));
+        $this->assertFalse(stream_get_meta_data($reader)['seekable']);
+
+        return [$reader, $writer];
     }
 }
 

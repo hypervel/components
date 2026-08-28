@@ -27,6 +27,7 @@
     - [Pagination](#pagination)
     - [Dates](#dates)
     - [UUIDs](#uuids)
+    - [Filesystem](#filesystem)
 - [Database, Cache, Sessions, and Queues](#database-cache-sessions-and-queues)
     - [Database](#database)
     - [Redis](#redis)
@@ -510,6 +511,13 @@ Hypervel's `Str` UUID methods, factories, sequences, and freeze callbacks use `S
 
 Hypervel's `Str::orderedUuid()` returns a UUIDv7, while Laravel returns a timestamp-first COMB UUIDv4. Review code that validates UUID versions or depends on the exact ordering produced by this method.
 
+<a name="filesystem"></a>
+### Filesystem
+
+Hypervel's `Filesystem::hash()` method uses `xxh128` by default. Pass `md5` explicitly when a port requires Laravel-compatible digests.
+
+Unlike Laravel, Hypervel honors `read-only` on scoped disk records. Remove that option from any scoped disk that must accept writes.
+
 <a name="database-cache-sessions-and-queues"></a>
 ## Database, Cache, Sessions, and Queues
 
@@ -521,6 +529,8 @@ Hypervel's drivers are designed around its Swoole runtime and do not mirror ever
 Hypervel supports MySQL, MariaDB, PostgreSQL, and SQLite database connections. SQL Server, MongoDB, and DynamoDB database integrations are not supported.
 
 Database connections are persistent, pooled worker resources. Define every connection in `config/database.php` before the application boots. Dynamic connection creation through `DB::build()` and `DB::connectUsing()` is not supported. Review pool sizing and any database session state against the [database documentation](/docs/{{version}}/database#connection-pooling).
+
+When a package constructs `DatabaseStore`, `DatabaseSessionHandler`, `DatabaseQueue`, or `DatabaseBatchRepository` directly, pass the database connection resolver and configured connection name instead of retaining a resolved connection. Framework-configured drivers already use this form.
 
 Laravel's base `Connection` class exposes PDO methods. Hypervel's base `Connection` is driver-neutral, while its built-in SQL connections extend `PdoConnection`. Ported code that calls `getPdo`, `getReadPdo`, or another PDO-specific method should accept or narrow to `PdoConnection`. See [extending database connections](/docs/{{version}}/database#extending-database-connections) when porting a custom driver.
 
