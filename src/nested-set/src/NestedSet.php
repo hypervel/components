@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\NestedSet;
 
+use Hypervel\Database\ConnectionName;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
 
 class NestedSet
@@ -107,6 +109,40 @@ class NestedSet
 
         return static::$nodeClasses[$class]
             ??= in_array(HasNode::class, class_uses_recursive($class), true);
+    }
+
+    /**
+     * Get the model's logical nested set table identity.
+     */
+    public static function structuralIdentity(Model $model): string
+    {
+        $name = static::structuralConnectionName($model);
+
+        return strlen($name) . ':' . $name . ':' . $model->getTable();
+    }
+
+    /**
+     * Describe the model's logical nested set table.
+     */
+    public static function structuralDescription(Model $model): string
+    {
+        return sprintf(
+            'connection [%s] and table [%s]',
+            static::structuralConnectionName($model),
+            $model->getTable(),
+        );
+    }
+
+    /**
+     * Get the model's logical connection name.
+     */
+    protected static function structuralConnectionName(Model $model): string
+    {
+        $name = $model->getConnectionName()
+            ?: $model::getConnectionResolver()?->getDefaultConnection()
+            ?: 'default';
+
+        return ConnectionName::parse($name)->base;
     }
 
     /**
