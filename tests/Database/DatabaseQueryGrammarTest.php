@@ -162,6 +162,27 @@ class DatabaseQueryGrammarTest extends TestCase
         );
     }
 
+    public function testRawSqlBindingSubstitutionPreservesGrammarEscapeOverrideSignatureForBinaryParameters(): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
+        $grammar = new class($connection) extends Grammar {
+            public bool $usedBinaryEscape = false;
+
+            public function escape(string|float|int|bool|null $value, bool $binary = false): string
+            {
+                $this->usedBinaryEscape = $binary;
+
+                return parent::escape($value, $binary);
+            }
+        };
+
+        $this->assertSame(
+            "select x'00ff'",
+            $grammar->substituteBindingsIntoRawSql('select ?', [new BinaryParameter("\x00\xFF")])
+        );
+        $this->assertTrue($grammar->usedBinaryEscape);
+    }
+
     public function testRawSqlBindingSubstitutionHandlesLongBindingLists(): void
     {
         $bindings = range(1, 250);

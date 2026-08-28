@@ -212,7 +212,7 @@ abstract class Grammar
     /**
      * Escape a value for safe SQL embedding.
      */
-    public function escape(BinaryParameter|string|float|int|bool|null $value, bool $binary = false): string
+    public function escape(string|float|int|bool|null $value, bool $binary = false): string
     {
         return $this->connection->escape($value, $binary);
     }
