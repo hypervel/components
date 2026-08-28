@@ -217,7 +217,7 @@ Put one focused test class in `tests/NestedSet/` so the contract runs in an ordi
 
 ## 5. Prepare subtree repair and rebuild roots once
 
-Replace `assertRepairRootIsComplete()` with a shared `prepareRepairRoot(Model $root, string $operation): Model`, called independently by `fixTree()` and `rebuildTree()` when a root is present. `fixSubtree()` funnels through `fixTree()`; `rebuildSubtree()` funnels through `rebuildTree()`.
+Replace `assertRepairRootIsComplete()` with a shared `prepareRepairRoot(Model $root, string $operation): void`, called independently by `fixTree()` and `rebuildTree()` when a root is present. `fixSubtree()` funnels through `fixTree()`; `rebuildSubtree()` funnels through `rebuildTree()`.
 
 The helper returns `void` and prepares the supplied instance in place. It must:
 
