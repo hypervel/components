@@ -11,7 +11,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 /**
  * Tests for the on-disk scout config file defaults.
  *
- * Deliberately does NOT extend ScoutTestCase — that base class's setUp()
+ * Deliberately does NOT extend ScoutTestCase — that base class's environment
  * replaces the entire scout config array with a minimal fixture, so reading
  * config('scout.algolia') there tests the fixture, not the real defaults
  * shipped in src/scout/config/scout.php. Loading the file directly bypasses
