@@ -482,7 +482,7 @@ The `RouteParameter` attribute resolves the route parameter matching the variabl
 
 Pass `memo: true` to `Cache` to inject a request-scoped memoized repository. The optional `name` argument on `Log` creates a named logger and is supported by Monolog-backed channels. Driver identifiers accepted by `Auth`, `Authenticated`, `Cache`, `Log`, and `Storage` may also be unit or backed enum cases; Hypervel uses the unit case name or backed value as the identifier.
 
-When an unbound class directly injects execution-specific state through `Authenticated`, `CurrentUser`, `Context`, `Database`, `RouteParameter`, or a memoized `Cache`, the container keeps that class scoped to the current request or job. Explicit bindings and `#[Singleton]` or `#[Scoped]` attributes still control the class's lifetime.
+When an unbound class directly injects execution-specific state through `Authenticated`, `CurrentUser`, `Context`, `Database`, `RouteParameter`, or a memoized `Cache`, the container keeps that class scoped to the current request or job. Classes that implement `SelfBuilding` or `Transient` retain their own construction semantics instead. Explicit bindings and `#[Singleton]` or `#[Scoped]` attributes still control the class's lifetime.
 
 This scope belongs to the class that declares the contextual attribute; it is not copied through the dependency graph. If a longer-lived service retains a scoped dependency, make the service scoped as well or resolve the dependency when the operation runs.
 
