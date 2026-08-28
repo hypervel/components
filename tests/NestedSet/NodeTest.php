@@ -179,7 +179,7 @@ class NodeTest extends TestCase
         ];
     }
 
-    public function testFirstMoveDoesNotRefreshAFreshSourceNode(): void
+    public function testMovePreparesEachParticipantAtTheSaveBoundary(): void
     {
         $node = Category::findOrFail(3);
         $parent = Category::findOrFail(5);
@@ -187,10 +187,23 @@ class NodeTest extends TestCase
 
         $node->appendToNode($parent)->save();
 
-        $this->assertCount(3, DB::getQueryLog());
+        $this->assertSame(3, $this->countStructuralIdentityReloads());
     }
 
-    public function testSecondMoveRefreshesEachStaleParticipantOnlyOnce(): void
+    public function testMovingANewSourceDoesNotPreflightTheSource(): void
+    {
+        $parent = Category::findOrFail(5);
+        DB::flushQueryLog();
+
+        (new Category(['name' => 'new child']))
+            ->appendToNode($parent)
+            ->save();
+
+        $this->assertSame(2, $this->countStructuralIdentityReloads());
+        $this->assertTreeNotBroken();
+    }
+
+    public function testEveryMovePreparesEachParticipantOnlyOnce(): void
     {
         $firstSource = Category::findOrFail(3);
         $firstTarget = Category::findOrFail(5);
@@ -204,6 +217,51 @@ class NodeTest extends TestCase
 
         $this->assertSame(3, $this->countStructuralIdentityReloads());
         $this->assertTreeNotBroken();
+    }
+
+    #[DataProvider('deletedStructuralParticipants')]
+    public function testDeletedStructuralParticipantsFailBeforeWriting(string $participant): void
+    {
+        $source = Category::findOrFail(3);
+        $target = Category::findOrFail(5);
+
+        Category::query()->moveNode(11, 1);
+        DB::table('categories')
+            ->where('id', $participant === 'source' ? $source->getKey() : $target->getKey())
+            ->delete();
+
+        $columns = ['id', '_lft', '_rgt', 'parent_id', 'depth'];
+        $before = DB::table('categories')
+            ->orderBy('id')
+            ->get($columns)
+            ->map(static fn (object $row): array => (array) $row)
+            ->all();
+        $caught = null;
+
+        try {
+            $source->appendToNode($target)->save();
+            $this->fail('Expected the deleted structural participant to be rejected.');
+        } catch (ModelNotFoundException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertNotNull($caught);
+        $this->assertSame(
+            $before,
+            DB::table('categories')
+                ->orderBy('id')
+                ->get($columns)
+                ->map(static fn (object $row): array => (array) $row)
+                ->all(),
+        );
+    }
+
+    public static function deletedStructuralParticipants(): array
+    {
+        return [
+            'source' => ['source'],
+            'target' => ['target'],
+        ];
     }
 
     public function testReceivesValidValuesWhenAppendedTo(): void
@@ -299,6 +357,31 @@ class NodeTest extends TestCase
         $this->assertTrue($node->hasMoved());
         $this->assertTreeNotBroken();
         $this->assertNodeReceivesValidValues($node);
+    }
+
+    #[DataProvider('staleSiblingMovements')]
+    public function testSiblingMovementRereadsAfterAnEarlierStructuralShift(
+        string $method,
+        int $nodeId,
+    ): void {
+        $node = Category::findOrFail($nodeId);
+
+        Category::query()->moveNode(11, 1);
+
+        $this->assertTrue($node->{$method}());
+        $this->assertSame(
+            [4, 3],
+            Category::where('parent_id', 2)->defaultOrder()->pluck('id')->all(),
+        );
+        $this->assertTreeNotBroken();
+    }
+
+    public static function staleSiblingMovements(): array
+    {
+        return [
+            'move the first sibling down' => ['down', 3],
+            'move the second sibling up' => ['up', 4],
+        ];
     }
 
     #[DataProvider('structuralMovementCases')]
@@ -401,6 +484,36 @@ class NodeTest extends TestCase
         $this->assertTreeNotBroken();
     }
 
+    public function testPersistedMutationParticipantRequiresASelectedKey(): void
+    {
+        $node = Category::query()
+            ->select(['_lft', '_rgt', 'depth', 'parent_id'])
+            ->whereKey(2)
+            ->firstOrFail();
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            'Nested set model [Hypervel\Tests\NestedSet\Models\Category] requires the [id] column to be selected.',
+        );
+
+        $node->appendToNode(Category::findOrFail(5))->save();
+    }
+
+    public function testRefreshingPersistedNodeRequiresASelectedKey(): void
+    {
+        $node = Category::query()
+            ->select(['_lft', '_rgt', 'depth'])
+            ->whereKey(3)
+            ->firstOrFail();
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            'Nested set model [Hypervel\Tests\NestedSet\Models\Category] requires the [id] column to be selected.',
+        );
+
+        $node->refreshNode();
+    }
+
     public function testBeforeNodeRefreshesMissingTargetParentage(): void
     {
         $node = Category::findOrFail(6);
@@ -476,7 +589,7 @@ class NodeTest extends TestCase
         (new Category(['name' => 'test']))->appendToNode($target);
     }
 
-    public function testLowLevelStructuralWritesPublishFreshness(): void
+    public function testRefreshNodeReadsCurrentLowLevelStructuralWrites(): void
     {
         $node = Category::findOrFail(11);
 
@@ -491,22 +604,10 @@ class NodeTest extends TestCase
         $this->assertSame([1, 2], $node->getBounds());
     }
 
-    public function testRawNodePublishesFreshnessOnlyWhenStructureChanges(): void
+    public function testRawNodeWithCompleteScopeDoesNotPreflightPersistedIdentity(): void
     {
         $node = Category::findOrFail(3);
-        $observer = Category::findOrFail(4);
-
-        $node->rawNode(
-            $node->getLft(),
-            $node->getRgt(),
-            $node->getParentId(),
-            $node->getDepth(),
-        )->save();
-
         DB::flushQueryLog();
-        $observer->refreshNode();
-
-        $this->assertSame([], DB::getQueryLog());
 
         $node->rawNode(
             $node->getLft(),
@@ -515,10 +616,11 @@ class NodeTest extends TestCase
             $node->getDepth() + 1,
         )->save();
 
-        DB::flushQueryLog();
-        $observer->refreshNode();
-
-        $this->assertCount(1, DB::getQueryLog());
+        $this->assertSame(0, $this->countStructuralIdentityReloads());
+        $this->assertSame(
+            $node->getDepth(),
+            Category::findOrFail($node->getKey())->getDepth(),
+        );
     }
 
     #[DataProvider('structuralMutationMethods')]
@@ -825,6 +927,19 @@ class NodeTest extends TestCase
         $this->assertTrue($node->isRoot());
     }
 
+    public function testParentIdAppendResolvesTheParentOnlyOnce(): void
+    {
+        $node = new Category(['name' => 'new phone']);
+        $node->parent_id = 5;
+        DB::flushQueryLog();
+
+        $node->save();
+
+        $this->assertSame(1, $this->countStructuralIdentityReloads());
+        $this->assertSame(5, $node->getParentId());
+        $this->assertTreeNotBroken();
+    }
+
     public function testNodeIsDeletedWithDescendants(): void
     {
         $node = $this->findCategory('mobile');
@@ -1009,13 +1124,21 @@ class NodeTest extends TestCase
             $deleting[] = $model->getKey();
         });
 
-        EventedCategoryModel::findOrFail(5)->delete();
+        $node = EventedCategoryModel::findOrFail(5);
+        DB::flushQueryLog();
+
+        $node->delete();
 
         $this->assertSame([5, 10, 9, 8, 7, 6], $deleting);
 
         foreach ([5, 6, 7, 8, 9, 10] as $id) {
             $this->assertNotNull(EventedCategoryModel::withTrashed()->findOrFail($id)->deleted_at);
         }
+
+        $this->assertSame(4, count(array_filter(
+            array_column(DB::getQueryLog(), 'query'),
+            static fn (string $query): bool => str_contains($query, 'order by "_lft" desc limit 2'),
+        )));
     }
 
     public function testEventedDescendantDeletionPropagatesVetoesForTransactionRollback(): void
@@ -1243,7 +1366,7 @@ class NodeTest extends TestCase
         $this->assertEquals([6, 7, 9, 10], $this->getAll($nodes->find(7)->siblingsAndSelf->pluck('id')));
     }
 
-    public function testStrictSiblingRelationsTreatMissingModelKeyAsEmpty(): void
+    public function testStrictSiblingRelationsRequireASelectedParentKey(): void
     {
         $node = Category::query()
             ->select(['parent_id'])
@@ -1251,19 +1374,17 @@ class NodeTest extends TestCase
             ->firstOrFail();
 
         $this->assertNull($node->getKey());
-        $this->assertTrue($node->siblings()->get()->isEmpty());
         $this->assertSame(
             [3, 4],
             $node->siblingsAndSelf()->orderBy('id')->pluck('id')->all(),
         );
 
-        $node->load(['siblings', 'siblingsAndSelf']);
-
-        $this->assertTrue($node->siblings->isEmpty());
-        $this->assertSame(
-            [3, 4],
-            $node->siblingsAndSelf->pluck('id')->sort()->values()->all(),
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            'Nested set relation parent for [Hypervel\Tests\NestedSet\Models\Category] requires the [id] column.',
         );
+
+        $node->siblings()->get();
     }
 
     #[DataProvider('strictSiblingEagerParentIds')]
@@ -1273,7 +1394,7 @@ class NodeTest extends TestCase
 
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage(
-            'Nested set sibling matching for [Hypervel\Tests\NestedSet\Models\Category] requires the [id] column in the eager load projection.',
+            'Nested set relation eager load for [Hypervel\Tests\NestedSet\Models\Category] requires the [id] column.',
         );
 
         $nodes->load([
@@ -1296,7 +1417,7 @@ class NodeTest extends TestCase
 
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage(
-            'Nested set sibling matching for [Hypervel\Tests\NestedSet\Models\Category] requires the [parent_id] column in the eager load projection.',
+            'Nested set relation eager load for [Hypervel\Tests\NestedSet\Models\Category] requires the [parent_id] column.',
         );
 
         $nodes->load([
@@ -1312,38 +1433,23 @@ class NodeTest extends TestCase
         ];
     }
 
-    public function testSiblingRelationsTreatMissingParentageAsEmpty(): void
+    public function testSiblingRelationsRequireSelectedParentage(): void
     {
         $node = Category::query()->select(['id'])->findOrFail(7);
 
-        $this->assertTrue($node->siblings()->get()->isEmpty());
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            'Nested set relation parent for [Hypervel\Tests\NestedSet\Models\Category] requires the [parent_id] column.',
+        );
 
-        $nodes = Category::query()
-            ->select(['id'])
-            ->whereIn('id', [3, 7])
-            ->get();
-
-        $nodes->load(['siblings', 'siblingsAndSelf']);
-
-        foreach ($nodes as $partial) {
-            $this->assertTrue($partial->siblings->isEmpty());
-            $this->assertTrue($partial->siblingsAndSelf->isEmpty());
-        }
-
-        $complete = Category::findOrFail(1);
-        $mixed = $complete->newCollection([$nodes->first(), $complete]);
-
-        $mixed->load('siblings');
-
-        $this->assertTrue($mixed->first()->siblings->isEmpty());
-        $this->assertSame([11], $complete->siblings->pluck('id')->all());
+        $node->siblings()->get();
     }
 
     #[DataProvider('eagerRelationParents')]
-    public function testPartialEagerParentDoesNotSuppressACompleteInstanceOfTheSameRow(
+    public function testPersistedPartialEagerParentsAreRejected(
         string $relation,
         int $parentId,
-        array $expected,
+        string $requiredColumn,
         bool $partialFirst,
     ): void {
         $partial = Category::query()->select(['id'])->findOrFail($parentId);
@@ -1352,62 +1458,110 @@ class NodeTest extends TestCase
             ? [$partial, $complete]
             : [$complete, $partial];
 
-        $complete->newCollection($models)->load($relation);
-
-        $this->assertTrue($partial->getRelation($relation)->isEmpty());
-        $this->assertSame(
-            $expected,
-            $complete->getRelation($relation)->pluck('id')->sort()->values()->all(),
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            "Nested set relation parent for [Hypervel\\Tests\\NestedSet\\Models\\Category] requires the [{$requiredColumn}] column.",
         );
+
+        $complete->newCollection($models)->load($relation);
     }
 
     public static function eagerRelationParents(): array
     {
         return [
-            'ancestors, partial first' => ['ancestors', 3, [1, 2], true],
-            'ancestors, complete first' => ['ancestors', 3, [1, 2], false],
-            'descendants, partial first' => ['descendants', 2, [3, 4], true],
-            'descendants, complete first' => ['descendants', 2, [3, 4], false],
-            'siblings, partial first' => ['siblings', 3, [4], true],
-            'siblings, complete first' => ['siblings', 3, [4], false],
-            'siblings and self, partial first' => ['siblingsAndSelf', 3, [3, 4], true],
-            'siblings and self, complete first' => ['siblingsAndSelf', 3, [3, 4], false],
+            'ancestors, partial first' => ['ancestors', 3, '_lft', true],
+            'ancestors, complete first' => ['ancestors', 3, '_lft', false],
+            'descendants, partial first' => ['descendants', 2, '_lft', true],
+            'descendants, complete first' => ['descendants', 2, '_lft', false],
+            'siblings, partial first' => ['siblings', 3, 'parent_id', true],
+            'siblings, complete first' => ['siblings', 3, 'parent_id', false],
+            'siblings and self, partial first' => ['siblingsAndSelf', 3, 'parent_id', true],
+            'siblings and self, complete first' => ['siblingsAndSelf', 3, 'parent_id', false],
         ];
     }
 
-    #[DataProvider('eagerRelationNames')]
-    public function testAllIncompleteEagerParentsSkipTheRelationQuery(string $relation): void
+    #[DataProvider('incompleteRelationParents')]
+    public function testIncompleteEagerParentsAreRejected(string $relation, string $requiredColumn): void
     {
         $nodes = Category::query()
             ->select(['id'])
             ->whereIn('id', [3, 7])
             ->get();
-        DB::flushQueryLog();
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            "Nested set relation parent for [Hypervel\\Tests\\NestedSet\\Models\\Category] requires the [{$requiredColumn}] column.",
+        );
 
         $nodes->load($relation);
-
-        $this->assertSame([], DB::getQueryLog());
-
-        foreach ($nodes as $node) {
-            $this->assertTrue($node->getRelation($relation)->isEmpty());
-        }
     }
 
-    #[DataProvider('eagerRelationNames')]
-    public function testIncompleteLazyParentsKeepTheirEmptyQueryConstraint(string $relation): void
+    #[DataProvider('incompleteRelationParents')]
+    public function testIncompleteLazyParentsAreRejected(string $relation, string $requiredColumn): void
     {
         $node = Category::query()->select(['id'])->findOrFail(7);
 
-        $this->assertStringContainsString('0 = 1', $node->{$relation}()->toSql());
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            "Nested set relation parent for [Hypervel\\Tests\\NestedSet\\Models\\Category] requires the [{$requiredColumn}] column.",
+        );
+
+        $node->{$relation}()->toSql();
     }
 
-    public static function eagerRelationNames(): array
+    #[DataProvider('relationNames')]
+    public function testUnsavedRelationParentsRemainEmpty(string $relation): void
+    {
+        $node = new Category;
+        DB::flushQueryLog();
+
+        $this->assertTrue($node->getRelationValue($relation)->isEmpty());
+        $this->assertSame([], DB::getQueryLog());
+    }
+
+    public static function relationNames(): array
+    {
+        return array_map(
+            static fn (array $case): array => [$case[0]],
+            static::incompleteRelationParents(),
+        );
+    }
+
+    public function testUnsavedDuplicateDoesNotSuppressACompleteEagerParent(): void
+    {
+        $complete = Category::findOrFail(3);
+        $unsaved = new Category;
+        $unsaved->setRawAttributes($complete->getAttributes(), true);
+
+        $models = new Collection([$unsaved, $complete]);
+        $models->load('ancestors');
+
+        $this->assertTrue($unsaved->ancestors->isEmpty());
+        $this->assertSame([1, 2], $complete->ancestors->pluck('id')->all());
+    }
+
+    #[DataProvider('incompleteRelationParents')]
+    public function testDestructiveRelationQueriesRejectIncompletePersistedParents(
+        string $relation,
+        string $requiredColumn,
+    ): void {
+        $node = Category::query()->select(['id'])->findOrFail(7);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            "Nested set relation parent for [Hypervel\\Tests\\NestedSet\\Models\\Category] requires the [{$requiredColumn}] column.",
+        );
+
+        $node->{$relation}()->delete();
+    }
+
+    public static function incompleteRelationParents(): array
     {
         return [
-            'ancestors' => ['ancestors'],
-            'descendants' => ['descendants'],
-            'siblings' => ['siblings'],
-            'siblings and self' => ['siblingsAndSelf'],
+            'ancestors' => ['ancestors', '_lft'],
+            'descendants' => ['descendants', '_lft'],
+            'siblings' => ['siblings', 'parent_id'],
+            'siblings and self' => ['siblingsAndSelf', 'parent_id'],
         ];
     }
 
@@ -1877,6 +2031,30 @@ class NodeTest extends TestCase
         $this->assertTreeNotBroken();
     }
 
+    public function testSavingNewExplicitRootAssignsValidBounds(): void
+    {
+        $node = new Category(['name' => 'explicit root']);
+        $node->parent_id = null;
+
+        $this->assertTrue($node->saveAsRoot());
+
+        $this->assertGreaterThan(0, $node->getLft());
+        $this->assertSame($node->getLft() + 1, $node->getRgt());
+        $this->assertSame(0, $node->getDepth());
+        $this->assertTreeNotBroken();
+    }
+
+    public function testMakeRootAlwaysRepositionsAnExistingRoot(): void
+    {
+        $node = Category::findOrFail(1);
+
+        $this->assertTrue($node->makeRoot()->save());
+
+        $this->assertSame([3, 22], $node->getBounds());
+        $this->assertNull($node->getParentId());
+        $this->assertTreeNotBroken();
+    }
+
     public function testAssigningNullParentToPartialChildDoesNotLookLikeAnExistingRoot(): void
     {
         $node = Category::query()->select(['id'])->findOrFail(7);
@@ -2049,7 +2227,7 @@ class NodeTest extends TestCase
         $this->assertEquals('test2', $node->children[0]->name);
     }
 
-    public function testCreatesTreeWithoutDuplicateIdentityReloads(): void
+    public function testRecursiveCreateUsesOnePreparationReadPerParticipantAndOneFinalRootRefresh(): void
     {
         DB::flushQueryLog();
 
@@ -2063,7 +2241,7 @@ class NodeTest extends TestCase
             ],
         ]);
 
-        $this->assertSame(8, $this->countStructuralIdentityReloads());
+        $this->assertSame(13, $this->countStructuralIdentityReloads());
         $this->assertTreeNotBroken();
     }
 
@@ -2072,29 +2250,6 @@ class NodeTest extends TestCase
         $node = new Category;
 
         $this->assertTrue($node->getDescendants()->isEmpty());
-    }
-
-    public function testPositionalRelationsTreatMissingBoundsAsEmpty(): void
-    {
-        $node = Category::query()->select(['id'])->findOrFail(7);
-
-        $this->assertTrue($node->ancestors()->get()->isEmpty());
-        $this->assertTrue($node->descendants()->get()->isEmpty());
-    }
-
-    public function testIncompleteBoundsDoNotReachEagerPositionalConstraints(): void
-    {
-        $nodes = Category::query()
-            ->select(['id'])
-            ->whereIn('id', [3, 7])
-            ->get();
-
-        $nodes->load(['ancestors', 'descendants']);
-
-        foreach ($nodes as $node) {
-            $this->assertTrue($node->ancestors->isEmpty());
-            $this->assertTrue($node->descendants->isEmpty());
-        }
     }
 
     #[DataProvider('nodeObjectPositionalQueries')]
@@ -2179,7 +2334,7 @@ class NodeTest extends TestCase
 
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage(
-            'Nested set node [Hypervel\Tests\NestedSet\Models\Category] uses store [7:testing:other_categories], but query model [Hypervel\Tests\NestedSet\Models\Category] uses store [7:testing:categories].',
+            'Nested set node [Hypervel\Tests\NestedSet\Models\Category] uses connection [testing] and table [other_categories], but query model [Hypervel\Tests\NestedSet\Models\Category] uses connection [testing] and table [categories].',
         );
 
         Category::query()->whereDescendantOf($node)->get();
@@ -2248,8 +2403,16 @@ class NodeTest extends TestCase
         array $parentIds,
         array $columns,
         array $expected,
+        ?string $requiredColumn,
     ): void {
         $categories = Category::query()->whereIn('id', $parentIds)->get();
+
+        if ($requiredColumn !== null) {
+            $this->expectException(LogicException::class);
+            $this->expectExceptionMessage(
+                "Nested set relation eager load for [Hypervel\\Tests\\NestedSet\\Models\\Category] requires the [{$requiredColumn}] column.",
+            );
+        }
 
         $categories->load([
             $relation => fn ($query) => $query->select($columns),
@@ -2275,25 +2438,29 @@ class NodeTest extends TestCase
                 'ancestors',
                 [3],
                 ['id', '_rgt'],
-                [3 => []],
+                [],
+                '_lft',
             ],
             'ancestors without right bound across multiple parents' => [
                 'ancestors',
                 [3, 8],
                 ['id', '_lft'],
-                [3 => [], 8 => []],
+                [],
+                '_rgt',
             ],
             'descendants without left bound across multiple parents' => [
                 'descendants',
                 [2, 5],
                 ['id', '_rgt'],
-                [2 => [], 5 => []],
+                [],
+                '_lft',
             ],
             'descendants need no related right bound' => [
                 'descendants',
                 [2, 5],
                 ['id', '_lft'],
                 [2 => [3, 4], 5 => [6, 7, 8, 9, 10]],
+                null,
             ],
         ];
     }
@@ -2353,7 +2520,7 @@ class NodeTest extends TestCase
         $this->assertTreeNotBroken();
     }
 
-    public function testFixTreePublishesFreshnessBeforeChangingStoredBounds(): void
+    public function testFixTreePersistsExpandedRootBounds(): void
     {
         $root = Category::findOrFail(1);
 
@@ -2536,49 +2703,32 @@ class NodeTest extends TestCase
 
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage(
-            'Nested set subtree for [Hypervel\Tests\NestedSet\Models\Category] with key [1] cannot be repaired because parentage crosses its stored bounds.',
+            'Nested set subtree for [Hypervel\Tests\NestedSet\Models\Category] with key [1] has parentage that crosses its stored bounds.',
         );
 
         Category::fixSubtree(Category::findOrFail(1));
     }
 
     #[DataProvider('subtreeOperations')]
-    public function testSubtreeOperationsRejectIncompleteRootBeforeWriting(string $operation): void
+    public function testSubtreeOperationsHydratePartialRootFromThePersistedRow(string $operation): void
     {
-        $operationName = $operation === 'fix' ? 'subtree repair' : 'subtree rebuild';
-        $columns = ['id', 'name', '_lft', '_rgt', 'parent_id', 'depth'];
-        $before = DB::table('categories')
-            ->orderBy('id')
-            ->get($columns)
-            ->map(fn (object $row): array => (array) $row)
-            ->all();
         $root = Category::query()
             ->select(['id', 'parent_id'])
             ->findOrFail(5);
+        $root->setRelation('children', new Collection([new Category]));
+        DB::flushQueryLog();
 
-        try {
-            if ($operation === 'fix') {
-                Category::fixSubtree($root);
-            } else {
-                Category::rebuildSubtree($root, []);
-            }
-
-            $this->fail('Expected the incomplete subtree root to be rejected.');
-        } catch (LogicException $exception) {
-            $this->assertSame(
-                "Nested set {$operationName} root [Hypervel\\Tests\\NestedSet\\Models\\Category] with key [5] must be persisted with loaded bounds, depth, and parent.",
-                $exception->getMessage(),
-            );
+        if ($operation === 'fix') {
+            Category::fixSubtree($root);
+        } else {
+            Category::rebuildSubtree($root, []);
         }
 
-        $this->assertSame(
-            $before,
-            DB::table('categories')
-                ->orderBy('id')
-                ->get($columns)
-                ->map(fn (object $row): array => (array) $row)
-                ->all(),
-        );
+        $this->assertSame([8, 19], $root->getBounds());
+        $this->assertSame(1, $root->getDepth());
+        $this->assertFalse($root->relationLoaded('children'));
+        $this->assertSame(1, $this->countStructuralIdentityReloads());
+        $this->assertTreeNotBroken();
     }
 
     public static function subtreeOperations(): array
@@ -2590,8 +2740,10 @@ class NodeTest extends TestCase
     }
 
     #[DataProvider('invalidRepairRoots')]
-    public function testFixSubtreeRejectsUnpersistedOrKeylessRootBeforeWriting(string $rootState): void
-    {
+    public function testFixSubtreeRejectsUnpersistedOrKeylessRootBeforeWriting(
+        string $rootState,
+        string $expectedMessage,
+    ): void {
         $columns = ['id', 'name', '_lft', '_rgt', 'parent_id', 'depth'];
         $before = DB::table('categories')
             ->orderBy('id')
@@ -2602,22 +2754,17 @@ class NodeTest extends TestCase
         if ($rootState === 'unpersisted') {
             $root = new Category;
             $root->setRawAttributes(Category::findOrFail(5)->getAttributes());
-            $key = '5';
         } else {
             $root = Category::query()
                 ->select(['name', '_lft', '_rgt', 'parent_id', 'depth'])
                 ->findOrFail(5);
-            $key = 'null';
         }
 
         try {
             Category::fixSubtree($root);
             $this->fail('Expected the invalid subtree root to be rejected.');
         } catch (LogicException $exception) {
-            $this->assertSame(
-                "Nested set subtree repair root [Hypervel\\Tests\\NestedSet\\Models\\Category] with key [{$key}] must be persisted with loaded bounds, depth, and parent.",
-                $exception->getMessage(),
-            );
+            $this->assertSame($expectedMessage, $exception->getMessage());
         }
 
         $this->assertSame(
@@ -2633,38 +2780,82 @@ class NodeTest extends TestCase
     public static function invalidRepairRoots(): array
     {
         return [
-            'unpersisted root' => ['unpersisted'],
-            'keyless root' => ['keyless'],
+            'unpersisted root' => [
+                'unpersisted',
+                'Nested set subtree repair root [Hypervel\Tests\NestedSet\Models\Category] with key [5] must be persisted.',
+            ],
+            'keyless root' => [
+                'keyless',
+                'Nested set model [Hypervel\Tests\NestedSet\Models\Category] requires the [id] column to be selected.',
+            ],
         ];
     }
 
-    #[DataProvider('missingOrStaleRepairRoots')]
-    public function testSubtreeRepairRejectsMissingOrCoordinateStaleRoot(string $state): void
+    public function testSubtreeOperationsRejectRootsFromAnotherStore(): void
     {
         $root = Category::findOrFail(5);
-
-        if ($state === 'missing') {
-            DB::table('categories')->where('id', '=', 5)->delete();
-        } else {
-            DB::table('categories')
-                ->where('id', '=', 5)
-                ->update(['_lft' => 2, '_rgt' => 3]);
-        }
+        $root->setTable('other_categories');
 
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage(
-            'Nested set subtree for [Hypervel\Tests\NestedSet\Models\Category] with key [5] cannot be repaired because the root row is missing or outside its stored bounds.',
+            'Nested set subtree repair root [Hypervel\Tests\NestedSet\Models\Category] uses connection [testing] and table [other_categories], but query model [Hypervel\Tests\NestedSet\Models\Category] uses connection [testing] and table [categories].',
         );
 
         Category::fixSubtree($root);
     }
 
-    public static function missingOrStaleRepairRoots(): array
+    #[DataProvider('invalidSubtreeRootBounds')]
+    public function testSubtreeOperationsRejectInvalidStoredRootBounds(
+        string $operation,
+        int $lft,
+        int $rgt,
+    ): void {
+        DB::table('categories')->where('id', '=', 5)->update([
+            '_lft' => $lft,
+            '_rgt' => $rgt,
+        ]);
+        $root = Category::findOrFail(5);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            'Nested set subtree for [Hypervel\Tests\NestedSet\Models\Category] with key [5] has invalid stored bounds.',
+        );
+
+        $operation === 'fix'
+            ? Category::fixSubtree($root)
+            : Category::rebuildSubtree($root, []);
+    }
+
+    public static function invalidSubtreeRootBounds(): array
     {
         return [
-            'missing' => ['missing'],
-            'coordinate stale' => ['stale'],
+            'repair with inverted bounds' => ['fix', 9, 8],
+            'rebuild with inverted bounds' => ['rebuild', 9, 8],
+            'repair with non-positive bounds' => ['fix', 0, 1],
+            'rebuild with non-positive bounds' => ['rebuild', 0, 1],
         ];
+    }
+
+    public function testSubtreeRepairRejectsAMissingRootThroughModelNotFound(): void
+    {
+        $root = Category::findOrFail(5);
+        DB::table('categories')->where('id', '=', 5)->delete();
+
+        $this->expectException(ModelNotFoundException::class);
+
+        Category::fixSubtree($root);
+    }
+
+    public function testSubtreeRepairUsesTheCurrentPersistedRootCoordinates(): void
+    {
+        $root = Category::findOrFail(5);
+        $root->setLft(2)->setRgt(3)->setDepth(99);
+
+        Category::fixSubtree($root);
+
+        $this->assertSame([8, 19], $root->getBounds());
+        $this->assertSame(1, $root->getDepth());
+        $this->assertTreeNotBroken();
     }
 
     public function testSubtreeIsFixed(): void
@@ -2918,7 +3109,7 @@ class NodeTest extends TestCase
 
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage(
-            'Nested set subtree for [Hypervel\Tests\NestedSet\Models\Category] with key [1] cannot be repaired because parentage crosses its stored bounds.',
+            'Nested set subtree for [Hypervel\Tests\NestedSet\Models\Category] with key [1] has parentage that crosses its stored bounds.',
         );
 
         Category::rebuildSubtree(Category::findOrFail(1), []);

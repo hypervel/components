@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\NestedSet;
 
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Attributes\UseEloquentBuilder;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
@@ -23,6 +24,74 @@ use Stringable;
 
 class NestedSetTest extends TestCase
 {
+    public function testStructuralIdentityUsesTheNormalizedConnectionNameAndTableWithoutResolving(): void
+    {
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver->shouldReceive('getDefaultConnection')->andReturn('primary::write');
+        $resolver->shouldNotReceive('connection');
+
+        Model::setConnectionResolver($resolver);
+
+        $default = new NestedSetTestIdentityModel;
+        $read = (new NestedSetTestIdentityAliasModel)->setConnection('primary::read');
+        $write = (new NestedSetTestIdentityAliasModel)->setConnection('primary::write');
+        $otherTable = new NestedSetTestOtherTableModel;
+        $otherConnection = (new NestedSetTestIdentityModel)->setConnection('secondary');
+
+        $this->assertSame(
+            NestedSet::structuralIdentity($default),
+            NestedSet::structuralIdentity($read),
+        );
+        $this->assertSame(
+            NestedSet::structuralIdentity($default),
+            NestedSet::structuralIdentity($write),
+        );
+        $this->assertNotSame(
+            NestedSet::structuralIdentity($default),
+            NestedSet::structuralIdentity($otherTable),
+        );
+        $this->assertNotSame(
+            NestedSet::structuralIdentity($default),
+            NestedSet::structuralIdentity($otherConnection),
+        );
+        $this->assertSame(
+            'connection [primary] and table [nodes]',
+            NestedSet::structuralDescription($read),
+        );
+        $this->assertSame(
+            'connection [primary] and table [other_nodes]',
+            NestedSet::structuralDescription($otherTable),
+        );
+    }
+
+    public function testStructuralIdentityFallsBackToTheResolversDefaultConnection(): void
+    {
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver->shouldReceive('getDefaultConnection')->andReturn('primary');
+
+        Model::setConnectionResolver($resolver);
+
+        $this->assertSame(
+            NestedSet::structuralIdentity(new NestedSetTestIdentityModel),
+            NestedSet::structuralIdentity(
+                (new NestedSetTestIdentityModel)->setConnection('primary'),
+            ),
+        );
+    }
+
+    public function testStructuralIdentityUsesAStableMarkerWithoutAnyConnectionName(): void
+    {
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver->shouldReceive('getDefaultConnection')->andReturn(null);
+
+        Model::setConnectionResolver($resolver);
+
+        $this->assertSame(
+            '7:default:nodes',
+            NestedSet::structuralIdentity(new NestedSetTestIdentityModel),
+        );
+    }
+
     public function testIsNodeReturnsTrueForModelUsingHasNode(): void
     {
         $this->assertTrue(NestedSet::isNode(new NestedSetTestNodeModel));
@@ -228,6 +297,21 @@ class NestedSetTestNodeModel extends Model
 class NestedSetTestPlainModel extends Model
 {
     protected ?string $table = 'nested_set_test_plain';
+}
+
+class NestedSetTestIdentityModel extends Model
+{
+    protected ?string $table = 'nodes';
+}
+
+class NestedSetTestIdentityAliasModel extends Model
+{
+    protected ?string $table = 'nodes';
+}
+
+class NestedSetTestOtherTableModel extends Model
+{
+    protected ?string $table = 'other_nodes';
 }
 
 class NestedSetTestNestedTraitNodeModel extends Model
