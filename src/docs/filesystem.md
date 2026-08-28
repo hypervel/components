@@ -283,7 +283,7 @@ $result = Storage::disk('s3')->withClient(function ($client) {
 });
 ```
 
-`Storage::forgetDisk()` only removes the manager's cached disk wrapper; an equivalent wrapper can continue using the shared pool. `Storage::purge()` removes the wrapper and closes its current pool, deriving the same pool identity even when the named disk has not been resolved yet or is composed from nested scoped disks. Other disks converging on that pool transparently create a fresh one on their next operation. Streams returned by `readStream()` retain their client lease until the stream is closed or destroyed.
+`Storage::forgetDisk()` only removes the manager's cached disk wrapper; an equivalent wrapper can continue using the shared pool. `Storage::purge()` removes the wrapper and closes its current pool, deriving the same pool identity even when the named disk has not been resolved yet or is composed from nested scoped disks. Other disks converging on that pool transparently create a fresh one on their next operation. Streams returned by `readStream()` or `readStreamRange()` retain their client lease until the stream is closed or destroyed.
 
 S3 and Google Cloud Storage streams are read lazily by default, which keeps memory usage bounded and makes data available before the entire file has downloaded. This applies to `readStream()` and `readStreamRange()`; methods such as `get()` retain their normal behavior. Streaming requests close their HTTP connection after the read, so applications that open many small streams may prefer connection reuse and set the disk's `stream_reads` option to `false`.
 
@@ -301,6 +301,10 @@ You may create a path scoped instance of any existing filesystem disk by definin
     'prefix' => 'path/to/videos',
 ],
 ```
+
+A scoped disk may also define its own `visibility`, `throw`, `report`, `read-only`, and `pool` options. When scopes are nested, the first non-null value from the outermost scope is used. Other construction settings continue to come from the base disk.
+
+Scoped S3 and Google Cloud Storage disks reuse their base disk's SDK client pool. Their pool options must therefore match the base disk and every other scoped view that shares that client. Hypervel throws an exception when these options conflict.
 
 For a prefix that changes per request, user, team, or tenant, wrap an existing disk with `ScopedFilesystemProxy` or `ScopedCloudFilesystemProxy`. The resolver runs exactly once for each operation, so it may safely read coroutine-scoped context:
 
@@ -337,15 +341,24 @@ The disk and prefix resolvers are each called once per operation. For `image()`,
 
 Dynamic scoped filesystems fail closed when the resolved prefix is empty. Pass `allowRootPassthrough: true` to the constructor only when root access is intentional. Prefixes and user paths are normalized with Flysystem's path normalizer, traversal and control characters are rejected, and unknown methods are not forwarded because an unmapped call could bypass the scope. Percent-encoded segments are treated as literal file names; URL decoding belongs at the HTTP boundary.
 
-"Read-only" disks allow you to create filesystem disks that do not allow write operations. You may include the `read-only` configuration option in one or more of your disk's configuration arrays:
+"Read-only" disks allow you to create filesystem disks that do not allow write operations. You may include the `read-only` configuration option on a base or scoped disk:
 
 ```php
-'s3-videos' => [
+'s3-archive' => [
     'driver' => 's3',
     // ...
     'read-only' => true,
 ],
+
+'s3-videos' => [
+    'driver' => 'scoped',
+    'disk' => 's3',
+    'prefix' => 'path/to/videos',
+    'read-only' => true,
+],
 ```
+
+Failed writes follow the scoped disk's `throw` and `report` options.
 
 <a name="amazon-s3-compatible-filesystems"></a>
 ### Amazon S3 Compatible Filesystems
@@ -399,7 +412,7 @@ You may also pass a logical disk name as the second argument:
 $disk = Storage::build($configuration, 'tenant-uploads');
 ```
 
-Hypervel uses this name as part of the pool identity for drivers that pool the complete filesystem instance. Local drivers also use it when generating signed serving URLs, so the name should match a configured served disk when the build must target that disk's registered route. S3 and Google Cloud Storage client pools continue to use the client configuration rather than the logical disk name.
+Hypervel uses this name as part of the pool identity for drivers that pool the complete filesystem instance. An on-demand disk does not register a serving route of its own. When a named on-demand disk enables `serve`, Hypervel generates signed URLs through the configured served disk with that name. Use matching storage configuration because the route resolves the configured disk, not the on-demand instance. An anonymous scoped disk may instead generate signed URLs through a named parent disk that has serving enabled. S3 and Google Cloud Storage client pools continue to use the client configuration rather than the logical disk name.
 
 <a name="retrieving-files"></a>
 ## Retrieving Files
@@ -530,6 +543,12 @@ To enable Hypervel's signed download and upload routes for a disk, add the `serv
 ```
 
 Any configured disk may enable these routes. Custom filesystem drivers that enable the `serve` option must provide the filesystem response methods used to serve and receive files.
+
+A named scoped disk uses its own route when it enables `serve`. Otherwise, it uses the nearest named parent disk with serving enabled and includes each intervening scope in the signed path. Anonymous scoped disks cannot register routes, but they may use a named served parent.
+
+Each scoped disk that owns a route must configure a distinct `url`; otherwise, it may collide with a served parent that uses the default `/storage` path. This `url` defines the signed route only. The disk's ordinary `url()` method continues to use its base disk's URL and effective storage prefix.
+
+The route owner's visibility controls whether a file needs a signature. Setting a different visibility on an outer scoped disk does not change the route owner's signature policy.
 
 <a name="s3-request-parameters"></a>
 #### S3 Request Parameters
