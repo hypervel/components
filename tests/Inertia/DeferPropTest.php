@@ -19,11 +19,13 @@ class DeferPropTest extends TestCase
         $this->assertSame('default', $deferProp->group());
     }
 
-    public function testStringFunctionNamesAreNotInvoked(): void
+    public function testCallableArraysAndStaticMethodStringsAreInvoked(): void
     {
-        $deferProp = new DeferProp('date');
+        $arrayProp = new DeferProp([DeferCallableFixture::class, 'resolve']);
+        $stringProp = new DeferProp(DeferCallableFixture::class . '::resolve');
 
-        $this->assertSame('date', $deferProp());
+        $this->assertInstanceOf(Request::class, $arrayProp());
+        $this->assertInstanceOf(Request::class, $stringProp());
     }
 
     public function testCanInvokeAndMerge(): void
@@ -59,5 +61,13 @@ class DeferPropTest extends TestCase
         $deferProp = new DeferProp(fn () => 'value', rescue: true);
 
         $this->assertTrue($deferProp->shouldRescue());
+    }
+}
+
+class DeferCallableFixture
+{
+    public static function resolve(Request $request): Request
+    {
+        return $request;
     }
 }

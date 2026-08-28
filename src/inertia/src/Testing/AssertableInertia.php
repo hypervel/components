@@ -6,6 +6,7 @@ namespace Hypervel\Inertia\Testing;
 
 use Closure;
 use Hypervel\Http\Response;
+use Hypervel\Inertia\Support\Header;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Json;
 use Hypervel\Testing\Fluent\AssertableJson;
@@ -63,8 +64,12 @@ class AssertableInertia extends AssertableJson
     public static function fromTestResponse(TestResponse $response): self
     {
         try {
-            $response->assertViewHas('page');
-            $page = Json::decode(Json::encode($response->viewData('page')));
+            if ($response->headers->has(Header::INERTIA)) {
+                $page = $response->json();
+            } else {
+                $response->assertViewHas('page');
+                $page = Json::decode(Json::encode($response->viewData('page')));
+            }
 
             PHPUnit::assertIsArray($page);
             PHPUnit::assertArrayHasKey('component', $page);

@@ -309,7 +309,28 @@ class PropsResolver
             return true;
         }
 
-        return $this->pathMatchesPartialRequest($path);
+        if ($this->pathMatchesPartialRequest($path)) {
+            return true;
+        }
+
+        return is_array($prop) && $this->containsAlwaysProp($prop);
+    }
+
+    /**
+     * Determine if an already-materialized prop tree contains an always prop.
+     *
+     * @param array<array-key, mixed> $props
+     */
+    protected function containsAlwaysProp(array $props): bool
+    {
+        foreach ($props as $prop) {
+            if ($prop instanceof AlwaysProp
+                || (is_array($prop) && $this->containsAlwaysProp($prop))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -640,6 +661,10 @@ class PropsResolver
     {
         foreach ($props as $key => $value) {
             if (! is_string($key) || ! str_contains($key, '.')) {
+                continue;
+            }
+
+            if (! $this->shouldIncludeInPartialResponse($value, $key, false)) {
                 continue;
             }
 

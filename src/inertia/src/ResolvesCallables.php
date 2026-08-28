@@ -9,6 +9,14 @@ use Hypervel\Support\Facades\App;
 trait ResolvesCallables
 {
     /**
+     * Invoke a value whose public contract guarantees it is callable.
+     */
+    protected function invokeCallable(callable $value): mixed
+    {
+        return App::call($value);
+    }
+
+    /**
      * Call the given value if callable and inject its dependencies.
      */
     protected function resolveCallable(mixed $value): mixed

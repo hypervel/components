@@ -113,6 +113,25 @@ class PropsResolverTest extends TestCase
         $this->assertSame('Jonathan', $page['props']['auth']['user']);
     }
 
+    public function testCallableLookingGenericPropValuesRemainData(): void
+    {
+        $target = new class {
+            public function resolve(): string
+            {
+                return 'resolved';
+            }
+        };
+        $callableArray = [$target, 'resolve'];
+
+        $page = $this->makePage(Request::create('/'), [
+            'callableArray' => $callableArray,
+            'functionName' => 'date',
+        ]);
+
+        $this->assertSame($callableArray, $page['props']['callableArray']);
+        $this->assertSame('date', $page['props']['functionName']);
+    }
+
     public function testNestedMergePropIsResolved(): void
     {
         $page = $this->makePage(Request::create('/'), [
@@ -338,6 +357,48 @@ class PropsResolverTest extends TestCase
 
         $this->assertSame('Jonathan', $page['props']['auth']['user']);
         $this->assertSame(['name' => 'required'], $page['props']['auth']['errors']);
+    }
+
+    public function testNestedAlwaysPropIsIncludedWhenItsAncestorsAreNotRequested(): void
+    {
+        $profileResolutions = 0;
+
+        $page = $this->makePage($this->makePartialRequest('other'), [
+            'other' => 'included',
+            'auth' => [
+                'user' => [
+                    'profile' => function () use (&$profileResolutions): array {
+                        ++$profileResolutions;
+
+                        return ['name' => 'Jonathan'];
+                    },
+                    'errors' => Inertia::always(fn () => ['name' => 'required']),
+                ],
+            ],
+        ]);
+
+        $this->assertSame('included', $page['props']['other']);
+        $this->assertSame(['name' => 'required'], $page['props']['auth']['user']['errors']);
+        $this->assertArrayNotHasKey('profile', $page['props']['auth']['user']);
+        $this->assertSame(0, $profileResolutions);
+    }
+
+    public function testNestedAlwaysPropIsIncludedWhenItsAncestorIsExcepted(): void
+    {
+        $request = $this->makePartialRequest('other');
+        $request->headers->set('X-Inertia-Partial-Except', 'auth');
+
+        $page = $this->makePage($request, [
+            'other' => 'included',
+            'auth' => [
+                'user' => 'Jonathan',
+                'errors' => Inertia::always(fn () => ['name' => 'required']),
+            ],
+        ]);
+
+        $this->assertSame('included', $page['props']['other']);
+        $this->assertSame(['name' => 'required'], $page['props']['auth']['errors']);
+        $this->assertArrayNotHasKey('user', $page['props']['auth']);
     }
 
     public function testTopLevelAlwaysPropIsIncludedWhenNotRequested(): void
@@ -1021,6 +1082,88 @@ class PropsResolverTest extends TestCase
         $this->assertSame('Jonathan Reinink', $page['props']['auth']['user']['name']);
         $this->assertSame('jonathan@example.com', $page['props']['auth']['user']['email']);
         $this->assertSame(['edit-posts', 'delete-posts'], $page['props']['auth']['user']['permissions']);
+    }
+
+    public function testExcludedDotPropsAndIntermediateParentsAreNotResolved(): void
+    {
+        $parentResolutions = 0;
+        $dotResolutions = 0;
+
+        $page = $this->makePage($this->makePartialRequest('other'), [
+            'other' => 'included',
+            'auth' => function () use (&$parentResolutions): array {
+                ++$parentResolutions;
+
+                return ['user' => ['name' => 'Jonathan']];
+            },
+            'auth.user.permissions' => function () use (&$dotResolutions): array {
+                ++$dotResolutions;
+
+                return ['edit-posts'];
+            },
+        ]);
+
+        $this->assertSame(['other' => 'included'], $page['props']);
+        $this->assertSame(0, $parentResolutions);
+        $this->assertSame(0, $dotResolutions);
+    }
+
+    public function testIncludedDotPropAndIntermediateParentAreResolvedOnce(): void
+    {
+        $parentResolutions = 0;
+        $dotResolutions = 0;
+
+        $page = $this->makePage($this->makePartialRequest('auth.user.permissions'), [
+            'auth' => function () use (&$parentResolutions): array {
+                ++$parentResolutions;
+
+                return ['user' => ['name' => 'Jonathan']];
+            },
+            'auth.user.permissions' => function () use (&$dotResolutions): array {
+                ++$dotResolutions;
+
+                return ['edit-posts'];
+            },
+        ]);
+
+        $this->assertSame(['edit-posts'], $page['props']['auth']['user']['permissions']);
+        $this->assertSame(1, $parentResolutions);
+        $this->assertSame(1, $dotResolutions);
+    }
+
+    public function testDotNotationAlwaysPropIsIncludedWhenNotRequested(): void
+    {
+        $page = $this->makePage($this->makePartialRequest('other'), [
+            'other' => 'included',
+            'auth.errors' => Inertia::always(fn () => ['name' => 'required']),
+        ]);
+
+        $this->assertSame('included', $page['props']['other']);
+        $this->assertSame(['name' => 'required'], $page['props']['auth']['errors']);
+        $this->assertArrayNotHasKey('auth.errors', $page['props']);
+    }
+
+    public function testDotNotationArrayContainingAlwaysPropIsUnpackedWhenNotRequested(): void
+    {
+        $profileResolutions = 0;
+
+        $page = $this->makePage($this->makePartialRequest('other'), [
+            'other' => 'included',
+            'auth.user' => [
+                'profile' => function () use (&$profileResolutions): array {
+                    ++$profileResolutions;
+
+                    return ['name' => 'Jonathan'];
+                },
+                'errors' => Inertia::always(fn () => ['name' => 'required']),
+            ],
+        ]);
+
+        $this->assertSame('included', $page['props']['other']);
+        $this->assertSame(['name' => 'required'], $page['props']['auth']['user']['errors']);
+        $this->assertArrayNotHasKey('profile', $page['props']['auth']['user']);
+        $this->assertArrayNotHasKey('auth.user', $page['props']);
+        $this->assertSame(0, $profileResolutions);
     }
 
     public function testDotNotationOptionalPropIsExcludedFromInitialLoad(): void
