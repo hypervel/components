@@ -45,6 +45,8 @@ trait RefreshDatabase
             $this->afterRefreshingDatabase();
         }
 
+        // Coroutine refresh hooks run after outer trait setup. Publish schema readiness now so
+        // DatabaseTruncation can retain its PDOs before the per-test transaction begins.
         RefreshDatabaseState::$migrated = true;
     }
 
