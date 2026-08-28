@@ -180,7 +180,7 @@ $clothing = new Category([
 $clothing->saveAsRoot();
 ```
 
-The `makeRoot` method queues the root operation but does not save the model:
+Calling `saveAsRoot` on a root that is already stored leaves its position unchanged. The `makeRoot` method queues a forced root operation but does not save the model. Use it when you need to move an existing root to the end of the root list:
 
 ```php
 $category->makeRoot();
@@ -357,7 +357,7 @@ $ancestors = $category->getAncestors();
 $descendants = $category->getDescendants();
 ```
 
-When selecting specific columns for eager loading, include `_lft`, `_rgt`, and any scope columns on the models being loaded. Ancestor results also require both bounds and any scope columns. Descendant results require `_lft` and any scope columns. If a required column is missing, the relation is empty; Hypervel does not issue a hidden query to load it.
+When loading these relations from models selected with specific columns, include `_lft`, `_rgt`, and any scope columns on the parent models. Ancestor results also require both bounds and any scope columns. Descendant results require `_lft` and any scope columns. An unsaved parent has an empty relation. A persisted parent or related result with a missing required column throws a `LogicException`; Hypervel does not issue a hidden query to repair an incomplete projection.
 
 To include the node itself in the result, use the query builder methods and pass the node's key:
 
@@ -403,7 +403,7 @@ $nextSibling = $category->getNextSibling();
 $previousSibling = $category->getPrevSibling();
 ```
 
-When selecting specific columns for an eager-loaded sibling relationship, include the configured parent and scope columns. The `siblings` relationship also requires the model's primary key so it can exclude the node itself.
+When loading sibling relations from models selected with specific columns, include the configured parent and scope columns. The `siblings` relationship also requires the model's primary key so it can exclude the node itself. An unsaved parent has an empty relation. A persisted parent or related result with a missing required column throws a `LogicException`; Hypervel does not issue a hidden query to repair an incomplete projection.
 
 You may also query neighboring nodes without limiting the result to siblings:
 
@@ -452,7 +452,7 @@ $descendantCount = $category->getDescendantCount();
 $moved = $category->hasMoved();
 ```
 
-Node state helpers use the columns already loaded on the model and do not issue hidden queries. Select `parent_id` before calling `isRoot`. Select both `_lft` and `_rgt` before calling `isLeaf`, `getNodeHeight`, or `getDescendantCount`. With an incomplete projection, `isLeaf` returns `false`, while the numeric methods throw a `LogicException` because no correct value can be calculated.
+Node state helpers use the columns already loaded on the model and do not issue hidden queries. Select `parent_id` before calling `isRoot`. Select both `_lft` and `_rgt` before calling `isLeaf`, `getNodeHeight`, or `getDescendantCount`. With an incomplete projection, `isLeaf` returns `false`, while the numeric methods throw a `LogicException` because no correct value can be calculated. The mutating `up` and `down` methods reread the node before selecting its current siblings.
 
 <a name="querying-trees"></a>
 ## Querying Trees
@@ -645,6 +645,12 @@ Nodes with missing or cyclic parents become roots. During subtree repair, they b
 
 Subtree repair requires the root's stored bounds to contain every child linked beneath it. If the damage crosses that boundary, repair the complete tree with `fixTree()` first.
 
+When starting a subtree repair from a scoped builder, the builder scope must match the supplied root:
+
+```php
+MenuItem::scoped(['menu_id' => 1])->fixSubtree($rootFromMenu1);
+```
+
 <a name="rebuilding-trees-from-data"></a>
 ### Rebuilding Trees From Data
 
@@ -698,6 +704,8 @@ Category::rebuildSubtree($rootNode, [
 The nested array controls parentage. Primary keys identify existing nodes, while `parent_id`, `_lft`, `_rgt`, `depth`, and scope values in the payload are ignored.
 
 Rebuilding a subtree has the same boundary requirement. If a parentage edge crosses the root's stored bounds, repair the complete tree with `fixTree()` first.
+
+A scoped builder passed to `rebuildSubtree` must likewise match the supplied root's scope.
 
 <a name="scoped-trees"></a>
 ## Scoped Trees
@@ -889,6 +897,8 @@ DB::transaction(function () use ($electronics, $computers, $phones): void {
     $phones->prependToNode($electronics)->save();
 });
 ```
+
+Immediately before a structural mutation, Hypervel reloads each existing participating node from the write connection. A partially selected model must therefore include its primary key so Hypervel can reload the exact row. This keeps structural decisions aligned with the database without adding hidden reads to ordinary relation queries and node state helpers.
 
 If a model observer vetoes a mutation and it returns `false`, throw from the transaction closure so earlier structural writes are rolled back.
 
