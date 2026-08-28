@@ -431,6 +431,10 @@ These methods are useful when an integration needs access to details that are no
 
 API middleware may change a request before it is sent or change a response before a resource is created. This differs from [Guzzle middleware](/docs/{{version}}/http-client#guzzle-middleware), which works directly with PSR-7 requests and responses.
 
+API request middleware runs before the HTTP client's ordinary Guzzle middleware, `beforeSending` callbacks, and `RequestSending` event. This ensures lower-level middleware and observers receive the request after the API pipeline has finished preparing it. Middleware explicitly added with `prependMiddleware` runs before the API bridge and must pass the request onward rather than returning a response early.
+
+Because Guzzle middleware and `beforeSending` callbacks run later, they may overwrite changes made by API request middleware. Place body-dependent work, such as request signing, in `beforeSending` or Guzzle middleware so it uses the final request body.
+
 <a name="request-middleware"></a>
 ### Request Middleware
 
@@ -600,7 +604,7 @@ $request
     ->withoutData('role');
 ```
 
-Structured request data belongs to request bodies. Calling `withData`, `mergeData`, or `withoutData` on a `GET` or `HEAD` request will throw an exception. Use `withQuery` and `withoutQuery` to change the query string instead.
+Structured request data belongs to request bodies. Calling `withData`, `mergeData`, `withoutData`, `asJson`, or `asForm` on a `GET` or `HEAD` request will throw an exception. Use `withQuery` and `withoutQuery` to change the query string instead. The `withBody` method remains available when an API explicitly requires a raw body on one of these methods.
 
 The `asJson` and `asForm` methods may be used to convert structured request data between JSON and form encoding:
 

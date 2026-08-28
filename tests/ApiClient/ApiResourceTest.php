@@ -11,6 +11,7 @@ use Hypervel\ApiClient\ApiResource;
 use Hypervel\ApiClient\ApiResponse;
 use Hypervel\Tests\TestCase;
 use JsonException;
+use LogicException;
 use Mockery as m;
 use Mockery\MockInterface;
 
@@ -131,22 +132,20 @@ class ApiResourceTest extends TestCase
         $this->assertEquals($value, $this->resource->offsetGet('key'));
     }
 
-    public function testArrayAccessOffsetSet(): void
+    public function testArrayAccessOffsetSetIsRejected(): void
     {
-        $this->response->shouldReceive('offsetSet')
-            ->once()
-            ->with($key = 'key', $value = 'value');
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Resource data cannot be assigned through array offsets.');
 
-        $this->resource->offsetSet($key, $value);
+        $this->resource->offsetSet('key', 'value');
     }
 
-    public function testArrayAccessOffsetUnset(): void
+    public function testArrayAccessOffsetUnsetIsRejected(): void
     {
-        $this->response->shouldReceive('offsetUnset')
-            ->once()
-            ->with($key = 'key');
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Resource data cannot be unset through array offsets.');
 
-        $this->resource->offsetUnset($key);
+        $this->resource->offsetUnset('key');
     }
 
     public function testMagicIssetMethod(): void
@@ -159,11 +158,18 @@ class ApiResourceTest extends TestCase
         $this->assertFalse(isset($this->resource->nonExistingKey));
     }
 
-    public function testMagicUnsetMethod(): void
+    public function testMagicPropertyAssignmentIsRejected(): void
     {
-        $this->response->shouldReceive('offsetUnset')
-            ->once()
-            ->with('key');
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Resource data cannot be assigned through properties.');
+
+        $this->resource->key = 'value';
+    }
+
+    public function testMagicPropertyUnsetIsRejected(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Resource data cannot be unset through properties.');
 
         unset($this->resource->key);
     }

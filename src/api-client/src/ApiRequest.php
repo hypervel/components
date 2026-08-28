@@ -93,6 +93,7 @@ class ApiRequest extends HttpClientRequest
      */
     public function asForm(): static
     {
+        $this->ensureStructuredMutationAllowed();
         $this->ensureStructuredBody();
 
         if (! $this->isForm()) {
@@ -113,6 +114,7 @@ class ApiRequest extends HttpClientRequest
      */
     public function asJson(): static
     {
+        $this->ensureStructuredMutationAllowed();
         $this->ensureStructuredBody();
 
         if (! $this->isJson()) {
