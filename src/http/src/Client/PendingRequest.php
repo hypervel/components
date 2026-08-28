@@ -18,6 +18,7 @@ use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\TransferStats;
 use GuzzleHttp\UriTemplate\UriTemplate;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Http\Client\Events\ConnectionFailed;
 use Hypervel\Http\Client\Events\RequestSending;
@@ -39,7 +40,7 @@ use Symfony\Component\VarDumper\VarDumper;
 use Throwable;
 use UnitEnum;
 
-class PendingRequest
+class PendingRequest implements Transient
 {
     use Conditionable;
     use Macroable;
@@ -180,7 +181,7 @@ class PendingRequest
     /**
      * The pending request promise.
      */
-    protected ?PromiseInterface $promise;
+    protected ?PromiseInterface $promise = null;
 
     /**
      * The sent request object, if a request has been made.
@@ -597,6 +598,16 @@ class PendingRequest
     }
 
     /**
+     * Prepend new middleware to the client handler stack.
+     */
+    public function prependMiddleware(callable $middleware): static
+    {
+        $this->middleware->prepend($middleware);
+
+        return $this;
+    }
+
+    /**
      * Add new request middleware the client handler stack.
      */
     public function withRequestMiddleware(callable $middleware): static
@@ -624,6 +635,14 @@ class PendingRequest
         $this->attributes = array_merge_recursive($this->attributes, $attributes);
 
         return $this;
+    }
+
+    /**
+     * Get the attributes stored with the request.
+     */
+    public function attributes(): array
+    {
+        return $this->attributes;
     }
 
     /**
