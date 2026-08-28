@@ -7,6 +7,7 @@ namespace Hypervel\Scout;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
@@ -21,6 +22,8 @@ use Hypervel\Scout\Events\ModelsFlushed;
 use Hypervel\Scout\Events\ModelsImported;
 use Hypervel\Support\Collection as BaseCollection;
 use LogicException;
+use SplQueue;
+use Throwable;
 
 /**
  * Provides full-text search capabilities to Eloquent models.
@@ -36,6 +39,11 @@ trait Searchable
      * the same process don't share or overwrite each other's runner instances.
      */
     public const string SCOUT_RUNNER_CONTEXT_KEY = '__scout.runner';
+
+    /**
+     * Coroutine-local context key for deferred HTTP indexing jobs.
+     */
+    protected const string SCOUT_JOBS_CONTEXT_KEY = '__scout.jobs';
 
     /**
      * Additional metadata attributes managed by Scout.
@@ -556,8 +564,33 @@ trait Searchable
             return;
         }
 
-        // HTTP/queue path: schedule work at end of coroutine
-        Coroutine::defer($job);
+        if (! RequestContext::has()) {
+            $job();
+            return;
+        }
+
+        $jobs = CoroutineContext::get(self::SCOUT_JOBS_CONTEXT_KEY);
+
+        if (! $jobs instanceof SplQueue) {
+            $jobs = new SplQueue;
+            CoroutineContext::set(self::SCOUT_JOBS_CONTEXT_KEY, $jobs);
+
+            Coroutine::defer(static function () use ($jobs): void {
+                try {
+                    while (! $jobs->isEmpty()) {
+                        try {
+                            $jobs->dequeue()();
+                        } catch (Throwable $exception) {
+                            report($exception);
+                        }
+                    }
+                } finally {
+                    CoroutineContext::forget(self::SCOUT_JOBS_CONTEXT_KEY);
+                }
+            });
+        }
+
+        $jobs->enqueue($job);
     }
 
     /**
