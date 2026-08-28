@@ -305,7 +305,7 @@ The round robin transport selects a random mailer from the list of configured ma
 <a name="transport-pooling"></a>
 ### Transport Pooling
 
-Hypervel pools mail transports that hold persistent connections or API clients so they can be safely reused across concurrent requests. Pooling applies to the `smtp`, `sendmail`, `mailgun`, `ses-v2`, `postmark`, `resend`, `cloudflare`, `failover`, and `roundrobin` transports.
+Hypervel pools mail transports that hold persistent connections, API clients, interactive processes, or composite state so they can be safely reused across concurrent requests. Pooling applies to the `smtp`, `sendmail`, `mail`, `mailgun`, `ses-v2`, `postmark`, `resend`, `cloudflare`, `failover`, and `roundrobin` transports.
 
 Named mailers use pooling by default when their transport is poolable. On-demand mailers created with `Mail::build()` are direct by default and opt in explicitly:
 

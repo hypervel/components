@@ -7,6 +7,9 @@ namespace Hypervel\Filesystem;
 use BadMethodCallException;
 use Closure;
 use DateTimeInterface;
+use GuzzleHttp\Psr7\LimitStream;
+use GuzzleHttp\Psr7\StreamWrapper;
+use GuzzleHttp\Psr7\Utils;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Filesystem\Cloud as CloudFilesystemContract;
@@ -650,51 +653,72 @@ class FilesystemAdapter implements CloudFilesystemContract
             return $this->readStream($path);
         }
 
+        $suffixLength = $start === null ? $end : null;
+
         if ($start === null) {
             $start = max(0, $this->size($path) - $end);
         }
 
+        $length = $end === null
+            ? null
+            : ($suffixLength ?? $end - $start + 1);
+
         $stream = $this->readStream($path);
 
-        if (! is_resource($stream) || $start === 0) {
+        if (! is_resource($stream)) {
             return $stream;
         }
 
-        $metadata = stream_get_meta_data($stream);
+        try {
+            if ($start > 0) {
+                $metadata = stream_get_meta_data($stream);
 
-        if ($metadata['seekable']) {
-            if (fseek($stream, $start) === 0) {
+                if ($metadata['seekable'] && fseek($stream, $start) !== 0 && ! rewind($stream)) {
+                    throw new RuntimeException('Unable to position the stream at the requested range.');
+                }
+
+                if (! $metadata['seekable'] || ftell($stream) !== $start) {
+                    $remaining = $start;
+
+                    while ($remaining > 0) {
+                        $content = fread($stream, min(8192, $remaining));
+
+                        if ($content === false || ($content === '' && feof($stream))) {
+                            throw new RuntimeException('Unable to position the stream at the requested range.');
+                        }
+
+                        if ($content === '') {
+                            throw new RuntimeException(
+                                'The stream returned no data while positioning at the requested range.',
+                            );
+                        }
+
+                        $remaining -= strlen($content);
+                    }
+                }
+            }
+
+            if ($length === null) {
                 return $stream;
             }
 
-            if (! rewind($stream)) {
-                fclose($stream);
+            $psrStream = Utils::streamFor($stream);
+            $limitedStream = new LimitStream($psrStream, $length, $psrStream->tell());
 
-                throw UnableToReadFile::fromLocation($path, 'Unable to position the stream at the requested range.');
+            return StreamWrapper::getResource($limitedStream);
+        } catch (Throwable $exception) {
+            if (is_resource($stream)) {
+                fclose($stream);
             }
+
+            $failure = UnableToReadFile::fromLocation($path, $exception->getMessage(), $exception);
+
+            throw_if($this->throwsExceptions(), $failure);
+
+            $this->report($failure);
+
+            return null;
         }
-
-        $remaining = $start;
-
-        while ($remaining > 0) {
-            $content = fread($stream, min(8192, $remaining));
-
-            if ($content === false || ($content === '' && feof($stream))) {
-                fclose($stream);
-
-                throw UnableToReadFile::fromLocation($path, 'Unable to position the stream at the requested range.');
-            }
-
-            if ($content === '') {
-                fclose($stream);
-
-                throw UnableToReadFile::fromLocation($path, 'The stream returned no data while positioning at the requested range.');
-            }
-
-            $remaining -= strlen($content);
-        }
-
-        return $stream;
     }
 
     /**

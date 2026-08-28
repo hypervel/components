@@ -93,10 +93,7 @@ final readonly class Endpoint
 
             $host = strtolower($host);
 
-            if (
-                filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false
-                && filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false
-            ) {
+            if (! self::isValidHost($host)) {
                 throw new InvalidArgumentException('The gRPC target host is invalid.');
             }
 
@@ -119,5 +116,36 @@ final readonly class Endpoint
         $authority = "{$authorityHost}:{$port}";
 
         return new self(strtolower($host), $port, $tls, $authority, $authority);
+    }
+
+    /**
+     * Determine whether an IPv4 address or service-discovery hostname is valid.
+     */
+    private static function isValidHost(string $host): bool
+    {
+        $canonicalHost = str_ends_with($host, '.')
+            ? substr($host, 0, -1)
+            : $host;
+
+        if ($canonicalHost === '' || strlen($canonicalHost) > 253) {
+            return false;
+        }
+
+        $labels = explode('.', $canonicalHost);
+
+        foreach ($labels as $label) {
+            if (
+                $label === ''
+                || strlen($label) > 63
+                || preg_match('/^[a-z0-9_](?:[a-z0-9_-]*[a-z0-9_])?$/D', $label) !== 1
+            ) {
+                return false;
+            }
+        }
+
+        $finalLabel = $labels[array_key_last($labels)];
+
+        return ! ctype_digit($finalLabel)
+            || filter_var($canonicalHost, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false;
     }
 }

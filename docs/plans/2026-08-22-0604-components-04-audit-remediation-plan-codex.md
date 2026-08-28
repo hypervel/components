@@ -40,11 +40,10 @@ Resolve every genuine issue retained in this master plan against the current 0.4
 ## Cross-cutting design decisions
 
 1. Worker defaults and request overrides are different state classes. Laravel-style setters called before `Hypervel\Contracts\Foundation\Application::isBooted()` update a worker baseline. Calls after boot during an execution use CoroutineContext, or a dedicated withX callback performs a scoped override. In standalone use without an Application, retain the documented package fallback; never infer boot from coroutine presence.
-2. A pooled client or database connection may be retained only as a pool/factory/resolver handle. A borrowed connection, stream, or client must remain inside its borrow scope.
-3. Shared cache publication follows database transaction visibility. Committed mutations invalidate affected shared entries after commit, and rollback never invalidates them. Where a package must read its own uncommitted cache-affecting writes, that execution bypasses the affected shared entries while its transaction is dirty. Where fills can race with committed mutations, coordinate cache misses and exact invalidations with per-identity locks unless an existing atomic primitive provably orders every competing writer. Cache hits remain lock-free.
-4. Worker-lifetime caches require a natural finite keyspace or deterministic invalidation. Cheap input-derived values should not be retained worker-wide merely to avoid parsing or hashing them, and arbitrary caps are not a substitute for correct ownership.
-5. Fail loudly for unsupported or ambiguous configuration. Do not silently clamp, coerce, fall back to inaccurate readers, or accept an API surface that cannot work.
-6. Every concurrency fix needs a deterministic interleaving test, not only a sequential unit test.
+2. Shared cache publication follows database transaction visibility. Committed mutations invalidate affected shared entries after commit, and rollback never invalidates them. Where a package must read its own uncommitted cache-affecting writes, that execution bypasses the affected shared entries while its transaction is dirty. Where fills can race with committed mutations, coordinate cache misses and exact invalidations with per-identity locks unless an existing atomic primitive provably orders every competing writer. Cache hits remain lock-free.
+3. Worker-lifetime caches require a natural finite keyspace or deterministic invalidation. Cheap input-derived values should not be retained worker-wide merely to avoid parsing or hashing them, and arbitrary caps are not a substitute for correct ownership.
+4. Fail loudly for unsupported or ambiguous configuration. Do not silently clamp, coerce, fall back to inaccurate readers, or accept an API surface that cannot work.
+5. Every concurrency fix needs a deterministic interleaving test, not only a sequential unit test.
 
 Record the boot-baseline/execution-override semantic shared by Notification, Number, and Sentry once in `src/docs/porting-from-laravel.md`.
 
@@ -53,7 +52,6 @@ Record the boot-baseline/execution-override semantic shared by Notification, Num
 - Preserve Laravel's current canonical method names, valid-input semantics, contracts, facades, constructor call forms, container aliases, and extension points. Diverge when Hypervel's architecture requires it or when parity would demand disproportionate machinery/workarounds and produce materially worse code; choose the simplest well-adapted contract in that case and document the divergence. Do not inherit aliases, deprecated names, compatibility shims, or implementation residue that current Laravel retains solely for historical backward compatibility; Hypervel 0.4 should expose the modern canonical surface directly. Establish that something is genuinely legacy before removing it—an apparently unused current extension point is not enough. The plan may also reject previously accepted invalid or misleading states with a descriptive exception.
 - Apply that rule consistently: Horizon uses `vonage`, never upstream Horizon's stale `nexmo` name.
 - Hypervel worker singletons retain only boot-time immutable/baseline state. Request, job, command, and test overrides belong in CoroutineContext and are cleaned at execution boundaries. This is an architectural adaptation, not a port of Laravel's process-per-request mutable-static assumptions.
-- Framework-owned pooled database/auth objects retain resolvers and names, never borrowed connections. The Laravel-compatible direct ConnectionInterface constructor form remains available for non-pooled callers and test doubles.
 - Most fixes remove work, bound memory by correct lifetime, preserve a fast path, or add only constant-time state checks.
 - Reverb recovery is an operator command with zero steady-state cost. Queue timeout behavior remains unchanged because the proposed drain would weaken its safety contract.
 - No fix may add periodic polling, arbitrary eviction thresholds, a distributed lock on every request/cache hit, metadata shortcuts with delayed correctness, or a new abstraction whose only purpose is an unsupported failure mode.
@@ -66,11 +64,10 @@ Record the boot-baseline/execution-override semantic shared by Notification, Num
 
 Each row is an implementation requirement. Test names are descriptive; use the repository's established test file for that component or create the narrowly corresponding file.
 
-### Core pools, translation, views, filesystem, and websocket
+### Translation, views, and websocket
 
 | ID | Proposed implementation | Required tests |
 |---:|---|---|
-| 1 | Change PoolFingerprint's internal canonical-config digest from sha256 to xxh128, matching the repository's non-cryptographic fingerprint convention. Keep canonical key ordering and scalar normalization unchanged. | Exact algorithm and digest-length test; equivalent reordered configuration test; distinct normalized configuration test. |
 | 2 | Stop automatically retaining every parsed key on NamespacedItemResolver. Keep setParsedKey and flushParsedKeys exactly as the public explicit cache API, but parse ordinary keys directly; the explode/str_contains work is cheaper and safer than a per-call context lookup or an arbitrary worker cache cap. | Arbitrary validation/translation keys do not grow worker state; explicitly seeded parsed keys still hit and flush; parse output remains identical; a focused microbenchmark confirms the uncached parser is not a material translation regression. |
 | 3 | Keep successful translation groups in the worker cache, but store empty/missing locale-group results only in execution-local negative state. This avoids permanent attacker-driven locale growth without repeating filesystem probes inside one request/job. | Thousands of missing locales leave worker loaded state unchanged; one execution probes a missing/legitimate-empty group once; a later execution can discover a newly added translation; positive groups remain worker-cached. |
 | 4 | No change; see disposition above. | Preserve existing selector tests. |
@@ -79,24 +76,17 @@ Each row is an implementation requirement. Test names are descriptive; use the r
 | 7 | Retain the worker cache only for existing named views, whose keyspace is application-defined. For raw inline component source, derive the deterministic xxh128 view name and keep only execution-local reuse; ensure the source file exists on the first use in that execution. Make view:clear clear the execution-local marker so an immediate re-render recreates the source. Do not add an arbitrary eviction cap. | Named views reuse worker state; thousands of unique inline sources do not grow the worker map; repeated inline render in one execution avoids repeated stats; delete/view:clear then render recreates the source; no cross-component collision. |
 | 8 | Preserve the public abstract Engines\Engine base, but make getLastRendered return nullable string to match its initialized state. | Anonymous concrete subclass returns null before render and the rendered path afterward. |
 | 9 | No standalone change; see disposition above. | None. |
-| 10 | Remove the s3/gcs client-only match arms from whole-disk pool definitions. A custom whole-disk creator fingerprints the logical disk name plus its complete normalized config unless it explicitly supplies its own fingerprint. Built-in S3/GCS client pools keep their client-specific fingerprints. | Two custom S3 or GCS creators with identical client credentials but different bucket/root/name never share a disk pool; built-in clients still share only when safe; explicit fingerprint override works. |
-| 11 | Wrap the positioned resource with GuzzleHttp\Psr7\Utils::streamFor, GuzzleHttp\Psr7\LimitStream, and StreamWrapper::getResource so the base readStreamRange enforces its end offset without buffering or a custom stream implementation. Add `guzzlehttp/psr7` as a direct filesystem dependency instead of relying on `hypervel/http` to provide it transitively. | Closed, open-ended, and suffix ranges; seekable and non-seekable sources; zero/one-byte boundaries; returned value remains a PHP resource; close propagation; nested leased pooled stream remains borrowed until wrapper close; standalone filesystem dependency/autoload check. |
-| 12 | Model signed-route ownership separately from a scoped/on-demand adapter's serve flag. Named scoped disks over a served parent use the parent's route and accumulated prefix; nested scopes compose prefixes. Anonymous build disks cannot advertise the global named route and must fail clearly. | Download and upload temporary URLs through one and nested scopes; signatures validate; anonymous served build fails clearly; unserved and base disks unchanged. |
-| 13 | Document that Hypervel Filesystem::hash defaults to xxh128 while Laravel defaults to md5, including the porting implication and explicit-algorithm escape hatch. | Documentation review plus existing/default and explicit hash algorithm tests. |
 | 14 | No production change; the dependency evidence and Swoole conclusion are recorded above. | No framework regression test is needed for a dependency invariant. Keep the existing handshake/close lifecycle tests. |
-### Mail, notifications, gRPC, collections, and support
+
+### Mail, notifications, collections, and support
 
 | ID | Proposed implementation | Required tests |
 |---:|---|---|
 | 21 | Widen Mailable metadata values and storage shapes to int\|string\|null, matching Envelope. Cast consistently only where a downstream header API requires a string. | Integer and string metadata through send, render, and assertion helpers; null/absent metadata; strict-types regression. |
-| 22 | Add only the missing `mail` driver to MailManager's existing poolable transport list. Its default `sendmail -bs` transport then follows the same borrow/isolation path already used by the explicit `sendmail` driver; do not introduce a second transport wrapper or command-mode abstraction. | `mail` is proxied by default and can accept explicit pool options; its interactive stream is reused only within one borrowed transport and concurrent sends cannot share a borrow; existing `sendmail` modes and fingerprints remain unchanged. |
 | 23 | In hasEnvelopeAttachment, call attachments only when the mailable defines it; otherwise use an empty list. | Envelope-only mailable, mailable that also defines attachments, attachment match/no-match, and no method fatal. |
 | 24 | Use one CoroutineContext path in every execution mode. Store under one package key a `WeakMap<ArrayTransport, Collection>` keyed by transport object identity; this avoids `spl_object_id` reuse, isolates instances, lets dead transports disappear, and relies on CoroutineContext's existing non-coroutine fallback instead of branching on coroutine presence. Preserve all messages and flush semantics within one execution. | Sibling requests and separate transport instances cannot see each other's messages; flush is local; destroyed transports disappear from the non-coroutine weak map; many completed contexts leave no worker accumulation; non-coroutine test usage remains deterministic. |
 | 25 | Make ChannelManager's Laravel-style deliverVia and locale setters lifecycle-aware: before `Application::isBooted()` they update worker baselines; after boot during an execution they update context overrides. Do not add a package-specific boot predicate. | Provider boot defaults are inherited by later request/job coroutines; request overrides do not affect siblings or the next execution; explicit notification locale still wins; flush resets both layers; shared porting-guide entry documents the semantic. |
 | 26 | Keep AnonymousNotifiable::getKey returning null for Laravel fake/assertion parity, but make BroadcastNotificationCreated throw a descriptive exception when no explicit broadcast route exists instead of constructing a trailing-dot private channel. The audit's upstream comparison was wrong—Laravel also defines getKey—but the silent malformed-channel behavior remains a defect. | Anonymous broadcast without route fails loudly; explicit broadcast route works; normal model notifiable fallback unchanged; getKey remains null. |
-| 27 | Check pre-transport deadlines before registering pending work and outside the native connection-error catch. Fail only the call with deadline status; retain the healthy connection. Keep actual mid-write native failures connection-fatal. | Deadline expires between scheduling and send; connection remains usable by a later call; expired write path classification; genuine write failure still terminates the connection. |
-| 28 | Reject raw Swoole options that override first-class TLS ownership: ssl_verify_peer, ssl_cafile, ssl_cert_file, ssl_key_file, ssl_passphrase, and ssl_host_name. Continue allowing unrelated native options. | Every owned key conflicts clearly; first-class TLS values cannot be bypassed; unrelated ssl/native settings remain accepted; plaintext configuration unaffected. |
-| 29 | Replace FILTER_VALIDATE_DOMAIN with an explicit resolvable service-name grammar that accepts underscores while rejecting whitespace, empty/malformed labels, invalid IP literals, and malformed ports. | Docker/Kubernetes-style underscore names; DNS names and IPv4/IPv6; invalid labels, whitespace, bracket, and port cases. |
 | 30 | Add symfony/polyfill-php86 as a direct collections dependency because SortDirection is used by that split package. | Package metadata assertion and a standalone collections install/autoload smoke test without database. |
 | 31 | Cast the single-item Arr::join result to string, matching the multi-item path and native return type. | One integer, float, stringable object, string, and multi-item list. |
 | 32 | Use first() when guessing a resource collection class instead of reading items[0]. | keyBy, filtered/gapped keys, ordinary list, empty collection failure, and paginator/resource conversion. Finding 88 closes with these tests. |
@@ -141,7 +131,6 @@ Each row is an implementation requirement. Test names are descriptive; use the r
 
 | ID | Proposed implementation | Required tests |
 |---:|---|---|
-| 81 | Override MySqlConnection::resetForPool, call the parent reset, and clear lastInsertId. | Two consecutive pool borrow windows; first inserts and sees ID, second sees null before inserting; discard/reset paths. |
 | 82 | Apply incrementEach's strict string-column and numeric-amount validation to decrementEach before constructing raw SQL. | Malicious SQL fragment and nonnumeric amount rejected before query; non-string/associative shape failures; valid ints, floats, and numeric strings update correctly. |
 | 83 | Add one package-internal MIME buffer helper with a lazily initialized worker-static finfo and use it from Image and InterventionDriver. finfo::buffer is stateless and non-yielding, so no DI service, coroutine state, lock, reset method, or AfterEachTestSubscriber registration is needed; retaining the handle for the worker lifetime is the intended ownership. | Both call sites report identical MIME across repeated processing; invalid data behavior; ordinary image tests remain independent without a reset seam. |
 | 84 | For HEIC/HEIF, if the selected driver cannot decode dimensions, throw ImageException with the driver exception as previous. Never fall back to the known-inaccurate native reader. | Driver success; driver failure with previous exception; native reader is not called for HEIC; ordinary image fallback unchanged. |
@@ -207,7 +196,6 @@ Each row is an implementation requirement. Test names are descriptive; use the r
 | 152 | Reuse the existing TEST_TOKEN sanitization grammar in runtime-copy paths; filter integer/numeric environment-map keys that cannot be represented by the declared subprocess string-key map; remove the unreachable migration-directory guard; null-coalesce teardown's migration cache; and remove duplicate migration-option resolution. Do not add a first-caller descriptor/assertion or expand ConfigContract for unsupported bootstrap implementations. | Traversal/punctuation/nonnumeric TEST_TOKEN; numeric env keys are omitted without TypeError and valid env survives; migration resolution only when enabled; teardown after failed setup preserves the original failure; one option resolution; supported bootstrap paths remain unchanged. |
 | 153 | No change; see disposition above. | Preserve immediate-kill, non-drain, timeout event, and idempotency documentation coverage. |
 | 154 | Remove only the dead SQL Server lock branch and document ARGV[2] as the Redis migration batch limit. Keep coroutine-hooked usleep and the shutdown-only 1ms poll; do not add Support\\Sleep or a Concurrent completion primitive. | Database grammar set excludes sqlsrv; Lua argument documentation/review; existing Worker sleep override and shutdown drain tests remain green. |
-| 155 | Make DatabaseUserProvider and DatabaseTokenRepository accept ConnectionInterface\|ConnectionResolverInterface in the existing first constructor position and add the optional connection name only after the existing parameters. Framework factories pass the resolver/name and each operation resolves the current execution's connection; direct Laravel-style construction with a ConnectionInterface remains valid for non-pooled use and test doubles. Add concise constructor PHPDoc warning that a directly supplied connection must not outlive its execution. `getConnection()` returns the current resolved ConnectionInterface. No porting-guide entry is needed because the Laravel constructor form remains valid. | Existing Laravel-compatible positional construction and named arguments/mocks remain valid; framework construction does not borrow; provider/broker survives creator coroutine teardown; two concurrent requests use distinct leases; transaction state does not cross; configured and scoped-default connection selection; every repository/provider method; constructor docs name the direct-connection lifetime constraint. |
 | 156 | Type ResponseSequence::$emptyResponse as Closure\|PromiseInterface\|null and initialize it to null. | whenEmpty closure receives no assignment TypeError and returns per call; promise path; default failure and dontFailWhenEmpty. |
 | 157 | Initialize PendingRequest::$promise to null. | getPromise before send returns null; async send assigns promise; clone/new request does not inherit an uninitialized state. |
 | 158 | Retain requestsReusableClient and getReusableClient for Laravel subclass compatibility. Make Response::cookies return nullable CookieJar to match its property and Laravel's actual null behavior for unpopulated/recorded responses. | Recorded/assertSent response cookies returns null; normal populated response returns jar; protected method reflection/subclass smoke test; async client behavior unchanged. |
@@ -219,14 +207,13 @@ Each row is an implementation requirement. Test names are descriptive; use the r
 Use package-sized commits that remain reviewable and bisectable. The following order avoids building fixes on obsolete primitives:
 
 1. Worker-default and execution-state primitives: 25, 33, 49, 103.
-2. Pool/resource ownership: 10-12, 22, 27-29, 81, 155.
-3. Mail and data representation: 21, 30-35, 82, 94-98.
-4. Search and request pipelines: 36-42, 71-77, 99-102.
-5. Observability: 48-55.
-6. Reverb recovery command and runbook: 112, with no runtime state-model change.
-7. Queue cleanup: only the two valid parts of 154; 153 deliberately stays unchanged.
-8. Vonage notification channel port followed by Horizon wiring: 160.
-9. Remaining package-local correctness work by package, followed by performance/docs/cleanup.
+2. Mail and data representation: 21, 30-35, 82, 94-98.
+3. Search and request pipelines: 36-42, 71-77, 99-102.
+4. Observability: 48-55.
+5. Reverb recovery command and runbook: 112, with no runtime state-model change.
+6. Queue cleanup: only the two valid parts of 154; 153 deliberately stays unchanged.
+7. Vonage notification channel port followed by Horizon wiring: 160.
+8. Remaining package-local correctness work by package, followed by performance/docs/cleanup.
 
 Do not combine unrelated packages merely because their findings have the same severity.
 
@@ -237,7 +224,7 @@ For every changed test file:
 1. From the components repository root, run that exact test file immediately with `./vendor/bin/phpunit --no-progress path/to/Test.php`.
 2. For deterministic concurrency tests, run the exact file repeatedly and under the parallel runner where supported.
 3. Run the complete affected package test directory after its individual files pass.
-4. Run integration suites for every affected external system: MySQL/MariaDB and PostgreSQL for database semantics; Redis for Reverb/cache; filesystem cloud adapter tests where credentials/fixtures are provided.
+4. Run integration suites for every affected external system: MySQL/MariaDB and PostgreSQL for database semantics, and Redis for Reverb/cache.
 
 Additional required checks:
 
@@ -259,6 +246,5 @@ After all package work is complete:
 - Finding 88 is closed by 32 rather than implemented twice.
 - Finding 123 remains fixed and regression-covered.
 - No worker-global mutable state is introduced without an explicit boot-only contract and reset path.
-- No pooled borrowed resource escapes its operation scope.
 - No cache fill can republish state after a completed revocation/invalidation.
 - All exact-file, package, integration, split-package, TypeScript, static-analysis, lint, dogfood, and final composer fix checks pass.

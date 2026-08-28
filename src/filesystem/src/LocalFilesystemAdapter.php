@@ -16,12 +16,27 @@ class LocalFilesystemAdapter extends FilesystemAdapter
     /**
      * The name of the filesystem disk.
      */
-    protected string $disk;
+    protected ?string $disk = null;
 
     /**
      * Indicates if signed URLs should serve corresponding files.
      */
     protected bool $shouldServeSignedUrls = false;
+
+    /**
+     * Indicate if serving-route ownership was configured explicitly.
+     */
+    protected bool $servingRouteConfigured = false;
+
+    /**
+     * The configured disk which owns the serving route.
+     */
+    protected ?string $servingRouteDisk = null;
+
+    /**
+     * The path prefix relative to the serving-route owner.
+     */
+    protected string $servingRoutePrefix = '';
 
     /**
      * The Closure that should be used to resolve the URL generator.
@@ -34,7 +49,9 @@ class LocalFilesystemAdapter extends FilesystemAdapter
     public function providesTemporaryUrls(): bool
     {
         return $this->temporaryUrlCallback || (
-            $this->shouldServeSignedUrls && $this->urlGeneratorResolver instanceof Closure
+            $this->shouldServeSignedUrls
+            && $this->urlGeneratorResolver instanceof Closure
+            && $this->servingRouteDisk() !== null
         );
     }
 
@@ -44,7 +61,9 @@ class LocalFilesystemAdapter extends FilesystemAdapter
     public function providesTemporaryUploadUrls(): bool
     {
         return $this->temporaryUploadUrlCallback || (
-            $this->shouldServeSignedUrls && $this->urlGeneratorResolver instanceof Closure
+            $this->shouldServeSignedUrls
+            && $this->urlGeneratorResolver instanceof Closure
+            && $this->servingRouteDisk() !== null
         );
     }
 
@@ -64,15 +83,15 @@ class LocalFilesystemAdapter extends FilesystemAdapter
         }
 
         if (! $this->providesTemporaryUrls()) {
-            throw new RuntimeException('This driver does not support creating temporary URLs.');
+            throw $this->unsupportedTemporaryUrlException();
         }
 
         $url = call_user_func($this->urlGeneratorResolver);
 
         return $url->to($url->temporarySignedRoute(
-            'storage.' . $this->disk,
+            'storage.' . $this->servingRouteDisk(),
             $expiration,
-            ['path' => $path],
+            ['path' => $this->servingRoutePath($path)],
             absolute: false
         ));
     }
@@ -93,20 +112,36 @@ class LocalFilesystemAdapter extends FilesystemAdapter
         }
 
         if (! $this->providesTemporaryUploadUrls()) {
-            throw new RuntimeException('This driver does not support creating temporary upload URLs.');
+            throw $this->unsupportedTemporaryUrlException(upload: true);
         }
 
         $url = call_user_func($this->urlGeneratorResolver);
 
         return [
             'url' => $url->to($url->temporarySignedRoute(
-                'storage.' . $this->disk . '.upload',
+                'storage.' . $this->servingRouteDisk() . '.upload',
                 $expiration,
-                ['path' => $path, 'upload' => true],
+                ['path' => $this->servingRoutePath($path), 'upload' => true],
                 absolute: false
             )),
             'headers' => [],
         ];
+    }
+
+    /**
+     * Create the exception for an unsupported temporary URL operation.
+     */
+    private function unsupportedTemporaryUrlException(bool $upload = false): RuntimeException
+    {
+        if ($this->shouldServeSignedUrls && $this->servingRouteConfigured && $this->servingRouteDisk === null) {
+            return new RuntimeException('This disk does not have a registered file-serving route.');
+        }
+
+        return new RuntimeException(
+            $upload
+                ? 'This driver does not support creating temporary upload URLs.'
+                : 'This driver does not support creating temporary URLs.',
+        );
     }
 
     /**
@@ -115,6 +150,21 @@ class LocalFilesystemAdapter extends FilesystemAdapter
     public function diskName(string $disk): static
     {
         $this->disk = $disk;
+
+        return $this;
+    }
+
+    /**
+     * Specify the registered route which serves this disk.
+     *
+     * Boot-only. The route metadata persists on the cached adapter for the
+     * worker lifetime and affects every subsequent signed URL request.
+     */
+    public function servingRoute(?string $disk, string $prefix = ''): static
+    {
+        $this->servingRouteConfigured = true;
+        $this->servingRouteDisk = $disk;
+        $this->servingRoutePrefix = trim(str_replace('\\', '/', $prefix), '/');
 
         return $this;
     }
@@ -132,5 +182,23 @@ class LocalFilesystemAdapter extends FilesystemAdapter
         $this->urlGeneratorResolver = $urlGeneratorResolver;
 
         return $this;
+    }
+
+    /**
+     * Get the registered serving-route disk.
+     */
+    protected function servingRouteDisk(): ?string
+    {
+        return $this->servingRouteConfigured ? $this->servingRouteDisk : $this->disk;
+    }
+
+    /**
+     * Prefix a path for the registered serving route.
+     */
+    protected function servingRoutePath(string $path): string
+    {
+        return $this->servingRoutePrefix === ''
+            ? $path
+            : $this->servingRoutePrefix . '/' . ltrim($path, '/');
     }
 }
