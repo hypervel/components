@@ -22,15 +22,27 @@ class SupportBinaryCodecTest extends TestCase
 
     public function testRegisterAddsCustomFormat(): void
     {
-        BinaryCodec::register('hex', fn ($value) => bin2hex($value ?? ''), fn ($value) => hex2bin($value ?? ''));
+        BinaryCodec::register(
+            'hex',
+            static fn (Uuid|Ulid|string|null $value): ?string => null,
+            static fn (?string $value): ?string => null,
+        );
 
         $this->assertContains('hex', BinaryCodec::formats());
     }
 
     public function testFormatsReturnsAListAfterOverridingABuiltInFormat(): void
     {
-        BinaryCodec::register('uuid', fn ($value) => $value, fn ($value) => $value);
-        BinaryCodec::register('hex', fn ($value) => $value, fn ($value) => $value);
+        BinaryCodec::register(
+            'uuid',
+            static fn (Uuid|Ulid|string|null $value): ?string => null,
+            static fn (?string $value): ?string => null,
+        );
+        BinaryCodec::register(
+            'hex',
+            static fn (Uuid|Ulid|string|null $value): ?string => null,
+            static fn (?string $value): ?string => null,
+        );
 
         $formats = BinaryCodec::formats();
 
@@ -40,7 +52,11 @@ class SupportBinaryCodecTest extends TestCase
 
     public function testRegisterOverridesDefaultFormat(): void
     {
-        BinaryCodec::register('uuid', fn ($value) => 'custom-encode', fn ($value) => 'custom-decode');
+        BinaryCodec::register(
+            'uuid',
+            static fn (Uuid|Ulid|string|null $value): ?string => 'custom-encode',
+            static fn (?string $value): ?string => 'custom-decode',
+        );
 
         $this->assertSame('custom-encode', BinaryCodec::encode('test', 'uuid'));
         $this->assertSame('custom-decode', BinaryCodec::decode('test', 'uuid'));
@@ -73,8 +89,16 @@ class SupportBinaryCodecTest extends TestCase
     {
         $blankBinary = str_repeat("\0", 16);
 
-        BinaryCodec::register('custom', fn ($value) => 'custom-encode', fn ($value) => 'custom-decode');
-        BinaryCodec::register('uuid', fn ($value) => 'custom-encode', fn ($value) => 'custom-decode');
+        BinaryCodec::register(
+            'custom',
+            static fn (Uuid|Ulid|string|null $value): ?string => 'custom-encode',
+            static fn (?string $value): ?string => 'custom-decode',
+        );
+        BinaryCodec::register(
+            'uuid',
+            static fn (Uuid|Ulid|string|null $value): ?string => 'custom-encode',
+            static fn (?string $value): ?string => 'custom-decode',
+        );
 
         $this->assertNull(BinaryCodec::encode($blankBinary, 'custom'));
         $this->assertNull(BinaryCodec::decode($blankBinary, 'custom'));

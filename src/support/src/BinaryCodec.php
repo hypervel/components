@@ -38,7 +38,7 @@ class BinaryCodec
     {
         $isBuiltInBinary = self::isBuiltInBinary($value, $format);
 
-        if (blank($value) && ! $isBuiltInBinary) {
+        if (! $isBuiltInBinary && blank($value)) {
             return null;
         }
 
@@ -68,7 +68,7 @@ class BinaryCodec
     {
         $isBuiltInBinary = self::isBuiltInBinary($value, $format);
 
-        if (blank($value) && ! $isBuiltInBinary) {
+        if (! $isBuiltInBinary && blank($value)) {
             return null;
         }
 
