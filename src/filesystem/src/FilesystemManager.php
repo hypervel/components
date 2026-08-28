@@ -181,9 +181,47 @@ class FilesystemManager implements FactoryContract
             throw new InvalidArgumentException("Disk [{$name}] does not have a configured driver.");
         }
 
+        if ($config['driver'] === 'scoped') {
+            return $this->createScopedDriver($config, $logicalName);
+        }
+
+        return $this->resolveConstructionDescriptor(
+            $name,
+            $logicalName,
+            $this->prepareConstructionDescriptor($config, $logicalName),
+        );
+    }
+
+    /**
+     * Resolve a prepared disk construction descriptor.
+     *
+     * @param array{
+     *     config: array,
+     *     shouldServeSignedUrls: bool,
+     *     servingRouteDisk: ?string,
+     *     servingRoutePrefix: string
+     * } $descriptor
+     */
+    private function resolveConstructionDescriptor(
+        string $name,
+        ?string $logicalName,
+        array $descriptor,
+    ): Filesystem {
+        $config = $descriptor['config'];
+
+        if (empty($config['driver'])) {
+            throw new InvalidArgumentException("Disk [{$name}] does not have a configured driver.");
+        }
+
         $driver = $config['driver'];
         $hasPool = in_array($driver, $this->poolables, true);
         $constructionConfig = Arr::except($config, ['pool']);
+        $resolver = fn (Filesystem $filesystem): Filesystem => $this->configureServingRoute(
+            $filesystem,
+            $descriptor['shouldServeSignedUrls'],
+            $descriptor['servingRouteDisk'],
+            $descriptor['servingRoutePrefix'],
+        );
 
         if (isset($this->customCreators[$driver])) {
             return $hasPool
@@ -191,9 +229,11 @@ class FilesystemManager implements FactoryContract
                     $driver,
                     $config,
                     $logicalName,
-                    fn () => $this->callCustomCreator($constructionConfig, $logicalName),
+                    $descriptor['servingRouteDisk'],
+                    $descriptor['servingRoutePrefix'],
+                    fn () => $resolver($this->callCustomCreator($constructionConfig, $logicalName)),
                 )
-                : $this->callCustomCreator($constructionConfig, $logicalName);
+                : $resolver($this->callCustomCreator($constructionConfig, $logicalName));
         }
 
         if ($hasPool && ($driver === 's3' || $driver === 'gcs')) {
@@ -210,12 +250,14 @@ class FilesystemManager implements FactoryContract
             return $this->createDriverPooledDisk(
                 $driver,
                 $config,
-                $name,
-                fn () => $this->{$driverMethod}($constructionConfig, $name),
+                $logicalName,
+                $descriptor['servingRouteDisk'],
+                $descriptor['servingRoutePrefix'],
+                fn () => $resolver($this->{$driverMethod}($constructionConfig, $name)),
             );
         }
 
-        return $this->{$driverMethod}($config, $name);
+        return $resolver($this->{$driverMethod}($constructionConfig, $name));
     }
 
     /**
@@ -241,13 +283,15 @@ class FilesystemManager implements FactoryContract
         string $driver,
         array $config,
         ?string $name,
+        ?string $servingRouteDisk,
+        string $servingRoutePrefix,
         Closure $resolver,
     ): FilesystemPoolProxy {
         return new FilesystemPoolProxy(
-            $this->diskPoolDefinition($driver, $config, $name),
+            $this->diskPoolDefinition($driver, $config, $name, $servingRouteDisk, $servingRoutePrefix),
             $resolver,
             $this->poolFactory(),
-            $config,
+            Arr::except($config, ['pool']),
             $this->getReleaseCallback($driver),
         );
     }
@@ -257,15 +301,17 @@ class FilesystemManager implements FactoryContract
      */
     protected function createClientPooledDisk(string $driver, array $config): ClientPooledFilesystem
     {
+        $constructionConfig = Arr::except($config, ['pool']);
+
         if ($driver === 's3') {
             $clientConfig = $this->s3ClientConfig($config);
 
             return new ClientPooledFilesystem(
                 $this->poolDefinition($driver, $config['pool'] ?? [], $clientConfig),
                 fn (): S3Client => $this->createS3Client($clientConfig),
-                fn (S3Client $client): AwsS3V3Adapter => $this->buildS3Disk($client, $config),
+                fn (S3Client $client): AwsS3V3Adapter => $this->buildS3Disk($client, $constructionConfig),
                 $this->poolFactory(),
-                $config,
+                $constructionConfig,
                 $this->getReleaseCallback($driver),
             );
         }
@@ -276,9 +322,9 @@ class FilesystemManager implements FactoryContract
             return new ClientPooledFilesystem(
                 $this->poolDefinition($driver, $config['pool'] ?? [], $clientConfig),
                 fn (): GcsClient => $this->createGcsClient($clientConfig),
-                fn (GcsClient $client): GoogleCloudStorageAdapter => $this->buildGcsDisk($client, $config),
+                fn (GcsClient $client): GoogleCloudStorageAdapter => $this->buildGcsDisk($client, $constructionConfig),
                 $this->poolFactory(),
-                $config,
+                $constructionConfig,
                 $this->getReleaseCallback($driver),
             );
         }
@@ -289,16 +335,21 @@ class FilesystemManager implements FactoryContract
     /**
      * Derive the immutable pool definition for a disk configuration.
      */
-    protected function diskPoolDefinition(string $driver, array $config, ?string $name): PoolDefinition
-    {
-        $fingerprintSource = match (true) {
-            $driver === 's3' => $this->s3ClientConfig($config),
-            $driver === 'gcs' => $this->gcsClientConfig($config),
-            default => [
-                'config' => Arr::except($config, ['pool']),
-                'name' => $name,
+    protected function diskPoolDefinition(
+        string $driver,
+        array $config,
+        ?string $name,
+        ?string $servingRouteDisk,
+        string $servingRoutePrefix,
+    ): PoolDefinition {
+        $fingerprintSource = [
+            'config' => Arr::except($config, ['pool']),
+            'name' => $name,
+            'serving_route' => [
+                'disk' => $servingRouteDisk,
+                'prefix' => $servingRoutePrefix,
             ],
-        };
+        ];
 
         return $this->poolDefinition($driver, $config['pool'] ?? [], $fingerprintSource);
     }
@@ -577,78 +628,163 @@ class FilesystemManager implements FactoryContract
      */
     public function createScopedDriver(array $config, ?string $name = null): Filesystem
     {
-        return $this->build($this->expandScopedConfig($config), $name);
+        return $this->resolveConstructionDescriptor(
+            $name ?? self::ON_DEMAND_DISK_NAME,
+            $name,
+            $this->prepareConstructionDescriptor($config, $name),
+        );
     }
 
     /**
-     * Expand a scoped disk into the effective parent-disk configuration.
-     */
-    protected function expandScopedConfig(array $config): array
-    {
-        return $this->expandScopedConfigRecursively($config, []);
-    }
-
-    /**
-     * Expand nested scoped disks while detecting named definition cycles.
+     * Prepare effective construction and serving-route configuration.
      *
-     * @param list<string> $diskStack
+     * @return array{
+     *     config: array,
+     *     shouldServeSignedUrls: bool,
+     *     servingRouteDisk: ?string,
+     *     servingRoutePrefix: string
+     * }
      */
-    private function expandScopedConfigRecursively(array $config, array $diskStack): array
-    {
-        if (empty($config['disk'])) {
-            throw new InvalidArgumentException('Scoped disk is missing "disk" configuration option.');
-        }
-        if (empty($config['prefix'])) {
-            throw new InvalidArgumentException('Scoped disk is missing "prefix" configuration option.');
-        }
+    private function prepareConstructionDescriptor(
+        array $config,
+        ?string $logicalName,
+    ): array {
+        $diskStack = [];
+        $scopedPrefixes = [];
+        $scopedOverrides = [];
+        $servingRoute = [
+            'requested' => false,
+            'disk' => null,
+            'prefix' => '',
+        ];
 
-        if (! is_string($config['disk']) && ! is_array($config['disk'])) {
-            throw new InvalidArgumentException(
-                'Scoped disk "disk" configuration option must be a disk name or configuration array.',
-            );
-        }
+        while (($config['driver'] ?? null) === 'scoped') {
+            if (empty($config['disk'])) {
+                throw new InvalidArgumentException('Scoped disk is missing "disk" configuration option.');
+            }
+            if (empty($config['prefix'])) {
+                throw new InvalidArgumentException('Scoped disk is missing "prefix" configuration option.');
+            }
 
-        if (! is_string($config['prefix'])) {
-            throw new InvalidArgumentException('Scoped disk "prefix" configuration option must be a string.');
-        }
-
-        if (is_string($config['disk'])) {
-            $disk = $config['disk'];
-
-            if (($cycleStart = array_search($disk, $diskStack, true)) !== false) {
-                $cycle = [...array_slice($diskStack, $cycleStart), $disk];
-
+            if (! is_string($config['disk']) && ! is_array($config['disk'])) {
                 throw new InvalidArgumentException(
-                    'Circular scoped disk definition detected: ' . implode(' -> ', $cycle) . '.',
+                    'Scoped disk "disk" configuration option must be a disk name or configuration array.',
                 );
             }
 
-            $diskStack[] = $disk;
-            $parent = $this->getConfig($disk);
-        } else {
-            $parent = $config['disk'];
+            if (! is_string($config['prefix'])) {
+                throw new InvalidArgumentException('Scoped disk "prefix" configuration option must be a string.');
+            }
+
+            $servesFiles = ($config['serve'] ?? false) === true;
+            $servingRoute['requested'] = $servingRoute['requested'] || $servesFiles;
+
+            if ($servingRoute['disk'] === null) {
+                if ($servesFiles && $logicalName !== null) {
+                    $servingRoute['disk'] = $logicalName;
+                } else {
+                    $servingRoute['prefix'] = $this->joinServingRoutePrefix(
+                        $config['prefix'],
+                        $servingRoute['prefix'],
+                    );
+                }
+            }
+
+            $scopedPrefixes[] = $config['prefix'];
+
+            foreach (['visibility', 'throw', 'report', 'read-only', 'pool'] as $option) {
+                if (! isset($scopedOverrides[$option]) && isset($config[$option])) {
+                    $scopedOverrides[$option] = $config[$option];
+                }
+            }
+
+            if (is_string($config['disk'])) {
+                $disk = $config['disk'];
+
+                if (($cycleStart = array_search($disk, $diskStack, true)) !== false) {
+                    $cycle = [...array_slice($diskStack, $cycleStart), $disk];
+
+                    throw new InvalidArgumentException(
+                        'Circular scoped disk definition detected: ' . implode(' -> ', $cycle) . '.',
+                    );
+                }
+
+                $diskStack[] = $disk;
+                $config = $this->getConfig($disk);
+
+                if (empty($config['driver'])) {
+                    throw new InvalidArgumentException("Disk [{$disk}] does not have a configured driver.");
+                }
+
+                $logicalName = $disk;
+            } else {
+                $config = $config['disk'];
+                $logicalName = null;
+            }
         }
 
-        if (empty($parent['prefix'])) {
-            $parent['prefix'] = $config['prefix'];
-        } else {
-            $separator = $parent['directory_separator'] ?? DIRECTORY_SEPARATOR;
-            $parentPrefix = rtrim($parent['prefix'], $separator);
-            $scopedPrefix = ltrim($config['prefix'], $separator);
-            $parent['prefix'] = "{$parentPrefix}{$separator}{$scopedPrefix}";
+        $servesFiles = ($config['serve'] ?? false) === true;
+        $servingRoute['requested'] = $servingRoute['requested'] || $servesFiles;
+
+        if ($servingRoute['disk'] === null && $servesFiles && $logicalName !== null) {
+            $servingRoute['disk'] = $logicalName;
         }
 
-        if (isset($config['visibility'])) {
-            $parent['visibility'] = $config['visibility'];
+        $separator = $config['directory_separator'] ?? DIRECTORY_SEPARATOR;
+
+        foreach (array_reverse($scopedPrefixes) as $scopedPrefix) {
+            if (empty($config['prefix'])) {
+                $config['prefix'] = $scopedPrefix;
+            } else {
+                $parentPrefix = rtrim($config['prefix'], $separator);
+                $scopedPrefix = ltrim($scopedPrefix, $separator);
+                $config['prefix'] = "{$parentPrefix}{$separator}{$scopedPrefix}";
+            }
         }
 
-        if (isset($config['throw'])) {
-            $parent['throw'] = $config['throw'];
+        foreach ($scopedOverrides as $option => $value) {
+            $config[$option] = $value;
         }
 
-        return ($parent['driver'] ?? null) === 'scoped'
-            ? $this->expandScopedConfigRecursively($parent, $diskStack)
-            : $parent;
+        if ($servingRoute['requested']) {
+            $config['serve'] = true;
+        }
+
+        return [
+            'config' => $config,
+            'shouldServeSignedUrls' => $servingRoute['requested'],
+            'servingRouteDisk' => $servingRoute['disk'],
+            'servingRoutePrefix' => $servingRoute['disk'] === null ? '' : $servingRoute['prefix'],
+        ];
+    }
+
+    /**
+     * Join scoped prefixes for a serving-route path.
+     */
+    private function joinServingRoutePrefix(string $prefix, string $suffix): string
+    {
+        $prefix = trim(str_replace('\\', '/', $prefix), '/');
+        $suffix = trim(str_replace('\\', '/', $suffix), '/');
+
+        return $suffix === '' ? $prefix : "{$prefix}/{$suffix}";
+    }
+
+    /**
+     * Apply serving-route metadata to a local adapter.
+     */
+    private function configureServingRoute(
+        Filesystem $filesystem,
+        bool $shouldServeSignedUrls,
+        ?string $servingRouteDisk,
+        string $servingRoutePrefix,
+    ): Filesystem {
+        if ($filesystem instanceof LocalFilesystemAdapter) {
+            $filesystem
+                ->shouldServeSignedUrls($shouldServeSignedUrls, fn () => $this->app->make('url'))
+                ->servingRoute($servingRouteDisk, $servingRoutePrefix);
+        }
+
+        return $filesystem;
     }
 
     /**

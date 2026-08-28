@@ -34,6 +34,7 @@
     "require": {
         "php": "^8.4",
         "aws/aws-sdk-php": "^3.322.9",
+        "guzzlehttp/psr7": "^2.13",
         "league/flysystem": "^3.25.1",
         "league/flysystem-aws-s3-v3": "^3.25.1",
         "league/flysystem-path-prefixing": "^3.25.1",
