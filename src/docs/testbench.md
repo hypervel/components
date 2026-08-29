@@ -3,6 +3,7 @@
 - [Introduction](#introduction)
 - [Installation](#installation)
 - [Getting Started](#getting-started)
+    - [Unit Tests Without an Application](#unit-tests-without-an-application)
     - [PHPUnit Test Suites](#phpunit-test-suites)
 - [How Testbench Works](#how-testbench-works)
     - [Runtime Skeleton Copies](#runtime-skeleton-copies)
@@ -116,6 +117,32 @@ You may also run package tests through the Testbench CLI:
 ```shell
 vendor/bin/testbench package:test
 ```
+
+<a name="unit-tests-without-an-application"></a>
+### Unit Tests Without an Application
+
+Testbench is intended for tests that boot an application around your package. For package unit tests that only exercise ordinary PHP objects, require the smaller `hypervel/testing` package directly:
+
+```shell
+composer require hypervel/testing --dev
+```
+
+Your package may keep a separate base for those tests:
+
+```php
+<?php
+
+namespace Courier\Tests;
+
+use Hypervel\Testing\UnitTestCase as BaseTestCase;
+
+abstract class UnitTestCase extends BaseTestCase
+{
+    //
+}
+```
+
+`Hypervel\Testing\UnitTestCase` keeps Hypervel's coroutine, exception cleanup, and Mockery lifecycle without creating an application. Continue to use your Testbench base for tests that need the container, configuration, service providers, database, routes, published files, or the runtime skeleton.
 
 <a name="phpunit-test-suites"></a>
 ### PHPUnit Test Suites

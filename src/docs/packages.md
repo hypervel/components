@@ -2,6 +2,7 @@
 
 - [Introduction](#introduction)
     - [A Note on Facades](#a-note-on-facades)
+    - [Testing Packages](#testing-packages)
     - [Generating Facade Docblocks](#generating-facade-docblocks)
 - [Package Discovery](#package-discovery)
     - [Test State Cleanup](#test-state-cleanup)
@@ -40,6 +41,13 @@ On the other hand, other packages are specifically intended for use with Hyperve
 ### A Note on Facades
 
 When writing a Hypervel application, it generally does not matter if you use contracts or facades since both provide essentially equal levels of testability. However, when writing packages, your package will not typically have access to all of Hypervel's testing helpers. If you would like to be able to write your package tests as if the package were installed inside a typical Hypervel application, you may use the [Hypervel Testbench](/docs/{{version}}/testbench) package.
+
+<a name="testing-packages"></a>
+### Testing Packages
+
+For package unit tests that do not need an application, require `hypervel/testing` as a development dependency and have your package's base test case extend `Hypervel\Testing\UnitTestCase`. This provides Hypervel's coroutine and cleanup lifecycle without booting the framework.
+
+Use `Hypervel\Testbench\TestCase` when a package test needs an application container, configuration, service providers, database, routes, or an application filesystem. Application suites should continue to extend their own `Tests\TestCase` and may mark individual methods with `#[UnitTest]` when those methods do not need to boot the application. The [testing documentation](/docs/{{version}}/testing#choosing-a-test-case) provides examples of each base.
 
 <a name="generating-facade-docblocks"></a>
 ### Generating Facade Docblocks

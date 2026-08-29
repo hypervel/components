@@ -97,7 +97,7 @@ When porting imports, update the import list first, then read the class again an
 
 For applications, use the `composer.json` file from a fresh Hypervel application as your starting point. Do not copy a Laravel application's framework dependencies, Composer scripts, or bootstrap files over the Hypervel skeleton.
 
-For packages, replace `laravel/framework` and individual `illuminate/*` requirements with the Hypervel components the package actually uses. Replace `orchestra/testbench` with `hypervel/testbench` for package tests. If a third-party dependency requires Laravel or Illuminate components, use a Hypervel-compatible version or port that integration; do not retain Illuminate packages merely to fill missing framework classes.
+For packages, replace `laravel/framework` and individual `illuminate/*` requirements with the Hypervel components the package actually uses. Replace `orchestra/testbench` with `hypervel/testbench` for package tests that boot an application, or require `hypervel/testing` for package unit tests that do not. If a third-party dependency requires Laravel or Illuminate components, use a Hypervel-compatible version or port that integration; do not retain Illuminate packages merely to fill missing framework classes.
 
 Laravel package discovery metadata under `extra.laravel` does not register providers in Hypervel. Move Hypervel provider discovery to `extra.hypervel.providers` as described in the [package development documentation](/docs/{{version}}/packages#package-discovery).
 
@@ -590,14 +590,14 @@ Laravel tests often rely on loose PHPDoc types or mocks that return values too b
 
 Application tests that touch Hypervel services should extend your application's `Tests\TestCase` class. Hypervel's base test case runs test methods inside a coroutine so database pools, Redis pools, and coroutine context behave like they do in a real request or job.
 
-Pure unit tests that do not boot the framework may extend PHPUnit's base test case. If a test touches Hypervel services, use the Hypervel test case.
+Keep pure application unit tests on that same base and mark methods that do not need the application with `#[UnitTest]`. This skips application boot while retaining Hypervel's coroutine and cleanup lifecycle.
 
-For more information, see the [testing documentation](/docs/{{version}}/testing#running-tests-in-coroutines).
+For more information, see the [testing documentation](/docs/{{version}}/testing#choosing-a-test-case).
 
 <a name="package-tests"></a>
 ### Package Tests
 
-Package feature tests should use `Hypervel\Testbench\TestCase`. Testbench boots a disposable Hypervel application around your package, registers your service providers, and provides an isolated runtime skeleton for tests that publish files, cache routes, run migrations, or generate application files.
+Package unit tests that do not boot an application should use `Hypervel\Testing\UnitTestCase`. Package feature tests should use `Hypervel\Testbench\TestCase`. Testbench boots a disposable Hypervel application around your package, registers your service providers, and provides an isolated runtime skeleton for tests that publish files, cache routes, run migrations, or generate application files.
 
 ```php
 <?php
