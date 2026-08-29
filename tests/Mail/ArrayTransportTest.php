@@ -38,6 +38,8 @@ class ArrayTransportTest extends TestCase
         $subjects = [];
 
         run(function () use ($transport, &$subjects): void {
+            // The hooked sleep is the only yield in these callbacks, so both children
+            // send before either reads instead of each running to completion in turn.
             $subjects = parallel([
                 function () use ($transport): array {
                     $transport->send($this->message('first'));
