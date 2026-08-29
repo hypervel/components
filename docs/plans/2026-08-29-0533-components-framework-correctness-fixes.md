@@ -125,7 +125,7 @@ Add a no-throw `Call::__destruct()` that invokes this resource-only path. It mus
 - Abandoning an incomplete state releases buffers and the native resource once without publishing a terminal result.
 - Dropping an unfinished call invokes abandonment once.
 - Dropping a completed call performs no abandonment work.
-- Real client-streaming and bidirectional integration tests prove that dropping an unfinished call releases the connection for subsequent work.
+- Real client-streaming and bidirectional tests against the grpc-go interoperability server prove that dropping an unfinished call releases the connection for subsequent work. Hypervel's server exposes only unary and server-streaming routes.
 
 ## Support error fidelity
 

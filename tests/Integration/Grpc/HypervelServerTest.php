@@ -194,39 +194,6 @@ class HypervelServerTest extends GrpcIntegrationTestCase
         $this->assertSame('unary:recovered', $reply->getValue());
     }
 
-    public function testDroppingAnUnfinishedClientStreamReleasesTheConnection(): void
-    {
-        $client = $this->newTestClient([
-            'connections' => 1,
-            'timeout' => 2.0,
-        ]);
-        $call = $client->clientStream();
-        $call->write((new TestRequest)->setValue('unfinished'));
-
-        unset($call);
-
-        $reply = $client->unary((new TestRequest)->setValue('after-client-stream'))->wait();
-
-        $this->assertSame('unary:after-client-stream', $reply->getValue());
-    }
-
-    public function testDroppingAnUnfinishedBidirectionalStreamReleasesTheConnection(): void
-    {
-        $client = $this->newTestClient([
-            'connections' => 1,
-            'timeout' => 2.0,
-        ]);
-        $call = $client->bidiStream();
-        $call->write((new TestRequest)->setValue('unfinished'));
-        $this->assertSame('bidi:unfinished', $call->read()?->getValue());
-
-        unset($call);
-
-        $reply = $client->unary((new TestRequest)->setValue('after-bidi-stream'))->wait();
-
-        $this->assertSame('unary:after-bidi-stream', $reply->getValue());
-    }
-
     public function testServerSendLimitReturnsResourceExhausted(): void
     {
         $client = $this->newTestClient(['timeout' => 2.0]);
