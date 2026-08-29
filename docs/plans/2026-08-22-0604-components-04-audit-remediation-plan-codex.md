@@ -158,7 +158,7 @@ Each row is an implementation requirement. Test names are descriptive; use the r
 
 Use package-sized commits that remain reviewable and bisectable. The following order avoids building fixes on obsolete primitives:
 
-1. Mail and data representation: 21, 30-35, 82, 94-98.
+1. Mail and data representation: 21, 30-32, 34-35, 82, 94-98.
 2. Reverb recovery command and runbook: 112, with no runtime state-model change.
 3. Queue cleanup: only the two valid parts of 154; 153 deliberately stays unchanged.
 4. Vonage notification channel port followed by Horizon wiring: 160.

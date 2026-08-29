@@ -131,9 +131,14 @@ The inner events identify the command execution boundary, not an unconditional c
 Reuse `TracksPushedScopesAndSpans`:
 
 - `BeforeHandle` pushes a scope, sets the command tag, and records the starting breadcrumb with its input;
-- `AfterExecute` records the completion breadcrumb from the command input, normalized exit code, and throwable, performs a non-blocking event flush through `maybePopScope()`, and pops only when this integration pushed a scope in the current execution;
+- after pushing, `BeforeHandle` marks the exact command object in an execution-local `WeakMap<Command, bool>`;
+- `AfterExecute` records the completion breadcrumb from the command input, normalized exit code, and throwable, but removes the marker and performs the non-blocking event flush and pop through `maybePopScope()` only when that exact command owns it;
 - nested `Artisan::call()` receives balanced nested scopes;
 - cleanup defers are registered only in a coroutine, while push/pop remains available to ordinary CLI commands.
+
+Keep the empty weak map in context rather than counting and forgetting it on every completion. Weak keys do not retain abandoned command objects, coroutine context ends with its execution, and the non-coroutine fallback belongs to the one-shot CLI process. A boolean marker is sufficient: recursively executing the same active `Command` object is already unsupported because `Command::run()` overwrites its mutable input, output, components, and exit-code state. Do not change the shared tracking trait; queue and scheduling integrations deliberately use its aggregate cleanup semantics.
+
+An unmatched terminal event still records its truthful completion breadcrumb on the current scope. It must not pop a scope owned by another command. This includes an unnamed command and a named command whose earlier `BeforeHandle` listener stopped propagation before Sentry's listener ran.
 
 Command completion performs the non-blocking SDK flush through `maybePopScope()`. Coroutine command execution waits for child sends when its `run()` boundary closes, while non-coroutine sends complete inline in `HttpPoolTransport::createCoroutine()`, so a second bounded drain at command completion is unnecessary.
 
@@ -280,7 +285,7 @@ Each slice is tested before proceeding. If implementation exposes a non-trivial 
 - Sentry Logs and trace metrics remain wired and mechanically covered while their unsupported status is documented without changing config behavior.
 - Bootstrap Hub scope survives into cloned execution scopes; sibling mutations, nested pushes, and pops remain isolated.
 - `sentry:test` handles internal frames with null file information.
-- Inner command events preserve their existing constructor usage, carry the original input, and expose the same normalized status returned by `Command::execute()`, including isolated-command mutex rejection; Sentry applies Symfony's default throwable-code rule for integer and non-integer exception codes, and scope/breadcrumb ownership covers success, failure, nesting, no-push completion, coroutine execution, and ordinary CLI execution.
+- Inner command events preserve their existing constructor usage, carry the original input, and expose the same normalized status returned by `Command::execute()`, including isolated-command mutex rejection; Sentry applies Symfony's default throwable-code rule for integer and non-integer exception codes. Scope/breadcrumb ownership covers success, failure, ordinary nesting, duplicate terminal events, direct no-push completion, an unnamed nested completion, and a named completion whose `BeforeHandle` propagation stopped before Sentry, including the non-coroutine unnamed path.
 - Disabled commands, pre-execute failures, and outer Symfony error-listener rewrites stay outside the inner breadcrumb boundary without duplicate outer listeners.
 - Command completion does not wait for an unrelated accepted send.
 - Non-coroutine send completes before `send()` returns; coroutine send remains asynchronous; pool release/discard and wait-group accounting remain balanced on success and failure.
