@@ -334,7 +334,7 @@ class Command extends SymfonyCommand
                     if ($container->resolvedScoped(DeferredCallbackCollection::class)) {
                         try {
                             $container->make(DeferredCallbackCollection::class)
-                                ->invokeWhen(fn (DeferredCallback $callback) => ($exception === null && $this->normalizeExitCode($this->exitCode) === self::SUCCESS) || $callback->always);
+                                ->invokeWhen(fn (DeferredCallback $callback): bool => ($exception === null && $this->normalizeExitCode($this->exitCode) === self::SUCCESS) || $callback->always);
                         } catch (CanceledException $cancellation) {
                             $exception = $cancellation;
                         } catch (Throwable $throwable) {

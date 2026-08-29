@@ -382,7 +382,7 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
             ) {
                 try {
                     $container->make(DeferredCallbackCollection::class)
-                        ->invokeWhen(fn (DeferredCallback $callback) => ($exception === null && $exitCode === SymfonyCommand::SUCCESS) || $callback->always);
+                        ->invokeWhen(fn (DeferredCallback $callback): bool => ($exception === null && $exitCode === SymfonyCommand::SUCCESS) || $callback->always);
                 } catch (CanceledException $cancellation) {
                     $exception = $cancellation;
                 } catch (Throwable $throwable) {

@@ -370,7 +370,7 @@ class ConsoleApplicationResolveTest extends TestCase
     // Application::call()
     // ---------------------------------------------------------------
 
-    public function testCallStringAndArrayInputProduceSameResult()
+    public function testCallStringAndArrayInputProduceSameResult(): void
     {
         $app = $this->createApp(
             m::mock(Application::class, [
