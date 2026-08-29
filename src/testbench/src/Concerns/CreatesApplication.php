@@ -39,6 +39,7 @@ use Hypervel\Testbench\Foundation\Bootstrap\SyncDatabaseEnvironmentVariables;
 use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\Foundation\PackageManifest;
 use Hypervel\Testbench\Foundation\UndefinedValue;
+use Hypervel\Testing\ParallelTesting;
 use PHPUnit\Framework\TestCase as PHPUnitTestCase;
 use Throwable;
 
@@ -623,13 +624,7 @@ trait CreatesApplication
      */
     protected function paraTestWorkerToken(): ?string
     {
-        $token = $_SERVER['TEST_TOKEN'] ?? $_ENV['TEST_TOKEN'] ?? null;
-
-        if (! is_string($token) || $token === '') {
-            return null;
-        }
-
-        return preg_replace('/[^A-Za-z0-9_.-]/', '_', $token);
+        return ParallelTesting::processToken();
     }
 
     /**

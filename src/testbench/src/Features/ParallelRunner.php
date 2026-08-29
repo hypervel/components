@@ -27,10 +27,7 @@ class ParallelRunner extends BaseParallelRunner
         }
 
         $applicationResolver = static::$applicationResolver ?: static function (): ApplicationContract {
-            // Rebootstrapping would overlay the live runtime clone and register duplicate cleanup.
-            if (! defined('BASE_PATH')) {
-                Bootstrapper::bootstrap();
-            }
+            Bootstrapper::bootstrap();
 
             $extra = Bootstrapper::getConfiguration()?->getExtraAttributes() ?? [];
             // Process callbacks belong to the runner even when package discovery is disabled.

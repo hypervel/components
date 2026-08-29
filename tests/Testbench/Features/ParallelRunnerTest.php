@@ -25,7 +25,7 @@ use Symfony\Component\Process\Process;
 class ParallelRunnerTest extends TestCase
 {
     #[Test]
-    public function itBuildsDefaultApplicationsFromConfigurationWithoutRebootstrappingTheRuntime(): void
+    public function itBuildsDefaultApplicationsFromReloadedConfigurationWithoutReplacingTheRuntime(): void
     {
         $packagePath = $this->createPackageFixture();
 
@@ -46,6 +46,7 @@ class ParallelRunnerTest extends TestCase
             /** @var array<string, bool|int|string> $result */
             $result = json_decode($process->getOutput(), associative: true, flags: JSON_THROW_ON_ERROR);
 
+            $this->assertSame('HYPERVEL_TEST_PARALLEL_RUNNER_ENV="reloaded"', $result['configuration_environment']);
             $this->assertSame('configured', $result['environment']);
             $this->assertTrue($result['provider']);
             $this->assertFalse($result['excluded_provider']);
@@ -53,7 +54,7 @@ class ParallelRunnerTest extends TestCase
             $this->assertGreaterThan(0, $result['setup_callbacks']);
             $this->assertGreaterThan(0, $result['teardown_callbacks']);
             $this->assertTrue($result['runtime_reused']);
-            // A second bootstrap would silently overlay the live runtime path rather than throwing.
+            // Bootstrap re-entry must retain mutations made to the active runtime clone.
             $this->assertTrue($result['runtime_preserved']);
         } finally {
             (new Filesystem)->deleteDirectory($packagePath);
