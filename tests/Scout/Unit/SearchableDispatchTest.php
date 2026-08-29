@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Scout\Unit;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Engine\Channel;
 use Hypervel\Http\Request;
 use Hypervel\Scout\Searchable;
 use Hypervel\Tests\Scout\ScoutTestCase;
@@ -47,6 +48,57 @@ class SearchableDispatchTest extends ScoutTestCase
 
         Coroutine::join([$coroutineId], 1);
         $this->assertSame(['response', 'save', 'delete'], $events);
+    }
+
+    public function testForkedRequestCoroutineOwnsItsDeferredJobQueue(): void
+    {
+        $events = [];
+        $childId = null;
+        $releaseChild = new Channel(1);
+        $childBodyFinished = new Channel(1);
+
+        $parentId = Coroutine::create(static function () use (&$events, &$childId, $releaseChild, $childBodyFinished): void {
+            RequestContext::set(Request::create('/'));
+
+            SearchableDispatchFixture::dispatch(static function () use (&$events): void {
+                $events[] = 'parent job';
+            });
+
+            $childId = Coroutine::fork(static function () use (&$events, $releaseChild, $childBodyFinished): void {
+                $releaseChild->pop();
+
+                SearchableDispatchFixture::dispatch(static function () use (&$events): void {
+                    $events[] = 'child job';
+                });
+
+                $events[] = 'child body finished';
+                $childBodyFinished->push(true);
+            });
+
+            $events[] = 'parent body finished';
+        });
+
+        Coroutine::join([$parentId], 1);
+
+        try {
+            $this->assertSame(['parent body finished', 'parent job'], $events);
+            $this->assertIsInt($childId);
+        } finally {
+            $releaseChild->push(true);
+
+            if (is_int($childId)) {
+                Coroutine::join([$childId], 1);
+            }
+        }
+
+        $this->assertTrue($childBodyFinished->pop(1));
+
+        $this->assertSame([
+            'parent body finished',
+            'parent job',
+            'child body finished',
+            'child job',
+        ], $events);
     }
 
     public function testDeferredOwnerDrainsJobsEnqueuedWhileItIsRunning(): void

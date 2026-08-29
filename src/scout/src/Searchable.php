@@ -22,7 +22,6 @@ use Hypervel\Scout\Events\ModelsFlushed;
 use Hypervel\Scout\Events\ModelsImported;
 use Hypervel\Support\Collection as BaseCollection;
 use LogicException;
-use SplQueue;
 use Throwable;
 
 /**
@@ -571,8 +570,8 @@ trait Searchable
 
         $jobs = CoroutineContext::get(self::SCOUT_JOBS_CONTEXT_KEY);
 
-        if (! $jobs instanceof SplQueue) {
-            $jobs = new SplQueue;
+        if (! $jobs instanceof SearchableJobQueue) {
+            $jobs = new SearchableJobQueue;
             CoroutineContext::set(self::SCOUT_JOBS_CONTEXT_KEY, $jobs);
 
             Coroutine::defer(static function () use ($jobs): void {
