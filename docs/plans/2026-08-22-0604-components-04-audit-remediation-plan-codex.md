@@ -12,7 +12,7 @@ Resolve every genuine issue retained in this master plan against the current 0.4
 - Finding 123 was valid but is already fixed on the current branch.
 - Findings 4, 9, 14, 93, 119, 129, and 153 require no change: some are false positives, while the rest propose churn or machinery for deliberate behavior that is already correct.
 - Finding 88 is an exact duplicate of finding 32 and must not become a second patch.
-- Findings 6, 26, 55, 94, 98, 128, 152, and 154 are only partially correct as written. Their valid portions remain in this plan; their invalid portions are explicitly rejected below.
+- Findings 6, 26, 94, 98, 128, 152, and 154 are only partially correct as written. Their valid portions remain in this plan; their invalid portions are explicitly rejected below.
 - Some audit statements about Laravel were stale or incorrect. A defect shared with current Laravel remains a defect, but the plan does not cite false upstream parity as evidence.
 
 ## Rejected, duplicate, resolved, and narrowed claims
@@ -38,13 +38,10 @@ Resolve every genuine issue retained in this master plan against the current 0.4
 
 ## Cross-cutting design decisions
 
-1. Worker defaults and request overrides are different state classes. Laravel-style setters called before `Hypervel\Contracts\Foundation\Application::isBooted()` update a worker baseline. Calls after boot during an execution use CoroutineContext, or a dedicated withX callback performs a scoped override. In standalone use without an Application, retain the documented package fallback; never infer boot from coroutine presence.
-2. Shared cache publication follows database transaction visibility. Committed mutations invalidate affected shared entries after commit, and rollback never invalidates them. Where a package must read its own uncommitted cache-affecting writes, that execution bypasses the affected shared entries while its transaction is dirty. Where fills can race with committed mutations, coordinate cache misses and exact invalidations with per-identity locks unless an existing atomic primitive provably orders every competing writer. Cache hits remain lock-free.
-3. Worker-lifetime caches require a natural finite keyspace or deterministic invalidation. Cheap input-derived values should not be retained worker-wide merely to avoid parsing or hashing them, and arbitrary caps are not a substitute for correct ownership.
-4. Fail loudly for unsupported or ambiguous configuration. Do not silently clamp, coerce, fall back to inaccurate readers, or accept an API surface that cannot work.
-5. Every concurrency fix needs a deterministic interleaving test, not only a sequential unit test.
-
-Record the boot-baseline/execution-override semantic shared by Notification, Number, and Sentry once in `src/docs/porting-from-laravel.md`.
+1. Shared cache publication follows database transaction visibility. Committed mutations invalidate affected shared entries after commit, and rollback never invalidates them. Where a package must read its own uncommitted cache-affecting writes, that execution bypasses the affected shared entries while its transaction is dirty. Where fills can race with committed mutations, coordinate cache misses and exact invalidations with per-identity locks unless an existing atomic primitive provably orders every competing writer. Cache hits remain lock-free.
+2. Worker-lifetime caches require a natural finite keyspace or deterministic invalidation. Cheap input-derived values should not be retained worker-wide merely to avoid parsing or hashing them, and arbitrary caps are not a substitute for correct ownership.
+3. Fail loudly for unsupported or ambiguous configuration. Do not silently clamp, coerce, fall back to inaccurate readers, or accept an API surface that cannot work.
+4. Every concurrency fix needs a deterministic interleaving test, not only a sequential unit test.
 
 ## Architecture, compatibility, and cost guardrails
 
@@ -83,28 +80,13 @@ Each row is an implementation requirement. Test names are descriptive; use the r
 |---:|---|---|
 | 21 | Widen Mailable metadata values and storage shapes to int\|string\|null, matching Envelope. Cast consistently only where a downstream header API requires a string. | Integer and string metadata through send, render, and assertion helpers; null/absent metadata; strict-types regression. |
 | 23 | In hasEnvelopeAttachment, call attachments only when the mailable defines it; otherwise use an empty list. | Envelope-only mailable, mailable that also defines attachments, attachment match/no-match, and no method fatal. |
-| 24 | Use one CoroutineContext path in every execution mode. Store under one package key a `WeakMap<ArrayTransport, Collection>` keyed by transport object identity; this avoids `spl_object_id` reuse, isolates instances, lets dead transports disappear, and relies on CoroutineContext's existing non-coroutine fallback instead of branching on coroutine presence. Preserve all messages and flush semantics within one execution. | Sibling requests and separate transport instances cannot see each other's messages; flush is local; destroyed transports disappear from the non-coroutine weak map; many completed contexts leave no worker accumulation; non-coroutine test usage remains deterministic. |
-| 25 | Make ChannelManager's Laravel-style deliverVia and locale setters lifecycle-aware: before `Application::isBooted()` they update worker baselines; after boot during an execution they update context overrides. Do not add a package-specific boot predicate. | Provider boot defaults are inherited by later request/job coroutines; request overrides do not affect siblings or the next execution; explicit notification locale still wins; flush resets both layers; shared porting-guide entry documents the semantic. |
 | 26 | Keep AnonymousNotifiable::getKey returning null for Laravel fake/assertion parity, but make BroadcastNotificationCreated throw a descriptive exception when no explicit broadcast route exists instead of constructing a trailing-dot private channel. The audit's upstream comparison was wrong—Laravel also defines getKey—but the silent malformed-channel behavior remains a defect. | Anonymous broadcast without route fails loudly; explicit broadcast route works; normal model notifiable fallback unchanged; getKey remains null. |
 | 30 | Add symfony/polyfill-php86 as a direct collections dependency because SortDirection is used by that split package. | Package metadata assertion and a standalone collections install/autoload smoke test without database. |
 | 31 | Cast the single-item Arr::join result to string, matching the multi-item path and native return type. | One integer, float, stringable object, string, and multi-item list. |
 | 32 | Use first() when guessing a resource collection class instead of reading items[0]. | keyBy, filtered/gapped keys, ordinary list, empty collection failure, and paginator/resource conversion. Finding 88 closes with these tests. |
-| 33 | Preserve Number::useLocale/useCurrency as lifecycle-aware Laravel-compatible setters: use the current `Application::isBooted()` from Container when available, update static worker defaults before boot completes or in standalone use without an Application, and set context overrides after boot during an execution. Implement withLocale/withCurrency as explicit scoped context operations with reliable restoration. | Provider boot locale/currency inherited by requests; sibling overrides isolated; nested withLocale/withCurrency restore after success and exception; no-application CLI baseline; flush resets static and context state; shared porting-guide entry documents the semantic. |
 | 34 | Port current Laravel's array-capable multibyte Str::substrReplace implementation, including array offset/length/replacement behavior and key preservation. Correct the scalar negative-length calculation as part of the port: the current Str::substrReplace('Hello', 'X', 2, -1) produces HeXello instead of HeXo. | Scalar parity including the explicit negative-length example; arrays with scalar and array replacements; offset/length arrays; associative keys; negative offsets and lengths; multibyte strings; mismatched replacement lengths. |
 | 35 | For built-in UUID/ULID codecs, identify binary values by the unambiguous 16-byte storage length and validate textual 36/26-byte forms separately. Leave the generic public BinaryCodec heuristic available to custom codecs. Runtime sampling confirmed that roughly one in sixteen thousand random v4-shaped UUID payloads can be valid UTF-8 and NUL-free, so this is ordinary data loss at scale rather than a purely theoretical collision. | Deterministic valid-UTF-8, NUL-free 16-byte UUID/ULID payloads round-trip through casts and database bindings; a fixed previously misclassified v4 payload; textual forms; invalid lengths; custom codec behavior unchanged. |
 
-### Sentry, Telescope, and foundation
-
-| ID | Proposed implementation | Required tests |
-|---:|---|---|
-| 48 | Port both Sentry Monolog handlers fully to Monolog 3 LogRecord APIs. Use isHandling and Level comparisons; create modified records with LogRecord::with; make doWrite consume LogRecord and strip exception data from a local context copy. | Single and batch records; highest handled level; context enrichment survives; exception context is handled once; below-threshold records drop; immutable original record remains valid. |
-| 49 | Give Hub an explicit mutable baseline Scope and consult `Application::isBooted()` through the Application contract. `configureScope` before boot completes mutates the baseline; after boot during an execution it mutates the cloned context scope. Do not add a Sentry-specific boot predicate or infer lifecycle from coroutine presence. | AppServiceProvider/Sentry provider boot tags and user data appear in later requests; sibling request mutations are isolated; nested push/pop scopes; queue/console/HTTP execution entry; flush resets baseline and context; shared porting-guide entry documents the semantic. |
-| 50 | Null-guard internal trace frames in sentry:test before reading filename or line. | Trace containing internal/null-file frame; ordinary frame formatting; command still sends the diagnostic event. |
-| 51 | Make commandFinished flush event buffers without waiting for every transport-wide in-flight request. Reserve the blocking transport drain for worker shutdown. | Command completion does not wait for an unrelated request send; buffered telemetry is scheduled/flushed; worker shutdown still drains; transport failures remain reported. |
-| 52 | Add one small JSON-normalization helper and use it only at Telescope call sites that currently encode/decode arbitrary observed values and can throw. Apply the native invalid-UTF-8/partial-output flags and return a valid normalized value; do not build a general recursive graph serializer. | Each actual event/job/request/view/dump/model throw site with invalid UTF-8 and non-finite values; valid payloads remain byte/shape compatible; watcher dispatch does not escape because of normalization. |
-| 53 | Invoke every afterStoring hook with foreach/each rather than Collection::every, which treats void as false. Preserve the chosen exception policy explicitly. | First hook returns void and all later hooks run; false return does not stop hooks; throwing hook behavior and reporting are pinned. |
-| 54 | If a dump should be shown but Telescope is not recording the current execution, delegate to the previous dump handler. Only consume output when Telescope actually records it. | Dashboard/always-record flag in ignored execution delegates; active recording stores once; disabled dump watcher delegates; no duplicate output. |
-| 55 | Keep the cheap process-lifetime memory_get_peak_usage value and Laravel-compatible memory payload key, but label it in the UI/docs as the worker memory peak. Do not add request-delta bookkeeping: concurrent coroutine allocations make that number neither a request peak nor reliably attributable. | Payload key remains compatible; UI/docs say worker peak; value remains monotonic process telemetry; no request context state or extra measurements are introduced. |
 ### Database, image, collections duplicate, pagination, and JSON Schema
 
 | ID | Proposed implementation | Required tests |
@@ -127,11 +109,10 @@ Each row is an implementation requirement. Test names are descriptive; use the r
 | 97 | Resolve anyOf branches once, retain the resolved tuples, and pass them to nullable/general normalization without a second ref traversal or node count. | Nullable union near MAX_NODES; an injected counting resolver double proves one lookup/count pass without production instrumentation; ordinary union and cycle behavior. |
 | 98 | Correct only the stdClass branch error so it names the unsupported schema fragment. Keep Serializer::$ignore as a protected static extension point; converting it to a constant is style churn and could break subclasses. | Exact meaningful error for invalid property/branch stdClass; valid properties map; subclass customization of ignored keywords remains possible. |
 
-### Database worker safety, Reverb, Wayfinder, and Tinker
+### Reverb, Wayfinder, and Tinker
 
 | ID | Proposed implementation | Required tests |
 |---:|---|---|
-| 103 | When missing-attribute prevention is disabled, keep offsetExists on the direct path with no context work. When enabled, wrap getAttribute in an execution-local suppression depth consulted only by the exceptional missing-attribute branch, restoring in finally and supporting nesting. This is execution state, not a boot/default setter, so `Application::isBooted()` is intentionally irrelevant. | Two forced interleavings cannot disable strict mode for a sibling or permanently; lazy relation yield; nested isset; custom missing-attribute callback; ordinary non-strict benchmark stays on the direct path. |
 | 104 | Resolve the root seeder with Container::build, matching Seeder::resolve and its fresh-instance convention. | Two programmatic db:seed runs receive distinct root objects; nested seeder remains fresh; container dependencies inject correctly. |
 | 112 | Add a manual-only `reverb:clear-state` command for crash recovery. Require all Reverb nodes using the selected Redis connection/prefix to be stopped, scan only RedisSharedState's `reverb:{*}:*` namespace across the selected connection's cluster nodes, and delete in bounded UNLINK batches (DEL fallback where unavailable). Provide `--dry-run`; otherwise require interactive confirmation or `--force`. Document the stop/clear/start runbook and explicitly exclude webhook buffer keys. Never schedule it, invoke it at boot, or wire it into automatic recovery; do not add leases, heartbeats, per-node aggregation, or hot-path Redis work without operational evidence. | Dry-run reports without deletion; confirmation/force behavior; only shared-state counters/locks/smoothing keys are removed; webhook and unrelated Redis data survive; multi-batch and cluster-wide scanning; stopped-nodes safety warning; command registration does not add scheduled/boot execution; docs runbook. |
 | 113 | Render Wayfinder @see with docblock_method when explicitly supplied, otherwise original_method, never the allocated TypeScript identifier. | Reserved PHP method renamed in TS; collision suffix; invokable; named and controller files; IDE target string. |
@@ -177,13 +158,11 @@ Each row is an implementation requirement. Test names are descriptive; use the r
 
 Use package-sized commits that remain reviewable and bisectable. The following order avoids building fixes on obsolete primitives:
 
-1. Worker-default and execution-state primitives: 25, 33, 49, 103.
-2. Mail and data representation: 21, 30-35, 82, 94-98.
-3. Observability: 48-55.
-4. Reverb recovery command and runbook: 112, with no runtime state-model change.
-5. Queue cleanup: only the two valid parts of 154; 153 deliberately stays unchanged.
-6. Vonage notification channel port followed by Horizon wiring: 160.
-7. Remaining package-local correctness work by package, followed by performance/docs/cleanup.
+1. Mail and data representation: 21, 30-35, 82, 94-98.
+2. Reverb recovery command and runbook: 112, with no runtime state-model change.
+3. Queue cleanup: only the two valid parts of 154; 153 deliberately stays unchanged.
+4. Vonage notification channel port followed by Horizon wiring: 160.
+5. Remaining package-local correctness work by package, followed by performance/docs/cleanup.
 
 Do not combine unrelated packages merely because their findings have the same severity.
 
