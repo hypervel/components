@@ -71,15 +71,17 @@ trait HasHeaders
         $resolvedHeaders = [];
         $headerNames = [];
 
-        foreach (array_merge($this->headers(), $headers) as $name => $value) {
-            $normalizedName = strtolower($name);
+        foreach ([$this->headers(), $headers] as $headerSet) {
+            foreach ($headerSet as $name => $value) {
+                $normalizedName = strtolower($name);
 
-            if (isset($headerNames[$normalizedName])) {
-                unset($resolvedHeaders[$headerNames[$normalizedName]]);
+                if (isset($headerNames[$normalizedName])) {
+                    unset($resolvedHeaders[$headerNames[$normalizedName]]);
+                }
+
+                $resolvedHeaders[$name] = $value;
+                $headerNames[$normalizedName] = $name;
             }
-
-            $resolvedHeaders[$name] = $value;
-            $headerNames[$normalizedName] = $name;
         }
 
         $this->headerRepository()->set($resolvedHeaders);

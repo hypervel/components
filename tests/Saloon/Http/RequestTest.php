@@ -57,6 +57,24 @@ class RequestTest extends TestCase
         ], $request->headers());
     }
 
+    public function testIncomingHeaderWinsWhenAnExistingCaseVariantFollowsItsExactName(): void
+    {
+        $request = (new ContainerRequestStub)
+            ->withHeaders([
+                'Authorization' => 'Bearer stale exact',
+                'authorization' => 'Bearer stale variant',
+                'X-Keep' => 'yes',
+            ])
+            ->replaceHeaders([
+                'Authorization' => 'Bearer new',
+            ]);
+
+        $this->assertSame([
+            'X-Keep' => 'yes',
+            'Authorization' => 'Bearer new',
+        ], $request->headers());
+    }
+
     public function testWithHeadersRemainsAdditive(): void
     {
         $request = (new ContainerRequestStub)
