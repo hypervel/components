@@ -348,7 +348,7 @@ The cache watcher records data when a cache key is hit, missed, updated and forg
 <a name="command-watcher"></a>
 ### Command Watcher
 
-The command watcher records the arguments, options, exit code, and output whenever an Artisan command is executed. If you would like to exclude certain commands from being recorded by the watcher, you may specify the command in the `ignore` option within your `config/telescope.php` file:
+The command watcher records the command name, exit code, and input structure whenever an Artisan command is executed. Positional argument values and options that accept values are redacted, including their configured defaults. Value-less flag and negatable option state remains visible. If you would like to exclude certain commands from being recorded by the watcher, you may specify the command in the `ignore` option within your `config/telescope.php` file:
 
 ```php
 'watchers' => [
@@ -544,7 +544,7 @@ You may also use the `ignore_http_methods` and `ignore_status_codes` options to 
 <a name="schedule-watcher"></a>
 ### Schedule Watcher
 
-The schedule watcher records the command and output of any [scheduled tasks](/docs/{{version}}/scheduling) run by your application.
+The schedule watcher records the task type, description, expression, timezone, user, output, status, and exit code of any [scheduled tasks](/docs/{{version}}/scheduling) run by your application. Opaque command lines are not stored. Describe or name a scheduled command to identify it in Telescope; otherwise, Telescope displays `Scheduled command`.
 
 <a name="view-watcher"></a>
 ### View Watcher
