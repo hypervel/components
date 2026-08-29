@@ -25,6 +25,8 @@ The separate upstream Sentry SDK proposal is documented at the monorepo root in 
 15. Eloquent `Model::offsetExists()` temporarily disables strict missing-attribute access in a process-global static. If attribute access yields, a sibling execution can bypass strict mode.
 16. Telescope stores bound command arguments and options without redaction, while Sentry command breadcrumbs include the raw `ArgvInput` string even when default PII collection is disabled. Credentials supplied through positional arguments or custom value-bearing options can therefore be persisted locally or sent remotely.
 17. Telescope's schedule watcher stores the complete opaque command string, including compiled arguments. Shell commands have no bound definition that can classify their values safely.
+18. `Schedule::command()` writes an empty Symfony command description after pending attributes have been merged. Undescribed command classes therefore render with an empty summary, erase pending group descriptions, and serialize `""` instead of retaining the event's natural `null` state.
+19. Sentry command ownership records only that a command pushed a scope. Another Sentry feature can leave a newer scope on the shared Hub stack, causing command completion to pop a frame it does not own and leave its own scope behind.
 
 ## Design decisions
 
@@ -135,12 +137,16 @@ The inner events identify the command execution boundary, not an unconditional c
 Reuse `TracksPushedScopesAndSpans`:
 
 - `BeforeHandle` pushes a scope, sets the command tag, and records the starting breadcrumb with its input;
-- after pushing, `BeforeHandle` marks the exact command object in an execution-local `WeakMap<Command, bool>`;
-- `AfterExecute` records the completion breadcrumb from the command input, normalized exit code, and throwable, but removes the marker and performs the non-blocking event flush and pop through `maybePopScope()` only when that exact command owns it;
+- after pushing, `BeforeHandle` stores the exact returned scope against the command object in an execution-local `WeakMap<Command, Scope>`;
+- `AfterExecute` records the completion breadcrumb from the command input, normalized exit code, and throwable, but removes ownership and performs the non-blocking event flush and pop through `maybePopScope()` only when that exact scope remains current;
 - nested `Artisan::call()` receives balanced nested scopes;
 - cleanup defers are registered only in a coroutine, while push/pop remains available to ordinary CLI commands.
 
-Keep the empty weak map in context rather than counting and forgetting it on every completion. Weak keys do not retain abandoned command objects, coroutine context ends with its execution, and the non-coroutine fallback belongs to the one-shot CLI process. A boolean marker is sufficient: recursively executing the same active `Command` object is already unsupported because `Command::run()` overwrites its mutable input, output, components, and exit-code state. Do not change the shared tracking trait; queue and scheduling integrations deliberately use its aggregate cleanup semantics.
+Keep the empty weak map in context rather than counting and forgetting it on every completion. Weak keys do not retain abandoned command objects, coroutine context ends with its execution, and the non-coroutine fallback belongs to the one-shot CLI process. Recursively executing the same active `Command` object remains unsupported because `Command::run()` overwrites its mutable input, output, components, and exit-code state.
+
+The Hub layer stack is shared by every Sentry feature in one execution, while the tracking trait's counters are feature-local. Command ownership must therefore use scope object identity rather than command nesting depth. The `Scope` returned by `HubInterface::pushScope()` remains the same object stored on its `Layer`; `isCurrentScope()` reads the current frame directly through `HubInterface::configureScope()`, not the integration-gated wrapper. Hypervel commands run after application boot, when that callback receives the current execution frame; an earlier call fails closed by observing the bootstrap baseline. A mismatch keeps ownership and does not flush or pop, allowing a later matching terminal or existing coroutine cleanup to settle the frame without disturbing another feature's scope. Completion breadcrumb behavior remains unchanged.
+
+Change the shared tracking trait only to return the `Scope` already returned by the Hub from `pushScope()`. Queue and scheduling integrations continue using its existing aggregate cleanup semantics.
 
 An unmatched terminal event still records its truthful completion breadcrumb on the current scope. It must not pop a scope owned by another command. This includes an unnamed command and a named command whose earlier `BeforeHandle` listener stopped propagation before Sentry's listener ran.
 
@@ -262,17 +268,22 @@ Application boot state is irrelevant: this is temporary execution state, not a c
 
 Use `MISSING_ATTRIBUTE_ACCESS_SUPPRESSED_CONTEXT_KEY = '__database.model.missing_attribute_access_suppressed'` for the model flag.
 
+### 13. Preserve natural descriptions for scheduled command classes
+
+When `Schedule::command()` resolves a command class, apply its description only when `getDescription()` is non-empty. This preserves the event's natural `null` description and pending group description for undescribed commands while retaining today's precedence for described command classes. Explicit userland `Event::description('')` remains supported. No mutex or email behavior changes: command-event mutexes exclude descriptions, and email subjects already treat `null` and an empty string identically.
+
 ## Implementation sequence
 
 1. Add the array mail message store, migrate `ArrayTransport`, and cover identity, flush, replication, and concurrent isolation.
 2. Make notification defaults and Number defaults lifecycle-aware; add restoration and execution-isolation coverage.
 3. Port both Sentry handlers to native Monolog 3 records and correct `sentry:test` nullable-frame formatting.
-4. Add Hub baseline behavior and align command scope ownership.
+4. Add Hub baseline behavior and align command scope ownership with the exact current Hub frame.
 5. Correct non-coroutine send lifetime and coordinator-aware worker shutdown.
 6. Add the Telescope JSON normalizer and canonical purged sentinel.
 7. Correct Telescope hook iteration, command storage and redaction, scheduled-command disclosure, dump delegation, and memory labeling; rebuild frontend assets.
-8. Replace Eloquent's process-global strictness toggle with context-local suppression.
-9. Update only the user documentation needed to explain the resulting behavior.
+8. Preserve natural descriptions and pending group descriptions for scheduled command classes.
+9. Replace Eloquent's process-global strictness toggle with context-local suppression.
+10. Update only the user documentation needed to explain the resulting behavior.
 
 Each slice is tested before proceeding. If implementation exposes a non-trivial unplanned invariant, stop edits, trace the complete slice, obtain a second opinion, and replace the affected plan wording before resuming.
 
@@ -295,6 +306,10 @@ Each slice is tested before proceeding. If implementation exposes a non-trivial 
 - Nested `withLocale` and `withCurrency` restore absent and present keys after success and exceptions.
 - `Number::flushState()` resets its baselines and macros without clearing unrelated context; a newly constructed notification manager starts from its declared defaults while `ChannelManager::flushState()` remains macro-only.
 
+### Console
+
+- Undescribed command classes keep a `null` event description, fall back to their command summary, and retain pending group descriptions; non-empty command descriptions continue to override pending group descriptions.
+
 ### Sentry
 
 - Native single-record and batch filtering, highest handled level, immutable enrichment, exception extraction, and formatter accessors for both handlers.
@@ -302,6 +317,7 @@ Each slice is tested before proceeding. If implementation exposes a non-trivial 
 - Bootstrap Hub scope survives into cloned execution scopes; sibling mutations, nested pushes, and pops remain isolated.
 - `sentry:test` handles internal frames with null file information.
 - Inner command events preserve their existing constructor usage, carry the original input, and expose the same normalized status returned by `Command::execute()`, including isolated-command mutex rejection; Sentry applies Symfony's default throwable-code rule for integer and non-integer exception codes. Scope/breadcrumb ownership covers success, failure, ordinary nesting, duplicate terminal events, direct no-push completion, an unnamed nested completion, and a named completion whose `BeforeHandle` propagation stopped before Sentry, including the non-coroutine unnamed path.
+- A command terminal cannot pop a newer scope left by another Sentry feature. The completion breadcrumb remains on the current scope, ownership is retained on mismatch, and the same command can settle its preserved scope once it becomes current.
 - Command breadcrumbs omit raw input while default PII collection is disabled and retain the existing `ArgvInput` string only after explicit PII opt-in.
 - Disabled commands, pre-execute failures, and outer Symfony error-listener rewrites stay outside the inner breadcrumb boundary without duplicate outer listeners.
 - Command completion does not wait for an unrelated accepted send.
@@ -354,8 +370,8 @@ Source changes are expected in:
 - `src/mail/src/Transport/ArrayTransport.php` and one mail-owned message-store class;
 - `src/notifications/src/ChannelManager.php`;
 - `src/support/src/Number.php`;
-- `src/console/src/Command.php`, `Events/BeforeHandle.php`, and `Events/AfterExecute.php`;
-- Sentry handlers, both Sentry `LogChannel` factories, config, Hub, console integration, transport, worker listener, cleanup concern, and test command;
+- `src/console/src/Command.php`, `Events/BeforeHandle.php`, `Events/AfterExecute.php`, and `Scheduling/Schedule.php`;
+- Sentry handlers, both Sentry `LogChannel` factories, config, Hub, console integration, queue feature, transport, worker listener, shared tracking trait, and test command;
 - Telescope core, watcher base, lifecycle trait, `CommandWatcher`, `ScheduleWatcher`, JSON-observing watchers including `ClientRequestWatcher`, `Storage/DatabaseEntriesRepository`, dump watcher, request and schedule UI, and generated distribution;
 - `src/database/src/Eloquent/Model.php` and `Concerns/HasAttributes.php`.
 
