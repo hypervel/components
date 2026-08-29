@@ -8,9 +8,15 @@ use DateInterval;
 use DateTime;
 use DateTimeImmutable;
 use Hypervel\Cache\ArrayStore;
+use Hypervel\Cache\NullStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\TaggedCache;
+use Hypervel\Cache\VersionedTagSet;
+use Hypervel\Contracts\Cache\Store;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
+use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 enum TaggedCacheTestKeyStringEnum: string
 {
@@ -94,6 +100,156 @@ class CacheTaggedCacheTest extends TestCase
         $store->tags('zap')->flush();
         $this->assertNull($store->tags($tags1)->get('foo'));
         $this->assertSame('bar', $store->tags($tags2)->get('foo'));
+    }
+
+    public function testVersionedTagResetAttemptsEveryTagAndAggregatesFalseResults(): void
+    {
+        $store = m::mock(Store::class);
+        $store->shouldReceive('forever')
+            ->once()
+            ->with('tag:users:key', m::type('string'))
+            ->andReturnFalse();
+        $store->shouldReceive('forever')
+            ->once()
+            ->with('tag:posts:key', m::type('string'))
+            ->andReturnTrue();
+
+        $this->assertFalse((new VersionedTagSet($store, ['users', 'posts']))->reset());
+    }
+
+    public function testVersionedTagFlushAttemptsEveryTagAndTreatsMissingTagKeysAsSuccess(): void
+    {
+        $store = m::mock(Store::class);
+        $store->shouldReceive('forget')->once()->with('tag:users:key')->andReturnFalse();
+        $store->shouldReceive('forget')->once()->with('tag:posts:key')->andReturnTrue();
+
+        $this->assertTrue((new VersionedTagSet($store, ['users', 'posts']))->flush());
+    }
+
+    public function testVersionedTagFlushUsesThePerTagExtensionPoint(): void
+    {
+        $tagSet = new class(m::mock(Store::class), ['users', 'posts']) extends VersionedTagSet {
+            public array $flushed = [];
+
+            public function flushTag(string $name): string
+            {
+                $this->flushed[] = $name;
+
+                return $name;
+            }
+        };
+
+        $this->assertTrue($tagSet->flush());
+        $this->assertSame(['users', 'posts'], $tagSet->flushed);
+    }
+
+    public function testVersionedFlushTagReturnsItsKeyWhenTheTagDoesNotExist(): void
+    {
+        $store = m::mock(Store::class);
+        $store->shouldReceive('forget')->once()->with('tag:users:key')->andReturnFalse();
+
+        $this->assertSame('tag:users:key', (new VersionedTagSet($store))->flushTag('users'));
+    }
+
+    public function testVersionedTagResetUsesTheWriteExtensionPoint(): void
+    {
+        $tagSet = new class(m::mock(Store::class), ['users', 'posts']) extends VersionedTagSet {
+            public array $written = [];
+
+            protected function writeTagId(string $name, string $id): bool
+            {
+                $this->written[] = $name;
+
+                return $name !== 'users';
+            }
+        };
+
+        $this->assertFalse($tagSet->reset());
+        $this->assertSame(['users', 'posts'], $tagSet->written);
+    }
+
+    public function testVersionedTagResetAttemptsLaterTagsAndRethrowsTheFirstException(): void
+    {
+        $firstException = new RuntimeException('users failed');
+        $store = m::mock(Store::class);
+        $store->shouldReceive('forever')
+            ->once()
+            ->with('tag:users:key', m::type('string'))
+            ->andThrow($firstException);
+        $store->shouldReceive('forever')
+            ->once()
+            ->with('tag:posts:key', m::type('string'))
+            ->andThrow(new RuntimeException('posts failed'));
+        $store->shouldReceive('forever')
+            ->once()
+            ->with('tag:comments:key', m::type('string'))
+            ->andReturnTrue();
+
+        try {
+            (new VersionedTagSet($store, ['users', 'posts', 'comments']))->reset();
+            $this->fail('Expected the first tag reset exception to be rethrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($firstException, $exception);
+        }
+    }
+
+    public function testVersionedTagFlushAttemptsLaterTagsAndRethrowsTheFirstException(): void
+    {
+        $firstException = new RuntimeException('users failed');
+        $store = m::mock(Store::class);
+        $store->shouldReceive('forget')->once()->with('tag:users:key')->andThrow($firstException);
+        $store->shouldReceive('forget')
+            ->once()
+            ->with('tag:posts:key')
+            ->andThrow(new RuntimeException('posts failed'));
+        $store->shouldReceive('forget')->once()->with('tag:comments:key')->andReturnTrue();
+
+        try {
+            (new VersionedTagSet($store, ['users', 'posts', 'comments']))->flush();
+            $this->fail('Expected the first tag flush exception to be rethrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($firstException, $exception);
+        }
+    }
+
+    public function testVersionedTagResetStopsImmediatelyOnCancellation(): void
+    {
+        $cancellation = new CanceledException;
+        $store = m::mock(Store::class);
+        $store->shouldReceive('forever')
+            ->once()
+            ->with('tag:users:key', m::type('string'))
+            ->andThrow($cancellation);
+        $store->shouldNotReceive('forever')->with('tag:posts:key', m::type('string'));
+
+        try {
+            (new VersionedTagSet($store, ['users', 'posts']))->reset();
+            $this->fail('Expected the tag reset cancellation to be rethrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testVersionedTagFlushStopsImmediatelyOnCancellation(): void
+    {
+        $cancellation = new CanceledException;
+        $store = m::mock(Store::class);
+        $store->shouldReceive('forget')->once()->with('tag:users:key')->andThrow($cancellation);
+        $store->shouldNotReceive('forget')->with('tag:posts:key');
+
+        try {
+            (new VersionedTagSet($store, ['users', 'posts']))->flush();
+            $this->fail('Expected the tag flush cancellation to be rethrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testResetTagReturnsGeneratedIdentifierWhenTheStoreRejectsTheWrite(): void
+    {
+        $identifier = (new VersionedTagSet(new NullStore, ['users']))->resetTag('users');
+
+        $this->assertNotSame('', $identifier);
     }
 
     public function testClearFlushesOnlyTaggedNamespace(): void

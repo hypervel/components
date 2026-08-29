@@ -33,19 +33,22 @@ class StackTagSet extends TagSet
     /**
      * Reset all tags in the set.
      */
-    public function reset(): void
+    public function reset(): bool
     {
-        $this->flush();
+        return $this->flush();
     }
 
     /**
      * Flush all the tags in the set.
      */
-    public function flush(): void
+    public function flush(): bool
     {
-        foreach ($this->store->taggableLayers() as $layer) {
-            // Flush via tag sets so the stack-level tagged cache emits events once.
-            $layer->tags($this->names)->getTags()->flush();
-        }
+        return $this->attemptEach(
+            $this->store->taggableLayers(),
+            function (TaggableStore $layer): bool {
+                // Flush via tag sets so the stack-level tagged cache emits events once.
+                return $layer->tags($this->names)->getTags()->flush();
+            },
+        );
     }
 }

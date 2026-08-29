@@ -625,6 +625,8 @@ cache()->remember('users', $seconds, function () {
 > [!WARNING]
 > Cache tags are supported by the `redis`, `array`, `failover`, `null`, and `stack` cache drivers. Stack tags require an any-mode composition; see [Tagged Cache Stacks](#tagged-cache-stacks). Cache tags are not supported by the `file`, `storage`, `database`, `swoole`, `session`, or `memo` drivers.
 
+The `flush` method returns `true` only when every tag or taggable stack layer accepts the flush. The null cache driver rejects tag identifier writes, so tagged flushes on that driver return `false` even though tagged reads continue to behave as cache misses.
+
 <a name="redis-tag-modes"></a>
 ### Redis Tag Modes
 

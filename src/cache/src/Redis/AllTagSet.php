@@ -41,9 +41,16 @@ class AllTagSet extends NamespacedTagSet
     /**
      * Reset all tags in the set.
      */
-    public function reset(): void
+    public function reset(): bool
     {
-        array_walk($this->names, [$this, 'resetTag']);
+        return $this->attemptEach(
+            $this->names,
+            function (string $name): bool {
+                $this->resetTag($name);
+
+                return true;
+            },
+        );
     }
 
     /**
@@ -59,9 +66,16 @@ class AllTagSet extends NamespacedTagSet
     /**
      * Flush all the tags in the set.
      */
-    public function flush(): void
+    public function flush(): bool
     {
-        array_walk($this->names, [$this, 'flushTag']);
+        return $this->attemptEach(
+            $this->names,
+            function (string $name): bool {
+                $this->flushTag($name);
+
+                return true;
+            },
+        );
     }
 
     /**
