@@ -525,7 +525,7 @@ The `message_size_limit` option is measured in kilobytes and limits the payload 
 <a name="request-watcher"></a>
 ### Request Watcher
 
-The request watcher records the request, headers, session, and response data associated with any requests handled by the application. Hypervel also records the current [Context](/docs/{{version}}/context) data and low-level [coroutine context](/docs/{{version}}/coroutine-context) for the request, which are shown on the request detail view. You may limit your recorded response data via the `size_limit` (in kilobytes) option:
+The request watcher records the request, headers, session, and response data associated with any requests handled by the application. Hypervel also records the current [Context](/docs/{{version}}/context) data and low-level [coroutine context](/docs/{{version}}/coroutine-context) for the request, which are shown on the request detail view. The `Worker memory peak` value is the highest memory usage observed by the worker process, not memory used only by that request. You may limit your recorded response data via the `size_limit` (in kilobytes) option:
 
 ```php
 'watchers' => [

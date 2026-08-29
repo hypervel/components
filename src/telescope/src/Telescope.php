@@ -44,6 +44,8 @@ class Telescope
         'password_confirmation',
     ];
 
+    public const string PURGED_VALUE = 'Purged By Telescope';
+
     public const string ENTRIES_QUEUE_CONTEXT_KEY = '__telescope.entries_queue';
 
     public const string UPDATES_QUEUE_CONTEXT_KEY = '__telescope.updates_queue';
@@ -162,6 +164,7 @@ class Telescope
                 'horizon:work',
                 'horizon:supervisor',
                 'watch',
+                'telescope:clear',
             ], config()->array('telescope.ignore_commands', [])),
             true
         );
@@ -270,7 +273,9 @@ class Telescope
             return;
         }
 
-        if (! CoroutineContext::get(static::HAS_STORED_CONTEXT_KEY, false)) {
+        if (Coroutine::inCoroutine()
+            && ! CoroutineContext::get(static::HAS_STORED_CONTEXT_KEY, false)
+        ) {
             Coroutine::defer(function () {
                 static::store(static::$store);
             });
@@ -595,7 +600,7 @@ class Telescope
             return;
         }
 
-        if (config()->boolean('telescope.defer', true)) {
+        if (config()->boolean('telescope.defer') && Coroutine::inCoroutine()) {
             Coroutine::defer(fn () => static::executeStore($storage));
             return;
         }
@@ -637,7 +642,9 @@ class Telescope
                     $storage->terminate();
                 }
 
-                Collection::make(static::$afterStoringHooks)->every->__invoke(static::getEntriesQueue(), $batchId);
+                foreach (static::$afterStoringHooks as $afterStoringHook) {
+                    $afterStoringHook(static::getEntriesQueue(), $batchId);
+                }
             } catch (Throwable $e) {
                 Container::getInstance()
                     ->make(ExceptionHandler::class)

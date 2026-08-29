@@ -20,6 +20,7 @@ use Hypervel\Support\Str;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\FormatModel;
 use Hypervel\Telescope\IncomingEntry;
+use Hypervel\Telescope\JsonNormalizer;
 use Hypervel\Telescope\Telescope;
 use Hypervel\View\View;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -192,15 +193,15 @@ class RequestWatcher extends Watcher
             if (is_array($decoded) && $jsonError === JSON_ERROR_NONE) {
                 return $this->contentWithinLimits($content)
                     ? $this->hideParameters($decoded, Telescope::$hiddenResponseParameters)
-                    : 'Purged By Telescope';
+                    : Telescope::PURGED_VALUE;
             }
 
             if ($jsonError === JSON_ERROR_DEPTH) {
-                return 'Purged By Telescope';
+                return Telescope::PURGED_VALUE;
             }
 
             if (Str::startsWith(strtolower($response->headers->get('Content-Type') ?? ''), 'text/plain')) {
-                return $this->contentWithinLimits($content) ? $content : 'Purged By Telescope';
+                return $this->contentWithinLimits($content) ? $content : Telescope::PURGED_VALUE;
             }
         }
 
@@ -247,11 +248,11 @@ class RequestWatcher extends Watcher
                     'class' => get_class($value),
                     'properties' => method_exists($value, 'formatForTelescope')
                         ? $value->formatForTelescope()
-                        : Json::decode(json_encode($value, JSON_THROW_ON_ERROR)),
+                        : JsonNormalizer::normalize($value),
                 ];
             }
 
-            return Json::decode(json_encode($value, JSON_THROW_ON_ERROR));
+            return JsonNormalizer::normalize($value);
         })->toArray();
     }
 
@@ -298,7 +299,7 @@ class RequestWatcher extends Watcher
             } elseif (is_string($value)) {
                 $value = $this->contentWithinLimits($value)
                     ? $value
-                    : 'Purged By Telescope';
+                    : Telescope::PURGED_VALUE;
             }
             $result[$key] = $value;
         }

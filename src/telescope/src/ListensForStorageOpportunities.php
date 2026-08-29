@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope;
 
 use Closure;
+use Hypervel\Console\Events\AfterExecute as AfterExecuteCommand;
 use Hypervel\Console\Events\BeforeHandle as BeforeHandleCommand;
 use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Context\CoroutineContext;
@@ -21,6 +22,8 @@ use Hypervel\Telescope\Contracts\EntriesRepository;
 trait ListensForStorageOpportunities
 {
     public const string PROCESSING_JOBS_CONTEXT_KEY = '__telescope.processing_jobs';
+
+    public const string COMMAND_DEPTH_CONTEXT_KEY = '__telescope.command_depth';
 
     /**
      * The callback that determines if Telescope should start recording.
@@ -97,10 +100,43 @@ trait ListensForStorageOpportunities
                 return;
             }
 
-            if (static::shouldListen()
-                && static::commandIsApproved($event->command->getName())
-            ) {
+            if (! static::commandIsApproved($event->command->getName())) {
+                return;
+            }
+
+            $depth = (int) CoroutineContext::get(static::COMMAND_DEPTH_CONTEXT_KEY, 0);
+
+            if ($depth === 0 && ! static::shouldListen()) {
+                return;
+            }
+
+            CoroutineContext::set(static::COMMAND_DEPTH_CONTEXT_KEY, $depth + 1);
+
+            if ($depth === 0) {
                 static::startRecording();
+            }
+        });
+
+        // TelescopeServiceProvider::boot() registers watchers first, so the outer
+        // AfterExecute entry reaches the queue before it is stored.
+        $events->listen(AfterExecuteCommand::class, function (AfterExecuteCommand $event) use ($app): void {
+            if ($event->command->getName() === 'schedule:run'
+                || ! static::commandIsApproved($event->command->getName())
+            ) {
+                return;
+            }
+
+            $depth = (int) CoroutineContext::get(static::COMMAND_DEPTH_CONTEXT_KEY, 0);
+
+            if ($depth === 0) {
+                return;
+            }
+
+            CoroutineContext::set(static::COMMAND_DEPTH_CONTEXT_KEY, --$depth);
+
+            if ($depth === 0) {
+                static::store($app->make(EntriesRepository::class));
+                static::stopRecording();
             }
         });
 

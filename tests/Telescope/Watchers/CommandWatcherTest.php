@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
+use Hypervel\Support\Json;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\CommandWatcher;
@@ -44,6 +45,34 @@ class CommandWatcherTest extends FeatureTestCase
 
         $this->assertCount(0, $this->loadTelescopeEntries());
     }
+
+    public function testNestedCommandsStoreOnceAfterTheOuterCommandEntryIsRecorded(): void
+    {
+        $kernel = $this->app->make(KernelContract::class);
+        $kernel->registerCommand($this->app->make(NestedCommand::class));
+        $kernel->registerCommand($this->app->make(OuterCommand::class));
+        $storedBatches = [];
+
+        Telescope::afterStoring(function (array $entries) use (&$storedBatches): void {
+            $storedBatches[] = array_map(
+                fn ($entry) => Json::decode($entry->content)['command'],
+                $entries,
+            );
+        });
+
+        $kernel->call('telescope:outer-command');
+
+        $this->assertSame([[
+            'telescope:nested-command',
+            'telescope:outer-command',
+        ]], $storedBatches);
+        $this->assertFalse(Telescope::isRecording());
+        $this->assertSame([], Telescope::getEntriesQueue());
+        $this->assertSame([
+            'telescope:nested-command',
+            'telescope:outer-command',
+        ], $this->loadTelescopeEntries()->pluck('content.command')->all());
+    }
 }
 
 class MyCommand extends Command
@@ -61,5 +90,24 @@ class PackageDiscoverCommand extends Command
 
     public function handle(): void
     {
+    }
+}
+
+class NestedCommand extends Command
+{
+    protected ?string $signature = 'telescope:nested-command';
+
+    public function handle(): void
+    {
+    }
+}
+
+class OuterCommand extends Command
+{
+    protected ?string $signature = 'telescope:outer-command';
+
+    public function handle(): void
+    {
+        $this->call('telescope:nested-command');
     }
 }
