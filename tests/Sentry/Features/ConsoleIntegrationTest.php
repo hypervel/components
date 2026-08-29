@@ -12,6 +12,7 @@ use Hypervel\Events\Dispatcher;
 use Hypervel\Sentry\Features\ConsoleIntegration;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use RuntimeException;
+use Sentry\SentrySdk;
 use Symfony\Component\Console\Input\ArgvInput;
 
 class ConsoleIntegrationTest extends SentryTestCase
@@ -142,6 +143,65 @@ class ConsoleIntegrationTest extends SentryTestCase
         $this->assertSame($outerScope, $this->getCurrentSentryScope());
 
         $this->dispatchCommandFinishEvent($outer);
+        $this->assertSame($baselineScope, $this->getCurrentSentryScope());
+    }
+
+    public function testCommandCompletionOnlyPopsItsOwnedCurrentScope(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry' => $this->sentryConfigWith(['breadcrumbs.command_info' => true]),
+        ]);
+        $baselineScope = $this->getCurrentSentryScope();
+        $command = new ConsoleIntegrationCommand;
+
+        $this->dispatchCommandStartEvent($command);
+        $commandScope = $this->getCurrentSentryScope();
+        $foreignScope = SentrySdk::getCurrentHub()->pushScope();
+
+        $this->dispatchCommandFinishEvent($command);
+
+        $this->assertSame($foreignScope, $this->getCurrentSentryScope());
+        $this->assertSame(
+            'Finished Artisan command: test:command',
+            $this->getLastSentryBreadcrumb()?->getMessage(),
+        );
+
+        SentrySdk::getCurrentHub()->popScope();
+        $this->assertSame($commandScope, $this->getCurrentSentryScope());
+
+        $this->dispatchCommandFinishEvent($command);
+        $this->assertSame($baselineScope, $this->getCurrentSentryScope());
+    }
+
+    public function testOuterCompletionDoesNotPopNestedScopeWhenInnerCompletionWasStopped(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry' => $this->sentryConfigWith(['breadcrumbs.command_info' => false]),
+        ]);
+        $baselineScope = $this->getCurrentSentryScope();
+        $integration = $this->app->make(ConsoleIntegration::class);
+        $dispatcher = new Dispatcher($this->app);
+        $outer = new ConsoleIntegrationCommand;
+        $inner = new NestedConsoleIntegrationCommand;
+        $input = new ArgvInput(['artisan']);
+
+        $dispatcher->listen(BeforeHandle::class, [$integration, 'beforeHandle']);
+        $dispatcher->listen(AfterExecute::class, static function (AfterExecute $event) use ($inner): ?bool {
+            return $event->command === $inner ? false : null;
+        });
+        $dispatcher->listen(AfterExecute::class, [$integration, 'afterExecute']);
+
+        $dispatcher->dispatch(new BeforeHandle($outer, $input));
+        $dispatcher->dispatch(new BeforeHandle($inner, $input));
+        $innerScope = $this->getCurrentSentryScope();
+
+        $dispatcher->dispatch(new AfterExecute($inner, input: $input, exitCode: 0));
+        $dispatcher->dispatch(new AfterExecute($outer, input: $input, exitCode: 0));
+
+        $this->assertSame($innerScope, $this->getCurrentSentryScope());
+
+        $integration->afterExecute(new AfterExecute($inner, input: $input, exitCode: 0));
+        $integration->afterExecute(new AfterExecute($outer, input: $input, exitCode: 0));
         $this->assertSame($baselineScope, $this->getCurrentSentryScope());
     }
 

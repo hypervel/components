@@ -11,6 +11,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Sentry\Features\Concerns\TracksPushedScopesAndSpans;
 use Hypervel\Sentry\Integration;
 use Sentry\Breadcrumb;
+use Sentry\SentrySdk;
 use Sentry\State\Scope;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\InputInterface;
@@ -46,15 +47,13 @@ class ConsoleIntegration extends Feature
             return;
         }
 
-        $this->pushScope();
-
-        /** @var WeakMap<Command, bool> $commandScopeOwners */
+        /** @var WeakMap<Command, Scope> $commandScopeOwners */
         $commandScopeOwners = CoroutineContext::getOrSet(
             self::COMMAND_SCOPE_OWNERS_CONTEXT_KEY,
             fn () => new WeakMap,
         );
 
-        $commandScopeOwners[$event->command] = true;
+        $commandScopeOwners[$event->command] = $this->pushScope();
 
         Integration::configureScope(static function (Scope $scope) use ($command): void {
             $scope->setTag('command', $command);
@@ -90,16 +89,41 @@ class ConsoleIntegration extends Feature
             ));
         }
 
-        /** @var null|WeakMap<Command, bool> $commandScopeOwners */
+        /** @var null|WeakMap<Command, Scope> $commandScopeOwners */
         $commandScopeOwners = CoroutineContext::get(self::COMMAND_SCOPE_OWNERS_CONTEXT_KEY);
+        $ownedScope = $commandScopeOwners[$event->command] ?? null;
 
-        // An unmatched terminal event must not pop a scope another command owns:
-        // an earlier BeforeHandle listener can stop propagation before this one runs.
-        if (isset($commandScopeOwners[$event->command])) {
+        // An unmatched terminal must not pop a scope another command owns: an earlier
+        // BeforeHandle listener can stop propagation before this one runs. Membership
+        // alone is not enough either, because every Sentry feature shares the Hub stack
+        // and another feature may have pushed a newer frame that is not ours to pop.
+        if ($ownedScope !== null && $this->isCurrentScope($ownedScope)) {
             unset($commandScopeOwners[$event->command]);
 
             $this->maybePopScope();
         }
+    }
+
+    /**
+     * Determine whether the owned scope remains the current Hub frame.
+     *
+     * Hub layers retain the Scope returned by pushScope(), making object identity
+     * a stable ownership key. Commands run after application boot, when the Hub's
+     * configureScope() callback receives the current execution frame; before boot
+     * it observes the bootstrap baseline and safely declines to pop. Call the Hub
+     * directly because Integration::configureScope() may skip its callback.
+     */
+    private function isCurrentScope(Scope $scope): bool
+    {
+        $currentScope = null;
+
+        SentrySdk::getCurrentHub()->configureScope(
+            static function (Scope $candidate) use (&$currentScope): void {
+                $currentScope = $candidate;
+            }
+        );
+
+        return $currentScope === $scope;
     }
 
     /**
