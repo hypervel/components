@@ -490,6 +490,8 @@ class StreamStateTest extends TestCase
         $invocations = 0;
         $callbackOwner = $this->trackAbandonmentCallback($state, $invocations);
 
+        $this->assertNotNull($callbackOwner->get());
+
         $state->fail(new ConnectionException('example.test:443', 'connection lost'));
 
         $this->assertSame(0, $invocations);
@@ -506,10 +508,38 @@ class StreamStateTest extends TestCase
             'The gRPC deadline was exceeded.',
         );
 
+        $this->assertNotNull($callbackOwner->get());
+
         $state->failWithStatus($status);
         $state->failWithStatus($status);
 
         $this->assertSame(1, $invocations);
+        $this->assertNull($callbackOwner->get());
+    }
+
+    public function testAbandonsAnIncompleteStreamWithoutPublishingAResult(): void
+    {
+        $state = $this->state();
+        $invocations = 0;
+        $callbackOwner = $this->trackAbandonmentCallback($state, $invocations);
+        $state->handle(new Response(
+            1,
+            200,
+            ['content-type' => 'application/grpc+proto'],
+            (new FrameEncoder(1024))->encode('buffered'),
+            true,
+        ));
+
+        $this->assertNotNull($callbackOwner->get());
+
+        $state->abandonIfIncomplete();
+        $state->abandonIfIncomplete();
+
+        $this->assertSame(1, $invocations);
+        $this->assertTrue($state->isAbandoned());
+        $this->assertFalse($state->isComplete());
+        $this->assertSame(0, $state->bufferedMessageCount());
+        $this->assertSame(0, $state->bufferedBytes());
         $this->assertNull($callbackOwner->get());
     }
 
@@ -601,7 +631,9 @@ class StreamStateTest extends TestCase
     {
         $owner = new stdClass;
         $reference = WeakReference::create($owner);
-        $state->onAbandon(function () use (&$invocations): void {
+        $state->onAbandon(function () use (&$invocations, $owner): void {
+            // Retain the owner until StreamState releases this callback.
+            $owner->invoked = true;
             ++$invocations;
         });
 
