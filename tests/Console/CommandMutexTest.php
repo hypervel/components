@@ -69,6 +69,21 @@ class CommandMutexTest extends TestCase
         $this->assertEquals(0, $this->command->ran);
     }
 
+    public function testBlockedIsolatedCommandNormalizesItsConfiguredExitCode(): void
+    {
+        $this->commandMutex->shouldReceive('create')
+            ->andReturn(false)
+            ->once();
+
+        $exitCode = $this->command->run(
+            new ArrayInput(['--isolated' => 300]),
+            new NullOutput,
+        );
+
+        $this->assertSame(Command::INVALID, $exitCode);
+        $this->assertSame(0, $this->command->ran);
+    }
+
     public function testCanRunCommandAgainAfterOtherCommandFinished()
     {
         $this->commandMutex->shouldReceive('create')
