@@ -147,10 +147,6 @@ function default_skeleton_path(array|string $path = ''): string|false
         Bootstrapper::bootstrap();
     }
 
-    if (! defined('BASE_PATH')) {
-        return false;
-    }
-
     $result = join_paths(BASE_PATH, ...Arr::wrap(func_num_args() > 1 ? func_get_args() : $path));
 
     return realpath($result);
@@ -288,10 +284,11 @@ function package_path(array|string $path = ''): string
  */
 function defined_environment_variables(): array
 {
-    return (new Collection(array_merge($_SERVER, $_ENV)))
+    return (new Collection($_ENV + $_SERVER))
         ->keys()
+        ->filter(static fn (mixed $key): bool => is_string($key))
         ->mapWithKeys(static fn (string $key) => [$key => $_ENV[$key] ?? $_SERVER[$key] ?? null])
-        ->filter(static fn ($value) => $value === null || is_scalar($value))
+        ->filter(static fn (mixed $value): bool => $value === null || is_scalar($value))
         ->when(
             ! Env::has('TESTBENCH_WORKING_PATH'),
             static fn (Collection $env) => $env->put('TESTBENCH_WORKING_PATH', package_path())

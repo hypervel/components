@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Testing\Profile;
 
+use Hypervel\Testing\ParallelTesting;
 use PHPUnit\Event\TestRunner\ExecutionFinished;
 use PHPUnit\Event\TestRunner\ExecutionFinishedSubscriber as ExecutionFinishedSubscriberContract;
 use RuntimeException;
@@ -34,7 +35,7 @@ class ExecutionFinishedSubscriber implements ExecutionFinishedSubscriberContract
             throw new RuntimeException(sprintf('Unable to create profile directory [%s].', $this->directory));
         }
 
-        $token = $_SERVER['TEST_TOKEN'] ?? $_ENV['TEST_TOKEN'] ?? 'default';
+        $token = ParallelTesting::processToken() ?? 'default';
         $path = $this->directory . DIRECTORY_SEPARATOR . 'profile-' . $token . '-' . getmypid() . '.json';
         $encoded = json_encode($slowTests, JSON_THROW_ON_ERROR);
         $written = @file_put_contents($path, $encoded);

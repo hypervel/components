@@ -44,6 +44,9 @@ class QueueTransactionTest extends DatabaseTestCase
             remote('queue:work --stop-when-empty', [
                 'DB_CONNECTION' => config('database.default'),
                 'DB_DATABASE' => config('database.connections.' . config('database.default') . '.database'),
+                'DB_URL' => false,
+                'DATABASE_URL' => false,
+                'DB_POOLED_URL' => false,
                 'QUEUE_CONNECTION' => config('queue.default'),
             ])->run();
         } catch (Throwable $e) {
