@@ -33,6 +33,6 @@ class OptionalProp implements IgnoreFirstLoad, Onceable
      */
     public function __invoke(): mixed
     {
-        return $this->resolveCallable($this->callback);
+        return $this->invokeCallable($this->callback);
     }
 }

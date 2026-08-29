@@ -455,7 +455,7 @@ Requests and pending requests provide fluent methods that mirror Hypervel's HTTP
 <a name="headers"></a>
 ### Headers
 
-Use `withHeader` to add one header or `withHeaders` to merge several headers. The `replaceHeaders` method replaces the complete header collection:
+Use `withHeader` to add one header or `withHeaders` to merge several headers. The `replaceHeaders` method replaces matching header names without removing unrelated headers. Header names are matched without regard to casing:
 
 ```php
 $request

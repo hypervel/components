@@ -23,6 +23,7 @@
 - [Configuration](#configuration)
 - [Other API Differences](#other-api-differences)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
+    - [Scout](#scout)
     - [Rate Limiting](#rate-limiting)
     - [Pagination](#pagination)
     - [Dates](#dates)
@@ -478,6 +479,11 @@ Many Laravel APIs have direct Hypervel equivalents under the `Hypervel` namespac
 For concurrent HTTP requests, replace Laravel's `Http::pool` and `Http::batch` patterns with Hypervel's coroutine helpers, typically `parallel` from `Hypervel\Coroutine`. See the [HTTP client documentation](/docs/{{version}}/http-client#concurrent-requests) for examples.
 
 Hypervel's `Concurrency` facade provides `coroutine`, `process`, and `sync` drivers. Laravel's `fork` driver is not available because coroutines are Hypervel's native lightweight execution model. Use the default `coroutine` driver for normal concurrent application work and reserve `process` for work that requires operating system process isolation. See the [concurrency documentation](/docs/{{version}}/concurrency#choosing-a-driver).
+
+<a name="scout"></a>
+### Scout
+
+Hypervel compiles integer and float values passed to Scout's Algolia `where`, `whereIn`, and `whereNotIn` methods as numeric comparisons. Numeric-looking strings remain facet values. When porting an Algolia index, ensure the indexed attribute type matches the PHP value type used by these filters.
 
 <a name="rate-limiting"></a>
 ### Rate Limiting

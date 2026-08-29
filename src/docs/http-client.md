@@ -249,13 +249,14 @@ For convenience, you may use the `acceptJson` method to quickly specify that you
 $response = Http::acceptJson()->get('http://example.com/users');
 ```
 
-The `withHeaders` method merges new headers into the request's existing headers. If needed, you may replace all of the headers entirely using the `replaceHeaders` method:
+The `withHeaders` method merges new headers into the request's existing headers. If needed, you may replace values for matching header keys while retaining unrelated headers using the `replaceHeaders` method:
 
 ```php
 $response = Http::withHeaders([
     'X-Original' => 'foo',
+    'X-Keep' => 'bar',
 ])->replaceHeaders([
-    'X-Replacement' => 'bar',
+    'X-Original' => 'replacement',
 ])->post('http://example.com/users', [
     'name' => 'Taylor',
 ]);
@@ -534,6 +535,21 @@ $response = Http::withResponseMiddleware(
 
         return $response;
     }
+)->get('http://example.com');
+```
+
+The `withMiddleware` method appends a complete Guzzle middleware callable to the pending request. If an integration must run before all existing middleware, including global middleware, use `prependMiddleware`:
+
+```php
+use Hypervel\Support\Facades\Http;
+
+$traceId = 'request-id';
+
+$response = Http::prependMiddleware(
+    fn (callable $handler) => fn ($request, array $options) => $handler(
+        $request->withHeader('X-Trace-ID', $traceId),
+        $options,
+    )
 )->get('http://example.com');
 ```
 

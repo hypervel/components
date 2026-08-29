@@ -28,6 +28,7 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use LogicException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class PaginatorTest extends TestCase
 {
@@ -72,12 +73,104 @@ class PaginatorTest extends TestCase
 
         $responses = iterator_to_array($paginator);
 
-        $this->assertSame([2, 3], array_keys($responses));
+        $this->assertSame([0, 1], array_keys($responses));
         $this->assertSame([3, 4], array_map(
             static fn (Response $response): int => (int) $response->json('page'),
             array_values($responses),
         ));
         $this->assertSame(2, count($paginator));
+    }
+
+    #[DataProvider('startPageProvider')]
+    public function testIteratorAndPoolPositionsAreIndependentOfTheRemoteStartPage(int $startPage): void
+    {
+        $requestedPages = [];
+        $manager = $this->manager();
+        $manager->fake([
+            PagedRequestStub::class => static function (PendingRequest $pendingRequest) use (&$requestedPages): MockResponse {
+                $page = (int) $pendingRequest->request()->queryParameters()['page'];
+                $requestedPages[] = $page;
+
+                return MockResponse::make(['data' => [$page], 'page' => $page, 'pages' => 10]);
+            },
+        ]);
+        $paginator = (new PagedPaginatorStub(
+            new PaginationConnectorStub($manager),
+            new PagedRequestStub,
+        ))->startPage($startPage)->maxPages(2);
+
+        $responses = iterator_to_array($paginator);
+        $pooledResponses = $paginator->pool();
+        $repeatedResponses = iterator_to_array($paginator);
+
+        $expectedPages = [$startPage, $startPage + 1];
+        $this->assertSame([0, 1], array_keys($responses));
+        $this->assertSame($expectedPages, array_map(
+            static fn (Response $response): int => (int) $response->json('page'),
+            array_values($responses),
+        ));
+        $this->assertSame([0, 1], array_keys($pooledResponses));
+        $this->assertSame($expectedPages, array_map(
+            static fn (Response $response): int => (int) $response->json('page'),
+            array_values($pooledResponses),
+        ));
+        $this->assertSame([0, 1], array_keys($repeatedResponses));
+        $this->assertSame([...$expectedPages, ...$expectedPages, ...$expectedPages], $requestedPages);
+    }
+
+    /**
+     * Provide remote start pages.
+     */
+    public static function startPageProvider(): iterable
+    {
+        yield 'zero' => [0];
+        yield 'one' => [1];
+        yield 'five' => [5];
+    }
+
+    #[DataProvider('pageLimitProvider')]
+    public function testPageLimitsApplyEquallyToIterationAndPooling(int $maxPages, array $expectedPages): void
+    {
+        $requestCount = 0;
+        $manager = $this->manager();
+        $manager->fake([
+            PagedRequestStub::class => static function (PendingRequest $pendingRequest) use (&$requestCount): MockResponse {
+                ++$requestCount;
+                $page = (int) $pendingRequest->request()->queryParameters()['page'];
+
+                return MockResponse::make(['data' => [$page], 'page' => $page, 'pages' => 5]);
+            },
+        ]);
+        $paginator = (new PagedPaginatorStub(
+            new PaginationConnectorStub($manager),
+            new PagedRequestStub,
+        ))->startPage(0)->maxPages($maxPages);
+
+        $responses = iterator_to_array($paginator);
+        $pooledResponses = $paginator->pool();
+
+        $this->assertSame(array_keys($expectedPages), array_keys($responses));
+        $this->assertSame($expectedPages, array_map(
+            static fn (Response $response): int => (int) $response->json('page'),
+            array_values($responses),
+        ));
+        $this->assertSame(array_keys($expectedPages), array_keys($pooledResponses));
+        $this->assertSame($expectedPages, array_map(
+            static fn (Response $response): int => (int) $response->json('page'),
+            array_values($pooledResponses),
+        ));
+        $this->assertSame(count($expectedPages) * 2, $requestCount);
+    }
+
+    /**
+     * Provide page limits and their expected remote pages.
+     */
+    public static function pageLimitProvider(): iterable
+    {
+        yield 'negative' => [-1, []];
+        yield 'zero' => [0, []];
+        yield 'one' => [1, [0]];
+        yield 'multiple' => [3, [0, 1, 2]];
     }
 
     public function testOffsetAndCursorPaginatorsUseTheirExpectedParameters(): void

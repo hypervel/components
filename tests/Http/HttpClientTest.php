@@ -24,6 +24,7 @@ use GuzzleHttp\Psr7\StreamDecoratorTrait;
 use GuzzleHttp\Psr7\Utils;
 use GuzzleHttp\TransferStats;
 use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Arrayable;
@@ -84,7 +85,7 @@ class HttpClientTest extends TestCase
         RequestException::truncate();
     }
 
-    public function testStubbedResponsesAreReturnedAfterFaking()
+    public function testStubbedResponsesAreReturnedAfterFaking(): void
     {
         $this->factory->fake();
 
@@ -93,7 +94,7 @@ class HttpClientTest extends TestCase
         $this->assertTrue($response->ok());
     }
 
-    public function testCreatedRequest()
+    public function testCreatedRequest(): void
     {
         $this->factory->fake([
             'vapor.laravel.com' => $this->factory::response('', HttpResponse::HTTP_CREATED),
@@ -107,7 +108,7 @@ class HttpClientTest extends TestCase
         $this->assertFalse($response->created());
     }
 
-    public function testStatusCodeShorthand()
+    public function testStatusCodeShorthand(): void
     {
         $this->factory->fake([
             'forge.laravel.com' => 204,
@@ -203,7 +204,7 @@ class HttpClientTest extends TestCase
         $this->factory::response(['value' => NAN]);
     }
 
-    public function testBodyShorthands()
+    public function testBodyShorthands(): void
     {
         $this->factory->fake([
             'google.com' => 'Hello World',
@@ -241,7 +242,7 @@ class HttpClientTest extends TestCase
         $this->assertSame('Hello World', (string) $response->getBody());
     }
 
-    public function testAcceptedRequest()
+    public function testAcceptedRequest(): void
     {
         $this->factory->fake([
             'vapor.laravel.com' => $this->factory::response('', HttpResponse::HTTP_ACCEPTED),
@@ -255,7 +256,7 @@ class HttpClientTest extends TestCase
         $this->assertFalse($response->accepted());
     }
 
-    public function testMovedPermanentlyRequest()
+    public function testMovedPermanentlyRequest(): void
     {
         $this->factory->fake([
             'vapor.laravel.com' => $this->factory::response('', HttpResponse::HTTP_MOVED_PERMANENTLY),
@@ -269,7 +270,7 @@ class HttpClientTest extends TestCase
         $this->assertFalse($response->movedPermanently());
     }
 
-    public function testNoContentRequest()
+    public function testNoContentRequest(): void
     {
         $this->factory->fake([
             'vapor.laravel.com' => $this->factory::response('', HttpResponse::HTTP_NO_CONTENT),
@@ -283,7 +284,7 @@ class HttpClientTest extends TestCase
         $this->assertFalse($response->noContent());
     }
 
-    public function testFoundRequest()
+    public function testFoundRequest(): void
     {
         $this->factory->fake([
             'vapor.laravel.com' => $this->factory::response('', HttpResponse::HTTP_FOUND),
@@ -311,7 +312,7 @@ class HttpClientTest extends TestCase
         $this->assertFalse($response->notModified());
     }
 
-    public function testBadRequestRequest()
+    public function testBadRequestRequest(): void
     {
         $this->factory->fake([
             'vapor.laravel.com' => $this->factory::response('', HttpResponse::HTTP_BAD_REQUEST),
@@ -325,7 +326,7 @@ class HttpClientTest extends TestCase
         $this->assertFalse($response->badRequest());
     }
 
-    public function testPaymentRequiredRequest()
+    public function testPaymentRequiredRequest(): void
     {
         $this->factory->fake([
             'vapor.laravel.com' => $this->factory::response('', HttpResponse::HTTP_PAYMENT_REQUIRED),
@@ -339,7 +340,7 @@ class HttpClientTest extends TestCase
         $this->assertFalse($response->paymentRequired());
     }
 
-    public function testRequestTimeoutRequest()
+    public function testRequestTimeoutRequest(): void
     {
         $this->factory->fake([
             'vapor.laravel.com' => $this->factory::response('', HttpResponse::HTTP_REQUEST_TIMEOUT),
@@ -353,7 +354,7 @@ class HttpClientTest extends TestCase
         $this->assertFalse($response->requestTimeout());
     }
 
-    public function testConflictResponseRequest()
+    public function testConflictResponseRequest(): void
     {
         $this->factory->fake([
             'vapor.laravel.com' => $this->factory::response('', HttpResponse::HTTP_CONFLICT),
@@ -367,7 +368,7 @@ class HttpClientTest extends TestCase
         $this->assertFalse($response->conflict());
     }
 
-    public function testUnprocessableContentRequest()
+    public function testUnprocessableContentRequest(): void
     {
         $this->factory->fake([
             'vapor.laravel.com' => $this->factory::response('', HttpResponse::HTTP_UNPROCESSABLE_ENTITY),
@@ -381,7 +382,7 @@ class HttpClientTest extends TestCase
         $this->assertFalse($response->unprocessableContent());
     }
 
-    public function testUnprocessableEntityRequest()
+    public function testUnprocessableEntityRequest(): void
     {
         $this->factory->fake([
             'vapor.laravel.com' => $this->factory::response('', HttpResponse::HTTP_UNPROCESSABLE_ENTITY),
@@ -395,7 +396,7 @@ class HttpClientTest extends TestCase
         $this->assertFalse($response->unprocessableEntity());
     }
 
-    public function testTooManyRequestsRequest()
+    public function testTooManyRequestsRequest(): void
     {
         $this->factory->fake([
             'vapor.laravel.com' => $this->factory::response('', HttpResponse::HTTP_TOO_MANY_REQUESTS),
@@ -409,7 +410,7 @@ class HttpClientTest extends TestCase
         $this->assertFalse($response->tooManyRequests());
     }
 
-    public function testUnauthorizedRequest()
+    public function testUnauthorizedRequest(): void
     {
         $this->factory->fake([
             'laravel.com' => $this->factory::response('', 401),
@@ -420,7 +421,7 @@ class HttpClientTest extends TestCase
         $this->assertTrue($response->unauthorized());
     }
 
-    public function testForbiddenRequest()
+    public function testForbiddenRequest(): void
     {
         $this->factory->fake([
             'laravel.com' => $this->factory::response('', 403),
@@ -431,7 +432,7 @@ class HttpClientTest extends TestCase
         $this->assertTrue($response->forbidden());
     }
 
-    public function testNotFoundResponse()
+    public function testNotFoundResponse(): void
     {
         $this->factory->fake([
             'laravel.com' => $this->factory::response('', 404),
@@ -442,7 +443,7 @@ class HttpClientTest extends TestCase
         $this->assertTrue($response->notFound());
     }
 
-    public function testResponseBodyCasting()
+    public function testResponseBodyCasting(): void
     {
         $this->factory->fake([
             '*' => ['result' => ['foo' => 'bar']],
@@ -460,7 +461,7 @@ class HttpClientTest extends TestCase
         $this->assertSame(['foo' => 'bar'], $response['result']);
     }
 
-    public function testJsonCachesEmptyArray()
+    public function testJsonCachesEmptyArray(): void
     {
         $this->factory->fake([
             '*' => '[]',
@@ -472,7 +473,7 @@ class HttpClientTest extends TestCase
         $this->assertSame([], $response->json());
     }
 
-    public function testJsonCachesScalarValues()
+    public function testJsonCachesScalarValues(): void
     {
         $this->factory->fake([
             'foo.com/zero' => '0',
@@ -488,7 +489,7 @@ class HttpClientTest extends TestCase
         $this->assertSame(false, $response->json());
     }
 
-    public function testJsonCachesNullForInvalidJson()
+    public function testJsonCachesNullForInvalidJson(): void
     {
         $this->factory->fake([
             '*' => 'not valid json',
@@ -549,7 +550,7 @@ class HttpClientTest extends TestCase
         $this->assertSame(1, $response->bodyCallCount);
     }
 
-    public function testDecodeUsingResetsCacheAndReDecodesWithNewCallback()
+    public function testDecodeUsingResetsCacheAndReDecodesWithNewCallback(): void
     {
         $this->factory->fake([
             '*' => '{"key":"value"}',
@@ -663,7 +664,7 @@ class HttpClientTest extends TestCase
         $this->assertSame(3, $response->bodyCallCount);
     }
 
-    public function testResponseObjectAsArray()
+    public function testResponseObjectAsArray(): void
     {
         $this->factory->fake([
             '*' => [['foo' => 'bar'], ['bar' => 'foo']],
@@ -677,7 +678,7 @@ class HttpClientTest extends TestCase
         $this->assertSame('bar', $response->object()[0]->foo);
     }
 
-    public function testResponseObjectAsObject()
+    public function testResponseObjectAsObject(): void
     {
         $this->factory->fake([
             '*' => ['result' => ['foo' => 'bar']],
@@ -706,7 +707,7 @@ class HttpClientTest extends TestCase
         $this->assertSame('decoded', $response->object());
     }
 
-    public function testResponseCanBeReturnedAsResource()
+    public function testResponseCanBeReturnedAsResource(): void
     {
         $this->factory->fake([
             '*' => ['result' => ['foo' => 'bar']],
@@ -718,7 +719,7 @@ class HttpClientTest extends TestCase
         $this->assertSame('{"result":{"foo":"bar"}}', stream_get_contents($response->resource()));
     }
 
-    public function testResponseCanBeReturnedAsCollection()
+    public function testResponseCanBeReturnedAsCollection(): void
     {
         $this->factory->fake([
             '*' => ['result' => ['foo' => 'bar']],
@@ -733,7 +734,7 @@ class HttpClientTest extends TestCase
         $this->assertEquals(Collection::make(), $response->collect('missing_key'));
     }
 
-    public function testResponseCanBeReturnedAsFluent()
+    public function testResponseCanBeReturnedAsFluent(): void
     {
         $this->factory->fake([
             '*' => ['result' => ['foo' => 'bar']],
@@ -748,7 +749,7 @@ class HttpClientTest extends TestCase
         $this->assertEquals(new Fluent([]), $response->fluent('missing_key'));
     }
 
-    public function testResponseDecodeUsingWithDifferentFormats()
+    public function testResponseDecodeUsingWithDifferentFormats(): void
     {
         $this->factory->fake([
             '*' => 'name:Taylor|framework:Laravel',
@@ -771,7 +772,7 @@ class HttpClientTest extends TestCase
         $this->assertIsArray($response->json());
     }
 
-    public function testSendRequestBodyAsJsonByDefault()
+    public function testSendRequestBodyAsJsonByDefault(): void
     {
         $body = '{"test":"phpunit"}';
 
@@ -866,7 +867,7 @@ class HttpClientTest extends TestCase
         $this->factory->withBody(new stdClass)->send('post', 'http://foo.com/api');
     }
 
-    public function testSendRequestBodyWithManyAmpersands()
+    public function testSendRequestBodyWithManyAmpersands(): void
     {
         $body = str_repeat('A thousand &. ', 1000);
 
@@ -882,7 +883,7 @@ class HttpClientTest extends TestCase
         $this->factory->withBody($body, 'text/plain')->send('post', 'http://foo.com/api');
     }
 
-    public function testSendStreamRequestBody()
+    public function testSendStreamRequestBody(): void
     {
         $string = 'Look at me, i am a stream!!';
         $resource = fopen('php://temp', 'w');
@@ -902,7 +903,7 @@ class HttpClientTest extends TestCase
         $this->factory->withBody($body, 'text/plain')->send('post', 'http://foo.com/api');
     }
 
-    public function testUrlsCanBeStubbedByPath()
+    public function testUrlsCanBeStubbedByPath(): void
     {
         $this->factory->fake([
             'foo.com/*' => ['page' => 'foo'],
@@ -924,7 +925,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testCanSendJsonData()
+    public function testCanSendJsonData(): void
     {
         $this->factory->fake();
 
@@ -944,7 +945,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testCanSendFormData()
+    public function testCanSendFormData(): void
     {
         $this->factory->fake();
 
@@ -1243,7 +1244,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testCanSendJsonDataWithStringable()
+    public function testCanSendJsonDataWithStringable(): void
     {
         $this->factory->fake();
 
@@ -1529,7 +1530,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testCanSendFormDataWithStringable()
+    public function testCanSendFormDataWithStringable(): void
     {
         $this->factory->fake();
 
@@ -1545,7 +1546,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testCanSendFormDataWithStringableInArrays()
+    public function testCanSendFormDataWithStringableInArrays(): void
     {
         $this->factory->fake();
 
@@ -1560,7 +1561,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testRecordedCallsAreEmptiedWhenFakeIsCalled()
+    public function testRecordedCallsAreEmptiedWhenFakeIsCalled(): void
     {
         $this->factory->fake([
             'http://foo.com/*' => ['page' => 'foo'],
@@ -1577,7 +1578,7 @@ class HttpClientTest extends TestCase
         $this->factory->assertNothingSent();
     }
 
-    public function testSpecificRequestIsNotBeingSent()
+    public function testSpecificRequestIsNotBeingSent(): void
     {
         $this->factory->fake();
 
@@ -1591,14 +1592,14 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testNoRequestIsNotBeingSent()
+    public function testNoRequestIsNotBeingSent(): void
     {
         $this->factory->fake();
 
         $this->factory->assertNothingSent();
     }
 
-    public function testRequestCount()
+    public function testRequestCount(): void
     {
         $this->factory->fake();
         $this->factory->assertSentCount(0);
@@ -1631,7 +1632,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testCanSendMultipartData()
+    public function testCanSendMultipartData(): void
     {
         $this->factory->fake();
 
@@ -1650,7 +1651,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testFilesCanBeAttached()
+    public function testFilesCanBeAttached(): void
     {
         $this->factory->fake();
 
@@ -1789,7 +1790,7 @@ class HttpClientTest extends TestCase
         ];
     }
 
-    public function testCanSendMultipartDataWithSimplifiedParameters()
+    public function testCanSendMultipartDataWithSimplifiedParameters(): void
     {
         $this->factory->fake();
 
@@ -1877,7 +1878,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testCanSendMultipartDataWithBothSimplifiedAndExtendedParameters()
+    public function testCanSendMultipartDataWithBothSimplifiedAndExtendedParameters(): void
     {
         $this->factory->fake();
 
@@ -1965,7 +1966,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testItCanSendToken()
+    public function testItCanSendToken(): void
     {
         $this->factory->fake();
 
@@ -1977,7 +1978,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testItCanSendUserAgent()
+    public function testItCanSendUserAgent(): void
     {
         $this->factory->fake();
 
@@ -2007,7 +2008,7 @@ class HttpClientTest extends TestCase
         ];
     }
 
-    public function testItOnlySendsOneUserAgentHeader()
+    public function testItOnlySendsOneUserAgentHeader(): void
     {
         $this->factory->fake();
 
@@ -2024,7 +2025,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testSequenceBuilder()
+    public function testSequenceBuilder(): void
     {
         $this->factory->fake([
             '*' => $this->factory->sequence()
@@ -2060,7 +2061,7 @@ class HttpClientTest extends TestCase
         $this->factory->get('https://example.com');
     }
 
-    public function testSequenceBuilderCanKeepGoingWhenEmpty()
+    public function testSequenceBuilderCanKeepGoingWhenEmpty(): void
     {
         $this->factory->fake([
             '*' => $this->factory->sequence()
@@ -2075,7 +2076,33 @@ class HttpClientTest extends TestCase
         $this->factory->get('https://laravel.com');
     }
 
-    public function testAssertSequencesAreEmpty()
+    public function testSequenceBuilderCanReturnAPromiseWhenEmpty(): void
+    {
+        $this->factory->fake([
+            '*' => $this->factory->sequence()
+                ->whenEmpty($this->factory::response('Fallback', 202)),
+        ]);
+
+        $response = $this->factory->get('https://example.com');
+
+        $this->assertSame('Fallback', $response->body());
+        $this->assertSame(202, $response->status());
+    }
+
+    public function testSequenceBuilderCanResolveAClosureWhenEmpty(): void
+    {
+        $this->factory->fake([
+            '*' => $this->factory->sequence()
+                ->whenEmpty(fn () => $this->factory::response('Fallback', 203)),
+        ]);
+
+        $response = $this->factory->get('https://example.com');
+
+        $this->assertSame('Fallback', $response->body());
+        $this->assertSame(203, $response->status());
+    }
+
+    public function testAssertSequencesAreEmpty(): void
     {
         $this->factory->fake([
             '*' => $this->factory->sequence()
@@ -2089,7 +2116,7 @@ class HttpClientTest extends TestCase
         $this->factory->assertSequencesAreEmpty();
     }
 
-    public function testFakeSequence()
+    public function testFakeSequence(): void
     {
         $this->factory->fakeSequence()
             ->pushStatus(201)
@@ -2099,7 +2126,26 @@ class HttpClientTest extends TestCase
         $this->assertSame(301, $this->factory->get('https://example.com')->status());
     }
 
-    public function testWithCookies()
+    public function testUnpopulatedResponseHasNoCookies(): void
+    {
+        $response = new Response(Factory::psr7Response());
+
+        $this->assertNull($response->cookies());
+    }
+
+    public function testRecordedResponseHasNoCookies(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->get('https://example.com');
+
+        [, $response] = $this->factory->recorded()->first();
+
+        $this->assertInstanceOf(Response::class, $response);
+        $this->assertNull($response->cookies());
+    }
+
+    public function testWithCookies(): void
     {
         $this->factory->fakeSequence()->pushStatus(200);
 
@@ -2118,7 +2164,7 @@ class HttpClientTest extends TestCase
         $this->assertSame('https://laravel.com', $responseCookie['Domain']);
     }
 
-    public function testWithQueryParameters()
+    public function testWithQueryParameters(): void
     {
         $this->factory->fake();
 
@@ -2131,7 +2177,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testWithArrayQueryParameters()
+    public function testWithArrayQueryParameters(): void
     {
         $this->factory->fake();
 
@@ -2144,7 +2190,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testWithQueryParametersAllowsAddingMoreOnRequest()
+    public function testWithQueryParametersAllowsAddingMoreOnRequest(): void
     {
         $this->factory->fake();
 
@@ -2159,7 +2205,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testWithQueryParametersAllowsOverridingParameterOnRequest()
+    public function testWithQueryParametersAllowsOverridingParameterOnRequest(): void
     {
         $this->factory->fake();
 
@@ -2176,7 +2222,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testWithStringableQueryParameters()
+    public function testWithStringableQueryParameters(): void
     {
         $this->factory->fake();
 
@@ -2189,7 +2235,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testWithArrayStringableQueryParameters()
+    public function testWithArrayStringableQueryParameters(): void
     {
         $this->factory->fake();
 
@@ -2221,7 +2267,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testGetWithArrayQueryParam()
+    public function testGetWithArrayQueryParam(): void
     {
         $this->factory->fake();
 
@@ -2233,7 +2279,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testGetWithArrayableQueryParam()
+    public function testGetWithArrayableQueryParam(): void
     {
         $this->factory->fake();
 
@@ -2346,7 +2392,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testGetWithStringQueryParam()
+    public function testGetWithStringQueryParam(): void
     {
         $this->factory->fake();
 
@@ -2370,7 +2416,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testGetWithQuery()
+    public function testGetWithQuery(): void
     {
         $this->factory->fake();
 
@@ -2421,7 +2467,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testGetWithQueryWontEncode()
+    public function testGetWithQueryWontEncode(): void
     {
         $this->factory->fake();
 
@@ -2435,7 +2481,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testGetWithArrayQueryParamOverwrites()
+    public function testGetWithArrayQueryParamOverwrites(): void
     {
         $this->factory->fake();
 
@@ -2447,7 +2493,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testGetWithArrayQueryParamEncodes()
+    public function testGetWithArrayQueryParamEncodes(): void
     {
         $this->factory->fake();
 
@@ -2459,7 +2505,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testWithBaseUrl()
+    public function testWithBaseUrl(): void
     {
         $this->factory->fake();
 
@@ -2478,7 +2524,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testCanConfirmManyHeaders()
+    public function testCanConfirmManyHeaders(): void
     {
         $this->factory->fake();
 
@@ -2496,7 +2542,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testCanConfirmManyHeadersUsingAString()
+    public function testCanConfirmManyHeadersUsingAString(): void
     {
         $this->factory->fake();
 
@@ -2511,7 +2557,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testItMergesMultipleHeaders()
+    public function testItMergesMultipleHeaders(): void
     {
         $this->factory->fake();
 
@@ -2529,7 +2575,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testItCanReplaceHeaders()
+    public function testItCanReplaceHeaders(): void
     {
         $this->factory->fake();
 
@@ -2545,7 +2591,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testItCanReplaceHeadersWhenNoHeadersYetSet()
+    public function testItCanReplaceHeadersWhenNoHeadersYetSet(): void
     {
         $this->factory->fake();
 
@@ -2559,7 +2605,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testCanConfirmSingleStringHeader()
+    public function testCanConfirmSingleStringHeader(): void
     {
         $this->factory->fake();
 
@@ -2573,7 +2619,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testCanConfirmSingleArrayHeader()
+    public function testCanConfirmSingleArrayHeader(): void
     {
         $this->factory->fake();
 
@@ -2587,14 +2633,14 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testExceptionAccessorOnSuccess()
+    public function testExceptionAccessorOnSuccess(): void
     {
         $resp = new Response(new Psr7Response);
 
         $this->assertNull($resp->toException());
     }
 
-    public function testExceptionAccessorOnFailure()
+    public function testExceptionAccessorOnFailure(): void
     {
         $error = [
             'error' => [
@@ -2632,7 +2678,7 @@ class HttpClientTest extends TestCase
         }
     }
 
-    public function testRequestExceptionSummary()
+    public function testRequestExceptionSummary(): void
     {
         $this->expectException(RequestException::class);
         $this->expectExceptionMessage('{"error":{"code":403,"message":"The Request can not be completed"}}');
@@ -2648,7 +2694,7 @@ class HttpClientTest extends TestCase
         throw new RequestException(new Response($response));
     }
 
-    public function testRequestExceptionTruncatedSummary()
+    public function testRequestExceptionTruncatedSummary(): void
     {
         $this->expectException(RequestException::class);
         $this->expectExceptionMessage(
@@ -2666,7 +2712,7 @@ class HttpClientTest extends TestCase
         throw new RequestException(new Response($response));
     }
 
-    public function testRequestExceptionWithoutTruncatedSummary()
+    public function testRequestExceptionWithoutTruncatedSummary(): void
     {
         RequestException::dontTruncate();
 
@@ -2686,7 +2732,7 @@ class HttpClientTest extends TestCase
         throw new RequestException(new Response($response));
     }
 
-    public function testRequestExceptionWithCustomTruncatedSummary()
+    public function testRequestExceptionWithCustomTruncatedSummary(): void
     {
         RequestException::truncateAt(60);
 
@@ -2763,7 +2809,7 @@ class HttpClientTest extends TestCase
         $this->assertFalse(RequestException::$truncateAt);
     }
 
-    public function testRequestExceptionDoesNotTruncateButRequestDoes()
+    public function testRequestExceptionDoesNotTruncateButRequestDoes(): void
     {
         RequestException::dontTruncate();
 
@@ -2785,7 +2831,7 @@ class HttpClientTest extends TestCase
         $this->assertFalse(RequestException::$truncateAt);
     }
 
-    public function testRequestExceptionFlushStateRestoresDefaultTruncation()
+    public function testRequestExceptionFlushStateRestoresDefaultTruncation(): void
     {
         RequestException::dontTruncate();
 
@@ -2796,7 +2842,7 @@ class HttpClientTest extends TestCase
         $this->assertSame(RequestException::DEFAULT_TRUNCATE_AT, RequestException::$truncateAt);
     }
 
-    public function testReportingExceptionTwiceDoesNotIncludeSummaryTwice()
+    public function testReportingExceptionTwiceDoesNotIncludeSummaryTwice(): void
     {
         RequestException::dontTruncate();
 
@@ -2816,7 +2862,7 @@ class HttpClientTest extends TestCase
         $this->assertEquals(1, substr_count($exception->getMessage(), '{"error":{"code":403,"message":"The Request can not be completed"}}'));
     }
 
-    public function testRequestExceptionEmptyBody()
+    public function testRequestExceptionEmptyBody(): void
     {
         $this->expectException(RequestException::class);
         $this->expectExceptionMessageMatches('/HTTP request returned status code 403$/');
@@ -2826,7 +2872,7 @@ class HttpClientTest extends TestCase
         throw new RequestException(new Response($response));
     }
 
-    public function testStreamingResponseExceptionMessageIsNotSummarizedWhenBodyIsNotSeekable()
+    public function testStreamingResponseExceptionMessageIsNotSummarizedWhenBodyIsNotSeekable(): void
     {
         $this->factory->fake([
             '*' => \GuzzleHttp\Promise\Create::promiseFor(
@@ -2859,7 +2905,7 @@ class HttpClientTest extends TestCase
         $this->assertTrue($throwCallbackCalled);
     }
 
-    public function testOnErrorDoesntCallClosureOnInformational()
+    public function testOnErrorDoesntCallClosureOnInformational(): void
     {
         $status = 0;
         $client = $this->factory->fake([
@@ -2875,7 +2921,7 @@ class HttpClientTest extends TestCase
         $this->assertSame(101, $response->status());
     }
 
-    public function testOnErrorDoesntCallClosureOnSuccess()
+    public function testOnErrorDoesntCallClosureOnSuccess(): void
     {
         $status = 0;
         $client = $this->factory->fake([
@@ -2891,7 +2937,7 @@ class HttpClientTest extends TestCase
         $this->assertSame(201, $response->status());
     }
 
-    public function testOnErrorDoesntCallClosureOnRedirection()
+    public function testOnErrorDoesntCallClosureOnRedirection(): void
     {
         $status = 0;
         $client = $this->factory->fake([
@@ -2907,7 +2953,7 @@ class HttpClientTest extends TestCase
         $this->assertSame(301, $response->status());
     }
 
-    public function testOnErrorCallsClosureOnClientError()
+    public function testOnErrorCallsClosureOnClientError(): void
     {
         $status = 0;
         $client = $this->factory->fake([
@@ -2923,7 +2969,7 @@ class HttpClientTest extends TestCase
         $this->assertSame(401, $response->status());
     }
 
-    public function testOnErrorCallsClosureOnServerError()
+    public function testOnErrorCallsClosureOnServerError(): void
     {
         $status = 0;
         $client = $this->factory->fake([
@@ -3173,7 +3219,7 @@ class HttpClientTest extends TestCase
         ];
     }
 
-    public function testCanAssertAgainstOrderOfHttpRequestsWithUrlStrings()
+    public function testCanAssertAgainstOrderOfHttpRequestsWithUrlStrings(): void
     {
         $this->factory->fake();
 
@@ -3190,7 +3236,7 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentInOrder($exampleUrls);
     }
 
-    public function testAssertionsSentOutOfOrderThrowAssertionFailed()
+    public function testAssertionsSentOutOfOrderThrowAssertionFailed(): void
     {
         $this->factory->fake();
 
@@ -3209,7 +3255,7 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentInOrder($exampleUrls);
     }
 
-    public function testWrongNumberOfRequestsThrowAssertionFailed()
+    public function testWrongNumberOfRequestsThrowAssertionFailed(): void
     {
         $this->factory->fake();
 
@@ -3227,7 +3273,7 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentInOrder($exampleUrls);
     }
 
-    public function testCanAssertAgainstOrderOfHttpRequestsWithCallables()
+    public function testCanAssertAgainstOrderOfHttpRequestsWithCallables(): void
     {
         $this->factory->fake();
 
@@ -3250,7 +3296,7 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentInOrder($exampleUrls);
     }
 
-    public function testCanAssertAgainstOrderOfHttpRequestsWithCallablesAndHeaders()
+    public function testCanAssertAgainstOrderOfHttpRequestsWithCallablesAndHeaders(): void
     {
         $this->factory->fake();
 
@@ -3288,7 +3334,7 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentInOrder($executionOrder);
     }
 
-    public function testCanAssertAgainstOrderOfHttpRequestsWithCallablesAndHeadersFailsCorrectly()
+    public function testCanAssertAgainstOrderOfHttpRequestsWithCallablesAndHeadersFailsCorrectly(): void
     {
         $this->factory->fake();
 
@@ -3328,7 +3374,7 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentInOrder($executionOrder);
     }
 
-    public function testCanDump()
+    public function testCanDump(): void
     {
         $dumped = [];
 
@@ -3347,7 +3393,7 @@ class HttpClientTest extends TestCase
         VarDumper::setHandler(null);
     }
 
-    public function testResponseCanDump()
+    public function testResponseCanDump(): void
     {
         $dumped = [];
 
@@ -3367,7 +3413,7 @@ class HttpClientTest extends TestCase
         VarDumper::setHandler(null);
     }
 
-    public function testResponseCanDumpWithKey()
+    public function testResponseCanDumpWithKey(): void
     {
         $dumped = [];
 
@@ -3387,7 +3433,7 @@ class HttpClientTest extends TestCase
         VarDumper::setHandler(null);
     }
 
-    public function testResponseCanDumpHeaders()
+    public function testResponseCanDumpHeaders(): void
     {
         $dumped = [];
 
@@ -3406,7 +3452,7 @@ class HttpClientTest extends TestCase
         VarDumper::setHandler(null);
     }
 
-    public function testResponseSequenceIsMacroable()
+    public function testResponseSequenceIsMacroable(): void
     {
         ResponseSequence::macro('customMethod', function () {
             return 'yes!';
@@ -3415,7 +3461,12 @@ class HttpClientTest extends TestCase
         $this->assertSame('yes!', $this->factory->fakeSequence()->customMethod());
     }
 
-    public function testRequestsCanBeAsync()
+    public function testPendingRequestHasNoPromiseBeforeAnAsyncRequest(): void
+    {
+        $this->assertNull((new PendingRequest($this->factory))->getPromise());
+    }
+
+    public function testRequestsCanBeAsync(): void
     {
         $request = new PendingRequest($this->factory);
 
@@ -3438,7 +3489,7 @@ class HttpClientTest extends TestCase
             && $response === null);
     }
 
-    public function testAsyncRequestHandlesNonTransferThrowableWithoutTypeError()
+    public function testAsyncRequestHandlesNonTransferThrowableWithoutTypeError(): void
     {
         $this->factory->fake(function () {
             throw new RuntimeException('Something unexpected');
@@ -3486,7 +3537,7 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentCount(2);
     }
 
-    public function testClientCanBeSet()
+    public function testClientCanBeSet(): void
     {
         $client = $this->factory->buildClient();
 
@@ -3550,7 +3601,7 @@ class HttpClientTest extends TestCase
     // REMOVED: Laravel Http::pool() and Http::batch() test groups - These APIs use
     // Guzzle promise concurrency. In Hypervel, use parallel() with coroutines instead.
 
-    public function testRequestsCanReplaceOptions()
+    public function testRequestsCanReplaceOptions(): void
     {
         $request = new PendingRequest($this->factory);
 
@@ -3569,7 +3620,7 @@ class HttpClientTest extends TestCase
         );
     }
 
-    public function testTheRequestSendingAndResponseReceivedEventsAreFiredWhenARequestIsSent()
+    public function testTheRequestSendingAndResponseReceivedEventsAreFiredWhenARequestIsSent(): void
     {
         $events = m::mock(Dispatcher::class);
         $events->shouldReceive('hasListeners')->times(5)->with(RequestSending::class)->andReturn(true);
@@ -3605,7 +3656,7 @@ class HttpClientTest extends TestCase
         $factory->async()->delete('https://example.com')->wait();
     }
 
-    public function testTheRequestSendingAndResponseReceivedEventsAreFiredForEveryRetry()
+    public function testTheRequestSendingAndResponseReceivedEventsAreFiredForEveryRetry(): void
     {
         Sleep::fake();
         $events = m::mock(Dispatcher::class);
@@ -3626,7 +3677,7 @@ class HttpClientTest extends TestCase
         $factory->assertSentCount(2);
     }
 
-    public function testTheTransferStatsAreCalledSafelyWhenFakingTheRequest()
+    public function testTheTransferStatsAreCalledSafelyWhenFakingTheRequest(): void
     {
         $this->factory->fake(['https://example.com' => ['world' => 'Hello world']]);
         $stats = $this->factory->get('https://example.com')->handlerStats();
@@ -3638,7 +3689,7 @@ class HttpClientTest extends TestCase
         $this->assertNull($effectiveUri);
     }
 
-    public function testTransferStatsArePresentWhenFakingTheRequestUsingAPromiseResponse()
+    public function testTransferStatsArePresentWhenFakingTheRequestUsingAPromiseResponse(): void
     {
         $this->factory->fake(['https://example.com' => $this->factory->response()]);
         $effectiveUri = $this->factory->get('https://example.com')->effectiveUri();
@@ -3656,7 +3707,7 @@ class HttpClientTest extends TestCase
         $this->assertSame('https://example.com', (string) $response->effectiveUri());
     }
 
-    public function testClonedClientsWorkSuccessfullyWithTheRequestObject()
+    public function testClonedClientsWorkSuccessfullyWithTheRequestObject(): void
     {
         $events = m::mock(Dispatcher::class);
         $events->shouldReceive('hasListeners')->once()->with(RequestSending::class)->andReturn(true);
@@ -3673,7 +3724,7 @@ class HttpClientTest extends TestCase
         $clonedClient->get('https://example.com');
     }
 
-    public function testTheConnectionFailedEventIsFiredWhenARequestFailsToConnect()
+    public function testTheConnectionFailedEventIsFiredWhenARequestFailsToConnect(): void
     {
         $events = m::mock(Dispatcher::class);
         $events->shouldReceive('hasListeners')->once()->with(RequestSending::class)->andReturn(true);
@@ -3692,7 +3743,7 @@ class HttpClientTest extends TestCase
         }
     }
 
-    public function testRequestIsMacroable()
+    public function testRequestIsMacroable(): void
     {
         Request::macro('customMethod', function () {
             return 'yes!';
@@ -3707,7 +3758,7 @@ class HttpClientTest extends TestCase
         $this->factory->get('https://example.com');
     }
 
-    public function testRequestExceptionIsThrownWhenRetriesExhausted()
+    public function testRequestExceptionIsThrownWhenRetriesExhausted(): void
     {
         $this->factory->fake([
             '*' => $this->factory->response(['error'], 403),
@@ -3749,7 +3800,7 @@ class HttpClientTest extends TestCase
             && $response?->status() === 500);
     }
 
-    public function testRequestExceptionIsThrownWhenRetriesExhaustedWithBackoffArray()
+    public function testRequestExceptionIsThrownWhenRetriesExhaustedWithBackoffArray(): void
     {
         $this->factory->fake([
             '*' => $this->factory->response(['error'], 403),
@@ -3771,7 +3822,7 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentCount(2);
     }
 
-    public function testRequestExceptionIsThrownWithoutRetriesIfRetryNotNecessary()
+    public function testRequestExceptionIsThrownWithoutRetriesIfRetryNotNecessary(): void
     {
         $this->factory->fake([
             '*' => $this->factory->response(['error'], 500),
@@ -3800,7 +3851,7 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentCount(1);
     }
 
-    public function testRequestExceptionIsThrownWithoutRetriesIfRetryNotNecessaryWithBackoffArray()
+    public function testRequestExceptionIsThrownWithoutRetriesIfRetryNotNecessaryWithBackoffArray(): void
     {
         $this->factory->fake([
             '*' => $this->factory->response(['error'], 500),
@@ -3829,7 +3880,7 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentCount(1);
     }
 
-    public function testRequestExceptionIsNotThrownWhenDisabledAndRetriesExhausted()
+    public function testRequestExceptionIsNotThrownWhenDisabledAndRetriesExhausted(): void
     {
         $this->factory->fake([
             '*' => $this->factory->response(['error'], 403),
@@ -3844,7 +3895,7 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentCount(2);
     }
 
-    public function testRequestExceptionIsNotThrownWhenDisabledAndRetriesExhaustedWithBackoffArray()
+    public function testRequestExceptionIsNotThrownWhenDisabledAndRetriesExhaustedWithBackoffArray(): void
     {
         $this->factory->fake([
             '*' => $this->factory->response(['error'], 403),
@@ -3859,7 +3910,7 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentCount(3);
     }
 
-    public function testRequestExceptionIsNotThrownWithoutRetriesIfRetryNotNecessary()
+    public function testRequestExceptionIsNotThrownWithoutRetriesIfRetryNotNecessary(): void
     {
         $this->factory->fake([
             '*' => $this->factory->response(['error'], 500),
@@ -3882,7 +3933,7 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentCount(1);
     }
 
-    public function testRequestExceptionIsNotThrownWithoutRetriesIfRetryNotNecessaryWithBackoffArray()
+    public function testRequestExceptionIsNotThrownWithoutRetriesIfRetryNotNecessaryWithBackoffArray(): void
     {
         $this->factory->fake([
             '*' => $this->factory->response(['error'], 500),
@@ -3905,7 +3956,7 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentCount(1);
     }
 
-    public function testRequestCanBeModifiedInRetryCallback()
+    public function testRequestCanBeModifiedInRetryCallback(): void
     {
         $this->factory->fake([
             '*' => $this->factory->sequence()
@@ -3930,7 +3981,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testRequestCanBeModifiedInRetryCallbackWithBackoffArray()
+    public function testRequestCanBeModifiedInRetryCallbackWithBackoffArray(): void
     {
         $this->factory->fake([
             '*' => $this->factory->sequence()
@@ -3955,7 +4006,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testExceptionThrownInRetryCallbackWithoutRetrying()
+    public function testExceptionThrownInRetryCallbackWithoutRetrying(): void
     {
         $this->factory->fake([
             '*' => $this->factory->response(['error'], 500),
@@ -3980,7 +4031,7 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentCount(1);
     }
 
-    public function testExceptionThrownInRetryCallbackWithoutRetryingWithBackoffArray()
+    public function testExceptionThrownInRetryCallbackWithoutRetryingWithBackoffArray(): void
     {
         $this->factory->fake([
             '*' => $this->factory->response(['error'], 500),
@@ -4005,7 +4056,7 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentCount(1);
     }
 
-    public function testRequestsWillBeWaitingSleepMillisecondsReceivedBeforeRetry()
+    public function testRequestsWillBeWaitingSleepMillisecondsReceivedBeforeRetry(): void
     {
         Sleep::fake();
 
@@ -4051,7 +4102,7 @@ class HttpClientTest extends TestCase
             })->post('https://example.com');
     }
 
-    public function testRequestsWillBeWaitingSleepMillisecondsReceivedInBackoffArray()
+    public function testRequestsWillBeWaitingSleepMillisecondsReceivedInBackoffArray(): void
     {
         Sleep::fake();
 
@@ -4079,7 +4130,7 @@ class HttpClientTest extends TestCase
         ]);
     }
 
-    public function testFailedRequest()
+    public function testFailedRequest(): void
     {
         $requestException = $this->factory->failedRequest(['code' => 'not_found'], 404, ['X-RateLimit-Remaining' => 199]);
 
@@ -4104,7 +4155,7 @@ class HttpClientTest extends TestCase
         $this->assertSame('-INF', $exception->response->header('X-Negative-Inf'));
     }
 
-    public function testFakeConnectionException()
+    public function testFakeConnectionException(): void
     {
         $this->factory->fake($this->factory->failedConnection('Fake'));
 
@@ -4149,7 +4200,7 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testFakeConnectionExceptionWithinFakeClosure()
+    public function testFakeConnectionExceptionWithinFakeClosure(): void
     {
         $this->factory->fake(fn () => $this->factory->failedConnection('Fake'));
 
@@ -4168,7 +4219,7 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentCount(1);
     }
 
-    public function testFakeConnectionExceptionWithinArray()
+    public function testFakeConnectionExceptionWithinArray(): void
     {
         $this->factory->fake(['*' => $this->factory->failedConnection('Fake')]);
 
@@ -4187,7 +4238,7 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentCount(1);
     }
 
-    public function testFakeConnectionExceptionWithinSequence()
+    public function testFakeConnectionExceptionWithinSequence(): void
     {
         $this->factory->fake([
             '*' => $this->factory->sequence()
@@ -4212,7 +4263,7 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentCount(2);
     }
 
-    public function testMiddlewareRunsWhenFaked()
+    public function testMiddlewareRunsWhenFaked(): void
     {
         $this->factory->fake(function (Request $request) {
             return $this->factory->response('Fake');
@@ -4238,7 +4289,7 @@ class HttpClientTest extends TestCase
         );
     }
 
-    public function testMiddlewareRunsAndCanChangeRequestOnAssertSent()
+    public function testMiddlewareRunsAndCanChangeRequestOnAssertSent(): void
     {
         $this->factory->fake(function (Request $request) {
             return $this->factory->response('Fake');
@@ -4262,6 +4313,58 @@ class HttpClientTest extends TestCase
                     'whole_number_float' => 1.0,
                 ];
         });
+    }
+
+    public function testMiddlewareCanBePrependedAheadOfGlobalAndRequestMiddleware(): void
+    {
+        $order = [];
+        $middleware = static function (string $name) use (&$order): callable {
+            return static function (callable $handler) use (&$order, $name): callable {
+                return static function (RequestInterface $request, array $options) use ($handler, &$order, $name): PromiseInterface {
+                    $order[] = $name;
+
+                    return $handler($request, $options);
+                };
+            };
+        };
+
+        $this->factory
+            ->globalMiddleware($middleware('global'))
+            ->fake();
+
+        $this->factory
+            ->withMiddleware($middleware('appended'))
+            ->withRequestMiddleware(static function (RequestInterface $request) use (&$order): RequestInterface {
+                $order[] = 'request';
+
+                return $request;
+            })
+            ->prependMiddleware($middleware('prepended'))
+            ->get('https://example.test');
+
+        $this->assertSame(['prepended', 'global', 'appended', 'request'], $order);
+    }
+
+    public function testRequestAttributesCanBeReadFromThePendingRequest(): void
+    {
+        $pendingRequest = (new PendingRequest)
+            ->withAttributes(['trace' => 'request-1'])
+            ->withAttributes(['tags' => ['api']]);
+
+        $this->assertSame([
+            'trace' => 'request-1',
+            'tags' => ['api'],
+        ], $pendingRequest->attributes());
+    }
+
+    public function testUnboundPendingRequestContainerResolutionsAreFresh(): void
+    {
+        $container = new Container;
+        $first = $container->make(PendingRequest::class)->withAttributes(['trace' => 'request-1']);
+        $second = $container->make(PendingRequest::class);
+
+        $this->assertNotSame($first, $second);
+        $this->assertSame([], $second->attributes());
     }
 
     public function testBeforeSendingBodyReplacementInvalidatesLogicalRequestData(): void
@@ -4651,7 +4754,7 @@ class HttpClientTest extends TestCase
         $this->factory->maxRedirects(1)->get('https://1.example.com');
     }
 
-    public function testRequestExceptionIsNotThrownIfThePendingRequestIsSetToThrowOnFailureButTheResponseIsSuccessful()
+    public function testRequestExceptionIsNotThrownIfThePendingRequestIsSetToThrowOnFailureButTheResponseIsSuccessful(): void
     {
         $this->factory->fake([
             '*' => $this->factory->response(['success'], 200),
@@ -4664,7 +4767,7 @@ class HttpClientTest extends TestCase
         $this->assertSame(200, $response->status());
     }
 
-    public function testRequestExceptionIsThrownIfThePendingRequestIsSetToThrowOnFailure()
+    public function testRequestExceptionIsThrownIfThePendingRequestIsSetToThrowOnFailure(): void
     {
         $this->factory->fake([
             '*' => $this->factory->response(['error'], 403),
@@ -4684,7 +4787,7 @@ class HttpClientTest extends TestCase
         $this->assertInstanceOf(RequestException::class, $exception);
     }
 
-    public function testRequestExceptionIsThrownIfTheThrowIfOnThePendingRequestIsSetToTrueOnFailure()
+    public function testRequestExceptionIsThrownIfTheThrowIfOnThePendingRequestIsSetToTrueOnFailure(): void
     {
         $this->factory->fake([
             '*' => $this->factory->response(['error'], 403),
@@ -4704,7 +4807,7 @@ class HttpClientTest extends TestCase
         $this->assertInstanceOf(RequestException::class, $exception);
     }
 
-    public function testRequestExceptionIsNotThrownIfTheThrowIfOnThePendingRequestIsSetToFalseOnFailure()
+    public function testRequestExceptionIsNotThrownIfTheThrowIfOnThePendingRequestIsSetToFalseOnFailure(): void
     {
         $this->factory->fake([
             '*' => $this->factory->response(['error'], 403),
@@ -4739,7 +4842,7 @@ class HttpClientTest extends TestCase
         $this->assertSame('{"result":{"foo":"bar"}}', $response->body());
     }
 
-    public function testRequestExceptionIsThrownIfTheThrowIfClosureOnThePendingRequestReturnsTrue()
+    public function testRequestExceptionIsThrownIfTheThrowIfClosureOnThePendingRequestReturnsTrue(): void
     {
         $this->factory->fake([
             '*' => $this->factory->response(['error'], 403),
@@ -4773,7 +4876,7 @@ class HttpClientTest extends TestCase
         $this->assertTrue($hitThrowCallback);
     }
 
-    public function testRequestExceptionIsNotThrownIfTheThrowIfClosureOnThePendingRequestReturnsFalse()
+    public function testRequestExceptionIsNotThrownIfTheThrowIfClosureOnThePendingRequestReturnsFalse(): void
     {
         $this->factory->fake([
             '*' => $this->factory->response(['error'], 403),
@@ -4870,7 +4973,7 @@ class HttpClientTest extends TestCase
         $this->assertSame(403, $response->status());
     }
 
-    public function testRequestExceptionIsThrownWithCallbackIfThePendingRequestIsSetToThrowOnFailure()
+    public function testRequestExceptionIsThrownWithCallbackIfThePendingRequestIsSetToThrowOnFailure(): void
     {
         $this->factory->fake([
             '*' => $this->factory->response(['error'], 403),
@@ -4896,7 +4999,7 @@ class HttpClientTest extends TestCase
         $this->assertInstanceOf(RequestException::class, $exception);
     }
 
-    public function testRequestExceptionIsThrownIfTheRequestFails()
+    public function testRequestExceptionIsThrownIfTheRequestFails(): void
     {
         $this->factory->fake([
             '*' => $this->factory::response('', 400),
@@ -4914,7 +5017,7 @@ class HttpClientTest extends TestCase
         $this->assertInstanceOf(RequestException::class, $exception);
     }
 
-    public function testRequestExceptionIsThrownWithCallbackIfTheRequestFails()
+    public function testRequestExceptionIsThrownWithCallbackIfTheRequestFails(): void
     {
         $this->factory->fake([
             '*' => $this->factory::response('', 400),
@@ -4938,7 +5041,7 @@ class HttpClientTest extends TestCase
         $this->assertInstanceOf(RequestException::class, $exception);
     }
 
-    public function testRequestExceptionIsNotThrownIfTheRequestDoesNotFail()
+    public function testRequestExceptionIsNotThrownIfTheRequestDoesNotFail(): void
     {
         $this->factory->fake([
             '*' => ['result' => ['foo' => 'bar']],
@@ -4949,7 +5052,7 @@ class HttpClientTest extends TestCase
         $this->assertSame('{"result":{"foo":"bar"}}', $response->body());
     }
 
-    public function testRequestExceptionIsThrowIfConditionIsSatisfied()
+    public function testRequestExceptionIsThrowIfConditionIsSatisfied(): void
     {
         $this->factory->fake([
             '*' => $this->factory::response('', 400),
@@ -4967,7 +5070,7 @@ class HttpClientTest extends TestCase
         $this->assertInstanceOf(RequestException::class, $exception);
     }
 
-    public function testRequestExceptionIsNotThrownIfConditionIsNotSatisfied()
+    public function testRequestExceptionIsNotThrownIfConditionIsNotSatisfied(): void
     {
         $this->factory->fake([
             '*' => $this->factory::response(['result' => ['foo' => 'bar']], 400),
@@ -4978,7 +5081,7 @@ class HttpClientTest extends TestCase
         $this->assertSame('{"result":{"foo":"bar"}}', $response->body());
     }
 
-    public function testRequestExceptionIsThrowIfConditionClosureIsSatisfied()
+    public function testRequestExceptionIsThrowIfConditionClosureIsSatisfied(): void
     {
         $this->factory->fake([
             '*' => $this->factory::response('', 400),
@@ -5008,7 +5111,7 @@ class HttpClientTest extends TestCase
         $this->assertTrue($hitThrowCallback);
     }
 
-    public function testRequestExceptionIsNotThrownIfConditionClosureIsNotSatisfied()
+    public function testRequestExceptionIsNotThrownIfConditionClosureIsNotSatisfied(): void
     {
         $this->factory->fake([
             '*' => $this->factory::response(['result' => ['foo' => 'bar']], 400),
@@ -5064,7 +5167,7 @@ class HttpClientTest extends TestCase
         }
     }
 
-    public function testRequestExceptionIsThrownIfStatusCodeIsSatisfied()
+    public function testRequestExceptionIsThrownIfStatusCodeIsSatisfied(): void
     {
         $this->factory->fake([
             '*' => $this->factory::response('', 400),
@@ -5082,7 +5185,7 @@ class HttpClientTest extends TestCase
         $this->assertInstanceOf(RequestException::class, $exception);
     }
 
-    public function testRequestExceptionIsThrownIfStatusCodeIsSatisfiedWithClosure()
+    public function testRequestExceptionIsThrownIfStatusCodeIsSatisfiedWithClosure(): void
     {
         $this->factory->fake([
             '*' => $this->factory::response('', 400),
@@ -5100,7 +5203,7 @@ class HttpClientTest extends TestCase
         $this->assertInstanceOf(RequestException::class, $exception);
     }
 
-    public function testRequestExceptionIsNotThrownIfStatusCodeIsNotSatisfied()
+    public function testRequestExceptionIsNotThrownIfStatusCodeIsNotSatisfied(): void
     {
         $this->factory->fake([
             '*' => $this->factory::response('', 400),
@@ -5135,7 +5238,7 @@ class HttpClientTest extends TestCase
         $this->factory->get('http://foo.com/api')->throwIfStatus(fn ($status) => $status === 201);
     }
 
-    public function testRequestExceptionIsThrownUnlessStatusCodeIsSatisfied()
+    public function testRequestExceptionIsThrownUnlessStatusCodeIsSatisfied(): void
     {
         $this->factory->fake([
             'http://foo.com/api/400' => $this->factory::response('', 400),
@@ -5205,7 +5308,7 @@ class HttpClientTest extends TestCase
         $this->assertNull($exception);
     }
 
-    public function testThrowUnlessStatusWorksWithNonErrorStatusCodes()
+    public function testThrowUnlessStatusWorksWithNonErrorStatusCodes(): void
     {
         $this->factory->fake([
             '*' => $this->factory::response('', 201),
@@ -5244,7 +5347,7 @@ class HttpClientTest extends TestCase
         $this->assertInstanceOf(RequestException::class, $exception);
     }
 
-    public function testRequestExceptionIsThrownIfIsClientError()
+    public function testRequestExceptionIsThrownIfIsClientError(): void
     {
         $this->factory->fake([
             'http://foo.com/api/400' => $this->factory::response('', 400),
@@ -5296,7 +5399,7 @@ class HttpClientTest extends TestCase
         $this->assertNull($exception);
     }
 
-    public function testRequestExceptionIsThrownIfIsServerError()
+    public function testRequestExceptionIsThrownIfIsServerError(): void
     {
         $this->factory->fake([
             'http://foo.com/api/400' => $this->factory::response('', 400),
@@ -5348,7 +5451,7 @@ class HttpClientTest extends TestCase
         $this->assertInstanceOf(RequestException::class, $exception);
     }
 
-    public function testItCanEnforceFaking()
+    public function testItCanEnforceFaking(): void
     {
         $this->factory->preventStrayRequests();
         $this->factory->fake(['https://vapor.laravel.com' => Factory::response('ok', 200)]);
@@ -5377,7 +5480,7 @@ class HttpClientTest extends TestCase
         }
     }
 
-    public function testPreventingStrayRequests()
+    public function testPreventingStrayRequests(): void
     {
         $this->assertFalse($this->factory->preventingStrayRequests());
 
@@ -5386,7 +5489,7 @@ class HttpClientTest extends TestCase
         $this->assertTrue($this->factory->preventingStrayRequests());
     }
 
-    public function testAllowingStrayRequestUrls()
+    public function testAllowingStrayRequestUrls(): void
     {
         $this->assertFalse($this->factory->preventingStrayRequests());
         $this->assertTrue($this->factory->isAllowedRequestUrl('127.0.0.1'));
@@ -5401,7 +5504,7 @@ class HttpClientTest extends TestCase
         $this->assertTrue($this->factory->isAllowedRequestUrl('127.0.0.1'));
     }
 
-    public function testItCanAddAuthorizationHeaderIntoRequestUsingBeforeSendingCallback()
+    public function testItCanAddAuthorizationHeaderIntoRequestUsingBeforeSendingCallback(): void
     {
         $this->factory->fake();
 
@@ -5658,7 +5761,7 @@ class HttpClientTest extends TestCase
         $this->assertSame('12 seconds', $responses[1]->header('X-Duration'));
     }
 
-    public function testItCanAddGlobalRequestMiddleware()
+    public function testItCanAddGlobalRequestMiddleware(): void
     {
         $requests = [];
         $this->factory->fake(function ($r) use (&$requests) {
@@ -5677,7 +5780,7 @@ class HttpClientTest extends TestCase
         $this->assertSame(['Laravel Framework/1.0'], $requests[1]->header('User-Agent'));
     }
 
-    public function testItCanAddGlobalResponseMiddleware()
+    public function testItCanAddGlobalResponseMiddleware(): void
     {
         $responses = [];
         $this->factory->fake(function ($r) use (&$request) {
@@ -5694,14 +5797,14 @@ class HttpClientTest extends TestCase
         $this->assertSame('Bar', $responses[1]->header('X-Foo'));
     }
 
-    public function testItCanGetTheGlobalMiddleware()
+    public function testItCanGetTheGlobalMiddleware(): void
     {
         $this->factory->globalMiddleware($middleware = fn () => null);
 
         $this->assertEquals([$middleware], $this->factory->getGlobalMiddleware());
     }
 
-    public function testItCanAddRequestMiddleware()
+    public function testItCanAddRequestMiddleware(): void
     {
         $requests = [];
         $this->factory->fake(function ($r) use (&$requests) {
@@ -5719,7 +5822,7 @@ class HttpClientTest extends TestCase
         $this->assertSame(['GuzzleHttp/7'], $requests[1]->header('User-Agent'));
     }
 
-    public function testItCanAddResponseMiddleware()
+    public function testItCanAddResponseMiddleware(): void
     {
         $responses = [];
         $this->factory->fake(function ($r) use (&$request) {
@@ -5761,7 +5864,7 @@ class HttpClientTest extends TestCase
         $this->assertSame('expected content', $response->body());
     }
 
-    public function testItCanHaveGlobalDefaultValues()
+    public function testItCanHaveGlobalDefaultValues(): void
     {
         $timeout = null;
         $allowRedirects = null;
@@ -5825,12 +5928,12 @@ class HttpClientTest extends TestCase
         $this->assertSame(['true'], $headers['X-Bar']);
     }
 
-    public function testItCanCreatePendingRequest()
+    public function testItCanCreatePendingRequest(): void
     {
         $this->assertInstanceOf(PendingRequest::class, $this->factory->createPendingRequest());
     }
 
-    public function testRunConcurrentInCoroutine()
+    public function testRunConcurrentInCoroutine(): void
     {
         $this->factory->fake([
             'https://vapor.laravel.com' => $this->factory::response('foo', HttpResponse::HTTP_OK),
@@ -5858,7 +5961,7 @@ class HttpClientTest extends TestCase
         $this->assertInstanceOf(ClientInterface::class, $client);
     }
 
-    public function testGetConnectionConfigReturnsConfigForRegisteredConnection()
+    public function testGetConnectionConfigReturnsConfigForRegisteredConnection(): void
     {
         $factory = new Factory;
         $factory->registerConnection('connection1');
@@ -5867,14 +5970,14 @@ class HttpClientTest extends TestCase
         $this->assertEquals(['key' => 'value'], $factory->getConnectionConfig('connection1'));
     }
 
-    public function testGetEmptyConfigWhenConfigNotSet()
+    public function testGetEmptyConfigWhenConfigNotSet(): void
     {
         $factory = new Factory;
 
         $this->assertEquals([], $factory->getConnectionConfig('connection2'));
     }
 
-    public function testAfterResponse()
+    public function testAfterResponse(): void
     {
         $this->factory->fake([
             'http://200.com*' => $this->factory::response('OK'),
@@ -5895,7 +5998,7 @@ class HttpClientTest extends TestCase
         $this->assertSame('ok', $response->body());
     }
 
-    public function testAfterResponseWithThrows()
+    public function testAfterResponseWithThrows(): void
     {
         $this->factory->fake([
             'http://500.com*' => $this->factory::response('oh no', 500),
@@ -5953,7 +6056,7 @@ class HttpClientTest extends TestCase
         $this->assertInstanceOf(TestResponse::class, $throwing->response);
     }
 
-    public function testWithoutTelescopeSetsOption()
+    public function testWithoutTelescopeSetsOption(): void
     {
         $this->factory->fake();
 
@@ -5964,7 +6067,7 @@ class HttpClientTest extends TestCase
         $this->assertFalse($options['telescope_enabled']);
     }
 
-    public function testWithTelescopeTagsSetsOption()
+    public function testWithTelescopeTagsSetsOption(): void
     {
         $this->factory->fake();
 

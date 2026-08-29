@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Inertia\Inertia;
+use Hypervel\Inertia\ProvidesInertiaProperties;
 use Hypervel\Inertia\Response;
 use Hypervel\Inertia\ResponseFactory;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
@@ -12,11 +13,13 @@ if (! function_exists('inertia')) {
     /**
      * Inertia helper.
      *
-     * @param array<array-key, mixed>|Arrayable<array-key, mixed> $props
+     * @param array<array-key, mixed>|Arrayable<array-key, mixed>|ProvidesInertiaProperties $props
      * @return ($component is null ? ResponseFactory : Response)
      */
-    function inertia(?string $component = null, array|Arrayable $props = []): ResponseFactory|Response
-    {
+    function inertia(
+        ?string $component = null,
+        array|Arrayable|ProvidesInertiaProperties $props = []
+    ): ResponseFactory|Response {
         $instance = Inertia::getFacadeRoot();
 
         if ($component === null) {

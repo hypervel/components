@@ -6,8 +6,10 @@ namespace Hypervel\ApiClient;
 
 use BadMethodCallException;
 use GuzzleHttp\ClientInterface;
+use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\ApiClient\Concerns\HasContext;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\PendingRequest as ClientPendingRequest;
@@ -19,6 +21,7 @@ use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\ForwardsCalls;
 use InvalidArgumentException;
 use JsonSerializable;
+use LogicException;
 use Psr\Http\Message\RequestInterface;
 use Throwable;
 
@@ -75,7 +78,7 @@ use Throwable;
  * @method static connection(string $connection, ?array $config = null)
  * @mixin ClientPendingRequest
  */
-class PendingRequest
+class PendingRequest implements Transient
 {
     use Conditionable;
     use ForwardsCalls;
@@ -99,8 +102,6 @@ class PendingRequest
     protected ?ClientPendingRequest $request = null;
 
     protected Pipeline $pipeline;
-
-    protected bool $bridgeRegistered = false;
 
     protected ?ApiRequest $activeRequest = null;
 
@@ -163,6 +164,26 @@ class PendingRequest
     {
         $this->requestMiddleware = [];
         $this->responseMiddleware = [];
+
+        return $this;
+    }
+
+    /**
+     * Prepend middleware to the underlying HTTP request pipeline.
+     *
+     * @param callable(callable): callable $middleware
+     */
+    public function prependMiddleware(callable $middleware): static
+    {
+        $this->getRequest()->prependMiddleware(function (callable $handler) use ($middleware): callable {
+            $middlewareHandler = $middleware($handler);
+
+            return function (RequestInterface $request, array $options) use ($middlewareHandler): PromiseInterface {
+                $this->activeRequest = null;
+
+                return $middlewareHandler($request, $options);
+            };
+        });
 
         return $this;
     }
@@ -320,9 +341,14 @@ class PendingRequest
     {
         try {
             /** @var HttpResponse $response */
-            $response = $this->prepareClient()->{$method}(...$arguments);
-            /** @var ApiRequest $request */
+            $response = $this->getRequest()->{$method}(...$arguments);
             $request = $this->activeRequest;
+
+            if ($request === null) {
+                throw new LogicException(
+                    'HTTP middleware ahead of the API bridge short-circuited the request before API middleware could run.'
+                );
+            }
 
             $apiResponse = ApiResponse::createFrom($response)
                 ->withContext($request->context());
@@ -357,33 +383,30 @@ class PendingRequest
     }
 
     /**
-     * Prepare the HTTP client for an API request.
-     */
-    protected function prepareClient(): ClientPendingRequest
-    {
-        $request = $this->getRequest();
-
-        if (! $this->bridgeRegistered) {
-            $this->bridgeRegistered = true;
-            $request->beforeSending(function (HttpRequest $request): RequestInterface {
-                $apiRequest = ApiRequest::createFrom($request)
-                    ->withContext($this->context());
-
-                $this->activeRequest = $this->runRequestMiddleware($apiRequest);
-
-                return $this->activeRequest->toPsrRequest();
-            });
-        }
-
-        return $request;
-    }
-
-    /**
      * Get the underlying HTTP pending request.
      */
     protected function getRequest(): ClientPendingRequest
     {
-        return $this->request ??= Http::createPendingRequest();
+        if ($this->request !== null) {
+            return $this->request;
+        }
+
+        $request = Http::createPendingRequest();
+        $request->prependMiddleware(function (callable $handler) use ($request): callable {
+            return function (RequestInterface $psrRequest, array $options) use ($handler, $request): PromiseInterface {
+                $httpRequest = (new HttpRequest($psrRequest))
+                    ->withData($options['hypervel_data'] ?? [])
+                    ->setRequestAttributes($request->attributes());
+                $apiRequest = ApiRequest::createFrom($httpRequest)
+                    ->withContext($this->context());
+
+                $this->activeRequest = $this->runRequestMiddleware($apiRequest);
+
+                return $handler($this->activeRequest->toPsrRequest(), $options);
+            };
+        });
+
+        return $this->request = $request;
     }
 
     /**

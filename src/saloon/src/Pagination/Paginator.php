@@ -145,7 +145,7 @@ abstract class Paginator implements Countable, Iterator
      */
     public function valid(): bool
     {
-        if ($this->maxPages !== null && ($this->currentPage - $this->startPage + 2) > $this->maxPages) {
+        if ($this->maxPages !== null && $this->currentPage >= $this->maxPages) {
             return false;
         }
 
@@ -158,7 +158,7 @@ abstract class Paginator implements Countable, Iterator
     public function rewind(): void
     {
         $this->pageNumber = $this->startPage;
-        $this->currentPage = max(0, $this->startPage - 1);
+        $this->currentPage = 0;
         $this->currentResponse = null;
         $this->totalResults = 0;
         $this->lastFiveBodyChecksums = [];
@@ -210,7 +210,7 @@ abstract class Paginator implements Countable, Iterator
     ): array {
         $this->rewind();
 
-        if ($this->maxPages === 0) {
+        if ($this->maxPages !== null && $this->maxPages <= 0) {
             return [];
         }
 
@@ -367,10 +367,9 @@ abstract class Paginator implements Countable, Iterator
     {
         for ($page = $this->startPage + 1; $page <= $lastPage; ++$page) {
             $this->pageNumber = $page;
-            $this->currentPage = $page - 1;
 
             // Build this request before yielding so a child cannot observe later generator state.
-            yield $this->currentPage => $this->applyPagination(clone $this->request);
+            yield $page - $this->startPage => $this->applyPagination(clone $this->request);
         }
     }
 

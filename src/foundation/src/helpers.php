@@ -970,6 +970,10 @@ if (! function_exists('uri')) {
      */
     function uri(UriInterface|\Stringable|array|string $uri, mixed $parameters = [], bool $absolute = true): Uri
     {
+        if (! is_array($uri)) {
+            $uri = (string) $uri;
+        }
+
         return match (true) {
             is_array($uri) || str_contains($uri, '\\') => Uri::action($uri, $parameters, $absolute),
             str_contains($uri, '.') && Route::has($uri) => Uri::route($uri, $parameters, $absolute),

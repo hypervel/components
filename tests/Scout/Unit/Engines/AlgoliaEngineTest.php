@@ -267,7 +267,7 @@ class AlgoliaEngineTest extends TestCase
         $client->shouldReceive('deleteBy')
             ->once()
             ->with('users_write', [
-                'filters' => "(visibility:public) AND (status:'active' AND tenant_id:'42')",
+                'filters' => "(visibility:public) AND (status:'active' AND tenant_id = 42)",
             ])
             ->andReturn(['taskID' => 123]);
         $client->shouldReceive('waitForTask')
@@ -299,7 +299,7 @@ class AlgoliaEngineTest extends TestCase
         $client = m::mock(AlgoliaSearchClient::class);
         $client->shouldReceive('deleteBy')
             ->once()
-            ->with('users_v2', ['filters' => "tenant_id:'42'"])
+            ->with('users_v2', ['filters' => 'tenant_id = 42'])
             ->andReturn(['taskID' => 123]);
         $client->shouldReceive('waitForTask')
             ->once()
@@ -319,7 +319,7 @@ class AlgoliaEngineTest extends TestCase
         $client = m::mock(AlgoliaSearchClient::class);
         $client->shouldReceive('deleteBy')
             ->once()
-            ->with('users', ['filters' => "tenant_id:'42'"])
+            ->with('users', ['filters' => 'tenant_id = 42'])
             ->andThrow(new NotFoundException('Index not found', 404));
         $client->shouldNotReceive('waitForTask');
 
@@ -363,7 +363,7 @@ class AlgoliaEngineTest extends TestCase
         $client = m::mock(AlgoliaSearchClient::class);
         $client->shouldReceive('deleteBy')
             ->once()
-            ->with('users', ['filters' => "tenant_id:'42'"])
+            ->with('users', ['filters' => 'tenant_id = 42'])
             ->andReturn(['taskID' => 123]);
         $client->shouldReceive('waitForTask')
             ->once()
@@ -422,7 +422,7 @@ class AlgoliaEngineTest extends TestCase
 
         $client->shouldReceive('searchSingleIndex')
             ->once()
-            ->with('users', ['query' => 'zonda', 'filters' => "foo:'1'"], []);
+            ->with('users', ['query' => 'zonda', 'filters' => 'foo = 1'], []);
 
         $engine = new AlgoliaEngine($client);
 
@@ -478,11 +478,11 @@ class AlgoliaEngineTest extends TestCase
         return [
             'neither side' => [null, false, null],
             'application only' => ['status:active OR status:trial', false, 'status:active OR status:trial'],
-            'builder only' => [null, true, "tenant_id:'42'"],
+            'builder only' => [null, true, 'tenant_id = 42'],
             'both sides' => [
                 'status:active OR status:trial',
                 true,
-                "(status:active OR status:trial) AND (tenant_id:'42')",
+                '(status:active OR status:trial) AND (tenant_id = 42)',
             ],
         ];
     }
@@ -494,7 +494,7 @@ class AlgoliaEngineTest extends TestCase
             ->once()
             ->with('users', [
                 'query' => 'zonda',
-                'filters' => "(status:active OR status:trial) AND (tenant_id:'42')",
+                'filters' => '(status:active OR status:trial) AND (tenant_id = 42)',
                 'hitsPerPage' => 15,
                 'page' => 1,
             ], []);
@@ -520,7 +520,7 @@ class AlgoliaEngineTest extends TestCase
             $this->assertSame($client, $givenClient);
             $this->assertSame('zonda', $query);
             $this->assertSame([
-                'filters' => "(status:active OR status:trial) AND (tenant_id:'42')",
+                'filters' => '(status:active OR status:trial) AND (tenant_id = 42)',
             ], $options);
 
             return ['hits' => [], 'nbHits' => 0];
@@ -538,7 +538,7 @@ class AlgoliaEngineTest extends TestCase
             ->once()
             ->with('users', [
                 'query' => 'zonda',
-                'filters' => "is_live:true AND is_archived:false AND NOT status:'draft' AND NOT label:'manager\\'s draft\\\\review' AND NOT is_deleted:true AND is_featured>1 AND is_disabled<=0 AND rank>=10 AND score>=9223372036854775808 AND ratio<1.25",
+                'filters' => "is_live:true AND is_archived:false AND NOT status:'draft' AND NOT label:'manager\\'s draft\\\\review' AND NOT is_deleted:true AND is_featured>1 AND is_disabled<=0 AND rank>=10 AND score>=9223372036854775808 AND ratio<1.25 AND precise_ratio<1.2345678901234567",
             ], []);
 
         $engine = new AlgoliaEngine($client);
@@ -556,9 +556,61 @@ class AlgoliaEngineTest extends TestCase
             ->where('is_disabled', '<=', false)
             ->where('rank', '>=', 10)
             ->where('score', '>=', '9223372036854775808')
-            ->where('ratio', '<', 1.25);
+            ->where('ratio', '<', 1.25)
+            ->where('precise_ratio', '<', 1.2345678901234567);
 
         $engine->search($builder);
+    }
+
+    public function testSearchPreservesNumericAndStringValueCategories(): void
+    {
+        $client = m::mock(AlgoliaSearchClient::class);
+
+        $client->shouldReceive('searchSingleIndex')
+            ->once()
+            ->with('users', [
+                'query' => 'zonda',
+                'filters' => "integer = -10 AND decimal = 1.25 AND precise = 1.2345678901234567 AND large = 1234567890123456 AND small = 1.0e-5 AND NOT excluded = 42 AND numeric_string:'42' AND (numbers = 1 OR numbers = 2.5) AND NOT blocked = 3 AND NOT blocked = 4",
+            ], []);
+
+        $engine = new AlgoliaEngine($client);
+        $model = m::mock(AlgoliaTestSearchableModel::class);
+        $model->shouldReceive('searchableAs')->andReturn('users');
+
+        $builder = new Builder($model, 'zonda');
+        $builder->where('integer', -10)
+            ->where('decimal', 1.25)
+            ->where('precise', 1.2345678901234567)
+            ->where('large', 1234567890123456.0)
+            ->where('small', 0.00001)
+            ->where('excluded', '!=', 42)
+            ->where('numeric_string', '42')
+            ->whereIn('numbers', [1, 2.5])
+            ->whereNotIn('blocked', [3, 4]);
+
+        $engine->search($builder);
+    }
+
+    public function testCustomFilterFormattingAppliesToNumericFilters(): void
+    {
+        $client = m::mock(AlgoliaSearchClient::class);
+
+        $client->shouldReceive('searchSingleIndex')
+            ->once()
+            ->with('users', [
+                'query' => 'zonda',
+                'filters' => 'number = custom AND ordered>custom AND (numbers = custom OR numbers = custom)',
+            ], []);
+
+        $model = m::mock(AlgoliaTestSearchableModel::class);
+        $model->shouldReceive('searchableAs')->andReturn('users');
+
+        $builder = new Builder($model, 'zonda');
+        $builder->where('number', 1)
+            ->where('ordered', '>', 2)
+            ->whereIn('numbers', [3, 4]);
+
+        (new CustomFormattingAlgoliaEngine($client))->search($builder);
     }
 
     #[DataProvider('invalidFilterValues')]
@@ -592,9 +644,10 @@ class AlgoliaEngineTest extends TestCase
             'nonnumeric string ordering' => ['>', "1 OR x:'2", 'Algolia ordering filters require a numeric value.'],
             'leading-zero string ordering' => ['>', '01', 'Algolia ordering filters require a numeric value.'],
             'exponent string ordering' => ['>', '1e3', 'Algolia ordering filters require a numeric value.'],
-            'non-scalar ordering' => ['>', [1, 2], 'Algolia ordering filters require a numeric value.'],
+            'non-scalar ordering' => ['>', [1, 2], 'Algolia filters require scalar values.'],
             'infinite float' => ['>', INF, 'Algolia filters require finite numeric values.'],
             'not-a-number float' => ['=', NAN, 'Algolia filters require finite numeric values.'],
+            'array equality' => ['=', [1, 2], 'Algolia filters require scalar values.'],
         ];
     }
 
@@ -606,7 +659,7 @@ class AlgoliaEngineTest extends TestCase
             ->once()
             ->with('users', [
                 'query' => 'zonda',
-                'filters' => "status:'published' AND priority:'1' AND (statuses:'draft' OR statuses:'published') AND NOT priorities:'1' AND NOT priorities:'2'",
+                'filters' => "status:'published' AND priority = 1 AND (statuses:'draft' OR statuses:'published') AND NOT priorities = 1 AND NOT priorities = 2",
             ], []);
 
         $engine = new AlgoliaEngine($client);
@@ -648,7 +701,7 @@ class AlgoliaEngineTest extends TestCase
 
         $client->shouldReceive('searchSingleIndex')
             ->once()
-            ->with('users', ['query' => 'zonda', 'filters' => "foo:'1' AND (bar:'1' OR bar:'2')"], []);
+            ->with('users', ['query' => 'zonda', 'filters' => 'foo = 1 AND (bar = 1 OR bar = 2)'], []);
 
         $engine = new AlgoliaEngine($client);
 
@@ -667,7 +720,7 @@ class AlgoliaEngineTest extends TestCase
 
         $client->shouldReceive('searchSingleIndex')
             ->once()
-            ->with('users', ['query' => 'zonda', 'filters' => "foo:'1' AND 0:1"], []);
+            ->with('users', ['query' => 'zonda', 'filters' => 'foo = 1 AND 0:1'], []);
 
         $engine = new AlgoliaEngine($client);
 
@@ -686,7 +739,7 @@ class AlgoliaEngineTest extends TestCase
 
         $client->shouldReceive('searchSingleIndex')
             ->once()
-            ->with('users', ['query' => 'zonda', 'filters' => "NOT foo:'1' AND NOT foo:'2'"], []);
+            ->with('users', ['query' => 'zonda', 'filters' => 'NOT foo = 1 AND NOT foo = 2'], []);
 
         $engine = new AlgoliaEngine($client);
 
@@ -726,7 +779,7 @@ class AlgoliaEngineTest extends TestCase
             ->once()
             ->with(
                 'users',
-                ['query' => 'zonda', 'filters' => "foo:'1' AND (bar:'1' OR bar:'2') AND NOT baz:'1' AND NOT baz:'2'"],
+                ['query' => 'zonda', 'filters' => 'foo = 1 AND (bar = 1 OR bar = 2) AND NOT baz = 1 AND NOT baz = 2'],
                 [],
             );
 
@@ -1389,4 +1442,12 @@ enum AlgoliaIntegerPriority: int
 {
     case Low = 2;
     case High = 1;
+}
+
+class CustomFormattingAlgoliaEngine extends AlgoliaEngine
+{
+    protected function formatFilterValue(mixed $value): string
+    {
+        return 'custom';
+    }
 }

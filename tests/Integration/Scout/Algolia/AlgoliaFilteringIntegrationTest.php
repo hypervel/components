@@ -21,14 +21,14 @@ class AlgoliaFilteringIntegrationTest extends AlgoliaScoutIntegrationTestCase
     }
 
     /**
-     * Configure attributesForFaceting so Algolia accepts filters on id/title/body.
+     * Configure facet attributes while leaving the numeric id unconfigured.
      */
     protected function configureFilterableIndex(): void
     {
         $indexName = $this->prefixedIndexName('searchable_models');
 
         $this->algolia->setSettings($indexName, [
-            'attributesForFaceting' => ['filterOnly(id)', 'filterOnly(title)', 'filterOnly(body)'],
+            'attributesForFaceting' => ['filterOnly(title)', 'filterOnly(body)'],
         ]);
     }
 

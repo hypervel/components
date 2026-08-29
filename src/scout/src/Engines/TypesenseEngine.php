@@ -214,13 +214,12 @@ class TypesenseEngine extends Engine implements DeletesByFilter
      */
     public function paginate(Builder $builder, int $perPage, int $page): mixed
     {
-        $maxInt = 4294967295;
-
         $page = max(1, $page);
-        $perPage = max(1, min($perPage, $this->maxPerPage, $this->maxTotalResults));
 
-        if ($page * $perPage > $maxInt) {
-            $page = (int) floor($maxInt / $perPage);
+        if ($perPage < 1 || $perPage > $this->maxPerPage) {
+            throw new InvalidArgumentException(
+                "Typesense pagination requires perPage to be between 1 and {$this->maxPerPage}."
+            );
         }
 
         return $this->performSearch(
@@ -261,40 +260,45 @@ class TypesenseEngine extends Engine implements DeletesByFilter
      */
     protected function performPaginatedSearch(Builder $builder): array
     {
+        /** @var int $builderLimit */
+        $builderLimit = $builder->limit;
+        $target = min($builderLimit, $this->maxTotalResults);
+        $perPage = min($target, $this->maxPerPage);
         $page = 1;
-        $limit = min($builder->limit ?? $this->maxPerPage, $this->maxPerPage, $this->maxTotalResults);
-        $remainingResults = min($builder->limit ?? $this->maxTotalResults, $this->maxTotalResults);
-
         $results = new Collection;
         $totalFound = 0;
+        $totalOutOf = 0;
+        $firstPageParameters = $this->buildSearchParameters($builder, $page, $perPage);
+        $requestParameters = $firstPageParameters;
 
-        while ($remainingResults > 0) {
-            /** @var array{hits?: array<mixed>, found?: int} $searchResults */
-            $searchResults = $this->performSearch(
-                $builder,
-                $this->buildSearchParameters($builder, $page, $limit)
-            );
+        while ($results->count() < $target) {
+            /** @var array{hits?: array<mixed>, found?: int, out_of?: int} $searchResults */
+            $searchResults = $this->performSearch($builder, $requestParameters);
+            $hits = $searchResults['hits'] ?? [];
 
-            $results = $results->concat($searchResults['hits'] ?? []);
+            $results = $results->concat($hits);
 
             if ($page === 1) {
                 $totalFound = $searchResults['found'] ?? 0;
+                $totalOutOf = $searchResults['out_of'] ?? 0;
             }
 
-            $remainingResults -= $limit;
-            ++$page;
-
-            if (count($searchResults['hits'] ?? []) < $limit) {
+            if ($results->count() >= $target
+                || $results->count() >= $totalFound
+                || count($hits) < $perPage) {
                 break;
             }
+
+            ++$page;
+            $requestParameters = $this->buildSearchParameters($builder, $page, $perPage);
         }
 
         return [
-            'hits' => $results->all(),
-            'found' => $results->count(),
-            'out_of' => $totalFound,
+            'hits' => $results->take($target)->all(),
+            'found' => $totalFound,
+            'out_of' => $totalOutOf,
             'page' => 1,
-            'request_params' => $this->buildSearchParameters($builder, 1, $builder->limit ?? $this->maxPerPage),
+            'request_params' => $firstPageParameters,
         ];
     }
 
@@ -348,6 +352,9 @@ class TypesenseEngine extends Engine implements DeletesByFilter
 
             $parameters['sort_by'] .= $this->parseOrderBy($builder->orders);
         }
+
+        $parameters['page'] = $page;
+        $parameters['per_page'] = $perPage;
 
         return $parameters;
     }

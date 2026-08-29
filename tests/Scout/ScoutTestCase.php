@@ -25,11 +25,9 @@ class ScoutTestCase extends TestCase
         ];
     }
 
-    protected function setUp(): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
-        parent::setUp();
-
-        $this->app->make('config')
+        $app->make('config')
             ->set('scout', [
                 'driver' => 'collection',
                 'prefix' => '',
