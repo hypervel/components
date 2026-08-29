@@ -73,7 +73,7 @@ Existing method names, signatures, named arguments, protected extension points, 
 
 ### Keep hot paths direct
 
-- Scout HTTP deferral uses one execution-local `SplQueue` and one `Coroutine::defer()` callback.
+- Scout HTTP deferral uses one execution-local, non-copyable `SearchableJobQueue` and one `Coroutine::defer()` callback.
 - Non-HTTP Scout work executes immediately and retains no buffer.
 - Database Scout uses model metadata already in memory; it performs no schema query.
 - Typesense pagination performs only the requests required by a fixed page size and may over-fetch only the final page.
@@ -127,8 +127,8 @@ if (! RequestContext::has()) {
 
 $jobs = CoroutineContext::get(self::SCOUT_JOBS_CONTEXT_KEY);
 
-if (! $jobs instanceof SplQueue) {
-    $jobs = new SplQueue;
+if (! $jobs instanceof SearchableJobQueue) {
+    $jobs = new SearchableJobQueue;
     CoroutineContext::set(self::SCOUT_JOBS_CONTEXT_KEY, $jobs);
     Coroutine::defer(/* drain the captured queue */);
 }
@@ -142,7 +142,7 @@ The deferred owner drains until the queue is empty so work enqueued by a running
 
 Swoole executes a defer registered while another defer is running. If an earlier user defer performs a searchable mutation after the Scout owner has drained and released its queue, that mutation may therefore create a new queue and owner normally. Pin this runtime contract with a regression test; do not add a second lifecycle flag or an immediate-execution fallback.
 
-The queue's existence is also the owner-registration marker; do not add a second flag. The queue is coroutine-local and is discarded at request completion, so it cannot leak between requests or grow for the worker lifetime.
+The queue's existence is also the owner-registration marker; do not add a second flag. Implement `SearchableJobQueue` as a small `SplQueue` subclass that implements `NonCopyableContext`. `Coroutine::fork()` must omit it so a child cannot inherit the parent's queue without inheriting its defer owner. A forked child with request context creates and drains its own queue. The class docblock records this ownership reason so the intentionally shareable import runner is not changed by superficial symmetry. The queue is discarded at coroutine completion, so it cannot leak between requests or grow for the worker lifetime.
 
 Keep the existing import path first and unchanged. `ConcurrentImportRunner` continues to own bounded command-import concurrency and propagate child failures. Outside an active `RequestContext`—console commands, seeders, and queue jobs—run non-queued Scout work immediately. There is no response to protect there, and immediate execution avoids retaining model collections across a long process.
 
@@ -300,7 +300,7 @@ Widen only the `inertia()` helper's props union to include `ProvidesInertiaPrope
 
 ### 5.1 Header replacement
 
-Implement `HasHeaders::replaceHeaders()` as one case-insensitive fold over existing and incoming headers. Reconstruct the final associative header array from the fold:
+Implement `HasHeaders::replaceHeaders()` as one case-insensitive fold over two ordered input sets: existing headers first, then incoming headers. Do not combine the sets with `array_merge()`, because replacing an exact key retains its old insertion position and may let a later existing case variant defeat the incoming value. Reconstruct the final associative header array from the fold:
 
 - incoming matching names replace existing values regardless of casing;
 - duplicate-case incoming names naturally use the last supplied value and casing;
@@ -375,7 +375,9 @@ The prepared-body tracker remains outside the bridge. The bridge runs before ord
 
 A caller may explicitly prepend middleware ahead of the bridge. If that middleware returns a response without sending the request, no `ApiRequest` exists. Detect `activeRequest === null` after the HTTP call and throw a `LogicException` explaining that middleware ahead of the API bridge short-circuited the send. Do not allow a null-member fatal.
 
-The API client remains synchronous. Retries run the bridge once per attempt, matching the current `beforeSending` behavior, and the final attempt owns the response context.
+Declare `prependMiddleware(callable $middleware): static` concretely on the API pending request instead of forwarding that one method only through `__call()`. Forward a wrapped middleware to the HTTP pending request. Its returned request handler clears `activeRequest` immediately before invoking the user's prepended handler on every attempt. If the handler forwards, the bridge publishes the current attempt's request; if it short-circuits, state stays null and the existing guard throws. Remove the redundant `@method` declaration. Do not add an attempt tracker, permanent reset middleware, response map, or HTTP-client hook.
+
+The API client remains synchronous. Retries run the bridge once per attempt, matching the current `beforeSending` behavior, and the final attempt owns the response context. Ordinary API requests gain no work; only explicitly prepended middleware gets the wrapper and one state reset per attempt.
 
 Because the bridge now runs before `beforeSending`, the HTTP client's default callback stores and emits the post-API-middleware request through `RequestSending`. This is intentional: observers see the request that continues toward transport rather than the pre-middleware request.
 
@@ -438,6 +440,7 @@ The TODO's count of 176 for `HttpClientTest` is stale; the current source has 17
   - reentrant enqueue during drain;
   - one failing job is reported and later jobs run;
   - context cleanup;
+  - a parent queue copied through `Coroutine::fork()` is omitted, so a child released after the parent drains creates its own owner and executes its job;
   - a user defer registered before Scout can enqueue a searchable mutation after the first owner drains, and Swoole runs the newly registered owner;
   - no-request execution is immediate;
   - import execution still uses `ConcurrentImportRunner`.
@@ -477,6 +480,7 @@ The TODO's count of 176 for `HttpClientTest` is stale; the current source has 17
 ### Saloon
 
 - Header repository/request tests: mixed casing, unrelated preservation, duplicate incoming casing last-wins, additive `withHeaders()` unchanged.
+- Header replacement regression: existing exact-case then mixed-case variants cannot defeat a later incoming exact-case replacement.
 - Repeated `accept()` / `acceptJson()` calls leave one logical `Accept` value.
 - Authenticator tests: applying and refreshing credentials leaves one logical authorization header.
 - `tests/Saloon/Pagination/PaginatorTest.php`: iterator and pool parity for start pages 0, 1, and 5; negative, zero, one, and N max-page values; public `currentPage()` and response keys use zero-based iterator positions; repeated iteration reset; page-one response retained for `startPage(0)`; no extra requests.
@@ -486,7 +490,7 @@ The TODO's count of 176 for `HttpClientTest` is stale; the current source has 17
 - `tests/ApiClient/ApiRequestTest.php`: GET/HEAD `asJson` and `asForm` reject with empty or query-derived data; POST/PUT conversion remains valid; raw GET/HEAD `withBody` remains valid.
 - `tests/Http/HttpClientTest.php`: prepend order versus appended/global/request middleware; request attributes accessor; source typing regressions; existing middleware behavior unchanged.
 - `tests/FacadeDocumenter/FacadeDocblocksTest.php`: generated HTTP facade methods remain current and parseable.
-- `tests/ApiClient/PendingRequestTest.php`: API bridge precedes ordinary Guzzle middleware; short-circuiting cache/circuit middleware retains request context; explicit ahead-of-bridge short circuit throws the descriptive guard; body/data/attributes/context survive; `RequestSending` observes the post-API-middleware request; API and HTTP middleware each run once per attempt; retry and fake paths remain correct.
+- `tests/ApiClient/PendingRequestTest.php`: API bridge precedes ordinary Guzzle middleware; short-circuiting cache/circuit middleware retains request context; explicit ahead-of-bridge short circuit throws the descriptive guard on the first or a later retry attempt; body/data/attributes/context survive; `RequestSending` observes the post-API-middleware request; API and HTTP middleware each run once per attempt; retry and fake paths remain correct.
 - Container lifetime assertions: two unbound resolutions of each pending-request class are distinct and do not share mutable options, middleware, callbacks, fakes, context, promises, or active request state; explicit binding precedence remains governed by existing container tests.
 - `tests/ApiClient/ApiResourceTest.php`: property/offset assignment and unset all throw exact `LogicException` messages; reads and serialization remain unchanged.
 - Response-sequence, promise, and cookie tests cover default, closure, promise, unsent, recorded, and populated paths.
@@ -526,7 +530,7 @@ No other package README or porting-guide update is warranted. The remaining chan
 ## Completion criteria
 
 - Every scoped finding and the HTTP TODO item has a direct source/test resolution.
-- No Scout job ordering change, cross-request state, or worker-lifetime retained queue remains.
+- No Scout job ordering change, copied ownerless queue, cross-request state, or worker-lifetime retained queue remains.
 - Search requests and paginator metadata describe the same payload.
 - Database Scout follows its documented primary-key contract on PostgreSQL and other supported databases.
 - Inertia executes only values whose wrapper contracts declare them callable.
