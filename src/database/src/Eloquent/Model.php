@@ -85,6 +85,11 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     protected const string EVENTS_DISABLED_CONTEXT_KEY = '__database.model.events_disabled';
 
     /**
+     * Context key for suppressing missing attribute violations during existence checks.
+     */
+    protected const string MISSING_ATTRIBUTE_ACCESS_SUPPRESSED_CONTEXT_KEY = '__database.model.missing_attribute_access_suppressed';
+
+    /**
      * Context key for storing whether mass assignment is unguarded.
      */
     public const string UNGUARDED_CONTEXT_KEY = '__database.model.unguarded';
@@ -2791,14 +2796,18 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public function offsetExists($offset): bool
     {
-        $shouldPrevent = static::$modelsShouldPreventAccessingMissingAttributes;
+        if (! static::preventsAccessingMissingAttributes()) {
+            return ! is_null($this->getAttribute($offset));
+        }
 
-        static::$modelsShouldPreventAccessingMissingAttributes = false;
+        $wasSuppressed = CoroutineContext::get(self::MISSING_ATTRIBUTE_ACCESS_SUPPRESSED_CONTEXT_KEY, false);
+
+        CoroutineContext::set(self::MISSING_ATTRIBUTE_ACCESS_SUPPRESSED_CONTEXT_KEY, true);
 
         try {
             return ! is_null($this->getAttribute($offset));
         } finally {
-            static::$modelsShouldPreventAccessingMissingAttributes = $shouldPrevent;
+            CoroutineContext::set(self::MISSING_ATTRIBUTE_ACCESS_SUPPRESSED_CONTEXT_KEY, $wasSuppressed);
         }
     }
 

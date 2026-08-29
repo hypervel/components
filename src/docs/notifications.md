@@ -134,6 +134,8 @@ public function via(object $notifiable): array
 }
 ```
 
+You may configure the notification manager's default channel by calling `Notification::deliverVia` from a service provider's `register` or `boot` method. Calls made after the application has booted change the default only for the current execution. Application `booted` callbacks run after this default-setting window, so they are also limited to their current execution; the same timing applies to the default locale described below.
+
 <a name="queueing-notifications"></a>
 ### Queueing Notifications
 
@@ -1618,6 +1620,8 @@ Notification::locale('es')->send(
     $users, new InvoicePaid($invoice)
 );
 ```
+
+Calling `Notification::locale` from a service provider's `register` or `boot` method configures the default locale for later executions. Calls made after the application has booted apply only to the current execution.
 
 <a name="user-preferred-locales"></a>
 #### User Preferred Locales

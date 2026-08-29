@@ -74,7 +74,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | This option determines whether Telescope storage should be deferred
-    | until the current coroutine finishes. When omitted, storage is deferred.
+    | until the current coroutine finishes.
     |
     */
 

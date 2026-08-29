@@ -70,7 +70,7 @@ class RequestWatchersTest extends FeatureTestCase
 
         $entry = $this->loadTelescopeEntries()->first();
 
-        $this->assertSame('Purged By Telescope', $entry->content['response']);
+        $this->assertSame(Telescope::PURGED_VALUE, $entry->content['response']);
     }
 
     public function testRequestWatcherRegisters404()
@@ -197,8 +197,8 @@ class RequestWatchersTest extends FeatureTestCase
         $entry = $this->loadTelescopeEntries()->first();
 
         $this->assertSame(EntryType::REQUEST, $entry->type);
-        $this->assertSame('Purged By Telescope', $entry->content['payload']);
-        $this->assertSame('Purged By Telescope', $entry->content['session']);
+        $this->assertSame(Telescope::PURGED_VALUE, $entry->content['payload']);
+        $this->assertSame(Telescope::PURGED_VALUE, $entry->content['session']);
         $this->assertSame('HTML Response', $entry->content['response']);
     }
 
@@ -319,6 +319,42 @@ class RequestWatchersTest extends FeatureTestCase
         $entry = $this->loadTelescopeEntries()->first();
         $this->assertSame(EntryType::REQUEST, $entry->type);
         $this->assertEquals(['Telescope', 'Laravel', 'PHP'], $entry->content['response']['data']['items']['properties']);
+    }
+
+    public function testRequestWatcherNormalizesUnsafeViewData(): void
+    {
+        View::addNamespace('tests', __DIR__ . '/../Fixtures/views');
+
+        Route::get('/unsafe-view-data', fn () => Response::make(View::make('tests::fake-view', [
+            'items' => [],
+            'number' => NAN,
+            'text' => "invalid\xB1",
+            'object' => (object) ['number' => INF],
+        ])));
+
+        $this->get('/unsafe-view-data')->assertSuccessful();
+
+        $data = $this->loadTelescopeEntries()->first()->content['response']['data'];
+
+        $this->assertSame(0, $data['number']);
+        $this->assertSame('invalid�', $data['text']);
+        $this->assertSame(['number' => 0], $data['object']['properties']);
+    }
+
+    public function testRequestWatcherPurgesViewDataBeyondTheJsonNestingLimit(): void
+    {
+        View::addNamespace('tests', __DIR__ . '/../Fixtures/views');
+
+        Route::get('/deep-view-data', fn () => Response::make(View::make('tests::fake-view', [
+            'items' => [],
+            'deep' => $this->nestedValue(Json::MAXIMUM_NESTING_DEPTH + 1),
+        ])));
+
+        $this->get('/deep-view-data')->assertSuccessful();
+
+        $data = $this->loadTelescopeEntries()->first()->content['response']['data'];
+
+        $this->assertSame(Telescope::PURGED_VALUE, $data['deep']);
     }
 
     public function testRequestWatcherStoresFacadeContextWhenPresent()

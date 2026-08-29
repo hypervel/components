@@ -4,16 +4,21 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
+use DateTimeImmutable;
 use Hypervel\Log\Handlers\FingersCrossedHandler;
 use Hypervel\Sentry\LogChannel;
 use Hypervel\Sentry\Logs\LogChannel as LogsLogChannel;
 use Hypervel\Sentry\Logs\LogsHandler;
 use Hypervel\Sentry\SentryHandler;
+use Mockery as m;
 use Monolog\Formatter\LineFormatter;
-use Monolog\Logger;
+use Monolog\Level;
+use Monolog\LogRecord;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
+use RuntimeException;
 use Sentry\Event;
+use Sentry\State\HubInterface;
 
 class LogChannelTest extends SentryTestCase
 {
@@ -69,9 +74,47 @@ class LogChannelTest extends SentryTestCase
 
     public function testLogsHandlerCreatesItsDefaultBatchFormatter(): void
     {
-        $handler = new LogsHandler(Logger::DEBUG);
+        $handler = new LogsHandler(Level::Debug);
 
         $this->assertInstanceOf(LineFormatter::class, $handler->getBatchFormatter());
+    }
+
+    #[DataProvider('nativeBatchHandlerDataProvider')]
+    public function testNativeBatchHandlingFiltersAndEnrichesImmutableRecords(RecordingLogsHandler|RecordingSentryHandler $handler): void
+    {
+        $debug = $this->record(Level::Debug, 'debug');
+        $warning = $this->record(Level::Warning, 'warning');
+        $error = $this->record(Level::Error, 'error', ['original' => true]);
+        $handler->pushProcessor(fn (LogRecord $record): LogRecord => $record->with(extra: ['processed' => true]));
+
+        $handler->handleBatch([$debug, $warning, $error]);
+
+        $this->assertCount(1, $handler->writtenRecords);
+        $this->assertSame(Level::Error, $handler->writtenRecords[0]->level);
+        $this->assertSame(['processed' => true], $handler->writtenRecords[0]->extra);
+        $this->assertArrayHasKey('logs', $handler->writtenRecords[0]->context);
+        $this->assertSame(['original' => true], $error->context);
+    }
+
+    public static function nativeBatchHandlerDataProvider(): iterable
+    {
+        yield 'events handler' => [new RecordingSentryHandler(m::mock(HubInterface::class), Level::Warning)];
+        yield 'logs handler' => [new RecordingLogsHandler(Level::Warning)];
+    }
+
+    public function testExceptionIsRemovedFromEmittedLogContext(): void
+    {
+        $logger = (new LogChannel($this->app))();
+
+        $logger->error('test message', [
+            'exception' => new RuntimeException('failed'),
+            'retained' => 'value',
+        ]);
+
+        $lastEvent = $this->getLastSentryEvent();
+
+        $this->assertNotNull($lastEvent);
+        $this->assertSame(['retained' => 'value'], $lastEvent->getExtra()['log_context']);
     }
 
     #[DataProvider('handlerDataProvider')]
@@ -149,5 +192,41 @@ class LogChannelTest extends SentryTestCase
                 self::assertEmpty($event->getExtra());
             },
         ];
+    }
+
+    /**
+     * Create a Monolog record.
+     */
+    protected function record(Level $level, string $message, array $context = []): LogRecord
+    {
+        return new LogRecord(
+            datetime: new DateTimeImmutable,
+            channel: 'test',
+            level: $level,
+            message: $message,
+            context: $context,
+        );
+    }
+}
+
+class RecordingSentryHandler extends SentryHandler
+{
+    /** @var array<int, LogRecord> */
+    public array $writtenRecords = [];
+
+    protected function doWrite(LogRecord $record): void
+    {
+        $this->writtenRecords[] = $record;
+    }
+}
+
+class RecordingLogsHandler extends LogsHandler
+{
+    /** @var array<int, LogRecord> */
+    public array $writtenRecords = [];
+
+    protected function doWrite(LogRecord $record): void
+    {
+        $this->writtenRecords[] = $record;
     }
 }

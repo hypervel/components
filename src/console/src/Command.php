@@ -287,9 +287,9 @@ class Command extends SymfonyCommand
                     $this->getName()
                 ));
 
-                return (int) (is_numeric($this->option('isolated'))
+                return $this->normalizeExitCode((int) (is_numeric($this->option('isolated'))
                     ? $this->option('isolated')
-                    : $this->isolatedExitCode);
+                    : $this->isolatedExitCode));
             }
         }
 
@@ -304,7 +304,12 @@ class Command extends SymfonyCommand
             } finally {
                 try {
                     if ($this->eventDispatcher?->hasListeners(AfterExecute::class)) {
-                        $this->eventDispatcher->dispatch(new AfterExecute($this, $exception));
+                        $this->eventDispatcher->dispatch(new AfterExecute(
+                            $this,
+                            $exception,
+                            $input,
+                            $this->normalizeExitCode($this->exitCode),
+                        ));
                     }
                 } catch (Throwable $throwable) {
                     $exception ??= $throwable;
@@ -332,7 +337,7 @@ class Command extends SymfonyCommand
             throw $exception;
         }
 
-        return $this->exitCode >= 0 && $this->exitCode <= 255 ? $this->exitCode : self::INVALID;
+        return $this->normalizeExitCode($this->exitCode);
     }
 
     /**
@@ -347,7 +352,7 @@ class Command extends SymfonyCommand
 
         try {
             if ($this->eventDispatcher?->hasListeners(BeforeHandle::class)) {
-                $this->eventDispatcher->dispatch(new BeforeHandle($this));
+                $this->eventDispatcher->dispatch(new BeforeHandle($this, $input));
             }
 
             $statusCode = $this->hypervel->call([$this, $method]);
@@ -372,6 +377,14 @@ class Command extends SymfonyCommand
         }
 
         return $this->exitCode;
+    }
+
+    /**
+     * Normalize the command exit code.
+     */
+    protected function normalizeExitCode(int $exitCode): int
+    {
+        return $exitCode >= 0 && $exitCode <= 255 ? $exitCode : self::INVALID;
     }
 
     /**

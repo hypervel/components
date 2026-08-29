@@ -8,8 +8,12 @@ use Hypervel\Auth\Events as AuthEvents;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Coordinator\Constants;
+use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Core\Events\OnWorkerExit;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Events as DatabaseEvents;
 use Hypervel\Http\Request;
@@ -201,19 +205,27 @@ class EventHandler
      */
     protected function workerExitHandler(OnWorkerExit $event): void
     {
-        try {
-            Integration::flushEvents();
-        } finally {
-            $client = SentrySdk::getCurrentHub()->getClient();
+        Coroutine::create(function (): void {
+            CoordinatorManager::until(Constants::WORKER_EXIT)->yield();
 
-            if ($client instanceof Client) {
-                $transport = $client->getTransport();
+            try {
+                try {
+                    Integration::drainEvents();
+                } finally {
+                    $client = SentrySdk::getCurrentHub()->getClient();
 
-                if ($transport instanceof HttpPoolTransport) {
-                    $transport->shutdown();
+                    if ($client instanceof Client) {
+                        $transport = $client->getTransport();
+
+                        if ($transport instanceof HttpPoolTransport) {
+                            $transport->shutdown();
+                        }
+                    }
                 }
+            } catch (Throwable $throwable) {
+                $this->container->make(ExceptionHandler::class)->report($throwable);
             }
-        }
+        });
     }
 
     /**

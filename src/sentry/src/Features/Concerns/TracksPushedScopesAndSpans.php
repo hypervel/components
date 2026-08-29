@@ -8,6 +8,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Sentry\Integration;
 use Sentry\SentrySdk;
+use Sentry\State\Scope;
 use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanStatus;
 
@@ -42,13 +43,15 @@ trait TracksPushedScopesAndSpans
     /**
      * Push a scope onto the hub and track the count in coroutine-local storage.
      */
-    protected function pushScope(): void
+    protected function pushScope(): Scope
     {
-        SentrySdk::getCurrentHub()->pushScope();
+        $scope = SentrySdk::getCurrentHub()->pushScope();
 
         $count = CoroutineContext::get($this->contextKey('scope_count'), 0);
         CoroutineContext::set($this->contextKey('scope_count'), $count + 1);
         $this->registerCleanup();
+
+        return $scope;
     }
 
     /**
@@ -164,6 +167,10 @@ trait TracksPushedScopesAndSpans
      */
     private function registerCleanup(): void
     {
+        if (! Coroutine::inCoroutine()) {
+            return;
+        }
+
         $cleanupKey = $this->contextKey('cleanup_registered');
 
         if (CoroutineContext::get($cleanupKey, false)) {

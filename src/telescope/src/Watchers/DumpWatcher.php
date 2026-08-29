@@ -51,7 +51,7 @@ class DumpWatcher extends Watcher
         }
 
         $handler = function (mixed $value, ?string $label = null) use ($htmlDumper, $previous): void {
-            if (! $this->shouldRecordDump()) {
+            if (! Telescope::isRecording() || ! $this->shouldRecordDump()) {
                 $previous($value, $label);
 
                 return;

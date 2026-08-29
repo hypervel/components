@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
+use Hypervel\Container\Container;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Foundation\Application;
 use Hypervel\Sentry\Hub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -17,8 +19,19 @@ use Swoole\Coroutine\Channel;
 
 class HubTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $application = new Application;
+        $application->boot();
+        Container::setInstance($application);
+    }
+
     public function testConfiguredBaselineScopeIsClonedAndPreservedWhenClientIsBound(): void
     {
+        $application = new Application;
+        Container::setInstance($application);
         $baseline = new Scope;
         $baseline->setTag('baseline', 'yes');
         $hub = new Hub(scope: $baseline);
@@ -28,12 +41,26 @@ class HubTest extends TestCase
             $root = $scope;
         });
 
+        $this->assertSame($baseline, $root);
+
         $client = m::mock(ClientInterface::class);
         $hub->bindClient($client);
+        $application->boot();
 
-        $this->assertNotSame($baseline, $root);
         $this->assertSame($client, $hub->getClient());
         $this->assertSame(['baseline' => 'yes'], $this->scopeTags($hub));
+    }
+
+    public function testStandaloneConfigurationMutatesTheBaseline(): void
+    {
+        Container::setInstance(new Container);
+        $hub = new Hub;
+
+        $hub->configureScope(static function (Scope $scope): void {
+            $scope->setTag('standalone', 'yes');
+        });
+
+        $this->assertSame(['standalone' => 'yes'], $this->scopeTags($hub));
     }
 
     public function testEveryCoroutineRootClonesTheBaselineScope(): void

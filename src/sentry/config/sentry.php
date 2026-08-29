@@ -60,16 +60,21 @@ return [
     // Only continue incoming traces when the organization IDs are compatible with this SDK instance.
     'strict_trace_continuation' => (bool) env('SENTRY_STRICT_TRACE_CONTINUATION', false),
 
+    // Sentry Logs are currently unsupported because the SDK buffers them across executions.
+    // See https://hypervel.org/docs/sentry#sentry-logs before enabling this option.
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#enable_logs
     'enable_logs' => (bool) env('SENTRY_ENABLE_LOGS', false),
 
+    // Trace metrics are currently unsupported because the SDK aggregates them across executions.
+    // See https://hypervel.org/docs/sentry#metrics before enabling this option.
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#enable_metrics
-    'enable_metrics' => (bool) env('SENTRY_ENABLE_METRICS', true),
+    'enable_metrics' => (bool) env('SENTRY_ENABLE_METRICS', false),
 
+    // This option affects the currently unsupported Sentry Logs feature only.
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#log_flush_threshold
     'log_flush_threshold' => $logFlushThreshold === null ? null : (int) $logFlushThreshold,
 
-    // The minimum log level that will be sent to Sentry as logs using the `sentry_logs` logging channel
+    // The minimum log level for the currently unsupported `sentry_logs` logging channel.
     'logs_channel_level' => env('SENTRY_LOG_LEVEL', env('LOG_LEVEL', 'debug')),
 
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#send_default_pii

@@ -19,6 +19,7 @@ use Hypervel\Telescope\EntryResult;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\EntryUpdate;
 use Hypervel\Telescope\IncomingEntry;
+use Hypervel\Telescope\Telescope;
 use JsonException;
 use Throwable;
 
@@ -172,7 +173,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
                     throw $exception;
                 }
 
-                $content[$key] = 'Purged By Telescope';
+                $content[$key] = Telescope::PURGED_VALUE;
             }
         }
 

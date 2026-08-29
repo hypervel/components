@@ -2044,7 +2044,7 @@ $number = Number::trim(12.30);
 <a name="method-number-use-locale"></a>
 #### `Number::useLocale()` {.collection-method}
 
-The `Number::useLocale` method sets the default number locale for the current execution context, which affects how numbers and currency are formatted by subsequent invocations to the `Number` class's methods:
+The `Number::useLocale` method sets the default number locale, which affects how numbers and currency are formatted by subsequent invocations to the `Number` class's methods:
 
 ```php
 use Hypervel\Support\Number;
@@ -2055,6 +2055,8 @@ $number = Number::format(1500);
 
 // 1.500
 ```
+
+When called from a service provider's `register` or `boot` method, the locale becomes the default for later executions. Calls made after the application has booted apply only to the current execution. Application `booted` callbacks run after this default-setting window, so they are also limited to their current execution.
 
 <a name="method-number-with-locale"></a>
 #### `Number::withLocale()` {.collection-method}
@@ -2072,7 +2074,7 @@ $number = Number::withLocale('de', function () {
 <a name="method-number-use-currency"></a>
 #### `Number::useCurrency()` {.collection-method}
 
-The `Number::useCurrency` method sets the default number currency for the current execution context, which affects how the currency is formatted by subsequent invocations to the `Number` class's methods:
+The `Number::useCurrency` method sets the default number currency, which affects how the currency is formatted by subsequent invocations to the `Number` class's methods:
 
 ```php
 use Hypervel\Support\Number;
@@ -2083,6 +2085,8 @@ $currency = Number::currency(1000);
 
 // £1,000.00
 ```
+
+As with `useLocale`, calls made while a service provider is registering or booting configure the default for later executions. Calls made after the application has booted apply only to the current execution.
 
 <a name="method-number-with-currency"></a>
 #### `Number::withCurrency()` {.collection-method}

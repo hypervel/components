@@ -10,11 +10,11 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Support\Collection;
-use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\ExtractProperties;
 use Hypervel\Telescope\ExtractTags;
 use Hypervel\Telescope\IncomingEntry;
+use Hypervel\Telescope\JsonNormalizer;
 use Hypervel\Telescope\Telescope;
 use ReflectionFunction;
 
@@ -71,7 +71,7 @@ class EventWatcher extends Watcher
         return Collection::make($payload)->map(function ($value) {
             return is_object($value) ? [
                 'class' => get_class($value),
-                'properties' => Json::decode(json_encode($value, JSON_THROW_ON_ERROR)),
+                'properties' => JsonNormalizer::normalize($value),
             ] : $value;
         })->toArray();
     }

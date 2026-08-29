@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Telescope\Watchers;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\DumpWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
@@ -55,6 +56,25 @@ class DumpWatcherTest extends FeatureTestCase
 
         $this->assertSame([['delegated-value', 'delegated-label']], $delegated);
         $this->assertCount(0, $this->loadTelescopeEntries());
+    }
+
+    public function testDumpDelegatesWithoutResolvingCacheWhenTelescopeIsNotRecording(): void
+    {
+        Telescope::stopRecording();
+        $cache = m::mock(CacheFactory::class);
+        $cache->shouldNotReceive('store');
+        $delegated = [];
+        $this->installWatcher(
+            $cache,
+            previous: function (mixed $value, ?string $label = null) use (&$delegated): void {
+                $delegated[] = [$value, $label];
+            },
+        );
+
+        VarDumper::dump('not-recording', 'not-recording-label');
+
+        $this->assertSame([['not-recording', 'not-recording-label']], $delegated);
+        $this->assertSame([], Telescope::getEntriesQueue());
     }
 
     public function testCacheFailureDelegatesTheDump(): void

@@ -164,11 +164,17 @@ class Schedule
         if (class_exists($command)) {
             $command = Container::getInstance()->make($command);
 
-            return $this->exec(
+            $event = $this->exec(
                 $command->getName(),
                 $parameters,
                 false,
-            )->description($command->getDescription());
+            );
+
+            if (($description = $command->getDescription()) !== '') {
+                $event->description($description);
+            }
+
+            return $event;
         }
 
         return $this->exec($command, $parameters, false);

@@ -9,7 +9,6 @@ use GuzzleHttp\TransferStats;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Di\Aop\ProceedingJoinPoint;
 use Hypervel\Http\Client\Request;
-use Hypervel\Support\Arr;
 use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\IncomingEntry;
@@ -245,13 +244,13 @@ class ClientRequestWatcher extends Watcher
         $encoded = json_encode($masked, JSON_INVALID_UTF8_SUBSTITUTE, $maximumContainers);
 
         if ($encoded === false) {
-            return 'Purged By Telescope';
+            return Telescope::PURGED_VALUE;
         }
 
         if (strlen($encoded) >= $sizeLimit) {
             return ($this->options['truncate_oversized'] ?? false)
                 ? substr($encoded, 0, $sizeLimit) . ' (truncated...)'
-                : 'Purged By Telescope';
+                : Telescope::PURGED_VALUE;
         }
 
         return $masked;
@@ -273,7 +272,7 @@ class ClientRequestWatcher extends Watcher
             $sizeLimit = ($this->options['request_size_limit'] ?? self::DEFAULT_REQUEST_SIZE_LIMIT) * 1024;
 
             if (! $truncate && $stream->getSize() >= $sizeLimit) {
-                return 'Purged By Telescope';
+                return Telescope::PURGED_VALUE;
             }
 
             $content = $stream->getContents();
@@ -308,18 +307,18 @@ class ClientRequestWatcher extends Watcher
                     || $firstContentByte === '{'
                     || $firstContentByte === '[')
             ) {
-                return 'Purged By Telescope';
+                return Telescope::PURGED_VALUE;
             }
 
             if (strlen($content) >= $sizeLimit) {
                 return $truncate
                     ? substr($content, 0, $sizeLimit) . ' (truncated...)'
-                    : 'Purged By Telescope';
+                    : Telescope::PURGED_VALUE;
             }
 
             return $content;
         } catch (Throwable $e) {
-            return 'Purged By Telescope: ' . $e->getMessage();
+            return Telescope::PURGED_VALUE . ': ' . $e->getMessage();
         } finally {
             if ($stream->isSeekable()) {
                 $stream->rewind();
@@ -374,14 +373,14 @@ class ClientRequestWatcher extends Watcher
             }
 
             if ($jsonError === JSON_ERROR_DEPTH) {
-                return 'Purged By Telescope';
+                return Telescope::PURGED_VALUE;
             }
 
             if (Str::startsWith(strtolower($response->getHeaderLine('content-type') ?: ''), 'text/plain')) {
                 if (strlen($content) >= $sizeLimit) {
                     return $truncate
                         ? substr($content, 0, $sizeLimit) . ' (truncated...)'
-                        : 'Purged By Telescope';
+                        : Telescope::PURGED_VALUE;
                 }
 
                 return $content;
@@ -391,7 +390,7 @@ class ClientRequestWatcher extends Watcher
                 return 'Empty Response';
             }
         } catch (Throwable $e) {
-            return 'Purged By Telescope: ' . $e->getMessage();
+            return Telescope::PURGED_VALUE . ': ' . $e->getMessage();
         } finally {
             if ($stream->isSeekable()) {
                 $stream->rewind();
@@ -422,19 +421,5 @@ class ClientRequestWatcher extends Watcher
             $headers,
             Telescope::$hiddenRequestHeaders
         );
-    }
-
-    /**
-     * Hide the given parameters.
-     */
-    protected function hideParameters(array $data, array $hidden): array
-    {
-        foreach ($hidden as $parameter) {
-            if (Arr::has($data, $parameter)) {
-                Arr::set($data, $parameter, '********');
-            }
-        }
-
-        return $data;
     }
 }

@@ -275,15 +275,15 @@ class QueueFeature extends Feature
         return Str::after($queue, 'queues:');
     }
 
-    protected function pushScope(): void
+    protected function pushScope(): Scope
     {
-        $this->pushScopeTrait();
+        $scope = $this->pushScopeTrait();
 
         // When a job starts, we want to make sure the scope is cleared of breadcrumbs
         // as well as setting a new propagation context.
-        SentrySdk::getCurrentHub()->configureScope(static function (Scope $scope) {
-            $scope->clearBreadcrumbs();
-            $scope->setPropagationContext(PropagationContext::fromDefaults());
-        });
+        $scope->clearBreadcrumbs();
+        $scope->setPropagationContext(PropagationContext::fromDefaults());
+
+        return $scope;
     }
 }
