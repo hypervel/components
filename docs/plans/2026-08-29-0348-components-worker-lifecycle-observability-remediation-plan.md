@@ -2,7 +2,7 @@
 
 ## Goal
 
-Resolve audit findings 24–25, 33, 48–55, and 103 without changing Laravel-facing APIs unnecessarily or adding work to request hot paths that do not need it. The resulting state must be safe when HTTP requests, jobs, and commands overlap in a long-lived worker, while retaining ordinary non-coroutine CLI behavior.
+Resolve audit findings 24–25, 33, 48–55, and 103, and prevent command observability from persisting value-bearing console input by default, without changing Laravel-facing APIs unnecessarily or adding work to request hot paths that do not need it. The resulting state must be safe when HTTP requests, jobs, and commands overlap in a long-lived worker, while retaining ordinary non-coroutine CLI behavior.
 
 The separate upstream Sentry SDK proposal is documented at the monorepo root in `_tmp/plans/2026-08-29-0348-sentry-php-concurrent-runtime-contexts.md`. This plan contains only components-repository work.
 
@@ -23,6 +23,8 @@ The separate upstream Sentry SDK proposal is documented at the monorepo root in 
 13. Telescope labels process-lifetime `memory_get_peak_usage(true)` as request memory usage.
 14. Telescope command recording calls coroutine-only deferred storage from ordinary non-coroutine command paths and has no nesting ownership for `Artisan::call()`.
 15. Eloquent `Model::offsetExists()` temporarily disables strict missing-attribute access in a process-global static. If attribute access yields, a sibling execution can bypass strict mode.
+16. Telescope stores bound command arguments and options without redaction, while Sentry command breadcrumbs include the raw `ArgvInput` string even when default PII collection is disabled. Credentials supplied through positional arguments or custom value-bearing options can therefore be persisted locally or sent remotely.
+17. Telescope's schedule watcher stores the complete opaque command string, including compiled arguments. Shell commands have no bound definition that can classify their values safely.
 
 ## Design decisions
 
@@ -120,6 +122,8 @@ Listen to Hypervel `BeforeHandle` and `AfterExecute`, which run inside the comma
 
 Preserve ordinary handled-command breadcrumb data by adding optional input data to `BeforeHandle` and optional input and final exit-code data to `AfterExecute`. Existing event constructor arguments and listeners remain compatible. `Command` already owns these values at the dispatch sites. Its public IO accessors cannot reproduce the existing `(string) ArgvInput` breadcrumb, so carrying the original input avoids retaining a second pair of outer Symfony listeners solely for metadata. Normalize the exit code with the same valid-range rule used by `Command::execute()` before placing it on `AfterExecute`, preserving today's `ConsoleTerminateEvent` value for out-of-range command returns.
 
+Command breadcrumb input follows Sentry's existing `send_default_pii` policy. Omit the `input` metadata member unless PII collection is enabled and the event carries an `ArgvInput`; opted-in applications retain the existing raw string shape. Do not add a console-wide sanitizer or a second Sentry configuration switch.
+
 When `AfterExecute` carries a throwable, the Sentry listener derives the breadcrumb exit code with Symfony's default `ConsoleErrorEvent` rule: use a non-zero integer throwable code, otherwise `Command::FAILURE`. The runtime integer guard is required because PHP exceptions can carry string codes even though static-analysis stubs narrow them. This preserves the ordinary throwing-command result without putting Symfony error-event policy into Hypervel's event payload.
 
 Normalize the early return used when an isolated command cannot acquire its mutex through the same valid-range rule as every other command result. The event constructors remain backwards compatible: their added execution metadata stays optional because existing callers can construct these public Hypervel events with only the original arguments.
@@ -207,6 +211,18 @@ For command recording, maintain an execution-local approved-command depth:
 
 Store the depth under `COMMAND_DEPTH_CONTEXT_KEY = '__telescope.command_depth'`.
 
+Before storing a command entry, redact structured input by slot rather than by name:
+
+- replace every non-null positional argument with `Telescope::REDACTED_VALUE`;
+- replace every non-null option value when its current command definition accepts a value;
+- replace arrays with one marker rather than retaining contents or element counts;
+- preserve null, value-less flags, and negatable option state;
+- treat an option absent from the current definition as value-bearing so observation cannot expose it or fail the command.
+
+This deliberately redacts declared defaults as well as supplied values because command definitions may construct defaults from configuration or environment data, and Symfony's bound input arrays do not distinguish the two. Keep the real event input unchanged. Use the same public redaction constant in Telescope's existing request, client-request, and cache masking paths, and move the byte-identical request `hideParameters()` implementations to the shared watcher base.
+
+Scheduled command strings are opaque and cannot be parsed safely. Keep the description as its own field. The command field uses `Closure` for callback events and `Scheduled command` for every non-callback event. Never persist `Event::$command` in Telescope.
+
 Guard `Coroutine::defer()` in `Telescope::record()` and `Telescope::store()` with `Coroutine::inCoroutine()`. Non-coroutine `store()` calls `executeStore()` directly. Remove the per-call fallback default from `config()->boolean('telescope.defer', true)` because the shipped configuration key is required. Coroutine command defers remain terminal safety and find an empty queue after the normal terminal event.
 
 The shipped config comment must describe `telescope.defer` as required rather than promising behavior when the key is omitted. Scheduler coverage keeps the distinct-batch assertion with the configured `true` value instead of deleting the required key.
@@ -254,7 +270,7 @@ Use `MISSING_ATTRIBUTE_ACCESS_SUPPRESSED_CONTEXT_KEY = '__database.model.missing
 4. Add Hub baseline behavior and align command scope ownership.
 5. Correct non-coroutine send lifetime and coordinator-aware worker shutdown.
 6. Add the Telescope JSON normalizer and canonical purged sentinel.
-7. Correct Telescope hook iteration, command storage, dump delegation, and memory labeling; rebuild frontend assets.
+7. Correct Telescope hook iteration, command storage and redaction, scheduled-command disclosure, dump delegation, and memory labeling; rebuild frontend assets.
 8. Replace Eloquent's process-global strictness toggle with context-local suppression.
 9. Update only the user documentation needed to explain the resulting behavior.
 
@@ -286,6 +302,7 @@ Each slice is tested before proceeding. If implementation exposes a non-trivial 
 - Bootstrap Hub scope survives into cloned execution scopes; sibling mutations, nested pushes, and pops remain isolated.
 - `sentry:test` handles internal frames with null file information.
 - Inner command events preserve their existing constructor usage, carry the original input, and expose the same normalized status returned by `Command::execute()`, including isolated-command mutex rejection; Sentry applies Symfony's default throwable-code rule for integer and non-integer exception codes. Scope/breadcrumb ownership covers success, failure, ordinary nesting, duplicate terminal events, direct no-push completion, an unnamed nested completion, and a named completion whose `BeforeHandle` propagation stopped before Sentry, including the non-coroutine unnamed path.
+- Command breadcrumbs omit raw input while default PII collection is disabled and retain the existing `ArgvInput` string only after explicit PII opt-in.
 - Disabled commands, pre-execute failures, and outer Symfony error-listener rewrites stay outside the inner breadcrumb boundary without duplicate outer listeners.
 - Command completion does not wait for an unrelated accepted send.
 - Non-coroutine send completes before `send()` returns; coroutine send remains asynchronous; pool release/discard and wait-group accounting remain balanced on success and failure.
@@ -299,6 +316,8 @@ Each slice is tested before proceeding. If implementation exposes a non-trivial 
 - Multiple `afterStoring` hooks run in order after `void` and `false`; thrown-hook reporting remains pinned.
 - Dumps delegate when not recording or disabled and record exactly once when active; ignored executions avoid the cache lookup.
 - Non-coroutine commands store without calling coroutine defer; nested commands store only on the outer terminal event; the command entry is included; `CommandWatcher` consumes the event payload instead of closure-rebinding the command for the same data.
+- Command entries retain names, exit codes, nulls, and non-value flag state while redacting positional values, defaults, arrays, custom value-bearing options, and unknown option keys with the canonical marker.
+- Scheduled entries never persist the opaque command line; explicit descriptions remain visible and undescribed commands use the stable generic label.
 - `telescope:clear` leaves storage empty after its terminal event.
 - Coroutine command terminal safety does not duplicate storage.
 - Request UI and source docs identify the value as worker peak memory; rebuilt assets contain the same label.
@@ -323,8 +342,8 @@ Each slice is tested before proceeding. If implementation exposes a non-trivial 
 - `src/docs/notifications.md`: explain delivery/locale defaults configured from provider `register()`/`boot()`, execution-local overrides, and why application `booted()` callbacks are too late to set a worker default.
 - `src/docs/mail.md`: explain that array-transport messages are scoped to the current execution and become an isolated snapshot when parent context is copied into a child execution.
 - `src/docs/artisan.md`: document the original input and normalized exit-code data carried by the inner command events.
-- `src/docs/sentry.md`: document command and worker flushing semantics and prominently warn that Sentry Logs and trace metrics are currently unsupported in Hypervel; distinguish them from supported errors, events, breadcrumbs, and transaction tracing, and state that the upstream-compatible metrics default must be disabled explicitly.
-- `src/docs/telescope.md`: call request telemetry `Worker memory peak`.
+- `src/docs/sentry.md`: document command and worker flushing semantics, explain that command input requires explicit PII opt-in, and prominently warn that Sentry Logs and trace metrics are currently unsupported in Hypervel; distinguish them from supported errors, events, breadcrumbs, and transaction tracing, and state that the upstream-compatible metrics default must be disabled explicitly.
+- `src/docs/telescope.md`: call request telemetry `Worker memory peak`, state that command input values are redacted, remove the Command Watcher's false output claim, and describe scheduled-task fields without exposing opaque command lines.
 
 Do not add porting-guide entries for Number or notifications: their APIs and observable application behavior remain Laravel-compatible. Likewise, do not add internal Telescope or Sentry implementation details that require no application action.
 
@@ -337,7 +356,7 @@ Source changes are expected in:
 - `src/support/src/Number.php`;
 - `src/console/src/Command.php`, `Events/BeforeHandle.php`, and `Events/AfterExecute.php`;
 - Sentry handlers, both Sentry `LogChannel` factories, config, Hub, console integration, transport, worker listener, cleanup concern, and test command;
-- Telescope core, lifecycle trait, `CommandWatcher`, JSON-observing watchers including `ClientRequestWatcher`, `Storage/DatabaseEntriesRepository`, dump watcher, request UI, and generated distribution;
+- Telescope core, watcher base, lifecycle trait, `CommandWatcher`, `ScheduleWatcher`, JSON-observing watchers including `ClientRequestWatcher`, `Storage/DatabaseEntriesRepository`, dump watcher, request and schedule UI, and generated distribution;
 - `src/database/src/Eloquent/Model.php` and `Concerns/HasAttributes.php`.
 
 Tests remain in the owning package suites under `tests/Mail`, `tests/Notifications`, `tests/Support`, `tests/Sentry`, `tests/Telescope`, and `tests/Database`. Documentation is limited to the files listed above. Exact generated Telescope asset names are determined by the package build.
@@ -345,6 +364,7 @@ Tests remain in the owning package suites under `tests/Mail`, `tests/Notificatio
 ## Completion criteria
 
 - Every identified leak, lost callback, unsafe boundary, or misleading label has behavior coverage.
+- Value-bearing command input is absent from default Sentry breadcrumbs and Telescope command input fields; opaque command lines are absent from Telescope schedule entries.
 - Laravel-facing method names, arguments, return values, and ordinary behavior remain compatible except for the documented long-lived-worker semantics and the protected Monolog 3 level type.
 - Request hot paths remain direct where no isolation is needed; required context work is constant-time.
 - No reflection, polling, sleeps, process-global locks, framework-specific SDK patch, recursive serializer, or duplicate lifecycle registry is introduced.
