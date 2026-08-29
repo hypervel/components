@@ -354,6 +354,37 @@ class ScheduleTest extends TestCase
         $this->assertSame('This is a description about the command', $event->description);
     }
 
+    public function testUndescribedCommandKeepsItsNaturalDescriptionAndSummary(): void
+    {
+        $schedule = new Schedule;
+        $event = $schedule->command(ScheduleTestUndescribedCommandStub::class);
+
+        $this->assertNull($event->description);
+        $this->assertSame('foo:undescribed', $event->getSummaryForDisplay());
+    }
+
+    public function testUndescribedCommandKeepsPendingGroupDescription(): void
+    {
+        $schedule = new Schedule;
+
+        $schedule->description('Group description')->group(function (Schedule $schedule): void {
+            $schedule->command(ScheduleTestUndescribedCommandStub::class);
+        });
+
+        $this->assertSame('Group description', $schedule->events()[0]->description);
+    }
+
+    public function testDescribedCommandOverridesPendingGroupDescription(): void
+    {
+        $schedule = new Schedule;
+
+        $schedule->description('Group description')->group(function (Schedule $schedule): void {
+            $schedule->command(ScheduleTestCommandStub::class);
+        });
+
+        $this->assertSame('This is a description about the command', $schedule->events()[0]->description);
+    }
+
     public function testItShouldBePossibleToOverwriteTheDescription()
     {
         $schedule = new Schedule;
@@ -438,6 +469,15 @@ class ScheduleTestCommandStub extends Command
     protected ?string $signature = 'foo:bar';
 
     protected string $description = 'This is a description about the command';
+
+    public function handle(): void
+    {
+    }
+}
+
+class ScheduleTestUndescribedCommandStub extends Command
+{
+    protected ?string $signature = 'foo:undescribed';
 
     public function handle(): void
     {
