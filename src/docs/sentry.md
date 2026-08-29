@@ -210,13 +210,9 @@ This middleware can downsample a transaction that was already sampled by your gl
 ### Metrics
 
 > [!WARNING]
-> Sentry trace metrics are currently unsupported in Hypervel. The Sentry SDK shares its metric aggregators across application executions, so one execution may flush metrics collected by another. This does not affect transaction tracing or spans. Trace metrics follow Sentry's enabled-by-default setting, so you must disable them explicitly.
+> Sentry trace metrics are currently unsupported in Hypervel. The Sentry SDK shares its metric aggregators across application executions, so one execution may flush metrics collected by another. This does not affect transaction tracing or spans.
 
-Disable trace metrics using the `SENTRY_ENABLE_METRICS` environment variable:
-
-```ini
-SENTRY_ENABLE_METRICS=false
-```
+Trace metrics are disabled by default. The `SENTRY_ENABLE_METRICS` option remains available, but enabling it is unsupported until the SDK can isolate metric aggregators between application executions.
 
 <a name="scheduled-tasks"></a>
 ### Scheduled Tasks

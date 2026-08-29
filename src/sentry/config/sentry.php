@@ -66,9 +66,9 @@ return [
     'enable_logs' => (bool) env('SENTRY_ENABLE_LOGS', false),
 
     // Trace metrics are currently unsupported because the SDK aggregates them across executions.
-    // See https://hypervel.org/docs/sentry#metrics and disable the upstream-compatible default.
+    // See https://hypervel.org/docs/sentry#metrics before enabling this option.
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#enable_metrics
-    'enable_metrics' => (bool) env('SENTRY_ENABLE_METRICS', true),
+    'enable_metrics' => (bool) env('SENTRY_ENABLE_METRICS', false),
 
     // This option affects the currently unsupported Sentry Logs feature only.
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#log_flush_threshold
