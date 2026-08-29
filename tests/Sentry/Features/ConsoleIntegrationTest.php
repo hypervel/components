@@ -8,6 +8,7 @@ use Hypervel\Console\Command;
 use Hypervel\Console\Events\AfterExecute;
 use Hypervel\Console\Events\BeforeHandle;
 use Hypervel\Database\QueryException;
+use Hypervel\Events\Dispatcher;
 use Hypervel\Sentry\Features\ConsoleIntegration;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use RuntimeException;
@@ -77,6 +78,28 @@ class ConsoleIntegrationTest extends SentryTestCase
         $this->assertSame($baselineScope, $this->getCurrentSentryScope());
     }
 
+    public function testDuplicateCompletionDoesNotPopTheParentCommandScope(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry' => $this->sentryConfigWith(['breadcrumbs.command_info' => false]),
+        ]);
+        $baselineScope = $this->getCurrentSentryScope();
+        $outer = new ConsoleIntegrationCommand;
+        $inner = new NestedConsoleIntegrationCommand;
+
+        $this->dispatchCommandStartEvent($outer);
+        $outerScope = $this->getCurrentSentryScope();
+        $this->dispatchCommandStartEvent($inner);
+
+        $this->dispatchCommandFinishEvent($inner);
+        $this->dispatchCommandFinishEvent($inner);
+
+        $this->assertSame($outerScope, $this->getCurrentSentryScope());
+
+        $this->dispatchCommandFinishEvent($outer);
+        $this->assertSame($baselineScope, $this->getCurrentSentryScope());
+    }
+
     public function testCompletionWithoutAStartedCommandDoesNotPopTheCurrentScope(): void
     {
         $this->resetApplicationWithConfig([
@@ -87,6 +110,54 @@ class ConsoleIntegrationTest extends SentryTestCase
         $this->dispatchCommandFinishEvent(new ConsoleIntegrationCommand);
 
         $this->assertSame($scope, $this->getCurrentSentryScope());
+    }
+
+    public function testUnnamedCommandCompletionDoesNotPopItsParentCommandScope(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry' => $this->sentryConfigWith(['breadcrumbs.command_info' => false]),
+        ]);
+        $baselineScope = $this->getCurrentSentryScope();
+        $outer = new ConsoleIntegrationCommand;
+        $inner = new UnnamedConsoleIntegrationCommand;
+
+        $this->dispatchCommandStartEvent($outer);
+        $outerScope = $this->getCurrentSentryScope();
+
+        $this->dispatchCommandStartEvent($inner);
+        $this->dispatchCommandFinishEvent($inner);
+
+        $this->assertSame($outerScope, $this->getCurrentSentryScope());
+
+        $this->dispatchCommandFinishEvent($outer);
+        $this->assertSame($baselineScope, $this->getCurrentSentryScope());
+    }
+
+    public function testStoppedStartEventDoesNotLetCompletionPopItsParentCommandScope(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry' => $this->sentryConfigWith(['breadcrumbs.command_info' => false]),
+        ]);
+        $baselineScope = $this->getCurrentSentryScope();
+        $integration = $this->app->make(ConsoleIntegration::class);
+        $outer = new ConsoleIntegrationCommand;
+        $inner = new NestedConsoleIntegrationCommand;
+        $input = new ArgvInput(['artisan', '--foo=bar']);
+
+        $integration->beforeHandle(new BeforeHandle($outer, $input));
+        $outerScope = $this->getCurrentSentryScope();
+
+        $dispatcher = new Dispatcher($this->app);
+        $dispatcher->listen(BeforeHandle::class, static fn (): bool => false);
+        $dispatcher->listen(BeforeHandle::class, [$integration, 'beforeHandle']);
+        $dispatcher->dispatch(new BeforeHandle($inner, $input));
+
+        $integration->afterExecute(new AfterExecute($inner, input: $input, exitCode: 0));
+
+        $this->assertSame($outerScope, $this->getCurrentSentryScope());
+
+        $integration->afterExecute(new AfterExecute($outer, input: $input, exitCode: 0));
+        $this->assertSame($baselineScope, $this->getCurrentSentryScope());
     }
 
     public function testThrowableExitCodeUsesSymfonyConsoleErrorRules(): void
@@ -144,6 +215,13 @@ class NestedConsoleIntegrationCommand extends Command
 {
     protected ?string $signature = 'test:nested';
 
+    public function handle(): void
+    {
+    }
+}
+
+class UnnamedConsoleIntegrationCommand extends Command
+{
     public function handle(): void
     {
     }

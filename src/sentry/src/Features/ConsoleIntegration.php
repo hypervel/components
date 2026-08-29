@@ -7,18 +7,22 @@ namespace Hypervel\Sentry\Features;
 use Hypervel\Console\Command;
 use Hypervel\Console\Events\AfterExecute;
 use Hypervel\Console\Events\BeforeHandle;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Sentry\Features\Concerns\TracksPushedScopesAndSpans;
 use Hypervel\Sentry\Integration;
 use Sentry\Breadcrumb;
 use Sentry\State\Scope;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\InputInterface;
+use WeakMap;
 
 class ConsoleIntegration extends Feature
 {
     use TracksPushedScopesAndSpans;
 
     private const string FEATURE_KEY = 'command_info';
+
+    private const string COMMAND_SCOPE_OWNERS_CONTEXT_KEY = '__sentry.console.command_scope_owners';
 
     public function isApplicable(): bool
     {
@@ -33,6 +37,9 @@ class ConsoleIntegration extends Feature
         $dispatcher->listen(AfterExecute::class, [$this, 'afterExecute']);
     }
 
+    /**
+     * Handle a command before execution.
+     */
     public function beforeHandle(BeforeHandle $event): void
     {
         if (! $command = $event->command->getName()) {
@@ -40,6 +47,14 @@ class ConsoleIntegration extends Feature
         }
 
         $this->pushScope();
+
+        /** @var WeakMap<Command, bool> $commandScopeOwners */
+        $commandScopeOwners = CoroutineContext::getOrSet(
+            self::COMMAND_SCOPE_OWNERS_CONTEXT_KEY,
+            fn () => new WeakMap,
+        );
+
+        $commandScopeOwners[$event->command] = true;
 
         Integration::configureScope(static function (Scope $scope) use ($command): void {
             $scope->setTag('command', $command);
@@ -58,6 +73,9 @@ class ConsoleIntegration extends Feature
         }
     }
 
+    /**
+     * Handle a command after execution.
+     */
     public function afterExecute(AfterExecute $event): void
     {
         $command = $event->command->getName();
@@ -75,7 +93,16 @@ class ConsoleIntegration extends Feature
             ));
         }
 
-        $this->maybePopScope();
+        /** @var null|WeakMap<Command, bool> $commandScopeOwners */
+        $commandScopeOwners = CoroutineContext::get(self::COMMAND_SCOPE_OWNERS_CONTEXT_KEY);
+
+        // An unmatched terminal event must not pop a scope another command owns:
+        // an earlier BeforeHandle listener can stop propagation before this one runs.
+        if (isset($commandScopeOwners[$event->command])) {
+            unset($commandScopeOwners[$event->command]);
+
+            $this->maybePopScope();
+        }
     }
 
     /**

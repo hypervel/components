@@ -29,12 +29,43 @@ class ConsoleIntegrationNonCoroutineTest extends SentryTestCase
         $this->dispatchHypervelEvent(new AfterExecute($command, input: $input, exitCode: 0));
         $this->assertSame($scope, $this->getCurrentSentryScope());
     }
+
+    public function testUnnamedCommandCompletionDoesNotPopItsParentScopeOutsideACoroutine(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry' => $this->sentryConfigWith(['breadcrumbs.command_info' => false]),
+        ]);
+        $baselineScope = $this->getCurrentSentryScope();
+        $outer = new NonCoroutineConsoleIntegrationCommand;
+        $inner = new NonCoroutineUnnamedConsoleIntegrationCommand;
+        $input = new ArgvInput(['artisan']);
+
+        $this->dispatchHypervelEvent(new BeforeHandle($outer, $input));
+        $outerScope = $this->getCurrentSentryScope();
+
+        $this->dispatchHypervelEvent(new BeforeHandle($inner, $input));
+        $this->dispatchHypervelEvent(new AfterExecute($inner, input: $input, exitCode: 0));
+
+        $this->assertSame($outerScope, $this->getCurrentSentryScope());
+
+        $this->dispatchHypervelEvent(new AfterExecute($outer, input: $input, exitCode: 0));
+        $this->assertSame($baselineScope, $this->getCurrentSentryScope());
+    }
 }
 
 class NonCoroutineConsoleIntegrationCommand extends Command
 {
     protected ?string $signature = 'test:non-coroutine';
 
+    protected bool $coroutine = false;
+
+    public function handle(): void
+    {
+    }
+}
+
+class NonCoroutineUnnamedConsoleIntegrationCommand extends Command
+{
     protected bool $coroutine = false;
 
     public function handle(): void
