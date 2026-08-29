@@ -341,6 +341,56 @@ class PendingRequestTest extends TestCase
         $pending->get('https://example.test/short-circuit');
     }
 
+    public function testShortCircuitAheadOfTheApiBridgeOnRetryDoesNotReuseThePreviousAttempt(): void
+    {
+        $transportCalls = 0;
+        Http::fake(function () use (&$transportCalls) {
+            ++$transportCalls;
+
+            return Http::response([], 500);
+        });
+
+        $middlewareAttempts = 0;
+        $bridgeAttempts = 0;
+        $pending = (new ApiClient)
+            ->createPendingRequest()
+            ->withApiRequestMiddleware(function (ApiRequest $request, callable $next) use (&$bridgeAttempts): ApiRequest {
+                ++$bridgeAttempts;
+
+                return $next($request->withContext('attempt', $bridgeAttempts));
+            })
+            ->retry(2, 0);
+
+        $this->assertSame($pending, $pending->prependMiddleware(
+            static function (callable $handler) use (&$middlewareAttempts): callable {
+                return static function (RequestInterface $request, array $options) use ($handler, &$middlewareAttempts): PromiseInterface {
+                    ++$middlewareAttempts;
+
+                    return $middlewareAttempts === 2
+                        ? Create::promiseFor(new Psr7Response(200))
+                        : $handler($request, $options);
+                };
+            }
+        ));
+
+        $exception = null;
+
+        try {
+            $pending->get('https://example.test/retry-short-circuit');
+        } catch (LogicException $caught) {
+            $exception = $caught;
+        }
+
+        $this->assertInstanceOf(LogicException::class, $exception);
+        $this->assertSame(
+            'HTTP middleware ahead of the API bridge short-circuited the request before API middleware could run.',
+            $exception->getMessage(),
+        );
+        $this->assertSame(2, $middlewareAttempts);
+        $this->assertSame(1, $bridgeAttempts);
+        $this->assertSame(1, $transportCalls);
+    }
+
     public function testBridgePreservesLogicalDataAttributesAndApiContext(): void
     {
         $observed = null;

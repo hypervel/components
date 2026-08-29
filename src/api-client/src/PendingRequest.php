@@ -56,7 +56,6 @@ use Throwable;
  * @method static retry(array|int $times, \Closure|int $sleepMilliseconds = 0, ?callable $when = null, bool $throw = true)
  * @method static withOptions(array $options)
  * @method static withMiddleware(callable $middleware)
- * @method static prependMiddleware(callable $middleware)
  * @method static withRequestMiddleware(callable $middleware)
  * @method static withResponseMiddleware(callable $middleware)
  * @method static withAttributes(array $attributes)
@@ -164,6 +163,26 @@ class PendingRequest implements Transient
     {
         $this->requestMiddleware = [];
         $this->responseMiddleware = [];
+
+        return $this;
+    }
+
+    /**
+     * Prepend middleware to the underlying HTTP request pipeline.
+     *
+     * @param callable(callable): callable $middleware
+     */
+    public function prependMiddleware(callable $middleware): static
+    {
+        $this->getRequest()->prependMiddleware(function (callable $handler) use ($middleware): callable {
+            $middlewareHandler = $middleware($handler);
+
+            return function (RequestInterface $request, array $options) use ($middlewareHandler) {
+                $this->activeRequest = null;
+
+                return $middlewareHandler($request, $options);
+            };
+        });
 
         return $this;
     }
