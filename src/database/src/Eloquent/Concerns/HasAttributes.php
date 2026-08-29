@@ -12,6 +12,7 @@ use Carbon\CarbonInterface;
 use Carbon\Exceptions\InvalidFormatException;
 use DateTimeImmutable;
 use DateTimeInterface;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsInboundAttributes;
 use Hypervel\Contracts\Encryption\Encrypter as EncrypterContract;
@@ -518,7 +519,8 @@ trait HasAttributes
     {
         if ($this->exists
             && ! $this->wasRecentlyCreated
-            && static::preventsAccessingMissingAttributes()) {
+            && static::preventsAccessingMissingAttributes()
+            && ! CoroutineContext::get(self::MISSING_ATTRIBUTE_ACCESS_SUPPRESSED_CONTEXT_KEY, false)) {
             if (isset(static::$missingAttributeViolationCallback)) {
                 return call_user_func(static::$missingAttributeViolationCallback, $this, $key);
             }
