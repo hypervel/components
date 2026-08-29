@@ -158,7 +158,7 @@ SENTRY_TRACES_SAMPLE_RATE=0.1
 
 The default configuration traces requests, database queries, HTTP client requests, cache operations, queued jobs, notifications, and views. The conventional `/up` health route path is ignored by default.
 
-Enabling cache spans or breadcrumbs also enables repository events for every configured cache store while Sentry has an active DSN or Spotlight endpoint. This applies even when a store's own `events` option is `false`, because those events are required to record cache telemetry. Disable both `SENTRY_TRACE_CACHE_ENABLED` and `SENTRY_BREADCRUMBS_CACHE_ENABLED` when cache repository events must remain disabled.
+Cache spans and breadcrumbs follow cache repository events. Configured stores honor their `events` option, but the `failover` store defaults this option to `false`; enable it explicitly when failover operations should produce telemetry. `Cache::memo()` does not emit a second event for its memoization layer, while operations that reach the wrapped repository follow that store's setting.
 
 Incoming trace headers are still propagated when local trace recording is disabled. This allows a Hypervel service to remain part of a distributed trace without recording its own transaction.
 

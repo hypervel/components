@@ -73,6 +73,22 @@ class CacheIntegrationTest extends SentryTestCase
         $this->assertEmpty($this->getCurrentSentryBreadcrumbs());
     }
 
+    public function testCacheTelemetryHonorsEventsDisabledStoreConfiguration(): void
+    {
+        $this->resetApplicationWithConfig([
+            'cache.stores.array.events' => false,
+        ]);
+
+        $transaction = $this->startTransaction();
+
+        Cache::put('foo', 'bar');
+
+        $this->assertFalse(config()->boolean('cache.stores.array.events'));
+        $this->assertNull(Cache::store('array')->getEventDispatcher());
+        $this->assertCount(1, $transaction->getSpanRecorder()->getSpans());
+        $this->assertEmpty($this->getCurrentSentryBreadcrumbs());
+    }
+
     public function testCacheBreadcrumbReplacesSessionKeyWithPlaceholder(): void
     {
         $this->startSession();

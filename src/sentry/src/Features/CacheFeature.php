@@ -55,13 +55,6 @@ class CacheFeature extends Feature
 
     public function onBoot(): void
     {
-        $config = $this->container->make('config');
-        $stores = array_keys($config->array('cache.stores'));
-        // This method runs only for an active endpoint with cache telemetry enabled,
-        // which requires repository events even when a store explicitly disabled them.
-        foreach ($stores as $store) {
-            $config->set("cache.stores.{$store}.events", true);
-        }
         /** @var Dispatcher $dispatcher */
         $dispatcher = $this->container->make('events');
         if ($this->isBreadcrumbFeatureEnabled(self::FEATURE_KEY)) {
