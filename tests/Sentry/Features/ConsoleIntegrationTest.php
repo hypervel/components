@@ -16,23 +16,68 @@ use Symfony\Component\Console\Input\ArgvInput;
 
 class ConsoleIntegrationTest extends SentryTestCase
 {
-    public function testCommandBreadcrumbIsRecordedWhenEnabled(): void
+    public function testCommandBreadcrumbIncludesInputWhenPiiIsEnabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry' => $this->sentryConfigWith(['breadcrumbs.command_info' => true]),
+            'sentry' => $this->sentryConfigWith([
+                'breadcrumbs.command_info' => true,
+                'send_default_pii' => true,
+            ]),
         ]);
 
         $this->assertTrue($this->app->make('config')->boolean('sentry.breadcrumbs.command_info'));
 
         $baselineScope = $this->getCurrentSentryScope();
-        $this->dispatchCommandStartEvent($command = new ConsoleIntegrationCommand);
+        $this->dispatchCommandStartEvent($command = new ConsoleIntegrationCommand, true);
 
         $lastBreadcrumb = $this->getLastSentryBreadcrumb();
 
         $this->assertEquals('Starting Artisan command: test:command', $lastBreadcrumb->getMessage());
         $this->assertEquals('--foo=bar', $lastBreadcrumb->getMetadata()['input']);
 
-        $this->dispatchCommandFinishEvent($command, exitCode: 12);
+        $unmatchedCommand = new ConsoleIntegrationCommand;
+        $this->app->make(ConsoleIntegration::class)->afterExecute(new AfterExecute(
+            $unmatchedCommand,
+            input: $this->commandInput($unmatchedCommand, true),
+            exitCode: 12,
+        ));
+        $lastBreadcrumb = $this->getLastSentryBreadcrumb();
+
+        $this->assertSame(12, $lastBreadcrumb->getMetadata()['exit']);
+        $this->assertSame('--foo=bar', $lastBreadcrumb->getMetadata()['input']);
+
+        $this->dispatchCommandFinishEvent($command, exitCode: 12, withValue: true);
+
+        $this->assertSame($baselineScope, $this->getCurrentSentryScope());
+        $this->assertSame([], $this->getCurrentSentryBreadcrumbs());
+    }
+
+    public function testCommandBreadcrumbOmitsInputWhenPiiIsDisabled(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry' => $this->sentryConfigWith([
+                'breadcrumbs.command_info' => true,
+                'send_default_pii' => false,
+            ]),
+        ]);
+
+        $baselineScope = $this->getCurrentSentryScope();
+        $this->dispatchCommandStartEvent($command = new ConsoleIntegrationCommand, true);
+
+        $this->assertArrayNotHasKey('input', $this->getLastSentryBreadcrumb()->getMetadata());
+
+        $unmatchedCommand = new ConsoleIntegrationCommand;
+        $this->app->make(ConsoleIntegration::class)->afterExecute(new AfterExecute(
+            $unmatchedCommand,
+            input: $this->commandInput($unmatchedCommand, true),
+            exitCode: 12,
+        ));
+        $metadata = $this->getLastSentryBreadcrumb()->getMetadata();
+
+        $this->assertSame(12, $metadata['exit']);
+        $this->assertArrayNotHasKey('input', $metadata);
+
+        $this->dispatchCommandFinishEvent($command, exitCode: 12, withValue: true);
 
         $this->assertSame($baselineScope, $this->getCurrentSentryScope());
         $this->assertSame([], $this->getCurrentSentryBreadcrumbs());
@@ -180,11 +225,11 @@ class ConsoleIntegrationTest extends SentryTestCase
         $this->assertSame(Command::FAILURE, $this->getLastSentryBreadcrumb()?->getMetadata()['exit']);
     }
 
-    private function dispatchCommandStartEvent(Command $command): void
+    private function dispatchCommandStartEvent(Command $command, bool $withValue = false): void
     {
         $this->dispatchHypervelEvent(new BeforeHandle(
             $command,
-            new ArgvInput(['artisan', '--foo=bar']),
+            $this->commandInput($command, $withValue),
         ));
     }
 
@@ -192,19 +237,28 @@ class ConsoleIntegrationTest extends SentryTestCase
         Command $command,
         ?RuntimeException $throwable = null,
         ?int $exitCode = 0,
+        bool $withValue = false,
     ): void {
         $this->dispatchHypervelEvent(new AfterExecute(
             $command,
             $throwable,
-            new ArgvInput(['artisan', '--foo=bar']),
+            $this->commandInput($command, $withValue),
             $exitCode,
         ));
+    }
+
+    private function commandInput(Command $command, bool $withValue = false): ArgvInput
+    {
+        $input = new ArgvInput($withValue ? ['artisan', '--foo=bar'] : ['artisan']);
+        $input->bind($command->getDefinition());
+
+        return $input;
     }
 }
 
 class ConsoleIntegrationCommand extends Command
 {
-    protected ?string $signature = 'test:command';
+    protected ?string $signature = 'test:command {--foo=}';
 
     public function handle(): void
     {

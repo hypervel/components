@@ -66,9 +66,7 @@ class ConsoleIntegration extends Feature
                 Breadcrumb::TYPE_DEFAULT,
                 'artisan.command',
                 'Starting Artisan command: ' . $command,
-                [
-                    'input' => $this->extractConsoleCommandInput($event->input),
-                ]
+                $this->commandInputMetadata($event->input),
             ));
         }
     }
@@ -86,10 +84,9 @@ class ConsoleIntegration extends Feature
                 Breadcrumb::TYPE_DEFAULT,
                 'artisan.command',
                 'Finished Artisan command: ' . $command,
-                [
+                array_merge([
                     'exit' => $this->resolveExitCode($event),
-                    'input' => $this->extractConsoleCommandInput($event->input),
-                ]
+                ], $this->commandInputMetadata($event->input)),
             ));
         }
 
@@ -120,14 +117,16 @@ class ConsoleIntegration extends Feature
     }
 
     /**
-     * Extract the command input arguments if possible.
+     * Get command input metadata allowed by the PII configuration.
+     *
+     * @return array{input?: string}
      */
-    private function extractConsoleCommandInput(?InputInterface $input): ?string
+    private function commandInputMetadata(?InputInterface $input): array
     {
-        if ($input instanceof ArgvInput) {
-            return (string) $input;
+        if (! $this->shouldSendDefaultPii() || ! $input instanceof ArgvInput) {
+            return [];
         }
 
-        return null;
+        return ['input' => (string) $input];
     }
 }
