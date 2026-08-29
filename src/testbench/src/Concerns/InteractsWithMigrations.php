@@ -164,7 +164,7 @@ trait InteractsWithMigrations
         $options['--path'] = default_migration_path();
         $options['--realpath'] = true;
 
-        $this->runMigrationProcessor($app, $this->resolveHypervelMigrationsOptions($options));
+        $this->runMigrationProcessor($app, $options);
     }
 
     /**
