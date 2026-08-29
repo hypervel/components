@@ -8,13 +8,18 @@ use Closure;
 use Hypervel\Console\Attributes\Aliases;
 use Hypervel\Console\Attributes\Signature;
 use Hypervel\Console\Events\ArtisanStarting;
+use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Console\Application as ConsoleApplicationContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Defer\DeferredCallback;
+use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\ProcessUtils;
 use Override;
 use ReflectionClass;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Application as SymfonyApplication;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
@@ -30,6 +35,7 @@ use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\Process\PhpExecutableFinder;
+use Throwable;
 
 class Application extends SymfonyApplication implements ConsoleApplicationContract
 {
@@ -37,6 +43,11 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
      * The CoroutineContext key holding the output from the previous command.
      */
     protected const string LAST_OUTPUT_CONTEXT_KEY = '__console.last_output';
+
+    /**
+     * The CoroutineContext key marking the owner of non-coroutine deferred callbacks.
+     */
+    private const string DEFERRED_CALLBACK_OWNER_CONTEXT_KEY = '__console.deferred_callback_owner';
 
     /**
      * The console application bootstrappers.
@@ -344,11 +355,49 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     #[Override]
     protected function doRunCommand(SymfonyCommand $command, InputInterface $input, OutputInterface $output): int
     {
-        return parent::doRunCommand(
-            $this->freshCommandForRun($command),
-            $input,
-            $output
-        );
+        $command = $this->freshCommandForRun($command);
+        $ownsDeferredCallbacks = $this->container->runningInConsole()
+            && ! Coroutine::inCoroutine()
+            && ! CoroutineContext::has(self::DEFERRED_CALLBACK_OWNER_CONTEXT_KEY);
+
+        if (! $ownsDeferredCallbacks) {
+            return parent::doRunCommand($command, $input, $output);
+        }
+
+        $container = Container::getInstance();
+        $exitCode = SymfonyCommand::FAILURE;
+        $exception = null;
+
+        CoroutineContext::set(self::DEFERRED_CALLBACK_OWNER_CONTEXT_KEY, true);
+
+        try {
+            try {
+                $exitCode = parent::doRunCommand($command, $input, $output);
+            } catch (Throwable $throwable) {
+                $exception = $throwable;
+            }
+
+            if (! $exception instanceof CanceledException
+                && $container->resolvedScoped(DeferredCallbackCollection::class)
+            ) {
+                try {
+                    $container->make(DeferredCallbackCollection::class)
+                        ->invokeWhen(fn (DeferredCallback $callback) => ($exception === null && $exitCode === SymfonyCommand::SUCCESS) || $callback->always);
+                } catch (CanceledException $cancellation) {
+                    $exception = $cancellation;
+                } catch (Throwable $throwable) {
+                    $exception ??= $throwable;
+                }
+            }
+        } finally {
+            CoroutineContext::forget(self::DEFERRED_CALLBACK_OWNER_CONTEXT_KEY);
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
+
+        return $exitCode;
     }
 
     /**

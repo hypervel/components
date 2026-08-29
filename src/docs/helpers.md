@@ -3520,6 +3520,8 @@ By default, deferred functions will only be executed if the HTTP response, Artis
 defer(fn () => Metrics::reportOrder($order))->always();
 ```
 
+A deferred function registered while deferred functions are being executed is not run during the same lifecycle and is not guaranteed to run at all.
+
 > [!WARNING]
 > Hypervel runs on Swoole, which exposes its own global `defer` function that conflicts with Hypervel's `defer` helper. Always call Hypervel's `defer` helper explicitly by namespace: `use function Hypervel\Support\defer;`
 

@@ -14,13 +14,17 @@ use Hypervel\Console\Events\AfterExecute;
 use Hypervel\Console\Events\AfterHandle;
 use Hypervel\Console\Events\BeforeHandle;
 use Hypervel\Console\View\Components\Factory;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Console\Isolatable;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Defer\DeferredCallback;
+use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Traits\Macroable;
 use ReflectionClass;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Swoole\ExitException;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\InputInterface;
@@ -294,8 +298,9 @@ class Command extends SymfonyCommand
         }
 
         $exception = null;
+        $runsInOwnCoroutine = $this->coroutine && ! Coroutine::inCoroutine();
 
-        $callback = function () use ($input, $output, $commandMutex, &$exception): int {
+        $callback = function () use ($input, $output, $commandMutex, $runsInOwnCoroutine, &$exception): int {
             try {
                 $this->exitCode = $this->executeCommand($input, $output);
             } catch (Throwable $throwable) {
@@ -322,12 +327,27 @@ class Command extends SymfonyCommand
                         $exception ??= $throwable;
                     }
                 }
+
+                if ($runsInOwnCoroutine && ! $exception instanceof CanceledException) {
+                    $container = Container::getInstance();
+
+                    if ($container->resolvedScoped(DeferredCallbackCollection::class)) {
+                        try {
+                            $container->make(DeferredCallbackCollection::class)
+                                ->invokeWhen(fn (DeferredCallback $callback) => ($exception === null && $this->normalizeExitCode($this->exitCode) === self::SUCCESS) || $callback->always);
+                        } catch (CanceledException $cancellation) {
+                            $exception = $cancellation;
+                        } catch (Throwable $throwable) {
+                            $exception ??= $throwable;
+                        }
+                    }
+                }
             }
 
             return $this->exitCode;
         };
 
-        if ($this->coroutine && ! Coroutine::inCoroutine()) {
+        if ($runsInOwnCoroutine) {
             run($callback, $this->hookFlags);
         } else {
             $callback();

@@ -1257,6 +1257,8 @@ RecordDelivery::dispatch($order)->onConnection('deferred');
 
 The `deferred` connection executes jobs using `Coroutine::defer`, so the job runs when the current coroutine is ending. This is useful for small follow-up work that should not delay the response.
 
+Immediate dispatch to this connection requires an active coroutine. A console command that opts out of coroutine execution should use `sync` for inline work or `background` to create a coroutine instead. Delayed dispatch remains available because the timer executes its callback inside a coroutine.
+
 Similarly, the `background` connection processes jobs in another coroutine within the current worker process:
 
 ```php
