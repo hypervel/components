@@ -27,6 +27,7 @@ The separate upstream Sentry SDK proposal is documented at the monorepo root in 
 17. Telescope's schedule watcher stores the complete opaque command string, including compiled arguments. Shell commands have no bound definition that can classify their values safely.
 18. `Schedule::command()` writes an empty Symfony command description after pending attributes have been merged. Undescribed command classes therefore render with an empty summary, erase pending group descriptions, and serialize `""` instead of retaining the event's natural `null` state.
 19. Sentry command ownership records only that a command pushed a scope. Another Sentry feature can leave a newer scope on the shared Hub stack, causing command completion to pop a frame it does not own and leave its own scope behind.
+20. Sentry scheduled-task tracing finishes its span through `maybeFinishSpan()` but then calls the scope-gated `maybePopScope()` even though this feature never pushes a scope. Sentry Logs and trace metrics are therefore not flushed at each completed scheduled task.
 
 ## Design decisions
 
@@ -151,6 +152,12 @@ Change the shared tracking trait only to return the `Scope` already returned by 
 An unmatched terminal event still records its truthful completion breadcrumb on the current scope. It must not pop a scope owned by another command. This includes an unnamed command and a named command whose earlier `BeforeHandle` listener stopped propagation before Sentry's listener ran.
 
 Command completion performs the non-blocking SDK flush through `maybePopScope()`. Coroutine command execution waits for child sends when its `run()` boundary closes, while non-coroutine sends complete inline in `HttpPoolTransport::createCoroutine()`, so a second bounded drain at command completion is unnecessary.
+
+#### Scheduled tasks
+
+When a scheduled-task terminal event successfully finishes the span owned by `ConsoleSchedulingFeature`, call `Integration::flushEvents()` directly. The non-null `maybeFinishSpan()` result prevents duplicate terminal events from flushing twice. Do not push a scope solely to reuse `maybePopScope()` or add another ownership counter.
+
+This non-blocking flush drains the Sentry Logs and trace-metric aggregators; client events are dispatched immediately and do not wait on this boundary. Both failure sequences flush at the span terminal, which precedes `ScheduleRunCommand`'s own report of the task exception.
 
 #### Transport scheduling
 
@@ -277,7 +284,7 @@ When `Schedule::command()` resolves a command class, apply its description only 
 1. Add the array mail message store, migrate `ArrayTransport`, and cover identity, flush, replication, and concurrent isolation.
 2. Make notification defaults and Number defaults lifecycle-aware; add restoration and execution-isolation coverage.
 3. Port both Sentry handlers to native Monolog 3 records and correct `sentry:test` nullable-frame formatting.
-4. Add Hub baseline behavior and align command scope ownership with the exact current Hub frame.
+4. Add Hub baseline behavior, align command scope ownership with the exact current Hub frame, and flush scheduled-task aggregators when an owned span finishes.
 5. Correct non-coroutine send lifetime and coordinator-aware worker shutdown.
 6. Add the Telescope JSON normalizer and canonical purged sentinel.
 7. Correct Telescope hook iteration, command storage and redaction, scheduled-command disclosure, dump delegation, and memory labeling; rebuild frontend assets.
@@ -318,6 +325,7 @@ Each slice is tested before proceeding. If implementation exposes a non-trivial 
 - `sentry:test` handles internal frames with null file information.
 - Inner command events preserve their existing constructor usage, carry the original input, and expose the same normalized status returned by `Command::execute()`, including isolated-command mutex rejection; Sentry applies Symfony's default throwable-code rule for integer and non-integer exception codes. Scope/breadcrumb ownership covers success, failure, ordinary nesting, duplicate terminal events, direct no-push completion, an unnamed nested completion, and a named completion whose `BeforeHandle` propagation stopped before Sentry, including the non-coroutine unnamed path.
 - A command terminal cannot pop a newer scope left by another Sentry feature. The completion breadcrumb remains on the current scope, ownership is retained on mismatch, and the same command can settle its preserved scope once it becomes current.
+- Scheduled-task success and failure each flush buffered Logs and trace metrics once after finishing their span; duplicate completion and the real Finished-then-Failed sequence do not flush twice. The isolated client emits no transaction event while tracing is disabled.
 - Command breadcrumbs omit raw input while default PII collection is disabled and retain the existing `ArgvInput` string only after explicit PII opt-in.
 - Disabled commands, pre-execute failures, and outer Symfony error-listener rewrites stay outside the inner breadcrumb boundary without duplicate outer listeners.
 - Command completion does not wait for an unrelated accepted send.
@@ -371,7 +379,7 @@ Source changes are expected in:
 - `src/notifications/src/ChannelManager.php`;
 - `src/support/src/Number.php`;
 - `src/console/src/Command.php`, `Events/BeforeHandle.php`, `Events/AfterExecute.php`, and `Scheduling/Schedule.php`;
-- Sentry handlers, both Sentry `LogChannel` factories, config, Hub, console integration, queue feature, transport, worker listener, shared tracking trait, and test command;
+- Sentry handlers, both Sentry `LogChannel` factories, config, Hub, console integration, console scheduling feature, queue feature, transport, worker listener, shared tracking trait, and test command;
 - Telescope core, watcher base, lifecycle trait, `CommandWatcher`, `ScheduleWatcher`, JSON-observing watchers including `ClientRequestWatcher`, `Storage/DatabaseEntriesRepository`, dump watcher, request and schedule UI, and generated distribution;
 - `src/database/src/Eloquent/Model.php` and `Concerns/HasAttributes.php`.
 
