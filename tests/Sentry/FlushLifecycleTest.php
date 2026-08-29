@@ -8,10 +8,15 @@ use Hypervel\Config\Repository;
 use Hypervel\Console\Command;
 use Hypervel\Console\Events\AfterExecute;
 use Hypervel\Console\Events\BeforeHandle;
+use Hypervel\Console\Events\ScheduledTaskFinished;
+use Hypervel\Console\Events\ScheduledTaskStarting;
+use Hypervel\Console\Scheduling\Event as ScheduledEvent;
+use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Queue\WorkerStopReason;
 use Hypervel\Sentry\Features\ConsoleIntegration as ConsoleFeature;
+use Hypervel\Sentry\Features\ConsoleSchedulingFeature;
 use Hypervel\Sentry\Features\QueueFeature;
 use Hypervel\Sentry\Integration;
 use Hypervel\Sentry\SentryConfig;
@@ -189,6 +194,73 @@ class FlushLifecycleTest extends TestCase
 
             $feature->beforeHandle(new BeforeHandle($command, $input));
             $feature->afterExecute(new AfterExecute($command, input: $input, exitCode: 0));
+        });
+    }
+
+    public function testScheduledTaskCompletionFlushesBufferedEventsOnce(): void
+    {
+        $this->assertScheduledTaskFlushesOnce(static function (
+            ConsoleSchedulingFeature $feature,
+            ScheduledEvent $event
+        ): void {
+            $feature->handleScheduledTaskFinished(new ScheduledTaskFinished($event, 0.0));
+        });
+    }
+
+    public function testScheduledTaskFailureFlushesBufferedEventsOnce(): void
+    {
+        $this->assertScheduledTaskFlushesOnce(static function (ConsoleSchedulingFeature $feature): void {
+            $feature->handleScheduledTaskFailed();
+        });
+    }
+
+    public function testDuplicateScheduledTaskCompletionDoesNotFlushAgain(): void
+    {
+        $this->assertScheduledTaskFlushesOnce(static function (
+            ConsoleSchedulingFeature $feature,
+            ScheduledEvent $event
+        ): void {
+            $finished = new ScheduledTaskFinished($event, 0.0);
+
+            $feature->handleScheduledTaskFinished($finished);
+            $feature->handleScheduledTaskFinished($finished);
+        });
+    }
+
+    public function testScheduledTaskCompletionFollowedByFailureFlushesOnce(): void
+    {
+        $this->assertScheduledTaskFlushesOnce(static function (
+            ConsoleSchedulingFeature $feature,
+            ScheduledEvent $event
+        ): void {
+            $feature->handleScheduledTaskFinished(new ScheduledTaskFinished($event, 0.0));
+            $feature->handleScheduledTaskFailed();
+        });
+    }
+
+    /**
+     * Assert that a scheduled task terminal sequence flushes exactly once.
+     *
+     * @param callable(ConsoleSchedulingFeature, ScheduledEvent): void $terminal
+     */
+    private function assertScheduledTaskFlushesOnce(callable $terminal): void
+    {
+        $client = m::mock(ClientInterface::class);
+        $client->shouldReceive('getOptions')
+            ->once()
+            ->andReturn(new Options);
+        $client->shouldReceive('captureEvent')->never();
+        $client->shouldReceive('flush')
+            ->once()
+            ->with(null)
+            ->andReturn(new Result(ResultStatus::success()));
+
+        $feature = new ConsoleSchedulingFeature(m::mock(Container::class));
+        $event = (new ScheduledEvent(m::mock(EventMutex::class)))->description('Scheduled task');
+
+        $this->withHub(new Hub($client), static function () use ($feature, $event, $terminal): void {
+            $feature->handleScheduledTaskStarting(new ScheduledTaskStarting($event));
+            $terminal($feature, $event);
         });
     }
 
