@@ -12,7 +12,10 @@ use Sentry\Transport\HttpTransport;
 use Sentry\Transport\Result;
 use Sentry\Transport\ResultStatus;
 use Sentry\Transport\TransportInterface;
+use Swoole\Runtime;
 use Throwable;
+
+use function Hypervel\Coroutine\run;
 
 class HttpPoolTransport implements TransportInterface
 {
@@ -109,6 +112,12 @@ class HttpPoolTransport implements TransportInterface
      */
     protected function createCoroutine(callable $callback): void
     {
-        Coroutine::create($callback);
+        if (Coroutine::inCoroutine()) {
+            Coroutine::create($callback);
+
+            return;
+        }
+
+        run($callback, Runtime::getHookFlags());
     }
 }

@@ -164,6 +164,10 @@ trait TracksPushedScopesAndSpans
      */
     private function registerCleanup(): void
     {
+        if (! Coroutine::inCoroutine()) {
+            return;
+        }
+
         $cleanupKey = $this->contextKey('cleanup_registered');
 
         if (CoroutineContext::get($cleanupKey, false)) {

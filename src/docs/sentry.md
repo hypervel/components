@@ -142,23 +142,10 @@ Log records sent through this channel are converted into Sentry events. Exceptio
 <a name="sentry-logs"></a>
 ### Sentry Logs
 
-To use Sentry Logs, enable the feature in your `.env` file:
+> [!WARNING]
+> Sentry Logs are currently unsupported in Hypervel. The Sentry SDK shares its buffered log records across application executions, so one execution may flush records collected by another. Keep `SENTRY_ENABLE_LOGS` disabled. The regular `sentry` event channel remains fully supported.
 
-```ini
-SENTRY_ENABLE_LOGS=true
-```
-
-You may then write to the automatically registered `sentry_logs` channel:
-
-```php
-use Hypervel\Support\Facades\Log;
-
-Log::channel('sentry_logs')->info('Order shipped', [
-    'order_id' => $order->id,
-]);
-```
-
-The channel uses `SENTRY_LOG_LEVEL` and falls back directly to your application's `LOG_LEVEL` value. The upstream `SENTRY_LOGS_LEVEL` compatibility alias is not supported.
+The `sentry_logs` channel and its configuration remain available so applications can adopt Sentry Logs when the SDK provides isolated runtime contexts. The channel uses `SENTRY_LOG_LEVEL` and falls back directly to your application's `LOG_LEVEL` value. The upstream `SENTRY_LOGS_LEVEL` compatibility alias is not supported.
 
 <a name="performance-monitoring"></a>
 ## Performance Monitoring
@@ -222,23 +209,10 @@ This middleware can downsample a transaction that was already sampled by your gl
 <a name="metrics"></a>
 ### Metrics
 
-Sentry trace metrics are enabled by default. You may record counters, distributions, and gauges using the Sentry SDK:
+> [!WARNING]
+> Sentry trace metrics are currently unsupported in Hypervel. The Sentry SDK shares its metric aggregators across application executions, so one execution may flush metrics collected by another. This does not affect transaction tracing or spans. Trace metrics follow Sentry's enabled-by-default setting, so you must disable them explicitly.
 
-```php
-use Sentry\Unit;
-
-use function Sentry\traceMetrics;
-
-traceMetrics()->count('orders.created', 1, [
-    'region' => 'eu',
-]);
-
-traceMetrics()->distribution('request.duration', 125, unit: Unit::millisecond());
-
-traceMetrics()->gauge('queue.depth', 42);
-```
-
-You may disable metrics using the `SENTRY_ENABLE_METRICS` environment variable:
+Disable trace metrics using the `SENTRY_ENABLE_METRICS` environment variable:
 
 ```ini
 SENTRY_ENABLE_METRICS=false
@@ -336,9 +310,9 @@ Spotlight may be used without configuring a Sentry DSN.
 <a name="delivery-and-shutdown"></a>
 ## Delivery and Shutdown
 
-Sentry events are sent from detached coroutines using a bounded pool of reusable HTTP transports. Normal requests and queued jobs do not wait for event delivery. If the pool is exhausted during an exception storm, new telemetry is dropped instead of delaying application work.
+Sentry events are sent from detached coroutines using a bounded pool of reusable HTTP transports. Normal requests and queued jobs do not wait for event delivery, and commands use the same non-blocking delivery by default. Sends started outside a coroutine complete before returning so short-lived CLI processes cannot exit while an accepted send is still running. If the pool is exhausted during an exception storm, new telemetry is dropped instead of delaying application work.
 
-Console commands and graceful queue-worker shutdowns perform a bounded drain. Delivery during a worker exit is best effort because Swoole may terminate outstanding reactor work after its shutdown deadline.
+Graceful worker shutdown performs a bounded drain after the worker-exit coordinator is released, then closes the transport pool. Delivery during a worker exit is best effort because Swoole may terminate outstanding reactor work after its shutdown deadline.
 
 The Sentry HTTP timeout and Swoole's worker shutdown timeout are configured independently. Your server's `server.settings.max_wait_time` value should be greater than `SENTRY_HTTP_TIMEOUT`, with enough additional time for other shutdown work:
 

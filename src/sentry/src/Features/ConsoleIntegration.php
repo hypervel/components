@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Features;
 
-use Hypervel\Console\Events as ConsoleEvents;
+use Hypervel\Console\Command;
+use Hypervel\Console\Events\AfterExecute;
+use Hypervel\Console\Events\BeforeHandle;
+use Hypervel\Sentry\Features\Concerns\TracksPushedScopesAndSpans;
 use Hypervel\Sentry\Integration;
 use Sentry\Breadcrumb;
 use Sentry\State\Scope;
@@ -13,6 +16,8 @@ use Symfony\Component\Console\Input\InputInterface;
 
 class ConsoleIntegration extends Feature
 {
+    use TracksPushedScopesAndSpans;
+
     private const string FEATURE_KEY = 'command_info';
 
     public function isApplicable(): bool
@@ -24,18 +29,20 @@ class ConsoleIntegration extends Feature
     {
         $dispatcher = $this->container->make('events');
 
-        $dispatcher->listen(ConsoleEvents\CommandStarting::class, [$this, 'commandStarting']);
-        $dispatcher->listen(ConsoleEvents\CommandFinished::class, [$this, 'commandFinished']);
+        $dispatcher->listen(BeforeHandle::class, [$this, 'beforeHandle']);
+        $dispatcher->listen(AfterExecute::class, [$this, 'afterExecute']);
     }
 
-    public function commandStarting(ConsoleEvents\CommandStarting $event): void
+    public function beforeHandle(BeforeHandle $event): void
     {
-        if (! $event->command) {
+        if (! $command = $event->command->getName()) {
             return;
         }
 
-        Integration::configureScope(static function (Scope $scope) use ($event): void {
-            $scope->setTag('command', $event->command);
+        $this->pushScope();
+
+        Integration::configureScope(static function (Scope $scope) use ($command): void {
+            $scope->setTag('command', $command);
         });
 
         if ($this->isBreadcrumbFeatureEnabled(self::FEATURE_KEY)) {
@@ -43,7 +50,7 @@ class ConsoleIntegration extends Feature
                 Breadcrumb::LEVEL_INFO,
                 Breadcrumb::TYPE_DEFAULT,
                 'artisan.command',
-                'Starting Artisan command: ' . $event->command,
+                'Starting Artisan command: ' . $command,
                 [
                     'input' => $this->extractConsoleCommandInput($event->input),
                 ]
@@ -51,26 +58,38 @@ class ConsoleIntegration extends Feature
         }
     }
 
-    public function commandFinished(ConsoleEvents\CommandFinished $event): void
+    public function afterExecute(AfterExecute $event): void
     {
-        if ($this->isBreadcrumbFeatureEnabled(self::FEATURE_KEY)) {
+        $command = $event->command->getName();
+
+        if ($command && $this->isBreadcrumbFeatureEnabled(self::FEATURE_KEY)) {
             Integration::addBreadcrumb(new Breadcrumb(
                 Breadcrumb::LEVEL_INFO,
                 Breadcrumb::TYPE_DEFAULT,
                 'artisan.command',
-                'Finished Artisan command: ' . $event->command,
+                'Finished Artisan command: ' . $command,
                 [
-                    'exit' => $event->exitCode,
+                    'exit' => $this->resolveExitCode($event),
                     'input' => $this->extractConsoleCommandInput($event->input),
                 ]
             ));
         }
 
-        Integration::drainEvents();
+        $this->maybePopScope();
+    }
 
-        Integration::configureScope(static function (Scope $scope): void {
-            $scope->removeTag('command');
-        });
+    /**
+     * Resolve the command exit code represented by the terminal event.
+     */
+    private function resolveExitCode(AfterExecute $event): ?int
+    {
+        if ($event->throwable === null) {
+            return $event->exitCode;
+        }
+
+        $exitCode = $event->throwable->getCode();
+
+        return is_int($exitCode) && $exitCode !== 0 ? $exitCode : Command::FAILURE;
     }
 
     /**

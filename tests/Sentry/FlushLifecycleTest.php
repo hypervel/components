@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sentry;
 
 use Hypervel\Config\Repository;
-use Hypervel\Console\Events\CommandFinished;
+use Hypervel\Console\Command;
+use Hypervel\Console\Events\AfterExecute;
+use Hypervel\Console\Events\BeforeHandle;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Queue\WorkerStopReason;
@@ -28,7 +30,6 @@ use Sentry\State\Scope;
 use Sentry\Transport\Result;
 use Sentry\Transport\ResultStatus;
 use Symfony\Component\Console\Input\ArrayInput;
-use Symfony\Component\Console\Output\NullOutput;
 
 class FlushLifecycleTest extends TestCase
 {
@@ -155,15 +156,12 @@ class FlushLifecycleTest extends TestCase
         });
     }
 
-    public function testConsoleCompletionPerformsABoundedDrain(): void
+    public function testConsoleCompletionFlushesBufferedEventsWithoutABoundedDrain(): void
     {
         $client = m::mock(ClientInterface::class);
-        $client->shouldReceive('getOptions')
-            ->once()
-            ->andReturn(new Options(['http_timeout' => 1.2]));
         $client->shouldReceive('flush')
             ->once()
-            ->with(2)
+            ->with(null)
             ->andReturn(new Result(ResultStatus::success()));
         $client->shouldReceive('getIntegration')
             ->once()
@@ -186,12 +184,11 @@ class FlushLifecycleTest extends TestCase
         $feature = new ConsoleFeature($container);
 
         $this->withHub(new Hub($client), static function () use ($feature): void {
-            $feature->commandFinished(new CommandFinished(
-                'test:command',
-                new ArrayInput([]),
-                new NullOutput,
-                0,
-            ));
+            $command = new FlushLifecycleCommand;
+            $input = new ArrayInput([]);
+
+            $feature->beforeHandle(new BeforeHandle($command, $input));
+            $feature->afterExecute(new AfterExecute($command, input: $input, exitCode: 0));
         });
     }
 
@@ -214,5 +211,14 @@ class FlushLifecycleTest extends TestCase
         } finally {
             SentrySdk::setCurrentHub($previousHub);
         }
+    }
+}
+
+class FlushLifecycleCommand extends Command
+{
+    protected ?string $signature = 'test:command';
+
+    public function handle(): void
+    {
     }
 }
