@@ -13,7 +13,6 @@ use Hypervel\Http\Request;
 use Hypervel\Http\Response as HypervelResponse;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\Log\Context\Repository as ContextRepository;
-use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Json;
 use Hypervel\Support\Str;
@@ -132,20 +131,6 @@ class RequestWatcher extends Watcher
             $payload,
             Telescope::$hiddenRequestParameters
         );
-    }
-
-    /**
-     * Hide the given parameters.
-     */
-    protected function hideParameters(array $data, array $hidden): array
-    {
-        foreach ($hidden as $parameter) {
-            if (Arr::has($data, $parameter)) {
-                Arr::set($data, $parameter, '********');
-            }
-        }
-
-        return $data;
     }
 
     /**

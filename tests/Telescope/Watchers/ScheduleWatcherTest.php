@@ -13,6 +13,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Waiter;
+use Hypervel\Support\Json;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Storage\EntryModel;
@@ -38,7 +39,7 @@ class ScheduleWatcherTest extends FeatureTestCase
         $entry = $this->loadTelescopeEntries()->first();
 
         $this->assertSame(EntryType::SCHEDULED_TASK, $entry->type);
-        $this->assertSame('command', $entry->content['command']);
+        $this->assertSame('Scheduled command', $entry->content['command']);
         $this->assertSame('command description', $entry->content['description']);
         $this->assertSame('* * * * *', $entry->content['expression']);
         $this->assertSame('UTC', $entry->content['timezone']);
@@ -47,6 +48,35 @@ class ScheduleWatcherTest extends FeatureTestCase
         $this->assertSame('finished', $entry->content['status']);
         $this->assertSame(0, $entry->content['exit_code']);
         $this->assertArrayNotHasKey('exception', $entry->content);
+    }
+
+    public function testScheduleWatcherDoesNotPersistOpaqueCommandLines(): void
+    {
+        $describedTask = $this->makeTask(
+            'artisan report --token=first-secret',
+            output: 'report complete',
+        );
+        $describedTask->description = 'Nightly report';
+        $undescribedTask = $this->makeTask(
+            'API_TOKEN=second-secret artisan import',
+            output: 'import complete',
+        );
+        $undescribedTask->description = '';
+        $events = $this->app->make(Dispatcher::class);
+
+        $events->dispatch(new ScheduledTaskFinished($describedTask, 0.1));
+        $events->dispatch(new ScheduledTaskFinished($undescribedTask, 0.1));
+
+        $entries = $this->loadTelescopeEntries();
+        $commands = $entries->pluck('content.command')->all();
+
+        $this->assertSame(['Scheduled command', 'Scheduled command'], $commands);
+        $this->assertEqualsCanonicalizing(['Nightly report', ''], $entries->pluck('content.description')->all());
+
+        $content = Json::encode($entries->pluck('content')->all());
+
+        $this->assertStringNotContainsString('first-secret', $content);
+        $this->assertStringNotContainsString('second-secret', $content);
     }
 
     public function testFailedScheduleRegistersOneEntry(): void
@@ -60,7 +90,7 @@ class ScheduleWatcherTest extends FeatureTestCase
         $entries = $this->loadTelescopeEntries();
 
         $this->assertCount(1, $entries);
-        $this->assertSame('failed-command', $entries->first()->content['command']);
+        $this->assertSame('Scheduled command', $entries->first()->content['command']);
         $this->assertSame('failed', $entries->first()->content['status']);
         $this->assertNull($entries->first()->content['exit_code']);
         $this->assertSame([
@@ -151,8 +181,12 @@ class ScheduleWatcherTest extends FeatureTestCase
 
         $this->assertCount(2, $entries);
         $this->assertEqualsCanonicalizing(
-            ['first-command', 'second-command'],
+            ['Scheduled command', 'Scheduled command'],
             $entries->pluck('content.command')->all(),
+        );
+        $this->assertEqualsCanonicalizing(
+            ['first-command description', 'second-command description'],
+            $entries->pluck('content.description')->all(),
         );
     }
 
@@ -219,7 +253,7 @@ class ScheduleWatcherTest extends FeatureTestCase
 
         $entry = $query->sole();
 
-        $this->assertStringContainsString('list', $entry->content['command']);
+        $this->assertSame('Scheduled command', $entry->content['command']);
         $this->assertSame('finished', $entry->content['status']);
         $this->assertSame(0, $entry->content['exit_code']);
     }
@@ -232,6 +266,7 @@ class ScheduleWatcherTest extends FeatureTestCase
         ?int $exitCode = 0,
         bool $skippedBecauseOverlapping = false,
         int $outputCalls = 1,
+        ?string $output = null,
     ): Event {
         $task = m::mock(Event::class);
         $task->command = $command;
@@ -244,7 +279,7 @@ class ScheduleWatcherTest extends FeatureTestCase
         $task->shouldReceive('getOutput')
             ->times($outputCalls)
             ->with($this->app)
-            ->andReturn($command . ' output');
+            ->andReturn($output ?? $command . ' output');
 
         return $task;
     }

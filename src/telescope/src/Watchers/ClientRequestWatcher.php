@@ -9,7 +9,6 @@ use GuzzleHttp\TransferStats;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Di\Aop\ProceedingJoinPoint;
 use Hypervel\Http\Client\Request;
-use Hypervel\Support\Arr;
 use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\IncomingEntry;
@@ -422,19 +421,5 @@ class ClientRequestWatcher extends Watcher
             $headers,
             Telescope::$hiddenRequestHeaders
         );
-    }
-
-    /**
-     * Hide the given parameters.
-     */
-    protected function hideParameters(array $data, array $hidden): array
-    {
-        foreach ($hidden as $parameter) {
-            if (Arr::has($data, $parameter)) {
-                Arr::set($data, $parameter, '********');
-            }
-        }
-
-        return $data;
     }
 }

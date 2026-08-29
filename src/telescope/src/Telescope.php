@@ -46,6 +46,8 @@ class Telescope
 
     public const string PURGED_VALUE = 'Purged By Telescope';
 
+    public const string REDACTED_VALUE = '********';
+
     public const string ENTRIES_QUEUE_CONTEXT_KEY = '__telescope.entries_queue';
 
     public const string UPDATES_QUEUE_CONTEXT_KEY = '__telescope.updates_queue';
