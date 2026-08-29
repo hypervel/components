@@ -6,6 +6,7 @@ namespace Hypervel\ApiClient;
 
 use BadMethodCallException;
 use GuzzleHttp\ClientInterface;
+use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\ApiClient\Concerns\HasContext;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Transient;
@@ -177,7 +178,7 @@ class PendingRequest implements Transient
         $this->getRequest()->prependMiddleware(function (callable $handler) use ($middleware): callable {
             $middlewareHandler = $middleware($handler);
 
-            return function (RequestInterface $request, array $options) use ($middlewareHandler) {
+            return function (RequestInterface $request, array $options) use ($middlewareHandler): PromiseInterface {
                 $this->activeRequest = null;
 
                 return $middlewareHandler($request, $options);
@@ -392,7 +393,7 @@ class PendingRequest implements Transient
 
         $request = Http::createPendingRequest();
         $request->prependMiddleware(function (callable $handler) use ($request): callable {
-            return function (RequestInterface $psrRequest, array $options) use ($handler, $request) {
+            return function (RequestInterface $psrRequest, array $options) use ($handler, $request): PromiseInterface {
                 $httpRequest = (new HttpRequest($psrRequest))
                     ->withData($options['hypervel_data'] ?? [])
                     ->setRequestAttributes($request->attributes());
