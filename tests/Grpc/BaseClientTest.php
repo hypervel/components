@@ -699,20 +699,22 @@ class BaseClientTest extends TestCase
         $this->bindFactory(new ClientCallClientFactory(...$engineClients));
         $first = $this->newClient(options: ['connections' => 2]);
         $second = $this->newClient(options: ['connections' => 2]);
+        $calls = [];
 
         for ($index = 0; $index < 3; ++$index) {
-            $first->unary(
+            $calls[] = $first->unary(
                 '/testing.Service/Unary',
                 new StringValue,
                 [StringValue::class, 'decode'],
             );
-            $second->unary(
+            $calls[] = $second->unary(
                 '/testing.Service/Unary',
                 new StringValue,
                 [StringValue::class, 'decode'],
             );
         }
 
+        $this->assertCount(6, $calls);
         $this->assertSame(
             [2, 2, 1, 1],
             array_map(static fn (ClientCallClient $client): int => count($client->sentRequests), $engineClients),

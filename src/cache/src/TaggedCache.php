@@ -8,6 +8,7 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Cache\Events\CacheFlushed;
+use Hypervel\Cache\Events\CacheFlushFailed;
 use Hypervel\Cache\Events\CacheFlushing;
 use Hypervel\Contracts\Cache\Store;
 use UnitEnum;
@@ -76,11 +77,15 @@ abstract class TaggedCache extends Repository
     {
         $this->event(CacheFlushing::class, fn (): CacheFlushing => new CacheFlushing($this->getName()));
 
-        $this->tags->reset();
+        $result = $this->tags->reset();
 
-        $this->event(CacheFlushed::class, fn (): CacheFlushed => new CacheFlushed($this->getName()));
+        if ($result) {
+            $this->event(CacheFlushed::class, fn (): CacheFlushed => new CacheFlushed($this->getName()));
+        } else {
+            $this->event(CacheFlushFailed::class, fn (): CacheFlushFailed => new CacheFlushFailed($this->getName()));
+        }
 
-        return true;
+        return $result;
     }
 
     /**

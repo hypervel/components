@@ -738,4 +738,16 @@ abstract class Call
         $this->writeSemaphoreClosed = true;
         $this->writeSemaphore->close();
     }
+
+    /**
+     * Release unfinished native call resources.
+     */
+    public function __destruct()
+    {
+        try {
+            $this->state->abandonIfIncomplete();
+        } catch (Throwable) {
+            // Destructors cannot safely surface cleanup failures during process shutdown.
+        }
+    }
 }

@@ -226,7 +226,7 @@ class Worker
 
         $this->raiseWorkerStartingEvent($connectionName, $queue, $options);
 
-        $waiter = new Waiter;
+        $waiter = $this->createPopWaiter();
         $concurrent = new Concurrent($options->concurrency);
 
         $this->monitorTimeoutJobs($options);
@@ -342,6 +342,14 @@ class Worker
                 $this->monitorId = null;
             }
         }
+    }
+
+    /**
+     * Create the waiter used to pop jobs.
+     */
+    protected function createPopWaiter(): Waiter
+    {
+        return new Waiter(-1);
     }
 
     /**

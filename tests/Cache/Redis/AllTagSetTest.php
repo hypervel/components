@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache\Redis;
 
 use Hypervel\Cache\Redis\AllTagSet;
+use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 /**
  * Tests for AllTagSet class.
@@ -16,10 +18,7 @@ use Hypervel\Cache\Redis\AllTagSet;
  */
 class AllTagSetTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
-    public function testResetWalksAllTags(): void
+    public function testResetAttemptsEveryTag(): void
     {
         $connection = $this->mockConnection();
         $store = $this->createStore($connection);
@@ -34,15 +33,10 @@ class AllTagSetTest extends RedisCacheTestCase
             ->with('prefix:_all:tag:posts:entries')
             ->andReturn(1);
 
-        $tagSet->reset();
-
-        $this->assertTrue(true);
+        $this->assertTrue($tagSet->reset());
     }
 
-    /**
-     * @test
-     */
-    public function testFlushWalksAllTags(): void
+    public function testFlushAttemptsEveryTag(): void
     {
         $connection = $this->mockConnection();
         $store = $this->createStore($connection);
@@ -57,14 +51,103 @@ class AllTagSetTest extends RedisCacheTestCase
             ->with('prefix:_all:tag:posts:entries')
             ->andReturn(1);
 
-        $tagSet->flush();
-
-        $this->assertTrue(true);
+        $this->assertTrue($tagSet->flush());
     }
 
-    /**
-     * @test
-     */
+    public function testResetAndFlushAttemptEveryTagAndTreatMissingTagsAsSuccess(): void
+    {
+        $connection = $this->mockConnection();
+        $store = $this->createStore($connection);
+        $tagSet = new AllTagSet($store, ['users', 'posts']);
+
+        $connection->shouldReceive('del')
+            ->twice()
+            ->with('prefix:_all:tag:users:entries')
+            ->andReturn(0);
+        $connection->shouldReceive('del')
+            ->twice()
+            ->with('prefix:_all:tag:posts:entries')
+            ->andReturn(1);
+
+        $this->assertTrue($tagSet->reset());
+        $this->assertTrue($tagSet->flush());
+    }
+
+    public function testResetAndFlushUseTheirPerTagExtensionPoints(): void
+    {
+        $tagSet = new class($this->createStore($this->mockConnection()), ['users', 'posts']) extends AllTagSet {
+            public array $flushed = [];
+
+            public array $reset = [];
+
+            public function resetTag(string $name): string
+            {
+                $this->reset[] = $name;
+
+                return $name;
+            }
+
+            public function flushTag(string $name): string
+            {
+                $this->flushed[] = $name;
+
+                return $name;
+            }
+        };
+
+        $this->assertTrue($tagSet->reset());
+        $this->assertTrue($tagSet->flush());
+        $this->assertSame(['users', 'posts'], $tagSet->reset);
+        $this->assertSame(['users', 'posts'], $tagSet->flushed);
+    }
+
+    public function testResetAttemptsLaterTagsAndRethrowsTheFirstException(): void
+    {
+        $firstException = new RuntimeException('users failed');
+        $connection = $this->mockConnection();
+        $tagSet = new AllTagSet($this->createStore($connection), ['users', 'posts', 'comments']);
+
+        $connection->shouldReceive('del')
+            ->once()
+            ->with('prefix:_all:tag:users:entries')
+            ->andThrow($firstException);
+        $connection->shouldReceive('del')
+            ->once()
+            ->with('prefix:_all:tag:posts:entries')
+            ->andThrow(new RuntimeException('posts failed'));
+        $connection->shouldReceive('del')
+            ->once()
+            ->with('prefix:_all:tag:comments:entries')
+            ->andReturn(1);
+
+        try {
+            $tagSet->reset();
+            $this->fail('Expected the first tag reset exception to be rethrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($firstException, $exception);
+        }
+    }
+
+    public function testResetStopsImmediatelyOnCancellation(): void
+    {
+        $cancellation = new CanceledException;
+        $connection = $this->mockConnection();
+        $tagSet = new AllTagSet($this->createStore($connection), ['users', 'posts']);
+
+        $connection->shouldReceive('del')
+            ->once()
+            ->with('prefix:_all:tag:users:entries')
+            ->andThrow($cancellation);
+        $connection->shouldNotReceive('del')->with('prefix:_all:tag:posts:entries');
+
+        try {
+            $tagSet->reset();
+            $this->fail('Expected the tag reset cancellation to be rethrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
     public function testFlushTagCallsResetTag(): void
     {
         $connection = $this->mockConnection();
@@ -83,9 +166,20 @@ class AllTagSetTest extends RedisCacheTestCase
         $this->assertSame('_all:tag:users:entries', $result);
     }
 
-    /**
-     * @test
-     */
+    public function testPerTagOperationsReturnTheIdentifierWhenTheTagDoesNotExist(): void
+    {
+        $connection = $this->mockConnection();
+        $tagSet = new AllTagSet($this->createStore($connection), ['users']);
+
+        $connection->shouldReceive('del')
+            ->twice()
+            ->with('prefix:_all:tag:users:entries')
+            ->andReturn(0);
+
+        $this->assertSame('_all:tag:users:entries', $tagSet->resetTag('users'));
+        $this->assertSame('_all:tag:users:entries', $tagSet->flushTag('users'));
+    }
+
     public function testResetTagDeletesTagAndReturnsId(): void
     {
         $connection = $this->mockConnection();
@@ -102,9 +196,6 @@ class AllTagSetTest extends RedisCacheTestCase
         $this->assertSame('_all:tag:users:entries', $result);
     }
 
-    /**
-     * @test
-     */
     public function testTagIdReturnsCorrectFormat(): void
     {
         $connection = $this->mockConnection();
@@ -115,9 +206,6 @@ class AllTagSetTest extends RedisCacheTestCase
         $this->assertSame('_all:tag:posts:entries', $tagSet->tagId('posts'));
     }
 
-    /**
-     * @test
-     */
     public function testTagKeyReturnsCorrectFormat(): void
     {
         $connection = $this->mockConnection();
@@ -128,9 +216,6 @@ class AllTagSetTest extends RedisCacheTestCase
         $this->assertSame('_all:tag:users:entries', $tagSet->tagKey('users'));
     }
 
-    /**
-     * @test
-     */
     public function testTagIdsReturnsArrayOfTagIdentifiers(): void
     {
         $connection = $this->mockConnection();
@@ -146,9 +231,6 @@ class AllTagSetTest extends RedisCacheTestCase
         ], $tagIds);
     }
 
-    /**
-     * @test
-     */
     public function testGetNamesReturnsOriginalTagNames(): void
     {
         $connection = $this->mockConnection();

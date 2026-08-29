@@ -336,7 +336,7 @@ class CacheManagerTest extends TestCase
         $this->assertSame($eventDispatcher, $repo->getEventDispatcher());
     }
 
-    public function testItRefreshesDispatcherOnAllStores()
+    public function testItRefreshesDispatcherOnAllStores(): void
     {
         $userConfig = [
             'cache' => [
@@ -355,21 +355,47 @@ class CacheManagerTest extends TestCase
 
         $app = $this->getApp($userConfig);
 
+        $originalDispatcher = m::mock(Dispatcher::class);
+        $app->instance(Dispatcher::class, $originalDispatcher);
+
         $cacheManager = new CacheManager($app);
         $repo1 = $cacheManager->store('store_1');
         $repo2 = $cacheManager->store('store_2');
 
-        $this->assertNull($repo1->getEventDispatcher());
-        $this->assertNull($repo2->getEventDispatcher());
+        $this->assertSame($originalDispatcher, $repo1->getEventDispatcher());
+        $this->assertSame($originalDispatcher, $repo2->getEventDispatcher());
 
-        $eventDispatcher = m::mock(Dispatcher::class);
-        $app->instance(Dispatcher::class, $eventDispatcher);
+        $replacementDispatcher = m::mock(Dispatcher::class);
+        $app->instance(Dispatcher::class, $replacementDispatcher);
 
         $cacheManager->refreshEventDispatcher();
 
         $this->assertNotSame($repo1, $repo2);
-        $this->assertSame($eventDispatcher, $repo1->getEventDispatcher());
-        $this->assertSame($eventDispatcher, $repo2->getEventDispatcher());
+        $this->assertSame($replacementDispatcher, $repo1->getEventDispatcher());
+        $this->assertSame($replacementDispatcher, $repo2->getEventDispatcher());
+    }
+
+    public function testRefreshEventDispatcherSkipsCustomRepositoryImplementations(): void
+    {
+        $app = $this->getApp([
+            'cache' => [
+                'stores' => [
+                    'custom' => ['driver' => 'custom'],
+                ],
+            ],
+        ]);
+        $app->instance(Dispatcher::class, m::mock(Dispatcher::class));
+
+        $cacheManager = new CacheManager($app);
+        $repository = m::mock(CacheRepository::class);
+        $repository->shouldNotReceive('setEventDispatcher');
+        $cacheManager->extend('custom', fn () => $repository);
+
+        $this->assertSame($repository, $cacheManager->store('custom'));
+
+        $cacheManager->refreshEventDispatcher();
+
+        $this->assertSame($repository, $cacheManager->store('custom'));
     }
 
     public function testItSetsDefaultDriverChangesGlobalConfig()
@@ -691,7 +717,7 @@ class CacheManagerTest extends TestCase
         $cacheManager->store('session');
     }
 
-    public function testMakesRepositoryWithoutDispatcherWhenEventsDisabled()
+    public function testMakesRepositoryWithoutDispatcherWhenEventsDisabled(): void
     {
         $userConfig = [
             'cache' => [
@@ -708,16 +734,25 @@ class CacheManagerTest extends TestCase
         ];
 
         $app = $this->getApp($userConfig);
-        $app->bind(Dispatcher::class, fn () => new Event);
+        $originalDispatcher = new Event;
+        $app->instance(Dispatcher::class, $originalDispatcher);
 
         $cacheManager = new CacheManager($app);
 
         // The repository will have an event dispatcher
         $repo = $cacheManager->store('my_store');
-        $this->assertNotNull($repo->getEventDispatcher());
+        $this->assertSame($originalDispatcher, $repo->getEventDispatcher());
 
         // This repository will not have an event dispatcher as 'events' is false
         $repoWithoutEvents = $cacheManager->store('my_store_without_events');
+        $this->assertNull($repoWithoutEvents->getEventDispatcher());
+
+        $replacementDispatcher = new Event;
+        $app->instance(Dispatcher::class, $replacementDispatcher);
+
+        $cacheManager->refreshEventDispatcher();
+
+        $this->assertSame($replacementDispatcher, $repo->getEventDispatcher());
         $this->assertNull($repoWithoutEvents->getEventDispatcher());
     }
 

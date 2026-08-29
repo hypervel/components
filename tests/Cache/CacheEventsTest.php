@@ -413,6 +413,22 @@ class CacheEventsTest extends TestCase
         $this->assertTrue($repository->clear());
     }
 
+    public function testEmptyTaggedFlushIsIdempotentAndDispatchesSuccessEvents(): void
+    {
+        $events = [];
+        $repository = new Repository(new ArrayStore, ['store' => 'array']);
+        $repository->setEventDispatcher($this->getCapturingDispatcher($events));
+
+        $this->assertTrue($repository->tags('missing')->flush());
+        $this->assertTrue($repository->tags('missing')->flush());
+        $this->assertSame([
+            CacheFlushing::class,
+            CacheFlushed::class,
+            CacheFlushing::class,
+            CacheFlushed::class,
+        ], array_map(get_class(...), $events));
+    }
+
     public function testFlushLocksTriggersEvents()
     {
         $dispatcher = $this->getDispatcher();

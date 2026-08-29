@@ -522,6 +522,8 @@ $client = new GreeterClient('grpc.example.com:50051', [
 
 Connections are opened when first needed and reused by later calls. In most applications, you should register clients as singletons so each worker can reuse its connections. If you create a short-lived client, call its `close` method when you have finished using it. Calling `close` more than once is safe, but a closed client cannot start another call.
 
+Dropping an unfinished call abandons its native stream and retires the connection so the pool can replace it safely. Finish calls normally when possible so their connections remain reusable.
+
 The client's `target` method returns the target string passed to its constructor.
 
 <a name="generated-style-clients"></a>

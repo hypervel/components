@@ -20,6 +20,7 @@ use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Waiter;
 use Hypervel\Http\Request;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\Events\JobAttempted;
@@ -45,6 +46,7 @@ use Hypervel\Queue\WorkerStopReason;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use ReflectionProperty;
 use RuntimeException;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\HttpFoundation\Response;
@@ -288,6 +290,14 @@ class QueueWorkerTest extends TestCase
         $this->assertSame(0, $status);
 
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessing::class))->once();
+    }
+
+    public function testDefaultPopWaiterIsUnbounded(): void
+    {
+        $waiter = $this->getWorker()->createPopWaiterForTest();
+        $popTimeout = new ReflectionProperty(Waiter::class, 'popTimeout');
+
+        $this->assertSame(-1.0, $popTimeout->getValue($waiter));
     }
 
     public function testTimeoutZeroDoesNotCreateADeadline(): void
@@ -1377,6 +1387,11 @@ class InsomniacWorker extends Worker
     public function registerCoroutineJobForTest(Job $job, WorkerOptions $options): string
     {
         return parent::registerCoroutineJob($job, $options);
+    }
+
+    public function createPopWaiterForTest(): Waiter
+    {
+        return parent::createPopWaiter();
     }
 
     public function runningJobExpiryForTest(string $jobId): ?float

@@ -31,6 +31,7 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
 
 class CacheStackStoreTagsTest extends TestCase
 {
@@ -512,11 +513,78 @@ class CacheStackStoreTagsTest extends TestCase
 
         $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
         $taggedCache->shouldReceive('getTags')->once()->andReturn($tagSet);
-        $tagSet->shouldReceive('flush')->once();
+        $tagSet->shouldReceive('flush')->once()->andReturnTrue();
 
         $stack = new StackStore([$this->nonTaggableStore(), $taggable]);
 
         $this->assertTrue($stack->tags(['tag'])->clear());
+    }
+
+    public function testClearFlushesEveryTaggableLayerAndAggregatesFalseResults(): void
+    {
+        $firstTaggable = $this->anyModeTaggableStore();
+        $secondTaggable = $this->anyModeTaggableStore();
+        $firstTaggedCache = m::mock(TaggedCache::class);
+        $secondTaggedCache = m::mock(TaggedCache::class);
+        $firstTagSet = m::mock(TagSet::class);
+        $secondTagSet = m::mock(TagSet::class);
+
+        $firstTaggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($firstTaggedCache);
+        $secondTaggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($secondTaggedCache);
+        $firstTaggedCache->shouldReceive('getTags')->once()->andReturn($firstTagSet);
+        $secondTaggedCache->shouldReceive('getTags')->once()->andReturn($secondTagSet);
+        $firstTagSet->shouldReceive('flush')->once()->andReturnFalse();
+        $secondTagSet->shouldReceive('flush')->once()->andReturnTrue();
+
+        $stack = new StackStore([$firstTaggable, $secondTaggable]);
+
+        $this->assertFalse($stack->tags(['tag'])->clear());
+    }
+
+    public function testTagSetFlushAttemptsEveryLayerAndPreservesTheFirstException(): void
+    {
+        $firstException = new RuntimeException('first tag flush failed');
+        $firstTaggable = $this->anyModeTaggableStore();
+        $secondTaggable = $this->anyModeTaggableStore();
+        $firstTaggedCache = m::mock(TaggedCache::class);
+        $secondTaggedCache = m::mock(TaggedCache::class);
+        $firstTagSet = m::mock(TagSet::class);
+        $secondTagSet = m::mock(TagSet::class);
+
+        $firstTaggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($firstTaggedCache);
+        $secondTaggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($secondTaggedCache);
+        $firstTaggedCache->shouldReceive('getTags')->once()->andReturn($firstTagSet);
+        $secondTaggedCache->shouldReceive('getTags')->once()->andReturn($secondTagSet);
+        $firstTagSet->shouldReceive('flush')->once()->andThrow($firstException);
+        $secondTagSet->shouldReceive('flush')->once()->andThrow(new RuntimeException('second tag flush failed'));
+
+        try {
+            (new StackStore([$firstTaggable, $secondTaggable]))->tags(['tag'])->getTags()->flush();
+            $this->fail('Expected the first tag flush exception to be rethrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($firstException, $exception);
+        }
+    }
+
+    public function testTagSetFlushStopsImmediatelyOnCancellation(): void
+    {
+        $cancellation = new CanceledException;
+        $firstTaggable = $this->anyModeTaggableStore();
+        $secondTaggable = $this->anyModeTaggableStore();
+        $firstTaggedCache = m::mock(TaggedCache::class);
+        $firstTagSet = m::mock(TagSet::class);
+
+        $firstTaggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($firstTaggedCache);
+        $firstTaggedCache->shouldReceive('getTags')->once()->andReturn($firstTagSet);
+        $firstTagSet->shouldReceive('flush')->once()->andThrow($cancellation);
+        $secondTaggable->shouldNotReceive('tags');
+
+        try {
+            (new StackStore([$firstTaggable, $secondTaggable]))->tags(['tag'])->getTags()->flush();
+            $this->fail('Expected the tag flush cancellation to be rethrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     private function anyModeTaggableStore(): TaggableStore|m\MockInterface

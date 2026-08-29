@@ -562,6 +562,8 @@ For local in-memory caching, use the [Swoole table cache](/docs/{{version}}/cach
 
 The Redis cache store supports two tag modes. The default `all` mode follows Laravel's classic tagged-cache behavior. In `any` mode, tags are invalidation indexes: retrieve values by their plain keys, and flushing any one assigned tag removes the value. Review the [Redis tag mode documentation](/docs/{{version}}/cache#redis-tag-modes) before changing `REDIS_CACHE_TAG_MODE`.
 
+Custom cache tag sets must declare `TagSet::reset(): bool` and `TagSet::flush(): bool`. Hypervel uses these results to report a rejected tagged flush instead of returning unconditional success. Custom `VersionedTagSet` subclasses should override `writeTagId()` for bulk reset persistence; `resetTag()` keeps returning the generated identifier.
+
 <a name="sessions"></a>
 ### Sessions
 

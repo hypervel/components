@@ -370,10 +370,13 @@ class ConsoleApplicationResolveTest extends TestCase
     // Application::call()
     // ---------------------------------------------------------------
 
-    public function testCallStringAndArrayInputProduceSameResult()
+    public function testCallStringAndArrayInputProduceSameResult(): void
     {
         $app = $this->createApp(
-            m::mock(Application::class, ['version' => '1.0']),
+            m::mock(Application::class, [
+                'version' => '1.0',
+                'runningInConsole' => false,
+            ]),
         );
 
         $codeOfCallingArrayInput = $app->call('help', [

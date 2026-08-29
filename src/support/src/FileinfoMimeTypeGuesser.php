@@ -59,7 +59,7 @@ class FileinfoMimeTypeGuesser
                 fn () => new finfo(FILEINFO_MIME_TYPE, $this->magicFile)
             );
         } catch (Exception $e) {
-            throw new RuntimeException($e->getMessage());
+            throw new RuntimeException($e->getMessage(), previous: $e);
         }
         try {
             $mimeType = $finfo->file($path) ?: null;

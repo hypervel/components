@@ -354,6 +354,19 @@ final class StreamState
     }
 
     /**
+     * Release an incomplete native stream without publishing a result.
+     */
+    public function abandonIfIncomplete(): void
+    {
+        if ($this->isComplete()) {
+            return;
+        }
+
+        $this->releaseBuffers();
+        $this->abandon();
+    }
+
+    /**
      * Determine whether retry pushback was present.
      */
     public function hasRetryPushback(): bool
