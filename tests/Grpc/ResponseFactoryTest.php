@@ -28,6 +28,7 @@ use Iterator;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\Response;
 
 class ResponseFactoryTest extends TestCase
@@ -131,6 +132,20 @@ class ResponseFactoryTest extends TestCase
         $this->assertSame([], $response->trailers());
     }
 
+    public function testPreservesCancellationWhilePrimingAStream(): void
+    {
+        [$factory] = $this->factory();
+        $cancellation = new CanceledException;
+        $messages = static function () use ($cancellation): iterable {
+            throw $cancellation;
+            yield;
+        };
+
+        $this->expectExceptionObject($cancellation);
+
+        $factory->make($this->request(serverStreaming: true), $messages());
+    }
+
     #[DataProvider('throwingIteratorMethods')]
     public function testMapsCustomIteratorPrimingFailuresWithinTheGeneratorRewind(string $method): void
     {
@@ -213,6 +228,21 @@ class ResponseFactoryTest extends TestCase
         $this->assertSame('one', $trailers['x-node']);
         $this->assertSame('conflict', $trailers['x-failure']);
         $this->assertSame('-1', $trailers['grpc-retry-pushback-ms']);
+    }
+
+    public function testPreservesCancellationWhileAdvancingAStream(): void
+    {
+        [$factory] = $this->factory();
+        $cancellation = new CanceledException;
+        $messages = static function () use ($cancellation): iterable {
+            yield new GPBEmpty;
+            throw $cancellation;
+        };
+        $response = $factory->make($this->request(serverStreaming: true), $messages());
+
+        $this->expectExceptionObject($cancellation);
+
+        $response->streamTo(static fn (): bool => true);
     }
 
     public function testReportsInvalidUnaryAndStreamedServiceValues(): void

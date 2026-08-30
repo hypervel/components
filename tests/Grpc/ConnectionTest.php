@@ -27,6 +27,7 @@ use Hypervel\Grpc\StatusCode;
 use Hypervel\Tests\TestCase;
 use LogicException;
 use ReflectionProperty;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 use function Hypervel\Coroutine\parallel;
@@ -107,6 +108,69 @@ class ConnectionTest extends TestCase
         $this->assertFalse(
             (new ReflectionProperty(Connection::class, 'receiving'))->getValue($connection),
         );
+        $this->assertNull(
+            (new ReflectionProperty(Connection::class, 'receiverCoroutineId'))->getValue($connection),
+        );
+    }
+
+    public function testReceiverPublishesItsIdentityBeforeWaitingForTransport(): void
+    {
+        $client = new ConnectionTestClient;
+        $connection = $this->connection(new ConnectionTestClientFactory($client));
+        $receiverCoroutineId = null;
+        $client->receiveUsing(function () use ($connection, &$receiverCoroutineId): void {
+            $receiverCoroutineId = (new ReflectionProperty(Connection::class, 'receiverCoroutineId'))
+                ->getValue($connection);
+
+            $this->assertSame(Coroutine::id(), $receiverCoroutineId);
+        });
+
+        $this->start($connection, $this->request(), $this->state());
+
+        $this->assertIsInt($receiverCoroutineId);
+    }
+
+    public function testParentCancellationDuringReceiverCreationPreservesChildOwnership(): void
+    {
+        $client = new ConnectionTestClient;
+        $connection = $this->connection(new ConnectionTestClientFactory($client));
+        $parentCoroutineId = null;
+        $parentCancellation = null;
+        $receiverBlocker = new Channel(1);
+        $client->receiveUsing(static function () use (&$parentCoroutineId, $receiverBlocker): void {
+            if (is_int($parentCoroutineId)) {
+                Coroutine::cancelById($parentCoroutineId, throwException: true);
+            }
+
+            $receiverBlocker->pop();
+        });
+
+        $parent = Coroutine::create(function () use (
+            $connection,
+            &$parentCoroutineId,
+            &$parentCancellation,
+        ): void {
+            $parentCoroutineId = Coroutine::id();
+
+            try {
+                $this->start($connection, $this->request(), $this->state());
+            } catch (CanceledException $exception) {
+                $parentCancellation = $exception;
+            }
+        });
+
+        Coroutine::join([$parent->getId()]);
+
+        $this->assertInstanceOf(CanceledException::class, $parentCancellation);
+        $this->assertTrue((new ReflectionProperty(Connection::class, 'receiving'))->getValue($connection));
+        $this->assertIsInt(
+            (new ReflectionProperty(Connection::class, 'receiverCoroutineId'))->getValue($connection),
+        );
+
+        $connection->close();
+
+        $this->assertTrue($connection->isClosed());
+        $this->assertFalse((new ReflectionProperty(Connection::class, 'receiving'))->getValue($connection));
         $this->assertNull(
             (new ReflectionProperty(Connection::class, 'receiverCoroutineId'))->getValue($connection),
         );
@@ -409,6 +473,33 @@ class ConnectionTest extends TestCase
         $this->assertSame(1, $client->closeCount);
     }
 
+    public function testNativeSendCancellationTerminatesTheConnectionAndPreservesTheCaller(): void
+    {
+        $cancellation = new CanceledException;
+        $client = new ConnectionTestClient;
+        $client->sendUsing(static function () use ($cancellation): int {
+            throw $cancellation;
+        });
+        $connection = $this->connection(new ConnectionTestClientFactory($client));
+        $state = $this->state();
+
+        try {
+            $this->start($connection, $this->request(), $state);
+            $this->fail('Expected cancellation to propagate.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertTrue($connection->isClosed());
+
+        try {
+            $state->status();
+            $this->fail('Expected the uncertain stream to fail with its connection.');
+        } catch (ConnectionException $exception) {
+            $this->assertSame($cancellation, $exception->getPrevious());
+        }
+    }
+
     public function testNativeWriteFailureAtTheDeadlineReportsDeadlineAndTerminatesTheConnection(): void
     {
         $now = 0;
@@ -441,6 +532,34 @@ class ConnectionTest extends TestCase
         $this->assertSame(StatusCode::DeadlineExceeded, $state->status()->code());
         $this->assertTrue($connection->isClosed());
         $this->assertSame(1, $client->closeCount);
+    }
+
+    public function testNativeWriteCancellationTerminatesTheConnectionAndPreservesTheCaller(): void
+    {
+        $cancellation = new CanceledException;
+        $client = new ConnectionTestClient;
+        $connection = $this->connection(new ConnectionTestClientFactory($client));
+        $state = $this->state();
+        $this->start($connection, $this->request(pipeline: true), $state);
+        $client->writeUsing(static function () use ($cancellation): void {
+            throw $cancellation;
+        });
+
+        try {
+            $connection->write($state, 'frame', false, Deadline::fromTimeout(null));
+            $this->fail('Expected cancellation to propagate.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertTrue($connection->isClosed());
+
+        try {
+            $state->status();
+            $this->fail('Expected the uncertain stream to fail with its connection.');
+        } catch (ConnectionException $exception) {
+            $this->assertSame($cancellation, $exception->getPrevious());
+        }
     }
 
     public function testSerializesWholeSendAndWriteOperations(): void
@@ -928,6 +1047,30 @@ class ConnectionTest extends TestCase
         $connection->write($active, 'frame', false, Deadline::fromTimeout(null));
     }
 
+    public function testNativeCloseCancellationPreservesTheCallerAfterTerminalCleanup(): void
+    {
+        $cancellation = new CanceledException;
+        $client = new ConnectionTestClient;
+        $client->closeUsing(static function () use ($cancellation): void {
+            throw $cancellation;
+        });
+        $connection = $this->connection(new ConnectionTestClientFactory($client));
+        $state = $this->state();
+        $this->start($connection, $this->request(), $state);
+
+        try {
+            $connection->close();
+            $this->fail('Expected cancellation to propagate.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertTrue($connection->isClosed());
+
+        $this->expectException(ConnectionException::class);
+        $state->status();
+    }
+
     private function start(
         Connection $connection,
         Request $request,
@@ -1083,6 +1226,12 @@ class ConnectionTestClient implements ClientInterface
     /** @var null|Closure(): void */
     private ?Closure $writeCallback = null;
 
+    /** @var null|Closure(): void */
+    private ?Closure $receiveCallback = null;
+
+    /** @var null|Closure(): void */
+    private ?Closure $closeCallback = null;
+
     public function __construct()
     {
         $this->events = new Channel(128);
@@ -1096,6 +1245,16 @@ class ConnectionTestClient implements ClientInterface
     public function writeUsing(Closure $callback): void
     {
         $this->writeCallback = $callback;
+    }
+
+    public function receiveUsing(Closure $callback): void
+    {
+        $this->receiveCallback = $callback;
+    }
+
+    public function closeUsing(Closure $callback): void
+    {
+        $this->closeCallback = $callback;
     }
 
     public function respond(ResponseInterface $response): void
@@ -1138,6 +1297,12 @@ class ConnectionTestClient implements ClientInterface
 
     public function recv(float $timeout = 0): ?ResponseInterface
     {
+        if ($this->receiveCallback !== null) {
+            $callback = $this->receiveCallback;
+            $this->receiveCallback = null;
+            $callback();
+        }
+
         $event = $this->events->pop($timeout);
 
         if ($event === false || $event === 'poll') {
@@ -1186,6 +1351,8 @@ class ConnectionTestClient implements ClientInterface
     public function close(): void
     {
         ++$this->closeCount;
+        ($this->closeCallback ?? static function (): void {
+        })();
         $this->connected = false;
 
         foreach (array_keys($this->streams) as $streamId) {

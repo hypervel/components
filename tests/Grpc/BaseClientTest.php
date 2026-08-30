@@ -33,6 +33,7 @@ use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use ReflectionMethod;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 use function Hypervel\Coroutine\parallel;
@@ -841,6 +842,42 @@ class BaseClientTest extends TestCase
         );
     }
 
+    public function testCloseDrainsEveryConnectionAndPreservesTheFirstCancellation(): void
+    {
+        $firstCancellation = new CanceledException;
+        $secondCancellation = new CanceledException;
+        $engineClients = [
+            $this->clientThatFailsToClose(new LogicException('ordinary close failure')),
+            $this->clientThatFailsToClose($firstCancellation),
+            $this->clientThatFailsToClose($secondCancellation),
+            new ClientCallClient,
+        ];
+        $client = $this->client(
+            new ClientCallClientFactory(...$engineClients),
+            ['connections' => count($engineClients)],
+        );
+
+        foreach ($engineClients as $_) {
+            $client->unary(
+                '/testing.Service/Unary',
+                new StringValue,
+                [StringValue::class, 'decode'],
+            );
+        }
+
+        try {
+            $client->close();
+            $this->fail('Expected cancellation to propagate after every connection was closed.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($firstCancellation, $exception);
+        }
+
+        $this->assertSame(
+            [1, 1, 1, 1],
+            array_map(static fn (ClientCallClient $engineClient): int => $engineClient->closeCount, $engineClients),
+        );
+    }
+
     public function testGeneratedRequestMethodsRetainTheirProtectedNamesAndArgumentOrder(): void
     {
         foreach ([
@@ -946,6 +983,26 @@ class BaseClientTest extends TestCase
     private function serialized(string $value): string
     {
         return (new StringValue)->setValue($value)->serializeToString();
+    }
+
+    /**
+     * Create an engine client that fails after completing native close cleanup.
+     */
+    private function clientThatFailsToClose(Throwable $failure): ClientCallClient
+    {
+        return new class($failure) extends ClientCallClient {
+            public function __construct(private readonly Throwable $failure)
+            {
+                parent::__construct();
+            }
+
+            public function close(): void
+            {
+                parent::close();
+
+                throw $this->failure;
+            }
+        };
     }
 }
 

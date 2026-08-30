@@ -8,8 +8,10 @@ use Carbon\CarbonInterval;
 use Closure;
 use Google\Protobuf\Internal\Message;
 use Google\Protobuf\StringValue;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Engine\Exceptions\HttpClientException;
 use Hypervel\Engine\Http\V2\Response;
+use Hypervel\Grpc\Client\RetryBackoff;
 use Hypervel\Grpc\Client\RetryPolicy;
 use Hypervel\Grpc\Client\StreamState;
 use Hypervel\Grpc\Client\UnaryCall;
@@ -22,7 +24,10 @@ use Hypervel\Grpc\Status;
 use Hypervel\Grpc\StatusCode;
 use Hypervel\Support\Sleep;
 use Hypervel\Tests\TestCase;
+use Random\Engine\Mt19937;
+use Random\Randomizer;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -61,6 +66,94 @@ class UnaryCallTest extends TestCase
         $this->assertSame($results['first'], $results['second']);
         $this->assertSame(1, $deserializations);
         $this->assertSame($results['first'], $call->wait());
+    }
+
+    public function testCanceledUnaryDeserializationCanBeResumedByAnotherWaiter(): void
+    {
+        $deadline = Deadline::fromTimeout(null);
+        $state = $this->state($deadline);
+        $this->respondSuccessfully($state, 'hello');
+        $cancellation = new CanceledException;
+        $deserializations = 0;
+        $call = $this->call(
+            $state,
+            $deadline,
+            static function (string $payload) use (&$deserializations, $cancellation): Message {
+                ++$deserializations;
+
+                if ($deserializations === 1) {
+                    throw $cancellation;
+                }
+
+                $message = new StringValue;
+                $message->mergeFromString($payload);
+
+                return $message;
+            },
+        );
+
+        try {
+            $call->wait();
+            $this->fail('Expected cancellation to propagate.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame('hello', $call->wait()->getValue());
+        $this->assertSame(2, $deserializations);
+    }
+
+    public function testCancellingOneMetadataWaiterDoesNotFailTheCall(): void
+    {
+        $deadline = Deadline::fromTimeout(null);
+        $state = $this->state($deadline);
+        $call = $this->call($state, $deadline);
+        $cancellation = null;
+        $waiter = EngineCoroutine::create(function () use ($call, &$cancellation): void {
+            try {
+                $call->metadata();
+            } catch (CanceledException $exception) {
+                $cancellation = $exception;
+            }
+        });
+
+        try {
+            $this->assertTrue(EngineCoroutine::cancelById($waiter->getId(), throwException: true));
+            $this->assertInstanceOf(CanceledException::class, $cancellation);
+            $this->assertFalse($state->isComplete());
+        } finally {
+            if (EngineCoroutine::exists($waiter->getId())) {
+                EngineCoroutine::cancelById($waiter->getId(), throwException: true);
+            }
+        }
+
+        $this->respondSuccessfully($state, 'hello');
+
+        $this->assertSame('hello', $call->wait()->getValue());
+    }
+
+    public function testCancelPublishesOneStableCanceledOutcome(): void
+    {
+        $deadline = Deadline::fromTimeout(null);
+        $state = $this->state($deadline);
+        $abandonments = 0;
+        $state->onAbandon(static function () use (&$abandonments): void {
+            ++$abandonments;
+        });
+        $call = $this->call($state, $deadline);
+
+        $call->cancel();
+        $call->cancel();
+
+        $this->assertSame(StatusCode::Cancelled, $call->status()->code());
+        $this->assertSame(1, $abandonments);
+
+        try {
+            $call->wait();
+            $this->fail('Expected the canceled call to fail.');
+        } catch (RpcException $exception) {
+            $this->assertSame(StatusCode::Cancelled, $exception->status()->code());
+        }
     }
 
     public function testWaitRejectsAResponseWithoutAMessage(): void
@@ -196,6 +289,62 @@ class UnaryCallTest extends TestCase
         $this->assertInstanceOf(StringValue::class, $response);
         $this->assertSame('retried', $response->getValue());
         $this->assertSame([1], $previousAttempts);
+    }
+
+    public function testCancellationBeforeRetryPublicationRestoresTheBackoffSequence(): void
+    {
+        $deadline = Deadline::fromTimeout(null);
+        $first = $this->state($deadline);
+        $first->handle($this->trailersOnly(status: StatusCode::Unavailable));
+        $policy = new RetryPolicy(
+            maxAttempts: 2,
+            initialBackoff: 1,
+            maxBackoff: 4,
+            backoffMultiplier: 2,
+        );
+        $backoff = new RetryBackoff($policy, new Randomizer(new Mt19937(1234)));
+        $cancellation = new CanceledException;
+        $sleepDurations = [];
+        $attempts = 0;
+
+        Sleep::fake();
+        Sleep::whenFakingSleep(static function (CarbonInterval $duration) use (
+            &$sleepDurations,
+            $cancellation,
+        ): void {
+            $sleepDurations[] = $duration->totalMicroseconds / 1_000_000;
+
+            if (count($sleepDurations) === 1) {
+                throw $cancellation;
+            }
+        });
+
+        $call = $this->call(
+            $first,
+            $deadline,
+            retryPolicy: $policy,
+            attemptFactory: function () use (&$attempts, $deadline): StreamState {
+                ++$attempts;
+                $state = $this->state($deadline);
+                $this->respondSuccessfully($state, 'retried');
+
+                return $state;
+            },
+            retryBackoff: $backoff,
+        );
+
+        try {
+            $call->status();
+            $this->fail('Expected cancellation to propagate.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame(StatusCode::Ok, $call->status()->code());
+        $this->assertSame(1, $attempts);
+        $this->assertCount(2, $sleepDurations);
+        $this->assertEqualsWithDelta(1.1696228108216047, $sleepDurations[0], 1e-6);
+        $this->assertEqualsWithDelta(0.933737924471334, $sleepDurations[1], 1e-6);
     }
 
     public function testConcurrentObserversCreateOnlyOneRetryAttempt(): void
@@ -423,6 +572,7 @@ class UnaryCallTest extends TestCase
         array|callable $deserialize = [StringValue::class, 'decode'],
         ?RetryPolicy $retryPolicy = null,
         ?Closure $attemptFactory = null,
+        ?RetryBackoff $retryBackoff = null,
     ): UnaryCall {
         return new UnaryCall(
             $state,
@@ -432,6 +582,7 @@ class UnaryCallTest extends TestCase
             $deadline,
             $retryPolicy,
             $attemptFactory,
+            $retryBackoff,
         );
     }
 
