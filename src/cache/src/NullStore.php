@@ -38,7 +38,7 @@ class NullStore extends TaggableStore implements CanFlushLocks, LockProvider
     /**
      * Decrement the value of an item in the cache.
      */
-    public function decrement(string $key, mixed $value = 1): bool
+    public function decrement(string $key, int $value = 1): bool
     {
         return false;
     }

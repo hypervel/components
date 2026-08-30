@@ -41,6 +41,17 @@ class CacheFailoverStoreTest extends TestCase
         $this->assertSame([['key', 'stdClass']], $handled);
     }
 
+    public function testCountersPreserveEveryContractValidResult(): void
+    {
+        $backingStore = m::mock(Store::class);
+        $backingStore->expects('increment')->with('increment', 2)->andReturnTrue();
+        $backingStore->expects('decrement')->with('decrement', 3)->andReturnFalse();
+        $store = $this->makeFailoverStore(['cache' => $backingStore]);
+
+        $this->assertTrue($store->increment('increment', 2));
+        $this->assertFalse($store->decrement('decrement', 3));
+    }
+
     public function testLockFlushCapabilityRequiresAtLeastOneLockProvider(): void
     {
         $store = $this->makeFailoverStore([

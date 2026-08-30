@@ -99,7 +99,44 @@ class BenchmarkCommandTest extends TestCase
         $command->setOutput(new OutputStyle(new ArrayInput([]), $output));
         $command->exposedDisplayMemoryError(new BenchmarkMemoryException(1, 2, 50), 'redis');
 
-        $this->assertStringContainsString('redis-cli KEYS "shared:', $output->fetch());
+        $outputText = $output->fetch();
+
+        $this->assertStringContainsString("redis-cli --scan --pattern 'shared:", $outputText);
+        $this->assertStringContainsString('| xargs -r -n 1000 redis-cli UNLINK', $outputText);
+        $this->assertStringNotContainsString('redis-cli KEYS', $outputText);
+    }
+
+    public function testInvalidTagModeFailsBeforeBenchmarkSetup(): void
+    {
+        $command = new BenchmarkCommand;
+        $command->setHypervel($this->app);
+        $output = new BufferedOutput;
+
+        $this->assertSame(Command::FAILURE, $command->run(
+            new ArrayInput(['--tag-mode' => 'invalid']),
+            $output,
+        ));
+        $this->assertStringContainsString(
+            'Invalid tag mode: invalid. Available: any, all',
+            $output->fetch(),
+        );
+    }
+
+    public function testValidTagModeIsPassedThroughAsAnEnum(): void
+    {
+        $this->mockFullCacheStore('redis');
+        $context = $this->mockBenchmarkContext();
+        $context->expects('getStoreInstance')->andReturn(m::mock(RedisStore::class));
+        $command = $this->createFullCommand($context);
+
+        $this->assertSame(Command::SUCCESS, $command->run(new ArrayInput([
+            '--scale' => 'small',
+            '--runs' => '1',
+            '--tag-mode' => 'any',
+            '--force' => true,
+            '--store' => 'redis',
+        ]), new NullOutput));
+        $this->assertSame(TagMode::Any, $command->tagMode);
     }
 
     public function testSuccessfulBenchmarkCleansUpOnce(): void
@@ -336,6 +373,8 @@ class FullBenchmarkCommand extends BenchmarkCommand
 {
     public bool $comparisonRan = false;
 
+    public ?TagMode $tagMode = null;
+
     /**
      * Create a benchmark command with controlled execution behavior.
      */
@@ -364,5 +403,15 @@ class FullBenchmarkCommand extends BenchmarkCommand
         if ($this->comparisonException !== null) {
             throw $this->comparisonException;
         }
+    }
+
+    /**
+     * Capture the parsed tag mode without running benchmark scenarios.
+     */
+    protected function runSuiteWithRuns(TagMode $tagMode, BenchmarkContext $context, int $runs, bool $returnResults = false): array
+    {
+        $this->tagMode = $tagMode;
+
+        return [];
     }
 }

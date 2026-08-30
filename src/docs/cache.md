@@ -380,6 +380,8 @@ Cache::decrement('key');
 Cache::decrement('key', $amount);
 ```
 
+When using a Redis cache store with PhpRedis serialization, atomic counters require either `Redis::SERIALIZER_NONE` or the PhpRedis 6.2+ `pack_ignore_numbers` option. See the [PhpRedis serialization documentation](/docs/{{version}}/redis#phpredis-serialization) for configuration details.
+
 <a name="retrieve-store"></a>
 #### Retrieve and Store
 

@@ -11,9 +11,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
  */
 class DecrementTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testDecrementWithTagsInPipelineMode(): void
     {
         $connection = $this->mockConnection();
@@ -46,9 +43,6 @@ class DecrementTest extends RedisCacheTestCase
         $this->assertSame(5, $result);
     }
 
-    /**
-     * @test
-     */
     public function testDecrementWithCustomValue(): void
     {
         $connection = $this->mockConnection();
@@ -79,9 +73,6 @@ class DecrementTest extends RedisCacheTestCase
         $this->assertSame(-5, $result);
     }
 
-    /**
-     * @test
-     */
     public function testDecrementWithMultipleTags(): void
     {
         $connection = $this->mockConnection();
@@ -117,9 +108,6 @@ class DecrementTest extends RedisCacheTestCase
         $this->assertSame(9, $result);
     }
 
-    /**
-     * @test
-     */
     public function testDecrementWithEmptyTags(): void
     {
         $connection = $this->mockConnection();
@@ -146,27 +134,21 @@ class DecrementTest extends RedisCacheTestCase
         $this->assertSame(-1, $result);
     }
 
-    /**
-     * @test
-     */
     public function testDecrementInClusterModeUsesSequentialCommands(): void
     {
         [$store, , $connection] = $this->createClusterStore();
 
-        // Should NOT use pipeline in cluster mode
         $connection->shouldNotReceive('pipeline');
 
-        // Sequential ZADD NX
-        $connection->shouldReceive('zadd')
+        $connection->expects('decrby')
+            ->with('prefix:counter', 1)
+            ->andReturn(0)
+            ->ordered();
+        $connection->expects('zadd')
             ->once()
             ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'counter')
-            ->andReturn(1);
-
-        // Sequential DECRBY
-        $connection->shouldReceive('decrby')
-            ->once()
-            ->with('prefix:counter', 1)
-            ->andReturn(0);
+            ->andReturn(1)
+            ->ordered();
 
         $result = $store->allTagOps()->decrement()->execute(
             'counter',
@@ -177,9 +159,20 @@ class DecrementTest extends RedisCacheTestCase
         $this->assertSame(0, $result);
     }
 
-    /**
-     * @test
-     */
+    public function testDecrementInClusterModeDoesNotPublishTagsWhenTheCounterFails(): void
+    {
+        [$store, , $connection] = $this->createClusterStore();
+
+        $connection->expects('decrby')->with('prefix:counter', 1)->andReturnFalse();
+        $connection->shouldNotReceive('zadd');
+
+        $this->assertFalse($store->allTagOps()->decrement()->execute(
+            'counter',
+            1,
+            ['_all:tag:users:entries']
+        ));
+    }
+
     public function testDecrementReturnsFalseOnPipelineFailure(): void
     {
         $connection = $this->mockConnection();

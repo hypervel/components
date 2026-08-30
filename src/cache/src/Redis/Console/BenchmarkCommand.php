@@ -103,11 +103,12 @@ class BenchmarkCommand extends Command
             return self::FAILURE;
         }
 
-        // Validate tag mode if provided
         $tagModeOption = $this->option('tag-mode');
+        $tagMode = is_string($tagModeOption) ? TagMode::tryFrom($tagModeOption) : null;
 
-        if ($tagModeOption !== null && ! in_array($tagModeOption, ['all', 'any'], true)) {
-            $this->error("Invalid tag mode: {$tagModeOption}. Available: all, any");
+        if ($tagModeOption !== null && $tagMode === null) {
+            $availableTagModes = implode(', ', TagMode::supportedValues());
+            $this->error("Invalid tag mode: {$tagModeOption}. Available: {$availableTagModes}");
 
             return self::FAILURE;
         }
@@ -151,7 +152,7 @@ class BenchmarkCommand extends Command
             } else {
                 // Use provided tag mode or current config
                 $store = $context->getStoreInstance();
-                $tagMode = $tagModeOption ?? $store->getTagMode()->value;
+                $tagMode ??= $store->getTagMode();
                 $this->runSuiteWithRuns($tagMode, $context, $runs);
             }
         } catch (BenchmarkMemoryException $exception) {
@@ -330,11 +331,11 @@ class BenchmarkCommand extends Command
         $this->newLine();
 
         $this->info('--- Phase 1: All Mode (Intersection) ---');
-        $allResults = $this->runSuiteWithRuns('all', $context, $runs, returnResults: true);
+        $allResults = $this->runSuiteWithRuns(TagMode::All, $context, $runs, returnResults: true);
 
         $this->newLine();
         $this->info('--- Phase 2: Any Mode (Union) ---');
-        $anyResults = $this->runSuiteWithRuns('any', $context, $runs, returnResults: true);
+        $anyResults = $this->runSuiteWithRuns(TagMode::Any, $context, $runs, returnResults: true);
 
         $this->formatter->displayComparisonTable($allResults, $anyResults);
     }
@@ -344,7 +345,7 @@ class BenchmarkCommand extends Command
      *
      * @return array<string, ScenarioResult>
      */
-    protected function runSuiteWithRuns(string $tagMode, BenchmarkContext $context, int $runs, bool $returnResults = false): array
+    protected function runSuiteWithRuns(TagMode $tagMode, BenchmarkContext $context, int $runs, bool $returnResults = false): array
     {
         /** @var array<int, array<string, ScenarioResult>> $allRunResults */
         $allRunResults = [];
@@ -368,7 +369,7 @@ class BenchmarkCommand extends Command
         $averagedResults = $this->averageResults($allRunResults);
 
         if (! $returnResults) {
-            $this->formatter->displayResultsTable($averagedResults, $tagMode);
+            $this->formatter->displayResultsTable($averagedResults, $tagMode->value);
         }
 
         return $averagedResults;
@@ -379,13 +380,12 @@ class BenchmarkCommand extends Command
      *
      * @return array<string, ScenarioResult>
      */
-    protected function runSuite(string $tagMode, BenchmarkContext $context): array
+    protected function runSuite(TagMode $tagMode, BenchmarkContext $context): array
     {
-        // Set the tag mode on the store
         $store = $context->getStoreInstance();
-        $store->setTagMode(TagMode::fromConfig($tagMode));
+        $store->setTagMode($tagMode);
 
-        $this->line("Tag Mode: <fg=green>{$tagMode}</>");
+        $this->line("Tag Mode: <fg=green>{$tagMode->value}</>");
 
         $results = [];
 
@@ -583,7 +583,11 @@ class BenchmarkCommand extends Command
         $cachePrefix = $storePrefix === null
             ? $config->string('cache.prefix')
             : $config->string($prefixKey);
-        $this->line('   <fg=cyan>redis-cli KEYS "' . $cachePrefix . BenchmarkContext::KEY_PREFIX . '*" | xargs redis-cli DEL</>');
+        $this->line(
+            '   <fg=cyan>redis-cli --scan --pattern '
+            . escapeshellarg($cachePrefix . BenchmarkContext::KEY_PREFIX . '*')
+            . ' | xargs -r -n 1000 redis-cli UNLINK</>'
+        );
     }
 
     /**

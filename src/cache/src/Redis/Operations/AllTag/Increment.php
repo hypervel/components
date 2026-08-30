@@ -85,13 +85,19 @@ class Increment
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tagIds): int|false {
             $prefix = $this->context->prefix();
 
+            // Publish tag memberships only after Redis confirms the counter write.
+            $newValue = $connection->incrBy($prefix . $key, $value);
+
+            if (! is_int($newValue)) {
+                return false;
+            }
+
             // ZADD NX to each tag's sorted set (sequential - cross-slot)
             foreach ($tagIds as $tagId) {
                 $connection->zadd($prefix . $tagId, ['NX'], self::FOREVER_SCORE, $key);
             }
 
-            // INCRBY for the value
-            return $connection->incrBy($prefix . $key, $value);
+            return $newValue;
         });
     }
 }
