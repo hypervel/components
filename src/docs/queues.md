@@ -1786,6 +1786,8 @@ class ProcessPodcast implements ShouldQueue
 
 In this example, the job is released for ten seconds if the application is unable to obtain a Redis lock and will continue to be retried up to 25 times. However, the job will fail if three unhandled exceptions are thrown by the job.
 
+`MaxExceptions` tracks failures using an atomic counter on your default cache store. If that store uses Redis with PhpRedis serialization, configure counters as described in the [cache increment and decrement documentation](/docs/{{version}}/cache#incrementing-decrementing-values).
+
 <a name="stopping-retries-by-exception"></a>
 #### Stopping Retries by Exception
 
