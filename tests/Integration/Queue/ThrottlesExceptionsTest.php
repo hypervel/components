@@ -9,16 +9,20 @@ use Hypervel\Bus\Dispatcher;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Queue\Job;
+use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Middleware\ThrottlesExceptions;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\Limiter;
+use Hypervel\RateLimiter\LimitResult;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class ThrottlesExceptionsTest extends TestCase
 {
@@ -381,6 +385,58 @@ class ThrottlesExceptionsTest extends TestCase
         $this->assertSame(63, $job->releasedAfter);
     }
 
+    public function testCancellationBypassesFailurePolicyAndRateLimitAccounting(): void
+    {
+        $limiter = m::mock(Limiter::class);
+        $limiter->shouldReceive('inspect')
+            ->once()
+            ->with(m::type(Limit::class))
+            ->andReturn(new LimitResult(true, 10, 10, 0, 0));
+        $limiter->shouldNotReceive('clear', 'consume');
+
+        $rateLimiter = m::mock(RateLimiter::class);
+        $rateLimiter->shouldReceive('store')->once()->with(null)->andReturn($limiter);
+        $this->app->instance(RateLimiter::class, $rateLimiter);
+
+        $callbacksCalled = false;
+        $middleware = (new ThrottlesExceptions)
+            ->by('cancellation')
+            ->when(static function () use (&$callbacksCalled): bool {
+                $callbacksCalled = true;
+
+                return true;
+            })
+            ->report(static function () use (&$callbacksCalled): bool {
+                $callbacksCalled = true;
+
+                return true;
+            })
+            ->deleteWhen(static function () use (&$callbacksCalled): bool {
+                $callbacksCalled = true;
+
+                return false;
+            })
+            ->failWhen(static function () use (&$callbacksCalled): bool {
+                $callbacksCalled = true;
+
+                return false;
+            });
+        $job = m::mock();
+        $job->shouldNotReceive('release', 'delete', 'fail');
+        $gate = $this->armCurrentCoroutineCancellation();
+
+        try {
+            $middleware->handle($job, static function () use ($gate): never {
+                $gate->push(true);
+
+                throw new RuntimeException('Cancellation was not delivered.');
+            });
+            $this->fail('Expected cancellation to escape the middleware.');
+        } catch (CanceledException) {
+            $this->assertFalse($callbacksCalled);
+        }
+    }
+
     public function testReportingExceptions(): void
     {
         $this->spy(ExceptionHandler::class)
@@ -472,6 +528,22 @@ class ThrottlesExceptionsTest extends TestCase
             'hypervel:queue:throttles-exceptions:App\Actions\ThrottlesExceptionsTestAction',
             (new ExposesThrottlesExceptions)->getKeyForTest($job),
         );
+    }
+
+    /**
+     * Arm exact cancellation of the current coroutine at a controlled channel handoff.
+     */
+    private function armCurrentCoroutineCancellation(): Channel
+    {
+        $gate = new Channel(1);
+        $coroutineId = EngineCoroutine::id();
+
+        EngineCoroutine::create(static function () use ($coroutineId, $gate): void {
+            $gate->pop();
+            EngineCoroutine::cancelById($coroutineId, throwException: true);
+        });
+
+        return $gate;
     }
 }
 

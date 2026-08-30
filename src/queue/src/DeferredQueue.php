@@ -9,6 +9,7 @@ use DateTimeInterface;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class DeferredQueue extends SyncQueue
@@ -109,6 +110,8 @@ class DeferredQueue extends SyncQueue
         Coroutine::defer(function () use ($payload, $queue) {
             try {
                 parent::executePayload($payload, $queue);
+            } catch (CanceledException $exception) {
+                throw $exception;
             } catch (Throwable $e) {
                 if ($this->exceptionCallback) {
                     ($this->exceptionCallback)($e);

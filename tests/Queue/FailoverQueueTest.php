@@ -34,6 +34,7 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -57,6 +58,7 @@ class FailoverQueueTest extends TestCase
             $sync = m::mock(SyncQueue::class),
         );
 
+        $events->shouldReceive('hasListeners')->once()->with(QueueFailedOver::class)->andReturnTrue();
         $events->shouldReceive('dispatch')->once();
 
         $redis->shouldReceive('push')->once()->andReturnUsing(
@@ -66,6 +68,88 @@ class FailoverQueueTest extends TestCase
         $sync->shouldReceive('push')->once();
 
         $failover->push('some-job');
+    }
+
+    public function testCancellationDoesNotFailOverOrEmitAnEvent(): void
+    {
+        $manager = m::mock(QueueManager::class);
+        $events = m::mock(DispatcherContract::class);
+        $primary = m::mock(Queue::class);
+        $cancellation = new CanceledException;
+        $failover = new FailoverQueue($manager, $events, ['primary', 'secondary']);
+
+        $manager->shouldReceive('connection')->once()->with('primary')->andReturn($primary);
+        $manager->shouldNotReceive('connection')->with('secondary');
+        $primary->shouldReceive('push')->once()->andThrow($cancellation);
+        $events->shouldNotReceive('hasListeners', 'dispatch');
+
+        try {
+            $failover->push('job');
+            $this->fail('Expected cancellation to escape the failover queue.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testCancellationAfterAnOrdinaryFailureRetainsFailureSuppressionState(): void
+    {
+        $events = new FailoverQueueFakeDispatcher;
+        $manager = m::mock(QueueManager::class);
+        $primary = m::mock(Queue::class);
+        $secondary = m::mock(Queue::class);
+        $cancellation = new CanceledException;
+        $secondaryAttempts = 0;
+        $failover = new FailoverQueue($manager, $events, ['primary', 'secondary', 'tertiary']);
+
+        $manager->shouldReceive('connection')->twice()->with('primary')->andReturn($primary);
+        $manager->shouldReceive('connection')->twice()->with('secondary')->andReturn($secondary);
+        $manager->shouldNotReceive('connection')->with('tertiary');
+        $primary->shouldReceive('push')->twice()->andThrow(new RuntimeException('Primary failed.'));
+        $secondary->shouldReceive('push')->twice()->andReturnUsing(
+            static function () use (&$secondaryAttempts, $cancellation): string {
+                if ($secondaryAttempts++ === 0) {
+                    throw $cancellation;
+                }
+
+                return 'secondary:ok';
+            }
+        );
+
+        try {
+            $failover->push('first');
+            $this->fail('Expected cancellation to stop the first failover attempt.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertCount(1, $events->failedOverEvents);
+        $this->assertSame('secondary:ok', $failover->push('second'));
+        $this->assertCount(1, $events->failedOverEvents);
+    }
+
+    public function testCancellationFromAFailoverListenerStopsFallback(): void
+    {
+        $manager = m::mock(QueueManager::class);
+        $events = m::mock(DispatcherContract::class);
+        $primary = m::mock(Queue::class);
+        $cancellation = new CanceledException;
+        $failover = new FailoverQueue($manager, $events, ['primary', 'secondary']);
+
+        $manager->shouldReceive('connection')->once()->with('primary')->andReturn($primary);
+        $manager->shouldNotReceive('connection')->with('secondary');
+        $primary->shouldReceive('push')->once()->andThrow(new RuntimeException('Primary failed.'));
+        $events->shouldReceive('hasListeners')->once()->with(QueueFailedOver::class)->andReturnTrue();
+        $events->shouldReceive('dispatch')
+            ->once()
+            ->with(m::type(QueueFailedOver::class))
+            ->andThrow($cancellation);
+
+        try {
+            $failover->push('job');
+            $this->fail('Expected listener cancellation to stop failover.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testBulkRespectsJobDelays(): void

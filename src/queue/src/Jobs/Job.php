@@ -10,7 +10,6 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\ObjectPool\Lease;
-use Hypervel\ObjectPool\PoolErrorReporter;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\ManuallyFailedException;
@@ -18,6 +17,7 @@ use Hypervel\Queue\TimeoutExceededException;
 use Hypervel\Support\InteractsWithTime;
 use JsonException;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 abstract class Job implements JobContract
@@ -149,13 +149,14 @@ abstract class Job implements JobContract
      */
     protected function discardPoolLeaseAfterFailure(Throwable $exception): never
     {
-        try {
-            $this->discardPoolLease();
-        } catch (Throwable $cleanupException) {
-            PoolErrorReporter::report($cleanupException);
+        $lease = $this->poolLease;
+        $this->poolLease = null;
+
+        if ($lease === null) {
+            throw $exception;
         }
 
-        throw $exception;
+        $lease->discardAfterFailure($exception);
     }
 
     /**
@@ -262,6 +263,8 @@ abstract class Job implements JobContract
 
             try {
                 $batchRepository->rollBack();
+            } catch (CanceledException $exception) {
+                throw $exception;
             } catch (Throwable) {
                 // ...
             }
@@ -276,6 +279,8 @@ abstract class Job implements JobContract
                 ->rollBack(toLevel: 0);
         }
 
+        $canceled = false;
+
         try {
             // If the job has failed, we will delete it, call the "failed" method and then call
             // an event indicating the job has failed so it can be logged if needed. This is
@@ -285,13 +290,19 @@ abstract class Job implements JobContract
             if ($this->payloadException === null) {
                 $this->failed($e);
             }
+        } catch (CanceledException $exception) {
+            $canceled = true;
+
+            throw $exception;
         } finally {
-            $this->resolve(Dispatcher::class)
-                ->dispatch(new JobFailed(
-                    $this->connectionName,
-                    $this,
-                    $e ?: new ManuallyFailedException
-                ));
+            if (! $canceled) {
+                $this->resolve(Dispatcher::class)
+                    ->dispatch(new JobFailed(
+                        $this->connectionName,
+                        $this,
+                        $e ?: new ManuallyFailedException
+                    ));
+            }
         }
     }
 

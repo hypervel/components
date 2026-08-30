@@ -14,6 +14,8 @@ use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\BackgroundQueue;
 use Hypervel\Queue\InteractsWithQueue;
@@ -22,6 +24,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
+use Throwable;
 
 use function Hypervel\Coroutine\run;
 
@@ -105,6 +108,32 @@ class QueueBackgroundQueueTest extends TestCase
 
         $this->assertInstanceOf(Exception::class, $result);
         $this->assertTrue($_SERVER['__background.failed']);
+    }
+
+    public function testCancellationDoesNotInvokeBackgroundExceptionCallback(): void
+    {
+        CancelingBackgroundQueueTestHandler::$failed = false;
+        $result = null;
+        $background = new BackgroundQueue;
+        $background->setExceptionCallback(static function (Throwable $exception) use (&$result): void {
+            $result = $exception;
+        });
+        $background->setConnectionName('background');
+        $container = $this->getContainer();
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('dispatch')->once();
+        $container->instance('events', $events);
+        $container->instance(Dispatcher::class, $events);
+        $background->setContainer($container);
+
+        try {
+            run(fn () => $background->push(CancelingBackgroundQueueTestHandler::class));
+
+            $this->assertNull($result);
+            $this->assertFalse(CancelingBackgroundQueueTestHandler::$failed);
+        } finally {
+            CancelingBackgroundQueueTestHandler::$failed = false;
+        }
     }
 
     public function testItAddsATransactionCallbackForAfterCommitJobs()
@@ -566,6 +595,31 @@ class FailingBackgroundQueueTestHandler
     public function failed()
     {
         $_SERVER['__background.failed'] = true;
+    }
+}
+
+class CancelingBackgroundQueueTestHandler
+{
+    public static bool $failed = false;
+
+    public function fire(): never
+    {
+        $gate = new Channel(1);
+        $coroutineId = EngineCoroutine::id();
+
+        EngineCoroutine::create(static function () use ($coroutineId, $gate): void {
+            $gate->pop();
+            EngineCoroutine::cancelById($coroutineId, throwException: true);
+        });
+
+        $gate->push(true);
+
+        throw new RuntimeException('Cancellation was not delivered.');
+    }
+
+    public function failed(): void
+    {
+        static::$failed = true;
     }
 }
 

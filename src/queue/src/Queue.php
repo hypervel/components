@@ -35,6 +35,7 @@ use Hypervel\Support\Facades\Context;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 use const JSON_UNESCAPED_UNICODE;
@@ -211,6 +212,8 @@ abstract class Queue
             $command = $this->jobShouldBeEncrypted($job) && $this->container->has(Encrypter::class)
                 ? $this->container->make(Encrypter::class)->encrypt(serialize(clone $job))
                 : serialize(clone $job);
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $e) {
             throw new RuntimeException(
                 sprintf('Failed to serialize job of type [%s]: %s', get_class($job), $e->getMessage()),
@@ -409,6 +412,8 @@ abstract class Queue
 
         try {
             $jobId = $callback($this, $payload, $queue, $delay);
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             $this->raiseJobQueueingFailedEvent($queue, $job, $payload, $delay, $exception);
 

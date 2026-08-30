@@ -14,12 +14,16 @@ use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Queue\DeferredQueue;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use RuntimeException;
+use Throwable;
 
 use function Hypervel\Coroutine\run;
 
@@ -83,6 +87,35 @@ class QueueDeferredQueueTest extends TestCase
 
         $this->assertInstanceOf(Exception::class, $result);
         $this->assertTrue($_SERVER['__deferred.failed']);
+    }
+
+    public function testCancellationDoesNotInvokeDeferredExceptionCallback(): void
+    {
+        CancelingDeferredQueueTestHandler::reset();
+        $result = null;
+        $deferred = new DeferredQueue;
+        $deferred->setExceptionCallback(static function (Throwable $exception) use (&$result): void {
+            $result = $exception;
+        });
+        $deferred->setConnectionName('deferred');
+        $container = $this->getContainer();
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('dispatch')->once();
+        $container->instance('events', $events);
+        $container->instance(Dispatcher::class, $events);
+        $deferred->setContainer($container);
+
+        try {
+            run(function () use ($deferred): void {
+                CancelingDeferredQueueTestHandler::$gate = $this->armCurrentCoroutineCancellation();
+                $deferred->push(CancelingDeferredQueueTestHandler::class);
+            });
+
+            $this->assertNull($result);
+            $this->assertFalse(CancelingDeferredQueueTestHandler::$failed);
+        } finally {
+            CancelingDeferredQueueTestHandler::reset();
+        }
     }
 
     public function testItAddsATransactionCallbackForAfterCommitJobs()
@@ -433,6 +466,22 @@ class QueueDeferredQueueTest extends TestCase
 
         return $container;
     }
+
+    /**
+     * Arm exact cancellation of the current coroutine at a controlled channel handoff.
+     */
+    private function armCurrentCoroutineCancellation(): Channel
+    {
+        $gate = new Channel(1);
+        $coroutineId = EngineCoroutine::id();
+
+        EngineCoroutine::create(static function () use ($coroutineId, $gate): void {
+            $gate->pop();
+            EngineCoroutine::cancelById($coroutineId, throwException: true);
+        });
+
+        return $gate;
+    }
 }
 
 class DeferredQueueTestEntity implements QueueableEntity
@@ -471,6 +520,31 @@ class FailingDeferredQueueTestHandler
     public function failed()
     {
         $_SERVER['__deferred.failed'] = true;
+    }
+}
+
+class CancelingDeferredQueueTestHandler
+{
+    public static ?Channel $gate = null;
+
+    public static bool $failed = false;
+
+    public function fire(): never
+    {
+        static::$gate?->push(true);
+
+        throw new RuntimeException('Cancellation was not delivered.');
+    }
+
+    public function failed(): void
+    {
+        static::$failed = true;
+    }
+
+    public static function reset(): void
+    {
+        static::$gate = null;
+        static::$failed = false;
     }
 }
 

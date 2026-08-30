@@ -16,6 +16,7 @@ use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\Events\QueueFailedOver;
 use Hypervel\Support\Collection;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
@@ -199,12 +200,17 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
             foreach ($this->connections as $connection) {
                 try {
                     return $this->manager->connection($connection)->{$method}(...$arguments);
+                } catch (CanceledException $exception) {
+                    throw $exception;
                 } catch (Throwable $e) {
                     $lastException = $e;
 
                     $failedQueues[] = $connection;
 
-                    if ($job !== null && ! in_array($connection, $failingQueues, true)) {
+                    if ($job !== null
+                        && ! in_array($connection, $failingQueues, true)
+                        && $this->events->hasListeners(QueueFailedOver::class)
+                    ) {
                         $this->events->dispatch(new QueueFailedOver($connection, $job, $e));
                     }
                 }
