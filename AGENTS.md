@@ -364,6 +364,9 @@ Decide where state lives before writing code:
 
 Classes that use static caching need a `flushState()` method for test cleanup — see "Static state and test cleanup" under Writing Tests.
 
+- **Treat coroutine cancellation separately from errors** — Code that owns coroutine cancellation must pass `CanceledException` through unchanged and clean up the children or resources it owns. Add this only where cancellation can actually happen and mishandling it causes a real bug—not to every `catch (Throwable)`.
+- **Contain cancellation in direct engine coroutines** — A callback passed directly to `Engine\Coroutine` must catch cancellation after cleanup so it cannot terminate the worker. The higher-level `Coroutine` class already provides this protection.
+
 ## When to Stop and Report
 
 These rules apply to all work. "STOP" means: explain the situation, give the root cause and your recommended fix, and wait for approval before proceeding.
