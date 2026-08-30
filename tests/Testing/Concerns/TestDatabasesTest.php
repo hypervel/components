@@ -198,7 +198,9 @@ class TestDatabasesTest extends TestCase
             true,
             function () use (&$callbackCalled): void {
                 $callbackCalled = true;
-            }
+            },
+            [],
+            false,
         );
 
         $this->assertFalse($callbackCalled);
