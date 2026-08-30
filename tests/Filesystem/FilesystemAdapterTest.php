@@ -10,6 +10,7 @@ use Hypervel\Container\Container;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Filesystem\LocalFilesystemAdapter as HypervelLocalFilesystemAdapter;
@@ -37,7 +38,9 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\ExpectationFailedException;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
 use Swoole\Runtime;
+use Throwable;
 
 class FilesystemAdapterTest extends TestCase
 {
@@ -708,6 +711,51 @@ class FilesystemAdapterTest extends TestCase
 
         $this->assertFalse(is_resource($reader));
         fclose($writer);
+    }
+
+    public function testReadStreamRangePreservesCancellationAndClosesTheSourceWithoutReporting(): void
+    {
+        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler->shouldNotReceive('report');
+        Container::getInstance()->bind(ExceptionHandler::class, static fn () => $exceptionHandler);
+        $originalHookFlags = Runtime::getHookFlags();
+        Runtime::enableCoroutine(SWOOLE_HOOK_ALL);
+        $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+        $this->assertIsArray($sockets);
+        [$reader, $writer] = $sockets;
+        $this->assertFalse(stream_get_meta_data($reader)['seekable']);
+        $filesystemAdapter = m::mock(
+            FilesystemAdapter::class,
+            [$this->filesystem, $this->adapter, ['report' => true, 'throw' => false]],
+        )->makePartial();
+        $filesystemAdapter->shouldReceive('readStream')->once()->with('file.txt')->andReturn($reader);
+        $failure = null;
+
+        try {
+            $coroutine = EngineCoroutine::create(function () use ($filesystemAdapter, &$failure): void {
+                try {
+                    $filesystemAdapter->readStreamRange('file.txt', 3, 5);
+                } catch (Throwable $exception) {
+                    $failure = $exception;
+                }
+            });
+
+            $this->assertTrue(EngineCoroutine::exists($coroutine->getId()));
+            $this->assertTrue(EngineCoroutine::cancelById($coroutine->getId(), throwException: true));
+            $this->assertFalse(EngineCoroutine::exists($coroutine->getId()));
+            $this->assertInstanceOf(CanceledException::class, $failure);
+            $this->assertFalse(is_resource($reader));
+        } finally {
+            if (is_resource($reader)) {
+                fclose($reader);
+            }
+
+            if (is_resource($writer)) {
+                fclose($writer);
+            }
+
+            Runtime::enableCoroutine($originalHookFlags);
+        }
     }
 
     public function testStreamInvalidResourceThrows()
