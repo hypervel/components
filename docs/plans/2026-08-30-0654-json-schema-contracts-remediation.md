@@ -192,7 +192,9 @@ Add one concise `src/json-schema/README.md` difference because this correction c
 
 > Hypervel applies one merge policy to local `$ref` siblings and nullable composition branches: outer annotations override, and conflicting assertions are rejected rather than silently replacing the referenced constraint.
 
-Do not add findings 95, 97, or 98 to the README, and do not add a porting-guide entry. They do not change an actionable Laravel application surface. Keep detailed behavior in the canonical documentation rather than duplicating it in the README.
+Add one concise `src/docs/porting-from-laravel.md` entry directing porters to make overlapping assertions identical and linking to the canonical JSON Schema documentation. Do not duplicate the detailed merge rules there.
+
+Do not add findings 95, 97, or 98 to the README. They do not change an actionable Laravel application surface. Keep detailed behavior in the canonical documentation rather than duplicating it in the README.
 
 ## Tests
 
@@ -266,9 +268,9 @@ Then run the focused package directory:
 - `tests/JsonSchema/SerializerTest.php`
 - `tests/JsonSchema/DeserializerTest.php`
 - `src/docs/json-schema.md`
+- `src/docs/porting-from-laravel.md`
 - `src/json-schema/README.md`
 - this focused plan
-- the active master audit plan, only to replace findings 95–98 with a focused-plan pointer and record finding 94 as rejected
 
 No contract, Composer metadata, service provider, binding, facade, configuration, worker state, or coroutine state changes.
 
