@@ -6,7 +6,7 @@ Resolve audit findings 127, 128, 130, and 146–152 plus the related Testing TOD
 
 ## Invariants
 
-- Laravel-compatible public APIs remain available. The only signature widening is `array|string|null` for Laravel's JSON validation assertions so invalid empty input reaches the normal assertion diagnostic instead of PHP type checking.
+- Laravel-compatible public APIs remain available. JSON validation assertions widen to `array|string|null` so invalid empty input reaches Laravel's normal assertion diagnostic. `EventFake` restores Laravel's dispatcher-contract constructor and public property. `TestResponse::getContent(): string` deliberately narrows Symfony's formerly forwarded `string|false` result because the test wrapper owns captured ordinary, streamed, and binary response content.
 - Testbench owns one disposable runtime skeleton per process. Re-entering bootstrap must reload configuration after centralized per-test state cleanup but must not recopy the active runtime or register another shutdown cleanup.
 - `TEST_TOKEN` is runner-owned process identity. Filesystem names use one raw-superglobal sanitizer; the mutable `ParallelTesting::token()` resolver remains the callback identity used by lifecycle hooks and tests.
 - Parallel database management must never leave a worker on a shared persistent database. URL-only connections are normalized before suffixing. Endpoint-specific read/write database identities fail clearly; endpoint blocks that only override hosts, ports, or credentials remain supported.
@@ -127,7 +127,7 @@ Restructure `Bootstrapper::bootstrap()` in this order:
 
 - Remove `TestCase::$hasBootstrappedTestbench`.
 - Call `Bootstrapper::bootstrap()` before `parent::setUp()` for every framework-booting Testbench test. The bootstrapper itself owns idempotence.
-- Make Testbench `ParallelRunner`'s default application resolver call the bootstrapper unconditionally. Preserve a user-supplied application resolver exactly.
+- Make Testbench `ParallelRunner`'s default application resolver call the bootstrapper unconditionally. Before resolving either default or custom applications, define `TESTBENCH_WORKING_PATH` only when `Env::get()` returns a non-empty string; decoded booleans, null, and empty strings must leave the constant undefined so Bootstrapper can use the package-root fallback. Preserve a user-supplied application resolver exactly.
 - Delete `default_skeleton_path()`'s unreachable second `BASE_PATH` check.
 
 Keep `default_skeleton_path()`'s first `BASE_PATH` guard. The helper is used by every base-path resolution, so calling `Bootstrapper::bootstrap()` unconditionally there would repeat configuration-file probes on ordinary path lookups. The direct TestCase and runner callers bootstrap once at their real lifecycle boundary instead.
@@ -135,6 +135,8 @@ Keep `default_skeleton_path()`'s first `BASE_PATH` guard. The helper is used by 
 ### Configuration fallback
 
 Make `Bootstrapper::resolveConfigurationPath()` public and call it from `Workbench::configuration()` with `package_path()`, the same active package root Bootstrapper records as `TESTBENCH_WORKING_PATH`. This prevents Workbench from loading the components package's bundled `testbench.yaml` when the active standalone package has no local YAML file. Keep the method focused on path ownership; do not add another configuration resolver abstraction. Use focused tests for the missing-local-file fallback and the real `dogfood/testbench-package` suite for standalone package selection.
+
+Apply the same non-empty-string rule inside `package_path()` before choosing its environment path. An unusable decoded environment value must fall through to Composer's installed root rather than being cast to an empty string and degraded to the process working directory. Keep this direct in the existing memoized closure; do not add a helper or another Bootstrapper guard. Cover absent, decoded-false, empty-string, and valid-directory values through the existing direct subprocess test, and cover ParallelRunner's absent-value path through its existing isolated PHPUnit pattern.
 
 Cover direct repeated bootstrap, helper-before-TestCase, TestCase bootstrap ordering, default ParallelRunner, custom resolver bypass, predefined `BASE_PATH`, fallback path selection, no clone overlay, one cleanup registration, and retained runtime mutations.
 
@@ -167,7 +169,9 @@ $_ENV[$key] ?? $_SERVER[$key] ?? null
 
 Keep only scalar or null values. Numeric keys are omitted because the declared Symfony environment map accepts string keys. Preserve the working-path insertion. Cover overlapping sources, null fallback, false/zero/empty-string values, array/object rejection, and numeric-key omission.
 
-`BatchableTransactionTest` and `QueueTransactionTest` must unset `DB_URL`, `DATABASE_URL`, and `DB_POOLED_URL` in their remote-process environment with `false`, matching Symfony Process semantics, so host/database test settings cannot be silently overridden by ambient URLs.
+Type the `mapWithKeys()` callback as returning `array`. Preserve null-coalescing precedence: a null `$_ENV` value falls back to the matching `$_SERVER` value before the final null default.
+
+`BatchableTransactionTest` and `QueueTransactionTest` must unset `DB_URL`, `DATABASE_URL`, and `DB_POOLED_URL` in their remote-process environment with `false`, matching Symfony Process semantics, so host/database test settings cannot be silently overridden by ambient URLs. Keep both timeout tests fully typed: `: void` for the batch test and `ShouldQueue $job): void` for the queue data-provider test.
 
 ### Migration paths and options
 
@@ -208,6 +212,8 @@ Host-, port-, and credential-only endpoint blocks inherit the normalized top-lev
 
 - the configuration repository for declared read/write topology, because the materialized connection has already removed those keys;
 - `DB::getConfig('database')` for the current effective database name.
+
+Topology validation must remain before the in-memory SQLite return and before the first `DB::getConfig()` call. A top-level `:memory:` connection can still declare a persistent read/write endpoint identity; returning first would leave that endpoint shared and unmanaged. Pin this order with a dedicated SQLite regression that expects rejection without any connection lookup.
 
 Keep the two checks local to their owning packages. A shared constant/helper would deepen the existing `foundation`/`testing` package cycle for two setup-only guards. Use matching diagnostics:
 
@@ -255,6 +261,8 @@ Laravel has no matching complete TestView suite. Complete focused coverage for:
 - `__toString()`.
 
 Preserve the existing model/collection identity and malformed-UTF-8 cases. Test public success and meaningful failure branches without manufacturing private implementation tests.
+
+Type the new Hypervel-owned TestView data-provider callbacks as returning `TestView`. Keep method-body closures in the Laravel-ported EventFake suite aligned with upstream; they do not define class or test-method contracts and adding types there would create port churn without improving correctness.
 
 Delete the stale `docs/todo.md` item asking to convert remaining raw PHPUnit tests: the only reference is the framework-owned `tests/TestCase.php` base class itself. Remove the URL-aware database TODO when §10 is complete, then remove the two Testing coverage TODOs when §11 is complete. Delete the empty `## Testing` heading after those entries are gone, and remove the pre-existing empty `## Collections` heading while editing the same file.
 
