@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Features\ParallelRunner;
+use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testing\ParallelTesting;
 
@@ -31,12 +33,25 @@ try {
     $firstApplication->flush();
     $firstApplication = null;
 
+    $configurationPath = getenv('TESTBENCH_WORKING_PATH') . DIRECTORY_SEPARATOR . 'testbench.yaml';
+    file_put_contents(
+        $configurationPath,
+        str_replace(
+            'HYPERVEL_TEST_PARALLEL_RUNNER_ENV: configured',
+            'HYPERVEL_TEST_PARALLEL_RUNNER_ENV: reloaded',
+            (string) file_get_contents($configurationPath),
+        ),
+    );
+    Bootstrapper::flushState();
+    Config::flushState();
+
     /** @var ApplicationContract $secondApplication */
     $secondApplication = $createApplication->invoke($runner);
     $parallelTesting = $secondApplication->make(ParallelTesting::class);
     $parallelTestingReflection = new ReflectionClass($parallelTesting);
 
     echo json_encode([
+        'configuration_environment' => Bootstrapper::getConfiguration()?->getExtraAttributes()['env'][0],
         'environment' => Env::get('HYPERVEL_TEST_PARALLEL_RUNNER_ENV'),
         'provider' => $secondApplication->bound('parallel-runner.configured-provider'),
         'excluded_provider' => $secondApplication->bound('parallel-runner.excluded-provider'),

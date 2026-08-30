@@ -97,6 +97,7 @@ trait AssertsPolicyQueryConsistency
             ->mapWithKeys(fn (Model $model) => [
                 $model->getKey() => $queryGate->allows($ability, $model),
             ])
+            ->sortKeys()
             ->all();
 
         $query = clone $baseQuery;
@@ -107,6 +108,7 @@ trait AssertsPolicyQueryConsistency
             ->mapWithKeys(fn (Model $model) => [
                 $model->getKey() => $model->getAttribute($columnName),
             ])
+            ->sortKeys()
             ->all();
 
         Assert::assertSame(

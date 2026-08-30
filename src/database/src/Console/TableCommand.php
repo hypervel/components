@@ -147,6 +147,7 @@ class TableCommand extends DatabaseInspectionCommand
             count($index['columns']) > 1 ? 'compound' : null,
             $index['unique'] && ! $index['primary'] ? 'unique' : null,
             $index['primary'] ? 'primary' : null,
+            $index['partial'] ? 'partial' : null,
         ]))->filter();
     }
 

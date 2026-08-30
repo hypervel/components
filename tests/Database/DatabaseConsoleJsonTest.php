@@ -32,6 +32,20 @@ class DatabaseConsoleJsonTest extends TestCase
         $command->renderJson(['value' => NAN]);
     }
 
+    public function testTableCommandIncludesPartialIndexAttribute(): void
+    {
+        [$command] = $this->tableCommand();
+
+        $this->assertSame(['btree', 'compound', 'partial'], $command->indexAttributes([
+            'name' => 'records_active_index',
+            'columns' => ['account_id', 'archived_at'],
+            'type' => 'btree',
+            'unique' => false,
+            'primary' => false,
+            'partial' => true,
+        ]));
+    }
+
     public function testShowCommandRendersValidJson(): void
     {
         [$command, $output] = $this->showCommand();
@@ -80,6 +94,11 @@ class TableCommandProbe extends TableCommand
     public function renderJson(array $data): void
     {
         $this->displayJson($data);
+    }
+
+    public function indexAttributes(array $index): array
+    {
+        return $this->getAttributesForIndex($index)->values()->all();
     }
 }
 

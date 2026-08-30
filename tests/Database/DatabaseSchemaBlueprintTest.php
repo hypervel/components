@@ -8,12 +8,16 @@ use Closure;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Builder;
+use Hypervel\Database\Schema\ForeignKeyDefinition;
 use Hypervel\Database\Schema\Grammars\MySqlGrammar;
+use Hypervel\Database\Schema\IndexDefinition;
 use Hypervel\Support\Fluent;
 use Hypervel\Tests\Database\Fixtures\Models\User;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use LogicException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseSchemaBlueprintTest extends TestCase
 {
@@ -53,6 +57,69 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $blueprint->spatialIndex('coordinates');
         $commands = $blueprint->getCommands();
         $this->assertSame('geo_coordinates_spatialindex', $commands[0]->index);
+    }
+
+    public function testIndexMethodsReturnIndexDefinitions(): void
+    {
+        $blueprint = $this->getBlueprint(table: 'users');
+
+        $this->assertInstanceOf(IndexDefinition::class, $blueprint->primary('id'));
+        $this->assertInstanceOf(IndexDefinition::class, $blueprint->unique('email'));
+        $this->assertInstanceOf(IndexDefinition::class, $blueprint->index('name'));
+        $this->assertInstanceOf(IndexDefinition::class, $blueprint->fullText('bio'));
+        $this->assertInstanceOf(IndexDefinition::class, $blueprint->spatialIndex('location'));
+        $this->assertInstanceOf(IndexDefinition::class, $blueprint->vectorIndex('embedding'));
+        $this->assertInstanceOf(IndexDefinition::class, $blueprint->rawIndex('(lower(email))', 'users_email_lower_index'));
+    }
+
+    public function testOrdinaryIndexesRetainTheWhereNotNullModifier(): void
+    {
+        $blueprint = $this->getBlueprint(table: 'users');
+
+        $index = $blueprint->index('email')->whereNotNull('email');
+        $rawIndex = $blueprint->rawIndex('(lower(email))', 'users_email_lower_index')
+            ->whereNotNull('email');
+
+        $this->assertSame('email', $index->get('whereNotNull'));
+        $this->assertSame('email', $rawIndex->get('whereNotNull'));
+
+        $index->whereNotNull('verified_at');
+
+        $this->assertSame('verified_at', $index->get('whereNotNull'));
+    }
+
+    #[DataProvider('nonOrdinaryIndexProvider')]
+    public function testWhereNotNullRejectsNonOrdinaryIndexes(string $method, string $column): void
+    {
+        $blueprint = $this->getBlueprint(table: 'users');
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            'The [whereNotNull] modifier is only available for ordinary indexes.',
+        );
+
+        $blueprint->{$method}($column)->whereNotNull('email');
+    }
+
+    public static function nonOrdinaryIndexProvider(): array
+    {
+        return [
+            'primary' => ['primary', 'id'],
+            'unique' => ['unique', 'email'],
+            'full text' => ['fullText', 'bio'],
+            'spatial' => ['spatialIndex', 'location'],
+            'vector' => ['vectorIndex', 'embedding'],
+        ];
+    }
+
+    public function testForeignReplacesTheTemporaryIndexDefinition(): void
+    {
+        $blueprint = $this->getBlueprint(table: 'users');
+
+        $foreign = $blueprint->foreign('team_id');
+
+        $this->assertInstanceOf(ForeignKeyDefinition::class, $foreign);
+        $this->assertSame([$foreign], $blueprint->getCommands());
     }
 
     public function testIndexDefaultNamesWhenPrefixSupplied()
@@ -890,7 +957,7 @@ enum ApostropheBackedEnum: string
 
 class DatabaseSchemaBlueprintOrderingTestBlueprint extends Blueprint
 {
-    public ?Fluent $generatedUniqueCommand = null;
+    public ?IndexDefinition $generatedUniqueCommand = null;
 
     /**
      * Add a custom schema command.
@@ -903,7 +970,7 @@ class DatabaseSchemaBlueprintOrderingTestBlueprint extends Blueprint
     /**
      * Specify a unique index for the table.
      */
-    public function unique(array|string $columns, ?string $name = null, ?string $algorithm = null): Fluent
+    public function unique(array|string $columns, ?string $name = null, ?string $algorithm = null): IndexDefinition
     {
         $command = parent::unique($columns, $name, $algorithm);
         $command->testMetadata = 'preserved';

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testing\Profile;
 
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Testing\Profile\ExecutionFinishedSubscriber;
 use Hypervel\Testing\Profile\ProfileTracker;
 use Hypervel\Tests\TestCase;
@@ -15,6 +17,40 @@ use RuntimeException;
 
 class ExecutionFinishedSubscriberTest extends TestCase
 {
+    #[Test]
+    public function itUsesTheFilesystemSafeProcessTokenForProfileFilenames(): void
+    {
+        $directory = ParallelTesting::tempDir('ExecutionFinishedSubscriberTest');
+        $filesystem = new Filesystem;
+        $previousTokenExists = array_key_exists('TEST_TOKEN', $_SERVER);
+        $previousToken = $_SERVER['TEST_TOKEN'] ?? null;
+        $tracker = new ProfileTracker;
+        $tracker->start('Example test', 1.0);
+        $tracker->stop('Example test', 2.0);
+        $subscriber = new ExecutionFinishedSubscriber($tracker, $directory);
+        $event = (new ReflectionClass(ExecutionFinished::class))->newInstanceWithoutConstructor();
+
+        $filesystem->deleteDirectory($directory);
+
+        try {
+            $_SERVER['TEST_TOKEN'] = 'worker/token:one';
+
+            $subscriber->notify($event);
+
+            $this->assertFileExists(
+                $directory . DIRECTORY_SEPARATOR . 'profile-worker_token_one-' . getmypid() . '.json',
+            );
+        } finally {
+            if ($previousTokenExists) {
+                $_SERVER['TEST_TOKEN'] = $previousToken;
+            } else {
+                unset($_SERVER['TEST_TOKEN']);
+            }
+
+            $filesystem->deleteDirectory($directory);
+        }
+    }
+
     #[Test]
     #[DataProvider('failedWrites')]
     public function itRejectsIncompleteProfileWrites(string $writeMode): void

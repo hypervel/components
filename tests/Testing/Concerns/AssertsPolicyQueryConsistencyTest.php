@@ -36,6 +36,11 @@ class AssertsPolicyQueryConsistencyTest extends TestCase
             $table->unsignedInteger('user_id');
         });
 
+        Schema::create('consistency_string_posts', function (Blueprint $table): void {
+            $table->string('id')->primary();
+            $table->unsignedInteger('author_id');
+        });
+
         DB::table('consistency_posts')->insert([
             ['author_id' => 1],
             ['author_id' => 1],
@@ -49,6 +54,12 @@ class AssertsPolicyQueryConsistencyTest extends TestCase
                 'post_id' => 4,
                 'user_id' => 1,
             ],
+        ]);
+
+        DB::table('consistency_string_posts')->insert([
+            ['id' => 'charlie', 'author_id' => 1],
+            ['id' => 'alpha', 'author_id' => 2],
+            ['id' => 'bravo', 'author_id' => 1],
         ]);
     }
 
@@ -181,6 +192,47 @@ class AssertsPolicyQueryConsistencyTest extends TestCase
         );
     }
 
+    public function testWithCanMatchesPolicyRegardlessOfIntegerKeyOrder(): void
+    {
+        $this->registerPolicy(SelectOnlyConsistencyPostPolicy::class);
+        $user = $this->user(1);
+
+        $this->assertWithCanMatchesPolicy(
+            'edit',
+            ConsistencyPost::query()->orderBy('id'),
+            ConsistencyPost::query()->orderByDesc('id')->get(),
+            $user,
+        );
+    }
+
+    public function testWithCanMatchesPolicyRegardlessOfStringKeyOrder(): void
+    {
+        $this->gate()->policy(ConsistencyStringPost::class, SelectOnlyConsistencyStringPostPolicy::class);
+        $user = $this->user(1);
+
+        $this->assertWithCanMatchesPolicy(
+            'edit',
+            ConsistencyStringPost::query()->orderBy('id'),
+            ConsistencyStringPost::query()->orderByDesc('id')->get(),
+            $user,
+        );
+    }
+
+    public function testWithCanAssertionFailsForDifferentPerRowResults(): void
+    {
+        $this->registerPolicy(MismatchingConsistencyPostPolicy::class);
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('Policy [edit] and withCan() returned different per-row results.');
+
+        $this->assertWithCanMatchesPolicy(
+            'edit',
+            ConsistencyPost::query(),
+            ConsistencyPost::all(),
+            $this->user(1),
+        );
+    }
+
     public function testWhereCanAssertionFailsOnEmptyCollection(): void
     {
         $this->registerPolicy(ScopeOnlyConsistencyPostPolicy::class);
@@ -218,6 +270,17 @@ enum ConsistencyAbility: string
 class ConsistencyPost extends Model
 {
     protected ?string $table = 'consistency_posts';
+
+    public bool $timestamps = false;
+}
+
+class ConsistencyStringPost extends Model
+{
+    protected ?string $table = 'consistency_string_posts';
+
+    protected string $keyType = 'string';
+
+    public bool $incrementing = false;
 
     public bool $timestamps = false;
 }
@@ -274,5 +337,36 @@ class SelectOnlyConsistencyPostPolicy
                 : $query->qualifyColumn('author_id') . ' = ?',
             $user->is_admin ? [] : [$user->id],
         );
+    }
+}
+
+class SelectOnlyConsistencyStringPostPolicy
+{
+    public function edit(stdClass $user, ConsistencyStringPost $post): bool
+    {
+        return $user->is_admin || $post->author_id === $user->id;
+    }
+
+    public function editSelect(stdClass $user, Builder $query): QueryBuilder
+    {
+        return $query->getQuery()->newQuery()->selectRaw(
+            $user->is_admin
+                ? 'true'
+                : $query->qualifyColumn('author_id') . ' = ?',
+            $user->is_admin ? [] : [$user->id],
+        );
+    }
+}
+
+class MismatchingConsistencyPostPolicy
+{
+    public function edit(stdClass $user, ConsistencyPost $post): bool
+    {
+        return true;
+    }
+
+    public function editSelect(stdClass $user, Builder $query): QueryBuilder
+    {
+        return $query->getQuery()->newQuery()->selectRaw('false');
     }
 }

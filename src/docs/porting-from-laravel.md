@@ -485,6 +485,11 @@ Hypervel's `Concurrency` facade provides `coroutine`, `process`, and `sync` driv
 
 Hypervel compiles integer and float values passed to Scout's Algolia `where`, `whereIn`, and `whereNotIn` methods as numeric comparisons. Numeric-looking strings remain facet values. When porting an Algolia index, ensure the indexed attribute type matches the PHP value type used by these filters.
 
+<a name="json-schema"></a>
+### JSON Schema
+
+When porting schemas that place sibling assertions beside a local `$ref` or use nullable composition, make overlapping assertions identical. Hypervel rejects conflicts instead of silently replacing referenced constraints. See the [JSON Schema documentation](/docs/{{version}}/json-schema#reconstructing-schemas).
+
 <a name="rate-limiting"></a>
 ### Rate Limiting
 

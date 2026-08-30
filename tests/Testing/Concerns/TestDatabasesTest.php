@@ -29,12 +29,17 @@ class TestDatabasesTest extends TestCase
         Container::setInstance($container = new Container);
         Facade::setFacadeApplication($container);
 
-        $container->singleton('config', fn () => m::mock(Config::class)
-            ->shouldReceive('get')
-            ->once()
-            ->with('database.default', null)
-            ->andReturn('mysql')
-            ->getMock());
+        $container->instance('config', new Config([
+            'database' => [
+                'default' => 'mysql',
+                'connections' => [
+                    'mysql' => [
+                        'driver' => 'mysql',
+                        'database' => 'my_database',
+                    ],
+                ],
+            ],
+        ]));
 
         $container->singleton(ParallelTesting::class, fn ($app) => new ParallelTesting($app));
 
@@ -65,21 +70,21 @@ class TestDatabasesTest extends TestCase
         $container->instance('db', $db);
 
         $config = $container->make('config');
-        $config->shouldReceive('get')
-            ->once()
-            ->with('database.connections.mysql.url', false)
-            ->andReturn(false);
-
-        $config->shouldReceive('set')
-            ->once()
-            ->with('database.connections.mysql.database', 'my_database_test_1');
 
         $this->switchToDatabase('my_database_test_1');
+
+        $this->assertSame(
+            'my_database_test_1',
+            $config->get('database.connections.mysql.database')
+        );
     }
 
     #[DataProvider('databaseUrls')]
-    public function testSwitchToDatabaseWithUrl(string $testDatabase, string $url, string $testUrl): void
-    {
+    public function testSwitchToDatabaseWithUrl(
+        string $testDatabase,
+        array $configuration,
+        array $expected
+    ): void {
         $container = Container::getInstance();
 
         $db = m::mock(DatabaseManager::class);
@@ -87,35 +92,50 @@ class TestDatabasesTest extends TestCase
         $container->instance('db', $db);
 
         $config = $container->make('config');
-        $config->shouldReceive('get')
-            ->once()
-            ->with('database.connections.mysql.url', false)
-            ->andReturn($url);
-
-        $config->shouldReceive('set')
-            ->once()
-            ->with('database.connections.mysql.url', $testUrl);
+        $config->set('database.connections.mysql', $configuration);
 
         $this->switchToDatabase($testDatabase);
+
+        $normalized = $config->get('database.connections.mysql');
+
+        foreach ($expected as $key => $value) {
+            $this->assertSame($value, $normalized[$key]);
+        }
+
+        $this->assertSame($testDatabase, $normalized['database']);
+        $this->assertArrayNotHasKey('url', $normalized);
     }
 
-    public static function databaseUrls(): array
+    public static function databaseUrls(): iterable
     {
-        return [
+        yield 'MySQL URL' => [
+            'my_database_test_1',
             [
-                'my_database_test_1',
-                'mysql://root:@127.0.0.1/my_database?charset=utf8mb4',
-                'mysql://root:@127.0.0.1/my_database_test_1?charset=utf8mb4',
+                'url' => 'mysql://root:@127.0.0.1/my_database?charset=utf8mb4&options=foo%2Fbar',
+                'prefix' => 'app_',
             ],
             [
-                'my_database_test_1',
-                'mysql://my-user:@localhost/my_database',
-                'mysql://my-user:@localhost/my_database_test_1',
+                'driver' => 'mysql',
+                'host' => '127.0.0.1',
+                'username' => 'root',
+                'password' => '',
+                'charset' => 'utf8mb4',
+                'options' => 'foo/bar',
+                'prefix' => 'app_',
+            ],
+        ];
+
+        yield 'PostgreSQL URL' => [
+            'my-database_test_1',
+            [
+                'url' => 'postgresql://my_database_user:@127.0.0.1/my-database?charset=utf8',
             ],
             [
-                'my-database_test_1',
-                'postgresql://my_database_user:@127.0.0.1/my-database?charset=utf8',
-                'postgresql://my_database_user:@127.0.0.1/my-database_test_1?charset=utf8',
+                'driver' => 'pgsql',
+                'host' => '127.0.0.1',
+                'username' => 'my_database_user',
+                'password' => '',
+                'charset' => 'utf8',
             ],
         ];
     }
@@ -178,10 +198,97 @@ class TestDatabasesTest extends TestCase
             true,
             function () use (&$callbackCalled): void {
                 $callbackCalled = true;
-            }
+            },
+            [],
+            false,
         );
 
         $this->assertFalse($callbackCalled);
+    }
+
+    public function testInheritedReadWriteDatabaseIdentityIsManaged(): void
+    {
+        $callbackDatabase = null;
+
+        $this->whenNotUsingInMemoryDatabase(
+            'mysql',
+            'testing',
+            false,
+            function (string $database) use (&$callbackDatabase): void {
+                $callbackDatabase = $database;
+            },
+            [
+                'read' => ['host' => ['read-one', 'read-two']],
+                'write' => [
+                    ['host' => 'write-one'],
+                    ['host' => 'write-two'],
+                ],
+            ],
+        );
+
+        $this->assertSame('testing', $callbackDatabase);
+    }
+
+    public function testInMemorySqliteWithEndpointDatabaseIsRejectedBeforeConnectionResolution(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Read/write connections with endpoint-specific databases or URLs cannot be automatically managed during parallel testing. '
+            . 'Configure a single database identity or run with --without-databases.'
+        );
+
+        $this->whenNotUsingInMemoryDatabase(
+            'sqlite',
+            ':memory:',
+            false,
+            static function (): void {
+            },
+            ['read' => ['database' => 'persistent.sqlite']],
+            false,
+        );
+    }
+
+    #[DataProvider('unsupportedReadWriteConfigurations')]
+    public function testEndpointSpecificDatabaseIdentityIsRejectedBeforeConnectionResolution(
+        array $configuration
+    ): void {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Read/write connections with endpoint-specific databases or URLs cannot be automatically managed during parallel testing. '
+            . 'Configure a single database identity or run with --without-databases.'
+        );
+
+        $this->whenNotUsingInMemoryDatabase(
+            'mysql',
+            'testing',
+            false,
+            static function (): void {
+            },
+            $configuration,
+            false,
+        );
+    }
+
+    public static function unsupportedReadWriteConfigurations(): iterable
+    {
+        yield 'associative read database' => [[
+            'read' => ['database' => 'reader'],
+        ]];
+
+        yield 'associative write URL' => [[
+            'write' => ['url' => 'mysql://writer:secret@write-host/writer'],
+        ]];
+
+        yield 'list read database' => [[
+            'read' => [
+                ['host' => 'read-one'],
+                ['database' => 'reader'],
+            ],
+        ]];
+
+        yield 'query-derived read database' => [[
+            'url' => 'mysql://worker:secret@host/testing?read[database]=reader',
+        ]];
     }
 
     protected function switchToDatabase(string $database): void
@@ -209,16 +316,30 @@ class TestDatabasesTest extends TestCase
         string $driver,
         string $database,
         bool $withoutDatabases,
-        callable $callback
+        callable $callback,
+        array $configuration = [],
+        bool $expectsConnectionLookup = true,
     ): void {
         $db = m::mock(DatabaseManager::class);
-        $db->shouldReceive('getConfig')->with('database')->andReturn($database);
 
-        if (! $withoutDatabases) {
-            $db->shouldReceive('getConfig')->with('driver')->andReturn($driver);
+        if ($expectsConnectionLookup) {
+            $db->shouldReceive('getConfig')->with('database')->andReturn($database);
+
+            if (! $withoutDatabases) {
+                $db->shouldReceive('getConfig')->with('driver')->andReturn($driver);
+            }
+        } else {
+            $db->shouldNotReceive('getConfig');
         }
 
         Container::getInstance()->instance('db', $db);
+        Container::getInstance()->make('config')->set(
+            'database.connections.mysql',
+            array_replace([
+                'driver' => $driver,
+                'database' => $database,
+            ], $configuration),
+        );
         Container::getInstance()
             ->make(ParallelTesting::class)
             ->resolveOptionsUsing(

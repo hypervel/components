@@ -7,6 +7,8 @@ namespace Hypervel\Tests\Testbench\Foundation\Console;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
+use Hypervel\Testbench\Foundation\Console\SyncSkeletonCommand;
+use Hypervel\Testbench\Foundation\Console\TerminatingConsole;
 use Hypervel\Testbench\TestbenchServiceProvider;
 use Hypervel\Tests\Testbench\Concerns\PreservesSkeletonFiles;
 use Hypervel\Tests\Testbench\Fixtures\Providers\Phase2ConsoleServiceProvider;
@@ -15,6 +17,9 @@ use Override;
 use PHPUnit\Framework\Attributes\Depends;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\TestWith;
+use Symfony\Component\Console\Application as SymfonyApplication;
+use Symfony\Component\Console\Tester\ApplicationTester;
 
 use function Hypervel\Filesystem\join_paths;
 use function Hypervel\Testbench\package_path;
@@ -66,6 +71,11 @@ class SyncSkeletonCommandTest extends TestCase
     public function itCanSyncTheSkeletonFiles(): void
     {
         $config = $this->app->make(ConfigContract::class);
+        $terminatingCallbackCalled = false;
+
+        TerminatingConsole::before(function () use (&$terminatingCallbackCalled): void {
+            $terminatingCallbackCalled = true;
+        });
 
         $config['workbench'] = [
             'sync' => [
@@ -92,6 +102,31 @@ class SyncSkeletonCommandTest extends TestCase
         $this->assertSame(file_get_contents(testbench_path('testbench.yaml')), file_get_contents($testbenchCacheFile));
         $this->assertSame(file_get_contents($this->app->basePath('.env.example')), file_get_contents($environmentFile));
         $this->assertSame(package_path('src/testbench/workbench/storage'), readlink($symlinkPath));
+
+        TerminatingConsole::handle();
+
+        $this->assertFalse($terminatingCallbackCalled);
+    }
+
+    #[Test]
+    #[TestWith([['command' => 'list']])]
+    #[TestWith([['command' => 'help', 'command_name' => 'package:sync-skeleton']])]
+    public function itPreservesTerminatingCallbacksForReadOnlyConsoleActions(array $input): void
+    {
+        $terminatingCallbackCalled = false;
+
+        TerminatingConsole::before(function () use (&$terminatingCallbackCalled): void {
+            $terminatingCallbackCalled = true;
+        });
+
+        $application = new SymfonyApplication;
+        $application->setAutoExit(false);
+        $application->addCommand(new SyncSkeletonCommand);
+
+        (new ApplicationTester($application))->run($input);
+        TerminatingConsole::handle();
+
+        $this->assertTrue($terminatingCallbackCalled);
     }
 
     #[Test]
