@@ -16,6 +16,7 @@ use Hypervel\Events\Dispatcher;
 use Hypervel\Pool\Events\ReleaseConnection;
 use Hypervel\Pool\Exceptions\ConnectionException;
 use Hypervel\Pool\PoolOption;
+use Hypervel\Redis\Exceptions\InvalidRedisOptionException;
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\PhpRedisClusterConnection;
 use Hypervel\Redis\PhpRedisConnection;
@@ -952,6 +953,27 @@ class RedisConnectionTest extends TestCase
             $this->fail('Expected the cancellation to escape.');
         } catch (CanceledException $exception) {
             $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testSentinelResolutionPreservesTheUnderlyingFailure(): void
+    {
+        $failure = new RuntimeException('sentinel unavailable');
+        $sentinelFactory = m::mock(RedisSentinelFactory::class);
+        $sentinelFactory->expects('resolveMaster')->andThrow($failure);
+        $container = m::mock(ContainerContract::class);
+        $container->expects('make')
+            ->with(RedisSentinelFactory::class)
+            ->andReturn($sentinelFactory);
+        $container->shouldReceive('bound')->with('events')->andReturnFalse();
+        $container->shouldReceive('has')->andReturnFalse();
+
+        try {
+            new PhpRedisConnection($container, $this->getMockedPool(), $this->sentinelConfig());
+            $this->fail('Expected Sentinel resolution to fail.');
+        } catch (ConnectionException $exception) {
+            $this->assertSame('Connection reconnect failed: sentinel unavailable', $exception->getMessage());
+            $this->assertSame($failure, $exception->getPrevious());
         }
     }
 
@@ -3056,6 +3078,36 @@ class RedisConnectionTest extends TestCase
         };
     }
 
+    public function testReconnectRejectsNamedPackIgnoreNumbersWhenPhpRedisDoesNotSupportIt(): void
+    {
+        if (defined(Redis::class . '::OPT_PACK_IGNORE_NUMBERS')) {
+            $this->markTestSkipped('PhpRedis supports OPT_PACK_IGNORE_NUMBERS.');
+        }
+
+        $pool = $this->getMockedPool();
+        $redis = m::mock(Redis::class);
+        $redis->shouldReceive('setOption')->andReturnTrue();
+
+        $this->expectException(InvalidRedisOptionException::class);
+        $this->expectExceptionMessage('The redis option `pack_ignore_numbers` requires PhpRedis 6.2 or later.');
+
+        new class($this->getContainer(), $pool, $this->standaloneConfig(['options' => ['pack_ignore_numbers' => true]]), $redis) extends PhpRedisConnection {
+            public function __construct(
+                ContainerContract $container,
+                PoolInterface $pool,
+                array $config,
+                private Redis $fakeRedis,
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            protected function createRedis(array $config): Redis
+            {
+                return $this->fakeRedis;
+            }
+        };
+    }
+
     public function testReconnectSetsConnectionLevelPhpRedisOptions(): void
     {
         $pool = $this->getMockedPool();
@@ -3148,7 +3200,7 @@ class RedisConnectionTest extends TestCase
         $pool = $this->getMockedPool();
         $redis = m::mock(Redis::class);
 
-        $this->expectException(\Hypervel\Redis\Exceptions\InvalidRedisOptionException::class);
+        $this->expectException(InvalidRedisOptionException::class);
         $this->expectExceptionMessage('Algorithm [bogus] is not a valid PhpRedis backoff algorithm.');
 
         $redis->shouldReceive('setOption')->andReturnTrue();
@@ -3175,7 +3227,7 @@ class RedisConnectionTest extends TestCase
         $pool = $this->getMockedPool();
         $redis = m::mock(Redis::class);
 
-        $this->expectException(\Hypervel\Redis\Exceptions\InvalidRedisOptionException::class);
+        $this->expectException(InvalidRedisOptionException::class);
         $this->expectExceptionMessage('The redis option key `bogus` is invalid.');
 
         $redis->shouldReceive('setOption')->andReturnTrue();

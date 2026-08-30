@@ -124,6 +124,11 @@ class FakeRedisClient extends Redis
     private string $optPrefix = '';
 
     /**
+     * The last simulated Redis error.
+     */
+    private ?string $lastError = null;
+
+    /**
      * Configured zScan results per key.
      *
      * @var array<string, array<int, array{members: array<string, float>, iterator: int}>>
@@ -305,6 +310,32 @@ class FakeRedisClient extends Redis
             Redis::OPT_PREFIX => $this->optPrefix,
             default => null,
         };
+    }
+
+    /**
+     * Clear the last simulated Redis error.
+     */
+    public function clearLastError(): bool
+    {
+        $this->lastError = null;
+
+        return true;
+    }
+
+    /**
+     * Get the last simulated Redis error.
+     */
+    public function getLastError(): ?string
+    {
+        return $this->lastError;
+    }
+
+    /**
+     * Set the last simulated Redis error.
+     */
+    public function setFakeLastError(?string $lastError): void
+    {
+        $this->lastError = $lastError;
     }
 
     /**
@@ -509,5 +540,6 @@ class FakeRedisClient extends Redis
         $this->execCallIndex = 0;
         $this->inPipeline = false;
         $this->pipelineQueue = [];
+        $this->lastError = null;
     }
 }

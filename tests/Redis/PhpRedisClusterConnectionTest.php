@@ -20,6 +20,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Redis;
 use RedisCluster;
 use RedisException;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
@@ -49,6 +50,34 @@ class PhpRedisClusterConnectionTest extends TestCase
             $this->fail('Expected the cancellation to escape.');
         } catch (CanceledException $exception) {
             $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testClusterCreationPreservesTheUnderlyingFailure(): void
+    {
+        $failure = new RuntimeException('cluster unavailable');
+
+        try {
+            new class($this->getContainer(), $this->getMockedPool(), $this->clusterConfig(), $failure) extends PhpRedisClusterConnection {
+                public function __construct(
+                    ContainerContract $container,
+                    PoolInterface $pool,
+                    array $config,
+                    private RuntimeException $failure,
+                ) {
+                    parent::__construct($container, $pool, $config);
+                }
+
+                protected function formatClusterPassword(): mixed
+                {
+                    throw $this->failure;
+                }
+            };
+
+            $this->fail('Expected Redis Cluster creation to fail.');
+        } catch (ConnectionException $exception) {
+            $this->assertSame('Connection reconnect failed: cluster unavailable', $exception->getMessage());
+            $this->assertSame($failure, $exception->getPrevious());
         }
     }
 
@@ -520,6 +549,10 @@ class PhpRedisClusterConnectionTest extends TestCase
 
     public function testClusterOptionsUseNativeFailoverAndTcpKeepaliveConstants(): void
     {
+        if (! defined(Redis::class . '::OPT_PACK_IGNORE_NUMBERS')) {
+            $this->markTestSkipped('PhpRedis does not support OPT_PACK_IGNORE_NUMBERS.');
+        }
+
         $connection = new class($this->getContainer(), $this->getMockedPool(), $this->clusterConfig(['options' => ['failover' => RedisCluster::FAILOVER_DISTRIBUTE, 'tcp_keepalive' => 30, 'pack_ignore_numbers' => true]])) extends PhpRedisClusterConnectionStub {
             public function setOptionsForTest(RedisCluster $redis): void
             {
@@ -532,6 +565,9 @@ class PhpRedisClusterConnectionTest extends TestCase
             ->andReturnTrue();
         $redis->expects('setOption')
             ->with(Redis::OPT_TCP_KEEPALIVE, 30)
+            ->andReturnTrue();
+        $redis->expects('setOption')
+            ->with(Redis::OPT_PACK_IGNORE_NUMBERS, true)
             ->andReturnTrue();
         $this->expectDefaultConnectionOptions($redis);
 

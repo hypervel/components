@@ -574,8 +574,10 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
                 $name = strtolower($name);
 
                 if ($name === 'pack_ignore_numbers'
-                    && (! $redis instanceof Redis || ! defined(Redis::class . '::OPT_PACK_IGNORE_NUMBERS'))) {
-                    continue;
+                    && ! defined(Redis::class . '::OPT_PACK_IGNORE_NUMBERS')) {
+                    throw new InvalidRedisOptionException(
+                        'The redis option `pack_ignore_numbers` requires PhpRedis 6.2 or later.'
+                    );
                 }
 
                 if ($name === 'backoff_algorithm') {
@@ -626,7 +628,7 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
             'compression' => Redis::OPT_COMPRESSION,
             'reply_literal' => Redis::OPT_REPLY_LITERAL,
             'compression_level' => Redis::OPT_COMPRESSION_LEVEL,
-            'pack_ignore_numbers' => Redis::OPT_PACK_IGNORE_NUMBERS, // @phpstan-ignore classConstant.notFound (setOptions() skips this option when phpredis predates the constant)
+            'pack_ignore_numbers' => Redis::OPT_PACK_IGNORE_NUMBERS, // @phpstan-ignore classConstant.notFound (setOptions() guards this option before resolving the constant)
             'max_retries' => Redis::OPT_MAX_RETRIES,
             'backoff_algorithm' => Redis::OPT_BACKOFF_ALGORITHM,
             'backoff_base' => Redis::OPT_BACKOFF_BASE,
@@ -1831,6 +1833,8 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
      * @param string $pattern The pattern to match (e.g., "cache:test:*").
      *                        Should NOT include OPT_PREFIX - it's handled automatically.
      * @return int Number of keys deleted
+     *
+     * @throws RedisException
      */
     public function flushByPattern(string $pattern): int
     {
