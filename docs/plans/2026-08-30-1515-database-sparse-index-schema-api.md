@@ -115,6 +115,8 @@ Extend SQLite's internal index record with `partial: bool`. Both arms of `SQLite
 
 Keep `reconstructible = false` for an introspected partial index because its stored predicate may be arbitrary SQL and must be replayed exactly. Document this invariant beside the SQLite introspection expression because both rebuild and rename depend on it. A newly declared simple `whereNotNull()` index remains reconstructible because the command retains the complete supported predicate; a newly declared raw index still follows the existing raw-expression rules. Existing partial indexes continue through the stored-SQL rebuild and index-rename paths without a predicate parser.
 
+When a same-blueprint column rename updates a newly declared index, rewrite both its indexed columns and its optional `whereNotNull` predicate column. During a legacy table rebuild, treat the optional predicate column as an index reference alongside the indexed columns so dropping a predicate-only column fails before any mutation instead of replaying a semantically degraded index.
+
 Narrow `BlueprintState`'s primary-key property and accessor to `?IndexDefinition`: both introspected and newly declared primary keys now have that exact type. Because `update(Fluent $command)` prevents static narrowing, the `primary`, `index`, and `foreign` cases narrow the command with checked `@var` annotations. Do not use `assign.propertyType` suppressions there because they would hide a later genuine mismatch on the assignment line.
 
 ## Source and documentation changes
@@ -125,8 +127,8 @@ Implement one file at a time in this order:
 2. `src/database/src/Schema/Blueprint.php` — concrete return types and `IndexDefinition` command construction.
 3. `src/database/src/Schema/Grammars/Grammar.php` — shared predicate suffix compiler.
 4. `src/database/src/Schema/Grammars/PostgresGrammar.php` — partial DDL and `indpred` introspection.
-5. `src/database/src/Schema/Grammars/SQLiteGrammar.php` — partial DDL and public/internal `partial` metadata.
-6. `src/database/src/Schema/BlueprintState.php` — narrow primary-key state to `?IndexDefinition` and replace assignment suppressions with checked case-local `@var` narrowing.
+5. `src/database/src/Schema/Grammars/SQLiteGrammar.php` — partial DDL, public/internal `partial` metadata, and complete legacy-rebuild validation for indexed and predicate-only column references.
+6. `src/database/src/Schema/BlueprintState.php` — narrow primary-key state to `?IndexDefinition`, replace assignment suppressions with checked case-local `@var` narrowing, and carry simple predicate columns through same-blueprint renames.
 7. `src/database/src/Query/Processors/PostgresProcessor.php` — normalize PostgreSQL partial state.
 8. `src/database/src/Query/Processors/SQLiteProcessor.php` — expose the public flag and retain it internally.
 9. `src/database/src/Query/Processors/MySqlProcessor.php` — normalize the unsupported-engine fallback as `false`; MariaDB inherits it.
@@ -170,7 +172,9 @@ Update each test file and run it immediately before moving to the next.
 - `tests/Integration/Database/Sqlite/DatabaseSchemaBlueprintTest.php`
   - create a partial index through the public API;
   - trigger a table rebuild and then rename that index;
-  - prove the stored predicate, public `partial` flag, and physical index definition survive both paths exactly.
+  - prove the stored predicate, public `partial` flag, and physical index definition survive both paths exactly;
+  - prove a newly declared predicate follows a same-blueprint predicate-column rename through a rebuild even when that column is not an index key; and
+  - force the pre-3.35 rebuild path and prove dropping a newly declared index's predicate-only column fails with the existing actionable dropped-column error.
 - add `types/Database/Schema.php` to pin the concrete `IndexDefinition` return type and the fluent `static` return from `whereNotNull()`.
 
 Audit existing exact `getIndexes()` array assertions across `tests/` and update each for the new required `partial` member. Do not weaken them to subset assertions merely to accommodate the new field.
