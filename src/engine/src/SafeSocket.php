@@ -153,9 +153,12 @@ class SafeSocket implements SocketInterface
         }
 
         $this->loop = true;
+        $started = false;
 
         try {
-            Coroutine::create(function (): void {
+            Coroutine::create(function () use (&$started): void {
+                $started = true;
+
                 try {
                     while (true) {
                         $data = $this->channel->pop(-1);
@@ -193,7 +196,10 @@ class SafeSocket implements SocketInterface
                 }
             });
         } catch (Throwable $exception) {
-            $this->loop = false;
+            // Once the child starts, its finally block owns the loop state.
+            if (! $started) {
+                $this->loop = false;
+            }
 
             throw $exception;
         }
