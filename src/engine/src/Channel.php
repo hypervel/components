@@ -127,6 +127,16 @@ class Channel extends \Swoole\Coroutine\Channel implements ChannelInterface
     }
 
     /**
+     * Determine if the last operation was canceled.
+     *
+     * This state must be inspected immediately after a failed operation.
+     */
+    public function isCanceled(): bool
+    {
+        return $this->errCode === SWOOLE_CHANNEL_CANCELED;
+    }
+
+    /**
      * Determine if the last operation timed out.
      */
     public function isTimeout(): bool
