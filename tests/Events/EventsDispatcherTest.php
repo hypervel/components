@@ -25,6 +25,7 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionClass;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class EventsDispatcherTest extends TestCase
 {
@@ -1196,6 +1197,62 @@ class EventsDispatcherTest extends TestCase
 
         $this->assertSame($listenerFailure, $thrown);
         $this->assertTrue($observerInvoked);
+    }
+
+    public function testListenerCancellationSkipsObservers(): void
+    {
+        $dispatcher = new Dispatcher;
+        $cancellation = new CanceledException('canceled');
+        $observerInvoked = false;
+
+        $dispatcher->listen('foo', fn () => throw $cancellation);
+        $dispatcher->observe('foo', function () use (&$observerInvoked): void {
+            $observerInvoked = true;
+        });
+
+        try {
+            $dispatcher->dispatch('foo');
+            $this->fail('Expected listener cancellation to escape.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertFalse($observerInvoked);
+    }
+
+    public function testObserverCancellationSupersedesEarlierFailuresAndStopsLaterObservers(): void
+    {
+        $dispatcher = new Dispatcher;
+        $cancellation = new CanceledException('canceled');
+        $order = [];
+
+        $dispatcher->listen('foo', function () use (&$order): void {
+            $order[] = 'listener';
+
+            throw new RuntimeException('listener failed');
+        });
+        $dispatcher->observe('foo', function () use (&$order): void {
+            $order[] = 'first observer';
+
+            throw new RuntimeException('observer failed');
+        });
+        $dispatcher->observe('foo', function () use (&$order, $cancellation): void {
+            $order[] = 'cancelling observer';
+
+            throw $cancellation;
+        });
+        $dispatcher->observe('foo', function () use (&$order): void {
+            $order[] = 'later observer';
+        });
+
+        try {
+            $dispatcher->dispatch('foo');
+            $this->fail('Expected observer cancellation to escape.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame(['listener', 'first observer', 'cancelling observer'], $order);
     }
 
     public function testLaterObserverRunsWhenEarlierObserverThrows(): void
