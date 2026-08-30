@@ -32,7 +32,7 @@ class BatchableTransactionTest extends DatabaseTestCase
         }
     }
 
-    public function testItCanHandleTimeoutJob()
+    public function testItCanHandleTimeoutJob(): void
     {
         Bus::batch([new Fixtures\TimeOutJobWithTransaction])
             ->allowFailures()
@@ -46,6 +46,9 @@ class BatchableTransactionTest extends DatabaseTestCase
             remote('queue:work --stop-when-empty', [
                 'DB_CONNECTION' => config('database.default'),
                 'DB_DATABASE' => config('database.connections.' . config('database.default') . '.database'),
+                'DB_URL' => false,
+                'DATABASE_URL' => false,
+                'DB_POOLED_URL' => false,
                 'QUEUE_CONNECTION' => config('queue.default'),
             ])->run();
         } catch (Throwable $e) {

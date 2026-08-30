@@ -284,6 +284,38 @@ PHP);
         $this->assertStringEndsWith('.php', $firstRouteFile);
     }
 
+    public function testTestbenchRouteFilePathUsesTheFilesystemSafeProcessToken(): void
+    {
+        $hadServerToken = array_key_exists('TEST_TOKEN', $_SERVER);
+        $originalServerToken = $_SERVER['TEST_TOKEN'] ?? null;
+        $hadEnvironmentToken = array_key_exists('TEST_TOKEN', $_ENV);
+        $originalEnvironmentToken = $_ENV['TEST_TOKEN'] ?? null;
+
+        try {
+            $_SERVER['TEST_TOKEN'] = 'worker/token:one';
+            $_ENV['TEST_TOKEN'] = 'ignored-token';
+
+            $routeFile = $this->testbenchRouteFilePath($this->app->basePath());
+
+            $this->assertStringStartsWith(
+                $this->app->basePath('routes/testbench-worker_token_one-'),
+                $routeFile,
+            );
+        } finally {
+            if ($hadServerToken) {
+                $_SERVER['TEST_TOKEN'] = $originalServerToken;
+            } else {
+                unset($_SERVER['TEST_TOKEN']);
+            }
+
+            if ($hadEnvironmentToken) {
+                $_ENV['TEST_TOKEN'] = $originalEnvironmentToken;
+            } else {
+                unset($_ENV['TEST_TOKEN']);
+            }
+        }
+    }
+
     public function testCacheFileExistsAfterDefineCacheRoutes(): void
     {
         $this->defineCacheRoutes(<<<'PHP'

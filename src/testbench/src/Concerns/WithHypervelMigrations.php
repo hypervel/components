@@ -18,7 +18,7 @@ trait WithHypervelMigrations
     {
         $loadHypervelMigrations = static::cachedConfigurationForWorkbench()?->getWorkbenchAttributes()['install'] ?? false;
 
-        if (! ($loadHypervelMigrations && is_dir(default_migration_path()))) {
+        if (! $loadHypervelMigrations) {
             return;
         }
 

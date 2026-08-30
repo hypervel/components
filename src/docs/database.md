@@ -151,6 +151,8 @@ Note that three keys have been added to the configuration array: `read`, `write`
 
 You only need to place items in the `read` and `write` arrays if you wish to override the values from the main `mysql` array. So, in this case, `192.168.1.1` will be used as the host for the "read" connection, while `192.168.1.3` will be used for the "write" connection. The database credentials, prefix, character set, pool configuration, and all other options in the main `mysql` array will be shared across both connections. When multiple values exist in the `host` configuration array, a database host will be randomly chosen when a new connection is established.
 
+The `read` and `write` arrays may also define their own `url`. The URL is parsed after the main connection options are merged and overrides the matching values for that connection.
+
 You may also resolve a specific side of a configured read / write connection by appending `::read` or `::write` to the connection name:
 
 ```php

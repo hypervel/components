@@ -23,14 +23,15 @@ class ParallelRunner extends BaseParallelRunner
     protected function createApplication(): ApplicationContract
     {
         if (! defined('TESTBENCH_WORKING_PATH')) {
-            define('TESTBENCH_WORKING_PATH', Env::get('TESTBENCH_WORKING_PATH'));
+            $workingPath = Env::get('TESTBENCH_WORKING_PATH');
+
+            if (is_string($workingPath) && $workingPath !== '') {
+                define('TESTBENCH_WORKING_PATH', $workingPath);
+            }
         }
 
         $applicationResolver = static::$applicationResolver ?: static function (): ApplicationContract {
-            // Rebootstrapping would overlay the live runtime clone and register duplicate cleanup.
-            if (! defined('BASE_PATH')) {
-                Bootstrapper::bootstrap();
-            }
+            Bootstrapper::bootstrap();
 
             $extra = Bootstrapper::getConfiguration()?->getExtraAttributes() ?? [];
             // Process callbacks belong to the runner even when package discovery is disabled.
