@@ -232,6 +232,8 @@ $schema = JsonSchema::fromArray([
 ]);
 ```
 
+Keywords beside a local reference still apply to the referenced schema. Title, description, and default annotations beside the reference override the same annotations on its target. Supported validation rules may be added beside the reference or repeated with the same value, but conflicting values will throw an `InvalidArgumentException` because the fluent builder cannot safely represent both rules. Values must match exactly, including the order of array values.
+
 Only local references are supported. An `InvalidArgumentException` will be thrown if the schema contains a remote or circular reference, a reference path with more than 256 references, or more than 20,000 expanded schema fragments.
 
 <a name="supported-schema-subset"></a>
@@ -256,4 +258,6 @@ The unsupported JSON Schema 2020-12 validation keywords are `const`, `not`, `all
 
 An `InvalidArgumentException` will also be thrown when a supported keyword contains a malformed value, such as a non-string `pattern`, a non-array `required` value, or an empty `anyOf` or `oneOf` array.
 
-Some valid JSON Schema forms cannot be represented by the fluent builder. These include an `additionalProperties` value that contains another schema, tuple or `false` values for `items`, boolean schemas used as object properties or composition branches, type-specific constraints on a multi-type union, and `anyOf` or `oneOf` schemas that carry incompatible type or composition rules. A nullable composition also cannot be reconstructed when its non-null branch and the keywords beside the composition give different values for the same keyword. Attempting to reconstruct these forms will throw an `InvalidArgumentException`.
+Some valid JSON Schema forms cannot be represented by the fluent builder. These include an `additionalProperties` value that contains another schema, tuple or `false` values for `items`, boolean schemas used as object properties or composition branches, type-specific constraints on a multi-type union, and `anyOf` or `oneOf` schemas that carry incompatible type or composition rules. Attempting to reconstruct these forms will throw an `InvalidArgumentException`.
+
+For a nullable `anyOf` or `oneOf`, title, description, and default annotations beside the composition override the same annotations on its non-null branch. Supported validation rules may appear on either side or be repeated with the same value. If both sides give different values for the same validation rule, an `InvalidArgumentException` will be thrown. Array values must match exactly, including their order.
