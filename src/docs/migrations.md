@@ -1547,6 +1547,22 @@ $table->unique('email')->online();
 
 When using PostgreSQL, this adds the `CONCURRENTLY` option to the index creation statement.
 
+<a name="partial-indexes"></a>
+#### Partial Indexes
+
+To create an index that contains only rows where a column is not null, you may chain the `whereNotNull` method onto an ordinary index definition:
+
+```php
+$table->index(
+    ['account_id', 'archived_at'],
+    'records_archived_index',
+)->whereNotNull('archived_at');
+```
+
+PostgreSQL and SQLite create a partial index for this definition. MySQL and MariaDB do not support partial indexes, so they create the same ordinary index over every row. This allows the same migration to run on each supported database.
+
+The `whereNotNull` modifier is available on indexes created with `index` and `rawIndex`. Using it with a primary, unique, full text, spatial, or vector index throws a `LogicException`.
+
 <a name="renaming-indexes"></a>
 ### Renaming Indexes
 
