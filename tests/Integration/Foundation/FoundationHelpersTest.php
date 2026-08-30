@@ -8,6 +8,7 @@ use Exception;
 use Faker\Provider\en_AU\Address as AustralianAddress;
 use Faker\Provider\en_US\Address as AmericanAddress;
 use Hypervel\Testbench\TestCase;
+use Swoole\Coroutine\CanceledException;
 
 class FoundationHelpersTest extends TestCase
 {
@@ -49,6 +50,34 @@ class FoundationHelpersTest extends TestCase
                 $testClass->test([]);
             }, 'rescued!')
         );
+    }
+
+    public function testRescuePreservesCancellation(): void
+    {
+        $cancellation = new CanceledException('canceled');
+        $reported = false;
+        $rescued = false;
+
+        try {
+            rescue(
+                fn () => throw $cancellation,
+                function () use (&$rescued): void {
+                    $rescued = true;
+                },
+                function () use (&$reported): bool {
+                    $reported = true;
+
+                    return true;
+                },
+            );
+
+            $this->fail('The cancellation was not preserved.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertFalse($reported);
+        $this->assertFalse($rescued);
     }
 
     // REMOVED: testMixReportsExceptionWhenAssetIsMissingFromManifest - Mix deleted from Hypervel
