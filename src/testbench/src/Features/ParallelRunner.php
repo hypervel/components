@@ -23,7 +23,11 @@ class ParallelRunner extends BaseParallelRunner
     protected function createApplication(): ApplicationContract
     {
         if (! defined('TESTBENCH_WORKING_PATH')) {
-            define('TESTBENCH_WORKING_PATH', Env::get('TESTBENCH_WORKING_PATH'));
+            $workingPath = Env::get('TESTBENCH_WORKING_PATH');
+
+            if (is_string($workingPath) && $workingPath !== '') {
+                define('TESTBENCH_WORKING_PATH', $workingPath);
+            }
         }
 
         $applicationResolver = static::$applicationResolver ?: static function (): ApplicationContract {

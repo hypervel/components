@@ -61,6 +61,31 @@ class ParallelRunnerTest extends TestCase
         }
     }
 
+    #[Test]
+    #[PreserveGlobalState(false)]
+    #[RunInSeparateProcess]
+    public function itBuildsDefaultApplicationWithoutWorkingPathEnvironment(): void
+    {
+        Env::forget('TESTBENCH_WORKING_PATH');
+
+        $runner = (new ReflectionClass(ParallelRunner::class))->newInstanceWithoutConstructor();
+        $createApplication = new ReflectionMethod(ParallelRunner::class, 'createApplication');
+
+        $this->assertFalse(defined('TESTBENCH_WORKING_PATH'));
+        $this->assertFalse(defined('BASE_PATH'));
+
+        /** @var ApplicationContract $application */
+        $application = $createApplication->invoke($runner);
+
+        try {
+            $this->assertSame(realpath(dirname(__DIR__, 3)), TESTBENCH_WORKING_PATH);
+            $this->assertSame(BASE_PATH, $application->basePath());
+            $this->assertDirectoryExists($application->basePath());
+        } finally {
+            $application->flush();
+        }
+    }
+
     // BASE_PATH can outlive Testbench's cached configuration between tests.
     #[Test]
     #[PreserveGlobalState(false)]

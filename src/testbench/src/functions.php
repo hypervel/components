@@ -252,9 +252,11 @@ function package_path(array|string $path = ''): string
     $argumentCount = func_num_args();
 
     $workingPath = once(static function (): string {
+        $configuredWorkingPath = Env::get('TESTBENCH_WORKING_PATH');
+
         $resolvedPath = realpath(match (true) {
             defined('TESTBENCH_WORKING_PATH') => TESTBENCH_WORKING_PATH,
-            Env::has('TESTBENCH_WORKING_PATH') => (string) Env::get('TESTBENCH_WORKING_PATH'),
+            is_string($configuredWorkingPath) && $configuredWorkingPath !== '' => $configuredWorkingPath,
             default => InstalledVersions::getRootPackage()['install_path'],
         });
 
@@ -287,7 +289,7 @@ function defined_environment_variables(): array
     return (new Collection($_ENV + $_SERVER))
         ->keys()
         ->filter(static fn (mixed $key): bool => is_string($key))
-        ->mapWithKeys(static fn (string $key) => [$key => $_ENV[$key] ?? $_SERVER[$key] ?? null])
+        ->mapWithKeys(static fn (string $key): array => [$key => $_ENV[$key] ?? $_SERVER[$key] ?? null])
         ->filter(static fn (mixed $value): bool => $value === null || is_scalar($value))
         ->when(
             ! Env::has('TESTBENCH_WORKING_PATH'),
