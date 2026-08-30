@@ -9,6 +9,7 @@ use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Watcher\Driver\DriverInterface;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
 
@@ -36,14 +37,18 @@ class Watcher
             try {
                 $callback();
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                if ($exception === null || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)) {
+                    $exception = $throwable;
+                }
             }
         };
 
         try {
             $this->strategy?->start();
 
-            Coroutine::create(function () use ($channel, $driverFinished, &$driverFailure): void {
+            Coroutine::create(function () use ($channel, $driverFinished, &$driverFailure, &$driverStarted): void {
+                $driverStarted = true;
+
                 try {
                     $this->driver->watch($channel);
                 } catch (Throwable $throwable) {
@@ -58,7 +63,6 @@ class Watcher
                     }
                 }
             });
-            $driverStarted = true;
 
             while (true) {
                 $file = $channel->pop($restartPending ? 0.001 : -1);
@@ -95,11 +99,14 @@ class Watcher
             $capture(fn () => $this->driver->stop());
             $capture(fn () => $this->strategy?->stop());
             $capture(fn () => $channel->close());
-            $capture(function () use ($driverStarted, $driverFinished): void {
-                if ($driverStarted && ! $driverFinished->wait(1.0)) {
-                    throw new RuntimeException('The file watcher did not stop within one second.');
-                }
-            });
+
+            if (! $exception instanceof CanceledException) {
+                $capture(function () use ($driverStarted, $driverFinished): void {
+                    if ($driverStarted && ! $driverFinished->wait(1.0)) {
+                        throw new RuntimeException('The file watcher did not stop within one second.');
+                    }
+                });
+            }
         }
 
         if ($exception !== null) {
