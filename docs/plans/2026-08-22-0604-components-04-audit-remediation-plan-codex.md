@@ -12,7 +12,7 @@ Resolve every genuine issue retained in this master plan against the current 0.4
 - Finding 123 was valid but is already fixed on the current branch.
 - Findings 4, 9, 14, 93, 119, 129, and 153 require no change: some are false positives, while the rest propose churn or machinery for deliberate behavior that is already correct.
 - Finding 88 is an exact duplicate of finding 32 and must not become a second patch.
-- Findings 6, 26, 94, 98, and 154 are only partially correct as written. Their valid portions remain in this plan; their invalid portions are explicitly rejected below.
+- Findings 6, 26, and 154 are only partially correct as written. Their valid portions remain in this plan; their invalid portions are explicitly rejected below.
 - Some audit statements about Laravel were stale or incorrect. A defect shared with current Laravel remains a defect, but the plan does not cite false upstream parity as evidence.
 
 ## Rejected, duplicate, resolved, and narrowed claims
@@ -27,7 +27,6 @@ Resolve every genuine issue retained in this master plan against the current 0.4
 | 32 | Confirmed | This is the canonical keyed-resource-collection issue. |
 | 88 | Exact duplicate | Same file, cause, behavior, and fix as 32. Cover it with the 32 tests and close both audit IDs together. |
 | 93 | Rejected | Moving methods to a preferred class location is style-only churn. Narrowing the concrete path() return to string would needlessly diverge from Laravel's nullable signature and could make existing subclasses incompatible. |
-| 94 | Partially confirmed | Native concrete JsonSchema type returns in hypervel/contracts create an invalid reverse dependency. The contract being unbound is not a defect: Laravel likewise does not bind it. Preserve the Laravel contract API by matching upstream's untyped methods with precise PHPDoc; do not add a service provider or binding. |
 | 119 | False positive | The defaults on tinker.alias, tinker.dont_alias, and tinker.commands intentionally allow those lists to be removed; TinkerCommandTest explicitly pins that behavior. Typed getters without defaults would break a supported configuration. |
 | 123 | Valid, already resolved | RedisConnection::callGet is mixed on the current branch. Retain or extend the serializer regression test, but do not schedule another production change. |
 | 129 | Rejected | Framework reset methods are no-throw lifecycle boundaries by design, and the subscriber already preserves the first error across its explicit outer cleanup stages. Wrapping roughly two hundred static resets in per-call fault-isolation machinery optimizes for unsupported throwing reset implementations and weakens the simple at-most-once cleanup contract. |
@@ -85,7 +84,7 @@ Each row is an implementation requirement. Test names are descriptive; use the r
 | 34 | Port current Laravel's array-capable multibyte Str::substrReplace implementation, including array offset/length/replacement behavior and key preservation. Correct the scalar negative-length calculation as part of the port: the current Str::substrReplace('Hello', 'X', 2, -1) produces HeXello instead of HeXo. | Scalar parity including the explicit negative-length example; arrays with scalar and array replacements; offset/length arrays; associative keys; negative offsets and lengths; multibyte strings; mismatched replacement lengths. |
 | 35 | For built-in UUID/ULID codecs, identify binary values by the unambiguous 16-byte storage length and validate textual 36/26-byte forms separately. Leave the generic public BinaryCodec heuristic available to custom codecs. Runtime sampling confirmed that roughly one in sixteen thousand random v4-shaped UUID payloads can be valid UTF-8 and NUL-free, so this is ordinary data loss at scale rather than a purely theoretical collision. | Deterministic valid-UTF-8, NUL-free 16-byte UUID/ULID payloads round-trip through casts and database bindings; a fixed previously misclassified v4 payload; textual forms; invalid lengths; custom codec behavior unchanged. |
 
-### Database, image, collections duplicate, pagination, and JSON Schema
+### Database, image, collections duplicate, and pagination
 
 | ID | Proposed implementation | Required tests |
 |---:|---|---|
@@ -101,11 +100,6 @@ Each row is an implementation requirement. Test names are descriptive; use the r
 | 91 | Pass this paginator's pageName to resolveCurrentPage when direct construction receives a null page. | Custom p resolves p rather than page; default page; explicit page bypasses resolver. |
 | 92 | Remove pagination's hard runtime requirements on database and http. Keep them in require-dev and add Composer suggests only if the optional model/resource transformations need explanation. | Standalone pagination Composer install/autoload; metadata has no cycle; model/pivot/resource instanceof paths still work when optional packages are installed. |
 | 93 | No change; see disposition above. | Preserve nullable-path and state-flush behavior. |
-| 94 | Match Laravel's Contracts\JsonSchema\JsonSchema shape: keep the public interface, remove its concrete native return types/imports, and express the concrete types only in fully-qualified PHPDoc. JsonSchemaTypeFactory continues to implement it with covariant native returns. Do not add a binding; neither Laravel nor Hypervel documents container injection for this factory. | Standalone hypervel/contracts install/autoload and third-party contract implementation without json-schema installed; concrete factory covariance; static JsonSchema entry API; reflection confirms the Laravel-compatible method surface remains present. |
-| 95 | Serialize schema types with ordered instanceof dispatch from most specific to base type. Keep extension open rather than marking all type classes final. | Subclasses of every supported type serialize; most-specific subclass route wins; unsupported unrelated type still fails. |
-| 96 | Implement the honest representable subset of JSON Schema 2020-12 ref siblings: add absent assertions, accept identical assertions, and allow annotation siblings such as title/description/default to overlay. If the target and sibling provide different values for the same assertion keyword, throw a descriptive unsupported-conjunction exception rather than silently weakening either schema or building partial allOf machinery. Document this lasting conjunction boundary in the json-schema package docs. | Added/identical assertions; annotation overlay; differing scalar/required/properties assertions fail loudly; the prior outer-wins weakening is impossible; reference cycles and missing refs; documentation matches the supported subset. |
-| 97 | Resolve anyOf branches once, retain the resolved tuples, and pass them to nullable/general normalization without a second ref traversal or node count. | Nullable union near MAX_NODES; an injected counting resolver double proves one lookup/count pass without production instrumentation; ordinary union and cycle behavior. |
-| 98 | Correct only the stdClass branch error so it names the unsupported schema fragment. Keep Serializer::$ignore as a protected static extension point; converting it to a constant is style churn and could break subclasses. | Exact meaningful error for invalid property/branch stdClass; valid properties map; subclass customization of ignored keywords remains possible. |
 
 ### Reverb, Wayfinder, and Tinker
 
@@ -146,7 +140,7 @@ Each row is an implementation requirement. Test names are descriptive; use the r
 
 Use package-sized commits that remain reviewable and bisectable. The following order avoids building fixes on obsolete primitives:
 
-1. Mail and data representation: 21, 30-32, 34-35, 82, 94-98.
+1. Mail and data representation: 21, 30-32, 34-35, 82.
 2. Reverb recovery command and runbook: 112, with no runtime state-model change.
 3. Queue cleanup: only the two valid parts of 154; 153 deliberately stays unchanged.
 4. Vonage notification channel port followed by Horizon wiring: 160.
