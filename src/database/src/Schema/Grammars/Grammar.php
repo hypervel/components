@@ -326,6 +326,17 @@ abstract class Grammar extends BaseGrammar
     }
 
     /**
+     * Compile the not-null predicate for a sparse index.
+     */
+    protected function compileWhereNotNull(Fluent $command): string
+    {
+        /** @var null|string $column */
+        $column = $command->whereNotNull;
+
+        return is_null($column) ? '' : ' where ' . $this->wrap($column) . ' is not null';
+    }
+
+    /**
      * Get the command with a given name if it exists on the blueprint.
      */
     protected function getCommandByName(Blueprint $blueprint, string $name): ?Fluent
