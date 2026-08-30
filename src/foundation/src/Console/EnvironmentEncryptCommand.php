@@ -11,6 +11,7 @@ use Hypervel\Encryption\Encrypter;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Str;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 use function Hypervel\Prompts\password;
@@ -106,6 +107,8 @@ class EnvironmentEncryptCommand extends Command
             }
 
             $this->files->replace($encryptedFile, $encrypted, $mode);
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Exception $e) {
             $this->fail($e->getMessage());
         }
