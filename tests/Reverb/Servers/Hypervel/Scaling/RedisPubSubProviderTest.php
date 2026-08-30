@@ -7,7 +7,9 @@ namespace Hypervel\Tests\Reverb\Servers\Hypervel\Scaling;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Engine\Exceptions\CoroutineCreateException;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Redis\Subscriber\Message;
@@ -22,6 +24,7 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use RuntimeException;
 use Swoole\Coroutine as SwooleCoroutine;
+use Swoole\Coroutine\CanceledException;
 
 use function Hypervel\Coroutine\go;
 
@@ -53,6 +56,74 @@ class RedisPubSubProviderTest extends ReverbTestCase
         } catch (CoroutineCreateException) {
             $this->assertFalse($provider->runningForTest());
         }
+    }
+
+    public function testCallerCancellationDuringStartupReportingLeavesTheLifecycleChildInControl(): void
+    {
+        $handler = m::mock(ExceptionHandler::class);
+        $this->app->instance(ExceptionHandler::class, $handler);
+        $hookFailure = new RuntimeException('The startup hook failed.');
+        $reportStarted = new Channel(1);
+        $releaseReport = new Channel(1);
+        $parentCoroutineId = null;
+        $parentCancellation = null;
+        $childCoroutineId = null;
+        $subscriber = $this->subscriber();
+        $redis = m::mock(RedisProxy::class);
+        $provider = $this->provider($redis);
+
+        $handler->shouldReceive('report')
+            ->once()
+            ->with($hookFailure)
+            ->andReturnUsing(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
+                $childCoroutineId = EngineCoroutine::id();
+                $reportStarted->push(true);
+                $releaseReport->pop();
+            });
+        Coroutine::afterCreated(static function () use ($hookFailure): void {
+            throw $hookFailure;
+        });
+        $subscriber->expects('subscribe')->with('reverb')->andReturnUsing(function () use ($provider): void {
+            $provider->disconnect();
+        });
+        $this->expectSubscriberClose($subscriber);
+        $redis->expects('subscriber')->andReturn($subscriber);
+
+        $canceller = EngineCoroutine::create(static function () use ($reportStarted, &$parentCoroutineId): void {
+            $reportStarted->pop();
+
+            if (is_int($parentCoroutineId)) {
+                EngineCoroutine::cancelById($parentCoroutineId, throwException: true);
+            }
+        });
+
+        $parent = EngineCoroutine::create(function () use ($provider, &$parentCoroutineId, &$parentCancellation): void {
+            $parentCoroutineId = EngineCoroutine::id();
+
+            try {
+                $provider->connect();
+            } catch (CanceledException $exception) {
+                $parentCancellation = $exception;
+            }
+        });
+
+        try {
+            $this->assertInstanceOf(CanceledException::class, $parentCancellation);
+            $this->assertTrue($provider->runningForTest());
+            $this->assertFalse($subscriber->closed);
+        } finally {
+            $releaseReport->push(true, 0.001);
+            $provider->disconnect();
+
+            if (is_int($childCoroutineId)) {
+                Coroutine::join([$childCoroutineId], 1);
+            }
+        }
+
+        $this->assertFalse($provider->runningForTest());
+        $this->assertTrue($subscriber->closed);
+        $this->assertFalse(Coroutine::exists($parent->getId()));
+        $this->assertFalse(Coroutine::exists($canceller->getId()));
     }
 
     public function testDuplicateConnectCallsRetainOneLifecycleOwner(): void

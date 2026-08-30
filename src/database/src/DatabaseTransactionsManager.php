@@ -6,6 +6,7 @@ namespace Hypervel\Database;
 
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Support\Collection;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -293,6 +294,8 @@ class DatabaseTransactionsManager
         foreach ($transactions as $transaction) {
             try {
                 $transaction->executeCallbacks();
+            } catch (CanceledException $exception) {
+                throw $exception;
             } catch (Throwable $throwable) {
                 $exception ??= $throwable;
             }
@@ -310,14 +313,21 @@ class DatabaseTransactionsManager
      */
     protected function executeRollbackCallbacks(Collection $transactions): void
     {
+        $cancellation = null;
         $exception = null;
 
         foreach ($transactions as $transaction) {
             try {
                 $transaction->executeCallbacksForRollback();
+            } catch (CanceledException $canceledException) {
+                $cancellation ??= $canceledException;
             } catch (Throwable $throwable) {
                 $exception ??= $throwable;
             }
+        }
+
+        if ($cancellation !== null) {
+            throw $cancellation;
         }
 
         if ($exception !== null) {

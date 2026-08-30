@@ -524,6 +524,8 @@ Connections are opened when first needed and reused by later calls. In most appl
 
 Dropping an unfinished call abandons its native stream and retires the connection so the pool can replace it safely. Finish calls normally when possible so their connections remain reusable.
 
+Call the call object's `cancel` method to stop an unfinished RPC explicitly. Calling `cancel` more than once is safe, and it does not cancel other calls already using the same connection. The call then reports the standard gRPC `CANCELLED` status.
+
 The client's `target` method returns the target string passed to its constructor.
 
 <a name="generated-style-clients"></a>

@@ -20,6 +20,7 @@ use Hypervel\Contracts\Limiters\RefreshableLease;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class ConcurrencyLimiterTest extends TestCase
@@ -190,6 +191,42 @@ class ConcurrencyLimiterTest extends TestCase
         $this->expectExceptionMessage('release failure');
 
         $limiter->block(0, fn () => 'result');
+    }
+
+    public function testBlockPreservesCallbackCancellationWhenReleaseIsCanceled(): void
+    {
+        $callbackCancellation = new CanceledException('callback canceled');
+        $limiter = new ConcurrencyLimiter(
+            $this->failingReleaseStore(releaseFailure: new CanceledException('release canceled')),
+            'key',
+            1,
+            5,
+        );
+
+        try {
+            $limiter->block(0, fn () => throw $callbackCancellation);
+            $this->fail('Expected the callback cancellation to be thrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($callbackCancellation, $exception);
+        }
+    }
+
+    public function testBlockReleaseCancellationSupersedesOrdinaryCallbackFailure(): void
+    {
+        $releaseCancellation = new CanceledException('release canceled');
+        $limiter = new ConcurrencyLimiter(
+            $this->failingReleaseStore(releaseFailure: $releaseCancellation),
+            'key',
+            1,
+            5,
+        );
+
+        try {
+            $limiter->block(0, fn () => throw new RuntimeException('callback failure'));
+            $this->fail('Expected the release cancellation to be thrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($releaseCancellation, $exception);
+        }
     }
 
     public function testFunnelMethodOnRepository(): void
@@ -426,6 +463,40 @@ class ConcurrencyLimiterTest extends TestCase
             ->then(fn () => 'result');
     }
 
+    public function testFunnelPreservesCallbackCancellationWhenReleaseIsCanceled(): void
+    {
+        $callbackCancellation = new CanceledException('callback canceled');
+        $repository = new Repository(
+            $this->failingReleaseStore(releaseFailure: new CanceledException('release canceled'))
+        );
+
+        try {
+            $repository->funnel('key')
+                ->limit(1)
+                ->block(0)
+                ->then(fn () => throw $callbackCancellation);
+            $this->fail('Expected the callback cancellation to be thrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($callbackCancellation, $exception);
+        }
+    }
+
+    public function testFunnelReleaseCancellationSupersedesOrdinaryCallbackFailure(): void
+    {
+        $releaseCancellation = new CanceledException('release canceled');
+        $repository = new Repository($this->failingReleaseStore(releaseFailure: $releaseCancellation));
+
+        try {
+            $repository->funnel('key')
+                ->limit(1)
+                ->block(0)
+                ->then(fn () => throw new RuntimeException('callback failure'));
+            $this->fail('Expected the release cancellation to be thrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($releaseCancellation, $exception);
+        }
+    }
+
     public function testFunnelWithZeroLimitDoesNotRunCallback(): void
     {
         $called = false;
@@ -507,12 +578,14 @@ class ConcurrencyLimiterTest extends TestCase
     /**
      * Create a lock-capable store whose leases fail during release.
      */
-    protected function failingReleaseStore(?LimiterFailingReleaseLock &$lock = null): Store&LockProvider
-    {
+    protected function failingReleaseStore(
+        ?LimiterFailingReleaseLock &$lock = null,
+        ?Throwable $releaseFailure = null,
+    ): Store&LockProvider {
         $store = m::mock(Store::class, LockProvider::class);
         $store->shouldReceive('lock')
-            ->andReturnUsing(function (string $name, int $seconds, ?string $owner) use (&$lock): LockContract {
-                return $lock = new LimiterFailingReleaseLock($name, $seconds, $owner);
+            ->andReturnUsing(function (string $name, int $seconds, ?string $owner) use (&$lock, $releaseFailure): LockContract {
+                return $lock = new LimiterFailingReleaseLock($name, $seconds, $owner, $releaseFailure);
             });
 
         return $store;
@@ -537,6 +610,15 @@ class LimiterFailingReleaseLock extends Lock
 {
     public bool $released = false;
 
+    public function __construct(
+        string $name,
+        int $seconds,
+        ?string $owner,
+        protected ?Throwable $releaseFailure = null,
+    ) {
+        parent::__construct($name, $seconds, $owner);
+    }
+
     public function acquire(): bool
     {
         return true;
@@ -546,7 +628,7 @@ class LimiterFailingReleaseLock extends Lock
     {
         $this->released = true;
 
-        throw new RuntimeException('release failure');
+        throw $this->releaseFailure ?? new RuntimeException('release failure');
     }
 
     public function forceRelease(): void

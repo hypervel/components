@@ -11,6 +11,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\ObjectPool\PoolErrorReporter;
 use Hypervel\Support\Arr;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class SqsJob extends Job
@@ -70,12 +71,16 @@ class SqsJob extends Job
 
         try {
             $this->releasePoolLease();
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             $releaseException = $exception;
         }
 
         try {
             $this->deleteOverflowPayload();
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $cleanupException) {
             if ($releaseException !== null) {
                 PoolErrorReporter::report($cleanupException);

@@ -9,20 +9,16 @@ use Hypervel\Console\Command;
 use Hypervel\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Factories\Factory;
-use Hypervel\Foundation\Events\DiagnosingHealth;
-use Hypervel\Http\Request;
+use Hypervel\Foundation\Http\HealthCheckController;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Env;
-use Hypervel\Support\Facades\Event;
-use Hypervel\Support\Facades\View;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Config;
 use ReflectionClass;
 use Symfony\Component\Finder\Finder;
-use Throwable;
 
 use function Hypervel\Testbench\after_resolving;
 use function Hypervel\Testbench\package_path;
@@ -129,32 +125,7 @@ class Workbench
                 }
 
                 if ($healthCheckEnabled === true) {
-                    $router->get('/up', static function (Request $request) {
-                        $exception = null;
-
-                        try {
-                            Event::dispatch(new DiagnosingHealth);
-                        } catch (Throwable $throwable) {
-                            if (app()->hasDebugModeEnabled()) {
-                                throw $throwable;
-                            }
-
-                            report($throwable);
-
-                            $exception = $throwable;
-                        }
-
-                        $health = $exception === null ? 'up' : 'down';
-                        $status = $health === 'up' ? 200 : 500;
-
-                        return response(
-                            View::file(
-                                dirname(__DIR__, 3) . '/foundation/src/resources/health-up.blade.php',
-                                ['request' => $request, 'status' => $health],
-                            ),
-                            status: $status,
-                        );
-                    });
+                    $router->get('/up', HealthCheckController::class);
                 }
 
                 if ($discoversConfig['web'] === true) {

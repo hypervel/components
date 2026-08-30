@@ -50,6 +50,7 @@ use Psr\Http\Message\StreamInterface;
 use Psr\Http\Message\UriInterface;
 use ReflectionFunction;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
@@ -706,6 +707,12 @@ class FilesystemAdapter implements CloudFilesystemContract
             $limitedStream = new LimitStream($psrStream, $length, $psrStream->tell());
 
             return StreamWrapper::getResource($limitedStream);
+        } catch (CanceledException $exception) {
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+
+            throw $exception;
         } catch (Throwable $exception) {
             if (is_resource($stream)) {
                 fclose($stream);

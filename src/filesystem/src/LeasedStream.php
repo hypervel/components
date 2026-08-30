@@ -54,14 +54,7 @@ final class LeasedStream
             return $stream;
         } catch (Throwable $primaryException) {
             self::closeResource($resource);
-
-            try {
-                $lease->release();
-            } catch (Throwable $cleanupException) {
-                PoolErrorReporter::report($cleanupException);
-            }
-
-            throw $primaryException;
+            $lease->releaseAfterFailure($primaryException);
         }
     }
 

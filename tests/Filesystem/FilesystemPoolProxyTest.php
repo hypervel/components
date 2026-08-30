@@ -24,6 +24,8 @@ use League\Flysystem\Local\LocalFilesystemAdapter;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class FilesystemPoolProxyTest extends TestCase
 {
@@ -369,6 +371,29 @@ class FilesystemPoolProxyTest extends TestCase
         $this->assertFalse($proxy->invalidatePool());
         $this->assertFalse($proxy->exists('missing.txt'));
         $this->assertSame(2, $creations);
+    }
+
+    public function testReleaseCancellationSupersedesABorrowedAccessorFailure(): void
+    {
+        $operationFailure = new RuntimeException('operation failed');
+        $releaseCancellation = new CanceledException('release canceled');
+        $proxy = $this->proxy(
+            fn (): FilesystemAdapter => $this->filesystem(),
+            static function () use ($releaseCancellation): never {
+                throw $releaseCancellation;
+            },
+        );
+
+        try {
+            $proxy->withDriver(static function () use ($operationFailure): never {
+                throw $operationFailure;
+            });
+            $this->fail('Expected release cancellation to propagate.');
+        } catch (Throwable $exception) {
+            $this->assertSame($releaseCancellation, $exception);
+        }
+
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getCurrentObjectNumber());
     }
 
     private function definition(): PoolDefinition

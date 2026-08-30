@@ -11,6 +11,7 @@ use Hypervel\Foundation\Events\Terminating;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Input\StringInput;
 use Symfony\Component\Console\Output\ConsoleOutput;
 
@@ -333,6 +334,77 @@ class KernelTerminateTest extends TestCase
         }
 
         $this->assertSame(['event', 'application', 'first duration', 'second duration'], $calls);
+        $this->assertNull($kernel->commandStartedAt());
+    }
+
+    public function testEventCancellationStopsLaterTerminationStagesAndClearsTheCommandStartTime(): void
+    {
+        $calls = [];
+        $cancellation = new CanceledException('canceled');
+        $kernel = $this->app->make(KernelContract::class);
+        $kernel->command('foo', fn () => null);
+        $this->app->make(Dispatcher::class)->listen(Terminating::class, function () use (&$calls, $cancellation): void {
+            $calls[] = 'event';
+
+            throw $cancellation;
+        });
+        $this->app->terminating(function () use (&$calls): void {
+            $calls[] = 'application';
+        });
+        $kernel->whenCommandLifecycleIsLongerThan(0, function () use (&$calls): void {
+            $calls[] = 'duration';
+        });
+
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
+        $input = new StringInput('foo');
+        $kernel->handle($input, new ConsoleOutput);
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSecond());
+
+        try {
+            $kernel->terminate($input, 0);
+            $this->fail('Expected console termination to preserve cancellation.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame(['event'], $calls);
+        $this->assertNull($kernel->commandStartedAt());
+    }
+
+    public function testDurationCancellationSupersedesAnEarlierOrdinaryTerminationFailure(): void
+    {
+        $calls = [];
+        $eventFailure = new RuntimeException('event failed');
+        $cancellation = new CanceledException('canceled');
+        $kernel = $this->app->make(KernelContract::class);
+        $kernel->command('foo', fn () => null);
+        $this->app->make(Dispatcher::class)->listen(Terminating::class, function () use (&$calls, $eventFailure): void {
+            $calls[] = 'event';
+
+            throw $eventFailure;
+        });
+        $kernel->whenCommandLifecycleIsLongerThan(0, function () use (&$calls, $cancellation): void {
+            $calls[] = 'cancelling duration';
+
+            throw $cancellation;
+        });
+        $kernel->whenCommandLifecycleIsLongerThan(0, function () use (&$calls): void {
+            $calls[] = 'later duration';
+        });
+
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
+        $input = new StringInput('foo');
+        $kernel->handle($input, new ConsoleOutput);
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSecond());
+
+        try {
+            $kernel->terminate($input, 0);
+            $this->fail('Expected duration cancellation to supersede the earlier failure.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame(['event', 'cancelling duration'], $calls);
         $this->assertNull($kernel->commandStartedAt());
     }
 

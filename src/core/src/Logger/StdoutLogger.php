@@ -12,6 +12,7 @@ use Psr\Log\InvalidArgumentException as PsrInvalidArgumentException;
 use Psr\Log\LoggerTrait;
 use Psr\Log\LogLevel;
 use Stringable;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Formatter\OutputFormatter;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -192,6 +193,8 @@ class StdoutLogger implements StdoutLoggerInterface
             $json = json_encode($entry, self::JSON_FLAGS);
 
             return is_string($json) ? $json : null;
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable) {
             return null;
         }
@@ -251,6 +254,8 @@ class StdoutLogger implements StdoutLoggerInterface
     {
         try {
             return (string) $value;
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable) {
             return '<OBJECT> ' . $value::class;
         }

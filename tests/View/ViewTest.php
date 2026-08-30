@@ -18,6 +18,7 @@ use Hypervel\View\Factory;
 use Hypervel\View\View;
 use Hypervel\View\ViewFinderInterface;
 use Mockery as m;
+use Swoole\Coroutine\CanceledException;
 
 class ViewTest extends TestCase
 {
@@ -52,6 +53,25 @@ class ViewTest extends TestCase
         };
 
         $this->assertSame('contents', $view->render($callback));
+    }
+
+    public function testRenderPreservesCancellationWhileFlushingFactoryState(): void
+    {
+        $cancellation = new CanceledException;
+        $view = $this->getView();
+        $view->getFactory()->shouldReceive('incrementRender')->once();
+        $view->getFactory()->shouldReceive('callComposer')->once()->with($view);
+        $view->getFactory()->shouldReceive('notifyRendering')->once()->with($view);
+        $view->getFactory()->shouldReceive('mergeSharedData')->once()->with([])->andReturn([]);
+        $view->getEngine()->shouldReceive('get')->once()->with('path', [])->andThrow($cancellation);
+        $view->getFactory()->shouldReceive('flushState')->once();
+
+        try {
+            $view->render();
+            $this->fail('Expected cancellation to propagate.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testRenderHandlingCallbackReturnValues(): void

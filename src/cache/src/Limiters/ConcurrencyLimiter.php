@@ -11,6 +11,7 @@ use Hypervel\Contracts\Limiters\Lease;
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 use function Hypervel\Support\now;
@@ -91,6 +92,10 @@ class ConcurrencyLimiter
             } catch (Throwable $throwable) {
                 try {
                     $lease->release();
+                } catch (CanceledException $cleanupCancellation) {
+                    if (! $throwable instanceof CanceledException) {
+                        throw $cleanupCancellation;
+                    }
                 } catch (Throwable) {
                     // Preserve the callback failure as primary.
                 }

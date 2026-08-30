@@ -52,6 +52,7 @@ use ReflectionFunction;
 use ReflectionIntersectionType;
 use ReflectionType;
 use ReflectionUnionType;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -436,6 +437,11 @@ class Handler implements ExceptionHandlerContract
      */
     public function report(Throwable $e): void
     {
+        // Cancellation must not reach user-defined exception mappers.
+        if ($e instanceof CanceledException) {
+            return;
+        }
+
         $e = $this->mapException($e);
 
         if ($this->shouldntReport($e)) {
@@ -470,6 +476,8 @@ class Handler implements ExceptionHandlerContract
 
         try {
             $logger = $this->newLogger();
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Exception) {
             throw $e;
         }
@@ -553,6 +561,10 @@ class Handler implements ExceptionHandlerContract
      */
     protected function shouldntReport(Throwable $e): bool
     {
+        if ($e instanceof CanceledException) {
+            return true;
+        }
+
         if ($this->withoutDuplicates && $this->hasReportedException($e)) {
             return true;
         }
@@ -696,6 +708,8 @@ class Handler implements ExceptionHandlerContract
             return array_filter([
                 'userId' => Auth::id(),
             ]);
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable) {
             return [];
         }
@@ -718,6 +732,10 @@ class Handler implements ExceptionHandlerContract
      */
     public function render(Request $request, Throwable $e): SymfonyResponse
     {
+        if ($e instanceof CanceledException) {
+            throw $e;
+        }
+
         $e = $this->mapException($e);
 
         if (method_exists($e, 'render') && $response = $e->render($request)) {
@@ -993,6 +1011,8 @@ class Handler implements ExceptionHandlerContract
             }
 
             return $this->renderExceptionWithSymfony($e, config()->boolean('app.debug'));
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $e) {
             return $this->renderExceptionWithSymfony($e, config()->boolean('app.debug'));
         }
@@ -1036,6 +1056,8 @@ class Handler implements ExceptionHandlerContract
                     $e->getStatusCode(),
                     $e->getHeaders()
                 );
+            } catch (CanceledException $exception) {
+                throw $exception;
             } catch (Throwable $t) {
                 config()->boolean('app.debug') && throw $t;
 
@@ -1130,6 +1152,10 @@ class Handler implements ExceptionHandlerContract
      */
     public function renderForConsole(OutputInterface $output, Throwable $e): void
     {
+        if ($e instanceof CanceledException) {
+            throw $e;
+        }
+
         if ($e instanceof CommandNotFoundException) {
             $message = Str::of($e->getMessage())->explode('.')->first();
 

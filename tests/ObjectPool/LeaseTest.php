@@ -13,8 +13,11 @@ use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\ObjectPool\SimpleObjectPool;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class LeaseTest extends TestCase
 {
@@ -132,6 +135,40 @@ class LeaseTest extends TestCase
         $this->assertSame([$object], $pool->discarded);
     }
 
+    #[DataProvider('releaseCallbackCancellationProvider')]
+    public function testReleaseCallbackPreservesCancellationPrecedence(
+        bool $callbackIsCancellation,
+        bool $expectCallbackFailure,
+    ): void {
+        $callbackFailure = $callbackIsCancellation
+            ? new CanceledException('reset canceled')
+            : new RuntimeException('reset failed');
+        $discardCancellation = new CanceledException('discard canceled');
+        $pool = new ContractOnlyObjectPool;
+        $pool->discardException = $discardCancellation;
+        $lease = new Lease($pool, new stdClass, function () use ($callbackFailure): never {
+            throw $callbackFailure;
+        });
+
+        try {
+            $lease->release();
+            $this->fail('Expected lease release to fail.');
+        } catch (CanceledException $exception) {
+            $this->assertSame(
+                $expectCallbackFailure ? $callbackFailure : $discardCancellation,
+                $exception,
+            );
+        }
+    }
+
+    public static function releaseCallbackCancellationProvider(): array
+    {
+        return [
+            'ordinary callback failure' => [false, false],
+            'canceled callback' => [true, true],
+        ];
+    }
+
     public function testDiscardDestroysExactlyOnce(): void
     {
         $destroyed = [];
@@ -197,6 +234,52 @@ class LeaseTest extends TestCase
         $this->assertSame([$discarded], $pool->discarded);
     }
 
+    #[DataProvider('failureFinalizerProvider')]
+    public function testFailureFinalizersPreserveCancellationPrecedence(
+        string $method,
+        bool $primaryIsCancellation,
+        bool $cleanupIsCancellation,
+        bool $expectPrimary,
+    ): void {
+        $container = $this->container();
+        $primary = $primaryIsCancellation
+            ? new CanceledException('operation canceled')
+            : new RuntimeException('operation failed');
+        $cleanup = $cleanupIsCancellation
+            ? new CanceledException('cleanup canceled')
+            : new RuntimeException('cleanup failed');
+        $handler = m::mock(ExceptionHandler::class);
+        $expectation = $handler->shouldReceive('report')->with($cleanup);
+        $cleanupIsCancellation ? $expectation->never() : $expectation->once();
+        $container->instance(ExceptionHandler::class, $handler);
+
+        $pool = new ContractOnlyObjectPool;
+        $property = $method === 'releaseAfterFailure' ? 'releaseException' : 'discardException';
+        $pool->{$property} = $cleanup;
+        $lease = new Lease($pool, new stdClass);
+
+        try {
+            $lease->{$method}($primary);
+            $this->fail('Expected the primary or cleanup failure to be rethrown.');
+        } catch (Throwable $exception) {
+            $this->assertSame($expectPrimary ? $primary : $cleanup, $exception);
+        }
+    }
+
+    public static function failureFinalizerProvider(): array
+    {
+        $cases = [];
+
+        foreach (['releaseAfterFailure', 'discardAfterFailure'] as $method) {
+            $cases["{$method}: ordinary primary and cleanup"] = [$method, false, false, true];
+            $cases["{$method}: canceled primary and ordinary cleanup"] = [$method, true, false, true];
+            $cases["{$method}: ordinary primary and canceled cleanup"] = [$method, false, true, false];
+            $cases["{$method}: canceled primary and cleanup"] = [$method, true, true, true];
+        }
+
+        return $cases;
+    }
+
     /**
      * Create a tracked object pool.
      */
@@ -228,7 +311,9 @@ class ContractOnlyObjectPool implements ObjectPoolContract
 
     public array $discarded = [];
 
-    public ?RuntimeException $discardException = null;
+    public ?Throwable $releaseException = null;
+
+    public ?Throwable $discardException = null;
 
     public function get(): object
     {
@@ -238,6 +323,10 @@ class ContractOnlyObjectPool implements ObjectPoolContract
     public function release(object $object): void
     {
         $this->released[] = $object;
+
+        if ($this->releaseException !== null) {
+            throw $this->releaseException;
+        }
     }
 
     public function discard(object $object): void

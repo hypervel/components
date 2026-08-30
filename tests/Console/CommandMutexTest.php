@@ -14,6 +14,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\NullOutput;
@@ -214,6 +215,90 @@ class CommandMutexTest extends TestCase
         } catch (RuntimeException $exception) {
             $this->assertSame('command failed', $exception->getMessage());
         }
+    }
+
+    public function testAfterExecuteCancellationSupersedesAnOrdinaryCommandFailureAndStillReleasesTheMutex(): void
+    {
+        $command = new class extends Command implements Isolatable {
+            public function __invoke(): void
+            {
+                throw new RuntimeException('command failed');
+            }
+        };
+        $command->setHypervel($this->app);
+        $cancellation = new CanceledException('canceled');
+
+        $this->commandMutex->shouldReceive('create')->once()->andReturnTrue();
+        $this->commandMutex->shouldReceive('forget')->once()->andReturnTrue();
+        $this->app->make(Dispatcher::class)->listen(
+            AfterExecute::class,
+            fn () => throw $cancellation,
+        );
+
+        try {
+            $command->run(new ArrayInput(['--isolated' => true]), new NullOutput);
+            $this->fail('Expected the after-execute observer to preserve cancellation.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testMutexCancellationSupersedesAnOrdinaryCommandFailure(): void
+    {
+        $command = new class extends Command implements Isolatable {
+            public function __invoke(): void
+            {
+                throw new RuntimeException('command failed');
+            }
+        };
+        $command->setHypervel($this->app);
+        $cancellation = new CanceledException('canceled');
+
+        $this->commandMutex->shouldReceive('create')->once()->andReturnTrue();
+        $this->commandMutex->shouldReceive('forget')->once()->andThrow($cancellation);
+
+        try {
+            $command->run(new ArrayInput(['--isolated' => true]), new NullOutput);
+            $this->fail('Expected mutex release to preserve cancellation.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testCommandCancellationStillRunsAfterExecuteAndReleasesTheMutex(): void
+    {
+        $cancellation = new CanceledException('canceled');
+        $command = new class($cancellation) extends Command implements Isolatable {
+            public function __construct(private readonly CanceledException $cancellation)
+            {
+                parent::__construct('cancelling');
+            }
+
+            public function __invoke(): void
+            {
+                throw $this->cancellation;
+            }
+        };
+        $command->setHypervel($this->app);
+        $observed = null;
+
+        $this->commandMutex->shouldReceive('create')->once()->andReturnTrue();
+        $this->commandMutex->shouldReceive('forget')->once()->andReturnTrue();
+        $this->app->make(Dispatcher::class)->listen(
+            AfterExecute::class,
+            function (AfterExecute $event) use (&$observed): void {
+                $observed = $event->throwable;
+            },
+        );
+
+        try {
+            $command->run(new ArrayInput(['--isolated' => true]), new NullOutput);
+            $this->fail('Expected command execution to preserve cancellation.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame($cancellation, $observed);
     }
 
     protected function runCommand(bool $withIsolated = true)

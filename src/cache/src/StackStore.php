@@ -12,6 +12,7 @@ use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Support\CarbonImmutable;
 use InvalidArgumentException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
@@ -515,6 +516,7 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
 
                 $completed[] = $store;
             } catch (Throwable $throwable) {
+                $completed[] = $store;
                 $exception = $throwable;
 
                 break;
@@ -525,14 +527,23 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
             return true;
         }
 
+        $cancellation = $exception instanceof CanceledException ? $exception : null;
+
         if ($rollback !== null) {
+            // Clear deepest-first so a concurrent read cannot back-fill a cleared upper layer.
             foreach (array_reverse($completed) as $store) {
                 try {
                     $rollback($store);
+                } catch (CanceledException $cleanupCancellation) {
+                    $cancellation ??= $cleanupCancellation;
                 } catch (Throwable) {
                     // Preserve the write failure that made compensation necessary.
                 }
             }
+        }
+
+        if ($cancellation !== null) {
+            throw $cancellation;
         }
 
         if ($exception !== null) {
@@ -555,6 +566,8 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
                 if (! $handler($store)) {
                     $result = false;
                 }
+            } catch (CanceledException $exception) {
+                throw $exception;
             } catch (Throwable $throwable) {
                 $exception ??= $throwable;
             }

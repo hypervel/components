@@ -13,6 +13,7 @@ use Hypervel\Tests\TestCase;
 use ReflectionClass;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\VarDumper\Caster\ReflectionCaster;
 use Symfony\Component\VarDumper\Cloner\VarCloner;
 
@@ -295,6 +296,29 @@ class HtmlDumperTest extends TestCase
             'vscode://file//my-docker-work-directory/app/my-file:1',
             $href,
         );
+    }
+
+    public function testSourceHrefPreservesCancellationDuringConfigurationResolution(): void
+    {
+        $cancellation = new CanceledException('canceled');
+        $this->container->forgetInstance('config');
+        $this->container->bind('config', fn () => throw $cancellation);
+        Container::setInstance($this->container);
+        $dumper = new HtmlDumper(
+            '/my-work-directory',
+            '/my-work-directory/storage/framework/views',
+        );
+
+        try {
+            (fn () => $this->resolveSourceHref(
+                '/my-work-directory/app/my-file',
+                10,
+            ))->call($dumper);
+
+            $this->fail('The cancellation was not preserved.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testDumpingGuardIsClearedWhenSourceResolutionThrows(): void

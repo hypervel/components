@@ -7,6 +7,7 @@ namespace Hypervel\ObjectPool;
 use Closure;
 use Hypervel\ObjectPool\Contracts\ObjectPool as ObjectPoolContract;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class Lease
@@ -52,9 +53,20 @@ class Lease
             if ($this->releaseCallback !== null) {
                 ($this->releaseCallback)($this->object);
             }
+        } catch (CanceledException $cancellation) {
+            try {
+                $this->pool->discard($this->object);
+            } catch (CanceledException) {
+            } catch (Throwable $exception) {
+                PoolErrorReporter::report($exception);
+            }
+
+            throw $cancellation;
         } catch (Throwable $exception) {
             try {
                 $this->pool->discard($this->object);
+            } catch (CanceledException $cancellation) {
+                throw $cancellation;
             } catch (Throwable $discardException) {
                 PoolErrorReporter::report($discardException);
             }
@@ -76,6 +88,38 @@ class Lease
 
         $this->finalized = true;
         $this->pool->discard($this->object);
+    }
+
+    /**
+     * Release the object while preserving failure precedence.
+     */
+    public function releaseAfterFailure(Throwable $failure): never
+    {
+        try {
+            $this->release();
+        } catch (CanceledException $cancellation) {
+            throw $failure instanceof CanceledException ? $failure : $cancellation;
+        } catch (Throwable $exception) {
+            PoolErrorReporter::report($exception);
+        }
+
+        throw $failure;
+    }
+
+    /**
+     * Discard the object while preserving failure precedence.
+     */
+    public function discardAfterFailure(Throwable $failure): never
+    {
+        try {
+            $this->discard();
+        } catch (CanceledException $cancellation) {
+            throw $failure instanceof CanceledException ? $failure : $cancellation;
+        } catch (Throwable $exception) {
+            PoolErrorReporter::report($exception);
+        }
+
+        throw $failure;
     }
 
     /**

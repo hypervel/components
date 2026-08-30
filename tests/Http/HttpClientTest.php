@@ -64,6 +64,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\VarDumper\VarDumper;
 use Throwable;
 
@@ -3820,6 +3821,113 @@ class HttpClientTest extends TestCase
         $this->assertInstanceOf(RequestException::class, $exception);
 
         $this->factory->assertSentCount(2);
+    }
+
+    public function testSynchronousRequestCancellationIsNotRetriedOrPassedToRetryPolicy(): void
+    {
+        $cancellation = new CanceledException('request canceled');
+        $attempts = 0;
+        $policyCalled = false;
+
+        $this->factory->fake(function () use (&$attempts, $cancellation) {
+            ++$attempts;
+
+            return Create::rejectionFor($cancellation);
+        });
+
+        try {
+            $this->factory
+                ->retry(3, when: function () use (&$policyCalled): bool {
+                    $policyCalled = true;
+
+                    return true;
+                })
+                ->get('http://foo.com/get');
+            $this->fail('Expected the request cancellation to be thrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame(1, $attempts);
+        $this->assertFalse($policyCalled);
+        $this->factory->assertSentCount(1);
+    }
+
+    public function testAsynchronousRequestCancellationIsNotRetriedOrPassedToRetryPolicy(): void
+    {
+        $cancellation = new CanceledException('request canceled');
+        $attempts = 0;
+        $policyCalled = false;
+
+        $this->factory->fake(function () use (&$attempts, $cancellation) {
+            ++$attempts;
+
+            return Create::rejectionFor($cancellation);
+        });
+
+        $promise = $this->factory
+            ->async()
+            ->retry(3, when: function () use (&$policyCalled): bool {
+                $policyCalled = true;
+
+                return true;
+            })
+            ->get('http://foo.com/get');
+
+        try {
+            $promise->wait();
+            $this->fail('Expected the asynchronous request cancellation to be thrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame(1, $attempts);
+        $this->assertFalse($policyCalled);
+        $this->factory->assertSentCount(1);
+    }
+
+    public function testAsynchronousRetryCallbackCancellationRejectsPromise(): void
+    {
+        $cancellation = new CanceledException('retry callback canceled');
+        $this->factory->fake([
+            '*' => $this->factory->response(['error'], 500),
+        ]);
+
+        $promise = $this->factory
+            ->async()
+            ->retry(3, when: fn () => throw $cancellation)
+            ->get('http://foo.com/get');
+
+        try {
+            $promise->wait();
+            $this->fail('Expected the retry callback cancellation to be thrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->factory->assertSentCount(1);
+    }
+
+    public function testAsynchronousThrowCallbackCancellationRejectsPromise(): void
+    {
+        $cancellation = new CanceledException('throw callback canceled');
+        $this->factory->fake([
+            '*' => $this->factory->response(['error'], 500),
+        ]);
+
+        $promise = $this->factory
+            ->async()
+            ->throw(fn () => throw $cancellation)
+            ->get('http://foo.com/get');
+
+        try {
+            $promise->wait();
+            $this->fail('Expected the throw callback cancellation to be thrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->factory->assertSentCount(1);
     }
 
     public function testRequestExceptionIsThrownWithoutRetriesIfRetryNotNecessary(): void

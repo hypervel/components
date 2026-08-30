@@ -10,6 +10,7 @@ use Hypervel\Contracts\Events\Dispatcher as EventDispatcherContract;
 use Hypervel\Contracts\Http\Kernel as KernelContract;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Http\Request;
@@ -129,6 +130,63 @@ class ServerTest extends TestCase
         );
     }
 
+    public function testOnRequestRetriesWorkerStartAfterNonThrowingCancellation(): void
+    {
+        $kernel = m::mock(KernelContract::class);
+        $kernel->shouldReceive('handle')
+            ->once()
+            ->with(m::type(Request::class))
+            ->andReturn(new Response('OK'));
+        $kernel->shouldReceive('terminate')->once();
+
+        $container = m::mock(Container::class);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
+
+        $server = new Server($container);
+        $this->setKernel($server, $kernel);
+
+        $responseEmittedForCanceledRequest = false;
+        $canceledResponse = m::mock(SwooleResponse::class);
+        $canceledResponse->shouldReceive('status', 'header', 'end')
+            ->zeroOrMoreTimes()
+            ->andReturnUsing(function () use (&$responseEmittedForCanceledRequest): bool {
+                $responseEmittedForCanceledRequest = true;
+
+                return true;
+            });
+
+        $cancellation = null;
+        $canceledRequest = EngineCoroutine::create(function () use ($server, $canceledResponse, &$cancellation): void {
+            try {
+                $server->onRequest($this->createSwooleRequest(), $canceledResponse);
+            } catch (CanceledException $exception) {
+                $cancellation = $exception;
+            }
+        });
+
+        $this->assertTrue(EngineCoroutine::cancelById($canceledRequest->getId()));
+        $this->assertInstanceOf(CanceledException::class, $cancellation);
+        $this->assertSame('Waiting for the HTTP worker to start was canceled.', $cancellation->getMessage());
+        $this->assertFalse($responseEmittedForCanceledRequest);
+
+        $handled = false;
+        $response = m::mock(SwooleResponse::class);
+        $response->shouldReceive('status')->once()->with(200)->andReturnTrue();
+        $response->shouldReceive('header')->withAnyArgs()->andReturnTrue();
+        $response->shouldReceive('end')->once()->with('OK')->andReturnTrue();
+
+        EngineCoroutine::create(function () use ($server, $response, &$handled): void {
+            $server->onRequest($this->createSwooleRequest(), $response);
+            $handled = true;
+        });
+
+        $this->assertFalse($handled);
+
+        CoordinatorManager::until(Constants::WORKER_START)->resume();
+
+        $this->assertTrue($handled);
+    }
+
     public function testOnRequestSetsRequestInContext(): void
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
@@ -160,6 +218,7 @@ class ServerTest extends TestCase
         $server->onRequest($swooleRequest, $swooleResponse);
 
         $this->assertInstanceOf(Request::class, $capturedRequest);
+        $this->assertFalse(RequestContext::has());
     }
 
     public function testOnRequestReturns500OnKernelException(): void
@@ -501,16 +560,14 @@ class ServerTest extends TestCase
         $swooleResponse->shouldReceive('status', 'header', 'cookie', 'rawcookie', 'write', 'sendfile', 'end')->never();
 
         try {
-            wait(fn () => $server->onRequest($this->createSwooleRequest(), $swooleResponse));
+            $server->onRequest($this->createSwooleRequest(), $swooleResponse);
             $this->fail('Expected cancellation to propagate.');
         } catch (CanceledException $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
-        $this->assertNull($dispatchedEvents[RequestHandled::class]->response);
-        $this->assertSame($cancellation, $dispatchedEvents[RequestHandled::class]->exception);
-        $this->assertNull($dispatchedEvents[RequestTerminated::class]->response);
-        $this->assertSame($cancellation, $dispatchedEvents[RequestTerminated::class]->exception);
+        $this->assertSame([], $dispatchedEvents);
+        $this->assertFalse(RequestContext::has());
     }
 
     public function testOnRequestSkipsLifecycleEventDispatchWhenNoListenersAreRegistered(): void

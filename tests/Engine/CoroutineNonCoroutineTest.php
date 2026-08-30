@@ -12,6 +12,11 @@ class CoroutineNonCoroutineTest extends TestCase
 {
     protected bool $runTestsInCoroutine = false;
 
+    public function testCancellationIsFalseOutsideACoroutine(): void
+    {
+        $this->assertFalse(Coroutine::isCanceled());
+    }
+
     public function testParentCoroutineIdRequiresCoroutineContext(): void
     {
         $this->expectException(RunningInNonCoroutineException::class);

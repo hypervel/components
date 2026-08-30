@@ -16,6 +16,9 @@ class SyncDriver implements Driver
 {
     /**
      * Run the given tasks sequentially and return an array containing the results.
+     *
+     * The timeout argument is accepted for driver compatibility and is not
+     * applied to synchronous tasks.
      */
     public function run(Closure|array $tasks, CarbonInterval|int|null $timeout = null): array
     {

@@ -93,6 +93,13 @@ class RedisSentinelFactory
 
                 $failures[] = "[{$node}]: master was not resolved";
             } catch (Throwable $exception) {
+                if ($cancellation = RedisCancellation::cancellationFrom(
+                    $exception,
+                    'Resolving the Redis Sentinel master was canceled.',
+                )) {
+                    throw $cancellation;
+                }
+
                 $failures[] = "[{$node}]: {$exception->getMessage()}";
             }
         }

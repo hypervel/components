@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Coordinator;
 
 use Closure;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coordinator\Coordinator;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
@@ -18,6 +21,7 @@ use Mockery as m;
 use Psr\Log\LoggerInterface;
 use ReflectionProperty;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class TimerTest extends TestCase
 {
@@ -132,6 +136,94 @@ class TimerTest extends TestCase
         } finally {
             Coroutine::flushState();
         }
+    }
+
+    public function testCancellationDuringStartupReportingRollsBackThePublishedTimer(): void
+    {
+        $handler = m::mock(ExceptionHandlerContract::class);
+        Container::getInstance()->instance(ExceptionHandlerContract::class, $handler);
+        $timer = new Timer;
+        $hookFailure = new RuntimeException('The startup hook failed.');
+        $reportStarted = new Channel(1);
+        $releaseReport = new Channel(1);
+        $parentCoroutineId = null;
+        $parentCancellation = null;
+        $childCoroutineId = null;
+        $publishedCoroutineId = null;
+        $cancellationRequested = false;
+        $callbackCalled = false;
+
+        $handler->shouldReceive('report')
+            ->once()
+            ->with($hookFailure)
+            ->andReturnUsing(static function () use (
+                $timer,
+                $reportStarted,
+                $releaseReport,
+                &$childCoroutineId,
+                &$publishedCoroutineId,
+            ): void {
+                $childCoroutineId = EngineCoroutine::id();
+                $publishedCoroutineId = array_values(
+                    (new ReflectionProperty($timer, 'coroutines'))->getValue($timer),
+                )[0] ?? null;
+                $reportStarted->push(true);
+                $releaseReport->pop();
+            });
+
+        Coroutine::afterCreated(static function () use ($hookFailure): void {
+            throw $hookFailure;
+        });
+
+        $canceller = EngineCoroutine::create(static function () use (
+            $reportStarted,
+            &$parentCoroutineId,
+            &$cancellationRequested,
+        ): void {
+            $reportStarted->pop();
+
+            if (is_int($parentCoroutineId)) {
+                $cancellationRequested = EngineCoroutine::cancelById($parentCoroutineId, throwException: true);
+            }
+        });
+
+        $parent = EngineCoroutine::create(function () use (
+            $timer,
+            &$parentCoroutineId,
+            &$parentCancellation,
+            &$callbackCalled,
+        ): void {
+            $parentCoroutineId = EngineCoroutine::id();
+
+            try {
+                $timer->until(static function () use (&$callbackCalled): void {
+                    $callbackCalled = true;
+                }, uniqid());
+            } catch (CanceledException $exception) {
+                $parentCancellation = $exception;
+            }
+        });
+
+        try {
+            $this->assertTrue($cancellationRequested);
+            $this->assertInstanceOf(CanceledException::class, $parentCancellation);
+            $this->assertIsInt($childCoroutineId);
+            $this->assertSame($childCoroutineId, $publishedCoroutineId);
+            $this->assertSame([], (new ReflectionProperty($timer, 'coroutines'))->getValue($timer));
+            $this->assertFalse($callbackCalled);
+        } finally {
+            $timer->clearAll();
+            $releaseReport->push(true, 0.001);
+
+            if (is_int($childCoroutineId)) {
+                Coroutine::join([$childCoroutineId], 1);
+            }
+        }
+
+        $this->assertFalse($callbackCalled);
+        $this->assertFalse(Coroutine::exists($parent->getId()));
+        $this->assertFalse(Coroutine::exists($canceller->getId()));
+        $this->assertSame(['num' => 0, 'round' => 0], Timer::stats());
     }
 
     public function testAfterWhenClear(): void

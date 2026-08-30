@@ -10,6 +10,7 @@ use Hypervel\Contracts\Engine\Http\V2\ClientInterface;
 use Hypervel\Contracts\Engine\Http\V2\ResponseInterface;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
+use Hypervel\Engine\Exceptions\CoroutineCreateException;
 use Hypervel\Grpc\Exceptions\ConnectionException;
 use Hypervel\Grpc\Exceptions\ProtocolException;
 use Hypervel\Grpc\Exceptions\RpcException;
@@ -17,6 +18,7 @@ use Hypervel\Grpc\Protocol\Deadline;
 use Hypervel\Grpc\Status;
 use Hypervel\Grpc\StatusCode;
 use LogicException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -102,6 +104,11 @@ final class Connection
 
             try {
                 $client = $this->connectedClient($deadline);
+            } catch (CanceledException $exception) {
+                $this->terminateAfterCancellation(
+                    $exception,
+                    'Unable to connect to the gRPC server.',
+                );
             } catch (RpcException $exception) {
                 $state->failWithStatus($exception->status());
 
@@ -159,6 +166,11 @@ final class Connection
 
             try {
                 $streamId = $client->send($request, $operationTimeout);
+            } catch (CanceledException $exception) {
+                $this->terminateAfterCancellation(
+                    $exception,
+                    'Unable to start the gRPC call.',
+                );
             } catch (Throwable $throwable) {
                 $failure = $this->connectionException(
                     $throwable,
@@ -213,6 +225,8 @@ final class Connection
 
             try {
                 $this->startReceiver();
+            } catch (CanceledException $exception) {
+                throw $exception;
             } catch (Throwable $throwable) {
                 $this->terminateWhileLocked($this->connectionException(
                     $throwable,
@@ -285,6 +299,11 @@ final class Connection
                     $frame,
                     $end,
                     $operationTimeout,
+                );
+            } catch (CanceledException $exception) {
+                $this->terminateAfterCancellation(
+                    $exception,
+                    'Unable to write the gRPC request message.',
                 );
             } catch (Throwable $throwable) {
                 $failure = $this->connectionException(
@@ -431,19 +450,15 @@ final class Connection
         $this->receiving = true;
 
         try {
-            $receiver = Coroutine::create($this->receive(...));
-            $receiverCoroutineId = $receiver->getId();
-
-            // create() may run the receiver to completion before returning, so only
-            // publish its ID while that receiver is still active.
-            if (Coroutine::exists($receiverCoroutineId)) {
-                $this->receiverCoroutineId = $receiverCoroutineId;
-            }
-        } catch (Throwable $throwable) {
+            Coroutine::create(function (): void {
+                $this->receiverCoroutineId = Coroutine::id();
+                $this->receive();
+            });
+        } catch (CoroutineCreateException $exception) {
             $this->receiving = false;
             $this->receiverCoroutineId = null;
 
-            throw $throwable;
+            throw $exception;
         }
     }
 
@@ -476,6 +491,19 @@ final class Connection
                     }
 
                     $this->auditStreams($client);
+                } catch (CanceledException $exception) {
+                    if (! $this->isClosed()) {
+                        try {
+                            $this->failConnection($this->connectionException(
+                                $exception,
+                                'The gRPC response receiver was canceled.',
+                            ));
+                        } catch (CanceledException) {
+                            // This raw receiver is the terminal owner of cancellation.
+                        }
+                    }
+
+                    return;
                 } catch (Throwable $throwable) {
                     if ($this->isClosed()) {
                         return;
@@ -501,6 +529,8 @@ final class Connection
                     return;
                 }
             }
+        } catch (CanceledException) {
+            // This raw receiver is the terminal owner of cancellation.
         } finally {
             // This is the authoritative signal that the connection no longer owns a receiver.
             $this->receiverCoroutineId = null;
@@ -659,11 +689,7 @@ final class Connection
                 $this->endpoint->peer,
                 'The retired gRPC connection was closed.',
             );
-            $terminalFailure = $this->terminateWhileLocked($failure);
-
-            if ($terminalFailure !== $failure) {
-                throw $terminalFailure;
-            }
+            $this->terminateWhileLocked($failure);
 
             return true;
         } finally {
@@ -723,13 +749,22 @@ final class Connection
         // cancelById() can clear the ownership property before yielding deferred cleanup
         // finishes. The captured ID remains required to join the still-live receiver.
         $receiverCoroutineId = $this->receiverCoroutineId;
+        $cancellation = null;
 
         if ($receiverCoroutineId !== null && $receiverCoroutineId !== Coroutine::id()) {
-            Coroutine::cancelById($receiverCoroutineId);
+            try {
+                Coroutine::cancelById($receiverCoroutineId);
 
-            // Native close must wait for physical receiver and engine-client cleanup.
-            // A bounded join could still leave the socket owned when its timeout elapsed.
-            Coroutine::join([$receiverCoroutineId]);
+                // Native close must wait for physical receiver and engine-client cleanup.
+                // A bounded join could still leave the socket owned when its timeout elapsed.
+                if (! Coroutine::join([$receiverCoroutineId]) && Coroutine::isCanceled()) {
+                    $cancellation = new CanceledException(
+                        'Waiting for the gRPC response receiver to stop was canceled.',
+                    );
+                }
+            } catch (CanceledException $exception) {
+                $cancellation = $exception;
+            }
         }
 
         if ($client !== null) {
@@ -737,20 +772,52 @@ final class Connection
                 if ($client->isConnected()) {
                     $client->close();
                 }
+            } catch (CanceledException $exception) {
+                $cancellation ??= $exception;
             } catch (Throwable $throwable) {
-                $failure = new ConnectionException(
-                    $this->endpoint->peer,
-                    $failure->getMessage() . ' The HTTP/2 client also failed to close: '
-                        . ($throwable->getMessage() ?: 'unknown transport failure'),
-                    $throwable->getCode() !== 0 ? $throwable->getCode() : null,
-                    $failure,
-                );
+                if ($cancellation === null) {
+                    $failure = new ConnectionException(
+                        $this->endpoint->peer,
+                        $failure->getMessage() . ' The HTTP/2 client also failed to close: '
+                            . ($throwable->getMessage() ?: 'unknown transport failure'),
+                        $throwable->getCode() !== 0 ? $throwable->getCode() : null,
+                        $failure,
+                    );
+                }
             }
         }
 
-        $this->notifyRetired();
+        try {
+            $this->notifyRetired();
+        } catch (CanceledException $exception) {
+            $cancellation ??= $exception;
+        } catch (Throwable $throwable) {
+            if ($cancellation === null) {
+                throw $throwable;
+            }
+        }
+
+        if ($cancellation !== null) {
+            throw $cancellation;
+        }
 
         return $failure;
+    }
+
+    /**
+     * Terminate uncertain native state while preserving caller cancellation.
+     */
+    private function terminateAfterCancellation(
+        CanceledException $cancellation,
+        string $fallback,
+    ): never {
+        try {
+            $this->terminateWhileLocked($this->connectionException($cancellation, $fallback));
+        } catch (CanceledException) {
+            // The caller's original cancellation remains the primary outcome.
+        }
+
+        throw $cancellation;
     }
 
     /**
@@ -769,6 +836,10 @@ final class Connection
 
             if ($this->sendSemaphore->push(true, $remainingSeconds ?? -1)) {
                 return true;
+            }
+
+            if ($this->sendSemaphore->isCanceled()) {
+                throw new CanceledException('Waiting for exclusive gRPC connection access was canceled.');
             }
 
             if ($deadline === null || $deadline->expired()) {

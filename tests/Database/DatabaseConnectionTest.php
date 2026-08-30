@@ -36,6 +36,7 @@ use PDO;
 use PDOException;
 use ReflectionClass;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class DatabaseConnectionTest extends TestCase
 {
@@ -694,6 +695,25 @@ class DatabaseConnectionTest extends TestCase
         $method->invokeArgs($mock, ['', [], function () {
             throw new QueryException('', '', [], new Exception);
         }]);
+    }
+
+    public function testRunMethodPreservesQueryCancellationWithoutRetryOrLogging(): void
+    {
+        $method = (new ReflectionClass(Connection::class))->getMethod('run');
+        $cancellation = new CanceledException('query canceled');
+        $pdo = $this->createStub(PDOStub::class);
+        $connection = $this->getMockConnection(['tryAgainIfCausedByLostConnection'], $pdo);
+        $connection->expects($this->never())->method('tryAgainIfCausedByLostConnection');
+
+        try {
+            $method->invokeArgs($connection, ['select 1', [], fn () => throw $cancellation]);
+            $this->fail('Expected the query cancellation to be thrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame(0, $connection->getErrorCount());
+        $this->assertSame([], $connection->getQueryLog());
     }
 
     public function testRunMethodNeverRetriesIfWithinTransaction()

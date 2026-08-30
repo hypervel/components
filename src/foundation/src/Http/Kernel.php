@@ -20,6 +20,7 @@ use Hypervel\Routing\Router;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\InteractsWithTime;
 use InvalidArgumentException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -173,6 +174,8 @@ class Kernel implements KernelContract
             }
 
             return $response;
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $e) {
             // Keep the original in flight while it is handled, so a failure in
             // reporting or rendering carries it as that failure's previous. The
@@ -248,58 +251,81 @@ class Kernel implements KernelContract
     public function terminate(Request $request, Response $response): void
     {
         $exception = null;
+        $cancellation = null;
         $events = $this->app->make('events');
 
         try {
             if ($events->hasListeners(Terminating::class)) {
                 $events->dispatch(new Terminating);
             }
+        } catch (CanceledException $throwable) {
+            $cancellation = $throwable;
         } catch (Throwable $throwable) {
             $exception = $throwable;
         }
 
-        try {
-            $this->terminateMiddleware($request, $response);
-        } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+        if ($cancellation === null) {
+            try {
+                $this->terminateMiddleware($request, $response);
+            } catch (CanceledException $throwable) {
+                $cancellation = $throwable;
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
         }
 
-        try {
-            $this->app->terminate();
-        } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+        if ($cancellation === null) {
+            try {
+                $this->app->terminate();
+            } catch (CanceledException $throwable) {
+                $cancellation = $throwable;
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
         }
 
-        try {
-            if ($this->requestLifecycleDurationHandlers !== []
-                && ($requestStartedAt = $this->requestStartedAt()) !== null
-            ) {
-                $requestStartedAt = $requestStartedAt->setTimezone(
-                    $this->app->make('config')->string('app.timezone')
-                );
-                CoroutineContext::set(self::REQUEST_STARTED_AT_CONTEXT_KEY, $requestStartedAt);
-                $end = null;
+        if ($cancellation === null) {
+            try {
+                if ($this->requestLifecycleDurationHandlers !== []
+                    && ($requestStartedAt = $this->requestStartedAt()) !== null
+                ) {
+                    $requestStartedAt = $requestStartedAt->setTimezone(
+                        $this->app->make('config')->string('app.timezone')
+                    );
+                    CoroutineContext::set(self::REQUEST_STARTED_AT_CONTEXT_KEY, $requestStartedAt);
+                    $end = null;
 
-                foreach ($this->requestLifecycleDurationHandlers as ['threshold' => $threshold, 'handler' => $handler]) {
-                    try {
-                        $end ??= CarbonImmutable::now();
+                    foreach ($this->requestLifecycleDurationHandlers as ['threshold' => $threshold, 'handler' => $handler]) {
+                        try {
+                            $end ??= CarbonImmutable::now();
 
-                        if ($requestStartedAt->diffInMilliseconds($end) > $threshold) {
-                            $handler($requestStartedAt, $request, $response);
+                            if ($requestStartedAt->diffInMilliseconds($end) > $threshold) {
+                                $handler($requestStartedAt, $request, $response);
+                            }
+                        } catch (CanceledException $throwable) {
+                            throw $throwable;
+                        } catch (Throwable $throwable) {
+                            $exception ??= $throwable;
                         }
-                    } catch (Throwable $throwable) {
-                        $exception ??= $throwable;
                     }
                 }
+            } catch (CanceledException $throwable) {
+                $cancellation = $throwable;
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
             }
-        } catch (Throwable $throwable) {
-            $exception ??= $throwable;
         }
 
         try {
             CoroutineContext::forget(self::REQUEST_STARTED_AT_CONTEXT_KEY);
+        } catch (CanceledException $throwable) {
+            $cancellation ??= $throwable;
         } catch (Throwable $throwable) {
             $exception ??= $throwable;
+        }
+
+        if ($cancellation !== null) {
+            throw $cancellation;
         }
 
         if ($exception !== null) {
@@ -350,6 +376,8 @@ class Kernel implements KernelContract
                 if ($terminable) {
                     $instance->terminate($request, $response);
                 }
+            } catch (CanceledException $throwable) {
+                throw $throwable;
             } catch (Throwable $throwable) {
                 $exception ??= $throwable;
             }

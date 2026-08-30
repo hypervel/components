@@ -22,6 +22,7 @@ use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\OutputInterface;
+use Throwable;
 
 class ConsoleApplicationDeferredCallbacksTest extends TestCase
 {
@@ -406,6 +407,54 @@ class ConsoleApplicationDeferredCallbacksTest extends TestCase
         }
     }
 
+    public function testApplicationOwnerCancellationDuringTheDrainSupersedesAnEarlierFailure(): void
+    {
+        $application = $this->createConsoleApplication();
+        $commandFailure = new RuntimeException('command failed');
+        $cancellation = new CanceledException('canceled');
+        $this->app->scoped(
+            DeferredCallbackCollection::class,
+            fn () => new ThrowingDeferredCallbackCollection($cancellation),
+        );
+
+        $application->addCommand(new DeferredCommand('test:application-drain-cancellation', function () use ($commandFailure): never {
+            defer(fn () => null, always: true);
+
+            throw $commandFailure;
+        }, coroutine: false));
+
+        try {
+            $application->call('test:application-drain-cancellation');
+            $this->fail('Expected the deferred callback drain to preserve cancellation.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testCommandOwnerCancellationDuringTheDrainSupersedesAnEarlierFailure(): void
+    {
+        $application = $this->createConsoleApplication();
+        $commandFailure = new RuntimeException('command failed');
+        $cancellation = new CanceledException('canceled');
+        $this->app->scoped(
+            DeferredCallbackCollection::class,
+            fn () => new ThrowingDeferredCallbackCollection($cancellation),
+        );
+
+        $application->addCommand(new DeferredCommand('test:command-drain-cancellation', function () use ($commandFailure): never {
+            defer(fn () => null, always: true);
+
+            throw $commandFailure;
+        }));
+
+        try {
+            $application->call('test:command-drain-cancellation');
+            $this->fail('Expected the deferred callback drain to preserve cancellation.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
     private function createConsoleApplication(): ConsoleApplication
     {
         return new ConsoleApplication(
@@ -453,7 +502,7 @@ class PlainDeferredCommand extends SymfonyCommand
 
 class ThrowingDeferredCallbackCollection extends DeferredCallbackCollection
 {
-    public function __construct(private readonly RuntimeException $exception)
+    public function __construct(private readonly Throwable $exception)
     {
     }
 

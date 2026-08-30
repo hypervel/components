@@ -27,6 +27,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Redis\PhpRedis;
 use Mockery as m;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 /**
  * Tests for AllTaggedCache behavior.
@@ -1257,6 +1258,27 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $this->assertSame(['users'], $captured[1]->tags);
     }
 
+    public function testPutDoesNotDispatchFailureEventWhenTheOperationIsCanceled(): void
+    {
+        $cancellation = new CanceledException('write canceled');
+        $put = m::mock(Put::class);
+        $put->shouldReceive('execute')->once()->andThrow($cancellation);
+
+        $operations = m::mock(AllTagOperations::class);
+        $operations->shouldReceive('put')->once()->andReturn($put);
+        $captured = [];
+        $tagged = $this->taggedCacheWithOperations($operations, $captured);
+
+        try {
+            $tagged->put('name', 'John', 60);
+            $this->fail('Expected the tagged cache write cancellation to be rethrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame([WritingKey::class], array_map(get_class(...), $captured));
+    }
+
     public function testPutManyDispatchesRepositoryFailureEventsWhenTheOperationThrows(): void
     {
         $exception = new RuntimeException('batch write failed');
@@ -1281,6 +1303,28 @@ class AllTaggedCacheTest extends RedisCacheTestCase
             array_map(get_class(...), $captured),
         );
         $this->assertSame(['name', 'age'], array_map(static fn (KeyWriteFailed $event): string => $event->key, array_slice($captured, 1)));
+    }
+
+    public function testPutManyDoesNotDispatchFailureEventsWhenTheOperationIsCanceled(): void
+    {
+        $cancellation = new CanceledException('batch write canceled');
+        $values = ['name' => 'John', 'age' => 30];
+        $putMany = m::mock(PutMany::class);
+        $putMany->shouldReceive('execute')->once()->andThrow($cancellation);
+
+        $operations = m::mock(AllTagOperations::class);
+        $operations->shouldReceive('putMany')->once()->andReturn($putMany);
+        $captured = [];
+        $tagged = $this->taggedCacheWithOperations($operations, $captured);
+
+        try {
+            $tagged->putMany($values, 60);
+            $this->fail('Expected the tagged cache batch write cancellation to be rethrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame([WritingManyKeys::class], array_map(get_class(...), $captured));
     }
 
     public function testEmptyPutManyReturnsTrueWithoutOperationOrEvents(): void
@@ -1317,6 +1361,27 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $this->assertSame([WritingKey::class, KeyWriteFailed::class], array_map(get_class(...), $captured));
         $this->assertNull($captured[1]->seconds);
+    }
+
+    public function testForeverDoesNotDispatchFailureEventWhenTheOperationIsCanceled(): void
+    {
+        $cancellation = new CanceledException('forever write canceled');
+        $forever = m::mock(Forever::class);
+        $forever->shouldReceive('execute')->once()->andThrow($cancellation);
+
+        $operations = m::mock(AllTagOperations::class);
+        $operations->shouldReceive('forever')->once()->andReturn($forever);
+        $captured = [];
+        $tagged = $this->taggedCacheWithOperations($operations, $captured);
+
+        try {
+            $tagged->forever('name', 'John');
+            $this->fail('Expected the tagged forever cancellation to be rethrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame([WritingKey::class], array_map(get_class(...), $captured));
     }
 
     public function testPutManyDispatchesTheRepositoryWriteEventsWithStoreNameAndTags(): void

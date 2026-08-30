@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Grpc;
 
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Engine\Http\V2\Response;
 use Hypervel\Grpc\Client\StreamState;
 use Hypervel\Grpc\Compression;
@@ -17,6 +18,7 @@ use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 use WeakReference;
 
@@ -441,6 +443,43 @@ class StreamStateTest extends TestCase
         $this->assertSame('value', $results['metadata']);
         $this->assertSame(StatusCode::Ok, $results['status']);
         $this->assertTrue($results['receiver']);
+    }
+
+    public function testNonThrowingCancellationStopsOnlyTheCurrentWaiter(): void
+    {
+        $state = $this->state();
+        $cancellation = null;
+        $waiter = EngineCoroutine::create(function () use ($state, &$cancellation): void {
+            try {
+                $state->metadata();
+            } catch (CanceledException $exception) {
+                $cancellation = $exception;
+            }
+        });
+
+        try {
+            $this->assertTrue(EngineCoroutine::cancelById($waiter->getId()));
+            $this->assertInstanceOf(CanceledException::class, $cancellation);
+            $this->assertSame('Waiting for a gRPC response was canceled.', $cancellation->getMessage());
+            $this->assertFalse($state->isComplete());
+        } finally {
+            if (EngineCoroutine::exists($waiter->getId())) {
+                EngineCoroutine::cancelById($waiter->getId(), throwException: true);
+            }
+        }
+
+        $state->handle(new Response(
+            1,
+            200,
+            [
+                'content-type' => 'application/grpc+proto',
+                'grpc-status' => '0',
+            ],
+            '',
+            false,
+        ));
+
+        $this->assertTrue($state->metadata()->isEmpty());
     }
 
     public function testTransportFailureWakesWaitersAndPreservesAlreadyBufferedMessages(): void

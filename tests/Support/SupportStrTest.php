@@ -16,6 +16,7 @@ use Hypervel\Tests\TestCase;
 use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Uid\Ulid;
 use Symfony\Component\Uid\Uuid;
 use ValueError;
@@ -1116,6 +1117,29 @@ class SupportStrTest extends TestCase
         $this->assertSame('foo/bar', Str::replaceArray('?', ['x' => 'foo', 'y' => 'bar'], '?/?'));
         // Test does not crash on bad input
         $this->assertSame('?', Str::replaceArray('?', [(object) ['foo' => 'bar']], '?'));
+    }
+
+    public function testReplaceArrayPreservesCancellationDuringStringConversion(): void
+    {
+        $cancellation = new CanceledException('canceled');
+        $replacement = new class($cancellation) {
+            public function __construct(private CanceledException $cancellation)
+            {
+            }
+
+            public function __toString(): string
+            {
+                throw $this->cancellation;
+            }
+        };
+
+        try {
+            Str::replaceArray('?', [$replacement], '?');
+
+            $this->fail('The cancellation was not preserved.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testReplaceFirst(): void

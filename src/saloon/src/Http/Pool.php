@@ -6,10 +6,12 @@ namespace Hypervel\Saloon\Http;
 
 use Closure;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Saloon\Exceptions\InvalidPoolItemException;
 use Hypervel\Saloon\Exceptions\PoolException;
 use InvalidArgumentException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 use function Hypervel\Coroutine\run;
@@ -210,12 +212,25 @@ class Pool
                 ): void {
                     try {
                         $response = $this->connector->send($request);
+                    } catch (CanceledException $exception) {
+                        $failures[$inputPosition] = [$key, new ChildCancellationException(
+                            'A child coroutine running a Saloon pool request was canceled while its owner remained active.',
+                            previous: $exception,
+                        )];
+
+                        return;
                     } catch (Throwable $exception) {
                         if ($this->exceptionHandler === null) {
                             $failures[$inputPosition] = [$key, $exception];
                         } else {
                             try {
                                 ($this->exceptionHandler)($exception, $key);
+                            } catch (CanceledException $callbackException) {
+                                $failures[$inputPosition] = [$key, $exception];
+                                $callbackFailures[$inputPosition] = [$key, new ChildCancellationException(
+                                    'A child coroutine running a Saloon pool callback was canceled while its owner remained active.',
+                                    previous: $callbackException,
+                                )];
                             } catch (Throwable $callbackException) {
                                 $failures[$inputPosition] = [$key, $exception];
                                 $callbackFailures[$inputPosition] = [$key, $callbackException];
@@ -231,16 +246,24 @@ class Pool
 
                     try {
                         $this->responseHandler?->__invoke($response, $key);
+                    } catch (CanceledException $callbackException) {
+                        $callbackFailures[$inputPosition] = [$key, new ChildCancellationException(
+                            'A child coroutine running a Saloon pool callback was canceled while its owner remained active.',
+                            previous: $callbackException,
+                        )];
                     } catch (Throwable $callbackException) {
                         $callbackFailures[$inputPosition] = [$key, $callbackException];
                     }
                 });
             }
+        } catch (CanceledException $exception) {
+            $concurrent->cancel();
+            throw $exception;
         } catch (Throwable $exception) {
             $orchestrationFailure = $exception;
-        } finally {
-            $concurrent->wait();
         }
+
+        $concurrent->wait();
 
         $keyedResponses = $this->keyResults($responses);
         $keyedFailures = $this->keyResults($failures);

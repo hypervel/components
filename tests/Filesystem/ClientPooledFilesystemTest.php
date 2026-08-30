@@ -30,6 +30,7 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class ClientPooledFilesystemTest extends TestCase
@@ -441,6 +442,33 @@ class ClientPooledFilesystemTest extends TestCase
             $this->fail('Expected the operation failure to propagate.');
         } catch (Throwable $exception) {
             $this->assertSame($operationFailure, $exception);
+        }
+
+        $this->assertSame(0, $this->pools->get('filesystem:test')->getCurrentObjectNumber());
+    }
+
+    public function testReleaseCancellationSupersedesAnOperationFailure(): void
+    {
+        $operationFailure = new RuntimeException('operation failed');
+        $releaseCancellation = new CanceledException('release canceled');
+        $clientCreations = 0;
+        $stackCreations = 0;
+        $stack = m::mock(FilesystemAdapter::class);
+        $stack->shouldReceive('get')->once()->with('file.txt')->andThrow($operationFailure);
+        $disk = $this->disk(
+            $clientCreations,
+            $stackCreations,
+            static function () use ($releaseCancellation): never {
+                throw $releaseCancellation;
+            },
+            static fn (): FilesystemAdapter => $stack,
+        );
+
+        try {
+            $disk->get('file.txt');
+            $this->fail('Expected release cancellation to propagate.');
+        } catch (Throwable $exception) {
+            $this->assertSame($releaseCancellation, $exception);
         }
 
         $this->assertSame(0, $this->pools->get('filesystem:test')->getCurrentObjectNumber());

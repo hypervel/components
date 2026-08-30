@@ -17,10 +17,15 @@ use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Events\Dispatcher as EventsDispatcher;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\Events\JobAttempted;
+use Hypervel\Queue\Events\JobExceptionOccurred;
+use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
+use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Queue\SyncQueue;
@@ -28,6 +33,7 @@ use Hypervel\Tests\TestCase;
 use LogicException;
 use Mockery as m;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class QueueSyncQueueTest extends TestCase
 {
@@ -155,6 +161,55 @@ class QueueSyncQueueTest extends TestCase
         }
     }
 
+    public function testCancellationEscapesWithoutFailedOrCompletionEvents(): void
+    {
+        CancelingSyncQueueTestHandler::reset();
+        $gate = $this->armCurrentCoroutineCancellation();
+        CancelingSyncQueueTestHandler::$gate = $gate;
+        $dispatched = [];
+        $sync = new SyncQueue;
+        $sync->setConnectionName('sync');
+        $container = $this->getContainer();
+        $events = new EventsDispatcher($container);
+
+        foreach ([JobProcessing::class, JobProcessed::class, JobExceptionOccurred::class, JobAttempted::class, JobQueueingFailed::class] as $event) {
+            $events->listen($event, static function (object $event) use (&$dispatched): void {
+                $dispatched[] = $event::class;
+            });
+        }
+
+        $container->instance('events', $events);
+        $container->instance(EventDispatcher::class, $events);
+        $sync->setContainer($container);
+
+        try {
+            $sync->push(CancelingSyncQueueTestHandler::class);
+            $this->fail('Expected cancellation to escape the sync queue.');
+        } catch (CanceledException) {
+            $this->assertSame([JobProcessing::class], $dispatched);
+            $this->assertFalse(CancelingSyncQueueTestHandler::$failed);
+        } finally {
+            CancelingSyncQueueTestHandler::reset();
+        }
+    }
+
+    public function testCancellationDuringSerializationIsNotWrapped(): void
+    {
+        $sync = new SyncQueue;
+        $sync->setConnectionName('sync');
+        $sync->setContainer($this->getContainer());
+        CancelingSerializationJob::$gate = $this->armCurrentCoroutineCancellation();
+
+        try {
+            $sync->push(new CancelingSerializationJob);
+            $this->fail('Expected cancellation to escape payload serialization.');
+        } catch (CanceledException) {
+            $this->addToAssertionCount(1);
+        } finally {
+            CancelingSerializationJob::$gate = null;
+        }
+    }
+
     public function testFailedJobHasAccessToJobInstance()
     {
         unset($_SERVER['__sync.failed']);
@@ -275,6 +330,22 @@ class QueueSyncQueueTest extends TestCase
         $sync->push(new SyncQueueAfterCommitInterfaceUniqueJob);
     }
 
+    /**
+     * Arm exact cancellation of the current coroutine at a controlled channel handoff.
+     */
+    private function armCurrentCoroutineCancellation(): Channel
+    {
+        $gate = new Channel(1);
+        $coroutineId = EngineCoroutine::id();
+
+        EngineCoroutine::create(static function () use ($coroutineId, $gate): void {
+            $gate->pop();
+            EngineCoroutine::cancelById($coroutineId, throwException: true);
+        });
+
+        return $gate;
+    }
+
     protected function getContainer(): Container
     {
         $container = new Container;
@@ -322,6 +393,43 @@ class FailingSyncQueueTestHandler
     public function failed()
     {
         $_SERVER['__sync.failed'] = true;
+    }
+}
+
+class CancelingSyncQueueTestHandler
+{
+    public static ?Channel $gate = null;
+
+    public static bool $failed = false;
+
+    public function fire(): never
+    {
+        static::$gate?->push(true);
+
+        throw new RuntimeException('Cancellation was not delivered.');
+    }
+
+    public function failed(): void
+    {
+        static::$failed = true;
+    }
+
+    public static function reset(): void
+    {
+        static::$gate = null;
+        static::$failed = false;
+    }
+}
+
+class CancelingSerializationJob
+{
+    public static ?Channel $gate = null;
+
+    public function __serialize(): array
+    {
+        static::$gate?->push(true);
+
+        throw new RuntimeException('Cancellation was not delivered.');
     }
 }
 

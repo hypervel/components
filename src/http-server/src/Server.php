@@ -76,10 +76,14 @@ class Server implements OnRequestInterface, BootstrapsForServer
     {
         $response = null;
         $exception = null;
+        $cancellation = null;
 
         try {
             if (! $this->workerStarted) {
-                CoordinatorManager::until(Constants::WORKER_START)->yield();
+                if (! CoordinatorManager::until(Constants::WORKER_START)->yield()) {
+                    throw new CanceledException('Waiting for the HTTP worker to start was canceled.');
+                }
+
                 $this->workerStarted = true;
             }
 
@@ -106,12 +110,12 @@ class Server implements OnRequestInterface, BootstrapsForServer
             // Dispatch through the Kernel (global middleware → Router → response)
             $response = $this->kernel->handle($request);
         } catch (CanceledException $throwable) {
-            $exception = $throwable;
+            $cancellation = $throwable;
         } catch (Throwable $throwable) {
             $exception = $throwable;
             $response = new SymfonyResponse('Internal Server Error', 500);
         } finally {
-            if (isset($request)) {
+            if (isset($request) && $cancellation === null) {
                 try {
                     if ($this->event?->hasListeners(RequestHandled::class)) {
                         $this->event->dispatch(new RequestHandled(
@@ -121,13 +125,15 @@ class Server implements OnRequestInterface, BootstrapsForServer
                             server: $this->serverName
                         ));
                     }
+                } catch (CanceledException $throwable) {
+                    $cancellation = $throwable;
                 } catch (Throwable $throwable) {
                     $exception ??= $throwable;
                 }
             }
 
             // Send HttpFoundation response back through Swoole
-            if ($response !== null) {
+            if ($response !== null && $cancellation === null) {
                 try {
                     $protocol = $swooleRequest->server['server_protocol'] ?? 'HTTP/1.1';
 
@@ -138,21 +144,25 @@ class Server implements OnRequestInterface, BootstrapsForServer
                         protocol: is_string($protocol) ? $protocol : 'HTTP/1.1',
                         request: $request ?? null,
                     );
+                } catch (CanceledException $throwable) {
+                    $cancellation = $throwable;
                 } catch (Throwable $throwable) {
                     $exception ??= $throwable;
                 }
             }
 
             // Terminable middleware
-            if (isset($request) && $response !== null) {
+            if (isset($request) && $response !== null && $cancellation === null) {
                 try {
                     $this->kernel->terminate($request, $response);
+                } catch (CanceledException $throwable) {
+                    $cancellation = $throwable;
                 } catch (Throwable $throwable) {
                     $exception ??= $throwable;
                 }
             }
 
-            if (isset($request)) {
+            if (isset($request) && $cancellation === null) {
                 try {
                     if ($this->event?->hasListeners(RequestTerminated::class)) {
                         Coroutine::defer(fn () => $this->event->dispatch(new RequestTerminated(
@@ -162,9 +172,19 @@ class Server implements OnRequestInterface, BootstrapsForServer
                             server: $this->serverName
                         )));
                     }
+                } catch (CanceledException $throwable) {
+                    $cancellation = $throwable;
                 } catch (Throwable $throwable) {
                     $exception ??= $throwable;
                 }
+            }
+
+            if (isset($request)) {
+                RequestContext::forget();
+            }
+
+            if ($cancellation !== null) {
+                throw $cancellation;
             }
 
             if ($exception !== null) {

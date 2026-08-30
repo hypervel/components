@@ -8,6 +8,7 @@ use Hypervel\Database\DatabaseTransactionRecord;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class DatabaseTransactionsManagerTest extends TestCase
 {
@@ -480,6 +481,47 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertCount(0, $manager->getCommittedTransactions());
     }
 
+    public function testRollbackCallbacksFinishTheBoundedDrainAndPreserveCancellation(): void
+    {
+        $manager = new DatabaseTransactionsManager;
+        $callbacks = [];
+        $cancellation = new CanceledException;
+
+        $manager->begin('default', 1);
+        $manager->addCallbackForRollback(function () use (&$callbacks): void {
+            $callbacks[] = 'outer';
+            throw new RuntimeException('Outer cleanup failed.');
+        });
+
+        $manager->begin('default', 2);
+        $manager->addCallbackForRollback(function () use (&$callbacks): void {
+            $callbacks[] = 'deepest ordinary failure';
+            throw new RuntimeException('Deepest cleanup failed.');
+        });
+        $manager->addCallbackForRollback(function () use (&$callbacks, $cancellation): void {
+            $callbacks[] = 'deepest cancellation';
+            throw $cancellation;
+        });
+        $manager->addCallbackForRollback(function () use (&$callbacks): void {
+            $callbacks[] = 'deepest final';
+        });
+        $manager->commit('default', 2, 1);
+
+        try {
+            $manager->rollback('default', 0);
+            $this->fail('Expected rollback cancellation to escape.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame([
+            'deepest ordinary failure',
+            'deepest cancellation',
+            'deepest final',
+            'outer',
+        ], $callbacks);
+    }
+
     public function testRollbackExecutesCallbacksInDeepestFirstOrderAcrossCommittedBranches(): void
     {
         $manager = new DatabaseTransactionsManager;
@@ -555,6 +597,44 @@ class DatabaseTransactionsManagerTest extends TestCase
         ], $callbacks);
         $this->assertCount(0, $manager->getPendingTransactions());
         $this->assertCount(0, $manager->getCommittedTransactions());
+    }
+
+    public function testCommitCancellationStopsTheCurrentAndRemainingTransactionRecords(): void
+    {
+        $manager = new DatabaseTransactionsManager;
+        $callbacks = [];
+        $cancellation = new CanceledException;
+
+        $manager->begin('default', 1);
+        $manager->addCallback(function () use (&$callbacks): void {
+            $callbacks[] = 'outer';
+        });
+
+        $manager->begin('default', 2);
+        $manager->addCallback(function () use (&$callbacks): void {
+            $callbacks[] = 'deepest ordinary failure';
+            throw new RuntimeException('Commit callback failed.');
+        });
+        $manager->addCallback(function () use (&$callbacks, $cancellation): void {
+            $callbacks[] = 'deepest cancellation';
+            throw $cancellation;
+        });
+        $manager->addCallback(function () use (&$callbacks): void {
+            $callbacks[] = 'deepest final';
+        });
+        $manager->commit('default', 2, 1);
+
+        try {
+            $manager->commit('default', 1, 0);
+            $this->fail('Expected commit cancellation to escape.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame([
+            'deepest ordinary failure',
+            'deepest cancellation',
+        ], $callbacks);
     }
 
     public function testCommitFailurePreservesStagedAndPendingRecordsForOtherConnections(): void

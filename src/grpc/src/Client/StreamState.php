@@ -20,6 +20,7 @@ use Hypervel\Grpc\Status;
 use Hypervel\Grpc\StatusCode;
 use LogicException;
 use SplQueue;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -535,7 +536,9 @@ final class StreamState
                     continue;
                 }
 
-                $waiter->pop($remainingSeconds ?? -1);
+                if (! $waiter->pop($remainingSeconds ?? -1) && $waiter->isCanceled()) {
+                    throw new CanceledException('Waiting for a gRPC response was canceled.');
+                }
             } finally {
                 unset($this->waiters[$waiterId]);
                 $waiter->close();

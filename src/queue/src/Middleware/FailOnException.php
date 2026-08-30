@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Middleware;
 
 use Closure;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class FailOnException
@@ -58,6 +59,8 @@ class FailOnException
     {
         try {
             return $next($job);
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $e) {
             if (call_user_func($this->callback, $e, $job) === true) {
                 $job->fail($e);

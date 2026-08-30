@@ -36,6 +36,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
 use SensitiveParameter;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\VarDumper\VarDumper;
 use Throwable;
 use UnitEnum;
@@ -1052,6 +1053,10 @@ class PendingRequest implements Transient
                 return $this->runAfterResponseCallbacks($response);
             })
             ->otherwise(function (Throwable $e) {
+                if ($e instanceof CanceledException) {
+                    throw $e;
+                }
+
                 if ($e instanceof StrayRequestException) {
                     throw $e;
                 }
@@ -1109,6 +1114,8 @@ class PendingRequest implements Transient
                 $response instanceof Response ? $response->toException() : $response,
                 $this
             ) : true;
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Exception $exception) {
             return $exception;
         }
@@ -1126,6 +1133,8 @@ class PendingRequest implements Transient
             && ($this->throwIfCallback === null || call_user_func($this->throwIfCallback, $response))) {
             try {
                 $response->throw($this->throwCallback);
+            } catch (CanceledException $exception) {
+                throw $exception;
             } catch (Exception $exception) {
                 return $exception;
             }

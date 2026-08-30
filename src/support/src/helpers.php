@@ -15,6 +15,7 @@ use Hypervel\Support\Optional;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable as SupportStringable;
+use Swoole\Coroutine\CanceledException;
 
 if (! function_exists('append_config')) {
     /**
@@ -337,6 +338,8 @@ if (! function_exists('retry')) {
 
             try {
                 return $callback($attempts);
+            } catch (CanceledException $exception) {
+                throw $exception;
             } catch (Throwable $e) {
                 if ($times < 1 || ($when && ! $when($e))) {
                     throw $e;

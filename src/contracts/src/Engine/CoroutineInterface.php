@@ -74,6 +74,14 @@ interface CoroutineInterface
     public static function cancelById(int $id, bool $throwException = false): bool;
 
     /**
+     * Determine whether the current coroutine was canceled.
+     *
+     * This state must be inspected at the cancellation boundary. It returns
+     * false outside a coroutine.
+     */
+    public static function isCanceled(): bool;
+
+    /**
      * Wait for the given coroutines to finish.
      *
      * A false return may mean that no supplied coroutine remained active or

@@ -17,6 +17,7 @@ use Hypervel\ObjectPool\PoolProxy;
 use Hypervel\Queue\Jobs\Job as PoolLeaseAwareJob;
 use Hypervel\Support\Collection;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
@@ -227,18 +228,14 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
             if (! $job instanceof PoolLeaseAwareJob) {
                 try {
                     $job->release(0);
+                } catch (CanceledException $requeueCancellation) {
+                    $lease->discardAfterFailure($requeueCancellation);
                 } catch (Throwable $requeueException) {
-                    try {
-                        $lease->discard();
-                    } catch (Throwable $cleanupException) {
-                        PoolErrorReporter::report($cleanupException);
-                    }
-
-                    throw new RuntimeException(
+                    $lease->discardAfterFailure(new RuntimeException(
                         'Pooled queue connections require jobs extending Hypervel\Queue\Jobs\Job; '
                         . 'requeueing the popped job also failed.',
                         previous: $requeueException,
-                    );
+                    ));
                 }
 
                 throw new RuntimeException(
@@ -248,31 +245,24 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
 
             try {
                 return $job->withPoolLease($lease);
+            } catch (CanceledException $attachmentCancellation) {
+                $lease->discardAfterFailure($attachmentCancellation);
             } catch (Throwable $attachmentException) {
                 try {
                     $job->release(0);
+                } catch (CanceledException $recoveryCancellation) {
+                    $lease->discardAfterFailure($recoveryCancellation);
                 } catch (Throwable $recoveryException) {
                     PoolErrorReporter::report($recoveryException);
 
-                    try {
-                        // Terminal recovery normally finalizes the attached lease;
-                        // this is an idempotent backstop if attachment or finalization failed first.
-                        $lease->discard();
-                    } catch (Throwable $cleanupException) {
-                        PoolErrorReporter::report($cleanupException);
-                    }
+                    $lease->discardAfterFailure($attachmentException);
                 }
 
                 throw $attachmentException;
             }
         } catch (Throwable $operationException) {
-            try {
-                $lease->release();
-            } catch (Throwable $finalizationException) {
-                PoolErrorReporter::report($finalizationException);
-            }
-
-            throw $operationException;
+            // Inner recovery can finalize this lease before throwing here.
+            $lease->releaseAfterFailure($operationException);
         }
     }
 
@@ -318,13 +308,7 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
             $queue = $lease->get();
             $result = $callback($queue);
         } catch (Throwable $operationException) {
-            try {
-                $lease->release();
-            } catch (Throwable $finalizationException) {
-                PoolErrorReporter::report($finalizationException);
-            }
-
-            throw $operationException;
+            $lease->releaseAfterFailure($operationException);
         }
 
         $lease->release();

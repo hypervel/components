@@ -7,6 +7,7 @@ namespace Hypervel\ObjectPool;
 use Closure;
 use Hypervel\ObjectPool\Contracts\ObjectPool as ObjectPoolContract;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -167,9 +168,18 @@ abstract class ObjectPool implements ObjectPoolContract
 
         $this->closed = true;
         $this->channel->close();
+        $cancellation = null;
 
         while (($object = $this->channel->pop()) !== false) {
-            $this->destroyObject($object);
+            try {
+                $this->destroyObject($object);
+            } catch (CanceledException $exception) {
+                $cancellation ??= $exception;
+            }
+        }
+
+        if ($cancellation !== null) {
+            throw $cancellation;
         }
     }
 
@@ -290,6 +300,8 @@ abstract class ObjectPool implements ObjectPoolContract
             if ($this->destroyCallback !== null) {
                 ($this->destroyCallback)($object);
             }
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             PoolErrorReporter::report($exception);
         } finally {

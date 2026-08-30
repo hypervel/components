@@ -14,6 +14,7 @@ use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Swoole\Http\Request as SwooleRequest;
 use Swoole\Http\Response as SwooleResponse;
 use Symfony\Component\HttpFoundation\Response;
@@ -167,6 +168,29 @@ class HttpServerTest extends ReverbTestCase
         );
     }
 
+    public function testPreservesCancellationWithoutReportingRenderingOrEmittingResponse(): void
+    {
+        CoordinatorManager::until(Constants::WORKER_START)->resume();
+
+        $cancellation = new CanceledException;
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldNotReceive('report', 'render');
+        $this->app->instance(ExceptionHandler::class, $handler);
+
+        $swooleResponse = m::mock(SwooleResponse::class);
+        $swooleResponse->shouldNotReceive('status', 'header', 'cookie', 'rawcookie', 'write', 'sendfile', 'end');
+
+        try {
+            $this->makeFailingHttpServer($cancellation)->onRequest(
+                $this->makeSwooleRequest('/up'),
+                $swooleResponse,
+            );
+            $this->fail('Expected cancellation to propagate.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
     public function testRetainsRequestFailureWhenResponseEmissionFails(): void
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
@@ -204,7 +228,7 @@ class HttpServerTest extends ReverbTestCase
         return $server;
     }
 
-    protected function makeFailingHttpServer(RuntimeException $exception): HttpServer
+    protected function makeFailingHttpServer(Throwable $exception): HttpServer
     {
         $router = m::mock(ReverbRouter::class);
         $router->shouldReceive('compileAndWarm')->once();
