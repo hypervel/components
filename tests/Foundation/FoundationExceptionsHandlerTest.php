@@ -10,6 +10,7 @@ use Hypervel\Auth\AuthenticationException;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Foundation\ExceptionRenderer;
 use Hypervel\Contracts\Routing\ResponseFactory as ResponseFactoryContract;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Contracts\Support\Responsable;
@@ -30,6 +31,8 @@ use Hypervel\Routing\Redirector;
 use Hypervel\Routing\ResponseFactory;
 use Hypervel\Session\Store;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Facades\Auth;
+use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Lottery;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\ViewErrorBag;
@@ -44,6 +47,8 @@ use PHPUnit\Framework\AssertionFailedError;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
@@ -99,6 +104,104 @@ class FoundationExceptionsHandlerTest extends TestCase
         $logger->shouldReceive('error')->withArgs(['Exception message', m::hasKey('exception')])->once();
 
         $this->handler->report(new RuntimeException('Exception message'));
+    }
+
+    public function testHandlerNeverReportsCancellation(): void
+    {
+        $cancellation = new CanceledException('canceled');
+        $logger = m::mock(LoggerInterface::class);
+        $logger->shouldNotReceive('log', 'error');
+        $this->container->instance(LoggerInterface::class, $logger);
+
+        $this->assertFalse($this->handler->shouldReport($cancellation));
+        $this->handler->report($cancellation);
+    }
+
+    public function testHandlerPreservesCancellationFromLoggerResolution(): void
+    {
+        $failure = new RuntimeException('failed');
+        $cancellation = new CanceledException('canceled');
+        $this->container->bind(LoggerInterface::class, fn () => throw $cancellation);
+
+        try {
+            $this->handler->report($failure);
+
+            $this->fail('The cancellation was not preserved.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testHandlerPreservesCancellationFromDefaultContext(): void
+    {
+        $cancellation = new CanceledException('canceled');
+        $auth = m::mock();
+        $auth->shouldReceive('id')->once()->andThrow($cancellation);
+        $this->container->instance('auth', $auth);
+        $previousFacadeApplication = Facade::getFacadeApplication();
+        Facade::setFacadeApplication($this->container);
+        Auth::clearResolvedInstance();
+        $handler = new class($this->container) extends Handler {
+            public function defaultContext(): array
+            {
+                return $this->context();
+            }
+        };
+
+        try {
+            $handler->defaultContext();
+
+            $this->fail('The cancellation was not preserved.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        } finally {
+            Auth::clearResolvedInstance();
+            Facade::setFacadeApplication($previousFacadeApplication);
+        }
+    }
+
+    public function testHandlerPreservesCancellationDuringRendering(): void
+    {
+        $cancellation = new CanceledException('canceled');
+
+        try {
+            $this->handler->render(Request::create('/'), $cancellation);
+
+            $this->fail('The cancellation was not preserved.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testHandlerPreservesCancellationFromCustomRenderer(): void
+    {
+        $failure = new RuntimeException('failed');
+        $cancellation = new CanceledException('canceled');
+        $renderer = m::mock(ExceptionRenderer::class);
+        $renderer->shouldReceive('render')->once()->with($failure)->andThrow($cancellation);
+        $this->container->instance(ExceptionRenderer::class, $renderer);
+        $this->config->set('app.debug', true);
+
+        try {
+            $this->handler->render(Request::create('/'), $failure);
+
+            $this->fail('The cancellation was not preserved.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testHandlerPreservesCancellationDuringConsoleRendering(): void
+    {
+        $cancellation = new CanceledException('canceled');
+
+        try {
+            $this->handler->renderForConsole(new BufferedOutput, $cancellation);
+
+            $this->fail('The cancellation was not preserved.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testReportingStateIsLocalToTheCurrentCoroutine(): void
@@ -681,6 +784,40 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->executeScenarioWhereErrorViewThrowsWhileRenderingAndDebugIs(true);
     }
 
+    public function testErrorViewCancellationEscapesWithoutReportingOrFallback(): void
+    {
+        $cancellation = new CanceledException('canceled');
+        $this->viewFactory->shouldReceive('exists')->once()->with('errors::404')->andReturnTrue();
+        $this->viewFactory->shouldReceive('make')->once()->andThrow($cancellation);
+        $handler = new class($this->container) extends Handler {
+            public bool $reported = false;
+
+            public function renderHttpExceptionForTest(HttpException $exception): SymfonyResponse
+            {
+                return $this->renderHttpException($exception);
+            }
+
+            public function report(Throwable $e): void
+            {
+                $this->reported = true;
+            }
+
+            protected function registerErrorViewPaths(): void
+            {
+            }
+        };
+
+        try {
+            $handler->renderHttpExceptionForTest(new HttpException(404));
+
+            $this->fail('The cancellation was not preserved.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertFalse($handler->reported);
+    }
+
     public function testAssertExceptionIsThrown()
     {
         $this->assertThrows(function () {
@@ -1033,6 +1170,30 @@ class FoundationExceptionsHandlerTest extends TestCase
 
         $this->assertCount(1, $reported);
         $this->assertSame('Something in the app went wrong.', $reported[0]->getMessage());
+    }
+
+    public function testHandlerPreservesCancellationFromThrottlePolicy(): void
+    {
+        $cancellation = new CanceledException('canceled');
+        $handler = new class($this->container, $cancellation) extends Handler {
+            public function __construct(Application $container, private CanceledException $cancellation)
+            {
+                parent::__construct($container);
+            }
+
+            protected function throttle(Throwable $e): Lottery|AdmissionPolicy|null
+            {
+                throw $this->cancellation;
+            }
+        };
+
+        try {
+            $handler->report(new RuntimeException('failed'));
+
+            $this->fail('The cancellation was not preserved.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testItRescuesExceptionsIfThereIsAnIssueResolvingTheRateLimiter()
