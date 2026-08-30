@@ -27,6 +27,7 @@ use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
 use LogicException;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -590,7 +591,9 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         // If an exception occurs when attempting to run a query, we'll format the error
         // message to include the bindings with SQL, which will make this exception a
         // lot more helpful to the developer instead of just the database's errors.
-        catch (Exception $e) {
+        catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Exception $e) {
             ++$this->errorCount;
 
             $exceptionType = ($isUniqueConstraintError = $this->isUniqueConstraintError($e))

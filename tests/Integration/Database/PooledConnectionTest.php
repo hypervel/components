@@ -7,8 +7,10 @@ namespace Hypervel\Tests\Integration\Database;
 use Closure;
 use Exception;
 use Generator;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
@@ -18,14 +20,18 @@ use Hypervel\Database\Pool\DbPool;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\SessionConfigurator;
 use Hypervel\Database\SQLiteConnection;
+use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Pool\Events\ReleaseConnection;
 use Hypervel\Pool\PoolOption;
 use Hypervel\Testing\ParallelTesting;
 use InvalidArgumentException;
+use Mockery as m;
 use PDO;
 use ReflectionProperty;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 /**
  * Tests for PooledConnection — the adapter that wraps a database Connection
@@ -972,6 +978,96 @@ class PooledConnectionTest extends DatabaseTestCase
         $this->assertSame($createdAt, $pooledConnection->getCreatedAt());
     }
 
+    public function testPingCancellationStopsTheHeartbeatChildAndEscapesExactly(): void
+    {
+        $pool = new DbPool($this->app, 'pool_test');
+        $pooledConnection = $this->createPooledConnection($pool);
+        $pingStarted = new Channel(1);
+        $blocker = new Channel(1);
+        $connection = new CancellablePingConnection(1, ':memory:', '', [], $pingStarted, $blocker);
+        (new ReflectionProperty(PooledConnection::class, 'connection'))->setValue($pooledConnection, $connection);
+        $parentCancellation = null;
+
+        $parent = EngineCoroutine::create(function () use ($pooledConnection, &$parentCancellation): void {
+            try {
+                $pooledConnection->ping(10.0);
+            } catch (CanceledException $exception) {
+                $parentCancellation = $exception;
+            }
+        });
+
+        $this->assertTrue($pingStarted->pop());
+        $this->assertTrue(EngineCoroutine::cancelById($parent->getId(), throwException: true));
+        $this->assertInstanceOf(CanceledException::class, $parentCancellation);
+        $this->assertInstanceOf(CanceledException::class, $connection->cancellation);
+        $this->assertIsInt($connection->coroutineId);
+        $this->assertFalse(EngineCoroutine::exists($connection->coroutineId));
+    }
+
+    public function testPingCancellationDuringStartupReportingStopsThePublishedHeartbeatChild(): void
+    {
+        $handler = m::mock(ExceptionHandlerContract::class);
+        $this->app->instance(ExceptionHandlerContract::class, $handler);
+        $pool = new DbPool($this->app, 'pool_test');
+        $pooledConnection = $this->createPooledConnection($pool);
+        $connection = new NeutralPoolConnection(1, ':memory:', '', []);
+        (new ReflectionProperty(PooledConnection::class, 'connection'))->setValue($pooledConnection, $connection);
+        $hookFailure = new RuntimeException('The startup hook failed.');
+        $reportStarted = new Channel(1);
+        $releaseReport = new Channel(1);
+        $parentCoroutineId = null;
+        $parentCancellation = null;
+        $childCoroutineId = null;
+
+        $handler->shouldReceive('report')
+            ->once()
+            ->with($hookFailure)
+            ->andReturnUsing(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
+                $childCoroutineId = EngineCoroutine::id();
+                $reportStarted->push(true);
+                $releaseReport->pop();
+            });
+
+        FrameworkCoroutine::afterCreated(static function () use ($hookFailure): void {
+            throw $hookFailure;
+        });
+
+        $canceller = EngineCoroutine::create(static function () use ($reportStarted, &$parentCoroutineId): void {
+            $reportStarted->pop();
+
+            if (is_int($parentCoroutineId)) {
+                EngineCoroutine::cancelById($parentCoroutineId, throwException: true);
+            }
+        });
+
+        $parent = EngineCoroutine::create(function () use ($pooledConnection, &$parentCoroutineId, &$parentCancellation): void {
+            $parentCoroutineId = EngineCoroutine::id();
+
+            try {
+                $pooledConnection->ping(10.0);
+            } catch (CanceledException $exception) {
+                $parentCancellation = $exception;
+            }
+        });
+
+        try {
+            $this->assertInstanceOf(CanceledException::class, $parentCancellation);
+            $this->assertSame(0, $connection->pingCalls);
+            $this->assertIsInt($childCoroutineId);
+            $this->assertFalse(EngineCoroutine::exists($childCoroutineId));
+        } finally {
+            $releaseReport->push(true, 0.001);
+
+            if (is_int($childCoroutineId) && EngineCoroutine::exists($childCoroutineId)) {
+                EngineCoroutine::cancelById($childCoroutineId, throwException: true);
+                FrameworkCoroutine::join([$childCoroutineId], 1);
+            }
+        }
+
+        $this->assertFalse(EngineCoroutine::exists($parent->getId()));
+        $this->assertFalse(EngineCoroutine::exists($canceller->getId()));
+    }
+
     public function testConnectionGenerationLifetimeIsJitteredWithinConfiguredUpperBound(): void
     {
         $this->app->make('config')->set('database.connections.pool_test.pool.max_lifetime', 60.0);
@@ -1463,5 +1559,38 @@ class PoolMySqlConnection extends MySqlConnection
     public function rememberLastInsertId(int|string $lastInsertId): void
     {
         $this->lastInsertId = $lastInsertId;
+    }
+}
+
+class CancellablePingConnection extends NeutralPoolConnection
+{
+    public ?CanceledException $cancellation = null;
+
+    public ?int $coroutineId = null;
+
+    public function __construct(
+        int $generation,
+        string $database,
+        string $tablePrefix,
+        array $config,
+        private readonly Channel $pingStarted,
+        private readonly Channel $blocker,
+    ) {
+        parent::__construct($generation, $database, $tablePrefix, $config);
+    }
+
+    public function ping(): bool
+    {
+        $this->coroutineId = EngineCoroutine::id();
+        $this->pingStarted->push(true);
+
+        try {
+            $this->blocker->pop();
+        } catch (CanceledException $exception) {
+            $this->cancellation = $exception;
+            throw $exception;
+        }
+
+        return true;
     }
 }
