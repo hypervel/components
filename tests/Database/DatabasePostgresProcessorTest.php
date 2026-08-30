@@ -35,4 +35,31 @@ class DatabasePostgresProcessorTest extends TestCase
 
         $this->assertEquals($expected, $processor->processColumns($listing));
     }
+
+    public function testProcessIndexesIncludesPartialMetadata(): void
+    {
+        $processor = new PostgresProcessor;
+
+        $this->assertSame([
+            [
+                'name' => 'users_active_index',
+                'columns' => ['account_id', 'archived_at'],
+                'type' => 'btree',
+                'unique' => false,
+                'primary' => false,
+                'partial' => true,
+            ],
+            [
+                'name' => 'users_pkey',
+                'columns' => ['id'],
+                'type' => 'btree',
+                'unique' => true,
+                'primary' => true,
+                'partial' => false,
+            ],
+        ], $processor->processIndexes([
+            ['name' => 'Users_Active_Index', 'columns' => 'account_id,archived_at', 'type' => 'BTREE', 'unique' => false, 'primary' => false, 'partial' => true],
+            ['name' => 'Users_PKey', 'columns' => 'id', 'type' => 'BTREE', 'unique' => true, 'primary' => true, 'partial' => false],
+        ]));
+    }
 }

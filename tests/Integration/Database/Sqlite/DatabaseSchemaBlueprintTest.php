@@ -327,6 +327,48 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         $this->assertSame($indexSql, $this->indexSql('MixedCase_Index'));
     }
 
+    public function testPublicPartialIndexSurvivesRebuildAndRename(): void
+    {
+        $schema = DB::connection()->getSchemaBuilder();
+        $schema->create('items', function (Blueprint $table) {
+            $table->integer('account_id');
+            $table->dateTime('archived_at')->nullable();
+            $table->string('description');
+        });
+
+        $schema->table('items', function (Blueprint $table) {
+            $table->index(['account_id', 'archived_at'], 'items_active_index')
+                ->whereNotNull('archived_at');
+            $table->text('description')->change();
+        });
+
+        $indexSql = 'CREATE INDEX "items_active_index" on "items" ("account_id", "archived_at") where "archived_at" is not null';
+
+        $this->assertSame($indexSql, $this->indexSql('items_active_index'));
+        $this->assertSame([
+            'name' => 'items_active_index',
+            'columns' => ['account_id', 'archived_at'],
+            'type' => null,
+            'unique' => false,
+            'primary' => false,
+            'partial' => true,
+        ], collect($schema->getIndexes('items'))->firstWhere('name', 'items_active_index'));
+
+        $schema->table('items', function (Blueprint $table) {
+            $table->renameIndex('items_active_index', 'items_renamed_active_index');
+        });
+
+        $this->assertNull($this->indexSql('items_active_index'));
+        $this->assertSame(
+            'CREATE INDEX "items_renamed_active_index" on "items" ("account_id", "archived_at") where "archived_at" is not null',
+            $this->indexSql('items_renamed_active_index'),
+        );
+        $this->assertTrue(
+            collect($schema->getIndexes('items'))
+                ->firstWhere('name', 'items_renamed_active_index')['partial'],
+        );
+    }
+
     public function testRebuildQualifiesReplayedIndexesForAnAttachedSchema(): void
     {
         $connection = DB::connection();
