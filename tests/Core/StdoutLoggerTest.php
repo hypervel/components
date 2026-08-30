@@ -17,6 +17,7 @@ use Psr\Log\InvalidArgumentException as PsrInvalidArgumentException;
 use Psr\Log\LogLevel;
 use RuntimeException;
 use Stringable;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -222,6 +223,34 @@ class StdoutLoggerTest extends TestCase
         );
     }
 
+    public function testStringableCancellationEscapesWithoutWritingFallbackLog(): void
+    {
+        $cancellation = new CanceledException('canceled');
+        $message = new class($cancellation) implements Stringable {
+            public function __construct(private CanceledException $cancellation)
+            {
+            }
+
+            public function __toString(): string
+            {
+                throw $this->cancellation;
+            }
+        };
+        $output = m::mock(ConsoleOutput::class);
+        $output->shouldNotReceive('writeln');
+        $logger = new StdoutLogger(new Repository([
+            'app' => ['stdout_log' => ['level' => [LogLevel::INFO], 'format' => 'line']],
+        ]), $output);
+
+        try {
+            $logger->info($message);
+
+            $this->fail('The cancellation was not preserved.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
     public function testDateTimeContextUsesRfc3339(): void
     {
         $date = new DateTimeImmutable('2026-07-20T12:34:56+00:00');
@@ -362,6 +391,34 @@ class StdoutLoggerTest extends TestCase
 
         $this->assertSame('Payload <ARRAY>.', $data['message']);
         $this->assertArrayNotHasKey('context', $data);
+    }
+
+    public function testJsonSerializationCancellationEscapesWithoutWritingFallbackLog(): void
+    {
+        $cancellation = new CanceledException('canceled');
+        $serializer = new class($cancellation) implements JsonSerializable {
+            public function __construct(private CanceledException $cancellation)
+            {
+            }
+
+            public function jsonSerialize(): never
+            {
+                throw $this->cancellation;
+            }
+        };
+        $output = m::mock(ConsoleOutput::class);
+        $output->shouldNotReceive('writeln');
+        $logger = new StdoutLogger(new Repository([
+            'app' => ['stdout_log' => ['level' => [LogLevel::INFO], 'format' => 'json']],
+        ]), $output);
+
+        try {
+            $logger->info('Payload.', ['payload' => ['serializer' => $serializer]]);
+
+            $this->fail('The cancellation was not preserved.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     /**
