@@ -105,7 +105,7 @@ SQL);
         $this->assertSame([], collect($indexes)->firstWhere('name', 'table_mixed_raw_index')['columns']);
     }
 
-    public function testSchemaStateIndexMetadataDoesNotChangeThePublicIndexShape(): void
+    public function testSchemaStateIndexMetadataDoesNotLeakIntoThePublicIndexShape(): void
     {
         $connection = DB::connection('conn1');
         $schema = $connection->getSchemaBuilder();
@@ -118,6 +118,7 @@ SQL);
             'type' => null,
             'unique' => false,
             'primary' => false,
+            'partial' => false,
         ], collect($schema->getIndexes('users'))->firstWhere('name', 'mixedcase_index'));
 
         $this->assertSame([
@@ -127,6 +128,7 @@ SQL);
             'type' => null,
             'unique' => false,
             'primary' => false,
+            'partial' => false,
             'sql' => $indexSql,
             'origin' => 'c',
             'reconstructible' => false,

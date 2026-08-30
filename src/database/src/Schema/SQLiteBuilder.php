@@ -189,7 +189,7 @@ class SQLiteBuilder extends Builder
      * Get the indexes used to reconstruct SQLite schema state.
      *
      * @internal
-     * @return list<array{name: string, physical_name: string, columns: list<string>, type: null|string, unique: bool, primary: bool, sql: null|string, origin: null|string, reconstructible: bool, collations: null|list<string>, descending: null|list<bool>}>
+     * @return list<array{name: string, physical_name: string, columns: list<string>, type: null|string, unique: bool, primary: bool, partial: bool, sql: null|string, origin: null|string, reconstructible: bool, collations: null|list<string>, descending: null|list<bool>}>
      */
     public function getIndexesForSchemaState(string $table): array
     {

@@ -37,7 +37,7 @@ class DatabaseSQLiteProcessorTest extends TestCase
         $this->assertEquals($expected, $processor->processColumns($listing));
     }
 
-    public function testProcessIndexesKeepsPublicShapeAndPreservesSchemaStateMetadata(): void
+    public function testProcessIndexesIncludesPartialFlagAndPreservesSchemaStateMetadata(): void
     {
         $processor = new SQLiteProcessor;
         $results = [
@@ -46,9 +46,10 @@ class DatabaseSQLiteProcessorTest extends TestCase
                 'columns' => '656D61696C',
                 'unique' => 1,
                 'primary' => 0,
-                'sql' => 'CREATE UNIQUE INDEX "MixedCase_Index" ON "users" ("email")',
+                'partial' => 1,
+                'sql' => 'CREATE UNIQUE INDEX "MixedCase_Index" ON "users" ("email") WHERE "email" IS NOT NULL',
                 'origin' => 'c',
-                'reconstructible' => 1,
+                'reconstructible' => 0,
                 'collations' => '42494E415259',
                 'descending' => '0',
             ],
@@ -57,6 +58,7 @@ class DatabaseSQLiteProcessorTest extends TestCase
                 'columns' => null,
                 'unique' => 1,
                 'primary' => 0,
+                'partial' => 0,
                 'sql' => null,
                 'origin' => 'u',
                 'reconstructible' => 0,
@@ -72,6 +74,7 @@ class DatabaseSQLiteProcessorTest extends TestCase
                 'type' => null,
                 'unique' => true,
                 'primary' => false,
+                'partial' => true,
             ],
             [
                 'name' => 'sqlite_autoindex_users_1',
@@ -79,6 +82,7 @@ class DatabaseSQLiteProcessorTest extends TestCase
                 'type' => null,
                 'unique' => true,
                 'primary' => false,
+                'partial' => false,
             ],
         ], $processor->processIndexes($results));
 
@@ -90,9 +94,10 @@ class DatabaseSQLiteProcessorTest extends TestCase
                 'type' => null,
                 'unique' => true,
                 'primary' => false,
-                'sql' => 'CREATE UNIQUE INDEX "MixedCase_Index" ON "users" ("email")',
+                'partial' => true,
+                'sql' => 'CREATE UNIQUE INDEX "MixedCase_Index" ON "users" ("email") WHERE "email" IS NOT NULL',
                 'origin' => 'c',
-                'reconstructible' => true,
+                'reconstructible' => false,
                 'collations' => ['BINARY'],
                 'descending' => [false],
             ],
@@ -103,6 +108,7 @@ class DatabaseSQLiteProcessorTest extends TestCase
                 'type' => null,
                 'unique' => true,
                 'primary' => false,
+                'partial' => false,
                 'sql' => null,
                 'origin' => 'u',
                 'reconstructible' => false,
@@ -120,6 +126,7 @@ class DatabaseSQLiteProcessorTest extends TestCase
             'columns' => '656D61696C2C61646472657373',
             'unique' => 1,
             'primary' => 0,
+            'partial' => 0,
             'sql' => null,
             'origin' => 'u',
             'reconstructible' => 0,
@@ -134,6 +141,7 @@ class DatabaseSQLiteProcessorTest extends TestCase
             'type' => null,
             'unique' => true,
             'primary' => false,
+            'partial' => false,
             'sql' => null,
             'origin' => 'u',
             'reconstructible' => false,
@@ -156,6 +164,7 @@ class DatabaseSQLiteProcessorTest extends TestCase
             'columns' => 'not-hexadecimal',
             'unique' => 0,
             'primary' => 0,
+            'partial' => 0,
             'sql' => 'CREATE INDEX contacts_index ON contacts (email)',
             'origin' => 'c',
             'reconstructible' => 1,
@@ -176,6 +185,7 @@ class DatabaseSQLiteProcessorTest extends TestCase
                 'columns' => '656D61696C',
                 'unique' => 0,
                 'primary' => 0,
+                'partial' => 0,
                 'sql' => 'CREATE INDEX "users_email_index" ON "users" ("email")',
                 'origin' => 'c',
                 'reconstructible' => 1,
@@ -187,6 +197,7 @@ class DatabaseSQLiteProcessorTest extends TestCase
                 'columns' => '74656E616E745F6964,6964',
                 'unique' => 1,
                 'primary' => 1,
+                'partial' => 0,
                 'sql' => null,
                 'origin' => 'pk',
                 'reconstructible' => 1,
@@ -198,6 +209,7 @@ class DatabaseSQLiteProcessorTest extends TestCase
                 'columns' => '74656E616E745F6964,6964',
                 'unique' => 1,
                 'primary' => 1,
+                'partial' => 0,
                 'sql' => null,
                 'origin' => 'pk',
                 'reconstructible' => 1,
