@@ -5,16 +5,23 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Coroutine;
 
 use Exception;
+use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\NonCopyableContext;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Exceptions\ChannelClosedException;
+use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Coroutine\Exceptions\ParallelExecutionException;
 use Hypervel\Coroutine\Parallel;
 use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 use RuntimeException;
 use Swoole\Coroutine as SwooleCoroutine;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 use function Hypervel\Coroutine\parallel;
@@ -229,6 +236,229 @@ class ParallelTest extends TestCase
         $this->assertTrue($cleanupCompleted);
         $this->assertIsInt($childCoroutineId);
         $this->assertFalse(Coroutine::exists($childCoroutineId));
+    }
+
+    public function testIndependentChildCancellationIsStoredAsAChildFailure(): void
+    {
+        $parallel = new Parallel;
+        $childStarted = new Channel(1);
+        $blocker = new Channel(1);
+        $childCoroutineId = null;
+        $childCancellation = null;
+        $outcome = null;
+
+        $parallel->add(static function () use ($childStarted, $blocker, &$childCoroutineId, &$childCancellation): void {
+            $childCoroutineId = Coroutine::id();
+            $childStarted->push(true);
+
+            try {
+                $blocker->pop();
+            } catch (CanceledException $exception) {
+                $childCancellation = $exception;
+                throw $exception;
+            }
+        }, 'canceled');
+
+        $runner = EngineCoroutine::create(function () use ($parallel, &$outcome): void {
+            $parallel->wait(false);
+            $outcome = $parallel->getThrowables()['canceled'];
+        });
+
+        $this->assertTrue($childStarted->pop());
+        $this->assertIsInt($childCoroutineId);
+        $this->assertTrue(EngineCoroutine::cancelById($childCoroutineId, throwException: true));
+        Coroutine::join([$runner->getId()]);
+
+        $this->assertInstanceOf(ChildCancellationException::class, $outcome);
+        $this->assertSame('A child coroutine managed by Parallel was canceled while its owner remained active.', $outcome->getMessage());
+        $this->assertSame($childCancellation, $outcome->getPrevious());
+    }
+
+    public function testOwnerCancellationCancelsEveryLiveChildAndEscapesExactly(): void
+    {
+        $parallel = new Parallel;
+        $childrenStarted = new Channel(2);
+        $blocker = new Channel(1);
+        $childCoroutineIds = [];
+        $childCancellations = [];
+        $parentCancellation = null;
+
+        foreach (['first', 'second'] as $key) {
+            $parallel->add(static function () use (
+                $key,
+                $childrenStarted,
+                $blocker,
+                &$childCoroutineIds,
+                &$childCancellations,
+            ): void {
+                $childCoroutineIds[$key] = Coroutine::id();
+                $childrenStarted->push(true);
+
+                try {
+                    $blocker->pop();
+                } catch (CanceledException $exception) {
+                    $childCancellations[$key] = $exception;
+                }
+            }, $key);
+        }
+
+        $runner = EngineCoroutine::create(function () use ($parallel, &$parentCancellation): void {
+            try {
+                $parallel->wait();
+            } catch (CanceledException $exception) {
+                $parentCancellation = $exception;
+            }
+        });
+
+        $this->assertTrue($childrenStarted->pop());
+        $this->assertTrue($childrenStarted->pop());
+
+        try {
+            $this->assertTrue(EngineCoroutine::cancelById($runner->getId(), throwException: true));
+            $this->assertInstanceOf(CanceledException::class, $parentCancellation);
+            $this->assertCount(2, $childCancellations);
+
+            foreach ($childCoroutineIds as $childCoroutineId) {
+                $this->assertFalse(Coroutine::exists($childCoroutineId));
+            }
+        } finally {
+            foreach ($childCoroutineIds as $childCoroutineId) {
+                if (Coroutine::exists($childCoroutineId)) {
+                    EngineCoroutine::cancelById($childCoroutineId, throwException: true);
+                }
+            }
+        }
+    }
+
+    public function testNonThrowingCancellationWhileWaitingForCapacityDoesNotStartAnotherChild(): void
+    {
+        $parallel = new Parallel(1);
+        $firstStarted = new Channel(1);
+        $blocker = new Channel(1);
+        $firstCancellation = null;
+        $secondStarted = false;
+        $parentCancellation = null;
+
+        $parallel->add(static function () use ($firstStarted, $blocker, &$firstCancellation): void {
+            $firstStarted->push(true);
+
+            try {
+                $blocker->pop();
+            } catch (CanceledException $exception) {
+                $firstCancellation = $exception;
+            }
+        }, 'first');
+        $parallel->add(static function () use (&$secondStarted): void {
+            $secondStarted = true;
+        }, 'second');
+
+        $runner = EngineCoroutine::create(function () use ($parallel, &$parentCancellation): void {
+            try {
+                $parallel->wait();
+            } catch (CanceledException $exception) {
+                $parentCancellation = $exception;
+            }
+        });
+
+        $this->assertTrue($firstStarted->pop());
+
+        try {
+            $this->assertTrue(EngineCoroutine::cancelById($runner->getId()));
+            $this->assertInstanceOf(CanceledException::class, $parentCancellation);
+            $this->assertSame('Waiting to start parallel work was canceled.', $parentCancellation->getMessage());
+            $this->assertInstanceOf(CanceledException::class, $firstCancellation);
+            $this->assertFalse($secondStarted);
+        } finally {
+            if (Coroutine::exists($runner->getId())) {
+                EngineCoroutine::cancelById($runner->getId(), throwException: true);
+            }
+        }
+    }
+
+    public function testCreationCancellationWhileStartupReportingYieldsReleasesOwnership(): void
+    {
+        $handler = m::mock(ExceptionHandlerContract::class);
+        Container::getInstance()->instance(ExceptionHandlerContract::class, $handler);
+        $parallel = new Parallel(1);
+        $hookFailure = new RuntimeException('The startup hook failed.');
+        $reportStarted = new Channel(1);
+        $releaseReport = new Channel(1);
+        $parentCoroutineId = null;
+        $childCoroutineId = null;
+        $parentCancellation = null;
+        $childBodyRan = false;
+        $failStartup = true;
+
+        $handler->shouldReceive('report')
+            ->once()
+            ->with($hookFailure)
+            ->andReturnUsing(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
+                $childCoroutineId = EngineCoroutine::id();
+                $reportStarted->push(true);
+                $releaseReport->pop();
+            });
+
+        Coroutine::afterCreated(static function () use ($hookFailure, &$failStartup): void {
+            if ($failStartup) {
+                $failStartup = false;
+                throw $hookFailure;
+            }
+        });
+
+        $parallel->add(static function () use (&$childBodyRan): void {
+            $childBodyRan = true;
+        });
+
+        $canceller = EngineCoroutine::create(static function () use ($reportStarted, &$parentCoroutineId): void {
+            $reportStarted->pop();
+
+            if (is_int($parentCoroutineId)) {
+                EngineCoroutine::cancelById($parentCoroutineId, throwException: true);
+            }
+        });
+
+        $parent = EngineCoroutine::create(function () use ($parallel, &$parentCoroutineId, &$parentCancellation): void {
+            $parentCoroutineId = EngineCoroutine::id();
+
+            try {
+                $parallel->wait();
+            } catch (CanceledException $exception) {
+                $parentCancellation = $exception;
+            }
+        });
+
+        try {
+            $this->assertInstanceOf(CanceledException::class, $parentCancellation);
+            $this->assertFalse($childBodyRan);
+            $this->assertIsInt($childCoroutineId);
+            $this->assertFalse(Coroutine::exists($childCoroutineId));
+        } finally {
+            $releaseReport->push(true, 0.001);
+
+            if (is_int($childCoroutineId) && Coroutine::exists($childCoroutineId)) {
+                EngineCoroutine::cancelById($childCoroutineId, throwException: true);
+                Coroutine::join([$childCoroutineId], 1);
+            }
+        }
+
+        $this->assertFalse(Coroutine::exists($parent->getId()));
+        $this->assertFalse(Coroutine::exists($canceller->getId()));
+
+        $parallel->clear();
+        $parallel->add(static fn (): string => 'reused', 'next');
+
+        $this->assertSame(['next' => 'reused'], $parallel->wait());
+    }
+
+    public function testClosedConcurrencyChannelIsStoredAsAnOrdinaryFailure(): void
+    {
+        $parallel = new ParallelTestParallel(1);
+        $parallel->closeConcurrencyChannelForTest();
+        $parallel->add(static fn (): string => 'never', 'closed');
+
+        $this->assertSame([], $parallel->wait(false));
+        $this->assertInstanceOf(ChannelClosedException::class, $parallel->getThrowables()['closed']);
+        $this->assertSame('The parallel concurrency channel is closed.', $parallel->getThrowables()['closed']->getMessage());
     }
 
     public function testParallelResultsAndThrows()
@@ -649,5 +879,13 @@ class ParallelTest extends TestCase
     public function returnCoroutineId(): int
     {
         return Coroutine::id();
+    }
+}
+
+class ParallelTestParallel extends Parallel
+{
+    public function closeConcurrencyChannelForTest(): void
+    {
+        $this->concurrentChannel?->close();
     }
 }

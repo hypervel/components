@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Coroutine;
 
+use Closure;
+use Hypervel\Coroutine\Exceptions\ChannelClosedException;
 use Hypervel\Coroutine\Exceptions\InvalidArgumentException;
 use Hypervel\Engine\Channel;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -62,6 +65,14 @@ class Concurrent
     public function waitForAvailableSlot(float $timeout = -1): bool
     {
         if (! $this->channel->push(true, $timeout)) {
+            if ($this->channel->isCanceled()) {
+                throw new CanceledException('Waiting for a concurrency slot was canceled.');
+            }
+
+            if ($this->channel->isClosing()) {
+                throw new ChannelClosedException('The concurrency channel is closed.');
+            }
+
             return false;
         }
 
@@ -77,21 +88,7 @@ class Concurrent
      */
     public function create(callable $callable): void
     {
-        $this->channel->push(true);
-
-        try {
-            Coroutine::create(function () use ($callable): void {
-                try {
-                    $callable();
-                } finally {
-                    $this->channel->pop();
-                }
-            });
-        } catch (Throwable $exception) {
-            $this->channel->pop();
-
-            throw $exception;
-        }
+        $this->start($callable);
     }
 
     /**
@@ -101,20 +98,64 @@ class Concurrent
      */
     public function fork(callable $callable, array $keys = []): void
     {
-        $this->channel->push(true);
+        $this->start($callable, $keys);
+    }
+
+    /**
+     * Start a coroutine that owns one concurrency slot.
+     *
+     * The optional wrapper runs at native child entry. It must not suspend
+     * outside the supplied runner and must invoke that runner exactly once.
+     *
+     * @param array<string>|false $copyContext
+     * @param null|Closure(Closure(): void): void $wrapper
+     */
+    protected function start(callable $callable, array|false $copyContext = false, ?Closure $wrapper = null): void
+    {
+        $this->acquireSlot();
+        $started = false;
+        $slotWrapper = function (Closure $run) use (&$started, $wrapper): void {
+            try {
+                $started = true;
+
+                if ($wrapper === null) {
+                    $run();
+                } else {
+                    $wrapper($run);
+                }
+            } finally {
+                $this->channel->pop();
+            }
+        };
 
         try {
-            Coroutine::fork(function () use ($callable): void {
-                try {
-                    $callable();
-                } finally {
-                    $this->channel->pop();
-                }
-            }, $keys);
+            if ($copyContext === false) {
+                Coroutine::createOwned($callable, $slotWrapper);
+            } else {
+                Coroutine::forkOwned($callable, $slotWrapper, $copyContext);
+            }
         } catch (Throwable $exception) {
-            $this->channel->pop();
+            if (! $started) {
+                $this->channel->pop();
+            }
 
             throw $exception;
         }
+    }
+
+    /**
+     * Acquire one concurrency slot.
+     */
+    protected function acquireSlot(): void
+    {
+        if ($this->channel->push(true)) {
+            return;
+        }
+
+        if ($this->channel->isCanceled()) {
+            throw new CanceledException('Waiting for a concurrency slot was canceled.');
+        }
+
+        throw new ChannelClosedException('The concurrency channel is closed.');
     }
 }
