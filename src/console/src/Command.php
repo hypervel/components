@@ -316,6 +316,10 @@ class Command extends SymfonyCommand
                             $this->normalizeExitCode($this->exitCode),
                         ));
                     }
+                } catch (CanceledException $cancellation) {
+                    if (! $exception instanceof CanceledException) {
+                        $exception = $cancellation;
+                    }
                 } catch (Throwable $throwable) {
                     $exception ??= $throwable;
                 }
@@ -323,6 +327,10 @@ class Command extends SymfonyCommand
                 if ($commandMutex !== null) {
                     try {
                         $commandMutex->forget($this);
+                    } catch (CanceledException $cancellation) {
+                        if (! $exception instanceof CanceledException) {
+                            $exception = $cancellation;
+                        }
                     } catch (Throwable $throwable) {
                         $exception ??= $throwable;
                     }
