@@ -28,6 +28,7 @@ use ReflectionException;
 use ReflectionFunction;
 use ReflectionParameter;
 use Swoole\Coroutine as SwooleCoroutine;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 use TypeError;
 
@@ -1089,6 +1090,11 @@ class Container implements ContainerContract
         try {
             return $this->resolve($id);
         } catch (Exception $e) {
+            // Cancellation is injected asynchronously, so a dedicated catch analyzes as unreachable here.
+            if ($e instanceof CanceledException) {
+                throw $e;
+            }
+
             if ($this->has($id) || $e instanceof CircularDependencyException) {
                 throw $e;
             }

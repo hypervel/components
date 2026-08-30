@@ -25,6 +25,7 @@ use Psr\Container\ContainerExceptionInterface;
 use ReflectionClass;
 use ReflectionProperty;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
 use TypeError;
 
 use function Hypervel\Coroutine\parallel;
@@ -1173,6 +1174,21 @@ class ContainerTest extends TestCase
 
         $container = new Container;
         $container->get('Taylor');
+    }
+
+    public function testGetPreservesCancellationWhileResolvingUnboundConcrete(): void
+    {
+        $cancellation = new CanceledException('canceled');
+        $container = new Container;
+        $container->beforeResolving(ContainerConcreteStub::class, fn () => throw $cancellation);
+
+        try {
+            $container->get(ContainerConcreteStub::class);
+
+            $this->fail('The cancellation was not preserved.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testBoundEntriesThrowsContainerExceptionWhenNotResolvable()
