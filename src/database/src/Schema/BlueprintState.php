@@ -37,7 +37,7 @@ class BlueprintState
     /**
      * The primary key.
      */
-    private Fluent|IndexDefinition|null $primaryKey;
+    private ?IndexDefinition $primaryKey;
 
     /**
      * The indexes.
@@ -135,7 +135,7 @@ class BlueprintState
     /**
      * Get the primary key.
      */
-    public function getPrimaryKey(): Fluent|IndexDefinition|null
+    public function getPrimaryKey(): ?IndexDefinition
     {
         return $this->primaryKey;
     }
@@ -218,6 +218,10 @@ class BlueprintState
                 foreach ($this->indexes as $index) {
                     $index->columnRenamed = true;
                     $index->columns = $this->replaceColumn($index->columns, $command->from, $command->to);
+
+                    if ($index->whereNotNull === $command->from) {
+                        $index->whereNotNull = $command->to;
+                    }
                 }
 
                 foreach ($this->foreignKeys as $foreignKey) {
@@ -240,6 +244,7 @@ class BlueprintState
 
                 break;
             case 'primary':
+                /** @var IndexDefinition $command */
                 $this->primaryKey = $command;
                 break;
             case 'unique':
@@ -258,7 +263,7 @@ class BlueprintState
                 $command->columnRenamed = false;
                 $command->columnDropped = false;
 
-                // @phpstan-ignore assign.propertyType (Blueprint commands are Fluent, stored as IndexDefinition)
+                /** @var IndexDefinition $command */
                 $this->indexes[] = $command;
                 break;
             case 'renameIndex':
@@ -272,7 +277,7 @@ class BlueprintState
 
                 break;
             case 'foreign':
-                // @phpstan-ignore assign.propertyType (Blueprint commands are Fluent, stored as ForeignKeyDefinition)
+                /** @var ForeignKeyDefinition $command */
                 $this->foreignKeys[] = $command;
                 break;
             case 'dropPrimary':
