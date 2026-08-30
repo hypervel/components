@@ -13,6 +13,7 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RedisSentinel;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class RedisSentinelFactoryTest extends TestCase
 {
@@ -105,6 +106,32 @@ class RedisSentinelFactoryTest extends TestCase
             $this->assertSame(['sentinel-user', '0'], $options['auth']);
             $this->assertArrayNotHasKey('persistent', $options);
             $this->assertArrayNotHasKey('retryInterval', $options);
+        }
+    }
+
+    public function testResolveMasterPreservesExactCancellation(): void
+    {
+        $cancellation = new CanceledException('sentinel canceled');
+        $sentinel = m::mock(RedisSentinel::class);
+        $sentinel->expects('getMasterAddrByName')
+            ->with('primary')
+            ->andThrow($cancellation);
+        $factory = new class($sentinel) extends RedisSentinelFactory {
+            public function __construct(private RedisSentinel $sentinel)
+            {
+            }
+
+            public function create(array $options = []): RedisSentinel
+            {
+                return $this->sentinel;
+            }
+        };
+
+        try {
+            $factory->resolveMaster($this->sentinelConfig());
+            $this->fail('Expected the cancellation to escape.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
         }
     }
 

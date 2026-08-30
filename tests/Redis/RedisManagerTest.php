@@ -20,6 +20,8 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 /**
  * Tests for RedisManager — the named connection manager.
@@ -146,6 +148,33 @@ class RedisManagerTest extends TestCase
         }
     }
 
+    public function testReleaseConnectionsExhaustsProxiesAndPreservesFirstCancellation(): void
+    {
+        $ordinaryFailure = new RuntimeException('First release failed.');
+        $cancellation = new CanceledException('Second release canceled.');
+        $laterCancellation = new CanceledException('Third release canceled.');
+        $first = m::mock(PhpRedisConnection::class);
+        $first->expects('release')->andThrow($ordinaryFailure);
+        $second = m::mock(PhpRedisConnection::class);
+        $second->expects('release')->andThrow($cancellation);
+        $third = m::mock(PhpRedisConnection::class);
+        $third->expects('release')->andThrow($laterCancellation);
+        $manager = $this->createManager(['first', 'second', 'third']);
+        $manager->connection('first');
+        $manager->connection('second');
+        $manager->connection('third');
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'first', $first);
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'second', $second);
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'third', $third);
+
+        try {
+            $manager->releaseConnections();
+            $this->fail('Expected the first cancellation to propagate.');
+        } catch (Throwable $throwable) {
+            $this->assertSame($cancellation, $throwable);
+        }
+    }
+
     public function testDiscardConnectionsExhaustsEveryCreatedProxy(): void
     {
         $first = m::mock(PhpRedisConnection::class);
@@ -179,6 +208,29 @@ class RedisManagerTest extends TestCase
             $this->fail('Expected the discard failure to propagate.');
         } catch (RuntimeException $throwable) {
             $this->assertSame($discardException, $throwable);
+        }
+
+        $this->assertSame([], $manager->connections());
+    }
+
+    public function testPurgeFlushesPoolAndLetsCancellationSupersedeDiscardFailure(): void
+    {
+        $cancellation = new CanceledException('Flush canceled.');
+        $connection = m::mock(PhpRedisConnection::class);
+        $connection->expects('discard')->andThrow(new RuntimeException('Discard failed.'));
+        $poolFactory = m::mock(PoolFactory::class);
+        $poolFactory->expects('flushPool')
+            ->with('alias')
+            ->andThrow($cancellation);
+        $manager = $this->createManager(['alias'], poolFactory: $poolFactory);
+        $manager->connection('alias');
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'alias', $connection);
+
+        try {
+            $manager->purge('alias');
+            $this->fail('Expected the cancellation to propagate.');
+        } catch (Throwable $throwable) {
+            $this->assertSame($cancellation, $throwable);
         }
 
         $this->assertSame([], $manager->connections());

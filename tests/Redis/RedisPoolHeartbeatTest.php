@@ -6,8 +6,11 @@ namespace Hypervel\Tests\Redis\RedisPoolHeartbeatTest;
 
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Contracts\Pool\PoolInterface;
+use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
+use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Pool\Connection as BaseConnection;
 use Hypervel\Pool\PoolOption;
@@ -24,6 +27,8 @@ use Redis;
 use RedisCluster;
 use ReflectionProperty;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Coroutine\run;
 
@@ -321,6 +326,140 @@ class RedisPoolHeartbeatTest extends TestCase
             usleep(100000);
 
             $this->assertSame(0, $pool->getConnectionsInChannel());
+        });
+    }
+
+    public function testHeartbeatThrowingCancellationStopsTheChildAndEscapes(): void
+    {
+        run(function (): void {
+            $pool = $this->createPool([
+                'min_connections' => 1,
+                'max_connections' => 1,
+                'heartbeat' => -1,
+            ], CancellableHeartbeatRedisPool::class);
+            $connection = $pool->get();
+            $this->assertInstanceOf(CancellableHeartbeatRedisConnection::class, $connection);
+            $captured = null;
+
+            $parent = Coroutine::create(function () use ($connection, &$captured): void {
+                try {
+                    $connection->heartbeatCheck(10.0);
+                } catch (Throwable $exception) {
+                    $captured = $exception;
+                }
+            });
+
+            $this->assertTrue($connection->pingStarted->pop());
+            $this->assertTrue(Coroutine::cancelById($parent->getId(), throwException: true));
+            $this->assertInstanceOf(CanceledException::class, $captured);
+            $this->assertInstanceOf(CanceledException::class, $connection->cancellation);
+            $this->assertIsInt($connection->coroutineId);
+            $this->assertFalse(Coroutine::exists($connection->coroutineId));
+
+            $connection->release();
+        });
+    }
+
+    public function testHeartbeatCancellationDuringStartupReportingStopsThePublishedChild(): void
+    {
+        run(function (): void {
+            $handler = m::mock(ExceptionHandlerContract::class);
+            Container::getInstance()->instance(ExceptionHandlerContract::class, $handler);
+            $pool = $this->createPool([
+                'min_connections' => 1,
+                'max_connections' => 1,
+                'heartbeat' => -1,
+            ]);
+            $connection = $pool->get();
+            $this->assertInstanceOf(HeartbeatRedisConnection::class, $connection);
+            $hookFailure = new RuntimeException('The startup hook failed.');
+            $reportStarted = new Channel(1);
+            $releaseReport = new Channel(1);
+            $parentCoroutineId = null;
+            $parentCancellation = null;
+            $childCoroutineId = null;
+
+            $handler->shouldReceive('report')
+                ->once()
+                ->with($hookFailure)
+                ->andReturnUsing(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
+                    $childCoroutineId = Coroutine::id();
+                    $reportStarted->push(true);
+                    $releaseReport->pop();
+                });
+
+            FrameworkCoroutine::afterCreated(static function () use ($hookFailure): void {
+                throw $hookFailure;
+            });
+
+            $canceller = Coroutine::create(static function () use ($reportStarted, &$parentCoroutineId): void {
+                $reportStarted->pop();
+
+                if (is_int($parentCoroutineId)) {
+                    Coroutine::cancelById($parentCoroutineId, throwException: true);
+                }
+            });
+
+            $parent = Coroutine::create(function () use ($connection, &$parentCoroutineId, &$parentCancellation): void {
+                $parentCoroutineId = Coroutine::id();
+
+                try {
+                    $connection->heartbeatCheck(10.0);
+                } catch (CanceledException $exception) {
+                    $parentCancellation = $exception;
+                }
+            });
+
+            try {
+                $this->assertInstanceOf(CanceledException::class, $parentCancellation);
+                $this->assertSame(0, $connection->heartbeatChecks);
+                $this->assertIsInt($childCoroutineId);
+                $this->assertFalse(Coroutine::exists($childCoroutineId));
+            } finally {
+                $releaseReport->push(true, 0.001);
+
+                if (is_int($childCoroutineId) && Coroutine::exists($childCoroutineId)) {
+                    Coroutine::cancelById($childCoroutineId, throwException: true);
+                    FrameworkCoroutine::join([$childCoroutineId], 1);
+                }
+
+                $connection->release();
+            }
+
+            $this->assertFalse(Coroutine::exists($parent->getId()));
+            $this->assertFalse(Coroutine::exists($canceller->getId()));
+        });
+    }
+
+    public function testHeartbeatNonThrowingCancellationStopsTheChildAndEscapes(): void
+    {
+        run(function (): void {
+            $pool = $this->createPool([
+                'min_connections' => 1,
+                'max_connections' => 1,
+                'heartbeat' => -1,
+            ], CancellableHeartbeatRedisPool::class);
+            $connection = $pool->get();
+            $this->assertInstanceOf(CancellableHeartbeatRedisConnection::class, $connection);
+            $captured = null;
+
+            $parent = Coroutine::create(function () use ($connection, &$captured): void {
+                try {
+                    $connection->heartbeatCheck(10.0);
+                } catch (Throwable $exception) {
+                    $captured = $exception;
+                }
+            });
+
+            $this->assertTrue($connection->pingStarted->pop());
+            $this->assertTrue(Coroutine::cancelById($parent->getId()));
+            $this->assertInstanceOf(CanceledException::class, $captured);
+            $this->assertSame('Waiting for a Redis heartbeat was canceled.', $captured->getMessage());
+            $this->assertInstanceOf(CanceledException::class, $connection->cancellation);
+            $this->assertIsInt($connection->coroutineId);
+            $this->assertFalse(Coroutine::exists($connection->coroutineId));
+
+            $connection->release();
         });
     }
 
@@ -639,6 +778,48 @@ class SlowHeartbeatRedisPool extends InspectableRedisPool
     protected function createConnection(): ConnectionInterface
     {
         return new SlowHeartbeatRedisConnection($this->container, $this, $this->config);
+    }
+}
+
+class CancellableHeartbeatRedisPool extends InspectableRedisPool
+{
+    protected function createConnection(): ConnectionInterface
+    {
+        return new CancellableHeartbeatRedisConnection($this->container, $this, $this->config);
+    }
+}
+
+class CancellableHeartbeatRedisConnection extends HeartbeatRedisConnection
+{
+    public Channel $pingStarted;
+
+    public Channel $blocker;
+
+    public ?CanceledException $cancellation = null;
+
+    public ?int $coroutineId = null;
+
+    public function __construct(Container $container, PoolInterface $pool, array $config)
+    {
+        parent::__construct($container, $pool, $config);
+
+        $this->pingStarted = new Channel(1);
+        $this->blocker = new Channel(1);
+    }
+
+    protected function pingForHeartbeat(): bool
+    {
+        $this->coroutineId = Coroutine::id();
+        $this->pingStarted->push(true);
+
+        try {
+            $this->blocker->pop();
+        } catch (CanceledException $exception) {
+            $this->cancellation = $exception;
+            throw $exception;
+        }
+
+        return true;
     }
 }
 

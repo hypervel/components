@@ -14,6 +14,7 @@ use Hypervel\Redis\Limiters\ConcurrencyLimiterBuilder;
 use Hypervel\Redis\Limiters\DurationLimiterBuilder;
 use Hypervel\Redis\Pool\PoolFactory;
 use InvalidArgumentException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -103,7 +104,9 @@ class RedisManager implements FactoryContract, ConnectionContract
         try {
             $this->factory->flushPool($poolName);
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            if ($exception === null || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)) {
+                $exception = $throwable;
+            }
         }
 
         if ($exception !== null) {
@@ -186,7 +189,9 @@ class RedisManager implements FactoryContract, ConnectionContract
             try {
                 $terminate($connection);
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                if ($exception === null || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)) {
+                    $exception = $throwable;
+                }
             }
         }
 

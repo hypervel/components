@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Redis;
 
 use BadMethodCallException;
+use Closure;
 use Generator;
 use Hypervel\Context\NonCopyableContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Pool\PoolInterface;
+use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Engine\Exceptions\CoroutineCreateException;
@@ -30,8 +32,6 @@ use RedisClusterException;
 use RedisException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
-
-use function Hypervel\Coroutine\go;
 
 /**
  * Abstract base class for pooled Redis connections with Laravel-style method transformations.
@@ -664,19 +664,28 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
      * deterministically rather than relying on PHP refcount destruction -
      * connections trapped in pool/connection reference cycles would otherwise
      * keep their FDs open until the cycle collector runs.
+     *
+     * @throws CanceledException
      */
     public function close(): bool
     {
         try {
             $this->connection?->close();
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            if ($cancellation = RedisCancellation::cancellationFrom(
+                $exception,
+                'Closing the Redis connection was canceled.',
+            )) {
+                throw $cancellation;
+            }
+
             // Swallow errors from the underlying client (already-disconnected
             // socket, broken connection, RedisCluster variants without close, etc.).
             // PHP frees the client either way - we just want to null our reference.
+        } finally {
+            $this->connection = null;
+            $this->watching = false;
         }
-
-        $this->connection = null;
-        $this->watching = false;
 
         return true;
     }
@@ -691,20 +700,45 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
         }
 
         $result = new Channel(1);
+        $started = null;
+        $callable = function () use ($result): void {
+            try {
+                $result->push($this->pingForHeartbeat(), 0.0);
+            } catch (CanceledException) {
+            }
+        };
+        $wrapper = static function (Closure $run) use (&$started): void {
+            $started = Coroutine::id();
+            $run();
+        };
 
         try {
-            $started = go(function () use ($result): void {
-                try {
-                    $result->push($this->pingForHeartbeat(), 0.0);
-                } catch (CanceledException) {
-                }
-            });
+            FrameworkCoroutine::createOwned($callable, $wrapper);
+        } catch (CanceledException $exception) {
+            $this->cancelHeartbeatCoroutine($started);
+
+            throw $exception;
         } catch (CoroutineCreateException) {
             return false;
         }
 
-        if ($result->pop($timeout) !== true) {
-            Coroutine::cancelById($started, throwException: true);
+        try {
+            $healthy = $result->pop($timeout);
+        } catch (CanceledException $exception) {
+            $this->cancelHeartbeatCoroutine($started);
+
+            throw $exception;
+        }
+
+        if ($healthy === false && $result->isCanceled()) {
+            $exception = new CanceledException('Waiting for a Redis heartbeat was canceled.');
+            $this->cancelHeartbeatCoroutine($started);
+
+            throw $exception;
+        }
+
+        if ($healthy !== true) {
+            $this->cancelHeartbeatCoroutine($started);
 
             return false;
         }
@@ -712,6 +746,16 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
         $this->lastUseTime = hrtime(true) / 1e9;
 
         return true;
+    }
+
+    /**
+     * Cancel a live heartbeat coroutine.
+     */
+    private function cancelHeartbeatCoroutine(?int $coroutineId): void
+    {
+        if (is_int($coroutineId) && Coroutine::exists($coroutineId)) {
+            Coroutine::cancelById($coroutineId, throwException: true);
+        }
     }
 
     /**
@@ -724,17 +768,24 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
         try {
             $queueing = $this->isQueueingMode();
         } catch (Throwable $exception) {
+            if ($cancellation = RedisCancellation::cancellationFrom(
+                $exception,
+                'Inspecting Redis connection state during release was canceled.',
+            )) {
+                $this->releaseAfterCancellation($cancellation);
+            }
+
             $this->markInvalid();
 
             try {
                 $this->log('Release connection failed, caused by ' . $exception, LogLevel::CRITICAL);
+            } catch (CanceledException $cancellation) {
+                $this->releaseAfterCancellation($cancellation);
             } catch (Throwable) {
                 // Reporting must not prevent terminal ownership cleanup.
             }
 
-            $this->database = null;
-            $this->watching = false;
-            $this->availableForReuse = true;
+            $this->resetReleaseState(true);
             parent::release();
 
             return;
@@ -748,17 +799,20 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
                         : 'Discarding Redis connection left in WATCH state.',
                     LogLevel::CRITICAL
                 );
+            } catch (CanceledException $cancellation) {
+                // Native close must not start while cancellation is unwinding.
+                $this->releaseAfterCancellation($cancellation);
             } catch (Throwable) {
                 // Reporting must not prevent terminal ownership cleanup.
             }
 
-            $this->database = null;
-            $this->watching = false;
-            $this->availableForReuse = false;
+            $this->resetReleaseState(false);
             $this->discard();
 
             return;
         }
+
+        $cancellation = null;
 
         try {
             if ($this->connection instanceof Redis) {
@@ -775,21 +829,73 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
                 }
             }
         } catch (Throwable $exception) {
-            $this->markInvalid();
-            // A connected client would otherwise replay its rejected database during reconnect.
-            $this->close();
+            if ($cancellation = RedisCancellation::cancellationFrom(
+                $exception,
+                'Preparing the Redis connection for release was canceled.',
+            )) {
+                $this->markInvalid();
+            } else {
+                $this->markInvalid();
 
+                // Release the known-bad socket instead of retaining it until cycle collection.
+                try {
+                    $this->close();
+                } catch (CanceledException $closeCancellation) {
+                    $cancellation = $closeCancellation;
+                }
+
+                if ($cancellation === null) {
+                    try {
+                        $this->log('Release connection failed, caused by ' . $exception, LogLevel::CRITICAL);
+                    } catch (CanceledException $loggingCancellation) {
+                        $cancellation = $loggingCancellation;
+                    } catch (Throwable) {
+                        // Reporting must not prevent terminal ownership cleanup.
+                    }
+                }
+            }
+        } finally {
+            if ($cancellation !== null) {
+                // This throws after releasing, so the normal release below cannot run twice.
+                $this->releaseAfterCancellation($cancellation);
+            }
+
+            $this->resetReleaseState(true);
+            parent::release();
+        }
+    }
+
+    /**
+     * Reset state held only while a connection is borrowed.
+     */
+    private function resetReleaseState(bool $availableForReuse): void
+    {
+        $this->database = null;
+        $this->watching = false;
+        $this->availableForReuse = $availableForReuse;
+    }
+
+    /**
+     * Return an invalid connection to its pool after cancellation.
+     */
+    private function releaseAfterCancellation(CanceledException $cancellation): never
+    {
+        $this->markInvalid();
+        $this->resetReleaseState(true);
+        $this->lastReleaseTime = hrtime(true) / 1e9;
+
+        try {
+            $this->pool->release($this);
+        } catch (CanceledException) {
+            // The operation cancellation remains primary.
+        } catch (Throwable $exception) {
             try {
                 $this->log('Release connection failed, caused by ' . $exception, LogLevel::CRITICAL);
             } catch (Throwable) {
-                // Reporting must not prevent terminal ownership cleanup.
             }
-        } finally {
-            $this->database = null;
-            $this->watching = false;
-            $this->availableForReuse = true;
-            parent::release();
         }
+
+        throw $cancellation;
     }
 
     /**
@@ -933,8 +1039,11 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
 
             return false;
         } catch (Throwable $exception) {
-            if ($exception instanceof CanceledException) {
-                throw $exception;
+            if ($cancellation = RedisCancellation::cancellationFrom(
+                $exception,
+                'Pinging Redis for heartbeat health was canceled.',
+            )) {
+                throw $cancellation;
             }
 
             return false;
@@ -1563,6 +1672,7 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
             $this->connection->setOption(Redis::OPT_COMPRESSION, Redis::COMPRESSION_NONE);
         }
 
+        // These options are nonthrowing, in-memory phpredis fields. An I/O-backed option would require failure-aware cleanup.
         try {
             return $callback();
         } finally {

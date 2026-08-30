@@ -38,48 +38,61 @@ class PhpRedisConnection extends RedisConnection
      */
     public function reconnect(): bool
     {
-        $database = $this->connection instanceof Redis && $this->connection->isConnected()
-            ? $this->connection->getDBNum()
-            : ($this->database ?? $this->config['database']);
+        try {
+            $database = ! $this->invalid
+                && $this->connection instanceof Redis
+                && $this->connection->isConnected()
+                ? $this->connection->getDBNum()
+                : ($this->database ?? $this->config['database']);
 
-        $sentinel = $this->config['sentinel']['enabled'] ?? false;
+            $sentinel = $this->config['sentinel']['enabled'] ?? false;
 
-        $redis = $sentinel
-            ? $this->createRedisSentinel()
-            : $this->createRedis($this->config);
+            $redis = $sentinel
+                ? $this->createRedisSentinel()
+                : $this->createRedis($this->config);
 
-        $this->setOptions($redis);
+            $this->setOptions($redis);
 
-        $auth = $this->config['password'];
-        if ($auth !== null && $auth !== '') {
-            $username = $this->config['username'];
-            $redis->auth(
-                $username !== null && $username !== '' && is_string($auth)
-                    ? [$username, $auth]
-                    : $auth
-            );
+            $auth = $this->config['password'];
+            if ($auth !== null && $auth !== '') {
+                $username = $this->config['username'];
+                $redis->auth(
+                    $username !== null && $username !== '' && is_string($auth)
+                        ? [$username, $auth]
+                        : $auth
+                );
+            }
+
+            if ($database > 0 && $redis->select($database) !== true) {
+                throw new ConnectionException(
+                    "Failed to select Redis database [{$database}] on connection [{$this->getName()}]."
+                );
+            }
+
+            $name = $this->config['name'];
+            if ($name !== null && $name !== '') {
+                $redis->client('SETNAME', $name);
+            }
+
+            $this->connection = $redis;
+            $this->database = $database;
+            $this->markReconnected();
+
+            if ($this->config['events'] && $this->container->bound('events')) {
+                $this->eventDispatcher = $this->container->make('events');
+            }
+
+            return true;
+        } catch (Throwable $exception) {
+            if ($cancellation = RedisCancellation::cancellationFrom(
+                $exception,
+                'Connecting to Redis was canceled.',
+            )) {
+                throw $cancellation;
+            }
+
+            throw $exception;
         }
-
-        if ($database > 0 && $redis->select($database) !== true) {
-            throw new ConnectionException(
-                "Failed to select Redis database [{$database}] on connection [{$this->getName()}]."
-            );
-        }
-
-        $name = $this->config['name'];
-        if ($name !== null && $name !== '') {
-            $redis->client('SETNAME', $name);
-        }
-
-        $this->connection = $redis;
-        $this->database = $database;
-        $this->markReconnected();
-
-        if ($this->config['events'] && $this->container->bound('events')) {
-            $this->eventDispatcher = $this->container->make('events');
-        }
-
-        return true;
     }
 
     /**
@@ -212,6 +225,13 @@ class PhpRedisConnection extends RedisConnection
                 'context' => $this->config['context'],
             ]);
         } catch (Throwable $exception) {
+            if ($cancellation = RedisCancellation::cancellationFrom(
+                $exception,
+                'Connecting to Redis through Sentinel was canceled.',
+            )) {
+                throw $cancellation;
+            }
+
             throw new ConnectionException('Connection reconnect failed ' . $exception->getMessage());
         }
 

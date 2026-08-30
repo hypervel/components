@@ -20,10 +20,38 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Redis;
 use RedisCluster;
 use RedisException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class PhpRedisClusterConnectionTest extends TestCase
 {
+    public function testClusterCreationPreservesExactCancellation(): void
+    {
+        $cancellation = new CanceledException('cluster creation canceled');
+
+        try {
+            new class($this->getContainer(), $this->getMockedPool(), $this->clusterConfig(), $cancellation) extends PhpRedisClusterConnection {
+                public function __construct(
+                    ContainerContract $container,
+                    PoolInterface $pool,
+                    array $config,
+                    private CanceledException $cancellation,
+                ) {
+                    parent::__construct($container, $pool, $config);
+                }
+
+                protected function formatClusterPassword(): mixed
+                {
+                    throw $this->cancellation;
+                }
+            };
+
+            $this->fail('Expected the cancellation to escape.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
     public function testIsClusterReturnsTrue()
     {
         $connection = new PhpRedisClusterConnectionStub;
