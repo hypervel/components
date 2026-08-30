@@ -629,6 +629,21 @@ abstract class DatabaseSessionHandlerTestCase extends DatabaseTestCase
         $this->assertSame('varchar', Schema::getColumnType('sessions', 'auth_provider'));
     }
 
+    public function testUserIndexUsesAvailableSparseIndexSupport(): void
+    {
+        $index = array_find(
+            Schema::getIndexes('sessions'),
+            static fn (array $index): bool => $index['name'] === 'sessions_user_id_index',
+        );
+
+        $this->assertNotNull($index);
+        $this->assertSame(['user_id'], $index['columns']);
+        $this->assertSame(
+            in_array(DB::connection()->getDriverName(), ['pgsql', 'sqlite'], true),
+            $index['partial'],
+        );
+    }
+
     public function testDirectWriteUpdatesAnExistingSessionWithoutAttemptingDuplicateInsert(): void
     {
         $resolver = $this->app->make('db');
