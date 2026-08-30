@@ -45,11 +45,11 @@ class TestViewTest extends TestCase
     public static function failingViewDataAssertions(): array
     {
         return [
-            'missing key' => [[], static fn (TestView $view) => $view->assertViewHas('missing')],
-            'different value' => [['foo' => 'bar'], static fn (TestView $view) => $view->assertViewHas('foo', 'baz')],
-            'rejected closure' => [['count' => 1], static fn (TestView $view) => $view->assertViewHas('count', static fn (int $count): bool => $count > 1)],
-            'missing list binding' => [['foo' => 'bar'], static fn (TestView $view) => $view->assertViewHasAll(['foo', 'missing'])],
-            'present key' => [['foo' => 'bar'], static fn (TestView $view) => $view->assertViewMissing('foo')],
+            'missing key' => [[], static fn (TestView $view): TestView => $view->assertViewHas('missing')],
+            'different value' => [['foo' => 'bar'], static fn (TestView $view): TestView => $view->assertViewHas('foo', 'baz')],
+            'rejected closure' => [['count' => 1], static fn (TestView $view): TestView => $view->assertViewHas('count', static fn (int $count): bool => $count > 1)],
+            'missing list binding' => [['foo' => 'bar'], static fn (TestView $view): TestView => $view->assertViewHasAll(['foo', 'missing'])],
+            'present key' => [['foo' => 'bar'], static fn (TestView $view): TestView => $view->assertViewMissing('foo')],
         ];
     }
 
@@ -167,12 +167,12 @@ class TestViewTest extends TestCase
     public static function failingRenderedViewAssertions(): array
     {
         return [
-            'missing content' => [static fn (TestView $view) => $view->assertSee('missing')],
-            'wrong content order' => [static fn (TestView $view) => $view->assertSeeInOrder(['Second', 'First'])],
-            'missing text' => [static fn (TestView $view) => $view->assertSeeText('missing')],
-            'wrong text order' => [static fn (TestView $view) => $view->assertSeeTextInOrder(['Second', 'First'])],
-            'present excluded content' => [static fn (TestView $view) => $view->assertDontSee('First')],
-            'present excluded text' => [static fn (TestView $view) => $view->assertDontSeeText('First')],
+            'missing content' => [static fn (TestView $view): TestView => $view->assertSee('missing')],
+            'wrong content order' => [static fn (TestView $view): TestView => $view->assertSeeInOrder(['Second', 'First'])],
+            'missing text' => [static fn (TestView $view): TestView => $view->assertSeeText('missing')],
+            'wrong text order' => [static fn (TestView $view): TestView => $view->assertSeeTextInOrder(['Second', 'First'])],
+            'present excluded content' => [static fn (TestView $view): TestView => $view->assertDontSee('First')],
+            'present excluded text' => [static fn (TestView $view): TestView => $view->assertDontSeeText('First')],
         ];
     }
 

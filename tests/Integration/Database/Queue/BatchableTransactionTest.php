@@ -32,7 +32,7 @@ class BatchableTransactionTest extends DatabaseTestCase
         }
     }
 
-    public function testItCanHandleTimeoutJob()
+    public function testItCanHandleTimeoutJob(): void
     {
         Bus::batch([new Fixtures\TimeOutJobWithTransaction])
             ->allowFailures()

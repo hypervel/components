@@ -227,6 +227,25 @@ class TestDatabasesTest extends TestCase
         $this->assertSame('testing', $callbackDatabase);
     }
 
+    public function testInMemorySqliteWithEndpointDatabaseIsRejectedBeforeConnectionResolution(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Read/write connections with endpoint-specific databases or URLs cannot be automatically managed during parallel testing. '
+            . 'Configure a single database identity or run with --without-databases.'
+        );
+
+        $this->whenNotUsingInMemoryDatabase(
+            'sqlite',
+            ':memory:',
+            false,
+            static function (): void {
+            },
+            ['read' => ['database' => 'persistent.sqlite']],
+            false,
+        );
+    }
+
     #[DataProvider('unsupportedReadWriteConfigurations')]
     public function testEndpointSpecificDatabaseIdentityIsRejectedBeforeConnectionResolution(
         array $configuration
