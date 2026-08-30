@@ -10,17 +10,22 @@ use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Contracts\Pool\FrequencyInterface;
+use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Pool\Channel as PoolChannel;
 use Hypervel\Pool\ClearableFrequencyInterface;
+use Hypervel\Pool\Connection as PoolConnection;
 use Hypervel\Pool\LowFrequencyInterface;
 use Hypervel\Pool\Pool;
 use Hypervel\Tests\Pool\Fixtures\ConstantFrequencyStub;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -79,6 +84,37 @@ class PoolTest extends TestCase
         $this->assertSame(0, $pool->getConnectionsInChannel());
         $this->assertSame(0, $pool->getCurrentConnections());
         $this->assertSame(2, array_sum(array_column($connections, 'closeCount')));
+    }
+
+    public function testCloseDrainsEveryIdleConnectionBeforeRethrowingCancellation(): void
+    {
+        $cancellation = new CanceledException('close canceled');
+        $connections = [
+            new PoolConnectionStub(closeCallback: static fn (): bool => throw $cancellation),
+            new PoolConnectionStub,
+        ];
+        $pool = $this->createPool(
+            ['max_connections' => 2],
+            static function () use (&$connections): ConnectionInterface {
+                return array_shift($connections);
+            },
+        );
+        $first = $pool->get();
+        $second = $pool->get();
+        $pool->release($first);
+        $pool->release($second);
+
+        try {
+            $pool->close();
+            $this->fail('Closing an idle connection was expected to be canceled.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame(1, $first->closeCount);
+        $this->assertSame(1, $second->closeCount);
+        $this->assertSame(0, $pool->getConnectionsInChannel());
+        $this->assertSame(0, $pool->getCurrentConnections());
     }
 
     public function testCloseClearsConstantFrequencyTimer(): void
@@ -147,6 +183,37 @@ class PoolTest extends TestCase
         $this->assertSame(1, $connection->closeCount);
         $this->assertSame(0, $pool->getConnectionsInChannel());
         $this->assertSame(0, $pool->getCurrentConnections());
+    }
+
+    public function testConnectionReleaseAfterCloseRepairsCapacityBeforeRethrowingCancellation(): void
+    {
+        $container = $this->createContainer();
+        $cancellation = new CanceledException('close canceled');
+        $pool = null;
+        $pool = new CallbackPool(
+            $container,
+            'test',
+            connectionFactory: static function () use (&$pool, $cancellation, $container): ConnectionInterface {
+                return new ReleasingPoolConnectionStub(
+                    $container,
+                    $pool,
+                    static fn (): bool => throw $cancellation,
+                );
+            },
+        );
+        $connection = $pool->get();
+        $pool->close();
+
+        try {
+            $connection->release();
+            $this->fail('Releasing the connection was expected to be canceled.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame(1, $connection->closeCount);
+        $this->assertSame(0, $pool->getCurrentConnections());
+        $this->assertSame(0, $pool->getBorrowedConnectionsForTest());
     }
 
     public function testCloseWakesEveryParkedBorrower(): void
@@ -272,6 +339,34 @@ class PoolTest extends TestCase
         $this->assertSame(0, $pool->getConnectionsInChannel());
         $this->assertNotSame($connection, $replacement = $pool->get());
         $this->assertSame(1, $pool->getCurrentConnections());
+        $pool->release($replacement);
+    }
+
+    public function testDiscardRepairsCapacityBeforeRethrowingCancellation(): void
+    {
+        $cancellation = new CanceledException('close canceled');
+        $connections = [
+            new PoolConnectionStub(closeCallback: static fn (): bool => throw $cancellation),
+            new PoolConnectionStub,
+        ];
+        $pool = $this->createPool(
+            ['max_connections' => 1],
+            static function () use (&$connections): ConnectionInterface {
+                return array_shift($connections);
+            },
+        );
+        $connection = $pool->get();
+
+        try {
+            $pool->discard($connection);
+            $this->fail('Discarding the connection was expected to be canceled.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame(0, $pool->getCurrentConnections());
+        $this->assertSame(0, $pool->getBorrowedConnectionsForTest());
+        $this->assertNotSame($connection, $replacement = $pool->get());
         $pool->release($replacement);
     }
 
@@ -402,6 +497,56 @@ class PoolTest extends TestCase
         $pool->get();
     }
 
+    #[DataProvider('checkoutCancellationModes')]
+    public function testCanceledCheckoutDoesNotCreateAPhantomBorrow(bool $throwException): void
+    {
+        $pool = $this->createPool(['max_connections' => 1, 'wait_timeout' => 1.0]);
+        $channel = new InspectablePoolChannel(1);
+        $pool->replaceChannel($channel);
+        $borrowed = $pool->get();
+        $cancellation = null;
+        $unexpectedConnection = null;
+
+        $coroutine = EngineCoroutine::create(function () use (
+            $pool,
+            &$cancellation,
+            &$unexpectedConnection,
+        ): void {
+            try {
+                $unexpectedConnection = $pool->get();
+            } catch (CanceledException $exception) {
+                $cancellation = $exception;
+            }
+        });
+
+        $this->assertSame(1, $channel->getWaitersForTest());
+        $this->assertTrue(EngineCoroutine::cancelById($coroutine->getId(), $throwException));
+        $this->assertInstanceOf(CanceledException::class, $cancellation);
+
+        if ($throwException) {
+            $this->assertNotSame('The connection pool wait was canceled.', $cancellation->getMessage());
+        } else {
+            $this->assertSame('The connection pool wait was canceled.', $cancellation->getMessage());
+        }
+
+        $this->assertNull($unexpectedConnection);
+        $this->assertSame(1, $pool->getCurrentConnections());
+        $this->assertSame(1, $pool->getBorrowedConnectionsForTest());
+        $this->assertSame(0, $channel->getWaitersForTest());
+
+        $pool->release($borrowed);
+        $replacement = $pool->get();
+        $pool->release($replacement);
+    }
+
+    public static function checkoutCancellationModes(): array
+    {
+        return [
+            'throwing cancellation' => [true],
+            'non-throwing cancellation' => [false],
+        ];
+    }
+
     public function testCheckoutPerformsOneFinalPassAfterADeadlineRelease(): void
     {
         $pool = $this->createPool(['max_connections' => 1, 'wait_timeout' => 0.001]);
@@ -518,6 +663,57 @@ class PoolTest extends TestCase
         $pool->release($connection);
     }
 
+    public function testFrequencyMaintenanceCancellationDiscardsTheUnreturnedBorrow(): void
+    {
+        $cancellation = new CanceledException('maintenance canceled');
+        $connections = [
+            new PoolConnectionStub,
+            new PoolConnectionStub(closeCallback: static fn (): bool => throw $cancellation),
+            new PoolConnectionStub,
+        ];
+        $pool = $this->createPool(
+            ['min_connections' => 0, 'max_connections' => 2],
+            static function () use (&$connections): ConnectionInterface {
+                return array_shift($connections);
+            },
+        );
+        $first = $pool->get();
+        $second = $pool->get();
+        $pool->release($first);
+        $pool->release($second);
+        $pool->useFrequency(new class implements FrequencyInterface, LowFrequencyInterface {
+            public function hit(int $number = 1): bool
+            {
+                return true;
+            }
+
+            public function frequency(): float
+            {
+                return 0.0;
+            }
+
+            public function isLowFrequency(): bool
+            {
+                return true;
+            }
+        });
+
+        try {
+            $pool->get();
+            $this->fail('Frequency maintenance was expected to be canceled.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame(1, $first->closeCount);
+        $this->assertSame(1, $second->closeCount);
+        $this->assertSame(0, $pool->getCurrentConnections());
+        $this->assertSame(0, $pool->getBorrowedConnectionsForTest());
+
+        $replacement = $pool->get();
+        $pool->release($replacement);
+    }
+
     protected function createPool(array $config = [], ?Closure $factory = null): CallbackPool
     {
         return new CallbackPool($this->createContainer(), 'test', $config, $factory);
@@ -568,6 +764,11 @@ class CallbackPool extends Pool
         $this->channel = $channel;
     }
 
+    public function getBorrowedConnectionsForTest(): int
+    {
+        return count($this->borrowedConnections);
+    }
+
     protected function createConnection(): ConnectionInterface
     {
         return ($this->connectionFactory)();
@@ -589,6 +790,11 @@ class InspectablePoolChannel extends PoolChannel
     public function isClosedForTest(): bool
     {
         return $this->closed;
+    }
+
+    public function getWaitersForTest(): int
+    {
+        return $this->waiters;
     }
 }
 
@@ -665,5 +871,35 @@ class PoolConnectionStub implements ConnectionInterface
 
     public function discard(): void
     {
+    }
+}
+
+class ReleasingPoolConnectionStub extends PoolConnection
+{
+    public int $closeCount = 0;
+
+    public function __construct(
+        ContainerContract $container,
+        PoolInterface $pool,
+        protected Closure $closeCallback,
+    ) {
+        parent::__construct($container, $pool);
+    }
+
+    public function getActiveConnection(): mixed
+    {
+        return $this;
+    }
+
+    public function reconnect(): bool
+    {
+        return true;
+    }
+
+    public function close(): bool
+    {
+        ++$this->closeCount;
+
+        return ($this->closeCallback)();
     }
 }
