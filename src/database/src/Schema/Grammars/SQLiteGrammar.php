@@ -347,12 +347,16 @@ class SQLiteGrammar extends Grammar
 
         $indexes = (new Collection($blueprint->getState()->getIndexes()))
             ->map(function (Fluent $index) use ($blueprint, $definedColumnNames, &$inlineUniqueConstraints) {
-                $projectedColumns = array_filter(
+                $referencedColumns = array_filter(
                     $index->columns,
                     static fn (mixed $column): bool => is_string($column),
                 );
 
-                if (! empty(array_diff($projectedColumns, $definedColumnNames))) {
+                if (is_string($index->whereNotNull)) {
+                    $referencedColumns[] = $index->whereNotNull;
+                }
+
+                if (! empty(array_diff($referencedColumns, $definedColumnNames))) {
                     throw new RuntimeException(
                         "Cannot rebuild table [{$blueprint->getTable()}] because index [{$index->index}] references a dropped column."
                     );

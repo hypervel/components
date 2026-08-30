@@ -218,6 +218,10 @@ class BlueprintState
                 foreach ($this->indexes as $index) {
                     $index->columnRenamed = true;
                     $index->columns = $this->replaceColumn($index->columns, $command->from, $command->to);
+
+                    if ($index->whereNotNull === $command->from) {
+                        $index->whereNotNull = $command->to;
+                    }
                 }
 
                 foreach ($this->foreignKeys as $foreignKey) {
