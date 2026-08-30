@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout\Console;
 
+use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Coroutine\WaitConcurrent;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class ConcurrentImportRunner
@@ -32,6 +34,11 @@ class ConcurrentImportRunner
 
             try {
                 $operation();
+            } catch (CanceledException $exception) {
+                $this->failure ??= new ChildCancellationException(
+                    'A child coroutine running a Scout import was canceled while its owner remained active.',
+                    previous: $exception,
+                );
             } catch (Throwable $exception) {
                 $this->failure ??= $exception;
             }
