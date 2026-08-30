@@ -88,6 +88,21 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertSame('verified_at', $index->get('whereNotNull'));
     }
 
+    public function testWhereNotNullRejectsColumnIndexShorthand(): void
+    {
+        $blueprint = $this->getBlueprint(table: 'users');
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            'The [whereNotNull] modifier must be chained onto an index definition.',
+        );
+
+        $blueprint->dateTime('expires_at')
+            ->nullable()
+            ->index()
+            ->whereNotNull('expires_at');
+    }
+
     #[DataProvider('nonOrdinaryIndexProvider')]
     public function testWhereNotNullRejectsNonOrdinaryIndexes(string $method, string $column): void
     {

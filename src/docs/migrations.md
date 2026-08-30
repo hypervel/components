@@ -1561,7 +1561,7 @@ $table->index(
 
 PostgreSQL and SQLite create a partial index for this definition. MySQL and MariaDB do not support partial indexes, so they create the same ordinary index over every row. This allows the same migration to run on each supported database.
 
-The `whereNotNull` modifier is available on indexes created with `index` and `rawIndex`. Using it with a primary, unique, full text, spatial, or vector index throws a `LogicException`.
+The `whereNotNull` modifier must be chained onto the index definition returned by the table-level `index` or `rawIndex` method. Column index shorthand does not support this modifier. Calling `whereNotNull` on a column definition or a primary, unique, full text, spatial, or vector index throws a `LogicException`.
 
 <a name="renaming-indexes"></a>
 ### Renaming Indexes
