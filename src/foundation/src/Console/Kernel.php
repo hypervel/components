@@ -27,6 +27,7 @@ use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
 use ReflectionClass;
 use SplFileInfo;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\ConsoleEvents;
 use Symfony\Component\Console\Event\ConsoleCommandEvent;
@@ -164,6 +165,8 @@ class Kernel implements KernelContract
             $this->bootstrap();
 
             return $this->getArtisan()->run($input, $output);
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $e) {
             // Keep the original in flight while it is handled, so a failure in
             // reporting or rendering carries it as that failure's previous. The
@@ -188,42 +191,61 @@ class Kernel implements KernelContract
     public function terminate(InputInterface $input, int $status): void
     {
         $exception = null;
+        $cancellation = null;
 
         try {
             $this->events->dispatch(new Terminating);
+        } catch (CanceledException $throwable) {
+            $cancellation = $throwable;
         } catch (Throwable $throwable) {
             $exception = $throwable;
         }
 
-        try {
-            $this->app->terminate();
-        } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+        if ($cancellation === null) {
+            try {
+                $this->app->terminate();
+            } catch (CanceledException $throwable) {
+                $cancellation = $throwable;
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
         }
 
-        if ($this->commandStartedAt !== null) {
+        if ($cancellation === null && $this->commandStartedAt !== null) {
             try {
                 $this->commandStartedAt = $this->commandStartedAt->setTimezone(
                     $this->app->make('config')->string('app.timezone')
                 );
+            } catch (CanceledException $throwable) {
+                $cancellation = $throwable;
             } catch (Throwable $throwable) {
                 $exception ??= $throwable;
             }
 
-            foreach ($this->commandLifecycleDurationHandlers as ['threshold' => $threshold, 'handler' => $handler]) {
-                try {
-                    $end ??= CarbonImmutable::now();
+            if ($cancellation === null) {
+                foreach ($this->commandLifecycleDurationHandlers as ['threshold' => $threshold, 'handler' => $handler]) {
+                    try {
+                        $end ??= CarbonImmutable::now();
 
-                    if ($this->commandStartedAt->diffInMilliseconds($end) > $threshold) {
-                        $handler($this->commandStartedAt, $input, $status);
+                        if ($this->commandStartedAt->diffInMilliseconds($end) > $threshold) {
+                            $handler($this->commandStartedAt, $input, $status);
+                        }
+                    } catch (CanceledException $throwable) {
+                        $cancellation = $throwable;
+
+                        break;
+                    } catch (Throwable $throwable) {
+                        $exception ??= $throwable;
                     }
-                } catch (Throwable $throwable) {
-                    $exception ??= $throwable;
                 }
             }
         }
 
         $this->commandStartedAt = null;
+
+        if ($cancellation !== null) {
+            throw $cancellation;
+        }
 
         if ($exception !== null) {
             throw $exception;
