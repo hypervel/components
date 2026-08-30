@@ -19,6 +19,7 @@ use Mockery as m;
 use ReflectionProperty;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
 
 class CacheFileStoreTest extends TestCase
 {
@@ -29,6 +30,59 @@ class CacheFileStoreTest extends TestCase
         $store = new FileStore($files, __DIR__);
         $value = $store->get('foo');
         $this->assertNull($value);
+    }
+
+    public function testGetPreservesCancellationFromFilesystemRead(): void
+    {
+        $cancellation = new CanceledException('read canceled');
+        $files = $this->mockFilesystem();
+        $files->expects($this->once())->method('get')->willThrowException($cancellation);
+        $store = new FileStore($files, __DIR__);
+
+        try {
+            $store->get('foo');
+            $this->fail('Reading the cache file was expected to be canceled.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testRemainingSecondsPreservesCancellationFromFilesystemRead(): void
+    {
+        $cancellation = new CanceledException('read canceled');
+        $files = $this->mockFilesystem();
+        $files->expects($this->once())->method('get')->willThrowException($cancellation);
+        $store = new FileStore($files, __DIR__);
+
+        try {
+            $store->remainingSeconds('foo');
+            $this->fail('Reading the cache expiry was expected to be canceled.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testGetPreservesCancellationFromSerializableClassPolicy(): void
+    {
+        $cancellation = new CanceledException('policy canceled');
+        $files = $this->mockFilesystem();
+        $files->expects($this->once())
+            ->method('get')
+            ->willReturn('9999999999' . serialize('value'));
+        $store = new FileStore(
+            $files,
+            __DIR__,
+            serializableClassPolicy: new SerializableClassPolicy(
+                static fn (): never => throw $cancellation,
+            ),
+        );
+
+        try {
+            $store->get('foo');
+            $this->fail('Resolving the serialization policy was expected to be canceled.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testPutCreatesMissingDirectories()

@@ -17,6 +17,7 @@ use InvalidArgumentException;
 use Mockery as m;
 use Mockery\MockInterface;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class CacheStackStoreTest extends TestCase
 {
@@ -247,7 +248,8 @@ class CacheStackStoreTest extends TestCase
         $top->shouldReceive('put')->once()->andReturnTrue();
         $middle->shouldReceive('put')->once()->andThrow($exception);
         $bottom->shouldNotReceive('put');
-        $top->shouldReceive('forget')->once()->with('foo')->andReturnTrue();
+        $middle->shouldReceive('forget')->once()->with('foo')->ordered()->andReturnTrue();
+        $top->shouldReceive('forget')->once()->with('foo')->ordered()->andReturnTrue();
 
         try {
             (new StackStore([$top, $middle, $bottom]))->put('foo', 'bar', 60);
@@ -292,6 +294,7 @@ class CacheStackStoreTest extends TestCase
 
         $top->shouldReceive('put')->once()->andReturnTrue();
         $bottom->shouldReceive('put')->once()->andThrow($exception);
+        $bottom->shouldReceive('forget')->once()->with('foo')->andThrow(new RuntimeException('current cleanup failed'));
         $top->shouldReceive('forget')->once()->with('foo')->andThrow(new RuntimeException('cleanup failed'));
 
         try {
@@ -302,14 +305,14 @@ class CacheStackStoreTest extends TestCase
         }
     }
 
-    public function testPutDoesNotCompensateLayerWhoseWriteThrows(): void
+    public function testPutCompensatesLayerWhoseWriteThrows(): void
     {
         $top = m::mock(ArrayStore::class);
         $bottom = m::mock(ArrayStore::class);
         $exception = new RuntimeException('write failed');
 
         $top->shouldReceive('put')->once()->andThrow($exception);
-        $top->shouldNotReceive('forget');
+        $top->shouldReceive('forget')->once()->with('foo')->andReturnTrue();
         $bottom->shouldNotReceive('put');
 
         try {
@@ -317,6 +320,121 @@ class CacheStackStoreTest extends TestCase
             $this->fail('Expected the current-layer exception to be thrown.');
         } catch (RuntimeException $throwable) {
             $this->assertSame($exception, $throwable);
+        }
+    }
+
+    public function testPutCompensatesCommittedWriteThatIsCanceled(): void
+    {
+        $cancellation = new CanceledException('write canceled');
+        $top = new ArrayStore;
+        $bottom = new class($cancellation) extends ArrayStore {
+            public function __construct(private readonly CanceledException $cancellation)
+            {
+                parent::__construct();
+            }
+
+            /**
+             * Store an item before simulating delivery of cancellation.
+             */
+            public function put(string $key, mixed $value, int $seconds): bool
+            {
+                parent::put($key, $value, $seconds);
+
+                throw $this->cancellation;
+            }
+        };
+        $stack = new StackStore([$top, $bottom]);
+
+        try {
+            $stack->put('foo', 'bar', 60);
+            $this->fail('Expected the write cancellation to be thrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertNull($top->get('foo'));
+        $this->assertNull($bottom->get('foo'));
+        $this->assertNull($stack->get('foo'));
+    }
+
+    public function testPutDoesNotCompensateFalseLayerAndPreservesItsExistingValue(): void
+    {
+        $top = new class extends ArrayStore {
+            public bool $rejectWrites = false;
+
+            /**
+             * Store an item unless writes are rejected.
+             */
+            public function put(string $key, mixed $value, int $seconds): bool
+            {
+                return $this->rejectWrites
+                    ? false
+                    : parent::put($key, $value, $seconds);
+            }
+        };
+
+        $top->put('foo', ['value' => 'old'], 60);
+        $top->rejectWrites = true;
+        $stack = new StackStore([$top, new ArrayStore]);
+
+        $this->assertFalse($stack->put('foo', 'new', 60));
+        $this->assertSame('old', $stack->get('foo'));
+    }
+
+    public function testPutPreservesOriginalCancellationAndCompletesCompensation(): void
+    {
+        $top = m::mock(ArrayStore::class);
+        $bottom = m::mock(ArrayStore::class);
+        $cancellation = new CanceledException('write canceled');
+        $cleanupCancellation = new CanceledException('cleanup canceled');
+
+        $top->shouldReceive('put')->once()->andReturnTrue();
+        $bottom->shouldReceive('put')->once()->andThrow($cancellation);
+        $bottom->shouldReceive('forget')->once()->with('foo')->ordered()->andThrow($cleanupCancellation);
+        $top->shouldReceive('forget')->once()->with('foo')->ordered()->andReturnTrue();
+
+        try {
+            (new StackStore([$top, $bottom]))->put('foo', 'bar', 60);
+            $this->fail('Expected the write cancellation to be thrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testPutCleanupCancellationSupersedesOrdinaryWriteFailure(): void
+    {
+        $top = m::mock(ArrayStore::class);
+        $bottom = m::mock(ArrayStore::class);
+        $cleanupCancellation = new CanceledException('cleanup canceled');
+
+        $top->shouldReceive('put')->once()->andReturnTrue();
+        $bottom->shouldReceive('put')->once()->andThrow(new RuntimeException('write failed'));
+        $bottom->shouldReceive('forget')->once()->with('foo')->ordered()->andThrow($cleanupCancellation);
+        $top->shouldReceive('forget')->once()->with('foo')->ordered()->andReturnTrue();
+
+        try {
+            (new StackStore([$top, $bottom]))->put('foo', 'bar', 60);
+            $this->fail('Expected the cleanup cancellation to be thrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cleanupCancellation, $exception);
+        }
+    }
+
+    public function testPutCleanupCancellationSupersedesFalseWriteResult(): void
+    {
+        $top = m::mock(ArrayStore::class);
+        $bottom = m::mock(ArrayStore::class);
+        $cleanupCancellation = new CanceledException('cleanup canceled');
+
+        $top->shouldReceive('put')->once()->andReturnTrue();
+        $bottom->shouldReceive('put')->once()->andReturnFalse();
+        $top->shouldReceive('forget')->once()->with('foo')->andThrow($cleanupCancellation);
+
+        try {
+            (new StackStore([$top, $bottom]))->put('foo', 'bar', 60);
+            $this->fail('Expected the cleanup cancellation to be thrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cleanupCancellation, $exception);
         }
     }
 
@@ -524,6 +642,25 @@ class CacheStackStoreTest extends TestCase
             $this->fail('Expected the first forget failure to be thrown.');
         } catch (RuntimeException $throwable) {
             $this->assertSame($exception, $throwable);
+        }
+    }
+
+    public function testForgetCancellationSupersedesEarlierFailureAndStopsFurtherLayers(): void
+    {
+        $top = m::mock(ArrayStore::class);
+        $middle = m::mock(ArrayStore::class);
+        $bottom = m::mock(ArrayStore::class);
+        $cancellation = new CanceledException('forget canceled');
+
+        $top->shouldReceive('forget')->once()->with('foo')->andThrow(new RuntimeException('first failure'));
+        $middle->shouldReceive('forget')->once()->with('foo')->andThrow($cancellation);
+        $bottom->shouldNotReceive('forget');
+
+        try {
+            (new StackStore([$top, $middle, $bottom]))->forget('foo');
+            $this->fail('Expected the forget cancellation to be thrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
         }
     }
 

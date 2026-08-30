@@ -13,6 +13,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\LockableFile;
 use Hypervel\Support\InteractsWithTime;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class FileStore implements CanFlushLocks, LockProvider, Store
 {
@@ -171,6 +172,8 @@ class FileStore implements CanFlushLocks, LockProvider, Store
     {
         try {
             $expire = (int) substr($this->files->get($this->path($key), true), 0, 10);
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Exception) {
             return null;
         }
@@ -451,6 +454,8 @@ class FileStore implements CanFlushLocks, LockProvider, Store
                 0,
                 10
             );
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Exception) {
             return $this->emptyPayload();
         }
@@ -468,6 +473,8 @@ class FileStore implements CanFlushLocks, LockProvider, Store
 
         try {
             $data = $this->unserialize(substr($contents, 10));
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Exception) {
             $this->forget($key);
 

@@ -29,7 +29,9 @@ use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class CacheEventsTest extends TestCase
 {
@@ -246,6 +248,46 @@ class CacheEventsTest extends TestCase
             array_map(get_class(...), $events),
         );
         $this->assertSame('foo', $events[1]->key);
+    }
+
+    #[DataProvider('repositoryCancellationOperations')]
+    public function testCancellationDoesNotDispatchFailureEvents(
+        string $storeMethod,
+        array $storeArguments,
+        string $repositoryMethod,
+        array $repositoryArguments,
+        string $startedEvent,
+    ): void {
+        $cancellation = new CanceledException('cache operation canceled');
+        $store = m::mock(Store::class);
+        $store->shouldReceive($storeMethod)
+            ->once()
+            ->with(...$storeArguments)
+            ->andThrow($cancellation);
+        $events = [];
+        $repository = new Repository($store, ['store' => 'array']);
+        $repository->setEventDispatcher($this->getCapturingDispatcher($events));
+
+        try {
+            $repository->{$repositoryMethod}(...$repositoryArguments);
+            $this->fail('The cache operation was expected to be canceled.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame([$startedEvent], array_map(get_class(...), $events));
+    }
+
+    public static function repositoryCancellationOperations(): array
+    {
+        return [
+            'get' => ['get', ['foo'], 'get', ['foo'], RetrievingKey::class],
+            'many' => ['many', [['foo', 'bar']], 'many', [['foo', 'bar']], RetrievingManyKeys::class],
+            'put' => ['put', ['foo', 'bar', 60], 'put', ['foo', 'bar', 60], WritingKey::class],
+            'put many' => ['putMany', [['foo' => 'bar'], 60], 'putMany', [['foo' => 'bar'], 60], WritingManyKeys::class],
+            'forever' => ['forever', ['foo', 'bar'], 'forever', ['foo', 'bar'], WritingKey::class],
+            'forget' => ['forget', ['foo'], 'forget', ['foo'], ForgettingKey::class],
+        ];
     }
 
     public function testPullTriggersEvents()
@@ -507,7 +549,7 @@ class CacheEventsTest extends TestCase
             }
 
             foreach ($properties as $name => $value) {
-                if ($value != $event->{$name}) {
+                if ($value !== $event->{$name}) {
                     return false;
                 }
             }

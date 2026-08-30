@@ -18,6 +18,7 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
 
 class CacheFailoverStoreTest extends TestCase
 {
@@ -165,6 +166,83 @@ class CacheFailoverStoreTest extends TestCase
         $this->expectExceptionMessage('first failure');
 
         $store->flushLocks();
+    }
+
+    public function testFlushLocksStopsAtCancellation(): void
+    {
+        $cancellation = new CanceledException('flush canceled');
+        $first = $this->lockStore();
+        $first->shouldReceive('supportsFlushingLocks')->once()->andReturnTrue();
+        $first->shouldReceive('flushLocks')->once()->andThrow($cancellation);
+        $second = $this->lockStore();
+        $second->shouldReceive('supportsFlushingLocks')->once()->andReturnTrue();
+        $second->shouldNotReceive('flushLocks');
+        $store = $this->makeFailoverStore([
+            'first' => $first,
+            'second' => $second,
+        ]);
+
+        try {
+            $store->flushLocks();
+            $this->fail('Flushing the lock stores was expected to be canceled.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testFirstSuccessOperationDoesNotFailOverAfterCancellation(): void
+    {
+        $cancellation = new CanceledException('read canceled');
+        $first = m::mock(Store::class);
+        $first->shouldReceive('get')->once()->with('key')->andThrow(new RuntimeException('first failure'));
+        $second = m::mock(Store::class);
+        $second->shouldReceive('get')->once()->with('key')->andThrow($cancellation);
+        $third = m::mock(Store::class);
+        $third->shouldNotReceive('get');
+        $failedStores = [];
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(CacheFailedOver::class)->andReturnTrue();
+        $events->shouldReceive('dispatch')->once()->andReturnUsing(
+            function (CacheFailedOver $event) use (&$failedStores): void {
+                $failedStores[] = $event->storeName;
+            }
+        );
+        $store = $this->makeFailoverStore(
+            ['first' => $first, 'second' => $second, 'third' => $third],
+            $events,
+        );
+
+        try {
+            $store->get('key');
+            $this->fail('Reading from the failover store was expected to be canceled.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame(['first'], $failedStores);
+    }
+
+    public function testEveryStoreOperationDoesNotContinueAfterCancellation(): void
+    {
+        $cancellation = new CanceledException('forget canceled');
+        $first = m::mock(Store::class);
+        $first->shouldReceive('forget')->once()->with('key')->andReturnTrue();
+        $second = m::mock(Store::class);
+        $second->shouldReceive('forget')->once()->with('key')->andThrow($cancellation);
+        $third = m::mock(Store::class);
+        $third->shouldNotReceive('forget');
+        $store = $this->makeFailoverStore([
+            'first' => $first,
+            'second' => $second,
+            'third' => $third,
+        ]);
+
+        try {
+            $store->forget('key');
+            $this->fail('Forgetting from every failover store was expected to be canceled.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testFirstSuccessListenerFailurePreservesObservedAndUnattemptedFailures(): void

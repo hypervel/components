@@ -42,6 +42,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -335,6 +336,8 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
 
         try {
             $result = $this->store->put($this->itemKey($key), $value, $seconds);
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             $this->event(
                 KeyWriteFailed::class,
@@ -398,6 +401,8 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
 
         try {
             $result = $this->store->putMany($values, $seconds);
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             foreach ($values as $key => $value) {
                 $this->event(
@@ -500,6 +505,8 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
 
         try {
             $result = $this->store->forever($this->itemKey($key), $value);
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             $this->event(
                 KeyWriteFailed::class,
@@ -806,6 +813,8 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
 
         try {
             $result = $this->store->forget($this->itemKey($key));
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             $this->event(
                 KeyForgetFailed::class,
@@ -1191,6 +1200,8 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
                     $this->store->get($this->itemKey($key))
                 );
             }
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             $this->event(
                 KeyRetrievalFailed::class,
@@ -1270,6 +1281,8 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
 
                 $result[$key] = $value;
             }
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             $this->event(
                 ManyKeysRetrievalFailed::class,
