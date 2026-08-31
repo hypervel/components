@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation, verification, and review for audit findings 112, 124–126, 154, and 159 are complete against the current `0.4` branch, including the follow-up cache cleanup and test-timing corrections.
+Implementation, verification, and review for audit findings 112, 124–126, 154, and 159 are complete against the current `0.4` branch, including the follow-up cache cleanup, prune correctness, test assertion, and timing corrections.
 
 ## Outcome
 
@@ -102,6 +102,8 @@ The cache benchmark's emergency cleanup output must not recommend the blocking `
 ```text
 redis-cli --scan --pattern '<cachePrefix><KEY_PREFIX>*' | xargs -r -n 1000 redis-cli UNLINK
 ```
+
+`BenchmarkContext::cleanup()` must remove benchmark-owned keys and tag storage from both modes regardless of the store's mode when cleanup begins. It must also sweep benchmark tag names from the explicit any-mode registry derived with `TagKeyBuilder(TagMode::Any, $context->prefix())`. A comparison interrupted after switching modes can otherwise leave registry members that no physical-key pattern matches. Preserve unrelated registry members.
 
 ### 3. Redis and Valkey support policy
 
@@ -227,11 +229,16 @@ For standalone Redis, keep each scan page bounded and execute the existence chec
 
 Redis Cluster cannot make the cross-slot value and metadata operations atomic. Collect orphan candidates, remove them with one variadic `HDEL` or `ZREM` per scan page, then recheck each candidate and conditionally repair it:
 
-- Any mode restores a removed hash field with `HSETNX` only when both the value and reverse-index membership now exist. If an empty hash was removed from the registry but revived, restore only a missing registry member with `ZADD NX MAX_EXPIRY`, preserving a writer's real score.
+- Any mode restores a removed hash field with `HSETNX` only when both the value and reverse-index membership now exist. Run this repair after every integer `HDEL` result, including zero: fields can expire between `HSCAN` and `HDEL`, and zero cannot distinguish that harmless case from a concurrent remover followed by an interrupted writer. If an empty hash was removed from the registry but revived, restore only a missing registry member with `ZADD NX MAX_EXPIRY`, preserving a writer's real score.
 - All mode restores a removed member with `ZADD NX -1` when its value appears after removal. The conservative forever score cannot cause premature expiry and preserves any score a writer already published.
+- Treat every integer Cluster removal reply, including zero, as a completed removal attempt that requires the repair check. Another actor can remove the candidate before this prune's `ZREM` and a writer can publish the value before the repair read. Only a non-integer reply skips repair; the removal count remains statistics only.
 - Subtract repaired candidates from the batch removal count and clamp the result at zero. Statistics remain exact without a concurrent writer and may conservatively undercount during the repair race because a batch result cannot identify which candidate it removed; that rare imprecision avoids one Redis removal round trip per orphan. Keep the existing `empty_hashes_deleted` and `empty_sets_deleted` statistic names, documenting that they include structures Redis removed with their final entry. Add `orphaned_tags_removed` for any-mode registry cleanup.
 
-All-mode writers must publish the cache value before its memberships. Reorder `Put`, `Forever`, `Add`, `PutMany`, and the standalone `Increment` / `Decrement` pipelines without adding commands or round trips. Preserve `Add`'s unconditional membership behavior when `SET NX` reports an existing value. In Cluster `PutMany`, collect only successful `SETEX` keys, publish memberships only for those keys, skip `ZADD` when all writes fail, and still return `false` when any write fails. The standalone pipeline cannot branch on queued `SETEX` results before `exec()` without another round trip; keep its single-round-trip behavior and rely on prune to reclaim metadata after a failed value command.
+All-mode writers must publish the cache value before its memberships. Reorder `Put`, `Forever`, `Add`, `PutMany`, and the standalone `Increment` / `Decrement` pipelines without adding commands. For non-empty standalone `Add`, queue `SET NX` before the membership writes in the same pipeline; keep the direct `SET` path for empty tags. This removes its former second round trip while preserving unconditional membership publication when the key already exists.
+
+The idempotent boolean writers `Put`, `Forever`, `Add`, `PutMany`, and Cluster `Touch` must report a membership write that returns strict `false`. Inspect results already returned by the pipeline or sequential commands; integer zero is a successful idempotent `ZADD`. Do not stop the remaining Cluster membership writes, add rollback, or retry. `Add` returns false when the key exists or any write fails, so its docblock must not claim that false proves the key existed. In Cluster `PutMany`, collect only successful `SETEX` keys, publish memberships only for those keys, skip `ZADD` when all writes fail, and still return false when any value or membership write fails. The standalone pipeline cannot filter memberships after failed value writes without another round trip; keep its single-round-trip behavior and rely on prune to reclaim metadata.
+
+Do not apply membership-result reporting to `Increment` or `Decrement`. Once their counter command succeeds, returning false for a later metadata failure would falsely report that the mutation did not happen and could cause a retry to apply it twice. Keep their existing return ownership while prune repairs stale metadata.
 
 ### 10. Queue cleanup finding (154)
 
@@ -274,6 +281,8 @@ If the child has already terminated after startup, throw a `RuntimeException` th
 - `src/cache/src/RedisStore.php`
 - `src/cache/src/FailoverStore.php`
 - `src/cache/src/NullStore.php`
+- `src/cache/src/Redis/Console/Benchmark/BenchmarkContext.php`
+- `src/cache/src/Redis/Console/BenchmarkCommand.php`
 - `src/cache/src/Redis/Operations/Increment.php`
 - `src/cache/src/Redis/Operations/Decrement.php`
 - `src/cache/src/Redis/Operations/AnyTag/Increment.php`
@@ -285,8 +294,8 @@ If the child has already terminated after startup, throw a `RuntimeException` th
 - `src/cache/src/Redis/Operations/AllTag/Put.php`
 - `src/cache/src/Redis/Operations/AllTag/PutMany.php`
 - `src/cache/src/Redis/Operations/AllTag/Prune.php`
+- `src/cache/src/Redis/Operations/AllTag/Touch.php`
 - `src/cache/src/Redis/Operations/AnyTag/Prune.php`
-- `src/cache/src/Redis/Console/BenchmarkCommand.php`
 - `src/queue/src/Worker.php`
 - `src/queue/src/LuaScripts.php`
 - `src/horizon/src/Console/HorizonRestartStrategy.php`
@@ -316,7 +325,9 @@ If the child has already terminated after startup, throw a `RuntimeException` th
 - `tests/Cache/Redis/Operations/AllTag/PutTest.php`
 - `tests/Cache/Redis/Operations/AllTag/PutManyTest.php`
 - `tests/Cache/Redis/Operations/AllTag/PruneTest.php`
+- `tests/Cache/Redis/Operations/AllTag/TouchTest.php`
 - `tests/Cache/Redis/Operations/AnyTag/PruneTest.php`
+- `tests/Integration/Cache/Redis/BenchmarkContextTest.php`
 - `tests/Integration/Cache/Redis/PruneIntegrationTest.php`
 - `tests/Cache/CacheFailoverStoreTest.php`
 - `tests/Cache/CacheNullStoreTest.php`
@@ -325,6 +336,7 @@ If the child has already terminated after startup, throw a `RuntimeException` th
 - `tests/Coordinator/TimerTest.php`
 - `tests/Queue/QueueWorkerTest.php`
 - `tests/Horizon/Console/HorizonRestartStrategyTest.php`
+- `tests/Testing/TestResponseTest.php`
 
 ### Documentation and workflow ownership
 
@@ -381,12 +393,18 @@ No root README or Laravel porting-guide entry is needed: the source fixes preser
 
 ### Tagged-cache pruning
 
+- With the store configured for all mode, seed benchmark and unrelated members in the any-mode registry, run benchmark cleanup, and prove only the benchmark member is removed. Retain the existing physical-key and unrelated-key coverage in both modes.
 - Assert standalone prune uses one bounded Lua call per scan page and atomically removes empty any-mode registry entries.
 - Assert a custom scan count reaches the standalone `HSCAN` and bounds each Lua page.
 - Assert Cluster prune batches same-metadata-key removals into one variadic command per page, permanently removes durable orphans, and repairs value/hash, value/member, and hash/registry races with `HSETNX` or `ZADD NX` without overwriting writer metadata.
+- Assert Cluster prune still performs its repair reads and conditional `HSETNX` or `ZADD NX` when the batched any-mode `HDEL` or all-mode `ZREM` returns integer zero.
 - Strengthen the real Redis integration coverage to prove any-mode prune removes both empty tag hashes and registry members; the same integration suite runs against the real Cluster service in its CI job.
-- Assert every changed all-mode writer queues or issues the value command before memberships while preserving its return contract.
+- Assert every changed all-mode writer queues or issues the value command before memberships. For idempotent boolean writers, assert a strict-false membership reply returns false, while integer zero remains success on both pipeline and Cluster paths. Cover a whole pipeline failure separately. Preserve counter return ownership after a successful mutation.
 - For Cluster `PutMany`, assert partial failure tags only successful values and total failure issues no `ZADD`. Keep the standalone pipeline single-round-trip failure coverage.
+
+### PHPUnit assertion ownership
+
+- Add explicit fluent-return assertions to the three successful `TestResponse` paths that otherwise perform no PHPUnit assertion. Both PHP runtimes execute those paths without assertions; why only the PHP 8.4 CI run reported them as risky is not established. The explicit assertions make the tests independent of that reporting difference without changing production assertion counting.
 
 ### Full-suite timing regression
 
