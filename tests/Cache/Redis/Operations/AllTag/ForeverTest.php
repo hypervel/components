@@ -31,7 +31,7 @@ class ForeverTest extends RedisCacheTestCase
 
         $connection->shouldReceive('exec')
             ->once()
-            ->andReturn([true, 1]);
+            ->andReturn([true, 0]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->forever()->execute(
@@ -121,7 +121,7 @@ class ForeverTest extends RedisCacheTestCase
         $connection->shouldReceive('zadd')
             ->once()
             ->with('prefix:_all:tag:users:entries', -1, 'mykey')
-            ->andReturn(1)
+            ->andReturn(0)
             ->ordered();
 
         $result = $store->allTagOps()->forever()->execute(
@@ -155,6 +155,36 @@ class ForeverTest extends RedisCacheTestCase
         );
 
         $this->assertFalse($result);
+    }
+
+    public function testForeverReturnsFalseWhenPipelineMembershipWriteFails(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->shouldReceive('set')->once()->andReturn($connection);
+        $connection->shouldReceive('zadd')->once()->andReturn($connection);
+        $connection->shouldReceive('exec')->once()->andReturn([true, false]);
+
+        $store = $this->createStore($connection);
+
+        $this->assertFalse($store->allTagOps()->forever()->execute(
+            'mykey',
+            'myvalue',
+            ['_all:tag:users:entries']
+        ));
+    }
+
+    public function testForeverReturnsFalseWhenClusterMembershipWriteFails(): void
+    {
+        [$store, , $connection] = $this->createClusterStore();
+        $connection->shouldReceive('set')->once()->andReturn(true);
+        $connection->shouldReceive('zadd')->once()->andReturn(false);
+
+        $this->assertFalse($store->allTagOps()->forever()->execute(
+            'mykey',
+            'myvalue',
+            ['_all:tag:users:entries']
+        ));
     }
 
     public function testForeverUsesCorrectPrefix(): void

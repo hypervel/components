@@ -39,7 +39,7 @@ class Add
      * @param mixed $value The value to store
      * @param int $seconds TTL in seconds; values below one are stored for one second
      * @param array<string> $tagIds Array of tag identifiers
-     * @return bool True if the key was added (didn't exist), false if it already existed
+     * @return bool True if the key was added; false if it already existed or a write failed
      */
     public function execute(string $key, mixed $value, int $seconds, array $tagIds): bool
     {
@@ -55,34 +55,37 @@ class Add
     /**
      * Execute using pipeline for standard Redis (non-cluster).
      *
-     * Uses SET NX EX for atomic add, then pipelines ZADD commands for all tags.
+     * Pipelines SET NX EX before the ZADD commands for all tags.
      */
     private function executePipeline(string $key, mixed $value, int $seconds, array $tagIds): bool
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds) {
             $prefix = $this->context->prefix();
+            $serialized = $this->serialization->serialize($connection, $value);
+
+            if ($tagIds === []) {
+                return (bool) $connection->set(
+                    $prefix . $key,
+                    $serialized,
+                    ['EX' => $seconds, 'NX']
+                );
+            }
+
             $score = $this->context->expirationScore($seconds);
+            $pipeline = $connection->pipeline();
 
             // Publish the value attempt before its memberships so concurrent
             // pruning cannot mistake a newly written member for an orphan.
-            $result = $connection->set(
-                $prefix . $key,
-                $this->serialization->serialize($connection, $value),
-                ['EX' => $seconds, 'NX']
-            );
+            $pipeline->set($prefix . $key, $serialized, ['EX' => $seconds, 'NX']);
 
             // Membership is unconditional to preserve existing-key behavior.
-            if (! empty($tagIds)) {
-                $pipeline = $connection->pipeline();
-
-                foreach ($tagIds as $tagId) {
-                    $pipeline->zadd($prefix . $tagId, $score, $key);
-                }
-
-                $pipeline->exec();
+            foreach ($tagIds as $tagId) {
+                $pipeline->zadd($prefix . $tagId, $score, $key);
             }
 
-            return (bool) $result;
+            $results = $pipeline->exec();
+
+            return $results !== false && ! in_array(false, $results, true);
         });
     }
 
@@ -106,12 +109,16 @@ class Add
                 ['EX' => $seconds, 'NX']
             );
 
+            $membershipsSucceeded = true;
+
             // Membership is unconditional to preserve existing-key behavior.
             foreach ($tagIds as $tagId) {
-                $connection->zadd($prefix . $tagId, $score, $key);
+                if ($connection->zadd($prefix . $tagId, $score, $key) === false) {
+                    $membershipsSucceeded = false;
+                }
             }
 
-            return (bool) $result;
+            return (bool) $result && $membershipsSucceeded;
         });
     }
 }

@@ -174,6 +174,42 @@ class PutTest extends RedisCacheTestCase
         $this->assertFalse($result);
     }
 
+    public function testPutReturnsFalseWhenPipelineMembershipWriteFails(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->shouldReceive('setex')->once()->andReturn($connection);
+        $connection->shouldReceive('zadd')->once()->andReturn($connection);
+        $connection->shouldReceive('exec')->once()->andReturn([true, false]);
+
+        $store = $this->createStore($connection);
+
+        $this->assertFalse($store->allTagOps()->put()->execute(
+            'mykey',
+            'myvalue',
+            60,
+            ['_all:tag:users:entries']
+        ));
+    }
+
+    public function testPutTreatsZeroPipelineMembershipResultAsSuccess(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->shouldReceive('setex')->once()->andReturn($connection);
+        $connection->shouldReceive('zadd')->once()->andReturn($connection);
+        $connection->shouldReceive('exec')->once()->andReturn([true, 0]);
+
+        $store = $this->createStore($connection);
+
+        $this->assertTrue($store->allTagOps()->put()->execute(
+            'mykey',
+            'myvalue',
+            60,
+            ['_all:tag:users:entries']
+        ));
+    }
+
     public function testPutInClusterModeUsesSequentialCommands(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
@@ -203,6 +239,34 @@ class PutTest extends RedisCacheTestCase
         );
 
         $this->assertTrue($result);
+    }
+
+    public function testPutReturnsFalseWhenClusterMembershipWriteFails(): void
+    {
+        [$store, , $connection] = $this->createClusterStore();
+        $connection->shouldReceive('setex')->once()->andReturn(true);
+        $connection->shouldReceive('zadd')->once()->andReturn(false);
+
+        $this->assertFalse($store->allTagOps()->put()->execute(
+            'mykey',
+            'myvalue',
+            60,
+            ['_all:tag:users:entries']
+        ));
+    }
+
+    public function testPutTreatsZeroClusterMembershipResultAsSuccess(): void
+    {
+        [$store, , $connection] = $this->createClusterStore();
+        $connection->shouldReceive('setex')->once()->andReturn(true);
+        $connection->shouldReceive('zadd')->once()->andReturn(0);
+
+        $this->assertTrue($store->allTagOps()->put()->execute(
+            'mykey',
+            'myvalue',
+            60,
+            ['_all:tag:users:entries']
+        ));
     }
 
     public function testPutEnforcesMinimumTtlOfOne(): void

@@ -74,8 +74,7 @@ class Put
 
             $results = $pipeline->exec();
 
-            // First result is the SETEX - check it succeeded
-            return $results !== false && ($results[0] ?? false) !== false;
+            return $results !== false && ! in_array(false, $results, true);
         });
     }
 
@@ -98,12 +97,16 @@ class Put
                 return false;
             }
 
+            $membershipsSucceeded = true;
+
             // ZADD to each tag's sorted set (sequential - cross-slot)
             foreach ($tagIds as $tagId) {
-                $connection->zadd($prefix . $tagId, $score, $key);
+                if ($connection->zadd($prefix . $tagId, $score, $key) === false) {
+                    $membershipsSucceeded = false;
+                }
             }
 
-            return true;
+            return $membershipsSucceeded;
         });
     }
 }

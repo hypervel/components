@@ -55,12 +55,15 @@ class Touch
             }
 
             $score = $this->context->expirationScore($seconds);
+            $membershipsSucceeded = true;
 
             foreach ($tagIds as $tagId) {
-                $connection->zadd($prefix . $tagId, $score, $key);
+                if ($connection->zadd($prefix . $tagId, $score, $key) === false) {
+                    $membershipsSucceeded = false;
+                }
             }
 
-            return true;
+            return $membershipsSucceeded;
         });
     }
 

@@ -69,8 +69,7 @@ class Forever
 
             $results = $pipeline->exec();
 
-            // First result is the SET - check it succeeded
-            return $results !== false && ($results[0] ?? false) !== false;
+            return $results !== false && ! in_array(false, $results, true);
         });
     }
 
@@ -89,12 +88,16 @@ class Forever
                 return false;
             }
 
+            $membershipsSucceeded = true;
+
             // ZADD to each tag's sorted set (sequential - cross-slot)
             foreach ($tagIds as $tagId) {
-                $connection->zadd($prefix . $tagId, self::FOREVER_SCORE, $key);
+                if ($connection->zadd($prefix . $tagId, self::FOREVER_SCORE, $key) === false) {
+                    $membershipsSucceeded = false;
+                }
             }
 
-            return true;
+            return $membershipsSucceeded;
         });
     }
 }

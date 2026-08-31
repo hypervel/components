@@ -142,7 +142,9 @@ class PutMany
                     $zaddArguments[] = $score;
                     $zaddArguments[] = $key;
                 }
-                $connection->zadd($prefix . $tagId, ...$zaddArguments);
+                if ($connection->zadd($prefix . $tagId, ...$zaddArguments) === false) {
+                    $allSucceeded = false;
+                }
             }
 
             return $allSucceeded;

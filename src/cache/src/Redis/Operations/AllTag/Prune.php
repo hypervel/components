@@ -145,7 +145,7 @@ class Prune
 
             $pageRemoved = $connection->zrem($tagKey, ...$orphanedMembers);
 
-            if (! is_int($pageRemoved) || $pageRemoved === 0) {
+            if (! is_int($pageRemoved)) {
                 continue;
             }
 

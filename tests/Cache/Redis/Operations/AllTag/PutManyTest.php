@@ -47,7 +47,7 @@ class PutManyTest extends RedisCacheTestCase
 
         $connection->shouldReceive('exec')
             ->once()
-            ->andReturn([true, true, 2]);
+            ->andReturn([true, true, 0]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->putMany()->execute(
@@ -168,7 +168,7 @@ class PutManyTest extends RedisCacheTestCase
         $connection->shouldReceive('zadd')
             ->once()
             ->with('prefix:_all:tag:users:entries', $expectedScore, 'ns:foo', $expectedScore, 'ns:baz')
-            ->andReturn(2)
+            ->andReturn(0)
             ->ordered();
 
         $result = $store->allTagOps()->putMany()->execute(
@@ -229,6 +229,24 @@ class PutManyTest extends RedisCacheTestCase
         );
 
         $this->assertFalse($result);
+    }
+
+    public function testPutManyReturnsFalseWhenPipelineMembershipWriteFails(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->shouldReceive('setex')->twice()->andReturn($connection);
+        $connection->shouldReceive('zadd')->once()->andReturn($connection);
+        $connection->shouldReceive('exec')->once()->andReturn([true, true, false]);
+
+        $store = $this->createStore($connection);
+
+        $this->assertFalse($store->allTagOps()->putMany()->execute(
+            ['foo' => 'bar', 'baz' => 'qux'],
+            60,
+            ['_all:tag:users:entries'],
+            'ns:'
+        ));
     }
 
     public function testPutManyEnforcesMinimumTtlOfOne(): void
@@ -499,6 +517,21 @@ class PutManyTest extends RedisCacheTestCase
         );
 
         $this->assertFalse($result);
+    }
+
+    public function testPutManyInClusterModeReturnsFalseWhenMembershipWriteFails(): void
+    {
+        [$store, , $connection] = $this->createClusterStore();
+
+        $connection->shouldReceive('setex')->once()->andReturn(true);
+        $connection->shouldReceive('zadd')->once()->andReturn(false);
+
+        $this->assertFalse($store->allTagOps()->putMany()->execute(
+            ['foo' => 'bar'],
+            60,
+            ['_all:tag:users:entries'],
+            'ns:'
+        ));
     }
 
     public function testPutManyInClusterModeWithEmptyValuesReturnsTrue(): void

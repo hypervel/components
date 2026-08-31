@@ -382,6 +382,43 @@ class PruneTest extends RedisCacheTestCase
         $this->assertSame(0, $result['orphans_removed']);
     }
 
+    public function testClusterPruneRepairsMembershipAfterConcurrentRemovalReturnsZero(): void
+    {
+        [$store, , $connection] = $this->createClusterStore();
+        $connection->shouldReceive('isCluster')->once()->andReturn(true);
+        $connection->shouldReceive('getShouldTransform')->once()->andReturn(false);
+        $connection->shouldReceive('masters')->once()->andReturn([['127.0.0.1', 7000]]);
+        $connection->shouldReceive('scan')
+            ->once()
+            ->andReturnUsing(function (&$iterator): array {
+                $iterator = 0;
+
+                return ['prefix:_all:tag:users:entries'];
+            });
+        $connection->shouldReceive('zRemRangeByScore')->once()->andReturn(0);
+        $connection->shouldReceive('zScan')
+            ->once()
+            ->andReturnUsing(function ($tagKey, &$iterator): array {
+                $iterator = 0;
+
+                return ['raced' => 1.0];
+            });
+        $connection->shouldReceive('exists')
+            ->twice()
+            ->with('prefix:raced')
+            ->andReturn(0, 1);
+        $connection->shouldReceive('zrem')->once()->andReturn(0);
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'raced')
+            ->andReturn(0);
+        $connection->shouldReceive('zCard')->once()->andReturn(1);
+
+        $result = (new Prune($store->getContext()))->execute();
+
+        $this->assertSame(0, $result['orphans_removed']);
+    }
+
     public function testPruneHandlesOptPrefixCorrectly(): void
     {
         // When OPT_PREFIX is set, SCAN pattern needs prefix, but returned keys have it stripped

@@ -257,7 +257,7 @@ class Prune
 
             $pageRemoved = $connection->hDel($tagHash, ...$orphanedFields);
 
-            if (! is_int($pageRemoved) || $pageRemoved === 0) {
+            if (! is_int($pageRemoved)) {
                 continue;
             }
 

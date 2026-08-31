@@ -45,9 +45,22 @@ class TouchTest extends RedisCacheTestCase
         $connection->shouldReceive('zadd')
             ->once()
             ->with('prefix:_all:tag:users:entries', 1061, 'mykey')
-            ->andReturn(1);
+            ->andReturn(0);
 
         $this->assertTrue($store->allTagOps()->touch()->execute(
+            'mykey',
+            60,
+            ['_all:tag:users:entries'],
+        ));
+    }
+
+    public function testTouchReturnsFalseWhenClusterMembershipWriteFails(): void
+    {
+        [$store, , $connection] = $this->createClusterStore();
+        $connection->shouldReceive('expire')->once()->andReturn(true);
+        $connection->shouldReceive('zadd')->once()->andReturn(false);
+
+        $this->assertFalse($store->allTagOps()->touch()->execute(
             'mykey',
             60,
             ['_all:tag:users:entries'],

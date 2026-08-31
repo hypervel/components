@@ -177,6 +177,38 @@ class PruneTest extends RedisCacheTestCase
         $this->assertSame(0, $result['orphans_removed']);
     }
 
+    public function testClusterPruneRepairsAFieldAfterConcurrentRemovalReturnsZero(): void
+    {
+        [$store, , $connection] = $this->createClusterStore(tagMode: 'any');
+        $connection->shouldReceive('zRemRangeByScore')->once()->andReturn(0);
+        $connection->shouldReceive('zRange')->once()->andReturn(['users']);
+        $connection->shouldReceive('hScan')
+            ->once()
+            ->andReturnUsing(function ($tagHash, &$iterator): array {
+                $iterator = 0;
+
+                return ['raced' => '1'];
+            });
+        $connection->shouldReceive('exists')
+            ->twice()
+            ->with('prefix:raced')
+            ->andReturn(0, 1);
+        $connection->shouldReceive('hDel')->once()->andReturn(0);
+        $connection->shouldReceive('sismember')
+            ->once()
+            ->with('prefix:raced:_any:tags', 'users')
+            ->andReturn(true);
+        $connection->shouldReceive('hsetnx')
+            ->once()
+            ->with('prefix:_any:tag:users:entries', 'raced', StoreContext::TAG_FIELD_VALUE)
+            ->andReturn(false);
+        $connection->shouldReceive('hLen')->once()->andReturn(1);
+
+        $result = (new Prune($store->getContext()))->execute();
+
+        $this->assertSame(0, $result['orphans_removed']);
+    }
+
     public function testClusterPruneRepairsARegistryEntryWithoutOverwritingAWriterScore(): void
     {
         [$store, , $connection] = $this->createClusterStore(tagMode: 'any');
