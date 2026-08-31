@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Console;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Horizon\PhpBinary;
 use Hypervel\Support\DotenvManager;
 use Hypervel\Watcher\RestartStrategy;
 use RuntimeException;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Process\Process;
+
+use function Hypervel\Support\artisan_binary;
+use function Hypervel\Support\php_binary;
 
 class HorizonRestartStrategy implements RestartStrategy
 {
@@ -50,7 +52,17 @@ class HorizonRestartStrategy implements RestartStrategy
         usleep(100_000);
 
         if ($this->horizonProcess->isTerminated()) {
-            throw new RuntimeException('Horizon failed to start.');
+            $message = sprintf(
+                'Horizon failed to start with exit code [%s].',
+                $this->horizonProcess->getExitCode() ?? 'unknown',
+            );
+            $errorOutput = trim($this->horizonProcess->getErrorOutput());
+
+            if ($errorOutput !== '') {
+                $message .= ' ' . $errorOutput;
+            }
+
+            throw new RuntimeException($message);
         }
     }
 
@@ -80,12 +92,12 @@ class HorizonRestartStrategy implements RestartStrategy
      */
     protected function createProcess(): Process
     {
-        $command = [PhpBinary::path(), 'artisan', 'horizon'];
+        $command = [php_binary(), artisan_binary(), 'horizon'];
 
-        if ($this->environment) {
+        if ($this->environment !== null && $this->environment !== '') {
             $command[] = '--environment=' . $this->environment;
         }
 
-        return (new Process($command))->setTimeout(null);
+        return (new Process($command, $this->application->basePath()))->setTimeout(null);
     }
 }

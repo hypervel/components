@@ -11,8 +11,8 @@ use Hypervel\Redis\RedisConnection;
 /**
  * Store multiple items in the cache with all tag tracking.
  *
- * Combines the ZADD operations for all keys to all tags with SETEX
- * for each cache value in a single pipeline for efficiency.
+ * Combines SETEX for each cache value with ZADD operations for all keys and
+ * tags in a single pipeline for efficiency.
  */
 class PutMany
 {
@@ -72,6 +72,14 @@ class PutMany
 
             $pipeline = $connection->pipeline();
 
+            // Publish values before their memberships so concurrent pruning
+            // cannot mistake newly written members for orphans.
+            foreach ($preparedEntries as $namespacedKey => $serialized) {
+                $pipeline->setex($prefix . $namespacedKey, $seconds, $serialized);
+            }
+
+            // Pipeline results are unavailable until exec(), so memberships
+            // cannot be filtered after failed writes without another round trip.
             // Batch ZADD: one command per tag with all cache keys as members
             // ZADD format: key, score1, member1, score2, member2, ...
             foreach ($tagIds as $tagId) {
@@ -81,11 +89,6 @@ class PutMany
                     $zaddArguments[] = $key;
                 }
                 $pipeline->zadd($prefix . $tagId, ...$zaddArguments);
-            }
-
-            // Then all SETEXs
-            foreach ($preparedEntries as $namespacedKey => $serialized) {
-                $pipeline->setex($prefix . $namespacedKey, $seconds, $serialized);
             }
 
             $results = $pipeline->exec();
@@ -114,7 +117,22 @@ class PutMany
                 $preparedEntries[$namespacedKey] = $this->serialization->serialize($connection, $value);
             }
 
-            $namespacedKeys = array_keys($preparedEntries);
+            // Publish values before their memberships so concurrent pruning
+            // can repair cross-slot races without losing fresh metadata.
+            $allSucceeded = true;
+            $namespacedKeys = [];
+
+            foreach ($preparedEntries as $namespacedKey => $serialized) {
+                if ($connection->setex($prefix . $namespacedKey, $seconds, $serialized)) {
+                    $namespacedKeys[] = $namespacedKey;
+                } else {
+                    $allSucceeded = false;
+                }
+            }
+
+            if ($namespacedKeys === []) {
+                return false;
+            }
 
             // Batch ZADD: one command per tag with all cache keys as members
             // Each tag's sorted set is in one slot, so variadic ZADD works in cluster
@@ -124,13 +142,7 @@ class PutMany
                     $zaddArguments[] = $score;
                     $zaddArguments[] = $key;
                 }
-                $connection->zadd($prefix . $tagId, ...$zaddArguments);
-            }
-
-            // Then all SETEXs
-            $allSucceeded = true;
-            foreach ($preparedEntries as $namespacedKey => $serialized) {
-                if (! $connection->setex($prefix . $namespacedKey, $seconds, $serialized)) {
+                if ($connection->zadd($prefix . $tagId, ...$zaddArguments) === false) {
                     $allSucceeded = false;
                 }
             }

@@ -117,7 +117,7 @@ class FailoverStore extends TaggableStore implements CanFlushLocks, LockProvider
     /**
      * Increment the value of an item in the cache.
      */
-    public function increment(string $key, int $value = 1): int|false
+    public function increment(string $key, int $value = 1): bool|int
     {
         return $this->attemptOnAllStores(__FUNCTION__, func_get_args());
     }
@@ -125,7 +125,7 @@ class FailoverStore extends TaggableStore implements CanFlushLocks, LockProvider
     /**
      * Decrement the value of an item in the cache.
      */
-    public function decrement(string $key, int $value = 1): int|false
+    public function decrement(string $key, int $value = 1): bool|int
     {
         return $this->attemptOnAllStores(__FUNCTION__, func_get_args());
     }

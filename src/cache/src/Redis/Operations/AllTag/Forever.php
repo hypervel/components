@@ -11,8 +11,8 @@ use Hypervel\Redis\RedisConnection;
 /**
  * Store an item in the cache indefinitely with all tag tracking.
  *
- * Combines the ZADD operations for tag tracking with the SET for
- * cache storage in a single connection checkout for efficiency.
+ * Combines SET cache storage with the ZADD tag tracking operations in a
+ * single connection checkout for efficiency.
  *
  * Forever items use a score of -1 in the tag sorted sets, which
  * prevents them from being cleaned by ZREMRANGEBYSCORE operations.
@@ -58,18 +58,18 @@ class Forever
 
             $pipeline = $connection->pipeline();
 
+            // Publish the value before its memberships so concurrent pruning
+            // cannot mistake a newly written member for an orphan.
+            $pipeline->set($prefix . $key, $serialized);
+
             // ZADD to each tag's sorted set with score -1 (forever)
             foreach ($tagIds as $tagId) {
                 $pipeline->zadd($prefix . $tagId, self::FOREVER_SCORE, $key);
             }
 
-            // SET for the cache value (no expiration)
-            $pipeline->set($prefix . $key, $serialized);
-
             $results = $pipeline->exec();
 
-            // Last result is the SET - check it succeeded
-            return $results !== false && end($results) !== false;
+            return $results !== false && ! in_array(false, $results, true);
         });
     }
 
@@ -82,13 +82,22 @@ class Forever
             $prefix = $this->context->prefix();
             $serialized = $this->serialization->serialize($connection, $value);
 
-            // ZADD to each tag's sorted set (sequential - cross-slot)
-            foreach ($tagIds as $tagId) {
-                $connection->zadd($prefix . $tagId, self::FOREVER_SCORE, $key);
+            // Publish the value before its memberships so concurrent pruning
+            // can repair cross-slot races without losing fresh metadata.
+            if (! $connection->set($prefix . $key, $serialized)) {
+                return false;
             }
 
-            // SET for the cache value (no expiration)
-            return (bool) $connection->set($prefix . $key, $serialized);
+            $membershipsSucceeded = true;
+
+            // ZADD to each tag's sorted set (sequential - cross-slot)
+            foreach ($tagIds as $tagId) {
+                if ($connection->zadd($prefix . $tagId, self::FOREVER_SCORE, $key) === false) {
+                    $membershipsSucceeded = false;
+                }
+            }
+
+            return $membershipsSucceeded;
         });
     }
 }

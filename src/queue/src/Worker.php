@@ -900,7 +900,9 @@ class Worker
             $this->cache->put('job-exceptions:' . $uuid, 0, CarbonImmutable::now()->addDay());
         }
 
-        if ($maxExceptions <= $this->cache->increment('job-exceptions:' . $uuid)) {
+        $exceptions = $this->cache->increment('job-exceptions:' . $uuid);
+
+        if (is_int($exceptions) && $maxExceptions <= $exceptions) {
             $this->cache->forget('job-exceptions:' . $uuid);
 
             $this->failJob($job, $e);

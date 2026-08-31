@@ -343,13 +343,19 @@ class TimerTest extends TestCase
             $id = 0;
             $timer = new Timer;
             $identifier = uniqid();
-            $timer->tick(0.001, function () use (&$id) {
+            $completed = new Channel(1);
+            $timer->tick(0.001, function () use (&$id, $completed) {
                 ++$id;
                 if ($id >= 10) {
+                    $completed->push(true);
+
                     return Timer::STOP;
                 }
             }, $identifier);
-            usleep(20000);
+            $this->assertTrue(
+                $completed->pop(1.0),
+                'The recurring timer did not stop after its tenth tick within 1 second.',
+            );
             $this->assertSame(10, $id);
         });
     }
@@ -378,17 +384,22 @@ class TimerTest extends TestCase
             $logger->shouldReceive('error')->once()->with((string) $exception);
             $timer = new Timer($logger);
             $calls = 0;
+            $completed = new Channel(1);
 
-            $timer->tick(0.001, function () use (&$calls, $exception): ?string {
+            $timer->tick(0.001, function () use (&$calls, $completed, $exception): ?string {
                 if (++$calls === 1) {
                     throw $exception;
                 }
 
+                $completed->push(true);
+
                 return Timer::STOP;
             }, uniqid());
 
-            usleep(10_000);
-
+            $this->assertTrue(
+                $completed->pop(1.0),
+                'The recurring timer did not reach its second tick within 1 second.',
+            );
             $this->assertSame(2, $calls);
         });
     }
@@ -406,17 +417,22 @@ class TimerTest extends TestCase
             $this->wait(function (): void {
                 $timer = new Timer;
                 $calls = 0;
+                $completed = new Channel(1);
 
-                $timer->tick(0.001, function () use (&$calls): ?string {
+                $timer->tick(0.001, function () use (&$calls, $completed): ?string {
                     if (++$calls === 1) {
                         throw new RuntimeException('recurring timer fallback failed');
                     }
 
+                    $completed->push(true);
+
                     return Timer::STOP;
                 }, uniqid());
 
-                usleep(10_000);
-
+                $this->assertTrue(
+                    $completed->pop(1.0),
+                    'The recurring timer did not reach its second tick within 1 second.',
+                );
                 $this->assertSame(2, $calls);
             });
 

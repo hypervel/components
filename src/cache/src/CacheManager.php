@@ -291,7 +291,7 @@ class CacheManager implements FactoryContract
             $connection,
             serializableClassPolicy: $this->serializableClassPolicy,
         );
-        $store->setTagMode($config['tag_mode'] ?? 'all');
+        $store->setTagMode($config['tag_mode'] ?? TagMode::All);
 
         return $this->repository(
             $store->setLockConnection($config['lock_connection'] ?? $connection),

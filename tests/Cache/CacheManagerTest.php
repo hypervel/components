@@ -645,7 +645,7 @@ class CacheManagerTest extends TestCase
         $this->assertSame(TagMode::Any, $store->getTagMode());
     }
 
-    public function testRedisDriverFallsBackToAllForInvalidTagMode(): void
+    public function testRedisDriverRejectsInvalidTagMode(): void
     {
         $userConfig = [
             'cache' => [
@@ -663,11 +663,12 @@ class CacheManagerTest extends TestCase
         $app = $this->getAppWithRedis($userConfig);
         $cacheManager = new CacheManager($app);
 
-        $repository = $cacheManager->store('redis');
-        $store = $repository->getStore();
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Invalid cache tag mode [invalid]. Supported modes are [any, all].'
+        );
 
-        $this->assertInstanceOf(RedisStore::class, $store);
-        $this->assertSame(TagMode::All, $store->getTagMode());
+        $cacheManager->store('redis');
     }
 
     public function testSessionDriverResolvesSessionStore()

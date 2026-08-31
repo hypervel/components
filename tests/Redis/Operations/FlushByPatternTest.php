@@ -11,6 +11,7 @@ use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
 use Hypervel\Tests\Redis\Fixtures\PhpRedisConnectionStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use RedisException;
 
 /**
  * Tests for FlushByPattern - pattern-based key deletion with OPT_PREFIX handling.
@@ -58,6 +59,10 @@ class FlushByPatternTest extends TestCase
         );
 
         [$connection] = $this->createConnectionWithClient($client);
+        $connection->shouldReceive('clearLastError')
+            ->once()
+            ->andReturnUsing(fn (): bool => $client->clearLastError());
+        $connection->shouldNotReceive('getLastError');
         $connection->shouldReceive('unlink')
             ->once()
             ->with('cache:test:key1', 'cache:test:key2', 'cache:test:key3')
@@ -176,25 +181,66 @@ class FlushByPatternTest extends TestCase
         $this->assertSame(3, $deletedCount);
     }
 
-    public function testFlushHandlesUnlinkReturningNonInteger(): void
+    public function testFlushThrowsTheNativeErrorWhenUnlinkFails(): void
     {
         $client = new FakeRedisClient(
             scanResults: [
                 ['keys' => ['cache:test:key1'], 'iterator' => 0],
             ],
         );
+        $client->setFakeLastError('stale error');
 
         [$connection] = $this->createConnectionWithClient($client);
-        // unlink might return false on error
+        $connection->shouldReceive('clearLastError')
+            ->once()
+            ->andReturnUsing(fn (): bool => $client->clearLastError());
+        $connection->shouldReceive('getLastError')
+            ->once()
+            ->andReturnUsing(fn (): ?string => $client->getLastError());
         $connection->shouldReceive('unlink')
             ->once()
-            ->andReturn(false);
+            ->andReturnUsing(function () use ($client): false {
+                $this->assertNull($client->getLastError());
 
-        $flushByPattern = new FlushByPattern($connection);
+                $client->setFakeLastError('UNLINK is not permitted');
 
-        $deletedCount = $flushByPattern->execute('cache:test:*');
+                return false;
+            });
 
-        $this->assertSame(0, $deletedCount);
+        $this->expectException(RedisException::class);
+        $this->expectExceptionMessage('UNLINK is not permitted');
+
+        (new FlushByPattern($connection))->execute('cache:test:*');
+    }
+
+    public function testFlushThrowsAStableErrorWhenUnlinkFailsWithoutANativeError(): void
+    {
+        $client = new FakeRedisClient(
+            scanResults: [
+                ['keys' => ['cache:test:key1'], 'iterator' => 0],
+            ],
+        );
+        $client->setFakeLastError('stale error');
+
+        [$connection] = $this->createConnectionWithClient($client);
+        $connection->shouldReceive('clearLastError')
+            ->once()
+            ->andReturnUsing(fn (): bool => $client->clearLastError());
+        $connection->shouldReceive('getLastError')
+            ->once()
+            ->andReturnUsing(fn (): ?string => $client->getLastError());
+        $connection->shouldReceive('unlink')
+            ->once()
+            ->andReturnUsing(function () use ($client): false {
+                $this->assertNull($client->getLastError());
+
+                return false;
+            });
+
+        $this->expectException(RedisException::class);
+        $this->expectExceptionMessage('Redis UNLINK failed while deleting keys by pattern.');
+
+        (new FlushByPattern($connection))->execute('cache:test:*');
     }
 
     public function testFlushPassesPatternToSafeScan(): void

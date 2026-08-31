@@ -311,4 +311,5 @@ jobs:
           QUEUE_CONNECTION=redis vendor/bin/phpunit --no-progress tests/Integration/Queue/JobDispatchingTest.php
           vendor/bin/paratest --max-processes=15 tests/Integration/RateLimiter/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Redis
+          vendor/bin/phpunit --no-progress tests/Integration/Reverb/ClearStateCommandTest.php
           vendor/bin/paratest --max-processes=15 tests/Integration/Session/Redis

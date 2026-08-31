@@ -11,6 +11,43 @@ use Mockery as m;
 
 class RedisSharedStateTest extends TestCase
 {
+    public function testRecoveryPatternMatchesGeneratedSharedStateKeysOnly(): void
+    {
+        $state = new class(m::mock(RedisProxy::class)) extends RedisSharedState {
+            /**
+             * Get the generated shared-state keys.
+             *
+             * @return list<string>
+             */
+            public function keysForTest(string $appId, string $channel, string $userId): array
+            {
+                return [
+                    $this->key(self::CONNECTION_KEY_TYPE, $appId),
+                    $this->channelKey($appId, $channel),
+                    $this->userKey($appId, $channel, $userId),
+                    $this->key(self::SUBSCRIPTION_COUNT_LOCK_KEY_TYPE, $appId, $channel),
+                    $this->key(self::CACHE_MISS_LOCK_KEY_TYPE, $appId, $channel),
+                    $this->key(self::CHANNEL_SMOOTHING_KEY_TYPE, $appId, $channel),
+                    $this->key(self::MEMBER_SMOOTHING_KEY_TYPE, $appId, $channel, $userId),
+                ];
+            }
+        };
+
+        foreach ($state->keysForTest('app', 'presence-channel', 'user') as $key) {
+            $this->assertTrue(fnmatch(RedisSharedState::KEY_PATTERN, $key), $key);
+        }
+
+        foreach ([
+            'reverb:webhook:{app}:buffer',
+            'reverb:webhook:{app}:flush',
+            'reverb:webhook:{app}:processing',
+            'reverb:message:123',
+            'unrelated:key',
+        ] as $key) {
+            $this->assertFalse(fnmatch(RedisSharedState::KEY_PATTERN, $key), $key);
+        }
+    }
+
     public function testPresenceSubscribeUsesOneAtomicScript(): void
     {
         $redis = m::mock(RedisProxy::class);

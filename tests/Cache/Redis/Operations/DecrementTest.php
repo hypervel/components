@@ -11,9 +11,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
  */
 class DecrementTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testDecrementMethodProperlyCallsRedis(): void
     {
         $connection = $this->mockConnection();
@@ -24,9 +21,6 @@ class DecrementTest extends RedisCacheTestCase
         $this->assertEquals(4, $result);
     }
 
-    /**
-     * @test
-     */
     public function testDecrementOnNonExistentKeyReturnsDecrementedValue(): void
     {
         // Redis DECRBY on non-existent key initializes to 0, then decrements
@@ -35,5 +29,15 @@ class DecrementTest extends RedisCacheTestCase
 
         $redis = $this->createStore($connection);
         $this->assertSame(-1, $redis->decrement('counter'));
+    }
+
+    public function testDecrementReturnsFalseWhenRedisRejectsTheOperation(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->expects('decrby')->with('prefix:foo', 1)->andReturnFalse();
+
+        $redis = $this->createStore($connection);
+
+        $this->assertFalse($redis->decrement('foo'));
     }
 }

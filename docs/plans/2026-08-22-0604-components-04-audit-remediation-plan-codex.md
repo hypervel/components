@@ -12,7 +12,7 @@ Resolve every genuine issue retained in this master plan against the current 0.4
 - Finding 123 was valid but is already fixed on the current branch.
 - Findings 4, 9, 14, 93, 119, 129, and 153 require no change: some are false positives, while the rest propose churn or machinery for deliberate behavior that is already correct.
 - Finding 88 is an exact duplicate of finding 32 and must not become a second patch.
-- Findings 6, 26, and 154 are only partially correct as written. Their valid portions remain in this plan; their invalid portions are explicitly rejected below.
+- Findings 6 and 26 are only partially correct as written. Their valid portions remain in this plan; their invalid portions are explicitly rejected below.
 - Some audit statements about Laravel were stale or incorrect. A defect shared with current Laravel remains a defect, but the plan does not cite false upstream parity as evidence.
 
 ## Rejected, duplicate, resolved, and narrowed claims
@@ -31,7 +31,6 @@ Resolve every genuine issue retained in this master plan against the current 0.4
 | 123 | Valid, already resolved | RedisConnection::callGet is mixed on the current branch. Retain or extend the serializer regression test, but do not schedule another production change. |
 | 129 | Rejected | Framework reset methods are no-throw lifecycle boundaries by design, and the subscriber already preserves the first error across its explicit outer cleanup stages. Wrapping roughly two hundred static resets in per-call fault-isolation machinery optimizes for unsupported throwing reset implementations and weakens the simple at-most-once cleanup contract. |
 | 153 | Rejected | Immediate hard termination is deliberate, documented, and pinned by testKillDoesNotWaitForUnrelatedActiveJobs. The timed-out coroutine is not cancellable, so the worker is poisoned; draining siblings delays the hard timeout while the stuck job can continue side effects. |
-| 154 | Partially confirmed | Remove the never-supported SQL Server branch and document the Redis script argument. Keep raw usleep: Swoole hooks make it coroutine-friendly, queue tests already override Worker::sleep, and Support\\Sleep adds avoidable allocation/global-fake machinery to polling paths. The 1ms shutdown-only empty check does not justify a new Concurrent notification API. |
 
 ## Cross-cutting design decisions
 
@@ -46,7 +45,7 @@ Resolve every genuine issue retained in this master plan against the current 0.4
 - Apply that rule consistently: Horizon uses `vonage`, never upstream Horizon's stale `nexmo` name.
 - Hypervel worker singletons retain only boot-time immutable/baseline state. Request, job, command, and test overrides belong in CoroutineContext and are cleaned at execution boundaries. This is an architectural adaptation, not a port of Laravel's process-per-request mutable-static assumptions.
 - Most fixes remove work, bound memory by correct lifetime, preserve a fast path, or add only constant-time state checks.
-- Reverb recovery is an operator command with zero steady-state cost. Queue timeout behavior remains unchanged because the proposed drain would weaken its safety contract.
+- Queue timeout behavior remains unchanged because the proposed drain would weaken its safety contract.
 - No fix may add periodic polling, arbitrary eviction thresholds, a distributed lock on every request/cache hit, metadata shortcuts with delayed correctness, or a new abstraction whose only purpose is an unsupported failure mode.
 - Performance and scalability claims must be measured during implementation for the affected hot paths. A fix does not land if its package benchmark/load test shows a material regression that is not inherent to the required correctness guarantee; revise the design instead.
 - Load tests must cover high-cardinality input and long worker lifetimes, not only request latency: retained memory must converge to the natural live/configured keyspace, and temporary request/job state must disappear at execution teardown.
@@ -101,12 +100,11 @@ Each row is an implementation requirement. Test names are descriptive; use the r
 | 92 | Remove pagination's hard runtime requirements on database and http. Keep them in require-dev and add Composer suggests only if the optional model/resource transformations need explanation. | Standalone pagination Composer install/autoload; metadata has no cycle; model/pivot/resource instanceof paths still work when optional packages are installed. |
 | 93 | No change; see disposition above. | Preserve nullable-path and state-flush behavior. |
 
-### Reverb, Wayfinder, and Tinker
+### Wayfinder and Tinker
 
 | ID | Proposed implementation | Required tests |
 |---:|---|---|
 | 104 | Resolve the root seeder with Container::build, matching Seeder::resolve and its fresh-instance convention. | Two programmatic db:seed runs receive distinct root objects; nested seeder remains fresh; container dependencies inject correctly. |
-| 112 | Add a manual-only `reverb:clear-state` command for crash recovery. Require all Reverb nodes using the selected Redis connection/prefix to be stopped, scan only RedisSharedState's `reverb:{*}:*` namespace across the selected connection's cluster nodes, and delete in bounded UNLINK batches (DEL fallback where unavailable). Provide `--dry-run`; otherwise require interactive confirmation or `--force`. Document the stop/clear/start runbook and explicitly exclude webhook buffer keys. Never schedule it, invoke it at boot, or wire it into automatic recovery; do not add leases, heartbeats, per-node aggregation, or hot-path Redis work without operational evidence. | Dry-run reports without deletion; confirmation/force behavior; only shared-state counters/locks/smoothing keys are removed; webhook and unrelated Redis data survive; multi-batch and cluster-wide scanning; stopped-nodes safety warning; command registration does not add scheduled/boot execution; docs runbook. |
 | 113 | Render Wayfinder @see with docblock_method when explicitly supplied, otherwise original_method, never the allocated TypeScript identifier. | Reserved PHP method renamed in TS; collision suffix; invokable; named and controller files; IDE target string. |
 | 114 | Strip the :parameters suffix from gathered middleware before class reflection for URL::defaults extraction. | Parameterized class middleware, alias-resolved middleware, unparameterized middleware, and absent class. |
 | 115 | Detect duplicate route names before generation and fail with a generator exception listing both conflicting routes. Do not emit ambiguous overloads because Laravel route caching also treats duplicate names as invalid. | Two different URIs with one name; identical duplicate; error identifies methods/URIs; ordinary grouped namespaces compile. |
@@ -123,17 +121,12 @@ Each row is an implementation requirement. Test names are descriptive; use the r
 | ID | Proposed implementation | Required tests |
 |---:|---|---|
 | 123 | No production change; retain the resolved disposition above. | Serializer-enabled get returns array, object, int, float, string, and null mapping without TypeError. |
-| 124 | Pass the original Throwable as previous when wrapping Sentinel and Redis Cluster connection creation, and correct message punctuation. | Previous exception identity/type/trace for both paths; message; successful creation. |
-| 125 | Widen RedisStore increment/decrement and their operation execute methods to bool\|int, matching Store. Pass false through without a TypeError. | Native false response; positive/negative integer result; repository/stack/tagged callers; exceptions still propagate. |
-| 126 | Make TagMode::fromConfig throw InvalidArgumentException for any value other than all or any. Include the accepted values in the message. | Both valid modes; typo, case error, and empty value fail while resolving the store; benchmark command path. |
 | 129 | No change; see disposition above. | Preserve reset/subscriber lifecycle tests. |
 | 131 | Add per-run memoization for class imports by source file/namespace, parsed docblocks by exact string, facade method-name sets by class, and ReflectionMethodDecorator source ReflectionClass. Hoist immutable PHPDoc parser objects. Do not add production counters or test-only observability seams. | Generated output remains byte-identical; cache keys separate namespaces/files/docblocks and cannot cross-contaminate results; a focused before/after benchmark outside timing-sensitive CI demonstrates the repeated-input speedup. |
 | 132 | Recursively walk traits-of-traits and parent traits when matching a method's source file for import resolution. Guard cycles/duplicates by trait name. | Public method declared in a nested trait resolves that trait's imports; parent trait chain; class import with same short name does not win. |
 | 133 | Map supported PHPStan scalar refinements to runtime base types and preserve generic values: list<T>/non-empty-list<T> becomes array<int,T>, non-empty-array<K,V> preserves K,V, string refinements become string, signed integer refinements become int. Keep template resolution before unknown fallback. | Each listed pseudo-type; nested union/intersection/generic; template named like a class; generated facade PHPDoc contains no unintended mixed. |
 | 134 | Catch only ReflectionException around getPrototype, reject unknown CLI flags with nonzero exit, send warnings/exceptions to STDERR, and add ext-tokenizer to facade-documenter's package requirements. | Malformed prototype docblock surfaces; typoed flag fails without writing; stdout remains generated output only; metadata assertion and standalone script smoke test. |
 | 153 | No change; see disposition above. | Preserve immediate-kill, non-drain, timeout event, and idempotency documentation coverage. |
-| 154 | Remove only the dead SQL Server lock branch and document ARGV[2] as the Redis migration batch limit. Keep coroutine-hooked usleep and the shutdown-only 1ms poll; do not add Support\\Sleep or a Concurrent completion primitive. | Database grammar set excludes sqlsrv; Lua argument documentation/review; existing Worker sleep override and shutdown drain tests remain green. |
-| 159 | Use raw PHP_BINARY in HorizonRestartStrategy's array-form Symfony Process command. Keep PhpBinary::path only for shell command-string substitution. | Real array command starts a child executable; path containing spaces; environment argument; existing shell command strings remain correctly quoted; remove the mock-only blind spot. |
 | 160 | Port the current laravel/vonage-notification-channel package into a Hypervel split package, then make Horizon's existing routeSmsNotificationsTo API effective by adding the missing route in SendNotification and channel selection in LongWaitDetected::via, adapted to the current `vonage` channel, `toVonage`, and VonageMessage. Do not copy Horizon upstream's obsolete `nexmo` name or introduce a second/deprecated driver. `Vonage\Client` caches service objects whose `APIResource` mutates `lastRequest`/`lastResponse` around yielding HTTP calls, so framework-created channels build a fresh SDK Client per send while sharing only normalized immutable configuration and Hypervel's coroutine-safe PSR-18 transport. Add per-execution memoization only later if measurement proves construction material. Keep the Vonage facade non-caching and preserve direct construction with a supplied Client and per-message `usingClient` overrides. Add the package README, canonical notification docs, Horizon docs, `HorizonServiceProvider.stub`, and Horizon Boost notification reference using `vonage` only. | Ported package provider/config, route resolution, message construction, channel send/failure, facade, direct constructor, and per-message override; deterministic concurrent sends cannot exchange SDK request/response state; repeated sends get distinct SDK clients but reuse the safe HTTP transport; Horizon's two consumers use `vonage`; absent number adds no channel; mail/Slack composition; public routeSmsNotificationsTo remains unchanged; all docs/stubs/Boost references contain no `nexmo` surface. |
 
 ## Commit and dependency structure
@@ -141,10 +134,8 @@ Each row is an implementation requirement. Test names are descriptive; use the r
 Use package-sized commits that remain reviewable and bisectable. The following order avoids building fixes on obsolete primitives:
 
 1. Mail and data representation: 21, 30-32, 34-35, 82.
-2. Reverb recovery command and runbook: 112, with no runtime state-model change.
-3. Queue cleanup: only the two valid parts of 154; 153 deliberately stays unchanged.
-4. Vonage notification channel port followed by Horizon wiring: 160.
-5. Remaining package-local correctness work by package, followed by performance/docs/cleanup.
+2. Vonage notification channel port followed by Horizon wiring: 160.
+3. Remaining package-local correctness work by package, followed by performance/docs/cleanup.
 
 Do not combine unrelated packages merely because their findings have the same severity.
 
@@ -155,7 +146,7 @@ For every changed test file:
 1. From the components repository root, run that exact test file immediately with `./vendor/bin/phpunit --no-progress path/to/Test.php`.
 2. For deterministic concurrency tests, run the exact file repeatedly and under the parallel runner where supported.
 3. Run the complete affected package test directory after its individual files pass.
-4. Run integration suites for every affected external system: MySQL/MariaDB and PostgreSQL for database semantics, and Redis for Reverb/cache.
+4. Run integration suites for every affected external system: MySQL/MariaDB and PostgreSQL for database semantics, and Redis for cache.
 
 Additional required checks:
 
