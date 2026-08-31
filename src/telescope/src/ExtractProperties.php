@@ -6,7 +6,6 @@ namespace Hypervel\Telescope;
 
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
-use Hypervel\Support\Json;
 use ReflectionClass;
 
 class ExtractProperties
@@ -34,11 +33,11 @@ class ExtractProperties
                             'class' => get_class($value),
                             'properties' => method_exists($value, 'formatForTelescope')
                                 ? $value->formatForTelescope()
-                                : Json::decode(json_encode($value, JSON_THROW_ON_ERROR)),
+                                : JsonNormalizer::normalize($value),
                         ],
                     ];
                 }
-                return [$property->getName() => Json::decode(json_encode($value, JSON_THROW_ON_ERROR))];
+                return [$property->getName() => JsonNormalizer::normalize($value)];
             })->toArray();
     }
 }

@@ -35,8 +35,8 @@ class ForwardedFluentMethodExtension implements MethodsClassReflectionExtension
         'withcan',
     ];
 
-    /** @var list<string> */
-    private readonly array $passthru;
+    /** @var null|list<string> */
+    private ?array $passthru = null;
 
     /** @var array<string, false|MethodReflection> */
     private array $methods = [];
@@ -48,13 +48,6 @@ class ForwardedFluentMethodExtension implements MethodsClassReflectionExtension
      */
     public function __construct(private readonly ReflectionProvider $reflectionProvider)
     {
-        /** @var list<string> $passthru */
-        $passthru = $this->reflectionProvider
-            ->getClass(EloquentBuilder::class)
-            ->getNativeReflection()
-            ->getDefaultProperties()['passthru'];
-
-        $this->passthru = $passthru;
         $this->scope = new OutOfClassScope;
     }
 
@@ -122,7 +115,7 @@ class ForwardedFluentMethodExtension implements MethodsClassReflectionExtension
         ClassReflection $classReflection,
         string $methodName,
     ): ?MethodReflection {
-        if (in_array(strtolower($methodName), $this->passthru, strict: true)) {
+        if (in_array(strtolower($methodName), $this->passthruMethods(), strict: true)) {
             return null;
         }
 
@@ -165,7 +158,7 @@ class ForwardedFluentMethodExtension implements MethodsClassReflectionExtension
         $queryBuilder = $this->reflectionProvider->getClass(QueryBuilder::class);
 
         if ($queryBuilder->hasNativeMethod($methodName)) {
-            if (in_array(strtolower($methodName), $this->passthru, strict: true)
+            if (in_array(strtolower($methodName), $this->passthruMethods(), strict: true)
                 || ! $this->returnsStatic($queryBuilder->getNativeMethod($methodName))) {
                 return null;
             }
@@ -182,6 +175,26 @@ class ForwardedFluentMethodExtension implements MethodsClassReflectionExtension
         $method = $this->eloquentBuilderType($relatedType)->getMethod($methodName, $this->scope);
 
         return new ForwardedFluentMethodReflection($classReflection, $method);
+    }
+
+    /**
+     * Return the Eloquent builder passthru methods.
+     *
+     * @return list<string>
+     */
+    private function passthruMethods(): array
+    {
+        if ($this->passthru === null) {
+            /** @var list<string> $passthru */
+            $passthru = $this->reflectionProvider
+                ->getClass(EloquentBuilder::class)
+                ->getNativeReflection()
+                ->getDefaultProperties()['passthru'];
+
+            $this->passthru = $passthru;
+        }
+
+        return $this->passthru;
     }
 
     /**

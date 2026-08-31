@@ -105,12 +105,13 @@ class PasswordBrokerManager implements FactoryContract
                 $throttle,
             ),
             'database' => new DatabaseTokenRepository(
-                $this->app->make('db')->connection($config['connection'] ?? null),
+                $this->app->make('db'),
                 $this->app->make('hash'),
                 $config['table'],
                 $key,
                 $expire * 60,
                 $throttle,
+                $config['connection'] ?? null,
             ),
             default => throw new InvalidArgumentException(
                 "Password resetter driver [{$config['driver']}] is not defined."

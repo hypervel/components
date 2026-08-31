@@ -8,6 +8,8 @@ use Google\Cloud\Storage\Bucket;
 use Google\Cloud\Storage\StorageClient;
 use Google\Cloud\Storage\StorageObject;
 use GuzzleHttp\Psr7\Utils;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Filesystem\GoogleCloudStorageAdapter;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
@@ -17,6 +19,7 @@ use League\Flysystem\UnableToReadFile;
 use Mockery as m;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -193,6 +196,32 @@ class GoogleCloudStorageAdapterTest extends TestCase
         $this->expectExceptionMessage('GCS failed');
 
         $adapter->readStreamRange('file.txt', 3, 5);
+    }
+
+    public function testReadStreamRangePreservesCancellationWithoutReporting(): void
+    {
+        $cancellation = new CanceledException('read canceled');
+        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler->shouldNotReceive('report');
+        Container::getInstance()->bind(ExceptionHandler::class, static fn () => $exceptionHandler);
+        $object = m::mock(StorageObject::class);
+        $object->shouldReceive('downloadAsStream')->once()->andThrow($cancellation);
+        $bucket = m::mock(Bucket::class);
+        $bucket->shouldReceive('object')->once()->with('file.txt')->andReturn($object);
+        $client = m::mock(StorageClient::class);
+        $client->shouldReceive('bucket')->once()->with('bucket')->andReturn($bucket);
+        $adapter = $this->adapter($client, [
+            'bucket' => 'bucket',
+            'report' => true,
+            'throw' => false,
+        ]);
+
+        try {
+            $adapter->readStreamRange('file.txt', 3, 5);
+            $this->fail('Expected the cancellation to escape.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testReadStreamRangeRejectsAResultWithoutAResourceWhenConfigured(): void

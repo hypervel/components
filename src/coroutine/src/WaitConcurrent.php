@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Coroutine;
 
+use Closure;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -13,6 +16,9 @@ use Throwable;
 class WaitConcurrent extends Concurrent
 {
     protected WaitGroup $wg;
+
+    /** @var array<int, true> */
+    protected array $activeCoroutines = [];
 
     public function __construct(
         protected int $limit,
@@ -26,23 +32,7 @@ class WaitConcurrent extends Concurrent
      */
     public function create(callable $callable): void
     {
-        $this->wg->add();
-
-        $callable = function () use ($callable): void {
-            try {
-                $callable();
-            } finally {
-                $this->wg->done();
-            }
-        };
-
-        try {
-            parent::create($callable);
-        } catch (Throwable $exception) {
-            $this->wg->done();
-
-            throw $exception;
-        }
+        $this->startAndTrack($callable);
     }
 
     /**
@@ -52,20 +42,41 @@ class WaitConcurrent extends Concurrent
      */
     public function fork(callable $callable, array $keys = []): void
     {
-        $this->wg->add();
+        $this->startAndTrack($callable, $keys);
+    }
 
-        $callable = function () use ($callable): void {
+    /**
+     * Start a coroutine and track it until its body completes.
+     *
+     * @param array<string>|false $copyContext
+     */
+    protected function startAndTrack(callable $callable, array|false $copyContext = false): void
+    {
+        $this->wg->add();
+        $started = false;
+        $wrapper = function (Closure $run) use (&$started): void {
+            $coroutineId = Coroutine::id();
+
             try {
-                $callable();
+                $started = true;
+                $this->activeCoroutines[$coroutineId] = true;
+                $run();
             } finally {
+                unset($this->activeCoroutines[$coroutineId]);
                 $this->wg->done();
             }
         };
 
         try {
-            parent::fork($callable, $keys);
+            parent::start($callable, $copyContext, $wrapper);
         } catch (Throwable $exception) {
-            $this->wg->done();
+            if (! $started) {
+                $this->wg->done();
+            }
+
+            if ($exception instanceof CanceledException) {
+                $this->cancel();
+            }
 
             throw $exception;
         }
@@ -79,6 +90,26 @@ class WaitConcurrent extends Concurrent
      */
     public function wait(float $timeout = -1): bool
     {
-        return $this->wg->wait($timeout);
+        try {
+            return $this->wg->wait($timeout);
+        } catch (CanceledException $exception) {
+            $this->cancel();
+            throw $exception;
+        }
+    }
+
+    /**
+     * Cancel active coroutine bodies.
+     *
+     * Completed bodies running deferred cleanup are no longer active and are
+     * not interrupted. Each call targets the bodies active at that time.
+     */
+    public function cancel(): void
+    {
+        foreach (array_keys($this->activeCoroutines) as $coroutineId) {
+            if (isset($this->activeCoroutines[$coroutineId])) {
+                EngineCoroutine::cancelById($coroutineId, throwException: true);
+            }
+        }
     }
 }

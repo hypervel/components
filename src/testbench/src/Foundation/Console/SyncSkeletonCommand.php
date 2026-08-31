@@ -9,7 +9,6 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Console\Concerns\CopyTestbenchFiles;
 use Hypervel\Testbench\Workbench\Actions\AddAssetSymlinkFolders;
-use Override;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 use function Hypervel\Testbench\package_path;
@@ -24,19 +23,13 @@ class SyncSkeletonCommand extends Command
      */
     protected ?string $signature = 'package:sync-skeleton';
 
-    #[Override]
-    protected function configure(): void
-    {
-        parent::configure();
-
-        TerminatingConsole::flush();
-    }
-
     /**
      * Execute the console command.
      */
     public function handle(Filesystem $filesystem, ConfigContract $config): int
     {
+        TerminatingConsole::flush();
+
         $this->copyTestbenchConfigurationFile(
             $this->hypervel,
             $filesystem,

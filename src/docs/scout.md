@@ -76,7 +76,7 @@ class Post extends Model
 <a name="queueing"></a>
 ### Indexing Mode
 
-By default, Hypervel Scout indexes models asynchronously (without blocking the worker), meaning the worker can continue to handle other requests while indexing completes. Additionally, indexing is scheduled via `Coroutine::defer` and runs after the HTTP response has been sent to the user, meaning there's no delay in returning the response. This default mode works well for most applications and requires no queue worker or other infrastructure.
+By default, Hypervel Scout defers indexing during HTTP requests until after the response has been sent to the user. Scout preserves the order of model updates and deletions while draining this work. Outside an active HTTP request, such as in a console command or queue job, Scout performs indexing immediately. This default mode works well for most applications and requires no queue worker or other infrastructure.
 
 If you need indexing failures to be persistently tracked and retried, or to wait for a database transaction to commit, you can switch Scout to queue-based indexing by enabling the `queue.enabled` option in your `config/scout.php` configuration file:
 
@@ -94,7 +94,7 @@ Of course, if you customize the connection and queue that Scout jobs utilize, yo
 php artisan queue:work redis --queue=scout
 ```
 
-Each queue option may also be set via the `SCOUT_QUEUE`, `SCOUT_QUEUE_CONNECTION`, and `SCOUT_QUEUE_NAME` environment variables. If the nested `enabled` option is omitted, Scout keeps its default deferred, non-queued indexing mode.
+Each queue option may also be set via the `SCOUT_QUEUE`, `SCOUT_QUEUE_CONNECTION`, and `SCOUT_QUEUE_NAME` environment variables. If the nested `enabled` option is omitted, Scout keeps its default non-queued mode, deferring work during HTTP requests and running it immediately elsewhere.
 
 #### Transaction-Safe Dispatch
 
@@ -360,7 +360,7 @@ use Hypervel\Scout\Attributes\SearchUsingPrefix;
  *
  * @return array<string, mixed>
  */
-#[SearchUsingPrefix(['id', 'email'])]
+#[SearchUsingPrefix(['email'])]
 #[SearchUsingFullText(['bio'])]
 public function toSearchableArray(): array
 {
@@ -372,6 +372,10 @@ public function toSearchableArray(): array
     ];
 }
 ```
+
+The database engine always treats your model's Eloquent primary key as its identity. Integer primary keys are searched using exact equality and should not be listed in `SearchUsingPrefix` or `SearchUsingFullText`. String, UUID, and ULID primary keys may still use partial matching.
+
+When using PostgreSQL, only include text-compatible columns in the default, prefix, and full-text searchable sets. Scout automatically handles the model's integer primary key, but other numeric columns should be omitted unless they are searched through an explicit query constraint.
 
 > [!WARNING]
 > Before specifying that a column should use full text query constraints, ensure that the column has been assigned a [full text index](/docs/{{version}}/migrations#available-index-types).
@@ -718,6 +722,10 @@ Todo::search('Groceries')->options([
 ])->get();
 ```
 
+Scout owns the `page` and `per_page` parameters used by Typesense. Choose the result size with Scout's `take` or `paginate` methods, or configure the `typesense.max_total_results` limit for large `take` queries. When this setting is omitted, `take` is limited to 1,000 results. Model search parameters and values passed to `options` may customize every other Typesense search parameter.
+
+Typesense accepts between 1 and 250 results per paginator page. Scout rejects values outside that range before sending the search request.
+
 <a name="indexing"></a>
 ## Third-Party Engine Indexing
 
@@ -1026,7 +1034,7 @@ public function boot(): void
 }
 ```
 
-Custom job classes should extend the corresponding default job and override only the methods you need to change. These overrides only affect queue-mode indexing — in the default mode, indexing runs inline via `Coroutine::defer` and does not pass through a job class.
+Custom job classes should extend the corresponding default job and override only the methods you need to change. These overrides only affect queue-mode indexing. In the default mode, Scout defers indexing during HTTP requests and performs it immediately in other contexts without passing through a job class.
 
 You may configure the attempts, retry delay, and maximum unhandled exceptions for the default jobs in `config/scout.php`:
 
@@ -1118,6 +1126,8 @@ $orders = Order::search('Star Trek')->whereNotIn(
     'status', ['closed']
 )->get();
 ```
+
+When using Algolia, Scout preserves the type of each filter value. Pass integers and finite floats for numeric filters, strings for text filters, and booleans for boolean filters. Numeric-looking strings remain text values.
 
 > [!WARNING]
 > If your application is using Meilisearch, you must configure your application's [filterable attributes](#meilisearch-index-settings) before utilizing Scout's "where" clauses.

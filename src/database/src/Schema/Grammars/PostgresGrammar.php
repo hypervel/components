@@ -159,7 +159,8 @@ class PostgresGrammar extends Grammar
     {
         return sprintf(
             "select ic.relname as name, string_agg(a.attname, ',' order by indseq.ord) as columns, "
-            . 'am.amname as "type", i.indisunique as "unique", i.indisprimary as "primary" '
+            . 'am.amname as "type", i.indisunique as "unique", i.indisprimary as "primary", '
+            . 'i.indpred is not null as "partial" '
             . 'from pg_index i '
             . 'join pg_class tc on tc.oid = i.indrelid '
             . 'join pg_namespace tn on tn.oid = tc.relnamespace '
@@ -168,7 +169,7 @@ class PostgresGrammar extends Grammar
             . 'join lateral unnest(i.indkey) with ordinality as indseq(num, ord) on true '
             . 'left join pg_attribute a on a.attrelid = i.indrelid and a.attnum = indseq.num '
             . 'where tc.relname = %s and tn.nspname = %s '
-            . 'group by ic.relname, am.amname, i.indisunique, i.indisprimary',
+            . 'group by ic.relname, am.amname, i.indisunique, i.indisprimary, i.indpred is not null',
             $this->quoteString($table),
             $schema ? $this->quoteString($schema) : 'current_schema()'
         );
@@ -337,12 +338,13 @@ class PostgresGrammar extends Grammar
     public function compileIndex(Blueprint $blueprint, Fluent $command): string
     {
         return sprintf(
-            'create index %s%s on %s%s (%s)',
+            'create index %s%s on %s%s (%s)%s',
             $command->online ? 'concurrently ' : '',
             $this->wrap($command->index),
             $this->wrapTable($blueprint),
             $command->algorithm ? ' using ' . $command->algorithm : '',
-            $this->columnize($command->columns)
+            $this->columnize($command->columns),
+            $this->compileWhereNotNull($command),
         );
     }
 

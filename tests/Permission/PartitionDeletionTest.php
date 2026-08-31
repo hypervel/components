@@ -191,6 +191,47 @@ SQL);
         $this->assertSame(1, DB::table('role_has_permissions')->count());
     }
 
+    public function testCaughtRoleCleanupFailureRollsBackOnlyTheDeleteOperation(): void
+    {
+        $user = GlobalPartitionUser::create(['email' => 'global@example.com']);
+        $role = PartitionedRole::create(['name' => 'member']);
+        $permission = PartitionedPermission::create(['name' => 'articles.edit']);
+        $user->assignRole($role);
+        $role->givePermissionTo($permission);
+
+        DB::unprepared(<<<'SQL'
+CREATE TRIGGER fail_nested_role_permission_cleanup
+BEFORE DELETE ON "role_has_permissions"
+BEGIN
+    SELECT RAISE(ABORT, 'forced nested role permission cleanup failure');
+END
+SQL);
+
+        $caught = null;
+
+        try {
+            DB::transaction(function () use ($role, &$caught): void {
+                try {
+                    $role->delete();
+                } catch (QueryException $exception) {
+                    $caught = $exception;
+                }
+
+                DB::table('roles')
+                    ->where('id', $role->getKey())
+                    ->update(['name' => 'member-after-recovery']);
+            });
+        } finally {
+            DB::unprepared('DROP TRIGGER fail_nested_role_permission_cleanup');
+        }
+
+        $this->assertInstanceOf(QueryException::class, $caught);
+        $this->assertDatabaseHas('roles', ['id' => $role->getKey()]);
+        $this->assertSame(1, DB::table('model_has_roles')->count());
+        $this->assertSame(1, DB::table('role_has_permissions')->count());
+        $this->assertDatabaseHas('roles', ['id' => $role->getKey(), 'name' => 'member-after-recovery']);
+    }
+
     public function testDeleteOrFailRollsBackPivotCleanupWithTheSubjectRow(): void
     {
         $user = GlobalPartitionUser::create(['email' => 'global@example.com']);

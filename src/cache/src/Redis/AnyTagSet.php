@@ -70,9 +70,9 @@ class AnyTagSet extends TagSet
      * In any mode, this deletes the cached items themselves, unlike
      * namespaced tag sets where reset only invalidates tag tracking.
      */
-    public function reset(): void
+    public function reset(): bool
     {
-        $this->flush();
+        return $this->flush();
     }
 
     /**
@@ -81,9 +81,9 @@ class AnyTagSet extends TagSet
      * Deletes all cache items that have any of the specified tags
      * (union semantics), along with their reverse indexes and tag hashes.
      */
-    public function flush(): void
+    public function flush(): bool
     {
-        $this->getRedisStore()->anyTagOps()->flush()->execute($this->names);
+        return $this->getRedisStore()->anyTagOps()->flush()->execute($this->names);
     }
 
     /**

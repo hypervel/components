@@ -39,6 +39,7 @@ use Hypervel\Testbench\Foundation\Bootstrap\SyncDatabaseEnvironmentVariables;
 use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\Foundation\PackageManifest;
 use Hypervel\Testbench\Foundation\UndefinedValue;
+use Hypervel\Testing\ParallelTesting;
 use PHPUnit\Framework\TestCase as PHPUnitTestCase;
 use Throwable;
 
@@ -535,19 +536,20 @@ trait CreatesApplication
             $this->bootDiscoverRoutesForWorkbench($app); /* @phpstan-ignore method.notFound */
         }
 
+        // Keep this after proxy generation because resolving db loads classes an aspect
+        // may target, and before provider boot so boot queries use the testing resolver.
+        // It caches connections statically to prevent pool exhaustion. Remote subprocesses
+        // (e.g. queue:work) need the real pool resolver for proper coroutine lifecycle.
+        // Foundation's base test case installs the same binding independently.
+        if ($this->isRunningTestCase()) {
+            $app->singleton('db.resolver', DatabaseConnectionResolver::class);
+            Model::setConnectionResolver($app->make('db'));
+        }
+
         $app->make(BootProviders::class)->bootstrap($app);
 
         foreach ($this->getPackageBootstrappers($app) as $bootstrapper) {
             $app->make($bootstrapper)->bootstrap($app);
-        }
-
-        // Override the normal ConnectionResolver (registered by DatabaseServiceProvider)
-        // with the testing resolver that caches connections statically to prevent pool
-        // exhaustion. Only for test cases — remote subprocesses (e.g. queue:work) need
-        // the real pool-based resolver for proper coroutine lifecycle.
-        if ($this->isRunningTestCase()) {
-            $app->singleton('db.resolver', DatabaseConnectionResolver::class);
-            Model::setConnectionResolver($app->make('db'));
         }
 
         // The manual sequence above replaces the kernel's bootstrappers. Mark it complete
@@ -622,13 +624,7 @@ trait CreatesApplication
      */
     protected function paraTestWorkerToken(): ?string
     {
-        $token = $_SERVER['TEST_TOKEN'] ?? $_ENV['TEST_TOKEN'] ?? null;
-
-        if (! is_string($token) || $token === '') {
-            return null;
-        }
-
-        return preg_replace('/[^A-Za-z0-9_.-]/', '_', $token);
+        return ParallelTesting::processToken();
     }
 
     /**

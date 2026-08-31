@@ -14,11 +14,11 @@ trait WithHypervelMigrations
     /**
      * @internal
      */
-    protected function setUpWithHypervelMigrations(): void
+    protected function prepareHypervelMigrations(): void
     {
         $loadHypervelMigrations = static::cachedConfigurationForWorkbench()?->getWorkbenchAttributes()['install'] ?? false;
 
-        if (! ($loadHypervelMigrations && is_dir(default_migration_path()))) {
+        if (! $loadHypervelMigrations) {
             return;
         }
 

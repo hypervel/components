@@ -380,6 +380,8 @@ Cache::decrement('key');
 Cache::decrement('key', $amount);
 ```
 
+When using a Redis cache store with PhpRedis serialization, atomic counters require either `Redis::SERIALIZER_NONE` or the PhpRedis 6.2+ `pack_ignore_numbers` option. See the [PhpRedis serialization documentation](/docs/{{version}}/redis#phpredis-serialization) for configuration details.
+
 <a name="retrieve-store"></a>
 #### Retrieve and Store
 
@@ -624,6 +626,8 @@ cache()->remember('users', $seconds, function () {
 
 > [!WARNING]
 > Cache tags are supported by the `redis`, `array`, `failover`, `null`, and `stack` cache drivers. Stack tags require an any-mode composition; see [Tagged Cache Stacks](#tagged-cache-stacks). Cache tags are not supported by the `file`, `storage`, `database`, `swoole`, `session`, or `memo` drivers.
+
+The `flush` method returns `true` only when every tag or taggable stack layer accepts the flush. The null cache driver rejects tag identifier writes, so tagged flushes on that driver return `false` even though tagged reads continue to behave as cache misses.
 
 <a name="redis-tag-modes"></a>
 ### Redis Tag Modes

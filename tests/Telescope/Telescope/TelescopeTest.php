@@ -10,6 +10,7 @@ use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Http\Request;
@@ -144,6 +145,49 @@ class TelescopeTest extends FeatureTestCase
         $this->assertCount(2, $storedEntries);
         $this->assertSame(36, strlen($storedBatchId));
         $this->assertInstanceOf(IncomingEntry::class, $storedEntries[0]);
+    }
+
+    public function testAllAfterStoringHooksRunAfterVoidAndFalseReturns(): void
+    {
+        $calls = [];
+
+        Telescope::afterStoring(function () use (&$calls): void {
+            $calls[] = 'void';
+        });
+        Telescope::afterStoring(function () use (&$calls): false {
+            $calls[] = 'false';
+
+            return false;
+        });
+        Telescope::afterStoring(function () use (&$calls): void {
+            $calls[] = 'last';
+        });
+
+        EntryModel::count();
+        Telescope::store($this->app->make(EntriesRepository::class));
+
+        $this->assertSame(['void', 'false', 'last'], $calls);
+    }
+
+    public function testThrowingAfterStoringHookIsReportedAndStopsLaterHooks(): void
+    {
+        $failure = new RuntimeException('after storing failed');
+        $reported = null;
+        $laterHookRan = false;
+
+        $this->app->make(ExceptionHandler::class)->reportable(function (RuntimeException $exception) use (&$reported): void {
+            $reported = $exception;
+        });
+        Telescope::afterStoring(fn () => throw $failure);
+        Telescope::afterStoring(function () use (&$laterHookRan): void {
+            $laterHookRan = true;
+        });
+
+        EntryModel::count();
+        Telescope::store($this->app->make(EntriesRepository::class));
+
+        $this->assertSame($failure, $reported);
+        $this->assertFalse($laterHookRan);
     }
 
     public function testDontStartRecordingWhenDispatchingJobSynchronously()

@@ -25,7 +25,8 @@ class PackagePathTest extends TestCase
     }
 
     #[Test]
-    public function itCanResolvePackagePathWithoutTestbenchWorkingPath(): void
+    #[DataProvider('workingPathValues')]
+    public function itCanResolvePackagePathFromEnvironment(string|false $workingPath, string $expectedPath): void
     {
         $process = new Process(
             command: [
@@ -37,12 +38,20 @@ class PackagePathTest extends TestCase
                 ),
             ],
             cwd: package_path('tests', 'Testbench', 'Functions'),
-            env: ['TESTBENCH_WORKING_PATH' => false],
+            env: ['TESTBENCH_WORKING_PATH' => $workingPath],
         );
 
         $process->mustRun();
 
-        $this->assertSame(package_path(), $process->getOutput());
+        $this->assertSame($expectedPath, $process->getOutput());
+    }
+
+    public static function workingPathValues(): iterable
+    {
+        yield 'absent' => [false, package_path()];
+        yield 'decoded false' => ['false', package_path()];
+        yield 'empty' => ['', package_path()];
+        yield 'valid directory' => [package_path('tests'), package_path('tests')];
     }
 
     #[Test]

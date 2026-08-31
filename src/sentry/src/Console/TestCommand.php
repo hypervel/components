@@ -86,23 +86,7 @@ class TestCommand extends Command
 
         $options = [
             'dsn' => $dsn,
-            'before_send' => static function (Event $event): Event {
-                foreach ($event->getExceptions() as $exception) {
-                    $stacktrace = $exception->getStacktrace();
-
-                    if ($stacktrace === null) {
-                        continue;
-                    }
-
-                    foreach ($stacktrace->getFrames() as $frame) {
-                        if (str_starts_with($frame->getAbsoluteFilePath(), __DIR__)) {
-                            $frame->setIsInApp(true);
-                        }
-                    }
-                }
-
-                return $event;
-            },
+            'before_send' => fn (Event $event): Event => $this->markPackageFramesInApp($event),
             // We include this file as "in-app" so that the events generated have something to show
             'in_app_include' => [__DIR__],
             'in_app_exclude' => [base_path('artisan'), base_path('vendor')],
@@ -212,6 +196,30 @@ class TestCommand extends Command
         }
 
         return 0;
+    }
+
+    /**
+     * Mark package stack frames as application code.
+     */
+    private function markPackageFramesInApp(Event $event): Event
+    {
+        foreach ($event->getExceptions() as $exception) {
+            $stacktrace = $exception->getStacktrace();
+
+            if ($stacktrace === null) {
+                continue;
+            }
+
+            foreach ($stacktrace->getFrames() as $frame) {
+                $absoluteFilePath = $frame->getAbsoluteFilePath();
+
+                if ($absoluteFilePath !== null && str_starts_with($absoluteFilePath, __DIR__)) {
+                    $frame->setIsInApp(true);
+                }
+            }
+        }
+
+        return $event;
     }
 
     /**

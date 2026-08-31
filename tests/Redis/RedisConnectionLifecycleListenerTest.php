@@ -12,6 +12,8 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class RedisConnectionLifecycleListenerTest extends TestCase
 {
@@ -88,6 +90,27 @@ class RedisConnectionLifecycleListenerTest extends TestCase
             $this->fail('Expected the manager failure to propagate.');
         } catch (RuntimeException $throwable) {
             $this->assertSame($managerException, $throwable);
+        }
+    }
+
+    public function testPoolFlushCancellationSupersedesOrdinaryManagerFailure(): void
+    {
+        $cancellation = new CanceledException('Pool flush canceled.');
+        $manager = m::mock(RedisManager::class);
+        $manager->expects('discardConnections')->andThrow(new RuntimeException('Manager discard failed.'));
+        $factory = m::mock(PoolFactory::class);
+        $factory->expects('flushAll')->andThrow($cancellation);
+        $container = m::mock(Container::class);
+        $container->expects('resolved')->with('redis')->andReturnTrue();
+        $container->expects('make')->with('redis')->andReturn($manager);
+        $container->expects('resolved')->with(PoolFactory::class)->andReturnTrue();
+        $container->expects('make')->with(PoolFactory::class)->andReturn($factory);
+
+        try {
+            (new RedisConnectionLifecycleListener($container))->discardProcessConnections();
+            $this->fail('Expected the cancellation to propagate.');
+        } catch (Throwable $throwable) {
+            $this->assertSame($cancellation, $throwable);
         }
     }
 

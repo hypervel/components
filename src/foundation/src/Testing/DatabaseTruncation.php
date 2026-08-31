@@ -16,7 +16,9 @@ use Hypervel\Support\Collection;
 use LogicException;
 
 /**
- * This concern is mutually exclusive with RefreshDatabase and DatabaseMigrations.
+ * This concern may be combined with RefreshDatabase or DatabaseTransactions;
+ * each trait should manage its own connections. It cannot be combined with
+ * DatabaseMigrations or LazilyRefreshDatabase.
  */
 trait DatabaseTruncation
 {
@@ -33,8 +35,36 @@ trait DatabaseTruncation
      */
     protected function truncateDatabaseTables(): void
     {
+        $uses = class_uses_recursive(static::class);
+
+        if (isset($uses[LazilyRefreshDatabase::class])) {
+            throw new LogicException('DatabaseTruncation cannot be combined with LazilyRefreshDatabase.');
+        }
+
+        if (isset($uses[DatabaseMigrations::class])) {
+            throw new LogicException('DatabaseTruncation cannot be combined with DatabaseMigrations.');
+        }
+
+        if (
+            (isset($uses[RefreshDatabase::class]) || isset($uses[DatabaseTransactions::class]))
+            && ($this->seeder() || $this->shouldSeed())
+        ) {
+            throw new LogicException(
+                'Automatic database seeding is not supported when DatabaseTruncation is combined with RefreshDatabase or DatabaseTransactions. Seed each connection from the hook for its reset strategy instead.'
+            );
+        }
+
         $this->ensureParallelDatabaseExists();
         $this->restoreInMemoryDatabases();
+
+        if (
+            isset($uses[RefreshDatabase::class])
+            && RefreshDatabaseState::$migrated
+            && $this->hasMissingInMemoryDatabaseForTruncation()
+        ) {
+            // Eager refresh has migrated this application; retain the truncation PDOs before user hooks run.
+            $this->cacheInMemoryDatabases();
+        }
 
         $this->beforeTruncatingDatabase();
 
@@ -125,6 +155,27 @@ trait DatabaseTruncation
     {
         foreach ($this->connectionsToTruncate() as $name) {
             if ($this->usingInMemoryDatabaseForTruncation($name)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Determine if an in-memory database being truncated is missing its cached PDO.
+     */
+    protected function hasMissingInMemoryDatabaseForTruncation(): bool
+    {
+        $defaultConnection = $this->app->make('config')->string('database.default');
+
+        foreach ($this->connectionsToTruncate() as $name) {
+            $connectionName = $name ?? $defaultConnection;
+
+            if (
+                $this->usingInMemoryDatabaseForTruncation($name)
+                && ! isset(RefreshDatabaseState::$inMemoryConnections[$connectionName])
+            ) {
                 return true;
             }
         }

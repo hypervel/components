@@ -38,20 +38,15 @@ class PoolProxy implements InvalidatesPool
     {
         $pool = $this->pool();
         $object = $pool->get();
+        $lease = new Lease($pool, $object, $this->releaseCallback);
 
         try {
             $this->configureBorrowed($object);
         } catch (Throwable $exception) {
-            try {
-                $pool->discard($object);
-            } catch (Throwable $discardException) {
-                PoolErrorReporter::report($discardException);
-            }
-
-            throw $exception;
+            $lease->discardAfterFailure($exception);
         }
 
-        return new Lease($pool, $object, $this->releaseCallback);
+        return $lease;
     }
 
     /**
@@ -64,13 +59,7 @@ class PoolProxy implements InvalidatesPool
         try {
             $result = $lease->get()->{$method}(...$arguments);
         } catch (Throwable $operationException) {
-            try {
-                $lease->release();
-            } catch (Throwable $finalizationException) {
-                PoolErrorReporter::report($finalizationException);
-            }
-
-            throw $operationException;
+            $lease->releaseAfterFailure($operationException);
         }
 
         $lease->release();

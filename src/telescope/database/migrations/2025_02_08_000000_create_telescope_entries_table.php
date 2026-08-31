@@ -34,7 +34,8 @@ return new class extends Migration {
 
             $table->unique('uuid');
             $table->index('batch_id');
-            $table->index('family_hash');
+            // Only grouped entries need to be found by their family hash.
+            $table->index('family_hash')->whereNotNull('family_hash');
             $table->index('created_at');
             $table->index(['type', 'should_display_on_index']);
         });

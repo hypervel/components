@@ -31,4 +31,31 @@ class DatabaseMySqlProcessorTest extends TestCase
 
         $this->assertEquals($expected, $processor->processColumns($listing));
     }
+
+    public function testProcessIndexesReportsFullIndexes(): void
+    {
+        $processor = new MySqlProcessor;
+
+        $this->assertSame([
+            [
+                'name' => 'users_active_index',
+                'columns' => ['account_id', 'archived_at'],
+                'type' => 'btree',
+                'unique' => false,
+                'primary' => false,
+                'partial' => false,
+            ],
+            [
+                'name' => 'primary',
+                'columns' => ['id'],
+                'type' => 'btree',
+                'unique' => true,
+                'primary' => true,
+                'partial' => false,
+            ],
+        ], $processor->processIndexes([
+            ['name' => 'Users_Active_Index', 'columns' => 'account_id,archived_at', 'type' => 'BTREE', 'unique' => false],
+            ['name' => 'PRIMARY', 'columns' => 'id', 'type' => 'BTREE', 'unique' => true],
+        ]));
+    }
 }

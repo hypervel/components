@@ -10,8 +10,11 @@ use Hypervel\Foundation\Exceptions\Renderer\Mappers\BladeMapper;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
+use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\Engines\CompilerEngine;
+use Mockery as m;
 use ReflectionMethod;
+use Swoole\Coroutine\CanceledException;
 
 use function Hypervel\Testbench\after_resolving;
 use function Hypervel\Testbench\package_path;
@@ -119,5 +122,21 @@ class RenderBladeFilesTest extends TestCase
                 37,
             ),
         );
+    }
+
+    public function testBladeMapperPreservesCancellationDuringSourceMapping(): void
+    {
+        $cancellation = new CanceledException('canceled');
+        $compiler = m::mock(BladeCompiler::class);
+        $compiler->shouldReceive('compileString')->once()->andThrow($cancellation);
+        $method = new ReflectionMethod(BladeMapper::class, 'compileSourcemap');
+
+        try {
+            $method->invoke(new BladeMapper($compiler), 'plain text');
+
+            $this->fail('The cancellation was not preserved.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 }

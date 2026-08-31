@@ -28,6 +28,7 @@
 - [Scaling](#scaling)
     - [Single-Instance Multi-Worker Scaling](#single-instance-multi-worker-scaling)
     - [Multi-Instance Redis Scaling](#multi-instance-redis-scaling)
+    - [Recovering Redis Shared State](#recovering-redis-shared-state)
 - [Events](#events)
 
 <a name="introduction"></a>
@@ -550,6 +551,25 @@ The `REVERB_SCALING_CONNECTION` option selects a named Redis connection from you
 The scaling connection may use a standalone Redis server or Redis Sentinel. Redis Cluster is not supported for Reverb pub / sub scaling because it cannot provide the exact subscriber count required to gather complete presence and channel information. Redis Cluster remains supported for webhook batching when Reverb scaling is disabled. Because Redis state survives application restarts, an unclean shutdown may require stale Reverb state to be cleared operationally.
 
 Once you have enabled Reverb's scaling option and configured Redis, you may run multiple Hypervel Reverb instances behind a load balancer that distributes incoming WebSocket connections evenly among the instances.
+
+<a name="recovering-redis-shared-state"></a>
+### Recovering Redis Shared State
+
+During a normal shutdown, Reverb removes the shared connection, subscription, and presence state owned by the stopping process. If a process or server stops before that cleanup completes, stale state may remain in Redis and affect connection limits or channel information.
+
+Before clearing this state, stop every Reverb node that uses the same Redis endpoint, logical database, and key prefix. You may then inspect the number of matching keys without deleting them:
+
+```shell
+php artisan reverb:clear-state --dry-run
+```
+
+To clear the state, run the command without `--dry-run` and confirm the operation. The `--force` option skips the confirmation prompt for an operator-controlled recovery script:
+
+```shell
+php artisan reverb:clear-state --force
+```
+
+The command also removes short-lived webhook throttle, deduplication, and disconnect-smoothing locks, which Reverb recreates as needed. It does not remove buffered webhook payloads. Start every stopped Reverb node after the command completes.
 
 <a name="events"></a>
 ## Events

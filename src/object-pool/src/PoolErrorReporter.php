@@ -6,6 +6,7 @@ namespace Hypervel\ObjectPool;
 
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 final class PoolErrorReporter
@@ -22,6 +23,10 @@ final class PoolErrorReporter
      */
     public static function report(Throwable $exception): void
     {
+        if ($exception instanceof CanceledException) {
+            return;
+        }
+
         try {
             $container = Container::getInstance();
 
@@ -30,6 +35,8 @@ final class PoolErrorReporter
 
                 return;
             }
+        } catch (CanceledException) {
+            return;
         } catch (Throwable) {
         }
 

@@ -456,7 +456,7 @@ use Hypervel\Container\Attributes\RouteParameter;
 use Hypervel\Container\Attributes\Tag;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Cache\Repository;
-use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionInterface;
 use Psr\Log\LoggerInterface;
 
 class PhotoController extends Controller
@@ -467,7 +467,7 @@ class PhotoController extends Controller
         #[Config('app.timezone')] protected string $timezone,
         #[Context('uuid')] protected string $uuid,
         #[Context('ulid', hidden: true)] protected string $ulid,
-        #[DB('mysql')] protected Connection $connection,
+        #[DB('mysql')] protected ConnectionInterface $connection,
         #[Give(DatabaseRepository::class)] protected UserRepository $users,
         #[Log('daily', name: 'photos')] protected LoggerInterface $log,
         #[RouteParameter] protected Photo $photo,
@@ -481,6 +481,10 @@ class PhotoController extends Controller
 The `RouteParameter` attribute resolves the route parameter matching the variable name. If needed, you may specify the route parameter name explicitly: `#[RouteParameter('photo')]`.
 
 Pass `memo: true` to `Cache` to inject a request-scoped memoized repository. The optional `name` argument on `Log` creates a named logger and is supported by Monolog-backed channels. Driver identifiers accepted by `Auth`, `Authenticated`, `Cache`, `Log`, and `Storage` may also be unit or backed enum cases; Hypervel uses the unit case name or backed value as the identifier.
+
+When an unbound class directly injects execution-specific state through `Authenticated`, `CurrentUser`, `Context`, `Database`, `RouteParameter`, or a memoized `Cache`, the container keeps that class scoped to the current request or job. Classes that implement `SelfBuilding` or `Transient` retain their own construction semantics instead. Explicit bindings and `#[Singleton]` or `#[Scoped]` attributes still control the class's lifetime.
+
+This scope belongs to the class that declares the contextual attribute; it is not copied through the dependency graph. If a longer-lived service retains a scoped dependency, make the service scoped as well or resolve the dependency when the operation runs.
 
 Furthermore, Hypervel provides `CurrentUser` and `Authenticated` attributes for injecting the currently authenticated user into a given route or class. `CurrentUser` requires that a user is authenticated; `Authenticated` returns `null` when no user is authenticated, which is useful for optional auth:
 
@@ -544,6 +548,8 @@ class Config implements ContextualAttribute
 ```
 
 The current `ReflectionParameter` is passed as the third argument, allowing custom attributes to inspect the parameter name or type when resolving a value.
+
+If a custom contextual attribute resolves request or job state, implement `Hypervel\Contracts\Container\ExecutionScopedAttribute` instead. Its `isExecutionScoped` method tells the container to keep an otherwise unbound consuming class within the current execution. The method may use the attribute's options when only some forms are execution-specific.
 
 <a name="binding-primitives"></a>
 ### Binding Primitives

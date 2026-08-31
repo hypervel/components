@@ -8,7 +8,6 @@ use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Events\ShouldDispatchAfterCommit;
-use Hypervel\Events\Dispatcher;
 use Hypervel\Events\QueuedClosure;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
@@ -26,7 +25,7 @@ class EventFake implements Fake, DispatcherContract
     /**
      * The original event dispatcher.
      */
-    public Dispatcher $dispatcher;
+    public DispatcherContract $dispatcher;
 
     /**
      * The event types that should be intercepted instead of dispatched.
@@ -46,7 +45,7 @@ class EventFake implements Fake, DispatcherContract
     /**
      * Create a new event fake instance.
      */
-    public function __construct(Dispatcher $dispatcher, array|string $eventsToFake = [])
+    public function __construct(DispatcherContract $dispatcher, array|string $eventsToFake = [])
     {
         $this->dispatcher = $dispatcher;
 
@@ -71,6 +70,7 @@ class EventFake implements Fake, DispatcherContract
      */
     public function assertListening(string $expectedEvent, array|string $expectedListener): void
     {
+        /* @phpstan-ignore method.notFound (Laravel's dispatcher contract omits its listener-introspection seam) */
         foreach ($this->dispatcher->getListeners($expectedEvent) as $listenerClosure) {
             $actualListener = (new ReflectionFunction($listenerClosure))
                 ->getStaticVariables()['listener'];

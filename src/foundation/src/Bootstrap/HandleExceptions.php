@@ -13,6 +13,7 @@ use Hypervel\Support\Env;
 use Monolog\Handler\NullHandler;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Runner\ErrorHandler;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\ErrorHandler\Error\FatalError;
 use Throwable;
@@ -80,7 +81,12 @@ class HandleExceptions
 
         try {
             $logger = static::$app->make(LogManager::class);
-        } catch (Exception) {
+        } catch (Exception $exception) {
+            // Cancellation is injected asynchronously, so a dedicated catch analyzes as unreachable here.
+            if ($exception instanceof CanceledException) {
+                throw $exception;
+            }
+
             return;
         }
 

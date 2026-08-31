@@ -13,7 +13,6 @@ use Hypervel\Telescope\Watchers\EventWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Telescope\FeatureTestCase;
-use JsonException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use Telescope\Dummies\DummyEvent;
@@ -245,19 +244,30 @@ class EventWatcherTest extends FeatureTestCase
 
         $this->assertSame(EntryType::EVENT, $entry->type);
         $this->assertSame('custom-event', $entry->content['name']);
-        $this->assertSame('Purged By Telescope', $entry->content['payload']);
+        $this->assertSame(Telescope::PURGED_VALUE, $entry->content['payload']);
         $this->assertSame([], $entry->content['listeners']);
     }
 
-    public function testUnencodablePlainObjectPayloadRaisesTheNativeJsonException(): void
+    public function testPlainObjectPayloadUsesPartialOutputAndInvalidUtf8Substitution(): void
     {
-        $this->expectException(JsonException::class);
-
-        (new ReflectionMethod(EventWatcher::class, 'extractPayload'))->invoke(
+        $payload = (new ReflectionMethod(EventWatcher::class, 'extractPayload'))->invoke(
             $this->app->make(EventWatcher::class),
             'custom-event',
-            [(object) ['value' => NAN]],
+            [(object) ['number' => NAN, 'text' => "invalid\xB1"]],
         );
+
+        $this->assertSame(['number' => 0, 'text' => 'invalid�'], $payload[0]['properties']);
+    }
+
+    public function testPlainObjectPayloadBeyondTheJsonNestingLimitIsPurged(): void
+    {
+        $payload = (new ReflectionMethod(EventWatcher::class, 'extractPayload'))->invoke(
+            $this->app->make(EventWatcher::class),
+            'custom-event',
+            [(object) ['nested' => $this->nestedValue(513)]],
+        );
+
+        $this->assertSame(Telescope::PURGED_VALUE, $payload[0]['properties']);
     }
 
     private function nestedValue(int $depth): array

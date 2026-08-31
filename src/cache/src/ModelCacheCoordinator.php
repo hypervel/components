@@ -100,9 +100,9 @@ class ModelCacheCoordinator
     /**
      * Invalidate an exact shared model cache entry.
      */
-    public function invalidate(CacheRepository $cache, string $key): void
+    public function invalidate(CacheRepository $cache, string $key): bool
     {
-        $this->lock($cache, $key)
+        return (bool) $this->lock($cache, $key)
             ->betweenBlockedAttemptsSleepFor(self::INVALIDATION_RETRY_MILLISECONDS)
             ->block(
                 self::INVALIDATION_WAIT_SECONDS,
@@ -142,20 +142,30 @@ class ModelCacheCoordinator
     private function lock(CacheRepository $cache, string $key): RefreshableLock
     {
         $store = $cache->getStore();
+        $validatedStore = $store instanceof MemoizedStore
+            ? $store->getInnerStore()
+            : $store;
 
-        if (! $store instanceof LockProvider) {
+        if ($validatedStore instanceof StackStore || $validatedStore instanceof FailoverStore) {
             throw new UnsupportedModelCacheStoreException(sprintf(
-                'Model caching does not support cache store [%s] because it does not provide atomic locks.',
-                $store::class,
+                'Model caching does not support cache store [%s] because stack and failover stores cannot guarantee that cached values and locks use the same backend.',
+                $validatedStore::class,
             ));
         }
 
-        $lock = $store->lock($this->lockKey($key), self::FILL_LOCK_SECONDS);
+        if (! $validatedStore instanceof LockProvider) {
+            throw new UnsupportedModelCacheStoreException(sprintf(
+                'Model caching does not support cache store [%s] because it does not provide atomic locks.',
+                $validatedStore::class,
+            ));
+        }
+
+        $lock = $validatedStore->lock($this->lockKey($key), self::FILL_LOCK_SECONDS);
 
         if (! $lock instanceof RefreshableLock) {
             throw new UnsupportedModelCacheStoreException(sprintf(
                 'Model caching does not support cache store [%s] because it does not provide refreshable atomic locks.',
-                $store::class,
+                $validatedStore::class,
             ));
         }
 

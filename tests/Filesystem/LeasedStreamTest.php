@@ -16,6 +16,8 @@ use InvalidArgumentException;
 use Mockery as m;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class LeasedStreamTest extends TestCase
 {
@@ -199,6 +201,23 @@ PHP);
         $this->assertStringContainsString('already registered by other code', $result['message']);
     }
 
+    public function testReleaseCancellationSupersedesAWrapperConstructionFailure(): void
+    {
+        $result = $this->runFailureProbe(
+            'stream_wrapper_register(LeasedStream::PROTOCOL, ForeignLeasedStreamWrapper::class);',
+            releaseCallback: <<<'PHP'
+static function (): never {
+    throw new \Swoole\Coroutine\CanceledException('release canceled');
+}
+PHP,
+        );
+
+        $this->assertTrue($result['resource_closed']);
+        $this->assertSame(0, $result['borrowed']);
+        $this->assertSame(CanceledException::class, $result['class']);
+        $this->assertSame('release canceled', $result['message']);
+    }
+
     public function testRegistrationFailureClosesResourceAndFinalizesLeaseTransactionally(): void
     {
         $result = $this->runFailureProbe('', <<<'PHP'
@@ -234,10 +253,13 @@ PHP);
     }
 
     /**
-     * @return array{resource_closed: bool, borrowed: int, idle: int, message: string}
+     * @return array{resource_closed: bool, borrowed: int, idle: int, class: class-string<Throwable>, message: string}
      */
-    private function runFailureProbe(string $setup, string $namespaceFunctions = ''): array
-    {
+    private function runFailureProbe(
+        string $setup,
+        string $namespaceFunctions = '',
+        string $releaseCallback = 'null',
+    ): array {
         $autoload = var_export(realpath(__DIR__ . '/../../vendor/autoload.php'), true);
         $code = $namespaceFunctions . <<<'PHP'
 
@@ -261,14 +283,16 @@ namespace {
         static fn (): object => new stdClass,
         PoolOptions::fromArray([]),
     );
-    $lease = new Lease($pool, $pool->get());
+    $lease = new Lease($pool, $pool->get(), __RELEASE_CALLBACK__);
     $resource = \fopen('php://temp', 'r+');
     __SETUP__
+    $class = RuntimeException::class;
     $message = '';
 
     try {
         LeasedStream::wrap($resource, $lease);
     } catch (Throwable $exception) {
+        $class = $exception::class;
         $message = $exception->getMessage();
     }
 
@@ -276,11 +300,16 @@ namespace {
         'resource_closed' => ! is_resource($resource),
         'borrowed' => $pool->getBorrowedObjectNumber(),
         'idle' => $pool->getObjectNumberInPool(),
+        'class' => $class,
         'message' => $message,
     ], JSON_THROW_ON_ERROR);
 }
 PHP;
-        $code = str_replace(['__AUTOLOAD__', '__SETUP__'], [$autoload, $setup], $code);
+        $code = str_replace(
+            ['__AUTOLOAD__', '__RELEASE_CALLBACK__', '__SETUP__'],
+            [$autoload, $releaseCallback, $setup],
+            $code,
+        );
         $process = proc_open(
             [PHP_BINARY, '-d', 'display_errors=stderr', '-r', $code],
             [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],

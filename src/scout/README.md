@@ -9,7 +9,8 @@ Differences From Laravel
 ---
 
 - Algolia 4 is the only supported Algolia client.
-- Queue mode supports dedicated connection and queue selection; nonqueued indexing runs after the response in a coroutine.
+- Numeric values passed to Algolia `where`, `whereIn`, and `whereNotIn` compile as numeric comparisons; numeric-looking strings remain facet values.
+- Queue mode supports dedicated connection and queue selection; nonqueued indexing is deferred until after HTTP responses and runs immediately without an active request.
 - Command imports use bounded coroutine concurrency.
 - Meilisearch requests use bounded retries and sign tenant tokens from an explicit parent-key UID and secret.
 - Destructive index deletion requires the configured Scout prefix.

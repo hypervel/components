@@ -11,6 +11,7 @@ use Google\Cloud\Storage\StorageClient as GcsClient;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Filesystem\AwsS3V3Adapter;
 use Hypervel\Filesystem\ClientPooledFilesystem;
@@ -19,6 +20,7 @@ use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Filesystem\FilesystemPoolProxy;
 use Hypervel\Filesystem\GoogleCloudStorageAdapter;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
+use Hypervel\ObjectPool\PoolFingerprint;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
@@ -30,6 +32,7 @@ use League\Flysystem\Local\LocalFilesystemAdapter;
 use League\Flysystem\PathPrefixing\PathPrefixedAdapter;
 use League\Flysystem\ReadOnly\ReadOnlyFilesystemAdapter;
 use League\Flysystem\UnableToReadFile;
+use League\Flysystem\UnableToWriteFile;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use ReflectionProperty;
@@ -173,7 +176,7 @@ class FilesystemManagerTest extends TestCase
         }
     }
 
-    public function testScopedLocalDiskUsesItsOuterNameForSignedUrls(): void
+    public function testScopedLocalDiskUsesItsNearestServedRouteForSignedUrls(): void
     {
         $container = $this->getContainer([
             'disks' => [
@@ -186,6 +189,217 @@ class FilesystemManagerTest extends TestCase
                     'driver' => 'scoped',
                     'disk' => 'local',
                     'prefix' => 'tenant',
+                ],
+            ],
+        ]);
+        $expiration = new DateTimeImmutable('+5 minutes');
+        $url = m::mock();
+        $url->shouldReceive('temporarySignedRoute')
+            ->once()
+            ->with('storage.local', $expiration, ['path' => 'tenant/file.txt'], false)
+            ->andReturn('/signed/file.txt');
+        $url->shouldReceive('to')
+            ->once()
+            ->with('/signed/file.txt')
+            ->andReturn('https://example.test/signed/file.txt');
+        $container->instance('url', $url);
+
+        $filesystem = new FilesystemManager($container);
+
+        $this->assertSame(
+            'https://example.test/signed/file.txt',
+            $filesystem->disk('uploads')->temporaryUrl('file.txt', $expiration),
+        );
+    }
+
+    public function testNestedScopedLocalDiskUsesOriginalRoutePrefixes(): void
+    {
+        $container = $this->getContainer([
+            'disks' => [
+                'local' => [
+                    'driver' => 'local',
+                    'root' => $this->tempDir . '/nested-signed-scoped',
+                    'prefix' => 'root',
+                    'serve' => true,
+                ],
+                'tenant' => [
+                    'driver' => 'scoped',
+                    'disk' => 'local',
+                    'prefix' => 'tenant',
+                ],
+                'documents' => [
+                    'driver' => 'scoped',
+                    'disk' => 'tenant',
+                    'prefix' => 'documents',
+                ],
+            ],
+        ]);
+        $expiration = new DateTimeImmutable('+5 minutes');
+        $url = m::mock();
+        $url->shouldReceive('temporarySignedRoute')
+            ->once()
+            ->with('storage.local', $expiration, ['path' => 'tenant/documents/file.txt'], false)
+            ->andReturn('/signed/file.txt');
+        $url->shouldReceive('to')
+            ->once()
+            ->with('/signed/file.txt')
+            ->andReturn('https://example.test/signed/file.txt');
+        $container->instance('url', $url);
+        $filesystem = new FilesystemManager($container);
+        $disk = $filesystem->disk('documents');
+
+        $this->assertSame('root/tenant/documents', $disk->getConfig()['prefix']);
+        $this->assertSame(
+            'https://example.test/signed/file.txt',
+            $disk->temporaryUrl('file.txt', $expiration),
+        );
+    }
+
+    public function testNestedScopedDiskComposesStoragePrefixesWithTheBaseSeparatorOnce(): void
+    {
+        $container = $this->getContainer([
+            'disks' => [
+                'local' => [
+                    'driver' => 'local',
+                    'root' => $this->tempDir . '/nested-scoped-separator',
+                    'prefix' => 'root',
+                    'directory_separator' => '\\',
+                ],
+                'tenant' => [
+                    'driver' => 'scoped',
+                    'disk' => 'local',
+                    'prefix' => 'tenant',
+                ],
+                'documents' => [
+                    'driver' => 'scoped',
+                    'disk' => 'tenant',
+                    'prefix' => 'documents',
+                ],
+            ],
+        ]);
+
+        $disk = (new FilesystemManager($container))->disk('documents');
+
+        $this->assertSame('root\tenant\documents', $disk->getConfig()['prefix']);
+    }
+
+    public function testAnonymousScopedDiskCanUseANamedServedAncestorRoute(): void
+    {
+        $container = $this->getContainer([
+            'disks' => [
+                'local' => [
+                    'driver' => 'local',
+                    'root' => $this->tempDir . '/anonymous-signed-scoped',
+                    'serve' => true,
+                ],
+            ],
+        ]);
+        $expiration = new DateTimeImmutable('+5 minutes');
+        $url = m::mock();
+        $url->shouldReceive('temporarySignedRoute')
+            ->once()
+            ->with('storage.local', $expiration, ['path' => 'tenant/file.txt'], false)
+            ->andReturn('/signed/file.txt');
+        $url->shouldReceive('to')
+            ->once()
+            ->with('/signed/file.txt')
+            ->andReturn('https://example.test/signed/file.txt');
+        $container->instance('url', $url);
+        $filesystem = new FilesystemManager($container);
+        $disk = $filesystem->build([
+            'driver' => 'scoped',
+            'disk' => 'local',
+            'prefix' => 'tenant',
+        ]);
+
+        $this->assertSame(
+            'https://example.test/signed/file.txt',
+            $disk->temporaryUrl('file.txt', $expiration),
+        );
+    }
+
+    public function testScopedDiskPreservesViewBehaviorAndPoolOverrides(): void
+    {
+        $container = $this->getContainer([
+            'disks' => [
+                'local' => [
+                    'driver' => 'local',
+                    'root' => $this->tempDir . '/scoped-overrides',
+                    'visibility' => 'public',
+                    'throw' => true,
+                    'report' => false,
+                ],
+                'archive' => [
+                    'driver' => 'scoped',
+                    'disk' => 'local',
+                    'prefix' => 'archive',
+                    'visibility' => 'private',
+                    'throw' => false,
+                    'report' => true,
+                    'read-only' => true,
+                    'pool' => [
+                        'fingerprint' => 'archive-view',
+                        'max_objects' => 3,
+                    ],
+                ],
+            ],
+        ]);
+        Container::setInstance($container);
+        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler->shouldReceive('report')->once()->with(m::type(UnableToWriteFile::class));
+        $container->instance(ExceptionHandler::class, $exceptionHandler);
+        $filesystem = (new FilesystemManager($container))->addPoolable('local');
+        $disk = $filesystem->disk('archive');
+
+        $this->assertInstanceOf(FilesystemPoolProxy::class, $disk);
+        $this->assertSame('private', $disk->getConfig()['visibility']);
+        $this->assertFalse($disk->getConfig()['throw']);
+        $this->assertTrue($disk->getConfig()['report']);
+        $this->assertTrue($disk->getConfig()['read-only']);
+        $this->assertSame(PoolFingerprint::fromExplicit('archive-view'), $disk->getDefinition()->fingerprint);
+        $this->assertSame(3, $disk->getDefinition()->options->maxObjects);
+        $this->assertFalse($disk->put('file.txt', 'contents'));
+    }
+
+    public function testDisksDoNotExposePoolConstructionMetadata(): void
+    {
+        $manager = (new FilesystemManager($this->getContainer()))->addPoolable('local');
+        $direct = (new FilesystemManager($this->getContainer()))->build([
+            'driver' => 'local',
+            'root' => $this->tempDir . '/unpooled-local',
+            'pool' => ['max_objects' => 2],
+        ]);
+        $wholeDriverPooled = $manager->build([
+            'driver' => 'local',
+            'root' => $this->tempDir . '/pooled-local',
+            'pool' => ['max_objects' => 2],
+        ]);
+        $clientPooled = $manager->build([
+            ...$this->s3Config('pooled-cloud'),
+            'pool' => ['max_objects' => 2],
+        ]);
+
+        $this->assertInstanceOf(FilesystemPoolProxy::class, $wholeDriverPooled);
+        $this->assertInstanceOf(ClientPooledFilesystem::class, $clientPooled);
+        $this->assertArrayNotHasKey('pool', $direct->getConfig());
+        $this->assertArrayNotHasKey('pool', $wholeDriverPooled->getConfig());
+        $this->assertArrayNotHasKey('pool', $clientPooled->getConfig());
+    }
+
+    public function testServedOuterScopedDiskUsesItsOwnRouteWithoutAPathPrefix(): void
+    {
+        $container = $this->getContainer([
+            'disks' => [
+                'local' => [
+                    'driver' => 'local',
+                    'root' => $this->tempDir . '/served-outer-scoped',
+                    'serve' => true,
+                ],
+                'uploads' => [
+                    'driver' => 'scoped',
+                    'disk' => 'local',
+                    'prefix' => 'tenant',
+                    'serve' => true,
                 ],
             ],
         ]);
@@ -206,6 +420,51 @@ class FilesystemManagerTest extends TestCase
         $this->assertSame(
             'https://example.test/signed/file.txt',
             $filesystem->disk('uploads')->temporaryUrl('file.txt', $expiration),
+        );
+    }
+
+    public function testAnonymousServedLocalDiskCannotClaimAConfiguredRoute(): void
+    {
+        $filesystem = new FilesystemManager($this->getContainer());
+        $disk = $filesystem->build([
+            'driver' => 'local',
+            'root' => $this->tempDir . '/anonymous-served',
+            'serve' => true,
+        ]);
+
+        $this->assertFalse($disk->providesTemporaryUrls());
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('This disk does not have a registered file-serving route.');
+
+        $disk->temporaryUrl('file.txt', new DateTimeImmutable('+5 minutes'));
+    }
+
+    public function testNamedOnDemandLocalDiskUsesTheMatchingConfiguredRoute(): void
+    {
+        $config = [
+            'driver' => 'local',
+            'root' => $this->tempDir . '/named-on-demand-served',
+            'serve' => true,
+        ];
+        $container = $this->getContainer(['disks' => ['public' => $config]]);
+        $expiration = new DateTimeImmutable('+5 minutes');
+        $url = m::mock();
+        $url->shouldReceive('temporarySignedRoute')
+            ->once()
+            ->with('storage.public', $expiration, ['path' => 'file.txt'], false)
+            ->andReturn('/signed/file.txt');
+        $url->shouldReceive('to')
+            ->once()
+            ->with('/signed/file.txt')
+            ->andReturn('https://example.test/signed/file.txt');
+        $container->instance('url', $url);
+
+        $disk = (new FilesystemManager($container))->build($config, 'public');
+
+        $this->assertSame(
+            'https://example.test/signed/file.txt',
+            $disk->temporaryUrl('file.txt', $expiration),
         );
     }
 
@@ -546,6 +805,34 @@ class FilesystemManagerTest extends TestCase
         }
     }
 
+    public function testScopedClientPoolOptionsMustMatchTheBaseDisk(): void
+    {
+        $baseConfig = $this->s3Config('documents');
+        $baseConfig['pool'] = ['max_objects' => 1];
+        $container = $this->getContainer([
+            'disks' => [
+                'cloud' => $baseConfig,
+                'archive' => [
+                    'driver' => 'scoped',
+                    'disk' => 'cloud',
+                    'prefix' => 'archive',
+                    'pool' => ['max_objects' => 2],
+                ],
+            ],
+        ]);
+        Container::setInstance($container);
+        $manager = new FilesystemManager($container);
+        $manager->disk('cloud')->withClient(static fn (object $client): object => $client);
+
+        try {
+            $manager->disk('archive')->withClient(static fn (object $client): object => $client);
+            $this->fail('Expected conflicting scoped client pool options to be rejected.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('different options', $exception->getMessage());
+            $this->assertStringContainsString('max_objects', $exception->getMessage());
+        }
+    }
+
     public function testForgetDiskDropsOnlyTheWrapperAndPreservesTheSharedPool(): void
     {
         $container = $this->getContainer([
@@ -789,9 +1076,23 @@ class FilesystemManagerTest extends TestCase
         $manager->disk('first');
     }
 
-    public function testScopedDiskConfigurationTypesAreValidatedBeforeExpansion(): void
+    public function testScopedDiskConfigurationIsValidatedBeforeExpansion(): void
     {
         $cases = [
+            'missing disk' => [
+                [
+                    'driver' => 'scoped',
+                    'prefix' => 'tenant',
+                ],
+                'Scoped disk is missing "disk" configuration option.',
+            ],
+            'missing prefix' => [
+                [
+                    'driver' => 'scoped',
+                    'disk' => 'local',
+                ],
+                'Scoped disk is missing "prefix" configuration option.',
+            ],
             'disk' => [
                 [
                     'driver' => 'scoped',
@@ -811,6 +1112,14 @@ class FilesystemManagerTest extends TestCase
                 ],
                 'Scoped disk "prefix" configuration option must be a string.',
             ],
+            'missing named parent' => [
+                [
+                    'driver' => 'scoped',
+                    'disk' => 'missing-parent',
+                    'prefix' => 'tenant',
+                ],
+                'Disk [missing-parent] does not have a configured driver.',
+            ],
         ];
 
         foreach ($cases as $name => [$config, $message]) {
@@ -820,6 +1129,34 @@ class FilesystemManagerTest extends TestCase
             } catch (InvalidArgumentException $exception) {
                 $this->assertSame($message, $exception->getMessage());
             }
+        }
+    }
+
+    public function testScopedInlineBaseWithoutADriverNamesTheRequestingDisk(): void
+    {
+        $config = [
+            'driver' => 'scoped',
+            'disk' => ['root' => $this->tempDir],
+            'prefix' => 'tenant',
+        ];
+        $cases = [
+            'Disk [ondemand] does not have a configured driver.' => fn () => (new FilesystemManager($this->getContainer()))->build($config),
+            'Disk [named-child] does not have a configured driver.' => fn () => (new FilesystemManager($this->getContainer([
+                'disks' => ['named-child' => $config],
+            ])))->disk('named-child'),
+        ];
+
+        foreach ($cases as $expectedMessage => $operation) {
+            $failure = null;
+
+            try {
+                $operation();
+            } catch (InvalidArgumentException $exception) {
+                $failure = $exception;
+            }
+
+            $this->assertInstanceOf(InvalidArgumentException::class, $failure);
+            $this->assertSame($expectedMessage, $failure->getMessage());
         }
     }
 
@@ -917,21 +1254,150 @@ class FilesystemManagerTest extends TestCase
         $config = [
             'driver' => 'local',
             'root' => $this->tempDir . '/shared-root',
+            'serve' => true,
         ];
         $container = $this->getContainer([
             'disks' => [
                 'first' => $config,
                 'second' => $config,
+                'ondemand' => $config,
             ],
         ]);
         $manager = (new FilesystemManager($container))->addPoolable('local');
 
         $first = $manager->disk('first');
         $second = $manager->disk('second');
+        $configuredOndemand = $manager->disk('ondemand');
+        $anonymous = $manager->build($config);
 
         $this->assertInstanceOf(FilesystemPoolProxy::class, $first);
         $this->assertInstanceOf(FilesystemPoolProxy::class, $second);
         $this->assertNotSame($first->getPoolName(), $second->getPoolName());
+        $this->assertNotSame($configuredOndemand->getPoolName(), $anonymous->getPoolName());
+    }
+
+    public function testWholeDriverPoolsIncludeRouteOwnershipNotImpliedByEffectiveConfiguration(): void
+    {
+        $base = [
+            'driver' => 'local',
+            'root' => $this->tempDir . '/scoped-serving-pools',
+            'serve' => true,
+            'url' => '/served-files',
+        ];
+        $container = $this->getContainer([
+            'disks' => [
+                'served' => $base,
+            ],
+        ]);
+        $manager = (new FilesystemManager($container))->addPoolable('local');
+        $inlineParent = $manager->build([
+            'driver' => 'scoped',
+            'disk' => $base,
+            'prefix' => 'tenant',
+        ], 'tenant-files');
+        $namedParent = $manager->build([
+            'driver' => 'scoped',
+            'disk' => 'served',
+            'prefix' => 'tenant',
+        ], 'tenant-files');
+
+        $this->assertInstanceOf(FilesystemPoolProxy::class, $inlineParent);
+        $this->assertInstanceOf(FilesystemPoolProxy::class, $namedParent);
+        $this->assertSame($inlineParent->getConfig(), $namedParent->getConfig());
+        $this->assertNotSame($inlineParent->getPoolName(), $namedParent->getPoolName());
+    }
+
+    public function testWholeDriverPoolsDistinguishAnonymousServingIntent(): void
+    {
+        $config = [
+            'driver' => 'local',
+            'root' => $this->tempDir . '/anonymous-serving-pools',
+        ];
+        $manager = (new FilesystemManager($this->getContainer()))->addPoolable('local');
+        $unserved = $manager->build($config);
+        $served = $manager->build([...$config, 'serve' => true]);
+
+        $this->assertInstanceOf(FilesystemPoolProxy::class, $unserved);
+        $this->assertInstanceOf(FilesystemPoolProxy::class, $served);
+        $this->assertNotSame($unserved->getPoolName(), $served->getPoolName());
+    }
+
+    public function testCustomS3AndGcsCreatorsUseWholeDriverPoolIdentity(): void
+    {
+        $root = $this->tempDir . '/custom-cloud';
+        $container = $this->getContainer([
+            'disks' => [
+                's3-first' => [
+                    'driver' => 's3',
+                    'root' => $root,
+                    'bucket' => 'first',
+                    'region' => 'us-east-1',
+                ],
+                's3-second' => [
+                    'driver' => 's3',
+                    'root' => $root,
+                    'bucket' => 'second',
+                    'region' => 'us-east-1',
+                ],
+                'gcs-first' => [
+                    'driver' => 'gcs',
+                    'root' => 'first',
+                    'bucket' => 'shared',
+                    'project_id' => 'project',
+                ],
+                'gcs-second' => [
+                    'driver' => 'gcs',
+                    'root' => 'second',
+                    'bucket' => 'shared',
+                    'project_id' => 'project',
+                ],
+            ],
+        ]);
+        $manager = new FilesystemManager($container);
+        $creator = static function (Container $app, array $config): FilesystemAdapter {
+            $adapter = new LocalFilesystemAdapter($config['root']);
+
+            return new FilesystemAdapter(new Flysystem($adapter), $adapter, $config);
+        };
+        $manager->extend('s3', $creator, poolable: true);
+        $manager->extend('gcs', $creator, poolable: true);
+
+        $this->assertNotSame(
+            $manager->disk('s3-first')->getPoolName(),
+            $manager->disk('s3-second')->getPoolName(),
+        );
+        $this->assertNotSame(
+            $manager->disk('gcs-first')->getPoolName(),
+            $manager->disk('gcs-second')->getPoolName(),
+        );
+    }
+
+    public function testExplicitFingerprintOverridesWholeDriverConstructionIdentity(): void
+    {
+        $first = [
+            'driver' => 'custom',
+            'root' => $this->tempDir . '/explicit-first',
+            'pool' => ['fingerprint' => 'shared-construction'],
+        ];
+        $second = [
+            'driver' => 'custom',
+            'root' => $this->tempDir . '/explicit-second',
+            'pool' => ['fingerprint' => 'shared-construction'],
+        ];
+        $container = $this->getContainer([
+            'disks' => ['first' => $first, 'second' => $second],
+        ]);
+        $manager = new FilesystemManager($container);
+        $manager->extend('custom', static function (Container $app, array $config): FilesystemAdapter {
+            $adapter = new LocalFilesystemAdapter($config['root']);
+
+            return new FilesystemAdapter(new Flysystem($adapter), $adapter, $config);
+        }, poolable: true);
+
+        $this->assertSame(
+            $manager->disk('first')->getPoolName(),
+            $manager->disk('second')->getPoolName(),
+        );
     }
 
     public function testScopedS3BuildsShareTheParentClientPoolWithoutCollisions(): void

@@ -43,6 +43,7 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Uri;
 use League\Uri\Contracts\UriInterface;
 use Psr\Log\LoggerInterface;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -755,6 +756,8 @@ if (! function_exists('rescue')) {
     {
         try {
             return $callback();
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $e) {
             if (value($report, $e)) {
                 report($e);
@@ -970,6 +973,10 @@ if (! function_exists('uri')) {
      */
     function uri(UriInterface|\Stringable|array|string $uri, mixed $parameters = [], bool $absolute = true): Uri
     {
+        if (! is_array($uri)) {
+            $uri = (string) $uri;
+        }
+
         return match (true) {
             is_array($uri) || str_contains($uri, '\\') => Uri::action($uri, $parameters, $absolute),
             str_contains($uri, '.') && Route::has($uri) => Uri::route($uri, $parameters, $absolute),

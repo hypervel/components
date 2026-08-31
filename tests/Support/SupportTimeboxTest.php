@@ -8,6 +8,7 @@ use Exception;
 use Hypervel\Support\Timebox;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use Swoole\Coroutine\CanceledException;
 
 class SupportTimeboxTest extends TestCase
 {
@@ -81,6 +82,22 @@ class SupportTimeboxTest extends TestCase
                 $timebox->returnEarly();
                 throw new Exception('Exception within Timebox callback.');
             }, 10000);
+        } finally {
+            $mock->shouldNotHaveReceived('usleep');
+        }
+    }
+
+    public function testMakeDoesNotPadCancellationFromCallback(): void
+    {
+        $cancellation = new CanceledException('canceled');
+        $mock = m::spy(Timebox::class)->shouldAllowMockingProtectedMethods()->makePartial();
+
+        try {
+            $mock->call(fn () => throw $cancellation, 10000);
+
+            $this->fail('The cancellation was not preserved.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
         } finally {
             $mock->shouldNotHaveReceived('usleep');
         }

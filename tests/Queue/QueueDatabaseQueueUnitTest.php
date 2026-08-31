@@ -14,6 +14,8 @@ use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\DatabaseQueue;
@@ -32,6 +34,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
 use TypeError;
 
 class QueueDatabaseQueueUnitTest extends TestCase
@@ -426,6 +429,49 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertSame($exception, $events[3]->exception);
     }
 
+    public function testBulkCancellationDoesNotRaiseFailureEvents(): void
+    {
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver = m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+        $dispatcher = new Dispatcher($container = new Container);
+        $container->instance('events', $dispatcher);
+        $queue->setContainer($container);
+        $queue->setConnectionName('database');
+
+        $connection = m::mock(ConnectionInterface::class);
+        $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
+        $resolver->shouldReceive('connection')->with(null)->andReturn($connection)->once();
+        $gate = $this->armCurrentCoroutineCancellation();
+        $query->shouldReceive('insert')->once()->andReturnUsing(static function () use ($gate): never {
+            $gate->push(true);
+
+            throw new RuntimeException('Cancellation was not delivered.');
+        });
+
+        $events = [];
+        $dispatcher->listen(JobQueueing::class, static function (JobQueueing $event) use (&$events): void {
+            $events[] = $event;
+        });
+        $dispatcher->listen(JobQueueingFailed::class, static function (JobQueueingFailed $event) use (&$events): void {
+            $events[] = $event;
+        });
+
+        try {
+            $queue->bulk(['first', 'second'], queue: 'emails');
+            $this->fail('Expected cancellation to escape the bulk insert.');
+        } catch (CanceledException) {
+            $this->assertSame([
+                JobQueueing::class,
+                JobQueueing::class,
+            ], array_map(static fn (object $event): string => $event::class, $events));
+        }
+    }
+
     public function testBulkSplitsImmediateAndAfterCommitJobsAndReacquiresTheQueue(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(1732502704));
@@ -721,6 +767,22 @@ class QueueDatabaseQueueUnitTest extends TestCase
             ),
             $query,
         ];
+    }
+
+    /**
+     * Arm exact cancellation of the current coroutine at a controlled channel handoff.
+     */
+    private function armCurrentCoroutineCancellation(): Channel
+    {
+        $gate = new Channel(1);
+        $coroutineId = EngineCoroutine::id();
+
+        EngineCoroutine::create(static function () use ($coroutineId, $gate): void {
+            $gate->pop();
+            EngineCoroutine::cancelById($coroutineId, throwException: true);
+        });
+
+        return $gate;
     }
 
     private function inspectionRecord(

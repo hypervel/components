@@ -183,6 +183,77 @@ class DatabaseConnectionFactoryTest extends TestCase
         $this->assertArrayNotHasKey('write', $config);
     }
 
+    public function testReadAndWriteConfigsParseTheirNestedUrls(): void
+    {
+        $factory = new FactoryTestConnectionFactory(new Container);
+        $config = [
+            'driver' => 'mysql',
+            'name' => 'mysql',
+            'database' => 'primary_database',
+            'host' => 'primary-host',
+            'username' => 'primary',
+            'password' => '',
+            'prefix' => 'app_',
+            'read' => [
+                'url' => 'mysql://reader:read-secret@read-host/read_database?strict=true',
+            ],
+            'write' => [
+                'url' => 'mysql://writer:write-secret@write-host/write_database?charset=utf8mb4',
+            ],
+        ];
+
+        $readConfig = $factory->readConfig($config);
+        $writeConfig = $factory->writeConfig($config);
+
+        $this->assertSame('read_database', $readConfig['database']);
+        $this->assertSame('read-host', $readConfig['host']);
+        $this->assertSame('reader', $readConfig['username']);
+        $this->assertSame('read-secret', $readConfig['password']);
+        $this->assertTrue($readConfig['strict']);
+        $this->assertSame('write_database', $writeConfig['database']);
+        $this->assertSame('write-host', $writeConfig['host']);
+        $this->assertSame('writer', $writeConfig['username']);
+        $this->assertSame('write-secret', $writeConfig['password']);
+        $this->assertSame('utf8mb4', $writeConfig['charset']);
+
+        foreach ([$readConfig, $writeConfig] as $endpointConfig) {
+            $this->assertSame('mysql', $endpointConfig['name']);
+            $this->assertSame('app_', $endpointConfig['prefix']);
+            $this->assertArrayNotHasKey('url', $endpointConfig);
+            $this->assertArrayNotHasKey('read', $endpointConfig);
+            $this->assertArrayNotHasKey('write', $endpointConfig);
+        }
+    }
+
+    public function testEndpointConfigsPreserveInheritedValuesForPartialOverrides(): void
+    {
+        $factory = new FactoryTestConnectionFactory(new Container);
+        $config = [
+            'driver' => 'mysql',
+            'name' => 'mysql',
+            'database' => 'primary_database',
+            'host' => 'primary-host',
+            'username' => 'primary',
+            'password' => 'secret',
+            'prefix' => 'app_',
+            'read' => ['host' => 'read-host'],
+            'write' => ['host' => 'write-host'],
+        ];
+
+        $readConfig = $factory->readConfig($config);
+        $writeConfig = $factory->writeConfig($config);
+
+        $this->assertSame('read-host', $readConfig['host']);
+        $this->assertSame('write-host', $writeConfig['host']);
+
+        foreach ([$readConfig, $writeConfig] as $endpointConfig) {
+            $this->assertSame('primary_database', $endpointConfig['database']);
+            $this->assertSame('primary', $endpointConfig['username']);
+            $this->assertSame('secret', $endpointConfig['password']);
+            $this->assertSame('app_', $endpointConfig['prefix']);
+        }
+    }
+
     public function testConfigForReadTreatsEmptyReadConfigAsBaseConfigWithReadRole(): void
     {
         $factory = new ConnectionFactory(new Container);
@@ -536,6 +607,31 @@ class DatabaseConnectionFactoryTest extends TestCase
 
 class FactorySqliteConnection extends SQLiteConnection
 {
+}
+
+class FactoryTestConnectionFactory extends ConnectionFactory
+{
+    /**
+     * Get the read connection configuration.
+     *
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>
+     */
+    public function readConfig(array $config): array
+    {
+        return $this->getReadConfig($config);
+    }
+
+    /**
+     * Get the write connection configuration.
+     *
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>
+     */
+    public function writeConfig(array $config): array
+    {
+        return $this->getWriteConfig($config);
+    }
 }
 
 class FactoryNonPdoConnection extends Connection

@@ -42,6 +42,7 @@ use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\ReflectsClosures;
 use ReflectionClass;
 use ReflectionException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -235,10 +236,10 @@ class Dispatcher implements DispatcherContract
      * the worker lifetime; per-request registration races across coroutines.
      *
      * Observers receive dispatched events but are not counted by hasListeners().
-     * They run after active listener processing ends, including when a listener
-     * throws, do not participate in halt or propagation-stop semantics, and run
+     * They run after active listener processing ends, including ordinary listener
+     * failure, do not participate in halt or propagation-stop semantics, and run
      * synchronously (no queue support). Every observer is attempted before the
-     * first observer failure is rethrown.
+     * first ordinary observer failure is rethrown. Cancellation stops observation.
      *
      * Use this for observability tooling (tracing, metrics, logging) that must
      * not influence whether guarded events fire.
@@ -467,16 +468,20 @@ class Dispatcher implements DispatcherContract
     /**
      * Invoke active listeners followed by passive observers.
      *
-     * An active listener failure remains primary after every observer is
-     * attempted; otherwise the first observer failure is rethrown.
+     * An ordinary active listener failure remains primary after every observer is
+     * attempted. Cancellation from either path stops observation and escapes.
      */
     protected function invokeListenersAndObservers(string $event, array $payload, bool $halt = false): mixed
     {
         try {
             $result = $this->invokeListeners($event, $payload, $halt);
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             try {
                 $this->invokeObservers($event, $payload);
+            } catch (CanceledException $cancellation) {
+                throw $cancellation;
             } catch (Throwable) {
                 // An observer failure must not replace the active listener failure.
             }
@@ -493,8 +498,9 @@ class Dispatcher implements DispatcherContract
      * Invoke passive observers for the event.
      *
      * Observers do not participate in halt or propagation-stop semantics.
-     * Every observer is attempted, their return values are ignored, and the
-     * first observer failure is rethrown after the remaining observers run.
+     * Every observer is attempted after ordinary failure, their return values are
+     * ignored, and the first ordinary failure is rethrown. Cancellation stops the
+     * observer sequence immediately.
      */
     protected function invokeObservers(string $event, array $payload): void
     {
@@ -503,6 +509,8 @@ class Dispatcher implements DispatcherContract
         foreach ($this->getObservers($event) as $observer) {
             try {
                 $observer($event, $payload);
+            } catch (CanceledException $exception) {
+                throw $exception;
             } catch (Throwable $exception) {
                 $firstException ??= $exception;
             }

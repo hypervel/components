@@ -13,6 +13,7 @@ use Hypervel\Core\Events\OnWorkerExit;
 use Hypervel\RateLimiter\KeyResolver;
 use Hypervel\RateLimiter\Limiter;
 use Hypervel\RateLimiter\WorkerArrayStore;
+use Hypervel\Reverb\Console\Commands\ClearStateCommand;
 use Hypervel\Reverb\Console\Commands\InstallCommand;
 use Hypervel\Reverb\Contracts\ApplicationProvider;
 use Hypervel\Reverb\Contracts\Logger;
@@ -225,7 +226,10 @@ class ReverbServiceProvider extends ServiceProvider
     public function boot(): void
     {
         if ($this->app->runningInConsole()) {
-            $this->commands([InstallCommand::class]);
+            $this->commands([
+                ClearStateCommand::class,
+                InstallCommand::class,
+            ]);
 
             $this->publishes([
                 __DIR__ . '/../config/reverb.php' => config_path('reverb.php'),

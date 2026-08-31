@@ -12,6 +12,7 @@ use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Support\Stringable;
 use Hypervel\View\Compilers\CompilerInterface;
 use Hypervel\View\ViewException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
@@ -110,7 +111,8 @@ class CompilerEngine extends PhpEngine
      */
     protected function handleViewException(Throwable $e, int $obLevel): void
     {
-        if ($e instanceof HttpException
+        if ($e instanceof CanceledException
+            || $e instanceof HttpException
             || $e instanceof HttpResponseException
             || $e instanceof RecordNotFoundException
             || $e instanceof RecordsNotFoundException

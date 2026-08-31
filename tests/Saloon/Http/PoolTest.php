@@ -11,6 +11,10 @@ use Hypervel\Cache\Repository;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Exceptions\ChildCancellationException;
+use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Client\Factory;
 use Hypervel\RateLimiter\AdmissionPolicy;
@@ -37,6 +41,8 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -162,6 +168,164 @@ class PoolTest extends TestCase
             $this->assertSame('producer failed', $exception->orchestrationFailure()?->getMessage());
             $this->assertSame(['started'], array_keys($exception->responses()));
         }
+    }
+
+    public function testIndependentRequestCancellationIsAChildFailureWithoutInvokingTheExceptionHandler(): void
+    {
+        $manager = $this->manager();
+        $requestStarted = new Channel(1);
+        $blocker = new Channel(1);
+        $childCoroutineId = null;
+        $nativeCancellation = null;
+        $handlerInvoked = false;
+        $outcome = null;
+        $manager->fake([
+            PoolRequestStub::class => function () use (
+                $requestStarted,
+                $blocker,
+                &$childCoroutineId,
+                &$nativeCancellation,
+            ): never {
+                $childCoroutineId = Coroutine::id();
+                $requestStarted->push(true);
+
+                try {
+                    $blocker->pop();
+                } catch (CanceledException $exception) {
+                    $nativeCancellation = $exception;
+                    throw $exception;
+                }
+
+                throw new RuntimeException('The request was not canceled.');
+            },
+        ]);
+        $connector = new PoolConnectorStub($manager);
+
+        $runner = EngineCoroutine::create(function () use ($connector, &$handlerInvoked, &$outcome): void {
+            try {
+                $connector->pool(['request' => new PoolRequestStub(1)])
+                    ->withExceptionHandler(static function () use (&$handlerInvoked): void {
+                        $handlerInvoked = true;
+                    })
+                    ->send();
+            } catch (Throwable $exception) {
+                $outcome = $exception;
+            }
+        });
+
+        $this->assertTrue($requestStarted->pop());
+        $this->assertIsInt($childCoroutineId);
+        $this->assertTrue(EngineCoroutine::cancelById($childCoroutineId, throwException: true));
+        Coroutine::join([$runner->getId()]);
+
+        $this->assertInstanceOf(PoolException::class, $outcome);
+        $this->assertInstanceOf(ChildCancellationException::class, $outcome->failures()['request']);
+        $this->assertSame($nativeCancellation, $outcome->failures()['request']->getPrevious());
+        $this->assertFalse($handlerInvoked);
+    }
+
+    public function testResponseHandlerCancellationRetainsTheResponseAsAChildCallbackFailure(): void
+    {
+        $manager = $this->manager();
+        $manager->fake([PoolRequestStub::class => MockResponse::make(['ok' => true])]);
+        $callbackStarted = new Channel(1);
+        $blocker = new Channel(1);
+        $childCoroutineId = null;
+        $nativeCancellation = null;
+        $outcome = null;
+        $connector = new PoolConnectorStub($manager);
+
+        $runner = EngineCoroutine::create(function () use (
+            $connector,
+            $callbackStarted,
+            $blocker,
+            &$childCoroutineId,
+            &$nativeCancellation,
+            &$outcome,
+        ): void {
+            try {
+                $connector->pool(['request' => new PoolRequestStub(1)])
+                    ->withResponseHandler(static function () use (
+                        $callbackStarted,
+                        $blocker,
+                        &$childCoroutineId,
+                        &$nativeCancellation,
+                    ): void {
+                        $childCoroutineId = Coroutine::id();
+                        $callbackStarted->push(true);
+
+                        try {
+                            $blocker->pop();
+                        } catch (CanceledException $exception) {
+                            $nativeCancellation = $exception;
+                            throw $exception;
+                        }
+                    })
+                    ->send();
+            } catch (Throwable $exception) {
+                $outcome = $exception;
+            }
+        });
+
+        $this->assertTrue($callbackStarted->pop());
+        $this->assertIsInt($childCoroutineId);
+        $this->assertTrue(EngineCoroutine::cancelById($childCoroutineId, throwException: true));
+        Coroutine::join([$runner->getId()]);
+
+        $this->assertInstanceOf(PoolException::class, $outcome);
+        $this->assertInstanceOf(ChildCancellationException::class, $outcome->callbackFailures()['request']);
+        $this->assertSame($nativeCancellation, $outcome->callbackFailures()['request']->getPrevious());
+        $this->assertSame(['request'], array_keys($outcome->responses()));
+    }
+
+    public function testProducerCancellationCancelsStartedRequestsAndEscapesExactly(): void
+    {
+        $manager = $this->manager();
+        $requestStarted = new Channel(1);
+        $requestBlocker = new Channel(1);
+        $producerSuspended = new Channel(1);
+        $producerBlocker = new Channel(1);
+        $childCancellation = null;
+        $parentCancellation = null;
+        $manager->fake([
+            PoolRequestStub::class => function () use ($requestStarted, $requestBlocker, &$childCancellation): never {
+                $requestStarted->push(true);
+
+                try {
+                    $requestBlocker->pop();
+                } catch (CanceledException $exception) {
+                    $childCancellation = $exception;
+                    throw $exception;
+                }
+
+                throw new RuntimeException('The request was not canceled.');
+            },
+        ]);
+        $connector = new PoolConnectorStub($manager);
+
+        $runner = EngineCoroutine::create(function () use (
+            $connector,
+            $producerSuspended,
+            $producerBlocker,
+            &$parentCancellation,
+        ): void {
+            try {
+                $connector->pool((static function () use ($producerSuspended, $producerBlocker): iterable {
+                    yield 'request' => new PoolRequestStub(1);
+                    $producerSuspended->push(true);
+                    $producerBlocker->pop();
+                })())->send();
+            } catch (CanceledException $exception) {
+                $parentCancellation = $exception;
+            }
+        });
+
+        $this->assertTrue($requestStarted->pop());
+        $this->assertTrue($producerSuspended->pop());
+        $this->assertTrue(EngineCoroutine::cancelById($runner->getId(), throwException: true));
+
+        $this->assertInstanceOf(CanceledException::class, $parentCancellation);
+        $this->assertInstanceOf(CanceledException::class, $childCancellation);
     }
 
     public function testRepeatedKeysUseTheLaterInputAndProcessDoesNotCollectResponses(): void

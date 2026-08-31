@@ -6,6 +6,9 @@ namespace Hypervel\Tests\ApiClient;
 
 use BadMethodCallException;
 use GuzzleHttp\Client;
+use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\Psr7\Utils;
 use Hypervel\ApiClient\ApiClient;
 use Hypervel\ApiClient\ApiRequest;
@@ -13,13 +16,16 @@ use Hypervel\ApiClient\ApiResource;
 use Hypervel\ApiClient\ApiResponse;
 use Hypervel\ApiClient\PendingRequest;
 use Hypervel\Http\Client\ConnectionException;
+use Hypervel\Http\Client\Events\RequestSending;
 use Hypervel\Http\Client\PendingRequest as HttpPendingRequest;
 use Hypervel\Http\Client\Request;
 use Hypervel\Http\Client\RequestException;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use JsonSerializable;
+use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\RequestInterface;
 use RuntimeException;
@@ -265,7 +271,7 @@ class PendingRequestTest extends TestCase
         $this->assertSame(3, $attempts);
     }
 
-    public function testBridgePreservesCallbackOrderingWithoutReorderingLaterCallbacks(): void
+    public function testApiBridgeRunsBeforeBeforeSendingCallbacksWithoutReorderingThem(): void
     {
         $order = [];
         Http::fake(['https://example.test/*' => Http::response([])]);
@@ -276,14 +282,14 @@ class PendingRequestTest extends TestCase
                 return $request->toPsrRequest()->withHeader('X-Before', 'yes');
             })
             ->withApiRequestMiddleware(function (ApiRequest $request, callable $next) use (&$order): ApiRequest {
-                $order[] = $request->hasHeader('X-Before', 'yes') ? 'api' : 'api-missed-caller';
+                $order[] = 'api';
 
                 return $next($request);
             });
 
         $pending->get('https://example.test/first');
 
-        $this->assertSame(['caller', 'api'], $order);
+        $this->assertSame(['api', 'caller'], $order);
 
         $pending->beforeSending(function (Request $request) use (&$order): RequestInterface {
             $order[] = 'late';
@@ -292,10 +298,149 @@ class PendingRequestTest extends TestCase
         });
         $resource = $pending->get('https://example.test/second');
 
-        $this->assertSame(['caller', 'api', 'caller', 'api', 'late'], $order);
+        $this->assertSame(['api', 'caller', 'api', 'caller', 'late'], $order);
         $this->assertFalse($resource->getRequest()->hasHeader('X-Late'));
         Http::assertSent(fn (Request $request) => $request->url() === 'https://example.test/second'
             && $request->hasHeader('X-Late', 'yes'));
+    }
+
+    public function testApiBridgeRunsBeforeOrdinaryGuzzleShortCircuits(): void
+    {
+        $middlewareRan = false;
+
+        $resource = (new ApiClient)
+            ->withApiRequestMiddleware(function (ApiRequest $request, callable $next) use (&$middlewareRan): ApiRequest {
+                $middlewareRan = true;
+
+                return $next($request->withContext('source', 'api-middleware'));
+            })
+            ->withMiddleware(static function (callable $handler): callable {
+                return static fn (): PromiseInterface => Create::promiseFor(new Psr7Response(
+                    200,
+                    ['Content-Type' => 'application/json'],
+                    '{"cached":true}',
+                ));
+            })
+            ->get('https://example.test/cached');
+
+        $this->assertTrue($middlewareRan);
+        $this->assertTrue($resource['cached']);
+        $this->assertSame('api-middleware', $resource->context('source'));
+    }
+
+    public function testShortCircuitAheadOfTheApiBridgeFailsClearly(): void
+    {
+        $pending = (new ApiClient)->createPendingRequest();
+        $pending->prependMiddleware(static function (callable $handler): callable {
+            return static fn (): PromiseInterface => Create::promiseFor(new Psr7Response(200));
+        });
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('middleware ahead of the API bridge short-circuited');
+
+        $pending->get('https://example.test/short-circuit');
+    }
+
+    public function testShortCircuitAheadOfTheApiBridgeOnRetryDoesNotReuseThePreviousAttempt(): void
+    {
+        $transportCalls = 0;
+        Http::fake(function () use (&$transportCalls) {
+            ++$transportCalls;
+
+            return Http::response([], 500);
+        });
+
+        $middlewareAttempts = 0;
+        $bridgeAttempts = 0;
+        $pending = (new ApiClient)
+            ->createPendingRequest()
+            ->withApiRequestMiddleware(function (ApiRequest $request, callable $next) use (&$bridgeAttempts): ApiRequest {
+                ++$bridgeAttempts;
+
+                return $next($request->withContext('attempt', $bridgeAttempts));
+            })
+            ->retry(2, 0);
+
+        $this->assertSame($pending, $pending->prependMiddleware(
+            static function (callable $handler) use (&$middlewareAttempts): callable {
+                return static function (RequestInterface $request, array $options) use ($handler, &$middlewareAttempts): PromiseInterface {
+                    ++$middlewareAttempts;
+
+                    return $middlewareAttempts === 2
+                        ? Create::promiseFor(new Psr7Response(200))
+                        : $handler($request, $options);
+                };
+            }
+        ));
+
+        $exception = null;
+
+        try {
+            $pending->get('https://example.test/retry-short-circuit');
+        } catch (LogicException $caught) {
+            $exception = $caught;
+        }
+
+        $this->assertInstanceOf(LogicException::class, $exception);
+        $this->assertSame(
+            'HTTP middleware ahead of the API bridge short-circuited the request before API middleware could run.',
+            $exception->getMessage(),
+        );
+        $this->assertSame(2, $middlewareAttempts);
+        $this->assertSame(1, $bridgeAttempts);
+        $this->assertSame(1, $transportCalls);
+    }
+
+    public function testBridgePreservesLogicalDataAttributesAndApiContext(): void
+    {
+        $observed = null;
+        Http::fake(['https://example.test/context' => Http::response([])]);
+
+        (new ApiClient)
+            ->withAttributes(['trace' => 'request-1'])
+            ->withContext('tenant', 'tenant-1')
+            ->withApiRequestMiddleware(function (ApiRequest $request, callable $next) use (&$observed): ApiRequest {
+                $observed = [
+                    'data' => $request->data(),
+                    'attributes' => $request->attributes(),
+                    'tenant' => $request->context('tenant'),
+                ];
+
+                return $next($request);
+            })
+            ->post('https://example.test/context', ['name' => 'Taylor']);
+
+        $this->assertSame([
+            'data' => ['name' => 'Taylor'],
+            'attributes' => ['trace' => 'request-1'],
+            'tenant' => 'tenant-1',
+        ], $observed);
+    }
+
+    public function testRequestSendingObservesThePostApiMiddlewareRequest(): void
+    {
+        $observedHeader = false;
+        Event::listen(RequestSending::class, function (RequestSending $event) use (&$observedHeader): void {
+            $observedHeader = $event->request->hasHeader('X-Api-Middleware', 'yes');
+        });
+        Http::fake(['https://example.test/event' => Http::response([])]);
+
+        (new ApiClient)
+            ->withApiRequestMiddleware(fn (ApiRequest $request, callable $next): ApiRequest => $next(
+                $request->withHeader('X-Api-Middleware', 'yes')
+            ))
+            ->get('https://example.test/event');
+
+        $this->assertTrue($observedHeader);
+    }
+
+    public function testUnboundPendingRequestContainerResolutionsAreFresh(): void
+    {
+        $first = $this->app->make(PendingRequest::class)->withContext('tenant', 'tenant-1');
+        $second = $this->app->make(PendingRequest::class);
+
+        $this->assertNotSame($first, $second);
+        $this->assertSame([], $second->context());
     }
 
     public function testApiMiddlewareMutatesTheFinalRawHttpBody(): void
@@ -313,11 +458,11 @@ class PendingRequestTest extends TestCase
             && $request->data() === ['existing' => true, 'added' => true]);
     }
 
-    public function testApiMiddlewareMutatesTheBodyFromAnEarlierCallback(): void
+    public function testBeforeSendingBodyReplacementRunsAfterApiMiddleware(): void
     {
         Http::fake(['https://example.test/callback' => Http::response([])]);
 
-        (new ApiClient)
+        $resource = (new ApiClient)
             ->beforeSending(fn (Request $request): RequestInterface => $request->toPsrRequest()->withBody(
                 Utils::streamFor('{"replaced":true}')
             ))
@@ -326,15 +471,16 @@ class PendingRequestTest extends TestCase
             })
             ->post('https://example.test/callback', ['original' => true]);
 
-        Http::assertSent(fn (Request $request) => $request->body() === '{"replaced":true,"added":true}'
-            && $request->data() === ['replaced' => true, 'added' => true]);
+        $this->assertSame(['original' => true, 'added' => true], $resource->getRequest()->data());
+        Http::assertSent(fn (Request $request) => $request->body() === '{"replaced":true}'
+            && $request->data() === ['replaced' => true]);
     }
 
-    public function testApiMiddlewareMutatesTheBodyFromGuzzleRequestMiddleware(): void
+    public function testOrdinaryGuzzleMiddlewareRunsAfterApiMiddleware(): void
     {
         Http::fake(['https://example.test/guzzle' => Http::response([])]);
 
-        (new ApiClient)
+        $resource = (new ApiClient)
             ->withRequestMiddleware(fn (RequestInterface $request): RequestInterface => $request->withBody(
                 Utils::streamFor('{"middleware":true}')
             ))
@@ -343,8 +489,9 @@ class PendingRequestTest extends TestCase
             })
             ->post('https://example.test/guzzle', ['original' => true]);
 
-        Http::assertSent(fn (Request $request) => $request->body() === '{"middleware":true,"added":true}'
-            && $request->data() === ['middleware' => true, 'added' => true]);
+        $this->assertSame(['original' => true, 'added' => true], $resource->getRequest()->data());
+        Http::assertSent(fn (Request $request) => $request->body() === '{"middleware":true}'
+            && $request->data() === ['middleware' => true]);
     }
 
     public function testApiMiddlewarePreservesLogicalDataUntilItChangesTheBody(): void

@@ -297,7 +297,17 @@ class PhpRedisClusterConnection extends PhpRedisConnection
 
             $redis = new RedisCluster(...$parameters);
         } catch (Throwable $exception) {
-            throw new ConnectionException('Connection reconnect failed ' . $exception->getMessage());
+            if ($cancellation = RedisCancellation::cancellationFrom(
+                $exception,
+                'Connecting to Redis Cluster was canceled.',
+            )) {
+                throw $cancellation;
+            }
+
+            throw new ConnectionException(
+                'Connection reconnect failed: ' . $exception->getMessage(),
+                previous: $exception,
+            );
         }
 
         return $redis;

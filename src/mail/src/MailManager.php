@@ -76,11 +76,10 @@ class MailManager implements FactoryContract
     /**
      * The array of drivers which will be wrapped as pool proxies.
      */
-    // API transports use Symfony HTTP clients that keep mutable request state on
-    // the transport instance. Pooling ensures each concurrent coroutine borrows a
-    // separate transport/client pair instead of sharing one mailer-held instance.
+    // These transports retain persistent connections, mutable clients, interactive
+    // processes, or composite state that must not be shared by concurrent sends.
     protected array $poolables = [
-        'smtp', 'sendmail', 'mailgun', 'ses-v2', 'postmark', 'resend', 'cloudflare', 'failover', 'roundrobin',
+        'smtp', 'sendmail', 'mail', 'mailgun', 'ses-v2', 'postmark', 'resend', 'cloudflare', 'failover', 'roundrobin',
     ];
 
     /**

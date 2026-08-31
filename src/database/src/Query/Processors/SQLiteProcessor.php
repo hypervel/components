@@ -63,7 +63,7 @@ class SQLiteProcessor extends Processor
         return array_map(
             static fn (array $index): array => Arr::only(
                 $index,
-                ['name', 'columns', 'type', 'unique', 'primary'],
+                ['name', 'columns', 'type', 'unique', 'primary', 'partial'],
             ),
             $this->processIndexesForSchemaState($results),
         );
@@ -73,7 +73,7 @@ class SQLiteProcessor extends Processor
      * Process indexes with the metadata required to reconstruct SQLite schema state.
      *
      * @internal
-     * @return list<array{name: string, physical_name: string, columns: list<string>, type: null|string, unique: bool, primary: bool, sql: null|string, origin: null|string, reconstructible: bool, collations: null|list<string>, descending: null|list<bool>}>
+     * @return list<array{name: string, physical_name: string, columns: list<string>, type: null|string, unique: bool, primary: bool, partial: bool, sql: null|string, origin: null|string, reconstructible: bool, collations: null|list<string>, descending: null|list<bool>}>
      */
     public function processIndexesForSchemaState(array $results): array
     {
@@ -93,6 +93,7 @@ class SQLiteProcessor extends Processor
                 'type' => null,
                 'unique' => (bool) $result->unique,
                 'primary' => $isPrimary,
+                'partial' => (bool) $result->partial,
                 'sql' => $result->sql,
                 'origin' => $result->origin,
                 'reconstructible' => (bool) $result->reconstructible,

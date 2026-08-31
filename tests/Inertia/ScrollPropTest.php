@@ -218,6 +218,19 @@ class ScrollPropTest extends TestCase
         $this->assertSame('date', $scrollProp());
     }
 
+    public function testCallableArrayValuesAreNotInvoked(): void
+    {
+        $target = new class {
+            public function resolve(): string
+            {
+                return 'resolved';
+            }
+        };
+        $value = [$target, 'resolve'];
+
+        $this->assertSame($value, (new ScrollProp($value))());
+    }
+
     public function testDeferredScrollPropIsExcludedFromInitialRequest(): void
     {
         $request = Request::create('/users', 'GET');

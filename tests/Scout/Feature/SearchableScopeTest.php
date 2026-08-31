@@ -21,14 +21,6 @@ use Hypervel\Tests\Scout\ScoutTestCase;
  */
 class SearchableScopeTest extends ScoutTestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        // Use collection driver to avoid external service calls
-        $this->app->make('config')->set('scout.driver', 'collection');
-    }
-
     public function testSearchableMacroDispatchesModelsImportedEvent(): void
     {
         SearchableModel::create(['title' => 'First', 'body' => 'Body']);

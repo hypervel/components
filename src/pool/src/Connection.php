@@ -10,14 +10,9 @@ use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Pool\Events\ReleaseConnection;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
-/**
- * Abstract base class for pooled connections.
- *
- * Provides common functionality for connection lifecycle management
- * including release handling, health checking, and usage tracking.
- */
 abstract class Connection implements ConnectionInterface
 {
     protected float $lastUseTime = 0.0;
@@ -48,17 +43,43 @@ abstract class Connection implements ConnectionInterface
      */
     public function release(): void
     {
-        try {
-            $this->lastReleaseTime = hrtime(true) / 1e9;
-            $events = $this->pool->getOption()->getEvents();
+        $cancellation = null;
 
-            if (in_array(ReleaseConnection::class, $events, true)) {
-                $this->dispatcher?->dispatch(new ReleaseConnection($this));
+        try {
+            try {
+                $this->lastReleaseTime = hrtime(true) / 1e9;
+                $events = $this->pool->getOption()->getEvents();
+
+                if (in_array(ReleaseConnection::class, $events, true)) {
+                    $this->dispatcher?->dispatch(new ReleaseConnection($this));
+                }
+            } catch (CanceledException $exception) {
+                $cancellation = $exception;
+            } catch (Throwable $exception) {
+                $this->logger?->error((string) $exception);
             }
-        } catch (Throwable $exception) {
-            $this->logger?->error((string) $exception);
+        } catch (CanceledException $exception) {
+            // Logging an ordinary listener failure may itself be canceled.
+            $cancellation = $exception;
         } finally {
-            $this->pool->release($this);
+            if ($cancellation === null) {
+                $this->pool->release($this);
+            } else {
+                try {
+                    $this->pool->release($this);
+                } catch (CanceledException) {
+                    // The listener or logger cancellation remains primary.
+                } catch (Throwable $exception) {
+                    try {
+                        $this->logger?->error((string) $exception);
+                    } catch (Throwable) {
+                    }
+                }
+            }
+        }
+
+        if ($cancellation !== null) {
+            throw $cancellation;
         }
     }
 
@@ -77,6 +98,8 @@ abstract class Connection implements ConnectionInterface
     {
         try {
             return $this->getActiveConnection();
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             $this->logger?->warning('Get connection failed, try again. ' . $exception);
 

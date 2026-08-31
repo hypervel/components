@@ -157,9 +157,9 @@ class DeletionTest extends TestCase
             'is_denied' => false,
         ]);
 
-        $cleanupObservedBeforeRecordDeletion = false;
+        $cleanupObservedAfterRecordDeletion = false;
 
-        StandaloneRole::deleting(function () use ($role, &$cleanupObservedBeforeRecordDeletion): void {
+        StandaloneRole::deleted(function () use ($role, &$cleanupObservedAfterRecordDeletion): void {
             $this->assertSame(0, DB::table(Config::modelHasRolesTable())
                 ->where(app('config')->get('permission.column_names.role_pivot_key'), $role->getKey())
                 ->count());
@@ -167,12 +167,12 @@ class DeletionTest extends TestCase
                 ->where(app('config')->get('permission.column_names.role_pivot_key'), $role->getKey())
                 ->count());
 
-            $cleanupObservedBeforeRecordDeletion = true;
+            $cleanupObservedAfterRecordDeletion = true;
         });
 
         $role->delete();
 
-        $this->assertTrue($cleanupObservedBeforeRecordDeletion);
+        $this->assertTrue($cleanupObservedAfterRecordDeletion);
     }
 
     public function testCustomPermissionCleanupDoesNotDependOnRefreshesPermissionCache(): void
@@ -194,9 +194,9 @@ class DeletionTest extends TestCase
             'is_denied' => false,
         ]);
 
-        $cleanupObservedBeforeRecordDeletion = false;
+        $cleanupObservedAfterRecordDeletion = false;
 
-        StandalonePermission::deleting(function () use ($permission, &$cleanupObservedBeforeRecordDeletion): void {
+        StandalonePermission::deleted(function () use ($permission, &$cleanupObservedAfterRecordDeletion): void {
             $this->assertSame(0, DB::table(Config::modelHasPermissionsTable())
                 ->where(app('config')->get('permission.column_names.permission_pivot_key'), $permission->getKey())
                 ->count());
@@ -204,12 +204,42 @@ class DeletionTest extends TestCase
                 ->where(app('config')->get('permission.column_names.permission_pivot_key'), $permission->getKey())
                 ->count());
 
-            $cleanupObservedBeforeRecordDeletion = true;
+            $cleanupObservedAfterRecordDeletion = true;
         });
 
         $permission->delete();
 
-        $this->assertTrue($cleanupObservedBeforeRecordDeletion);
+        $this->assertTrue($cleanupObservedAfterRecordDeletion);
+    }
+
+    public function testDeleteVetoInsideTransactionPreservesRoleAndAssignments(): void
+    {
+        $role = StandaloneRole::query()->create([
+            'name' => 'vetoed-role',
+            'guard_name' => 'web',
+        ]);
+
+        DB::table(Config::modelHasRolesTable())->insert([
+            app('config')->get('permission.column_names.role_pivot_key') => $role->getKey(),
+            Config::morphKey() => $this->testUser->getKey(),
+            'model_type' => $this->testUser->getMorphClass(),
+        ]);
+        DB::table(Config::roleHasPermissionsTable())->insert([
+            app('config')->get('permission.column_names.role_pivot_key') => $role->getKey(),
+            app('config')->get('permission.column_names.permission_pivot_key') => $this->testUserPermission->getKey(),
+            'is_denied' => false,
+        ]);
+
+        StandaloneRole::deleting(static fn (): bool => false);
+
+        $this->assertFalse(DB::transaction(fn (): int|bool|null => $role->delete()));
+        $this->assertDatabaseHas(Config::rolesTable(), [$role->getKeyName() => $role->getKey()]);
+        $this->assertSame(1, DB::table(Config::modelHasRolesTable())
+            ->where(app('config')->get('permission.column_names.role_pivot_key'), $role->getKey())
+            ->count());
+        $this->assertSame(1, DB::table(Config::roleHasPermissionsTable())
+            ->where(app('config')->get('permission.column_names.role_pivot_key'), $role->getKey())
+            ->count());
     }
 
     private function roleAssignmentCount(Model $model): int

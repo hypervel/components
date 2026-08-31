@@ -8,9 +8,13 @@ use Carbon\CarbonInterval;
 use Closure;
 use Hypervel\Cache\ArrayLock;
 use Hypervel\Cache\ArrayStore;
+use Hypervel\Cache\Exceptions\UnsupportedModelCacheStoreException;
+use Hypervel\Cache\FailoverStore;
 use Hypervel\Cache\Lock;
+use Hypervel\Cache\MemoizedStore;
 use Hypervel\Cache\ModelCacheCoordinator;
 use Hypervel\Cache\Repository;
+use Hypervel\Cache\StackStore;
 use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Contracts\Cache\Lock as LockContract;
 use Hypervel\Contracts\Cache\LockProvider;
@@ -395,7 +399,7 @@ class ModelCacheCoordinatorTest extends TestCase
             300,
             fn (): string => 'uncached',
         ));
-        $coordinator->invalidate($repository, 'a-very-long-data-key');
+        $this->assertTrue($coordinator->invalidate($repository, 'a-very-long-data-key'));
 
         $this->assertSame($lockNames[0][0], $lockNames[1][0]);
         $this->assertSame(10, $lockNames[0][1]);
@@ -510,6 +514,46 @@ class ModelCacheCoordinatorTest extends TestCase
         $this->expectExceptionMessage('does not provide atomic locks');
 
         $coordinator->fill($missRepository, 'key', 300, fn (): string => 'database');
+    }
+
+    public function testStackAndFailoverTopologiesAreRejectedThroughDirectAndMemoizedStores(): void
+    {
+        $failoverStore = m::mock(FailoverStore::class);
+        $failoverStore->shouldReceive('getRaw')->twice()->with('key')->andReturnNull();
+        $failoverStore->shouldReceive('getPrefix')->once()->andReturn('');
+
+        $stores = [
+            'stack' => new StackStore([new ArrayStore]),
+            'failover' => $failoverStore,
+        ];
+
+        foreach ($stores as $name => $store) {
+            $repository = new Repository($store);
+
+            foreach ([
+                "direct {$name}" => $repository,
+                "memoized {$name}" => new Repository(new MemoizedStore($name, $repository)),
+            ] as $label => $candidate) {
+                try {
+                    (new ModelCacheCoordinator)->fill(
+                        $candidate,
+                        'key',
+                        300,
+                        fn (): string => 'database',
+                    );
+                } catch (UnsupportedModelCacheStoreException $exception) {
+                    $this->assertStringContainsString(
+                        'cannot guarantee that cached values and locks use the same backend',
+                        $exception->getMessage(),
+                        $label,
+                    );
+
+                    continue;
+                }
+
+                $this->fail("Expected {$label} to be rejected for coordinated model caching.");
+            }
+        }
     }
 
     public function testNonRefreshableLockIsRejectedOnlyAfterAMiss(): void

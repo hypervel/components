@@ -166,10 +166,12 @@ class SQLiteGrammar extends Grammar
         $quotedTable = $this->quoteString($table);
         $quotedSchema = $this->quoteString($schema);
 
+        // Partial indexes must remain non-reconstructible so rebuilds and renames
+        // replay their stored predicate SQL instead of silently creating a full index.
         return sprintf(
-            'select \'primary\' as name, group_concat(hex(col)) as columns, 1 as "unique", 1 as "primary", null as sql, \'pk\' as origin, 1 as reconstructible, null as collations, null as "descending" '
+            'select \'primary\' as name, group_concat(hex(col)) as columns, 1 as "unique", 1 as "primary", null as sql, \'pk\' as origin, 1 as reconstructible, 0 as partial, null as collations, null as "descending" '
             . 'from (select name as col from pragma_table_xinfo(%s, %s) where pk > 0 order by pk, cid) group by name '
-            . 'union all select name, case when count(*) = count(col) then group_concat(col) end as columns, "unique", origin = \'pk\' as "primary", sql, origin, not partial and min(simple) as reconstructible, '
+            . 'union all select name, case when count(*) = count(col) then group_concat(col) end as columns, "unique", origin = \'pk\' as "primary", sql, origin, not partial and min(simple) as reconstructible, partial, '
             . 'case when count(*) = count(col) then group_concat(collation) end as collations, '
             . 'case when count(*) = count(col) then group_concat("descending") end as "descending" '
             . 'from (select il.*, case when ii.name is not null then hex(ii.name) end as col, hex(ii.coll) as collation, ii."desc" as "descending", '
@@ -345,12 +347,16 @@ class SQLiteGrammar extends Grammar
 
         $indexes = (new Collection($blueprint->getState()->getIndexes()))
             ->map(function (Fluent $index) use ($blueprint, $definedColumnNames, &$inlineUniqueConstraints) {
-                $projectedColumns = array_filter(
+                $referencedColumns = array_filter(
                     $index->columns,
                     static fn (mixed $column): bool => is_string($column),
                 );
 
-                if (! empty(array_diff($projectedColumns, $definedColumnNames))) {
+                if (is_string($index->whereNotNull)) {
+                    $referencedColumns[] = $index->whereNotNull;
+                }
+
+                if (! empty(array_diff($referencedColumns, $definedColumnNames))) {
                     throw new RuntimeException(
                         "Cannot rebuild table [{$blueprint->getTable()}] because index [{$index->index}] references a dropped column."
                     );
@@ -567,11 +573,12 @@ class SQLiteGrammar extends Grammar
         [$schema, $table] = $this->connection->getSchemaBuilder()->parseSchemaAndTable($blueprint->getTable());
 
         return sprintf(
-            'create index %s%s on %s (%s)',
+            'create index %s%s on %s (%s)%s',
             $schema ? $this->wrapValue($schema) . '.' : '',
             $this->wrap($command->index),
             $this->wrapTable($table),
-            $this->columnizeIndexedColumns($command)
+            $this->columnizeIndexedColumns($command),
+            $this->compileWhereNotNull($command),
         );
     }
 

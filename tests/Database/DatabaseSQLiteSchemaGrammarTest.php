@@ -272,6 +272,18 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('create index "baz" on "users" ("foo", "bar")', $statements[0]);
     }
 
+    public function testAddingPartialIndex(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'users');
+        $blueprint->index(['account_id', 'archived_at'], 'users_active_index')
+            ->whereNotNull('archived_at');
+
+        $this->assertSame(
+            ['create index "users_active_index" on "users" ("account_id", "archived_at") where "archived_at" is not null'],
+            $blueprint->toSql(),
+        );
+    }
+
     public function testAddingUniqueKeyWithSchema()
     {
         $blueprint = new Blueprint($this->getConnection(), 'foo.users');
@@ -286,6 +298,18 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $blueprint->index(['foo', 'bar'], 'baz');
 
         $this->assertSame(['create index "foo"."baz" on "users" ("foo", "bar")'], $blueprint->toSql());
+    }
+
+    public function testAddingPartialIndexWithSchema(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'foo.users');
+        $blueprint->index(['account_id', 'archived_at'], 'users_active_index')
+            ->whereNotNull('archived_at');
+
+        $this->assertSame(
+            ['create index "foo"."users_active_index" on "users" ("account_id", "archived_at") where "archived_at" is not null'],
+            $blueprint->toSql(),
+        );
     }
 
     public function testAddingSpatialIndex()
@@ -316,6 +340,35 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
 
         $this->assertCount(1, $statements);
         $this->assertSame('create index "raw_index" on "users" ((function(column)))', $statements[0]);
+    }
+
+    public function testAddingPartialRawIndex(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'users');
+        $blueprint->rawIndex('(lower(email))', 'users_email_lower_index')
+            ->whereNotNull('email');
+
+        $this->assertSame(
+            ['create index "users_email_lower_index" on "users" ((lower(email))) where "email" is not null'],
+            $blueprint->toSql(),
+        );
+    }
+
+    public function testCompileIndexesIncludesPartialMetadata(): void
+    {
+        $this->assertSame(
+            'select \'primary\' as name, group_concat(hex(col)) as columns, 1 as "unique", 1 as "primary", null as sql, \'pk\' as origin, 1 as reconstructible, 0 as partial, null as collations, null as "descending" '
+            . 'from (select name as col from pragma_table_xinfo(\'users\', \'main\') where pk > 0 order by pk, cid) group by name '
+            . 'union all select name, case when count(*) = count(col) then group_concat(col) end as columns, "unique", origin = \'pk\' as "primary", sql, origin, not partial and min(simple) as reconstructible, partial, '
+            . 'case when count(*) = count(col) then group_concat(collation) end as collations, '
+            . 'case when count(*) = count(col) then group_concat("descending") end as "descending" '
+            . 'from (select il.*, case when ii.name is not null then hex(ii.name) end as col, hex(ii.coll) as collation, ii."desc" as "descending", '
+            . 'ii.name is not null and ii."desc" = 0 and lower(ii.coll) = \'binary\' as simple, '
+            . '(select sql from "main".sqlite_master where type = \'index\' and name = il.name) as sql '
+            . 'from pragma_index_list(\'users\', \'main\') il left join pragma_index_xinfo(il.name, \'main\') ii on ii.key = 1 order by il.seq, ii.seqno) '
+            . 'group by name, "unique", "primary", sql, origin, partial',
+            $this->getGrammar()->compileIndexes('main', 'users'),
+        );
     }
 
     public function testAddingIncrementingID()

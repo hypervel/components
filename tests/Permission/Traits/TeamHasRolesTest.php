@@ -4,13 +4,19 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Traits;
 
+use BadMethodCallException;
+use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Permission\Contracts\Role;
 use Hypervel\Permission\Exceptions\RoleDoesNotExist;
+use Hypervel\Permission\Exceptions\TeamNotSelected;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Support\Config;
+use Hypervel\Permission\Traits\HasPermissions;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
+use UnitEnum;
 
 class TeamHasRolesTest extends HasRolesTest
 {
@@ -149,6 +155,76 @@ class TeamHasRolesTest extends HasRolesTest
         $this->assertTrue($matches->first()->is(app(Role::class)::findByName('shared-role')));
     }
 
+    public function testFallbackRoleLookupFiltersTeamsBeforeSelectingOneResult(): void
+    {
+        DB::table(Config::rolesTable())->insert([
+            [
+                'name' => 'fallback-role',
+                'guard_name' => 'web',
+                'team_test_id' => 2,
+            ],
+            [
+                'name' => 'fallback-role',
+                'guard_name' => 'web',
+                'team_test_id' => 1,
+            ],
+            [
+                'name' => 'fallback-role',
+                'guard_name' => 'web',
+                'team_test_id' => null,
+            ],
+        ]);
+        $registrar = app(PermissionRegistrar::class);
+
+        setPermissionsTeamId(1);
+        $teamRole = $registrar->getRoles([
+            'name' => 'fallback-role',
+            'guard_name' => 'web',
+            'team_test_id' => [2, 1],
+        ], true)->sole();
+        $this->assertSame(1, $teamRole->team_test_id);
+
+        setPermissionsTeamId(null);
+        $globalRole = $registrar->getRoles([
+            'name' => 'fallback-role',
+            'guard_name' => 'web',
+            'team_test_id' => [2, null],
+        ], true)->sole();
+        $this->assertNull($globalRole->team_test_id);
+    }
+
+    public function testIncompatibleRoleCatalogIsTeamFilteredAndLoadedOncePerCoroutine(): void
+    {
+        DB::table(Config::rolesTable())->insert([
+            [
+                'name' => 'standalone-role',
+                'guard_name' => 'web',
+                'team_test_id' => 2,
+            ],
+            [
+                'name' => 'standalone-role',
+                'guard_name' => 'web',
+                'team_test_id' => 1,
+            ],
+        ]);
+        setPermissionsTeamId(1);
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $registrar = app(PermissionRegistrar::class);
+        $parameters = [
+            'name' => 'standalone-role',
+            'guard_name' => 'web',
+            'team_test_id' => [2, 1],
+        ];
+        $first = $registrar->getRoles($parameters, true, TeamFallbackRole::class)->sole();
+        $second = $registrar->getRoles($parameters, true, TeamFallbackRole::class)->sole();
+
+        $this->assertSame(1, $first->team_test_id);
+        $this->assertTrue($first->is($second));
+        $this->assertCount(1, DB::getQueryLog());
+    }
+
     public function testRoleFindOrCreateCreatesCurrentTeamRoleWhenOnlyAnotherTeamHasSameName(): void
     {
         app(Role::class)->create(['name' => 'team-find-or-create', 'team_test_id' => 2]);
@@ -229,5 +305,66 @@ class TeamHasRolesTest extends HasRolesTest
         $this->assertCount(1, User::role($this->testUserRole)->get());
         $this->assertCount(0, User::role('testRole2')->get());
         $this->assertCount(1, User::withoutRole('testRole')->get());
+    }
+
+    public function testRoleMutationsRequireASelectedTeam(): void
+    {
+        setPermissionsTeamId(null);
+        $unsavedUser = new User(['email' => 'teamless-queued-role@example.com']);
+
+        $this->assertTeamNotSelected(fn () => $this->testUser->assignRole('testRole'));
+        $this->assertTeamNotSelected(fn () => $this->testUser->removeRole('testRole'));
+        $this->assertTeamNotSelected(fn () => $this->testUser->syncRoles());
+        $this->assertTeamNotSelected(fn () => $unsavedUser->assignRole('testRole'));
+    }
+
+    public function testDirectRoleRelationWritesRequireASelectedTeam(): void
+    {
+        setPermissionsTeamId(null);
+        $relation = $this->testUser->roles();
+        $roleId = $this->testUserRole->getKey();
+
+        $this->assertTeamNotSelected(fn () => $relation->attach($roleId));
+        $this->assertTeamNotSelected(fn () => $relation->detach($roleId));
+        $this->assertTeamNotSelected(fn () => $relation->toggle($roleId));
+        $this->assertTeamNotSelected(fn () => $relation->sync([$roleId]));
+        $this->assertTeamNotSelected(fn () => $relation->updateExistingPivot($roleId, []));
+    }
+
+    /**
+     * Assert a team-scoped mutation rejects missing team context.
+     */
+    private function assertTeamNotSelected(Closure $mutation): void
+    {
+        try {
+            $mutation();
+            $this->fail('Expected the teamless mutation to be rejected.');
+        } catch (TeamNotSelected $exception) {
+            $this->assertStringContainsString('current team', $exception->getMessage());
+        }
+    }
+}
+
+class TeamFallbackRole extends Model implements Role
+{
+    use HasPermissions;
+
+    protected array $guarded = [];
+
+    protected ?string $table = 'roles';
+
+    public static function findByName(UnitEnum|string $name, ?string $guardName): self
+    {
+        throw new BadMethodCallException;
+    }
+
+    public static function findById(int|string $id, ?string $guardName): self
+    {
+        throw new BadMethodCallException;
+    }
+
+    public static function findOrCreate(UnitEnum|string $name, ?string $guardName): self
+    {
+        throw new BadMethodCallException;
     }
 }

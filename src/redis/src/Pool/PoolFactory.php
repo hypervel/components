@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Redis\Pool;
 
 use Hypervel\Contracts\Container\Container as ContainerContract;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class PoolFactory
 {
@@ -28,9 +30,20 @@ class PoolFactory
     {
         $pools = $this->pools;
         $this->pools = [];
+        $exception = null;
 
         foreach ($pools as $pool) {
-            $pool->close();
+            try {
+                $pool->close();
+            } catch (Throwable $throwable) {
+                if ($exception === null || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)) {
+                    $exception = $throwable;
+                }
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
         }
     }
 

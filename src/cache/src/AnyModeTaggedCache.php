@@ -14,6 +14,7 @@ use Hypervel\Cache\Events\KeyForgetFailed;
 use Hypervel\Cache\Events\KeyForgotten;
 use Hypervel\Cache\Events\KeyRetrievalFailed;
 use Hypervel\Cache\Events\RetrievingKey;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -140,6 +141,8 @@ abstract class AnyModeTaggedCache extends TaggedCache
 
         try {
             $value = $this->handleIncompleteClass($key, $this->store->get($key));
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             $this->event(
                 KeyRetrievalFailed::class,
@@ -180,6 +183,8 @@ abstract class AnyModeTaggedCache extends TaggedCache
 
         try {
             $result = $this->store->forget($key);
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             $this->event(
                 KeyForgetFailed::class,

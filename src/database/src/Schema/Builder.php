@@ -367,7 +367,7 @@ class Builder
     /**
      * Get the indexes for a given table.
      *
-     * @return list<array{name: string, columns: list<string>, type: null|string, unique: bool, primary: bool}>
+     * @return list<array{name: string, columns: list<string>, type: null|string, unique: bool, primary: bool, partial: bool}>
      */
     public function getIndexes(string $table): array
     {

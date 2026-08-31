@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench;
 
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Support\Providers\RouteServiceProvider;
 use Hypervel\Routing\Router;
 use Hypervel\Testbench\Concerns\WithWorkbench;
@@ -12,14 +13,37 @@ use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testbench\Workbench\Workbench;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Testbench\Fixtures\MergeSeedersTestStub;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionClass;
+use Symfony\Component\Process\Process;
+
+use function Hypervel\Support\php_binary;
+use function Hypervel\Testbench\package_path;
 
 class WithWorkbenchTest extends TestCase
 {
     use WithWorkbench;
+
+    private string $temporaryDirectory;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->temporaryDirectory = ParallelTesting::tempDir('WithWorkbenchTest');
+
+        (new Filesystem)->deleteDirectory($this->temporaryDirectory);
+    }
+
+    protected function tearDown(): void
+    {
+        (new Filesystem)->deleteDirectory($this->temporaryDirectory);
+
+        parent::tearDown();
+    }
 
     #[Test]
     public function itCanBeResolved(): void
@@ -67,6 +91,71 @@ class WithWorkbenchTest extends TestCase
             'kernel' => [],
             'handler' => [],
         ], $reflection->getStaticPropertyValue('cachedCoreBindings'));
+    }
+
+    #[Test]
+    public function itDiscoversNamespacesFromTheActiveWorkbenchPathAndRefreshesOnDemand(): void
+    {
+        $reflection = new ReflectionClass(Workbench::class);
+        $reflection->setStaticPropertyValue('cachedNamespaces', ['app' => 'Cached\App\\']);
+
+        $this->assertSame('Cached\App\\', Workbench::detectNamespace('app'));
+        $this->assertSame('Workbench\App\\', Workbench::detectNamespace('app', true));
+    }
+
+    #[Test]
+    public function itMemoizesMissingNamespacesAndCoreBindings(): void
+    {
+        $filesystem = new Filesystem;
+        $filesystem->makeDirectory($this->temporaryDirectory . '/workbench/app/Console', 0700, true);
+        $filesystem->put($this->temporaryDirectory . '/composer.json', json_encode([
+            'autoload-dev' => [
+                'psr-4' => [
+                    'Fixture\App\\' => 'workbench/app/',
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $updatedComposer = json_encode([
+            'autoload-dev' => [
+                'psr-4' => [
+                    'Fixture\App\\' => 'workbench/app/',
+                    'Changed\\' => 'workbench/missing/',
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $process = new Process(
+            command: [
+                php_binary(),
+                '-r',
+                sprintf(
+                    <<<'PHP'
+require %s;
+$firstNamespace = \Hypervel\Testbench\Workbench\Workbench::detectNamespace('missing');
+$firstKernel = \Hypervel\Testbench\Workbench\Workbench::applicationConsoleKernel();
+file_put_contents(%s, %s);
+touch(%s);
+$secondNamespace = \Hypervel\Testbench\Workbench\Workbench::detectNamespace('missing');
+$secondKernel = \Hypervel\Testbench\Workbench\Workbench::applicationConsoleKernel();
+echo json_encode([$firstNamespace, $secondNamespace, $firstKernel, $secondKernel], JSON_THROW_ON_ERROR);
+PHP,
+                    var_export(package_path('vendor/autoload.php'), true),
+                    var_export($this->temporaryDirectory . '/composer.json', true),
+                    var_export($updatedComposer, true),
+                    var_export($this->temporaryDirectory . '/workbench/app/Console/Kernel.php', true),
+                ),
+            ],
+            cwd: $this->temporaryDirectory,
+            env: ['TESTBENCH_WORKING_PATH' => $this->temporaryDirectory],
+        );
+
+        $process->mustRun();
+
+        $this->assertSame(
+            [null, null, null, null],
+            json_decode($process->getOutput(), associative: true, flags: JSON_THROW_ON_ERROR),
+        );
     }
 
     #[Test]
@@ -128,6 +217,20 @@ class WithWorkbenchTest extends TestCase
     {
         $this->assertFalse(Env::has('AUTH_MODEL'));
         $this->assertSame('Workbench\App\Models\User', config('auth.providers.users.model'));
+    }
+
+    #[Test]
+    public function itPrefersAnExplicitUserModel(): void
+    {
+        try {
+            Env::set('AUTH_MODEL', 'App\Models\CustomUser');
+            Workbench::flushCachedClassAndNamespaces();
+
+            $this->assertSame('App\Models\CustomUser', Workbench::applicationUserModel());
+        } finally {
+            Env::forget('AUTH_MODEL');
+            Workbench::flushCachedClassAndNamespaces();
+        }
     }
 
     #[Test]

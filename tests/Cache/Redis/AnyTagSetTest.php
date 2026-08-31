@@ -181,10 +181,7 @@ class AnyTagSetTest extends RedisCacheTestCase
         $this->pipeline->shouldReceive('zrem')->andReturnSelf();
         $this->pipeline->shouldReceive('exec')->andReturn([]);
 
-        $tagSet->flush();
-
-        // If we get here without exception, the flush executed through the full chain
-        $this->assertTrue(true);
+        $this->assertTrue($tagSet->flush());
     }
 
     /**
@@ -249,10 +246,7 @@ class AnyTagSetTest extends RedisCacheTestCase
         $this->pipeline->shouldReceive('zrem')->andReturnSelf();
         $this->pipeline->shouldReceive('exec')->andReturn([]);
 
-        $tagSet->reset();
-
-        // If we get here without exception, reset executed flush correctly
-        $this->assertTrue(true);
+        $this->assertTrue($tagSet->reset());
     }
 
     /**

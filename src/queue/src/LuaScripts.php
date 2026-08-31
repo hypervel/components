@@ -121,6 +121,7 @@ LUA;
      * KEYS[2] - The queue we are moving jobs to, for example: queues:foo
      * KEYS[3] - The notification list for the queue we are moving jobs to, for example queues:foo:notify
      * ARGV[1] - The current UNIX timestamp
+     * ARGV[2] - The maximum number of jobs to migrate
      */
     public static function migrateExpiredJobs(): string
     {

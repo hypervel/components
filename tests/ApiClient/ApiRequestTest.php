@@ -227,14 +227,14 @@ class ApiRequestTest extends TestCase
     public function testStructuredMutationIsRejectedForGetAndHead(
         string $httpMethod,
         string $mutation,
-        array|string $argument,
+        array|string|null $argument,
     ): void {
         $request = new ApiRequest(new Psr7Request($httpMethod, 'https://api.example.com'));
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Use withQuery() or withoutQuery() instead.');
 
-        $request->{$mutation}($argument);
+        $argument === null ? $request->{$mutation}() : $request->{$mutation}($argument);
     }
 
     public static function structuredMutationOnReadMethodProvider(): array
@@ -243,10 +243,30 @@ class ApiRequestTest extends TestCase
             'GET withData' => ['GET', 'withData', ['name' => 'Taylor']],
             'GET mergeData' => ['GET', 'mergeData', ['name' => 'Taylor']],
             'GET withoutData' => ['GET', 'withoutData', 'name'],
+            'GET asJson' => ['GET', 'asJson', null],
+            'GET asForm' => ['GET', 'asForm', null],
             'HEAD withData' => ['HEAD', 'withData', ['name' => 'Taylor']],
             'HEAD mergeData' => ['HEAD', 'mergeData', ['name' => 'Taylor']],
             'HEAD withoutData' => ['HEAD', 'withoutData', 'name'],
+            'HEAD asJson' => ['HEAD', 'asJson', null],
+            'HEAD asForm' => ['HEAD', 'asForm', null],
         ];
+    }
+
+    public function testStructuredFormatRejectionPreservesGetQueryData(): void
+    {
+        $request = new ApiRequest(new Psr7Request('GET', 'https://api.example.com?name=Taylor'));
+        $exception = null;
+
+        try {
+            $request->asJson();
+        } catch (InvalidArgumentException $exception) {
+        }
+
+        $this->assertInstanceOf(InvalidArgumentException::class, $exception);
+        $this->assertSame('name=Taylor', $request->toPsrRequest()->getUri()->getQuery());
+        $this->assertSame('', (string) $request->toPsrRequest()->getBody());
+        $this->assertFalse($request->toPsrRequest()->hasHeader('Content-Type'));
     }
 
     public function testRawGetBodiesRemainSupported(): void

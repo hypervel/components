@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
+use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Foundation\Application;
 use Hypervel\Support\Number;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
+use RuntimeException;
 
 use function Hypervel\Coroutine\parallel;
 use function Hypervel\Coroutine\run;
@@ -17,6 +20,15 @@ use function Hypervel\Coroutine\run;
 class NumberTest extends TestCase
 {
     protected bool $runTestsInCoroutine = false;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $application = new Application;
+        $application->boot();
+        Container::setInstance($application);
+    }
 
     // ==========================================================================
     // Basic Formatting Tests
@@ -230,6 +242,90 @@ class NumberTest extends TestCase
         });
 
         $this->assertSame('EUR', $result);
+        $this->assertSame('USD', Number::defaultCurrency());
+    }
+
+    public function testTemporaryOverridesRestoreAbsentContextKeysAfterSuccessAndFailure(): void
+    {
+        $exception = new RuntimeException('failed');
+
+        $this->assertFalse(CoroutineContext::has(Number::LOCALE_CONTEXT_KEY));
+        $this->assertSame('de', Number::withLocale('de', fn (): string => Number::defaultLocale()));
+        $this->assertFalse(CoroutineContext::has(Number::LOCALE_CONTEXT_KEY));
+
+        try {
+            Number::withCurrency('EUR', function () use ($exception): never {
+                throw $exception;
+            });
+            $this->fail('The temporary currency callback should throw.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertFalse(CoroutineContext::has(Number::CURRENCY_CONTEXT_KEY));
+    }
+
+    public function testNestedTemporaryOverridesRestoreExactContextValues(): void
+    {
+        Number::useLocale('fr');
+        Number::useCurrency('GBP');
+
+        $values = Number::withLocale('de', fn (): array => [
+            Number::defaultLocale(),
+            Number::withLocale('ja', fn (): string => Number::defaultLocale()),
+            Number::defaultLocale(),
+            Number::withCurrency('EUR', fn (): string => Number::defaultCurrency()),
+            Number::defaultCurrency(),
+        ]);
+
+        $this->assertSame(['de', 'ja', 'de', 'EUR', 'GBP'], $values);
+        $this->assertSame('fr', Number::defaultLocale());
+        $this->assertSame('GBP', Number::defaultCurrency());
+    }
+
+    public function testConfigurationBeforeBootAndStandaloneUseUpdatesTheBaseline(): void
+    {
+        $application = new Application;
+        Container::setInstance($application);
+
+        Number::useLocale('fr');
+        Number::useCurrency('EUR');
+        $application->boot();
+
+        $configuredDefaults = [];
+        run(function () use (&$configuredDefaults): void {
+            $configuredDefaults = parallel([
+                fn (): array => [Number::defaultLocale(), Number::defaultCurrency()],
+                fn (): array => [Number::defaultLocale(), Number::defaultCurrency()],
+            ]);
+        });
+
+        $this->assertSame([['fr', 'EUR'], ['fr', 'EUR']], $configuredDefaults);
+
+        Container::setInstance(new Container);
+        Number::useLocale('de');
+        Number::useCurrency('CHF');
+
+        $this->assertSame('de', Number::defaultLocale());
+        $this->assertSame('CHF', Number::defaultCurrency());
+    }
+
+    public function testFlushStateResetsBaselinesWithoutClearingContext(): void
+    {
+        Container::setInstance(new Container);
+        Number::useLocale('fr');
+        Number::useCurrency('EUR');
+        CoroutineContext::set(Number::LOCALE_CONTEXT_KEY, 'de');
+        CoroutineContext::set('number.unrelated', 'kept');
+
+        Number::flushState();
+
+        $this->assertSame('de', Number::defaultLocale());
+        $this->assertSame('kept', CoroutineContext::get('number.unrelated'));
+
+        CoroutineContext::forget(Number::LOCALE_CONTEXT_KEY);
+
+        $this->assertSame('en', Number::defaultLocale());
         $this->assertSame('USD', Number::defaultCurrency());
     }
 

@@ -34,6 +34,7 @@ use Pheanstalk\Contract\PheanstalkPublisherInterface;
 use Pheanstalk\Contract\PheanstalkSubscriberInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class QueuePoolProxyTest extends TestCase
@@ -220,6 +221,32 @@ class QueuePoolProxyTest extends TestCase
         $this->assertSame(0, $pool->getCurrentObjectNumber());
     }
 
+    public function testReleaseCancellationSupersedesAPopFailure(): void
+    {
+        $operationException = new Exception('pop failed');
+        $releaseCancellation = new CanceledException('release canceled');
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldNotReceive('report');
+        [$proxy, $pools] = $this->proxy(
+            fn () => new QueuePoolProxyTestQueue(popException: $operationException),
+            static function () use ($releaseCancellation): never {
+                throw $releaseCancellation;
+            },
+            $handler,
+        );
+
+        try {
+            $proxy->pop();
+            $this->fail('Expected release cancellation to propagate.');
+        } catch (Throwable $exception) {
+            $this->assertSame($releaseCancellation, $exception);
+        }
+
+        $pool = $pools->get($proxy->getPoolName());
+        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+        $this->assertSame(0, $pool->getCurrentObjectNumber());
+    }
+
     public function testNonLeaseAwareJobIsRequeuedBeforeFailingClosed(): void
     {
         $job = m::mock(JobContract::class);
@@ -263,6 +290,25 @@ class QueuePoolProxyTest extends TestCase
         $this->assertSame(0, $proxy->size());
         $this->assertSame(2, $created);
         $this->assertSame(1, $pool->getCurrentObjectNumber());
+    }
+
+    public function testNonLeaseAwareJobRequeueCancellationIsNotWrapped(): void
+    {
+        $cancellation = new CanceledException('requeue canceled');
+        $job = m::mock(JobContract::class);
+        $job->shouldReceive('release')->once()->with(0)->andThrow($cancellation);
+        [$proxy, $pools] = $this->proxy(fn () => new QueuePoolProxyTestQueue($job));
+
+        try {
+            $proxy->pop();
+            $this->fail('Expected requeue cancellation to propagate.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $pool = $pools->get($proxy->getPoolName());
+        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+        $this->assertSame(0, $pool->getCurrentObjectNumber());
     }
 
     public function testTerminalBackendFailureDiscardsTheQueueAndCreatesAReplacement(): void
@@ -384,6 +430,74 @@ class QueuePoolProxyTest extends TestCase
             'successful recovery' => [false],
             'failed recovery' => [true],
         ];
+    }
+
+    public function testAttachmentRecoveryCancellationSupersedesTheAttachmentFailure(): void
+    {
+        $attachmentException = new Exception('stats failed');
+        $recoveryCancellation = new CanceledException('release canceled');
+        $pheanstalk = m::mock(implode(',', [
+            PheanstalkManagerInterface::class,
+            PheanstalkPublisherInterface::class,
+            PheanstalkSubscriberInterface::class,
+        ]));
+        $pheanstalk->shouldReceive('statsJob')->once()->andThrow($attachmentException);
+        $pheanstalk->shouldReceive('release')->once()->andThrow($recoveryCancellation);
+        $job = new BeanstalkdJob(
+            m::mock(ContainerContract::class),
+            $pheanstalk,
+            m::mock(JobIdInterface::class),
+            'connection',
+            'jobs',
+        );
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldNotReceive('report');
+        [$proxy, $pools] = $this->proxy(
+            fn () => new QueuePoolProxyTestQueue($job),
+            handler: $handler,
+        );
+
+        try {
+            $proxy->pop();
+            $this->fail('Expected recovery cancellation to propagate.');
+        } catch (Throwable $exception) {
+            $this->assertSame($recoveryCancellation, $exception);
+        }
+
+        $pool = $pools->get($proxy->getPoolName());
+        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+        $this->assertSame(0, $pool->getCurrentObjectNumber());
+    }
+
+    public function testAttachmentCancellationDoesNotStartBackendRecovery(): void
+    {
+        $attachmentCancellation = new CanceledException('stats canceled');
+        $pheanstalk = m::mock(implode(',', [
+            PheanstalkManagerInterface::class,
+            PheanstalkPublisherInterface::class,
+            PheanstalkSubscriberInterface::class,
+        ]));
+        $pheanstalk->shouldReceive('statsJob')->once()->andThrow($attachmentCancellation);
+        $pheanstalk->shouldNotReceive('release');
+        $job = new BeanstalkdJob(
+            m::mock(ContainerContract::class),
+            $pheanstalk,
+            m::mock(JobIdInterface::class),
+            'connection',
+            'jobs',
+        );
+        [$proxy, $pools] = $this->proxy(fn () => new QueuePoolProxyTestQueue($job));
+
+        try {
+            $proxy->pop();
+            $this->fail('Expected attachment cancellation to propagate.');
+        } catch (Throwable $exception) {
+            $this->assertSame($attachmentCancellation, $exception);
+        }
+
+        $pool = $pools->get($proxy->getPoolName());
+        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+        $this->assertSame(0, $pool->getCurrentObjectNumber());
     }
 
     /**

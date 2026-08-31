@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Auth;
 
 use Hypervel\Contracts\Auth\UserProvider;
+use Hypervel\Database\ConnectionResolverInterface;
 use InvalidArgumentException;
 use UnitEnum;
 
@@ -87,10 +88,14 @@ trait CreatesUserProviders
      */
     protected function createDatabaseProvider(array $config): DatabaseUserProvider
     {
+        /** @var ConnectionResolverInterface $connectionResolver */
+        $connectionResolver = $this->app->make('db');
+
         return new DatabaseUserProvider(
-            $this->app->make('db')->connection($config['connection'] ?? null),
+            $connectionResolver,
             $this->app->make('hash'),
             $config['table'],
+            $config['connection'] ?? null,
         );
     }
 

@@ -5,22 +5,23 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Scout\Feature;
 
 use ArgumentCountError;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Scout\Attributes\SearchUsingFullText;
 use Hypervel\Scout\Attributes\SearchUsingPrefix;
 use Hypervel\Scout\Engines\DatabaseEngine;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\Scout\Models\PrefixSearchableModel;
 use Hypervel\Tests\Scout\Models\SearchableModel;
+use Hypervel\Tests\Scout\Models\UuidSearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 
 class DatabaseEngineTest extends ScoutTestCase
 {
-    protected function setUp(): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
-        parent::setUp();
+        parent::defineEnvironment($app);
 
-        // Set driver to database for these tests
-        $this->app->make('config')->set('scout.driver', 'database');
+        $app->make('config')->set('scout.driver', 'database');
     }
 
     public function testSearchReturnsMatchingModels(): void
@@ -176,6 +177,53 @@ class DatabaseEngineTest extends ScoutTestCase
         $this->assertEquals($model1->id, $results->first()->id);
     }
 
+    public function testIntegerPrimaryKeyUsesExactMatchingOnly(): void
+    {
+        SearchableModel::create(['id' => 1, 'title' => 'First', 'body' => 'Body']);
+        SearchableModel::create(['id' => 10, 'title' => 'Tenth', 'body' => 'Body']);
+
+        $results = SearchableModel::search('1')->get();
+
+        $this->assertSame([1], $results->pluck('id')->all());
+    }
+
+    public function testStringPrimaryKeyRemainsPartiallySearchable(): void
+    {
+        UuidSearchableModel::create([
+            'id' => '018f0000-0000-7000-8000-000000000001',
+            'title' => 'First',
+            'body' => 'Body',
+        ]);
+        UuidSearchableModel::create([
+            'id' => '018f0000-0000-7000-8000-000000000002',
+            'title' => 'Second',
+            'body' => 'Body',
+        ]);
+
+        $results = UuidSearchableModel::search('000000000001')->get();
+
+        $this->assertSame(
+            ['018f0000-0000-7000-8000-000000000001'],
+            $results->pluck('id')->all(),
+        );
+    }
+
+    public function testCustomScoutKeyDoesNotReplaceDatabaseIdentityOrDefaultOrder(): void
+    {
+        DatabaseCustomScoutKeyModel::create(['id' => 1, 'title' => 'Zulu', 'body' => 'Body']);
+        DatabaseCustomScoutKeyModel::create(['id' => 2, 'title' => 'Alpha', 'body' => 'Body']);
+        DatabaseCustomScoutKeyModel::create(['id' => 10, 'title' => 'Bravo', 'body' => 'Body']);
+
+        $this->assertSame(
+            [1],
+            DatabaseCustomScoutKeyModel::search('1')->get()->pluck('id')->all(),
+        );
+        $this->assertSame(
+            [10, 2, 1],
+            DatabaseCustomScoutKeyModel::search('')->get()->pluck('id')->all(),
+        );
+    }
+
     public function testUpdateAndDeleteAreNoOps(): void
     {
         $model = SearchableModel::create(['title' => 'Test', 'body' => 'Body']);
@@ -228,6 +276,23 @@ class DatabaseEngineTest extends ScoutTestCase
 
         $this->assertSame(['title'], $invoker->getPrefixColumns($builder));
         $this->assertSame(['body'], $invoker->getFullTextColumns($builder));
+    }
+
+    public function testIntegerPrimaryKeyIsExcludedFromCachedTextSearchAttributes(): void
+    {
+        $invoker = new ClassInvoker(new DatabaseEngine);
+        $builder = IntegerKeySearchAttributesModel::search('1');
+
+        $this->assertSame(['title'], $invoker->getPrefixColumns($builder));
+        $this->assertSame(['body'], $invoker->getFullTextColumns($builder));
+        $this->assertSame(
+            ['title'],
+            $invoker->attributeColumns[IntegerKeySearchAttributesModel::class][SearchUsingPrefix::class],
+        );
+        $this->assertSame(
+            ['body'],
+            $invoker->attributeColumns[IntegerKeySearchAttributesModel::class][SearchUsingFullText::class],
+        );
     }
 
     public function testMalformedSearchAttributeFailsFast(): void
@@ -399,6 +464,24 @@ class NamedSearchAttributesModel extends SearchableModel
 class MalformedSearchAttributeModel extends SearchableModel
 {
     #[SearchUsingPrefix]
+    public function toSearchableArray(): array
+    {
+        return parent::toSearchableArray();
+    }
+}
+
+class DatabaseCustomScoutKeyModel extends SearchableModel
+{
+    public function getScoutKeyName(): string
+    {
+        return 'title';
+    }
+}
+
+class IntegerKeySearchAttributesModel extends SearchableModel
+{
+    #[SearchUsingPrefix(columns: ['id', 'title'])]
+    #[SearchUsingFullText(columns: ['id', 'body'])]
     public function toSearchableArray(): array
     {
         return parent::toSearchableArray();

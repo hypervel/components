@@ -33,6 +33,7 @@ class UsesFrameworkConfigurationTest extends TestCase
     public function itCanLoadUsingFrameworkConfigurations(): void
     {
         $this->assertSame(LoadConfiguration::class, $this->app->make(LoadConfiguration::class)::class);
+        $this->assertSame(LoadConfiguration::frameworkConfigPath(), $this->app->configPath());
 
         $environment = Env::has('TESTBENCH_PACKAGE_TESTER') ? 'testing' : 'production';
 

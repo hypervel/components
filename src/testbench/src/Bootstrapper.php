@@ -10,6 +10,7 @@ use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\Foundation\EnvironmentFile;
+use Hypervel\Testing\ParallelTesting;
 use JsonException;
 use RuntimeException;
 use Throwable;
@@ -42,6 +43,14 @@ class Bootstrapper
 
         static::loadConfigFromYaml(static::resolveConfigurationPath($workingPath));
 
+        if (! defined('SWOOLE_HOOK_FLAGS')) {
+            define('SWOOLE_HOOK_FLAGS', SWOOLE_HOOK_ALL);
+        }
+
+        if (defined('BASE_PATH')) {
+            return;
+        }
+
         $sourcePath = testbench_path('hypervel');
         if (static::$configuration?->offsetExists('hypervel') === true && is_string(static::$configuration['hypervel'])) {
             $sourcePath = static::$configuration['hypervel'];
@@ -49,8 +58,7 @@ class Bootstrapper
 
         $basePath = static::resolveRuntimeBasePath($sourcePath, $workingPath);
 
-        ! defined('BASE_PATH') && define('BASE_PATH', $basePath);
-        ! defined('SWOOLE_HOOK_FLAGS') && define('SWOOLE_HOOK_FLAGS', SWOOLE_HOOK_ALL);
+        define('BASE_PATH', $basePath);
     }
 
     /**
@@ -91,7 +99,7 @@ class Bootstrapper
     /**
      * Resolve the directory that owns the active testbench.yaml file.
      */
-    protected static function resolveConfigurationPath(string $workingPath): string
+    public static function resolveConfigurationPath(string $workingPath): string
     {
         if (static::hasConfigurationFile($workingPath)) {
             return $workingPath;
@@ -126,7 +134,7 @@ class Bootstrapper
      */
     protected static function createRuntimeCopy(string $sourcePath, string $workingPath): string
     {
-        $token = $_SERVER['TEST_TOKEN'] ?? $_ENV['TEST_TOKEN'] ?? 'default';
+        $token = ParallelTesting::processToken() ?? 'default';
         $pid = getmypid();
         // Normalize the temp dir so that BASE_PATH matches paths derived via
         // realpath(). On macOS, sys_get_temp_dir() returns /var/folders/...

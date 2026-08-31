@@ -7,8 +7,8 @@ namespace Hypervel\Foundation\Providers;
 use Carbon\FactoryImmutable;
 use Hypervel\Concurrency\Console\InvokeSerializedClosureCommand;
 use Hypervel\Config\Repository;
-use Hypervel\Console\Events\CommandFinished;
 use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Container\Container as BaseContainer;
 use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -255,13 +255,10 @@ class FoundationServiceProvider extends ServiceProvider
         $this->app->scoped(DeferredCallbackCollection::class);
         $events = $this->app->make('events');
 
-        $events->listen(function (CommandFinished $event) {
-            $this->app->make(DeferredCallbackCollection::class)
-                ->invokeWhen(fn (DeferredCallback $callback) => $this->app->runningInConsole() && ($event->exitCode === 0 || $callback->always));
-        });
-
         $events->listen(function (JobAttempted $event) {
-            if (in_array($event->connectionName, ['sync', 'deferred'], true)) {
+            if ($event->connectionName === 'sync'
+                || ! BaseContainer::getInstance()->resolvedScoped(DeferredCallbackCollection::class)
+            ) {
                 return;
             }
 

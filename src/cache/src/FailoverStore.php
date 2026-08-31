@@ -14,6 +14,7 @@ use Hypervel\Contracts\Cache\RawReadable;
 use Hypervel\Contracts\Cache\Repository as RepositoryContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -34,6 +35,13 @@ class FailoverStore extends TaggableStore implements CanFlushLocks, LockProvider
     protected const string FAILING_CACHES_CONTEXT_PREFIX = '__cache.failover.failing_caches.';
 
     /**
+     * The cache stores in failover order.
+     *
+     * @var list<string>
+     */
+    protected array $stores;
+
+    /**
      * Create a new failover store.
      *
      * @param array<int, string> $stores
@@ -41,8 +49,9 @@ class FailoverStore extends TaggableStore implements CanFlushLocks, LockProvider
     public function __construct(
         protected CacheManager $cache,
         protected Dispatcher $events,
-        protected array $stores
+        array $stores
     ) {
+        $this->stores = array_values($stores);
     }
 
     /**
@@ -108,7 +117,7 @@ class FailoverStore extends TaggableStore implements CanFlushLocks, LockProvider
     /**
      * Increment the value of an item in the cache.
      */
-    public function increment(string $key, int $value = 1): int|false
+    public function increment(string $key, int $value = 1): bool|int
     {
         return $this->attemptOnAllStores(__FUNCTION__, func_get_args());
     }
@@ -116,7 +125,7 @@ class FailoverStore extends TaggableStore implements CanFlushLocks, LockProvider
     /**
      * Decrement the value of an item in the cache.
      */
-    public function decrement(string $key, int $value = 1): int|false
+    public function decrement(string $key, int $value = 1): bool|int
     {
         return $this->attemptOnAllStores(__FUNCTION__, func_get_args());
     }
@@ -253,6 +262,8 @@ class FailoverStore extends TaggableStore implements CanFlushLocks, LockProvider
                 if (! $store->flushLocks()) {
                     $result = false;
                 }
+            } catch (CanceledException $exception) {
+                throw $exception;
             } catch (Throwable $throwable) {
                 $exception ??= $throwable;
             }
@@ -307,15 +318,27 @@ class FailoverStore extends TaggableStore implements CanFlushLocks, LockProvider
         [$lastException, $failedCaches] = [null, []];
 
         try {
-            foreach ($this->stores as $store) {
+            foreach ($this->stores as $position => $store) {
                 try {
                     return $this->store($store)->{$method}(...$arguments);
+                } catch (CanceledException $exception) {
+                    throw $exception;
                 } catch (Throwable $exception) {
                     $lastException = $exception;
 
                     $failedCaches[] = $store;
 
-                    $this->recordStoreFailure($store, $exception, $failingCaches);
+                    try {
+                        $this->recordStoreFailure($store, $exception, $failingCaches);
+                    } catch (Throwable $listenerException) {
+                        $failedCaches = $this->failureHistoryAfterInterruption(
+                            $failingCaches,
+                            $failedCaches,
+                            $position + 1,
+                        );
+
+                        throw $listenerException;
+                    }
                 }
             }
         } finally {
@@ -339,14 +362,26 @@ class FailoverStore extends TaggableStore implements CanFlushLocks, LockProvider
         $failedCaches = [];
 
         try {
-            foreach ($this->stores as $store) {
+            foreach ($this->stores as $position => $store) {
                 try {
                     $results[] = $this->store($store)->{$method}(...$arguments);
+                } catch (CanceledException $exception) {
+                    throw $exception;
                 } catch (Throwable $exception) {
                     $lastException = $exception;
                     $failedCaches[] = $store;
 
-                    $this->recordStoreFailure($store, $exception, $failingCaches);
+                    try {
+                        $this->recordStoreFailure($store, $exception, $failingCaches);
+                    } catch (Throwable $listenerException) {
+                        $failedCaches = $this->failureHistoryAfterInterruption(
+                            $failingCaches,
+                            $failedCaches,
+                            $position + 1,
+                        );
+
+                        throw $listenerException;
+                    }
                 }
             }
         } finally {
@@ -354,6 +389,26 @@ class FailoverStore extends TaggableStore implements CanFlushLocks, LockProvider
         }
 
         return [$results, $lastException];
+    }
+
+    /**
+     * Build failure history after an interrupted failover attempt.
+     *
+     * @param list<string> $previousFailures
+     * @param list<string> $observedFailures
+     *
+     * @return list<string>
+     */
+    protected function failureHistoryAfterInterruption(
+        array $previousFailures,
+        array $observedFailures,
+        int $unattemptedFromPosition,
+    ): array {
+        // An interrupted attempt cannot establish recovery for stores it never reached.
+        return array_values(array_unique([
+            ...$observedFailures,
+            ...array_intersect($previousFailures, array_slice($this->stores, $unattemptedFromPosition)),
+        ]));
     }
 
     /**

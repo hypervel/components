@@ -15,6 +15,7 @@ use League\CommonMark\GithubFlavoredMarkdownConverter;
 use League\CommonMark\MarkdownConverter;
 use LogicException;
 use Stringable as BaseStringable;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Uid\Ulid;
 use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Uid\UuidV7;
@@ -1015,6 +1016,8 @@ class Str
     {
         try {
             return (string) $value;
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable) {
             return $fallback;
         }

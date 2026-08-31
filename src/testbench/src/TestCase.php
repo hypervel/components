@@ -49,8 +49,6 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
      */
     protected bool $loadEnvironmentVariables = true;
 
-    protected static bool $hasBootstrappedTestbench = false;
-
     /**
      * Setup the test environment.
      */
@@ -61,10 +59,7 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
             return;
         }
 
-        if (! static::$hasBootstrappedTestbench) {
-            Bootstrapper::bootstrap();
-            static::$hasBootstrappedTestbench = true;
-        }
+        Bootstrapper::bootstrap();
 
         $this->afterApplicationCreated(function () {
             Timer::clearAll();

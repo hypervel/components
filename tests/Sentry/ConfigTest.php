@@ -106,11 +106,20 @@ class ConfigTest extends SentryTestCase
         $this->assertTrue($config['tracing']['storage']);
     }
 
+    public function testTraceMetricsAreDisabledByDefault(): void
+    {
+        $config = $this->withEnvironmentValues([
+            'SENTRY_ENABLE_METRICS' => null,
+        ], fn (): array => $this->sentryConfig());
+
+        $this->assertFalse($config['enable_metrics']);
+    }
+
     public function testBooleanEnvironmentValuesAreNormalized(): void
     {
         $config = $this->withEnvironmentValues([
             'SENTRY_STRICT_TRACE_CONTINUATION' => '1',
-            'SENTRY_ENABLE_METRICS' => '0',
+            'SENTRY_ENABLE_METRICS' => '1',
             'SENTRY_SEND_DEFAULT_PII' => '1',
             'SENTRY_BREADCRUMBS_SQL_QUERIES_ENABLED' => '1',
             'SENTRY_BREADCRUMBS_CACHE_ENABLED' => '1',
@@ -120,7 +129,7 @@ class ConfigTest extends SentryTestCase
         ], fn (): array => $this->sentryConfig());
 
         $this->assertTrue($config['strict_trace_continuation']);
-        $this->assertFalse($config['enable_metrics']);
+        $this->assertTrue($config['enable_metrics']);
         $this->assertTrue($config['send_default_pii']);
         $this->assertTrue($config['breadcrumbs']['sql_queries']);
         $this->assertTrue($config['breadcrumbs']['cache']);

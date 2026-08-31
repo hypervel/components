@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Coroutine;
 
+use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Engine\Coroutine as Co;
 use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
 use Hypervel\Engine\Exceptions\RunningInNonCoroutineException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class Coroutine
@@ -35,7 +37,8 @@ class Coroutine
      * Register a callback to be called after a coroutine is created.
      *
      * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs for every subsequently created coroutine.
+     * lifetime and runs for every subsequently created coroutine. Callbacks
+     * run synchronously during child startup and must not suspend.
      */
     public static function afterCreated(callable $callback): void
     {
@@ -51,7 +54,7 @@ class Coroutine
             try {
                 $callable();
             } catch (Throwable $throwable) {
-                static::printLog($throwable);
+                static::reportUncaught($throwable);
             }
         });
     }
@@ -93,7 +96,22 @@ class Coroutine
      */
     public static function create(callable $callable): int
     {
-        return self::createWithContext($callable, []);
+        return self::createWithContext($callable, [], null);
+    }
+
+    /**
+     * Create a coroutine whose lifecycle is owned by a framework wrapper.
+     *
+     * The wrapper runs at native child entry. It must not suspend outside the
+     * supplied runner and must invoke that runner exactly once.
+     *
+     * @param Closure(Closure(): void): void $wrapper
+     *
+     * @internal
+     */
+    public static function createOwned(callable $callable, Closure $wrapper): int
+    {
+        return self::createWithContext($callable, [], $wrapper);
     }
 
     /**
@@ -105,33 +123,69 @@ class Coroutine
     {
         $context = CoroutineContext::captureFrom($keys);
 
-        return self::createWithContext($callable, $context);
+        return self::createWithContext($callable, $context, null);
+    }
+
+    /**
+     * Create an owned coroutine with a copy of the parent coroutine context.
+     *
+     * The wrapper runs at native child entry. It must not suspend outside the
+     * supplied runner and must invoke that runner exactly once.
+     *
+     * @param Closure(Closure(): void): void $wrapper
+     * @param array<string> $keys Context keys to copy (empty = all keys)
+     *
+     * @internal
+     */
+    public static function forkOwned(callable $callable, Closure $wrapper, array $keys = []): int
+    {
+        $context = CoroutineContext::captureFrom($keys);
+
+        return self::createWithContext($callable, $context, $wrapper);
     }
 
     /**
      * Create a coroutine after installing its initial context.
      */
-    private static function createWithContext(callable $callable, array $context): int
+    private static function createWithContext(callable $callable, array $context, ?Closure $wrapper): int
     {
-        $coroutine = Co::create(static function () use ($callable, $context): void {
+        $coroutine = Co::create(static function () use ($callable, $context, $wrapper): void {
             try {
-                CoroutineContext::setMany($context);
+                if ($wrapper === null) {
+                    self::runChild($callable, $context);
 
-                foreach (static::$afterCreatedCallbacks as $callback) {
-                    try {
-                        $callback();
-                    } catch (Throwable $throwable) {
-                        static::printLog($throwable);
-                    }
+                    return;
                 }
 
-                $callable();
+                $wrapper(static function () use ($callable, $context): void {
+                    self::runChild($callable, $context);
+                });
             } catch (Throwable $throwable) {
-                static::printLog($throwable);
+                static::reportUncaught($throwable);
             }
         });
 
         return $coroutine->getId();
+    }
+
+    /**
+     * Install startup context and run a child callable.
+     */
+    private static function runChild(callable $callable, array $context): void
+    {
+        CoroutineContext::setMany($context);
+
+        foreach (static::$afterCreatedCallbacks as $callback) {
+            try {
+                $callback();
+            } catch (CanceledException $exception) {
+                throw $exception;
+            } catch (Throwable $throwable) {
+                static::printLog($throwable);
+            }
+        }
+
+        $callable();
     }
 
     /**
@@ -206,6 +260,10 @@ class Coroutine
      */
     protected static function printLog(Throwable $throwable): void
     {
+        if ($throwable instanceof CanceledException) {
+            throw $throwable;
+        }
+
         if (! static::$enableReportException) {
             return;
         }
@@ -217,11 +275,30 @@ class Coroutine
                 $container->make(ExceptionHandlerContract::class)
                     ->report($throwable);
             }
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable) {
             try {
                 error_log((string) $throwable);
+            } catch (CanceledException $exception) {
+                throw $exception;
             } catch (Throwable) {
             }
+        }
+    }
+
+    /**
+     * Report an exception at a terminal coroutine boundary.
+     */
+    protected static function reportUncaught(Throwable $throwable): void
+    {
+        if ($throwable instanceof CanceledException) {
+            return;
+        }
+
+        try {
+            static::printLog($throwable);
+        } catch (CanceledException) {
         }
     }
 }

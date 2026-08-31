@@ -15,10 +15,16 @@ use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Support\Collection;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class SyncQueue extends Queue implements QueueContract
 {
+    /**
+     * The name of the default queue.
+     */
+    protected string $default = 'sync';
+
     /**
      * Create a new sync queue instance.
      */
@@ -158,6 +164,7 @@ class SyncQueue extends Queue implements QueueContract
     protected function executePayload(string $payload, ?string $queue = null): int
     {
         $queueJob = $this->resolveJob($payload, $queue);
+        $canceled = false;
 
         try {
             $this->raiseBeforeJobEvent($queueJob);
@@ -165,12 +172,24 @@ class SyncQueue extends Queue implements QueueContract
             $queueJob->fire();
 
             $this->raiseAfterJobEvent($queueJob);
+        } catch (CanceledException $exception) {
+            $canceled = true;
+
+            throw $exception;
         } catch (Throwable $e) {
             $exceptionOccurred = $e;
 
-            $this->handleException($queueJob, $e);
+            try {
+                $this->handleException($queueJob, $e);
+            } catch (CanceledException $exception) {
+                $canceled = true;
+
+                throw $exception;
+            }
         } finally {
-            $this->raiseJobAttemptedEvent($queueJob, $exceptionOccurred ?? null);
+            if (! $canceled) {
+                $this->raiseJobAttemptedEvent($queueJob, $exceptionOccurred ?? null);
+            }
         }
 
         return 0;
@@ -181,7 +200,9 @@ class SyncQueue extends Queue implements QueueContract
      */
     protected function resolveJob(string $payload, ?string $queue): SyncJob
     {
-        return new SyncJob($this->container, $payload, $this->connectionName, $queue ?? 'sync');
+        $queue = $queue === null || $queue === '' ? $this->default : $queue;
+
+        return new SyncJob($this->container, $payload, $this->connectionName, $queue);
     }
 
     /**

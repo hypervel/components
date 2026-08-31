@@ -22,6 +22,7 @@ use Mockery as m;
 use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\StringInput;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -94,6 +95,38 @@ class KernelTest extends TestCase
         } catch (RuntimeException $exception) {
             $this->assertSame($reportingFailure, $exception);
             $this->assertSame($original, $exception->getPrevious());
+        }
+    }
+
+    public function testHandlePreservesCancellationWithoutReportingOrRenderingIt(): void
+    {
+        $cancellation = new CanceledException('canceled');
+        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler->shouldNotReceive('report', 'renderForConsole');
+        $this->app->instance(ExceptionHandlerContract::class, $handler);
+
+        $kernel = new class($this->app, $this->app->make('events'), $cancellation) extends Kernel {
+            public function __construct(Application $app, Dispatcher $events, private readonly CanceledException $cancellation)
+            {
+                parent::__construct($app, $events);
+            }
+
+            protected function bootstrappers(): array
+            {
+                return [];
+            }
+
+            public function bootstrap(): void
+            {
+                throw $this->cancellation;
+            }
+        };
+
+        try {
+            $kernel->handle(new StringInput(''), new BufferedOutput);
+            $this->fail('Expected console handling to preserve cancellation.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
         }
     }
 

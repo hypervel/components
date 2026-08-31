@@ -17,6 +17,7 @@ use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\TagSet;
 use Hypervel\Contracts\Cache\Store;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -109,6 +110,8 @@ class AllTaggedCache extends NamespacedTaggedCache
                 $seconds,
                 $this->tags->tagIds()
             );
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             $this->event(
                 KeyWriteFailed::class,
@@ -169,6 +172,8 @@ class AllTaggedCache extends NamespacedTaggedCache
                 $this->tags->tagIds(),
                 $this->taggedItemKeyPrefix()
             );
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             foreach ($values as $key => $value) {
                 $this->event(
@@ -267,6 +272,8 @@ class AllTaggedCache extends NamespacedTaggedCache
                 $value,
                 $this->tags->tagIds()
             );
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             $this->event(
                 KeyWriteFailed::class,

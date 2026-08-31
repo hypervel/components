@@ -302,7 +302,7 @@ class StorageIntegrationTest extends SentryTestCase
         $this->assertStringEndsWith('/range.txt', $disk->url('range.txt'));
         $stream = $disk->readStreamRange('range.txt', 1, 3);
         $this->assertIsResource($stream);
-        $this->assertSame('bcdef', stream_get_contents($stream));
+        $this->assertSame('bcd', stream_get_contents($stream));
         fclose($stream);
 
         $operations = array_map(

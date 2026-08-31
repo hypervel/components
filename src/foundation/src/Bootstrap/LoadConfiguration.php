@@ -10,6 +10,7 @@ use Hypervel\Contracts\Config\Repository as RepositoryContract;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Support\Collection;
+use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Finder\Finder;
 use Throwable;
@@ -212,6 +213,20 @@ class LoadConfiguration
     }
 
     /**
+     * Get the framework configuration directory.
+     */
+    public static function frameworkConfigPath(): string
+    {
+        $path = realpath(dirname(__DIR__, 2) . '/config');
+
+        if ($path === false) {
+            throw new RuntimeException('Unable to locate the framework configuration directory.');
+        }
+
+        return $path;
+    }
+
+    /**
      * Get the base configuration files.
      *
      * @return array<string, array<string, mixed>>
@@ -220,7 +235,7 @@ class LoadConfiguration
     {
         $config = [];
 
-        foreach (Finder::create()->files()->name('*.php')->in(__DIR__ . '/../../config') as $file) {
+        foreach (Finder::create()->files()->name('*.php')->in(static::frameworkConfigPath()) as $file) {
             $config[basename($file->getRealPath(), '.php')] = (fn () => require $file->getRealPath())();
         }
 

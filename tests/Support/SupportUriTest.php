@@ -12,7 +12,11 @@ use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Support\Stringable as HypervelStringable;
 use Hypervel\Support\Uri;
 use Hypervel\Tests\TestCase;
+use League\Uri\Uri as LeagueUri;
 use Mockery as m;
+use stdClass;
+use Stringable;
+use TypeError;
 
 class SupportUriTest extends TestCase
 {
@@ -277,6 +281,51 @@ class SupportUriTest extends TestCase
         $this->assertEquals('https://hypervel.org', (string) $uri->withQuery([]));
     }
 
+    public function testUriHelperCastsStringableInputsExactlyOnce(): void
+    {
+        $stringable = new CountingUriStringable('/docs');
+
+        $result = uri($stringable);
+
+        $this->assertSame('/docs', $result->value());
+        $this->assertSame(1, $stringable->casts);
+        $this->assertSame(
+            '/league',
+            uri(LeagueUri::new('/league'))->value(),
+        );
+    }
+
+    public function testUriHelperPreservesArrayActions(): void
+    {
+        $resolver = new CustomUrlGeneratorResolver;
+        Uri::setUrlGeneratorResolver(fn () => $resolver);
+        $action = ['App\Http\Controllers\UserController', 'index'];
+
+        $this->assertSame('https://hypervel.org/action', uri($action)->value());
+        $this->assertSame($action, $resolver->lastAction);
+    }
+
+    public function testUriHelperRoutesControllerStringsAfterCasting(): void
+    {
+        $resolver = new CustomUrlGeneratorResolver;
+        Uri::setUrlGeneratorResolver(fn () => $resolver);
+        $action = new CountingUriStringable('App\Http\Controllers\UserController@index');
+
+        $this->assertSame('https://hypervel.org/action', uri($action)->value());
+        $this->assertSame('App\Http\Controllers\UserController@index', $resolver->lastAction);
+        $this->assertSame(1, $action->casts);
+    }
+
+    public function testUriHelperRejectsUnsupportedObjectsAtItsTypeBoundary(): void
+    {
+        try {
+            uri(new stdClass);
+            $this->fail('Expected an unsupported URI value to be rejected.');
+        } catch (TypeError $exception) {
+            $this->assertStringContainsString('uri(): Argument #1 ($uri)', $exception->getMessage());
+        }
+    }
+
     public function testPathSegments(): void
     {
         $uri = Uri::of('https://hypervel.org');
@@ -315,6 +364,8 @@ class SupportUriTest extends TestCase
 
 class CustomUrlGeneratorResolver implements UrlGenerator
 {
+    public array|string|null $lastAction = null;
+
     public function current(): string
     {
         return 'https://hypervel.org/current';
@@ -362,6 +413,8 @@ class CustomUrlGeneratorResolver implements UrlGenerator
 
     public function action(array|string $action, mixed $parameters = [], bool $absolute = true): string
     {
+        $this->lastAction = $action;
+
         return 'https://hypervel.org/action';
     }
 
@@ -373,5 +426,21 @@ class CustomUrlGeneratorResolver implements UrlGenerator
     public function setRootControllerNamespace(string $rootNamespace): static
     {
         return $this;
+    }
+}
+
+class CountingUriStringable implements Stringable
+{
+    public int $casts = 0;
+
+    public function __construct(private readonly string $value)
+    {
+    }
+
+    public function __toString(): string
+    {
+        ++$this->casts;
+
+        return $this->value;
     }
 }

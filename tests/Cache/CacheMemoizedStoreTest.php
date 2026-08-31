@@ -25,6 +25,14 @@ use stdClass;
 
 class CacheMemoizedStoreTest extends TestCase
 {
+    public function testExposesTheUnderlyingStore(): void
+    {
+        $innerStore = new ArrayStore;
+        $store = new MemoizedStore('test', new Repository($innerStore));
+
+        $this->assertSame($innerStore, $store->getInnerStore());
+    }
+
     public function testTouchExtendsTtl(): void
     {
         $store = new MemoizedStore('test', new Repository(new ArrayStore));

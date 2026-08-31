@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Database\DatabaseEloquentBuilderTest;
 
 use BadMethodCallException;
 use Closure;
+use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
@@ -28,6 +29,7 @@ use InvalidArgumentException;
 use Mockery as m;
 use PDO;
 use stdClass;
+use Stringable;
 
 class DatabaseEloquentBuilderTest extends TestCase
 {
@@ -2653,6 +2655,33 @@ class DatabaseEloquentBuilderTest extends TestCase
         });
     }
 
+    public function testWhereKeyMethodWithBinaryParameter(): void
+    {
+        $model = new StubStringPrimaryKey;
+        $builder = $this->getBuilder()->setModel($model);
+        $binary = new BinaryParameter("\0binary-key");
+
+        $builder->getQuery()->shouldReceive('where')->once()->with($model->getQualifiedKeyName(), '=', $binary);
+
+        $builder->whereKey($binary);
+    }
+
+    public function testWhereKeyMethodKeepsStringableCoercion(): void
+    {
+        $model = new StubStringPrimaryKey;
+        $builder = $this->getBuilder()->setModel($model);
+        $identifier = new class implements Stringable {
+            public function __toString(): string
+            {
+                return 'stringable-key';
+            }
+        };
+
+        $builder->getQuery()->shouldReceive('where')->once()->with($model->getQualifiedKeyName(), '=', 'stringable-key');
+
+        $builder->whereKey($identifier);
+    }
+
     public function testWhereKeyNotMethodWithStringZero()
     {
         $model = new StubStringPrimaryKey;
@@ -2734,6 +2763,33 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->whereKeyNot(new class extends Model {
             protected array $attributes = ['id' => 1];
         });
+    }
+
+    public function testWhereKeyNotMethodWithBinaryParameter(): void
+    {
+        $model = new StubStringPrimaryKey;
+        $builder = $this->getBuilder()->setModel($model);
+        $binary = new BinaryParameter("\0binary-key");
+
+        $builder->getQuery()->shouldReceive('where')->once()->with($model->getQualifiedKeyName(), '!=', $binary);
+
+        $builder->whereKeyNot($binary);
+    }
+
+    public function testWhereKeyNotMethodKeepsStringableCoercion(): void
+    {
+        $model = new StubStringPrimaryKey;
+        $builder = $this->getBuilder()->setModel($model);
+        $identifier = new class implements Stringable {
+            public function __toString(): string
+            {
+                return 'stringable-key';
+            }
+        };
+
+        $builder->getQuery()->shouldReceive('where')->once()->with($model->getQualifiedKeyName(), '!=', 'stringable-key');
+
+        $builder->whereKeyNot($identifier);
     }
 
     public function testExceptMethodWithModel()

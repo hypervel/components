@@ -18,9 +18,7 @@ class DescendantsRelation extends BaseRelation
             return;
         }
 
-        if (! $this->hasLoadedBounds($this->parent) || ! $this->hasConcreteScope($this->parent)) {
-            $this->query->whereRaw('0 = 1');
-
+        if (! $this->prepareLazyParent()) {
             return;
         }
 
@@ -40,17 +38,9 @@ class DescendantsRelation extends BaseRelation
      */
     protected function prepareEagerModels(array $models): array
     {
-        $eligible = [];
-
-        foreach ($models as $model) {
-            if ($this->hasLoadedBounds($model) && $this->hasConcreteScope($model)) {
-                $eligible[] = $model;
-            }
-        }
-
         $groups = [];
 
-        foreach (parent::prepareEagerModels($eligible) as $model) {
+        foreach (parent::prepareEagerModels($models) as $model) {
             $groups[$this->scopeKey($model)][] = $model;
         }
 
@@ -58,29 +48,27 @@ class DescendantsRelation extends BaseRelation
 
         foreach ($groups as $group) {
             usort($group, function (Model $left, Model $right): int {
-                $comparison = ($left->getLft() ?? PHP_INT_MAX) /* @phpstan-ignore method.notFound */
-                    <=> ($right->getLft() ?? PHP_INT_MAX); /* @phpstan-ignore method.notFound */
+                $comparison = $left->getLft() /* @phpstan-ignore method.notFound */
+                    <=> $right->getLft(); /* @phpstan-ignore method.notFound */
 
                 return $comparison !== 0
                     ? $comparison
-                    : ($right->getRgt() ?? PHP_INT_MIN) /* @phpstan-ignore method.notFound */
-                        <=> ($left->getRgt() ?? PHP_INT_MIN); /* @phpstan-ignore method.notFound */
+                    : $right->getRgt() /* @phpstan-ignore method.notFound */
+                        <=> $left->getRgt(); /* @phpstan-ignore method.notFound */
             });
 
             $maximumRgt = null;
 
             foreach ($group as $model) {
+                /** @var int $rgt */
                 $rgt = $model->getRgt();
 
-                if ($rgt !== null && $maximumRgt !== null && $rgt <= $maximumRgt) {
+                if ($maximumRgt !== null && $rgt <= $maximumRgt) {
                     continue;
                 }
 
                 $result[] = $model;
-
-                if ($rgt !== null) {
-                    $maximumRgt = $maximumRgt === null ? $rgt : max($maximumRgt, $rgt);
-                }
+                $maximumRgt = $maximumRgt === null ? $rgt : max($maximumRgt, $rgt);
             }
         }
 
@@ -101,11 +89,12 @@ class DescendantsRelation extends BaseRelation
      */
     protected function indexResults(Collection $results): array
     {
-        /** @var array<string, array{models: list<Model>, lfts: list<?int>, monotonic: bool, last_lft: ?int}> $indexed */
+        /** @var array<string, array{models: list<Model>, lfts: list<int>, monotonic: bool, last_lft: ?int}> $indexed */
         $indexed = [];
 
         foreach ($results as $related) {
             $scope = $this->scopeKey($related);
+            /** @var int $lft */
             $lft = $related->getLft(); /* @phpstan-ignore method.notFound */
 
             if (! isset($indexed[$scope])) {
@@ -119,7 +108,7 @@ class DescendantsRelation extends BaseRelation
 
             $bucket = &$indexed[$scope];
 
-            if ($lft === null || ($bucket['last_lft'] !== null && $lft < $bucket['last_lft'])) {
+            if ($bucket['last_lft'] !== null && $lft < $bucket['last_lft']) {
                 $bucket['monotonic'] = false;
             }
 
@@ -149,12 +138,10 @@ class DescendantsRelation extends BaseRelation
             return $this->related->newCollection();
         }
 
+        /** @var int $lft */
         $lft = $model->getLft(); /* @phpstan-ignore method.notFound */
+        /** @var int $rgt */
         $rgt = $model->getRgt(); /* @phpstan-ignore method.notFound */
-
-        if ($lft === null || $rgt === null) {
-            return $this->related->newCollection();
-        }
 
         if (! $bucket['monotonic']) {
             return $this->matchForModel(
@@ -200,6 +187,37 @@ class DescendantsRelation extends BaseRelation
         }
 
         return $low;
+    }
+
+    /**
+     * Get the parent columns required to resolve descendants.
+     */
+    protected function requiredParentColumns(Model $model): array
+    {
+        $columns = $this->scopeColumns($model);
+        $columns[$model->getLftName()] = true; /* @phpstan-ignore method.notFound */
+        $columns[$model->getRgtName()] = true; /* @phpstan-ignore method.notFound */
+
+        return $columns;
+    }
+
+    /**
+     * Get the related columns required to match descendants.
+     */
+    protected function requiredRelatedColumns(Model $model): array
+    {
+        $columns = $this->scopeColumns($model);
+        $columns[$model->getLftName()] = true; /* @phpstan-ignore method.notFound */
+
+        return $columns;
+    }
+
+    /**
+     * Get the scope projection required for matching.
+     */
+    protected function scopeColumns(Model $model): array
+    {
+        return array_fill_keys(array_keys($this->scopeValues($model)), false);
     }
 
     /**

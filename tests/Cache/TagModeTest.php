@@ -6,6 +6,8 @@ namespace Hypervel\Tests\Cache;
 
 use Hypervel\Cache\TagMode;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class TagModeTest extends TestCase
 {
@@ -19,10 +21,24 @@ class TagModeTest extends TestCase
         $this->assertSame(TagMode::All, TagMode::fromConfig('all'));
     }
 
-    public function testFromConfigFallsBackToAllOnUnknown(): void
+    #[DataProvider('invalidTagModes')]
+    public function testFromConfigRejectsInvalidModes(string $mode): void
     {
-        $this->assertSame(TagMode::All, TagMode::fromConfig('garbage'));
-        $this->assertSame(TagMode::All, TagMode::fromConfig(''));
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            "Invalid cache tag mode [{$mode}]. Supported modes are [any, all]."
+        );
+
+        TagMode::fromConfig($mode);
+    }
+
+    public static function invalidTagModes(): array
+    {
+        return [
+            'unknown' => ['garbage'],
+            'case mismatch' => ['ANY'],
+            'empty' => [''],
+        ];
     }
 
     public function testIsAnyModeIsTrueForAnyCase(): void

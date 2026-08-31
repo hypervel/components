@@ -929,7 +929,7 @@ class TestResponse implements ArrayAccess
     /**
      * Assert that the response has the given JSON validation errors.
      */
-    public function assertJsonValidationErrors(array|string $errors, string $responseKey = 'errors'): static
+    public function assertJsonValidationErrors(array|string|null $errors, string $responseKey = 'errors'): static
     {
         $errors = Arr::wrap($errors);
 
@@ -976,7 +976,7 @@ class TestResponse implements ArrayAccess
     /**
      * Assert that the response has the given JSON validation errors but does not have any other JSON validation errors.
      */
-    public function assertOnlyJsonValidationErrors(array|string $errors, string $responseKey = 'errors'): static
+    public function assertOnlyJsonValidationErrors(array|string|null $errors, string $responseKey = 'errors'): static
     {
         $this->assertJsonValidationErrors($errors, $responseKey);
 
@@ -1102,9 +1102,7 @@ class TestResponse implements ArrayAccess
             return $this->decodedResponseJson;
         }
 
-        $content = $this->isStreamedResponse()
-            ? $this->streamedContent()
-            : $this->getContent();
+        $content = $this->getContent();
         $testJson = new AssertableJsonString($content);
         $decodedResponse = $testJson->json();
 
@@ -1689,6 +1687,17 @@ class TestResponse implements ArrayAccess
         }
 
         return $this;
+    }
+
+    /**
+     * Get the response content.
+     */
+    public function getContent(): string
+    {
+        $content = $this->baseResponse->getContent();
+
+        // Symfony uses false when stream and file response content must be captured during send.
+        return $content === false ? $this->streamedContent() : $content;
     }
 
     /**

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry;
 
+use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Foundation\Application;
 use Psr\Log\NullLogger;
 use Sentry\Breadcrumb;
 use Sentry\CheckIn;
@@ -33,8 +35,11 @@ class Hub implements HubInterface
 
     public const string CONTEXT_LAST_EVENT_ID_KEY = '__sentry.last_event_id';
 
-    public function __construct(protected ?ClientInterface $client = null, protected ?Scope $scope = null)
+    protected Scope $scope;
+
+    public function __construct(protected ?ClientInterface $client = null, ?Scope $scope = null)
     {
+        $this->scope = $scope ?? new Scope;
     }
 
     public function getClient(): ?ClientInterface
@@ -164,7 +169,15 @@ class Hub implements HubInterface
 
     public function configureScope(callable $callback): void
     {
-        $callback($this->getScope());
+        $container = Container::getInstance();
+
+        if ($container instanceof Application && $container->isBooted()) {
+            $callback($this->getScope());
+
+            return;
+        }
+
+        $callback($this->scope);
     }
 
     /**
@@ -423,7 +436,7 @@ class Hub implements HubInterface
         return CoroutineContext::getOrSet(static::CONTEXT_STACK_KEY, function (): array {
             return [new Layer(
                 $this->getClient(),
-                clone ($this->scope ?? new Scope),
+                clone $this->scope,
             )];
         });
     }

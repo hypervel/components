@@ -9,6 +9,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Env;
 use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Foundation\Config;
+use Hypervel\Testbench\Workbench\Workbench;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
@@ -113,6 +114,32 @@ class BootstrapperTest extends TestCase
                 $runtimePath = $this->createRuntimeCopy($sourcePath, $packagePath);
 
                 $this->assertSame(0700, fileperms($runtimePath) & 0777);
+            });
+        } finally {
+            $this->deleteDirectory($packagePath);
+            $this->deleteDirectory($sourcePath);
+            $this->deleteDirectory($runtimePath);
+        }
+    }
+
+    #[Test]
+    public function itUsesTheFilesystemSafeProcessTokenForRuntimeCopies(): void
+    {
+        $packagePath = $this->temporaryDirectory('safe-token-package');
+        $sourcePath = $this->temporaryDirectory('safe-token-source');
+        $runtimePath = null;
+
+        mkdir($packagePath, 0777, true);
+        mkdir($sourcePath, 0777, true);
+
+        try {
+            $this->withRuntimeCopyEnvironment('worker/token:one', false, function () use ($sourcePath, $packagePath, &$runtimePath): void {
+                $runtimePath = $this->createRuntimeCopy($sourcePath, $packagePath);
+
+                $this->assertSame(
+                    $this->runtimeDirectory('worker_token_one', getmypid()),
+                    $runtimePath,
+                );
             });
         } finally {
             $this->deleteDirectory($packagePath);
@@ -324,6 +351,60 @@ class BootstrapperTest extends TestCase
     }
 
     #[Test]
+    public function itCopiesTheConfiguredPackageEnvironmentFileIntoTheRuntimeCopy(): void
+    {
+        $packagePath = $this->temporaryDirectory('package-custom-env');
+        $sourcePath = $this->temporaryDirectory('skeleton-custom-env');
+        $runtimePath = null;
+        $serverFilenameExists = array_key_exists('TESTBENCH_ENVIRONMENT_FILENAME', $_SERVER);
+        $previousServerFilename = $_SERVER['TESTBENCH_ENVIRONMENT_FILENAME'] ?? null;
+        $environmentFilenameExists = array_key_exists('TESTBENCH_ENVIRONMENT_FILENAME', $_ENV);
+        $previousEnvironmentFilename = $_ENV['TESTBENCH_ENVIRONMENT_FILENAME'] ?? null;
+        $previousProcessFilename = getenv('TESTBENCH_ENVIRONMENT_FILENAME');
+
+        mkdir($packagePath . DIRECTORY_SEPARATOR . 'workbench', 0777, true);
+        mkdir($sourcePath, 0777, true);
+        file_put_contents($packagePath . DIRECTORY_SEPARATOR . 'workbench' . DIRECTORY_SEPARATOR . '.env.custom', 'APP_NAME=Custom');
+
+        try {
+            $_SERVER['TESTBENCH_ENVIRONMENT_FILENAME'] = '.env.custom';
+            $_ENV['TESTBENCH_ENVIRONMENT_FILENAME'] = '.env.custom';
+            putenv('TESTBENCH_ENVIRONMENT_FILENAME=.env.custom');
+            Env::flushRepository();
+
+            $this->withRuntimeCopyEnvironment('bootstrapper-custom-env', true, function () use ($sourcePath, $packagePath, &$runtimePath): void {
+                $runtimePath = $this->createRuntimeCopy($sourcePath, $packagePath);
+
+                $this->assertSame('APP_NAME=Custom', file_get_contents($runtimePath . DIRECTORY_SEPARATOR . '.env'));
+            });
+        } finally {
+            if ($serverFilenameExists) {
+                $_SERVER['TESTBENCH_ENVIRONMENT_FILENAME'] = $previousServerFilename;
+            } else {
+                unset($_SERVER['TESTBENCH_ENVIRONMENT_FILENAME']);
+            }
+
+            if ($environmentFilenameExists) {
+                $_ENV['TESTBENCH_ENVIRONMENT_FILENAME'] = $previousEnvironmentFilename;
+            } else {
+                unset($_ENV['TESTBENCH_ENVIRONMENT_FILENAME']);
+            }
+
+            if ($previousProcessFilename === false) {
+                putenv('TESTBENCH_ENVIRONMENT_FILENAME');
+            } else {
+                putenv("TESTBENCH_ENVIRONMENT_FILENAME={$previousProcessFilename}");
+            }
+
+            Env::flushRepository();
+
+            $this->deleteDirectory($packagePath);
+            $this->deleteDirectory($sourcePath);
+            $this->deleteDirectory($runtimePath);
+        }
+    }
+
+    #[Test]
     public function itRollsBackWhenThePackageEnvironmentFileCannotBeCopied(): void
     {
         $packagePath = $this->temporaryDirectory('failed-package-env');
@@ -373,6 +454,29 @@ class BootstrapperTest extends TestCase
                 $this->assertFileExists($runtimePath . DIRECTORY_SEPARATOR . '.env');
                 $this->assertFileExists($runtimePath . DIRECTORY_SEPARATOR . '.env.example');
                 $this->assertSame('REDIS_PASSWORD=null', file_get_contents($runtimePath . DIRECTORY_SEPARATOR . '.env'));
+            });
+        } finally {
+            $this->deleteDirectory($packagePath);
+            $this->deleteDirectory($sourcePath);
+            $this->deleteDirectory($runtimePath);
+        }
+    }
+
+    #[Test]
+    public function itLeavesTheRuntimeWithoutAnEnvironmentFileWhenNoCandidateExists(): void
+    {
+        $packagePath = $this->temporaryDirectory('package-without-env');
+        $sourcePath = $this->temporaryDirectory('skeleton-without-env');
+        $runtimePath = null;
+
+        mkdir($packagePath . DIRECTORY_SEPARATOR . 'workbench', 0777, true);
+        mkdir($sourcePath, 0777, true);
+
+        try {
+            $this->withRuntimeCopyEnvironment('bootstrapper-without-env', true, function () use ($sourcePath, $packagePath, &$runtimePath): void {
+                $runtimePath = $this->createRuntimeCopy($sourcePath, $packagePath);
+
+                $this->assertFileDoesNotExist($runtimePath . DIRECTORY_SEPARATOR . '.env');
             });
         } finally {
             $this->deleteDirectory($packagePath);
@@ -454,7 +558,7 @@ class BootstrapperTest extends TestCase
 
         try {
             $this->withComposerRoot('hypervel/components', function () use ($workingPath): void {
-                $configurationPath = $this->resolveConfigurationPath($workingPath);
+                $configurationPath = Bootstrapper::resolveConfigurationPath($workingPath);
                 $config = Config::loadFromYaml($configurationPath);
 
                 $this->assertSame(testbench_path(), $configurationPath);
@@ -477,7 +581,7 @@ class BootstrapperTest extends TestCase
 
         try {
             $this->withComposerRoot('example/package', function () use ($workingPath): void {
-                $configurationPath = $this->resolveConfigurationPath($workingPath);
+                $configurationPath = Bootstrapper::resolveConfigurationPath($workingPath);
                 $config = Config::loadFromYaml($configurationPath);
 
                 $this->assertSame($workingPath, $configurationPath);
@@ -490,6 +594,27 @@ class BootstrapperTest extends TestCase
     }
 
     #[Test]
+    public function itUsesConsumerDefaultsForWorkbenchWhenNoConfigurationFileExists(): void
+    {
+        $this->withComposerRoot('example/package', function (): void {
+            Bootstrapper::flushState();
+            Config::flushState();
+            Workbench::flush();
+
+            try {
+                $config = Workbench::configuration();
+
+                $this->assertSame([], $config->getExtraAttributes()['providers']);
+                $this->assertSame([], $config->getExtraAttributes()['dont-discover']);
+            } finally {
+                Bootstrapper::flushState();
+                Config::flushState();
+                Workbench::flush();
+            }
+        });
+    }
+
+    #[Test]
     public function itUsesASplitPackagesOwnConfigurationFile(): void
     {
         $workingPath = $this->temporaryDirectory('split-configuration');
@@ -498,7 +623,7 @@ class BootstrapperTest extends TestCase
 
         try {
             $this->withComposerRoot('hypervel/testbench', function () use ($workingPath): void {
-                $configurationPath = $this->resolveConfigurationPath($workingPath);
+                $configurationPath = Bootstrapper::resolveConfigurationPath($workingPath);
                 $config = Config::loadFromYaml($configurationPath);
 
                 $this->assertSame($workingPath, $configurationPath);
@@ -506,6 +631,44 @@ class BootstrapperTest extends TestCase
             });
         } finally {
             $this->deleteDirectory($workingPath);
+        }
+    }
+
+    #[Test]
+    #[PreserveGlobalState(false)]
+    #[RunInSeparateProcess]
+    public function itReloadsConfigurationWithoutReplacingAPredefinedRuntime(): void
+    {
+        $workingPath = $this->temporaryDirectory('repeated-bootstrap-working');
+        $runtimePath = $this->temporaryDirectory('repeated-bootstrap-runtime');
+
+        mkdir($workingPath, 0777, true);
+        mkdir($runtimePath, 0777, true);
+        file_put_contents($runtimePath . '/sentinel.txt', 'preserved');
+        file_put_contents($workingPath . '/testbench.yaml', "env:\n  APP_NAME: First\n");
+
+        try {
+            $this->assertFalse(defined('TESTBENCH_WORKING_PATH'));
+            $this->assertFalse(defined('BASE_PATH'));
+
+            define('TESTBENCH_WORKING_PATH', $workingPath);
+            define('BASE_PATH', $runtimePath);
+
+            Bootstrapper::bootstrap();
+
+            $this->assertSame(['APP_NAME="First"'], Bootstrapper::getConfiguration()?->getExtraAttributes()['env']);
+
+            file_put_contents($workingPath . '/testbench.yaml', "env:\n  APP_NAME: Second\n");
+            Bootstrapper::flushState();
+            Config::flushState();
+            Bootstrapper::bootstrap();
+
+            $this->assertSame($runtimePath, BASE_PATH);
+            $this->assertSame('preserved', file_get_contents($runtimePath . '/sentinel.txt'));
+            $this->assertSame(['APP_NAME="Second"'], Bootstrapper::getConfiguration()?->getExtraAttributes()['env']);
+        } finally {
+            $this->deleteDirectory($workingPath);
+            $this->deleteDirectory($runtimePath);
         }
     }
 
@@ -751,17 +914,6 @@ class BootstrapperTest extends TestCase
         $method->setAccessible(true);
 
         return $method->invoke(null, $sourcePath, $workingPath);
-    }
-
-    /**
-     * Resolve the configuration path through Bootstrapper's protected method.
-     */
-    private function resolveConfigurationPath(string $workingPath): string
-    {
-        $method = new ReflectionMethod(Bootstrapper::class, 'resolveConfigurationPath');
-        $method->setAccessible(true);
-
-        return $method->invoke(null, $workingPath);
     }
 
     /**

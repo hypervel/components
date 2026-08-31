@@ -22,6 +22,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use ReflectionMethod;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Output\StreamOutput;
 
 class HandleExceptionsTest extends TestCase
@@ -88,6 +89,26 @@ class HandleExceptionsTest extends TestCase
             '/home/user/laravel/routes/web.php',
             17
         );
+    }
+
+    public function testDeprecationLoggingPreservesCancellationDuringLoggerResolution(): void
+    {
+        $cancellation = new CanceledException('canceled');
+        $this->app->bind(LogManager::class, fn () => throw $cancellation);
+        $this->app->expects('runningUnitTests')->andReturn(false);
+        $this->app->expects('hasBeenBootstrapped')->andReturn(true);
+
+        try {
+            $this->handleExceptions()->handleDeprecationError(
+                'Deprecated behavior',
+                __FILE__,
+                __LINE__,
+            );
+
+            $this->fail('The cancellation was not preserved.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testPhpDeprecationsWithStackTraces()

@@ -14,6 +14,7 @@ use Hypervel\View\Compilers\CompilerInterface;
 use Hypervel\View\Engines\CompilerEngine;
 use Hypervel\View\ViewException;
 use Mockery as m;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ViewCompilerEngineTest extends TestCase
@@ -52,6 +53,28 @@ class ViewCompilerEngineTest extends TestCase
         $this->expectExceptionMessage('regular exception message');
 
         $engine->get(__DIR__ . '/Fixtures/foo.php');
+    }
+
+    public function testCancellationIsNotWrappedAndCompiledPathIsPopped(): void
+    {
+        $path = __DIR__ . '/Fixtures/foo.php';
+        $compiled = __DIR__ . '/Fixtures/basic.php';
+        $cancellation = new CanceledException;
+        $files = m::mock(Filesystem::class);
+        $files->shouldReceive('getRequire')->once()->with($compiled, [])->andThrow($cancellation);
+
+        $engine = $this->getEngine($files);
+        $engine->getCompiler()->shouldReceive('isExpired')->once()->with($path)->andReturn(false);
+        $engine->getCompiler()->shouldReceive('getCompiledPath')->once()->with($path)->andReturn($compiled);
+
+        try {
+            $engine->get($path);
+            $this->fail('Expected cancellation to propagate.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame([], CoroutineContext::get(CompilerEngine::COMPILED_PATH_CONTEXT_KEY, []));
     }
 
     public function testHttpExceptionsAreNotReThrownAsViewExceptions()

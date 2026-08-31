@@ -8,6 +8,7 @@ use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use RuntimeException;
 
 class ListenerTest extends TestCase
 {
@@ -50,6 +51,39 @@ class ListenerTest extends TestCase
 
         $this->assertFalse(ListenerTestListenerAfterCommit::$ran);
     }
+
+    public function testAfterCommitListenersContinueAfterSiblingFailure(): void
+    {
+        $transactionManager = new DatabaseTransactionsManager;
+        $failure = new RuntimeException('first listener failed');
+        $first = new ListenerTestFailingListenerAfterCommit($failure);
+        $second = new ListenerTestFollowingListenerAfterCommit;
+
+        $this->app->instance('db.transactions', $transactionManager);
+        $this->app->instance(ListenerTestFailingListenerAfterCommit::class, $first);
+        $this->app->instance(ListenerTestFollowingListenerAfterCommit::class, $second);
+
+        Event::listen(ListenerTestEvent::class, ListenerTestFailingListenerAfterCommit::class);
+        Event::listen(ListenerTestEvent::class, ListenerTestFollowingListenerAfterCommit::class);
+
+        $transactionManager->begin('default', 1);
+        Event::dispatch(new ListenerTestEvent);
+
+        $this->assertFalse($first->ran);
+        $this->assertFalse($second->ran);
+
+        $caught = null;
+
+        try {
+            $transactionManager->commit('default', 1, 0);
+        } catch (RuntimeException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
+        $this->assertTrue($first->ran);
+        $this->assertTrue($second->ran);
+    }
 }
 
 class ListenerTestEvent
@@ -75,5 +109,36 @@ class ListenerTestListenerAfterCommit
     public function handle()
     {
         static::$ran = true;
+    }
+}
+
+class ListenerTestFailingListenerAfterCommit
+{
+    public bool $afterCommit = true;
+
+    public bool $ran = false;
+
+    public function __construct(
+        protected RuntimeException $failure,
+    ) {
+    }
+
+    public function handle(): void
+    {
+        $this->ran = true;
+
+        throw $this->failure;
+    }
+}
+
+class ListenerTestFollowingListenerAfterCommit
+{
+    public bool $afterCommit = true;
+
+    public bool $ran = false;
+
+    public function handle(): void
+    {
+        $this->ran = true;
     }
 }

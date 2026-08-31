@@ -68,7 +68,23 @@ trait HasHeaders
      */
     public function replaceHeaders(array $headers): static
     {
-        $this->headerRepository()->merge($headers);
+        $resolvedHeaders = [];
+        $headerNames = [];
+
+        foreach ([$this->headers(), $headers] as $headerSet) {
+            foreach ($headerSet as $name => $value) {
+                $normalizedName = strtolower($name);
+
+                if (isset($headerNames[$normalizedName])) {
+                    unset($resolvedHeaders[$headerNames[$normalizedName]]);
+                }
+
+                $resolvedHeaders[$name] = $value;
+                $headerNames[$normalizedName] = $name;
+            }
+        }
+
+        $this->headerRepository()->set($resolvedHeaders);
 
         return $this;
     }
@@ -100,7 +116,7 @@ trait HasHeaders
      */
     public function accept(string $contentType): static
     {
-        return $this->withHeader('Accept', $contentType);
+        return $this->replaceHeaders(['Accept' => $contentType]);
     }
 
     /**

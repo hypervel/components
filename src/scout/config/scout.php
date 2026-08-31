@@ -40,11 +40,10 @@ return [
     | with your search engines are queued. When enabled, all automatic data
     | syncing will get queued for better performance.
     |
-    | By default, Hypervel Scout uses Coroutine::defer() which executes
-    | indexing at coroutine exit (in HTTP requests, typically after the
-    | response is emitted). Set 'enabled' to true to use
-    | the queue system instead for durability and retries. Omitting the
-    | enabled member keeps deferred, non-queued indexing.
+    | By default, Hypervel Scout defers indexing until the HTTP response has
+    | been emitted and performs indexing immediately outside HTTP requests.
+    | Set 'enabled' to true to use the queue system instead for durability
+    | and retries. Omitting the enabled member keeps this non-queued mode.
     |
     */
 

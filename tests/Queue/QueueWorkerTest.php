@@ -9,6 +9,7 @@ use DateTimeInterface;
 use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
@@ -20,6 +21,9 @@ use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Waiter;
+use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Http\Request;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\Events\JobAttempted;
@@ -45,7 +49,9 @@ use Hypervel\Queue\WorkerStopReason;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use ReflectionProperty;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
@@ -150,6 +156,64 @@ class QueueWorkerTest extends TestCase
         $this->assertSame($job, $attemptedEvent->job);
         $this->assertSame($exception, $attemptedEvent->exception);
         $this->assertFalse($attemptedEvent->successful());
+    }
+
+    public function testCancellationDuringJobExecutionEscapesWithoutFailureOrCompletion(): void
+    {
+        $gate = $this->armCurrentCoroutineCancellation();
+        $job = new WorkerFakeJob(static function () use ($gate): never {
+            $gate->push(true);
+
+            throw new RuntimeException('Cancellation was not delivered.');
+        });
+        $worker = $this->getWorker('default', ['queue' => [$job]]);
+
+        try {
+            $worker->runNextJob('default', 'queue', new WorkerOptions);
+            $this->fail('Expected job cancellation to escape the worker.');
+        } catch (CanceledException) {
+            $this->assertTrue($job->fired);
+            $this->assertFalse($job->isDeleted());
+            $this->assertFalse($job->isReleased());
+            $this->assertFalse($job->hasFailed());
+            $this->assertSame([], $worker->runningJobsForTest());
+        }
+
+        $this->exceptionHandler->shouldNotHaveReceived('report');
+        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobExceptionOccurred::class)]);
+        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobProcessed::class)]);
+        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobAttempted::class)]);
+    }
+
+    public function testCancellationDuringFailureObservationStopsReleaseAndCompletion(): void
+    {
+        $gate = $this->armCurrentCoroutineCancellation();
+        $this->events->shouldReceive('dispatch')
+            ->with(m::type(JobExceptionOccurred::class))
+            ->once()
+            ->andReturnUsing(static function () use ($gate): never {
+                $gate->push(true);
+
+                throw new RuntimeException('Cancellation was not delivered.');
+            });
+        $job = new WorkerFakeJob(static function (): never {
+            throw new RuntimeException('Job failed.');
+        });
+        $worker = $this->getWorker('default', ['queue' => [$job]]);
+
+        try {
+            $worker->runNextJob('default', 'queue', new WorkerOptions(maxTries: 0));
+            $this->fail('Expected observer cancellation to escape the worker.');
+        } catch (CanceledException) {
+            $this->assertFalse($job->isDeleted());
+            $this->assertFalse($job->isReleased());
+            $this->assertFalse($job->hasFailed());
+            $this->assertSame([], $worker->runningJobsForTest());
+        }
+
+        $this->exceptionHandler->shouldNotHaveReceived('report');
+        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobReleasedAfterException::class)]);
+        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobAttempted::class)]);
     }
 
     public function testInvalidPayloadTerminatesBeforeProcessingAndIsReportedOnce(): void
@@ -290,6 +354,14 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessing::class))->once();
     }
 
+    public function testDefaultPopWaiterIsUnbounded(): void
+    {
+        $waiter = $this->getWorker()->createPopWaiterForTest();
+        $popTimeout = new ReflectionProperty(Waiter::class, 'popTimeout');
+
+        $this->assertSame(-1.0, $popTimeout->getValue($waiter));
+    }
+
     public function testTimeoutZeroDoesNotCreateADeadline(): void
     {
         $worker = $this->getWorker();
@@ -387,6 +459,42 @@ class QueueWorkerTest extends TestCase
 
         $this->assertSame([1], $timer->registered);
         $this->assertSame([1], $timer->cleared);
+    }
+
+    public function testDaemonFailureCancelsAdmittedJobsWithoutFalseOutcomes(): void
+    {
+        $timer = new QueueWorkerTimer;
+        $blocker = new Channel(1);
+        $jobUnwound = false;
+        $job = new WorkerFakeJob(static function () use ($blocker, &$jobUnwound): void {
+            try {
+                $blocker->pop();
+            } finally {
+                $jobUnwound = true;
+            }
+        });
+        $worker = new DaemonFailureWorker(
+            ...$this->workerDependencies('default', ['queue' => [$job]], timer: $timer),
+        );
+
+        try {
+            $worker->daemon('default', 'queue', new WorkerOptions(rest: 1));
+            $this->fail('Expected the daemon loop to fail.');
+        } catch (LoopBreakerException) {
+            $this->assertTrue($jobUnwound);
+            $this->assertSame([], $worker->runningJobsForTest());
+            $this->assertFalse($job->isDeleted());
+            $this->assertFalse($job->isReleased());
+            $this->assertFalse($job->hasFailed());
+            $this->assertSame([1], $timer->cleared);
+        } finally {
+            $blocker->close();
+        }
+
+        $this->exceptionHandler->shouldNotHaveReceived('report');
+        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobExceptionOccurred::class)]);
+        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobProcessed::class)]);
+        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobAttempted::class)]);
     }
 
     public function testTimeoutMonitorUnlocksWhenScanningThrows(): void
@@ -723,6 +831,30 @@ class QueueWorkerTest extends TestCase
         $this->exceptionHandler->shouldHaveReceived('report')->with($e);
     }
 
+    public function testCancellationDuringJobPopEscapesWithoutReportingOrSleeping(): void
+    {
+        $gate = $this->armCurrentCoroutineCancellation();
+        $worker = $this->getWorker('default', ['queue' => []]);
+        $worker->setName('cancel-pop');
+        Worker::popUsing('cancel-pop', static function () use ($gate): never {
+            $gate->push(true);
+
+            throw new RuntimeException('Cancellation was not delivered.');
+        });
+
+        try {
+            $worker->runNextJob('default', 'queue', new WorkerOptions(sleep: 5));
+            $this->fail('Expected pop cancellation to escape the worker.');
+        } catch (CanceledException) {
+            $this->assertNull($worker->sleptFor);
+        } finally {
+            Worker::popUsing('cancel-pop', null);
+        }
+
+        $this->exceptionHandler->shouldNotHaveReceived('report');
+        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobPopped::class)]);
+    }
+
     public function testWorkerSleepsWhenQueueIsEmpty()
     {
         $worker = $this->getWorker('default', ['queue' => []]);
@@ -887,6 +1019,43 @@ class QueueWorkerTest extends TestCase
         $this->exceptionHandler->shouldHaveReceived('report')->with(m::type(MaxAttemptsExceededException::class));
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobExceptionOccurred::class))->once();
         $this->events->shouldNotHaveReceived('dispatch', [m::type(JobProcessed::class)]);
+    }
+
+    public function testJobIsFailedWhenTheMaxExceptionsCounterReachesTheLimit(): void
+    {
+        $exception = new RuntimeException('Job failed.');
+        $job = new WorkerFakeJob;
+        $job->maxExceptions = 3;
+        $cache = m::mock(CacheContract::class);
+        $cache->expects('get')->with('job-exceptions:' . $job->uuid)->andReturnTrue();
+        $cache->expects('increment')->with('job-exceptions:' . $job->uuid)->andReturn(3);
+        $cache->expects('forget')->with('job-exceptions:' . $job->uuid)->andReturnTrue();
+        $worker = $this->getWorker()->setCache($cache);
+
+        $worker->markJobAsFailedIfWillExceedMaxExceptionsForTest($job, $exception);
+
+        $this->assertSame($exception, $job->failedWith);
+    }
+
+    public function testBooleanMaxExceptionsCounterResultsDoNotFailTheJob(): void
+    {
+        foreach ([false, true] as $counterResult) {
+            $exception = new RuntimeException('Job failed.');
+            $job = new WorkerFakeJob;
+            $job->maxExceptions = 0;
+            $cache = m::mock(CacheContract::class);
+            $cache->expects('get')->with('job-exceptions:' . $job->uuid)->andReturnTrue();
+            $cache->expects('increment')->with('job-exceptions:' . $job->uuid)->andReturn($counterResult);
+            $cache->shouldNotReceive('forget');
+            $worker = $this->getWorker()->setCache($cache);
+
+            $worker->markJobAsFailedIfWillExceedMaxExceptionsForTest($job, $exception);
+
+            $this->assertNull(
+                $job->failedWith,
+                sprintf('The boolean counter result [%s] failed the job.', $counterResult ? 'true' : 'false'),
+            );
+        }
     }
 
     public function testJobBasedMaxRetries()
@@ -1315,6 +1484,22 @@ class QueueWorkerTest extends TestCase
 
         return $job;
     }
+
+    /**
+     * Arm exact cancellation of the current coroutine at a controlled channel handoff.
+     */
+    private function armCurrentCoroutineCancellation(): Channel
+    {
+        $gate = new Channel(1);
+        $coroutineId = EngineCoroutine::id();
+
+        EngineCoroutine::create(static function () use ($coroutineId, $gate): void {
+            $gate->pop();
+            EngineCoroutine::cancelById($coroutineId, throwException: true);
+        });
+
+        return $gate;
+    }
 }
 
 /**
@@ -1379,9 +1564,19 @@ class InsomniacWorker extends Worker
         return parent::registerCoroutineJob($job, $options);
     }
 
+    public function createPopWaiterForTest(): Waiter
+    {
+        return parent::createPopWaiter();
+    }
+
     public function runningJobExpiryForTest(string $jobId): ?float
     {
         return $this->runningJobs[$jobId]['expires_at'];
+    }
+
+    public function runningJobsForTest(): array
+    {
+        return $this->runningJobs;
     }
 
     public function terminateTimeoutJobsForTest(WorkerOptions $options): void
@@ -1408,6 +1603,11 @@ class InsomniacWorker extends Worker
         );
     }
 
+    public function markJobAsFailedIfWillExceedMaxExceptionsForTest(Job $job, Throwable $exception): void
+    {
+        parent::markJobAsFailedIfWillExceedMaxExceptions('default', $job, $exception);
+    }
+
     protected function supportsAsyncSignals(): bool
     {
         return false;
@@ -1416,6 +1616,14 @@ class InsomniacWorker extends Worker
     protected function currentTime(): float
     {
         return $this->currentTime ?? parent::currentTime();
+    }
+}
+
+class DaemonFailureWorker extends InsomniacWorker
+{
+    public function sleep(float|int $seconds): void
+    {
+        throw new LoopBreakerException;
     }
 }
 

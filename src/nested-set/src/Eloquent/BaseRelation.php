@@ -11,6 +11,7 @@ use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Query\Builder;
 use Hypervel\NestedSet\NestedSet;
 use InvalidArgumentException;
+use LogicException;
 
 abstract class BaseRelation extends Relation
 {
@@ -47,6 +48,20 @@ abstract class BaseRelation extends Relation
      * Get the relation existence condition.
      */
     abstract protected function relationExistenceCondition(string $hash, string $table, string $lft, string $rgt): string;
+
+    /**
+     * Get columns required from a persisted parent model.
+     *
+     * @return array<string, bool> columns keyed by name; true when null is invalid
+     */
+    abstract protected function requiredParentColumns(Model $model): array;
+
+    /**
+     * Get columns required from an eagerly loaded related model.
+     *
+     * @return array<string, bool> columns keyed by name; true when null is invalid
+     */
+    abstract protected function requiredRelatedColumns(Model $model): array;
 
     /**
      * Get the relation existence query.
@@ -117,6 +132,10 @@ abstract class BaseRelation extends Relation
      */
     public function getResults(): Collection
     {
+        if (! $this->parent->exists) {
+            return $this->related->newCollection();
+        }
+
         return $this->query->get();
     }
 
@@ -148,11 +167,29 @@ abstract class BaseRelation extends Relation
      */
     public function match(array $models, Collection $results, string $relation): array
     {
-        $indexed = $this->shouldIndexResults($models)
+        foreach ($results as $related) {
+            $this->ensureProjection(
+                $related,
+                $this->requiredRelatedColumns($related),
+                'eager load',
+            );
+        }
+
+        $persisted = array_values(array_filter(
+            $models,
+            static fn (Model $model): bool => $model->exists,
+        ));
+        $indexed = $this->shouldIndexResults($persisted)
             ? $this->indexResults($results)
             : null;
 
         foreach ($models as $model) {
+            if (! $model->exists) {
+                $model->setRelation($relation, $this->related->newCollection());
+
+                continue;
+            }
+
             $related = $indexed === null
                 ? $this->matchForModel($model, $results)
                 : $this->matchFromIndex($model, $indexed);
@@ -199,6 +236,16 @@ abstract class BaseRelation extends Relation
         $seenObjects = [];
 
         foreach ($models as $model) {
+            if (! $model->exists) {
+                continue;
+            }
+
+            $this->ensureProjection(
+                $model,
+                $this->requiredParentColumns($model),
+                'parent',
+            );
+
             $scope = $this->scopeKey($model);
             $key = $model->getKey();
 
@@ -222,6 +269,47 @@ abstract class BaseRelation extends Relation
         }
 
         return $result;
+    }
+
+    /**
+     * Prepare the lazy parent or constrain an unsaved parent to no results.
+     */
+    protected function prepareLazyParent(): bool
+    {
+        if (! $this->parent->exists) {
+            $this->query->whereRaw('0 = 1');
+
+            return false;
+        }
+
+        $this->ensureProjection(
+            $this->parent,
+            $this->requiredParentColumns($this->parent),
+            'parent',
+        );
+
+        return true;
+    }
+
+    /**
+     * Ensure a persisted relation model contains its required projection.
+     */
+    protected function ensureProjection(Model $model, array $columns, string $context): void
+    {
+        $attributes = $model->getAttributes();
+
+        foreach ($columns as $column => $requiresValue) {
+            if (! array_key_exists($column, $attributes)
+                || ($requiresValue && $attributes[$column] === null)
+            ) {
+                throw new LogicException(sprintf(
+                    'Nested set relation %s for [%s] requires the [%s] column.',
+                    $context,
+                    $model::class,
+                    $column,
+                ));
+            }
+        }
     }
 
     /**
@@ -281,42 +369,6 @@ abstract class BaseRelation extends Relation
     protected function scopeKey(Model $model): string
     {
         return $model->getNestedSetScopeKey(); /* @phpstan-ignore method.notFound */
-    }
-
-    /**
-     * Determine whether a model has loaded tree bounds.
-     */
-    protected function hasLoadedBounds(Model $model): bool
-    {
-        return $model->getLft() !== null /* @phpstan-ignore method.notFound */
-            && $model->getRgt() !== null; /* @phpstan-ignore method.notFound */
-    }
-
-    /**
-     * Determine whether a model has loaded parentage.
-     */
-    protected function hasLoadedParent(Model $model): bool
-    {
-        return array_key_exists(
-            $model->getParentIdName(), /* @phpstan-ignore method.notFound */
-            $model->getAttributes(),
-        );
-    }
-
-    /**
-     * Determine whether a model has a concrete nested-set scope.
-     */
-    protected function hasConcreteScope(Model $model): bool
-    {
-        $attributes = $model->getAttributes();
-
-        foreach (array_keys($this->scopeValues($model)) as $attribute) {
-            if (! array_key_exists($attribute, $attributes)) {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     /**

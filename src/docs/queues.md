@@ -1257,6 +1257,8 @@ RecordDelivery::dispatch($order)->onConnection('deferred');
 
 The `deferred` connection executes jobs using `Coroutine::defer`, so the job runs when the current coroutine is ending. This is useful for small follow-up work that should not delay the response.
 
+Immediate dispatch to this connection requires an active coroutine. A console command that opts out of coroutine execution should use `sync` for inline work or `background` to create a coroutine instead. Delayed dispatch remains available because the timer executes its callback inside a coroutine.
+
 Similarly, the `background` connection processes jobs in another coroutine within the current worker process:
 
 ```php
@@ -1783,6 +1785,8 @@ class ProcessPodcast implements ShouldQueue
 ```
 
 In this example, the job is released for ten seconds if the application is unable to obtain a Redis lock and will continue to be retried up to 25 times. However, the job will fail if three unhandled exceptions are thrown by the job.
+
+`MaxExceptions` tracks failures using an atomic counter on your default cache store. If that store uses Redis with PhpRedis serialization, configure counters as described in the [cache increment and decrement documentation](/docs/{{version}}/cache#incrementing-decrementing-values).
 
 <a name="stopping-retries-by-exception"></a>
 #### Stopping Retries by Exception

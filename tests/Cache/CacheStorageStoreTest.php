@@ -12,6 +12,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\Cache\Fixtures\ArrayFilesystem;
 use Hypervel\Tests\TestCase;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
 
 class CacheStorageStoreTest extends TestCase
 {
@@ -23,6 +24,50 @@ class CacheStorageStoreTest extends TestCase
         $this->assertTrue($store->put('foo', 'bar', 60));
         $this->assertSame('bar', $store->get('foo'));
         $this->assertStringStartsWith('cache/', $store->path('foo'));
+    }
+
+    public function testGetPreservesCancellationFromFilesystemRead(): void
+    {
+        $cancellation = new CanceledException('read canceled');
+        $disk = new class($cancellation) extends ArrayFilesystem {
+            public function __construct(protected CanceledException $cancellation)
+            {
+            }
+
+            public function get(string $path): ?string
+            {
+                throw $this->cancellation;
+            }
+        };
+        $store = new StorageStore($disk, 'cache');
+
+        try {
+            $store->get('foo');
+            $this->fail('Reading the cache file was expected to be canceled.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testGetPreservesCancellationFromSerializableClassPolicy(): void
+    {
+        $cancellation = new CanceledException('policy canceled');
+        $disk = new ArrayFilesystem;
+        $store = new StorageStore(
+            $disk,
+            'cache',
+            serializableClassPolicy: new SerializableClassPolicy(
+                static fn (): never => throw $cancellation,
+            ),
+        );
+        $store->put('foo', 'bar', 60);
+
+        try {
+            $store->get('foo');
+            $this->fail('Resolving the serialization policy was expected to be canceled.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testPathUsesPrefixInXxh128Digest(): void

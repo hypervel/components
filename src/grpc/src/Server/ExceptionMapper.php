@@ -49,6 +49,10 @@ class ExceptionMapper
      */
     public function invalidResponse(Throwable $throwable): RpcException
     {
+        if ($throwable instanceof CanceledException) {
+            throw $throwable;
+        }
+
         $this->report($throwable);
 
         return new RpcException(StatusCode::Internal, 'The gRPC service returned an invalid response.');
@@ -59,8 +63,14 @@ class ExceptionMapper
      */
     public function report(Throwable $throwable): void
     {
+        if ($throwable instanceof CanceledException) {
+            throw $throwable;
+        }
+
         try {
             $this->exceptions->report($throwable);
+        } catch (CanceledException $throwable) {
+            throw $throwable;
         } catch (Throwable) {
             try {
                 error_log((string) $throwable);

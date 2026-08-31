@@ -27,6 +27,14 @@ class LoadConfigurationTest extends TestCase
         $this->assertSame('Hypervel', $app->make('config')->string('app.name'));
     }
 
+    public function testResolvesTheFrameworkConfigurationDirectory(): void
+    {
+        $this->assertSame(
+            realpath(dirname(__DIR__, 3) . '/src/foundation/config'),
+            LoadConfiguration::frameworkConfigPath(),
+        );
+    }
+
     public function testSetsEnvironmentResolver(): void
     {
         $app = new Application;
@@ -55,7 +63,7 @@ class LoadConfigurationTest extends TestCase
 
     public function testConfigurationArrayKeysMatchLoadedFilenames(): void
     {
-        $baseConfigPath = dirname((new ReflectionClass(LoadConfiguration::class))->getFileName(), 3) . '/config';
+        $baseConfigPath = LoadConfiguration::frameworkConfigPath();
         $customConfigPath = __DIR__ . '/../Fixtures/config';
 
         $app = new Application;

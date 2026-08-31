@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Testbench\Concerns;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables;
+use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Testbench\TestCase;
 
 class CreatesApplicationTest extends TestCase
@@ -48,6 +49,14 @@ class CreatesApplicationTest extends TestCase
         $this->assertTrue(
             $this->app->providerIsLoaded(TestServiceProvider::class),
             'TestServiceProvider should be registered'
+        );
+    }
+
+    public function testPackageProvidersBootWithTheTestingDatabaseResolver(): void
+    {
+        $this->assertInstanceOf(
+            DatabaseConnectionResolver::class,
+            $this->app->make('test.boot_database_resolver'),
         );
     }
 
@@ -122,6 +131,12 @@ class TestServiceProvider extends \Hypervel\Support\ServiceProvider
     public function register(): void
     {
         $this->app->singleton('test.service', fn () => 'test_value');
+    }
+
+    public function boot(): void
+    {
+        $this->app->instance('test.boot_database_resolver', $this->app->make('db.resolver'));
+        $this->app->make('db')->selectOne('select 1');
     }
 }
 

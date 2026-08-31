@@ -15,6 +15,7 @@ use Hypervel\Contracts\Container\CircularDependencyException;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Container\ContextualAttribute;
 use Hypervel\Contracts\Container\ContextualBindingBuilder as ContextualBindingBuilderContract;
+use Hypervel\Contracts\Container\ExecutionScopedAttribute;
 use Hypervel\Contracts\Container\SelfBuilding;
 use Hypervel\Contracts\Container\Transient;
 use Hypervel\Support\ClassMetadataCache;
@@ -27,6 +28,7 @@ use ReflectionException;
 use ReflectionFunction;
 use ReflectionParameter;
 use Swoole\Coroutine as SwooleCoroutine;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 use TypeError;
 
@@ -341,15 +343,17 @@ class Container implements ContainerContract
             return true;
         }
 
-        if (isset($this->bindings[$abstract])) {
+        if (isset($this->bindings[$abstract]) || ! class_exists($abstract)) {
             return false;
         }
 
-        if (! class_exists($abstract)) {
-            return false;
+        $scopedType = $this->getScopedType($abstract);
+
+        if ($scopedType === null && $this->isDerivedExecutionScoped($abstract)) {
+            $scopedType = 'scoped';
         }
 
-        if (($scopedType = $this->getScopedType($abstract)) === null) {
+        if ($scopedType === null) {
             return false;
         }
 
@@ -369,11 +373,15 @@ class Container implements ContainerContract
             return true;
         }
 
-        if (isset($this->bindings[$abstract])) {
+        if (isset($this->bindings[$abstract]) || ! class_exists($abstract)) {
             return false;
         }
 
-        if ($this->getScopedType($abstract) === 'scoped') {
+        $scopedType = $this->getScopedType($abstract);
+
+        if ($scopedType === 'scoped'
+            || ($scopedType === null && $this->isDerivedExecutionScoped($abstract))
+        ) {
             $this->scopedInstances[$abstract] = true;
 
             return true;
@@ -440,6 +448,20 @@ class Container implements ContainerContract
         }
 
         return $this->checkedForSingletonOrScopedAttributes[$className] = $type;
+    }
+
+    /**
+     * Determine if an unbound class derives its lifetime from constructor attributes.
+     */
+    private function isDerivedExecutionScoped(string $abstract): bool
+    {
+        if (! class_exists($abstract)
+            || $this->getScopedType($abstract) !== null
+        ) {
+            return false;
+        }
+
+        return $this->getBuildRecipe($abstract)->executionScoped;
     }
 
     /**
@@ -1068,6 +1090,11 @@ class Container implements ContainerContract
         try {
             return $this->resolve($id);
         } catch (Exception $e) {
+            // Cancellation is injected asynchronously, so a dedicated catch analyzes as unreachable here.
+            if ($e instanceof CanceledException) {
+                throw $e;
+            }
+
             if ($this->has($id) || $e instanceof CircularDependencyException) {
                 throw $e;
             }
@@ -1106,10 +1133,19 @@ class Container implements ContainerContract
 
         $needsContextualBuild = ! empty($parameters) || ! is_null($concrete);
 
+        // An internal concrete resolution belongs to its outer binding, so only
+        // explicit lifetimes may cross that boundary.
+        $applyImplicitLifetime = $raiseEvents
+            || isset($this->bindings[$abstract])
+            || isset($this->instances[$abstract])
+            || array_key_exists($abstract, $this->instances)
+            || (class_exists($abstract) && $this->getScopedType($abstract) !== null);
+
         // The owner may publish its provisional instance before resolving callbacks
         // finish so same-coroutine callbacks can re-resolve it. Other coroutines must
         // wait for the complete resolution instead of observing that partial state.
-        if (! $needsContextualBuild
+        if ($applyImplicitLifetime
+            && ! $needsContextualBuild
             && $this->sharedResolutions !== []
             && isset($this->sharedResolutions[$abstract])
             && $this->sharedResolutions[$abstract]->ownerId !== SwooleCoroutine::getCid()
@@ -1117,8 +1153,14 @@ class Container implements ContainerContract
             return $this->awaitSharedResolution($abstract, $this->sharedResolutions[$abstract]);
         }
 
+        // Check auto-singletons before deriving scope so warmed ordinary services
+        // return without repeating immutable class-lifetime analysis.
+        if ($applyImplicitLifetime && isset($this->autoSingletons[$abstract]) && ! $needsContextualBuild) {
+            return $this->autoSingletons[$abstract];
+        }
+
         // For scoped bindings, check coroutine-local Context instead of process-global $instances.
-        if ($this->isScoped($abstract) && ! $needsContextualBuild) {
+        if ($applyImplicitLifetime && $this->isScoped($abstract) && ! $needsContextualBuild) {
             $contextKey = self::SCOPED_CONTEXT_PREFIX . $abstract;
             if (CoroutineContext::has($contextKey)) {
                 return CoroutineContext::get($contextKey);
@@ -1132,11 +1174,6 @@ class Container implements ContainerContract
             && ! $needsContextualBuild
         ) {
             return $this->instances[$abstract];
-        }
-
-        // Check auto-singleton cache for unbound concrete classes.
-        if (isset($this->autoSingletons[$abstract]) && ! $needsContextualBuild) {
-            return $this->autoSingletons[$abstract];
         }
 
         // Depth guard — safety net for indirect cycles (e.g., through interfaces)
@@ -1214,7 +1251,7 @@ class Container implements ContainerContract
             // the instances in "memory" so we can return it later without creating an
             // entirely new instance of an object on each subsequent request for it.
             if (! $needsContextualBuild) {
-                if ($this->isShared($abstract)) {
+                if ($applyImplicitLifetime && $this->isShared($abstract)) {
                     if ($this->isScoped($abstract)) {
                         CoroutineContext::set(self::SCOPED_CONTEXT_PREFIX . $abstract, $object);
                         $publishedCache = 'scoped';
@@ -1320,6 +1357,8 @@ class Container implements ContainerContract
         bool $needsContextualBuild,
         bool $raiseEvents,
     ): bool {
+        // Scoped types are shared only within one execution. Check them before
+        // the broader shared test so they never create worker-shared coordination.
         if ($needsContextualBuild || SwooleCoroutine::getCid() <= 0 || $this->isScoped($abstract)) {
             return false;
         }
@@ -1661,6 +1700,7 @@ class Container implements ContainerContract
                 hasConstructor: false,
                 classAttributes: [],
                 parameters: [],
+                executionScoped: false,
             );
         }
 
@@ -1675,13 +1715,29 @@ class Container implements ContainerContract
                 hasConstructor: false,
                 classAttributes: $classAttributes,
                 parameters: [],
+                executionScoped: false,
             );
         }
 
         $parameters = [];
+        $executionScoped = false;
+        $canDeriveExecutionScope = ! is_a($concrete, SelfBuilding::class, true)
+            && ! is_a($concrete, Transient::class, true);
 
         foreach ($constructor->getParameters() as $index => $parameter) {
             $parameters[$index] = ParameterRecipe::fromParameter($parameter, $concrete);
+
+            $contextualAttribute = $parameters[$index]->contextualAttribute;
+
+            if ($canDeriveExecutionScope
+                && ! $executionScoped
+                && $contextualAttribute !== null
+                && is_a($contextualAttribute->getName(), ExecutionScopedAttribute::class, true)
+            ) {
+                $attribute = $contextualAttribute->newInstance();
+                $executionScoped = $attribute instanceof ExecutionScopedAttribute
+                    && $attribute->isExecutionScoped();
+            }
         }
 
         return new BuildRecipe(
@@ -1690,6 +1746,7 @@ class Container implements ContainerContract
             hasConstructor: true,
             classAttributes: $classAttributes,
             parameters: $parameters,
+            executionScoped: $executionScoped,
         );
     }
 

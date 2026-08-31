@@ -10,6 +10,7 @@ use Hypervel\Cache\Events\KeyWriteFailed;
 use Hypervel\Cache\Events\KeyWritten;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Contracts\Cache\Store;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -77,6 +78,8 @@ class StackTaggedCache extends AnyModeTaggedCache
                 'value' => $value,
                 'ttl' => $seconds,
             ]);
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             $this->event(
                 KeyWriteFailed::class,
@@ -130,6 +133,8 @@ class StackTaggedCache extends AnyModeTaggedCache
 
         try {
             $result = $this->store->putRecordTagged($this->tags->getNames(), $key, ['value' => $value]);
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             $this->event(
                 KeyWriteFailed::class,

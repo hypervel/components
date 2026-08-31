@@ -814,6 +814,133 @@ class TypesenseEngineTest extends TestCase
         $this->createPartialEngineWithConfig($client)->search($builder);
     }
 
+    public function testLargeTakeUsesFixedPageSizesAndTruthfulMetadata(): void
+    {
+        $engine = $this->createPartialEngineWithConfig();
+        $parameters = [];
+        $responses = [
+            ['hits' => range(1, 250), 'found' => 600, 'out_of' => 900],
+            ['hits' => range(251, 350), 'found' => 600, 'out_of' => 900],
+        ];
+        $engine->shouldReceive('performSearch')
+            ->twice()
+            ->andReturnUsing(function (Builder $builder, array $options) use (&$parameters, &$responses): array {
+                $parameters[] = $options;
+
+                return array_shift($responses);
+            });
+
+        $model = new TypesenseLifecycleModel;
+        $model->searchParameters = ['page' => 90, 'per_page' => 1];
+        $builder = (new Builder($model, 'scout'))
+            ->options(['page' => 80, 'per_page' => 2, 'include_fields' => 'id'])
+            ->take(300);
+
+        $results = $engine->search($builder);
+
+        $this->assertCount(300, $results['hits']);
+        $this->assertSame(600, $results['found']);
+        $this->assertSame(900, $results['out_of']);
+        $this->assertSame(1, $results['page']);
+        $this->assertSame(1, $results['request_params']['page']);
+        $this->assertSame(250, $results['request_params']['per_page']);
+        $this->assertSame('id', $results['request_params']['include_fields']);
+        $this->assertSame([1, 2], array_column($parameters, 'page'));
+        $this->assertSame([250, 250], array_column($parameters, 'per_page'));
+    }
+
+    public function testLargeTakeStopsWhenTheKnownMatchCountIsExhausted(): void
+    {
+        $engine = $this->createPartialEngineWithConfig();
+        $responses = [
+            ['hits' => range(1, 250), 'found' => 500, 'out_of' => 800],
+            ['hits' => range(251, 500), 'found' => 500, 'out_of' => 800],
+        ];
+        $engine->shouldReceive('performSearch')
+            ->twice()
+            ->andReturnUsing(function () use (&$responses): array {
+                return array_shift($responses);
+            });
+
+        $results = $engine->search((new Builder(new TypesenseLifecycleModel, 'scout'))->take(600));
+
+        $this->assertCount(500, $results['hits']);
+        $this->assertSame(500, $results['found']);
+    }
+
+    public function testLargeTakeStopsWhenTypesenseReturnsAShortPage(): void
+    {
+        $engine = $this->createPartialEngineWithConfig();
+        $responses = [
+            ['hits' => range(1, 250), 'found' => 600, 'out_of' => 800],
+            ['hits' => range(251, 275), 'found' => 600, 'out_of' => 800],
+        ];
+        $engine->shouldReceive('performSearch')
+            ->twice()
+            ->andReturnUsing(function () use (&$responses): array {
+                return array_shift($responses);
+            });
+
+        $results = $engine->search((new Builder(new TypesenseLifecycleModel, 'scout'))->take(600));
+
+        $this->assertCount(275, $results['hits']);
+        $this->assertSame(600, $results['found']);
+    }
+
+    public function testLargeTakeHonorsTheConfiguredResultLimit(): void
+    {
+        $engine = $this->createPartialEngineWithConfig(maxTotalResults: 300);
+        $responses = [
+            ['hits' => range(1, 250), 'found' => 600, 'out_of' => 800],
+            ['hits' => range(251, 500), 'found' => 600, 'out_of' => 800],
+        ];
+        $engine->shouldReceive('performSearch')
+            ->twice()
+            ->andReturnUsing(function () use (&$responses): array {
+                return array_shift($responses);
+            });
+
+        $results = $engine->search((new Builder(new TypesenseLifecycleModel, 'scout'))->take(600));
+
+        $this->assertCount(300, $results['hits']);
+        $this->assertSame(600, $results['found']);
+    }
+
+    public function testPaginateRejectsInvalidPageSizesBeforeIo(): void
+    {
+        $engine = $this->createPartialEngineWithConfig();
+        $engine->shouldNotReceive('performSearch');
+        $builder = new Builder(new TypesenseLifecycleModel, 'scout');
+
+        foreach ([0, -1, 251] as $perPage) {
+            try {
+                $engine->paginate($builder, $perPage, 1);
+                $this->fail("Expected perPage [{$perPage}] to be rejected.");
+            } catch (InvalidArgumentException $exception) {
+                $this->assertSame(
+                    'Typesense pagination requires perPage to be between 1 and 250.',
+                    $exception->getMessage(),
+                );
+            }
+        }
+    }
+
+    public function testPaginatePreservesValidatedPageSizeAndLargePage(): void
+    {
+        $engine = $this->createPartialEngineWithConfig(maxTotalResults: 10);
+        $engine->shouldReceive('performSearch')
+            ->once()
+            ->withArgs(function (Builder $builder, array $options): bool {
+                $this->assertSame(500_000_000, $options['page']);
+                $this->assertSame(250, $options['per_page']);
+
+                return true;
+            })
+            ->andReturn(['hits' => [], 'found' => 0]);
+
+        $engine->paginate(new Builder(new TypesenseLifecycleModel, 'scout'), 250, 500_000_000);
+    }
+
     public function testMapReturnsEmptyCollectionWhenNoResults(): void
     {
         $engine = $this->createEngine();
@@ -957,6 +1084,24 @@ class TypesenseEngineTest extends TestCase
         $this->assertSame('value', $params['custom_param']);
     }
 
+    public function testBuildSearchParametersKeepsEngineOwnedPagination(): void
+    {
+        $engine = $this->createPartialEngineWithConfig();
+        $model = new TypesenseLifecycleModel;
+        $model->searchParameters = ['page' => 90, 'per_page' => 1];
+        $builder = (new Builder($model, 'test'))->options([
+            'page' => 80,
+            'per_page' => 2,
+            'include_fields' => 'id,title',
+        ]);
+
+        $parameters = $engine->buildSearchParameters($builder, 7, 25);
+
+        $this->assertSame(7, $parameters['page']);
+        $this->assertSame(25, $parameters['per_page']);
+        $this->assertSame('id,title', $parameters['include_fields']);
+    }
+
     public function testBuildSearchParametersIncludesSortBy(): void
     {
         $engine = $this->createPartialEngineWithConfig();
@@ -1049,12 +1194,14 @@ class TypesenseEngineTest extends TestCase
     /**
      * Create a partial engine mock that stubs getConfig to avoid container dependency.
      */
-    protected function createPartialEngineWithConfig(?MockInterface $client = null): MockInterface&TypesenseEngine
-    {
+    protected function createPartialEngineWithConfig(
+        ?MockInterface $client = null,
+        int $maxTotalResults = 1000,
+    ): MockInterface&TypesenseEngine {
         $client = $client ?? m::mock(TypesenseClient::class);
 
         /** @var MockInterface&TypesenseEngine */
-        $engine = m::mock(TypesenseEngine::class, [$client, 1000])
+        $engine = m::mock(TypesenseEngine::class, [$client, $maxTotalResults])
             ->shouldAllowMockingProtectedMethods()
             ->makePartial();
 

@@ -184,6 +184,23 @@ class CoroutineTest extends TestCase
         $this->assertFalse($channel->pop(0.01));
     }
 
+    public function testCoroutineCancellationIsReportedAtTheCancellationBoundary(): void
+    {
+        $channel = new Channel(1);
+        $isCanceled = null;
+
+        $coroutine = Coroutine::create(function () use ($channel, &$isCanceled): void {
+            try {
+                $channel->pop();
+            } catch (CanceledException) {
+                $isCanceled = Coroutine::isCanceled();
+            }
+        });
+
+        $this->assertTrue(Coroutine::cancelById($coroutine->getId(), throwException: true));
+        $this->assertTrue($isCanceled);
+    }
+
     public function testCoroutineJoinWaitsForLiveCoroutines(): void
     {
         $completed = false;

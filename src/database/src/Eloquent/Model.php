@@ -85,6 +85,11 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     protected const string EVENTS_DISABLED_CONTEXT_KEY = '__database.model.events_disabled';
 
     /**
+     * Context key for suppressing missing attribute violations during existence checks.
+     */
+    protected const string MISSING_ATTRIBUTE_ACCESS_SUPPRESSED_CONTEXT_KEY = '__database.model.missing_attribute_access_suppressed';
+
+    /**
      * Context key for storing whether mass assignment is unguarded.
      */
     public const string UNGUARDED_CONTEXT_KEY = '__database.model.unguarded';
@@ -1518,7 +1523,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         $dirty = $this->getDirtyForUpdate();
 
         if (count($dirty) > 0) {
-            $this->setKeysForSaveQuery($query)->update($dirty);
+            $this->setKeysForSaveQuery($query)->update(
+                $this->prepareBinaryAttributesForDatabase($dirty)
+            );
 
             // Cached setters were merged while building the statement values. Read
             // the raw array here so nondeterministic setters are not run again.
@@ -1546,7 +1553,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             throw new MissingAttributeException($this, $this->getKeyName());
         }
 
-        $query->where($this->getKeyName(), '=', $key);
+        $query->where($this->getKeyName(), '=', $this->prepareKeyForDatabase($key));
 
         return $query;
     }
@@ -1556,7 +1563,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     protected function getKeyForSelectQuery(): mixed
     {
-        return $this->original[$this->getKeyName()] ?? $this->getKey();
+        return $this->getRawKeyForQuery();
     }
 
     /**
@@ -1573,7 +1580,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             throw new MissingAttributeException($this, $this->getKeyName());
         }
 
-        $query->where($this->getKeyName(), '=', $key);
+        $query->where($this->getKeyName(), '=', $this->prepareKeyForDatabase($key));
 
         return $query;
     }
@@ -1583,7 +1590,30 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     protected function getKeyForSaveQuery(): mixed
     {
-        return $this->original[$this->getKeyName()] ?? $this->getKey();
+        return $this->getRawKeyForQuery();
+    }
+
+    /**
+     * Get the raw primary key value for a model query.
+     */
+    private function getRawKeyForQuery(): mixed
+    {
+        $keyName = $this->getKeyName();
+
+        return $this->original[$keyName]
+            ?? ($this->isBinaryCast($this->getCasts()[$keyName] ?? null) && array_key_exists($keyName, $this->attributes)
+                ? $this->attributes[$keyName]
+                : $this->getKey());
+    }
+
+    /**
+     * Prepare the primary key for database binding.
+     */
+    private function prepareKeyForDatabase(mixed $key): mixed
+    {
+        $keyName = $this->getKeyName();
+
+        return $this->prepareBinaryAttributesForDatabase([$keyName => $key])[$keyName];
     }
 
     /**
@@ -1611,7 +1641,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         // If the model has an incrementing key, we can use the "insertGetId" method on
         // the query builder, which will give us back the final inserted ID for this
         // table from the database. Not all tables have to be incrementing though.
-        $attributes = $this->getAttributesForInsert();
+        $attributes = $this->prepareBinaryAttributesForDatabase(
+            $this->getAttributesForInsert()
+        );
 
         if ($this->getIncrementing()) {
             $this->insertAndSetId($query, $attributes);
@@ -1659,7 +1691,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             $this->updateTimestamps();
         }
 
-        $attributes = $this->getAttributesForInsert();
+        $attributes = $this->prepareBinaryAttributesForDatabase(
+            $this->getAttributesForInsert()
+        );
 
         if ($attributes === []) {
             return true;
@@ -2762,14 +2796,18 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public function offsetExists($offset): bool
     {
-        $shouldPrevent = static::$modelsShouldPreventAccessingMissingAttributes;
+        if (! static::preventsAccessingMissingAttributes()) {
+            return ! is_null($this->getAttribute($offset));
+        }
 
-        static::$modelsShouldPreventAccessingMissingAttributes = false;
+        $wasSuppressed = CoroutineContext::get(self::MISSING_ATTRIBUTE_ACCESS_SUPPRESSED_CONTEXT_KEY, false);
+
+        CoroutineContext::set(self::MISSING_ATTRIBUTE_ACCESS_SUPPRESSED_CONTEXT_KEY, true);
 
         try {
             return ! is_null($this->getAttribute($offset));
         } finally {
-            static::$modelsShouldPreventAccessingMissingAttributes = $shouldPrevent;
+            CoroutineContext::set(self::MISSING_ATTRIBUTE_ACCESS_SUPPRESSED_CONTEXT_KEY, $wasSuppressed);
         }
     }
 

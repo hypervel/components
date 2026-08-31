@@ -11,6 +11,7 @@ use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Support\Traits\ForwardsCalls;
 use JsonException;
 use JsonSerializable;
+use LogicException;
 use Stringable;
 
 /**
@@ -51,11 +52,19 @@ class ApiResource implements Stringable, ArrayAccess, JsonSerializable, Arrayabl
     }
 
     /**
-     * Unset an attribute on the resource.
+     * Reject property assignment on the resource.
+     */
+    public function __set(string $key, mixed $value): void
+    {
+        throw new LogicException('Resource data cannot be assigned through properties.');
+    }
+
+    /**
+     * Reject unsetting a property on the resource.
      */
     public function __unset(string $key): void
     {
-        $this->response->offsetUnset($key);
+        throw new LogicException('Resource data cannot be unset through properties.');
     }
 
     /**
@@ -185,7 +194,7 @@ class ApiResource implements Stringable, ArrayAccess, JsonSerializable, Arrayabl
      */
     public function offsetSet(mixed $offset, mixed $value): void
     {
-        $this->response->offsetSet($offset, $value);
+        throw new LogicException('Resource data cannot be assigned through array offsets.');
     }
 
     /**
@@ -193,6 +202,6 @@ class ApiResource implements Stringable, ArrayAccess, JsonSerializable, Arrayabl
      */
     public function offsetUnset(mixed $offset): void
     {
-        $this->response->offsetUnset($offset);
+        throw new LogicException('Resource data cannot be unset through array offsets.');
     }
 }

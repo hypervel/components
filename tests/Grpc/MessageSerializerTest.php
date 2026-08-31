@@ -13,6 +13,7 @@ use InvalidArgumentException;
 use Mockery as m;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
 use TypeError;
 
 class MessageSerializerTest extends TestCase
@@ -40,6 +41,20 @@ class MessageSerializerTest extends TestCase
         } catch (ProtocolException $exception) {
             $this->assertSame('Unable to serialize the gRPC message.', $exception->getMessage());
             $this->assertSame($failure, $exception->getPrevious());
+        }
+    }
+
+    public function testPreservesCancellationFromSerialization(): void
+    {
+        $cancellation = new CanceledException;
+        $message = m::mock(Message::class);
+        $message->shouldReceive('serializeToString')->once()->andThrow($cancellation);
+
+        try {
+            MessageSerializer::serialize($message);
+            $this->fail('Expected cancellation to propagate.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
         }
     }
 
@@ -121,6 +136,23 @@ class MessageSerializerTest extends TestCase
             $this->fail('Expected the callable deserializer to fail.');
         } catch (ProtocolException $exception) {
             $this->assertSame($failure, $exception->getPrevious());
+        }
+    }
+
+    public function testPreservesCancellationFromCallableDeserialization(): void
+    {
+        $cancellation = new CanceledException;
+
+        try {
+            MessageSerializer::deserialize(
+                static function () use ($cancellation): Message {
+                    throw $cancellation;
+                },
+                'payload',
+            );
+            $this->fail('Expected cancellation to propagate.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
         }
     }
 

@@ -33,6 +33,7 @@ use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use ReflectionMethod;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 use function Hypervel\Coroutine\parallel;
@@ -325,7 +326,7 @@ class BaseClientTest extends TestCase
                 'certificate' => __FILE__,
                 'private_key' => __FILE__,
                 'passphrase' => 'secret',
-                'server_name' => 'peer.example.test',
+                'server_name' => 'peer.example.test.',
             ],
             'swoole' => [
                 'write_timeout' => 9.0,
@@ -353,10 +354,27 @@ class BaseClientTest extends TestCase
                 'ssl_cert_file' => __FILE__,
                 'ssl_key_file' => __FILE__,
                 'ssl_passphrase' => 'secret',
-                'ssl_host_name' => 'peer.example.test',
+                'ssl_host_name' => 'peer.example.test.',
                 'socket_buffer_size' => 4096,
             ],
         ]], $factory->calls);
+    }
+
+    public function testAbsoluteDnsTargetPreservesAuthorityAndNormalizesOnlyDefaultSni(): void
+    {
+        $engineClient = new ClientCallClient;
+        $factory = new ClientCallClientFactory($engineClient);
+        $client = $this->client($factory, target: 'https://Example.Test.');
+
+        $client->unary(
+            '/testing.Service/Unary',
+            new StringValue,
+            [StringValue::class, 'decode'],
+        );
+
+        $this->assertSame('example.test.', $factory->calls[0]['host']);
+        $this->assertSame('example.test', $factory->calls[0]['settings']['ssl_host_name']);
+        $this->assertSame('example.test.:443', $engineClient->sentRequests[0]->getHeaders()['host']);
     }
 
     #[DataProvider('invalidClientOptions')]
@@ -418,6 +436,41 @@ class BaseClientTest extends TestCase
         yield 'invalid native timeout fallback' => [[
             'swoole' => ['timeout' => -1],
         ], 'timeout setting must be a positive finite'];
+    }
+
+    #[DataProvider('reservedSwooleTlsSettingProvider')]
+    public function testRejectsRawSwooleTlsSettingsForPlaintextAndTlsTargets(string $setting): void
+    {
+        foreach (['example.test:50051', 'https://example.test:50051'] as $target) {
+            $this->bindFactory(new ClientCallClientFactory(new ClientCallClient));
+
+            try {
+                new TestingBaseClient($target, [
+                    'swoole' => [$setting => 'override'],
+                ]);
+                $this->fail("Expected raw Swoole TLS setting [{$setting}] to be rejected.");
+            } catch (InvalidArgumentException $exception) {
+                $this->assertSame(
+                    "The gRPC Swoole {$setting} setting is owned by the first-class tls option.",
+                    $exception->getMessage(),
+                );
+            }
+        }
+    }
+
+    /**
+     * Return Swoole settings reserved by first-class TLS options.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function reservedSwooleTlsSettingProvider(): iterable
+    {
+        yield 'verify peer' => ['ssl_verify_peer'];
+        yield 'CA file' => ['ssl_cafile'];
+        yield 'certificate' => ['ssl_cert_file'];
+        yield 'private key' => ['ssl_key_file'];
+        yield 'passphrase' => ['ssl_passphrase'];
+        yield 'server name' => ['ssl_host_name'];
     }
 
     public function testNativeTimeoutSuppliesTheBaselineWriteTimeout(): void
@@ -647,20 +700,22 @@ class BaseClientTest extends TestCase
         $this->bindFactory(new ClientCallClientFactory(...$engineClients));
         $first = $this->newClient(options: ['connections' => 2]);
         $second = $this->newClient(options: ['connections' => 2]);
+        $calls = [];
 
         for ($index = 0; $index < 3; ++$index) {
-            $first->unary(
+            $calls[] = $first->unary(
                 '/testing.Service/Unary',
                 new StringValue,
                 [StringValue::class, 'decode'],
             );
-            $second->unary(
+            $calls[] = $second->unary(
                 '/testing.Service/Unary',
                 new StringValue,
                 [StringValue::class, 'decode'],
             );
         }
 
+        $this->assertCount(6, $calls);
         $this->assertSame(
             [2, 2, 1, 1],
             array_map(static fn (ClientCallClient $client): int => count($client->sentRequests), $engineClients),
@@ -787,6 +842,42 @@ class BaseClientTest extends TestCase
         );
     }
 
+    public function testCloseDrainsEveryConnectionAndPreservesTheFirstCancellation(): void
+    {
+        $firstCancellation = new CanceledException;
+        $secondCancellation = new CanceledException;
+        $engineClients = [
+            $this->clientThatFailsToClose(new LogicException('ordinary close failure')),
+            $this->clientThatFailsToClose($firstCancellation),
+            $this->clientThatFailsToClose($secondCancellation),
+            new ClientCallClient,
+        ];
+        $client = $this->client(
+            new ClientCallClientFactory(...$engineClients),
+            ['connections' => count($engineClients)],
+        );
+
+        foreach ($engineClients as $_) {
+            $client->unary(
+                '/testing.Service/Unary',
+                new StringValue,
+                [StringValue::class, 'decode'],
+            );
+        }
+
+        try {
+            $client->close();
+            $this->fail('Expected cancellation to propagate after every connection was closed.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($firstCancellation, $exception);
+        }
+
+        $this->assertSame(
+            [1, 1, 1, 1],
+            array_map(static fn (ClientCallClient $engineClient): int => $engineClient->closeCount, $engineClients),
+        );
+    }
+
     public function testGeneratedRequestMethodsRetainTheirProtectedNamesAndArgumentOrder(): void
     {
         foreach ([
@@ -892,6 +983,26 @@ class BaseClientTest extends TestCase
     private function serialized(string $value): string
     {
         return (new StringValue)->setValue($value)->serializeToString();
+    }
+
+    /**
+     * Create an engine client that fails after completing native close cleanup.
+     */
+    private function clientThatFailsToClose(Throwable $failure): ClientCallClient
+    {
+        return new class($failure) extends ClientCallClient {
+            public function __construct(private readonly Throwable $failure)
+            {
+                parent::__construct();
+            }
+
+            public function close(): void
+            {
+                parent::close();
+
+                throw $this->failure;
+            }
+        };
     }
 }
 

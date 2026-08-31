@@ -8,6 +8,7 @@ use Hypervel\Auth\Passwords\DatabaseTokenRepository;
 use Hypervel\Contracts\Auth\CanResetPassword;
 use Hypervel\Contracts\Hashing\Hasher;
 use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
@@ -147,6 +148,63 @@ class AuthDatabaseTokenRepositoryTest extends TestCase
         $query->shouldReceive('delete')->once();
 
         $repo->deleteExpired();
+    }
+
+    public function testResolverBackedRepositoryResolvesTheConfiguredConnectionForEveryOperation(): void
+    {
+        $firstConnection = m::mock(ConnectionInterface::class);
+        $firstQuery = m::mock(Builder::class);
+        $firstConnection->shouldReceive('table')->once()->with('table')->andReturn($firstQuery);
+        $firstQuery->shouldReceive('where')->once()->with('created_at', '<', m::any())->andReturnSelf();
+        $firstQuery->shouldReceive('delete')->once();
+
+        $secondConnection = m::mock(ConnectionInterface::class);
+        $secondQuery = m::mock(Builder::class);
+        $secondConnection->shouldReceive('table')->once()->with('table')->andReturn($secondQuery);
+        $secondQuery->shouldReceive('where')->once()->with('created_at', '<', m::any())->andReturnSelf();
+        $secondQuery->shouldReceive('delete')->once();
+
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver->shouldReceive('connection')->twice()->with('passwords')->andReturn($firstConnection, $secondConnection);
+
+        $repository = new DatabaseTokenRepository(
+            $resolver,
+            m::mock(Hasher::class),
+            'table',
+            'key',
+            connectionName: 'passwords'
+        );
+
+        $repository->deleteExpired();
+        $repository->deleteExpired();
+    }
+
+    public function testResolverBackedRepositoryUsesTheDefaultConnectionWhenNoNameIsConfigured(): void
+    {
+        $connection = m::mock(ConnectionInterface::class);
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver->shouldReceive('connection')->once()->with(null)->andReturn($connection);
+
+        $repository = new DatabaseTokenRepository($resolver, m::mock(Hasher::class), 'table', 'key');
+
+        $this->assertSame($connection, $repository->getConnection());
+    }
+
+    public function testResolverContractTakesPrecedenceForObjectsImplementingBothConnectionContracts(): void
+    {
+        $resolvedConnection = m::mock(ConnectionInterface::class);
+        $connectionResolver = m::mock(ConnectionInterface::class . ', ' . ConnectionResolverInterface::class);
+        $connectionResolver->shouldReceive('connection')->once()->with('passwords')->andReturn($resolvedConnection);
+
+        $repository = new DatabaseTokenRepository(
+            $connectionResolver,
+            m::mock(Hasher::class),
+            'table',
+            'key',
+            connectionName: 'passwords'
+        );
+
+        $this->assertSame($resolvedConnection, $repository->getConnection());
     }
 
     protected function getRepo(): DatabaseTokenRepository

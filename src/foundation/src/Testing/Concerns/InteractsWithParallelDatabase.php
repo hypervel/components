@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
+use Hypervel\Contracts\Config\Repository as ConfigContract;
+use Hypervel\Database\ConfigurationUrlParser;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Support\Facades\DB;
@@ -27,11 +29,6 @@ use InvalidArgumentException;
 trait InteractsWithParallelDatabase
 {
     /**
-     * The original database name before parallel suffixing.
-     */
-    protected static ?string $originalDatabaseName = null;
-
-    /**
      * Rewrite the default connection's database name for parallel testing.
      *
      * Config-only — does not create connections or purge pools. Called early
@@ -54,24 +51,35 @@ trait InteractsWithParallelDatabase
             return;
         }
 
+        /** @var ConfigContract $config */
         $config = $app->make('config');
         $connection = $config->get('database.default');
 
-        // Skip if no real connection is configured (e.g., mocked test apps)
-        if ($config->get("database.connections.{$connection}") === null) {
+        if (! is_string($connection)) {
             return;
         }
 
-        $driver = $config->get("database.connections.{$connection}.driver");
-        $database = $config->get("database.connections.{$connection}.database");
+        $configurationPath = "database.connections.{$connection}";
+        $declaredConfiguration = $config->get($configurationPath);
+
+        // Skip if no real connection is configured (e.g., mocked test apps)
+        if (! is_array($declaredConfiguration)) {
+            return;
+        }
+
+        $configuration = $this->normalizeParallelDatabaseConfiguration($declaredConfiguration);
+        $driver = $configuration['driver'] ?? null;
+        $database = $configuration['database'] ?? null;
 
         if (! is_string($database) || ! $this->shouldManageParallelDatabase($driver, $database)) {
             return;
         }
 
-        $testDatabase = $this->parallelTestDatabase($database, (string) $token);
+        $configuration['database'] = $this->parallelTestDatabase($database, (string) $token);
 
-        $config->set("database.connections.{$connection}.database", $testDatabase);
+        if ($configuration !== $declaredConfiguration) {
+            $config->set($configurationPath, $configuration);
+        }
     }
 
     /**
@@ -96,18 +104,31 @@ trait InteractsWithParallelDatabase
             return;
         }
 
+        /** @var ConfigContract $config */
         $config = $this->app->make('config');
         $connection = $config->get('database.default');
 
-        if ($config->get("database.connections.{$connection}") === null) {
+        if (! is_string($connection)) {
             return;
         }
 
-        $driver = $config->get("database.connections.{$connection}.driver");
-        $database = $config->get("database.connections.{$connection}.database");
+        $configurationPath = "database.connections.{$connection}";
+        $declaredConfiguration = $config->get($configurationPath);
+
+        if (! is_array($declaredConfiguration)) {
+            return;
+        }
+
+        $configuration = $this->normalizeParallelDatabaseConfiguration($declaredConfiguration);
+        $driver = $configuration['driver'] ?? null;
+        $database = $configuration['database'] ?? null;
 
         if (! is_string($database) || ! $this->shouldManageParallelDatabase($driver, $database)) {
             return;
+        }
+
+        if ($configuration !== $declaredConfiguration) {
+            $config->set($configurationPath, $configuration);
         }
 
         // The database name has already been suffixed by configureParallelDatabaseName().
@@ -115,14 +136,17 @@ trait InteractsWithParallelDatabase
         try {
             Schema::connection($connection)->hasTable('__parallel_check');
         } catch (QueryException) {
-            // Switch to the original database to run CREATE DATABASE
-            $config->set("database.connections.{$connection}.database", static::$originalDatabaseName);
+            $baseConfiguration = $configuration;
+            $baseConfiguration['database'] = $this->parallelDatabaseBaseName($database, (string) $token);
+
+            // Switch to the original database to run CREATE DATABASE.
+            $config->set($configurationPath, $baseConfiguration);
             DB::purge($connection);
 
             Schema::connection($connection)->createDatabase($database);
 
-            // Switch back to the per-worker database
-            $config->set("database.connections.{$connection}.database", $database);
+            // Switch back to the per-worker database.
+            $config->set($configurationPath, $configuration);
             DB::purge($connection);
         }
     }
@@ -159,15 +183,62 @@ trait InteractsWithParallelDatabase
      */
     protected function parallelTestDatabase(string $database, string $token): string
     {
-        if (isset(static::$originalDatabaseName)) {
-            $database = static::$originalDatabaseName;
-        } elseif (preg_match('/^(.*)_test_[^\/\\\]+$/', $database, $matches) === 1) {
-            $database = $matches[1];
-            static::$originalDatabaseName = $database;
-        } else {
-            static::$originalDatabaseName = $database;
-        }
+        $database = $this->parallelDatabaseBaseName($database, $token);
 
         return "{$database}_test_{$token}";
+    }
+
+    /**
+     * Get the database name before any parallel-testing suffix.
+     */
+    private function parallelDatabaseBaseName(string $database, string $token): string
+    {
+        $suffix = "_test_{$token}";
+
+        return str_ends_with($database, $suffix)
+            ? substr($database, 0, -strlen($suffix))
+            : $database;
+    }
+
+    /**
+     * Normalize and validate a parallel database configuration.
+     *
+     * @param array<string, mixed> $configuration
+     * @return array<string, mixed>
+     */
+    private function normalizeParallelDatabaseConfiguration(array $configuration): array
+    {
+        $configuration = (new ConfigurationUrlParser)->parseConfiguration($configuration);
+
+        foreach (['read', 'write'] as $role) {
+            $endpoints = $configuration[$role] ?? null;
+
+            if (! is_array($endpoints)) {
+                continue;
+            }
+
+            $hasEndpointIdentity = array_key_exists('database', $endpoints)
+                || array_key_exists('url', $endpoints);
+
+            if (isset($endpoints[0])) {
+                foreach ($endpoints as $endpoint) {
+                    if (is_array($endpoint)
+                        && (array_key_exists('database', $endpoint) || array_key_exists('url', $endpoint))) {
+                        $hasEndpointIdentity = true;
+
+                        break;
+                    }
+                }
+            }
+
+            if ($hasEndpointIdentity) {
+                throw new InvalidArgumentException(
+                    'Read/write connections with endpoint-specific databases or URLs cannot be automatically managed during parallel testing. '
+                    . 'Configure a single database identity or run with --without-databases.'
+                );
+            }
+        }
+
+        return $configuration;
     }
 }

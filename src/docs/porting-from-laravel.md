@@ -23,9 +23,12 @@
 - [Configuration](#configuration)
 - [Other API Differences](#other-api-differences)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
+    - [Scout](#scout)
     - [Rate Limiting](#rate-limiting)
     - [Pagination](#pagination)
     - [Dates](#dates)
+    - [UUIDs](#uuids)
+    - [Filesystem](#filesystem)
 - [Database, Cache, Sessions, and Queues](#database-cache-sessions-and-queues)
     - [Database](#database)
     - [Redis](#redis)
@@ -94,7 +97,7 @@ When porting imports, update the import list first, then read the class again an
 
 For applications, use the `composer.json` file from a fresh Hypervel application as your starting point. Do not copy a Laravel application's framework dependencies, Composer scripts, or bootstrap files over the Hypervel skeleton.
 
-For packages, replace `laravel/framework` and individual `illuminate/*` requirements with the Hypervel components the package actually uses. Replace `orchestra/testbench` with `hypervel/testbench` for package tests. If a third-party dependency requires Laravel or Illuminate components, use a Hypervel-compatible version or port that integration; do not retain Illuminate packages merely to fill missing framework classes.
+For packages, replace `laravel/framework` and individual `illuminate/*` requirements with the Hypervel components the package actually uses. Replace `orchestra/testbench` with `hypervel/testbench` for package tests that boot an application, or require `hypervel/testing` for package unit tests that do not. If a third-party dependency requires Laravel or Illuminate components, use a Hypervel-compatible version or port that integration; do not retain Illuminate packages merely to fill missing framework classes.
 
 Laravel package discovery metadata under `extra.laravel` does not register providers in Hypervel. Move Hypervel provider discovery to `extra.hypervel.providers` as described in the [package development documentation](/docs/{{version}}/packages#package-discovery).
 
@@ -477,6 +480,16 @@ For concurrent HTTP requests, replace Laravel's `Http::pool` and `Http::batch` p
 
 Hypervel's `Concurrency` facade provides `coroutine`, `process`, and `sync` drivers. Laravel's `fork` driver is not available because coroutines are Hypervel's native lightweight execution model. Use the default `coroutine` driver for normal concurrent application work and reserve `process` for work that requires operating system process isolation. See the [concurrency documentation](/docs/{{version}}/concurrency#choosing-a-driver).
 
+<a name="scout"></a>
+### Scout
+
+Hypervel compiles integer and float values passed to Scout's Algolia `where`, `whereIn`, and `whereNotIn` methods as numeric comparisons. Numeric-looking strings remain facet values. When porting an Algolia index, ensure the indexed attribute type matches the PHP value type used by these filters.
+
+<a name="json-schema"></a>
+### JSON Schema
+
+When porting schemas that place sibling assertions beside a local `$ref` or use nullable composition, make overlapping assertions identical. Hypervel rejects conflicts instead of silently replacing referenced constraints. See the [JSON Schema documentation](/docs/{{version}}/json-schema#reconstructing-schemas).
+
 <a name="rate-limiting"></a>
 ### Rate Limiting
 
@@ -502,6 +515,20 @@ $expiresAt = $expiresAt->addMinutes(5);
 
 Review concrete `Hypervel\Support\Carbon` type declarations that receive factory-created values. Use `Carbon\CarbonInterface` at boundaries that may receive mutable or immutable dates, or `CarbonImmutable` when immutability is required. An application that deliberately requires mutable dates may configure the date factory during application boot. See the [date and time documentation](/docs/{{version}}/helpers#dates).
 
+<a name="uuids"></a>
+### UUIDs
+
+Hypervel's `Str` UUID methods, factories, sequences, and freeze callbacks use `Symfony\Component\Uid\Uuid` values. Laravel uses `Ramsey\Uuid\UuidInterface`. Review concrete UUID type declarations and calls to package-specific methods instead of changing only the framework namespace.
+
+Hypervel's `Str::orderedUuid()` returns a UUIDv7, while Laravel returns a timestamp-first COMB UUIDv4. Review code that validates UUID versions or depends on the exact ordering produced by this method.
+
+<a name="filesystem"></a>
+### Filesystem
+
+Hypervel's `Filesystem::hash()` method uses `xxh128` by default. Pass `md5` explicitly when a port requires Laravel-compatible digests.
+
+Unlike Laravel, Hypervel honors `read-only` on scoped disk records. Remove that option from any scoped disk that must accept writes.
+
 <a name="database-cache-sessions-and-queues"></a>
 ## Database, Cache, Sessions, and Queues
 
@@ -514,9 +541,13 @@ Hypervel supports MySQL, MariaDB, PostgreSQL, and SQLite database connections. S
 
 Database connections are persistent, pooled worker resources. Define every connection in `config/database.php` before the application boots. Dynamic connection creation through `DB::build()` and `DB::connectUsing()` is not supported. Review pool sizing and any database session state against the [database documentation](/docs/{{version}}/database#connection-pooling).
 
+When a package constructs `DatabaseStore`, `DatabaseSessionHandler`, `DatabaseQueue`, or `DatabaseBatchRepository` directly, pass the database connection resolver and configured connection name instead of retaining a resolved connection. Framework-configured drivers already use this form.
+
 Laravel's base `Connection` class exposes PDO methods. Hypervel's base `Connection` is driver-neutral, while its built-in SQL connections extend `PdoConnection`. Ported code that calls `getPdo`, `getReadPdo`, or another PDO-specific method should accept or narrow to `PdoConnection`. See [extending database connections](/docs/{{version}}/database#extending-database-connections) when porting a custom driver.
 
 Laravel's nested `direct` connection endpoint and `::direct` suffix are not available. Configure the direct endpoint as a normal named connection and point the pooled connection's `migrations_connection` option at it.
+
+Model casts are not applied to direct query builder operations or Eloquent key helpers. When ported code passes already-encoded binary strings to query builder `where`, bulk `update`, or `upsert` calls, or to Eloquent `find`, `whereKey`, or `whereKeyNot`, wrap them in `Hypervel\Database\BinaryParameter`. See [binding binary values](/docs/{{version}}/database#binding-binary-values) and [binary casting](/docs/{{version}}/eloquent-mutators#binary-casting).
 
 Hypervel's `migrate:fresh` command discovers the connection declared by each migration and resets every resolved target before rebuilding the schema. Keep each migration's connection stable, and split manual cross-connection schema work into separate migrations with explicit connection declarations. See [drop all tables and migrate](/docs/{{version}}/migrations#drop-all-tables-migrate) for details.
 
@@ -535,6 +566,8 @@ Hypervel provides Redis, database, file, filesystem storage, Swoole table, sessi
 For local in-memory caching, use the [Swoole table cache](/docs/{{version}}/cache#swoole-table-cache). A Swoole table is shared by the workers on one application node. For applications running across several nodes, the [stack cache](/docs/{{version}}/cache#building-cache-stacks) may combine a short-lived Swoole L1 cache with a shared Redis L2 cache. `Cache::memo()` may also wrap a store with per-coroutine memoization at runtime.
 
 The Redis cache store supports two tag modes. The default `all` mode follows Laravel's classic tagged-cache behavior. In `any` mode, tags are invalidation indexes: retrieve values by their plain keys, and flushing any one assigned tag removes the value. Review the [Redis tag mode documentation](/docs/{{version}}/cache#redis-tag-modes) before changing `REDIS_CACHE_TAG_MODE`.
+
+Custom cache tag sets must declare `TagSet::reset(): bool` and `TagSet::flush(): bool`. Hypervel uses these results to report a rejected tagged flush instead of returning unconditional success. Custom `VersionedTagSet` subclasses should override `writeTagId()` for bulk reset persistence; `resetTag()` keeps returning the generated identifier.
 
 <a name="sessions"></a>
 ### Sessions
@@ -564,14 +597,14 @@ Laravel tests often rely on loose PHPDoc types or mocks that return values too b
 
 Application tests that touch Hypervel services should extend your application's `Tests\TestCase` class. Hypervel's base test case runs test methods inside a coroutine so database pools, Redis pools, and coroutine context behave like they do in a real request or job.
 
-Pure unit tests that do not boot the framework may extend PHPUnit's base test case. If a test touches Hypervel services, use the Hypervel test case.
+Keep pure application unit tests on that same base and mark methods that do not need the application with `#[UnitTest]`. This skips application boot while retaining Hypervel's coroutine and cleanup lifecycle.
 
-For more information, see the [testing documentation](/docs/{{version}}/testing#running-tests-in-coroutines).
+For more information, see the [testing documentation](/docs/{{version}}/testing#choosing-a-test-case).
 
 <a name="package-tests"></a>
 ### Package Tests
 
-Package feature tests should use `Hypervel\Testbench\TestCase`. Testbench boots a disposable Hypervel application around your package, registers your service providers, and provides an isolated runtime skeleton for tests that publish files, cache routes, run migrations, or generate application files.
+Package unit tests that do not boot an application should use `Hypervel\Testing\UnitTestCase`. Package feature tests should use `Hypervel\Testbench\TestCase`. Testbench boots a disposable Hypervel application around your package, registers your service providers, and provides an isolated runtime skeleton for tests that publish files, cache routes, run migrations, or generate application files.
 
 ```php
 <?php

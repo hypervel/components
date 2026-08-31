@@ -21,6 +21,7 @@ use Hypervel\Grpc\Protocol\ServiceMethod;
 use Hypervel\Grpc\StatusCode;
 use InvalidArgumentException;
 use LogicException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 abstract class BaseClient
@@ -64,6 +65,15 @@ abstract class BaseClient
         'private_key',
         'passphrase',
         'server_name',
+    ];
+
+    private const array RESERVED_SWOOLE_TLS_SETTING_KEYS = [
+        'ssl_verify_peer',
+        'ssl_cafile',
+        'ssl_cert_file',
+        'ssl_key_file',
+        'ssl_passphrase',
+        'ssl_host_name',
     ];
 
     private Endpoint $endpoint;
@@ -179,7 +189,8 @@ abstract class BaseClient
                 'ssl_cert_file' => $tls['certificate'],
                 'ssl_key_file' => $tls['private_key'],
                 'ssl_passphrase' => $tls['passphrase'],
-                'ssl_host_name' => $tls['server_name'] ?? $this->endpoint->host,
+                'ssl_host_name' => $tls['server_name']
+                    ?? rtrim($this->endpoint->host, '.'),
             ]
             : [];
 
@@ -222,13 +233,20 @@ abstract class BaseClient
         $this->connections = [];
         $this->retiringConnections = [];
         $failure = null;
+        $cancellation = null;
 
         foreach ($connections as $connection) {
             try {
                 $connection->close();
+            } catch (CanceledException $exception) {
+                $cancellation ??= $exception;
             } catch (Throwable $throwable) {
                 $failure ??= $throwable;
             }
+        }
+
+        if ($cancellation !== null) {
+            throw $cancellation;
         }
 
         if ($failure !== null) {
@@ -790,6 +808,14 @@ abstract class BaseClient
             throw new InvalidArgumentException(
                 'The gRPC Swoole connect_timeout setting is owned by the first-class connect_timeout option.',
             );
+        }
+
+        foreach (self::RESERVED_SWOOLE_TLS_SETTING_KEYS as $key) {
+            if (array_key_exists($key, $settings)) {
+                throw new InvalidArgumentException(
+                    "The gRPC Swoole {$key} setting is owned by the first-class tls option.",
+                );
+            }
         }
 
         return $settings;

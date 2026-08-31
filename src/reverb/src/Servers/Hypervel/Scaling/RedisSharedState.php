@@ -9,6 +9,14 @@ use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 
 class RedisSharedState implements SharedState
 {
+    /**
+     * The logical pattern matching all Redis-backed shared-state keys.
+     *
+     * The hash-tag prefix excludes webhook buffers and defines the boundary
+     * cleared by the reverb:clear-state recovery command.
+     */
+    public const string KEY_PATTERN = 'reverb:{*}:*';
+
     protected const string SUBSCRIPTION_KEY_TYPE = 's';
 
     protected const string USER_KEY_TYPE = 'u';

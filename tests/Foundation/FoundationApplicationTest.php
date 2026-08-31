@@ -24,6 +24,7 @@ use JsonException;
 use Mockery as m;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -403,6 +404,36 @@ class FoundationApplicationTest extends TestCase
         }
 
         $this->assertSame(['first', 'second'], $called);
+    }
+
+    public function testTerminationCancellationSupersedesAnEarlierFailureAndStopsLaterCallbacks(): void
+    {
+        $app = new Application;
+        $called = [];
+        $cancellation = new CanceledException('canceled');
+
+        $app->terminating(function () use (&$called): void {
+            $called[] = 'first';
+
+            throw new RuntimeException('first failure');
+        });
+        $app->terminating(function () use (&$called, $cancellation): void {
+            $called[] = 'cancelling';
+
+            throw $cancellation;
+        });
+        $app->terminating(function () use (&$called): void {
+            $called[] = 'later';
+        });
+
+        try {
+            $app->terminate();
+            $this->fail('Expected application termination to preserve cancellation.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame(['first', 'cancelling'], $called);
     }
 
     public function testTerminationCallbacksCanAcceptAtNotation()

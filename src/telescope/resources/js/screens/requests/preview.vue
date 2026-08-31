@@ -72,7 +72,7 @@ export default {
             </tr>
 
             <tr>
-                <td class="table-fit text-muted">Memory usage</td>
+                <td class="table-fit text-muted">Worker memory peak</td>
                 <td>{{ slotProps.entry.content.memory || '-' }} MB</td>
             </tr>
         </template>

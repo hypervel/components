@@ -563,7 +563,19 @@ class Option implements Arrayable, JsonSerializable
 <a name="binary-casting"></a>
 ### Binary Casting
 
-If your Eloquent model has a [binary type](/docs/{{version}}/migrations#column-method-binary) `uuid` or `ulid` column in addition to your model's auto-incrementing ID column, you may use the `AsBinary` cast to automatically cast the value to and from its binary representation:
+UUIDs and ULIDs both have an exact 16-byte binary representation. When adding these columns in a migration, use fixed-width binary columns so they remain indexable on every supported database:
+
+```php
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+
+Schema::table('users', function (Blueprint $table): void {
+    $table->binary('uuid', length: 16, fixed: true)->unique();
+    $table->binary('ulid', length: 16, fixed: true);
+});
+```
+
+To store these values in secondary columns alongside a normal model key, you may use the `AsBinary` cast to automatically cast their values to and from their binary representations:
 
 ```php
 use Hypervel\Database\Eloquent\Casts\AsBinary;
@@ -593,6 +605,10 @@ return $user->uuid;
 
 // "6e8cdeed-2f32-40bd-b109-1e4405be2140"
 ```
+
+Normal model saves apply the cast automatically. Direct query builder operations, including `where`, bulk `update`, and `upsert` calls, do not apply model casts. When those operations receive already-encoded binary strings, wrap them in a [binary parameter](/docs/{{version}}/database#binding-binary-values).
+
+A non-incrementing primary key may also use `AsBinary` for model-instance writes and reloads. Lookups from already-encoded key bytes must use a binary parameter with `find`, `whereKey`, or `whereKeyNot`. Canonical UUID / ULID text passed directly to `find`, route or queue model binding, and relationship queries is not encoded automatically.
 
 <a name="date-casting"></a>
 ### Date Casting

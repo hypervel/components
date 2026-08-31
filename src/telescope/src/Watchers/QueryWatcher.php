@@ -6,6 +6,7 @@ namespace Hypervel\Telescope\Watchers;
 
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
@@ -105,10 +106,16 @@ class QueryWatcher extends Watcher
     }
 
     /**
-     * Add quotes to string bindings.
+     * Quote a non-numeric binding.
+     *
+     * @param BinaryParameter|resource|string $binding
      */
-    protected function quoteStringBinding(QueryExecuted $event, string $binding): string
+    protected function quoteStringBinding(QueryExecuted $event, mixed $binding): string
     {
+        if (is_resource($binding) || gettype($binding) === 'resource (closed)') {
+            $binding = (string) $binding;
+        }
+
         try {
             return $event->connection->escape($binding);
         } catch (RuntimeException) {

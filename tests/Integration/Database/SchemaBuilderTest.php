@@ -406,6 +406,50 @@ class SchemaBuilderTest extends DatabaseTestCase
         $this->assertFalse(Schema::hasIndex('foo', ['bar'], 'unique'));
     }
 
+    public function testGetPartialIndexMetadata(): void
+    {
+        Schema::create('partial_index_records', function (Blueprint $table) {
+            $table->id();
+            $table->string('email')->unique();
+            $table->unsignedBigInteger('account_id');
+            $table->dateTime('archived_at')->nullable();
+            $table->index(
+                ['account_id', 'archived_at'],
+                'partial_index_records_active_index',
+            )->whereNotNull('archived_at');
+        });
+
+        $indexes = Schema::getIndexes('partial_index_records');
+        $driver = DB::connection()->getDriverName();
+
+        $this->assertCount(3, $indexes);
+
+        foreach ($indexes as $index) {
+            $this->assertSame(
+                ['name', 'columns', 'type', 'unique', 'primary', 'partial'],
+                array_keys($index),
+            );
+        }
+
+        $this->assertSame([
+            'name' => 'partial_index_records_active_index',
+            'columns' => ['account_id', 'archived_at'],
+            'type' => $driver === 'sqlite' ? null : 'btree',
+            'unique' => false,
+            'primary' => false,
+            'partial' => in_array($driver, ['pgsql', 'sqlite'], true),
+        ], collect($indexes)->firstWhere('name', 'partial_index_records_active_index'));
+
+        $this->assertSame([
+            'name' => 'partial_index_records_email_unique',
+            'columns' => ['email'],
+            'type' => $driver === 'sqlite' ? null : 'btree',
+            'unique' => true,
+            'primary' => false,
+            'partial' => false,
+        ], collect($indexes)->firstWhere('name', 'partial_index_records_email_unique'));
+    }
+
     public function testGetUniqueIndexes()
     {
         Schema::create('foo', function (Blueprint $table) {

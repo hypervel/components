@@ -8,6 +8,7 @@ use Exception;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Support\InteractsWithTime;
+use Swoole\Coroutine\CanceledException;
 
 class StorageStore implements Store
 {
@@ -193,6 +194,8 @@ class StorageStore implements Store
             }
 
             $expiresAt = (int) substr($contents, 0, 10);
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Exception) {
             return $this->emptyPayload();
         }
@@ -206,6 +209,8 @@ class StorageStore implements Store
 
         try {
             $data = $this->unserialize(substr($contents, 10));
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Exception) {
             $this->forget($key);
 

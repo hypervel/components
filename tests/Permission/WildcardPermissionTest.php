@@ -95,7 +95,7 @@ class WildcardPermissionTest extends TestCase
             ->where(Config::morphKey(), $this->testUser->getKey())
             ->where('model_type', $this->testUser->getMorphClass())
             ->delete();
-        $registrar->bumpModelAssignmentCacheToken();
+        $registrar->rotateModelAssignmentCacheTokenAfterMutation(null);
 
         $this->assertFalse($this->testUser->hasPermissionTo('posts.create'));
     }

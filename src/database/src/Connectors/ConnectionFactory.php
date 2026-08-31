@@ -160,7 +160,7 @@ class ConnectionFactory
     {
         $name = $config['name'] ?? null;
         $config = $this->parseConfig($config, $name);
-        $readConfig = $this->parseConfig($this->getReadConfig($config), $name);
+        $readConfig = $this->getReadConfig($config);
 
         return Arr::add(
             $readConfig,
@@ -222,9 +222,12 @@ class ConnectionFactory
      */
     protected function getReadConfig(array $config): array
     {
-        return $this->mergeReadWriteConfig(
-            $config,
-            $this->getReadWriteConfig($config, 'read')
+        return $this->parseConfig(
+            $this->mergeReadWriteConfig(
+                $config,
+                $this->getReadWriteConfig($config, 'read')
+            ),
+            $config['name'] ?? null,
         );
     }
 
@@ -233,9 +236,12 @@ class ConnectionFactory
      */
     protected function getWriteConfig(array $config): array
     {
-        return $this->mergeReadWriteConfig(
-            $config,
-            $this->getReadWriteConfig($config, 'write')
+        return $this->parseConfig(
+            $this->mergeReadWriteConfig(
+                $config,
+                $this->getReadWriteConfig($config, 'write')
+            ),
+            $config['name'] ?? null,
         );
     }
 

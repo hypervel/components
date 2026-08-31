@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Concerns;
 
 use Hypervel\Support\Str;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -50,6 +51,8 @@ trait ResolvesSourceHref
     {
         try {
             $editor = config('app.editor');
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable) {
             // ..
         }

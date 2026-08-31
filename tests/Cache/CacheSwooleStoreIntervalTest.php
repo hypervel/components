@@ -19,6 +19,7 @@ use Mockery as m;
 use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Process\Process;
 use Throwable;
 
@@ -32,6 +33,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
 
         IntervalLostClaimProbe::reset();
         IntervalReentryProbe::reset();
+        IntervalCancellationProbe::reset();
 
         $this->tempDir = ParallelTesting::tempDir('CacheSwooleStoreIntervalTest');
         (new Filesystem)->deleteDirectory($this->tempDir);
@@ -42,6 +44,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
     {
         IntervalLostClaimProbe::reset();
         IntervalReentryProbe::reset();
+        IntervalCancellationProbe::reset();
 
         (new Filesystem)->deleteDirectory($this->tempDir);
 
@@ -644,6 +647,147 @@ class CacheSwooleStoreIntervalTest extends TestCase
         $this->assertNull($this->metadata($state, $metadataKey)['lastRefreshedAt']);
     }
 
+    public function testCanceledSameInstanceFallbackClearsClaimAndCanRetry(): void
+    {
+        $container = new Container;
+        $handler = m::spy(ExceptionHandler::class);
+        $container->instance(ExceptionHandler::class, $handler);
+        Container::setInstance($container);
+
+        $state = $this->createState();
+        $store = $this->createStore($state);
+        $cancellation = new CanceledException('refresh canceled');
+        IntervalCancellationProbe::$failure = $cancellation;
+
+        $store->interval('foo', fn () => IntervalCancellationProbe::failThenSucceed(), 5);
+        $metadataKey = $this->metadataKey($store, 'foo');
+
+        try {
+            $store->get('foo');
+            $this->fail('Expected interval fallback cancellation was not thrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $handler->shouldNotHaveReceived('report');
+        $this->assertNull($this->metadata($state, $metadataKey)['refreshingAt']);
+        $this->assertSame('bar', $store->get('foo'));
+    }
+
+    public function testTimerRefreshCleanupCancellationSupersedesOrdinaryFailureWithoutReporting(): void
+    {
+        $container = new Container;
+        $handler = m::spy(ExceptionHandler::class);
+        $container->instance(ExceptionHandler::class, $handler);
+        Container::setInstance($container);
+
+        $state = $this->createControllableState();
+        $store = $this->createStore($state);
+        $cleanupCancellation = new CanceledException('cleanup canceled');
+
+        $store->interval('foo', fn () => IntervalCancellationProbe::failWithCleanupFailure(), 5);
+        IntervalCancellationProbe::$state = $state;
+        IntervalCancellationProbe::$metadataKey = $this->metadataKey($store, 'foo');
+        IntervalCancellationProbe::$failure = new RuntimeException('refresh failed');
+        IntervalCancellationProbe::$cleanupFailure = $cleanupCancellation;
+
+        try {
+            $store->refreshIntervalCaches();
+            $this->fail('Expected claim cleanup cancellation was not thrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cleanupCancellation, $exception);
+        }
+
+        $handler->shouldNotHaveReceived('report');
+    }
+
+    public function testRefreshCancellationRemainsPrimaryWhenClaimCleanupFails(): void
+    {
+        $container = new Container;
+        $handler = m::spy(ExceptionHandler::class);
+        $container->instance(ExceptionHandler::class, $handler);
+        Container::setInstance($container);
+
+        $state = $this->createControllableState();
+        $store = $this->createStore($state);
+        $cancellation = new CanceledException('refresh canceled');
+
+        $store->interval('foo', fn () => IntervalCancellationProbe::failWithCleanupFailure(), 5);
+        IntervalCancellationProbe::$state = $state;
+        IntervalCancellationProbe::$metadataKey = $this->metadataKey($store, 'foo');
+        IntervalCancellationProbe::$failure = $cancellation;
+        IntervalCancellationProbe::$cleanupFailure = new RuntimeException('cleanup failed');
+
+        try {
+            $store->refreshIntervalCaches();
+            $this->fail('Expected refresh cancellation was not thrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $handler->shouldNotHaveReceived('report');
+    }
+
+    public function testIntervalRegistrationCancellationRemovesMetadata(): void
+    {
+        $state = $this->createControllableState();
+        $store = $this->createStore($state);
+        $metadataKey = $this->metadataKey($store, 'foo');
+        $cancellation = new CanceledException('index registration canceled');
+
+        $state->failOnRowLockCall($this->indexKey($store, $metadataKey), 1, $cancellation);
+
+        try {
+            $store->interval('foo', fn () => 'bar', 5);
+            $this->fail('Expected interval registration cancellation was not thrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertFalse($state->table()->get($metadataKey));
+        $this->assertSame([], $this->localIntervals($store));
+    }
+
+    public function testIntervalRegistrationCancellationRemainsPrimaryWhenCleanupFails(): void
+    {
+        $state = $this->createControllableState();
+        $store = $this->createStore($state);
+        $metadataKey = $this->metadataKey($store, 'foo');
+        $cancellation = new CanceledException('index registration canceled');
+
+        $state->failOnRowLockCall($this->indexKey($store, $metadataKey), 1, $cancellation);
+        $state->failOnRowLockCall($metadataKey, 2, new RuntimeException('cleanup failed'));
+
+        try {
+            $store->interval('foo', fn () => 'bar', 5);
+            $this->fail('Expected interval registration cancellation was not thrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testIntervalRegistrationCleanupCancellationSupersedesOrdinaryFailure(): void
+    {
+        $state = $this->createControllableState();
+        $store = $this->createStore($state);
+        $metadataKey = $this->metadataKey($store, 'foo');
+        $cleanupCancellation = new CanceledException('cleanup canceled');
+
+        $state->failOnRowLockCall(
+            $this->indexKey($store, $metadataKey),
+            1,
+            new RuntimeException('index registration failed'),
+        );
+        $state->failOnRowLockCall($metadataKey, 2, $cleanupCancellation);
+
+        try {
+            $store->interval('foo', fn () => 'bar', 5);
+            $this->fail('Expected interval registration cleanup cancellation was not thrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cleanupCancellation, $exception);
+        }
+    }
+
     public function testIntervalExceptionFallsBackToStderrWhenNoExceptionHandlerIsBound(): void
     {
         $scriptPath = $this->tempDir . '/interval-stderr.php';
@@ -717,6 +861,13 @@ PHP);
     ): SwooleTableState {
         return (new SwooleTableManager(new Container))
             ->createState($rows, $bytes, $conflictProportion, $hashSeed);
+    }
+
+    private function createControllableState(): ControllableIntervalSwooleTableState
+    {
+        $state = $this->createState();
+
+        return new ControllableIntervalSwooleTableState($state->table(), $state->hashSeed());
     }
 
     private function createStore(
@@ -841,6 +992,53 @@ class FailingIntervalValueSwooleStore extends SwooleStore
     }
 }
 
+class ControllableIntervalSwooleTableState extends SwooleTableState
+{
+    /**
+     * Row-lock failures keyed by row and invocation number.
+     *
+     * @var array<string, array<int, Throwable>>
+     */
+    private array $failures = [];
+
+    /**
+     * Row-lock invocation counts keyed by row.
+     *
+     * @var array<string, int>
+     */
+    private array $rowLockCalls = [];
+
+    /**
+     * Fail a selected row-lock invocation.
+     */
+    public function failOnRowLockCall(string $key, int $call, Throwable $failure): void
+    {
+        $this->failures[$key][$call] = $failure;
+    }
+
+    /**
+     * Fail the next row-lock invocation.
+     */
+    public function failNextRowLock(string $key, Throwable $failure): void
+    {
+        $this->failOnRowLockCall($key, ($this->rowLockCalls[$key] ?? 0) + 1, $failure);
+    }
+
+    /**
+     * Run the callback while holding the row lock for the given table key.
+     */
+    public function withRowLock(string $key, callable $callback): mixed
+    {
+        $call = $this->rowLockCalls[$key] = ($this->rowLockCalls[$key] ?? 0) + 1;
+
+        if (isset($this->failures[$key][$call])) {
+            throw $this->failures[$key][$call];
+        }
+
+        return parent::withRowLock($key, $callback);
+    }
+}
+
 class InstrumentedIntervalSwooleStore extends SwooleStore
 {
     public function __construct(SwooleTableState $state)
@@ -924,6 +1122,48 @@ class IntervalMetadataSerializationProbe
 class IntervalResolverState
 {
     public static int $attempts = 0;
+}
+
+class IntervalCancellationProbe
+{
+    public static int $attempts = 0;
+
+    public static ?Throwable $failure = null;
+
+    public static ?Throwable $cleanupFailure = null;
+
+    public static ?ControllableIntervalSwooleTableState $state = null;
+
+    public static ?string $metadataKey = null;
+
+    public static function reset(): void
+    {
+        self::$attempts = 0;
+        self::$failure = null;
+        self::$cleanupFailure = null;
+        self::$state = null;
+        self::$metadataKey = null;
+    }
+
+    public static function failThenSucceed(): string
+    {
+        if (++self::$attempts === 1) {
+            throw self::$failure ?? new RuntimeException('Interval cancellation probe failure was not configured.');
+        }
+
+        return 'bar';
+    }
+
+    public static function failWithCleanupFailure(): never
+    {
+        if (self::$state === null || self::$metadataKey === null || self::$cleanupFailure === null) {
+            throw new RuntimeException('Interval cleanup probe state was not configured.');
+        }
+
+        self::$state->failNextRowLock(self::$metadataKey, self::$cleanupFailure);
+
+        throw self::$failure ?? new RuntimeException('Interval cancellation probe failure was not configured.');
+    }
 }
 
 class IntervalLostClaimProbe

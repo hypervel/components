@@ -126,7 +126,7 @@ class CacheWatcher extends Watcher
     {
         return (! $this->shouldHideValue($event))
             ? $event->value
-            : '********';
+            : Telescope::REDACTED_VALUE;
     }
 
     /**

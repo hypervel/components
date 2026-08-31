@@ -15,7 +15,7 @@ final class PoolFingerprint
      */
     public static function fromConfig(array $config): string
     {
-        return 'auto:' . hash('sha256', serialize(self::canonicalize($config, '$')));
+        return 'auto:' . hash('xxh128', serialize(self::canonicalize($config, '$')));
     }
 
     /**
@@ -23,7 +23,7 @@ final class PoolFingerprint
      */
     public static function fromExplicit(string $fingerprint): string
     {
-        return 'explicit:' . hash('sha256', $fingerprint);
+        return 'explicit:' . hash('xxh128', $fingerprint);
     }
 
     /**

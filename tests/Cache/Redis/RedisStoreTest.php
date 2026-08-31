@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis;
 
+use Hypervel\Cache\Redis\AllTaggedCache;
+use Hypervel\Cache\Redis\AnyTaggedCache;
 use Hypervel\Cache\RedisLock;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\TagMode;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\ClassInvoker;
+use InvalidArgumentException;
 use Mockery as m;
 use ReflectionClass;
 use ReflectionNamedType;
@@ -23,9 +26,6 @@ use ReflectionProperty;
  */
 class RedisStoreTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testGetAndSetPrefix(): void
     {
         $connection = $this->mockConnection();
@@ -38,9 +38,17 @@ class RedisStoreTest extends RedisCacheTestCase
         $this->assertEmpty($redis->getPrefix());
     }
 
-    /**
-     * @test
-     */
+    public function testCounterFailuresAreReturnedWithoutCoercion(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->expects('incrby')->with('prefix:increment', 2)->andReturnFalse();
+        $connection->expects('decrby')->with('prefix:decrement', 3)->andReturnFalse();
+        $redis = $this->createStore($connection);
+
+        $this->assertFalse($redis->increment('increment', 2));
+        $this->assertFalse($redis->decrement('decrement', 3));
+    }
+
     public function testSetConnectionClearsCachedInstances(): void
     {
         $connection1 = $this->mockConnection();
@@ -72,9 +80,6 @@ class RedisStoreTest extends RedisCacheTestCase
         $this->assertSame('value2', $redis->get('foo'));
     }
 
-    /**
-     * @test
-     */
     public function testSetPrefixClearsCachedOperations(): void
     {
         $connection = $this->mockConnection();
@@ -169,9 +174,6 @@ class RedisStoreTest extends RedisCacheTestCase
         }
     }
 
-    /**
-     * @test
-     */
     public function testTagsReturnsAllTaggedCache(): void
     {
         $connection = $this->mockConnection();
@@ -179,12 +181,9 @@ class RedisStoreTest extends RedisCacheTestCase
 
         $tagged = $redis->tags(['users', 'posts']);
 
-        $this->assertInstanceOf(\Hypervel\Cache\Redis\AllTaggedCache::class, $tagged);
+        $this->assertInstanceOf(AllTaggedCache::class, $tagged);
     }
 
-    /**
-     * @test
-     */
     public function testTagsWithSingleTagAsString(): void
     {
         $connection = $this->mockConnection();
@@ -192,12 +191,9 @@ class RedisStoreTest extends RedisCacheTestCase
 
         $tagged = $redis->tags('users');
 
-        $this->assertInstanceOf(\Hypervel\Cache\Redis\AllTaggedCache::class, $tagged);
+        $this->assertInstanceOf(AllTaggedCache::class, $tagged);
     }
 
-    /**
-     * @test
-     */
     public function testTagsWithVariadicArguments(): void
     {
         $connection = $this->mockConnection();
@@ -205,12 +201,9 @@ class RedisStoreTest extends RedisCacheTestCase
 
         $tagged = $redis->tags('users', 'posts', 'comments');
 
-        $this->assertInstanceOf(\Hypervel\Cache\Redis\AllTaggedCache::class, $tagged);
+        $this->assertInstanceOf(AllTaggedCache::class, $tagged);
     }
 
-    /**
-     * @test
-     */
     public function testDefaultTagModeIsAll(): void
     {
         $connection = $this->mockConnection();
@@ -219,9 +212,6 @@ class RedisStoreTest extends RedisCacheTestCase
         $this->assertSame(TagMode::All, $redis->getTagMode());
     }
 
-    /**
-     * @test
-     */
     public function testSetTagModeReturnsStoreInstance(): void
     {
         $connection = $this->mockConnection();
@@ -233,9 +223,6 @@ class RedisStoreTest extends RedisCacheTestCase
         $this->assertSame(TagMode::Any, $redis->getTagMode());
     }
 
-    /**
-     * @test
-     */
     public function testTagsReturnsAnyTaggedCacheWhenInAnyMode(): void
     {
         $connection = $this->mockConnection();
@@ -244,12 +231,9 @@ class RedisStoreTest extends RedisCacheTestCase
 
         $tagged = $redis->tags(['users', 'posts']);
 
-        $this->assertInstanceOf(\Hypervel\Cache\Redis\AnyTaggedCache::class, $tagged);
+        $this->assertInstanceOf(AnyTaggedCache::class, $tagged);
     }
 
-    /**
-     * @test
-     */
     public function testTagsReturnsAllTaggedCacheWhenInAllMode(): void
     {
         $connection = $this->mockConnection();
@@ -258,25 +242,22 @@ class RedisStoreTest extends RedisCacheTestCase
 
         $tagged = $redis->tags(['users', 'posts']);
 
-        $this->assertInstanceOf(\Hypervel\Cache\Redis\AllTaggedCache::class, $tagged);
+        $this->assertInstanceOf(AllTaggedCache::class, $tagged);
     }
 
-    /**
-     * @test
-     */
-    public function testSetTagModeFallsBackToAllForInvalidMode(): void
+    public function testSetTagModeRejectsInvalidMode(): void
     {
         $connection = $this->mockConnection();
         $redis = $this->createStore($connection);
 
-        $redis->setTagMode('invalid');
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Invalid cache tag mode [invalid]. Supported modes are [any, all].'
+        );
 
-        $this->assertSame(TagMode::All, $redis->getTagMode());
+        $redis->setTagMode('invalid');
     }
 
-    /**
-     * @test
-     */
     public function testTouchUsesPlainExpireInAllMode(): void
     {
         $connection = $this->mockConnection();
@@ -290,9 +271,6 @@ class RedisStoreTest extends RedisCacheTestCase
         $this->assertTrue($redis->touch('key', 60));
     }
 
-    /**
-     * @test
-     */
     public function testTouchUsesAnyTagMetadataOperationInAnyMode(): void
     {
         $connection = $this->mockConnection();
@@ -306,9 +284,6 @@ class RedisStoreTest extends RedisCacheTestCase
         $this->assertTrue($redis->touch('key', 60));
     }
 
-    /**
-     * @test
-     */
     public function testForgetUsesPlainDeleteInAllMode(): void
     {
         $connection = $this->mockConnection();
@@ -322,9 +297,6 @@ class RedisStoreTest extends RedisCacheTestCase
         $this->assertTrue($redis->forget('key'));
     }
 
-    /**
-     * @test
-     */
     public function testForgetUsesAnyTagMetadataOperationInAnyMode(): void
     {
         $connection = $this->mockConnection();
@@ -338,9 +310,6 @@ class RedisStoreTest extends RedisCacheTestCase
         $this->assertTrue($redis->forget('key'));
     }
 
-    /**
-     * @test
-     */
     public function testLockReturnsRedisLockInstance(): void
     {
         $redisProxy = m::mock(RedisProxy::class);
@@ -358,9 +327,6 @@ class RedisStoreTest extends RedisCacheTestCase
         $this->assertInstanceOf(RedisLock::class, $lock);
     }
 
-    /**
-     * @test
-     */
     public function testLockWithOwner(): void
     {
         $redisProxy = m::mock(RedisProxy::class);
@@ -378,9 +344,6 @@ class RedisStoreTest extends RedisCacheTestCase
         $this->assertInstanceOf(RedisLock::class, $lock);
     }
 
-    /**
-     * @test
-     */
     public function testRestoreLockReturnsRedisLockInstance(): void
     {
         $redisProxy = m::mock(RedisProxy::class);
@@ -398,9 +361,6 @@ class RedisStoreTest extends RedisCacheTestCase
         $this->assertInstanceOf(RedisLock::class, $lock);
     }
 
-    /**
-     * @test
-     */
     public function testSetLockConnectionReturnsSelf(): void
     {
         $connection = $this->mockConnection();
@@ -411,9 +371,6 @@ class RedisStoreTest extends RedisCacheTestCase
         $this->assertSame($redis, $result);
     }
 
-    /**
-     * @test
-     */
     public function testLockUsesLockConnectionWhenSet(): void
     {
         $redisProxy = m::mock(RedisProxy::class);
@@ -434,9 +391,6 @@ class RedisStoreTest extends RedisCacheTestCase
         $this->assertInstanceOf(RedisLock::class, $lock);
     }
 
-    /**
-     * @test
-     */
     public function testGetRedisReturnsRedis(): void
     {
         $redisFactory = m::mock(Redis::class);
@@ -450,9 +404,6 @@ class RedisStoreTest extends RedisCacheTestCase
         $this->assertSame($redisFactory, $redis->getRedis());
     }
 
-    /**
-     * @test
-     */
     public function testConnectionReturnsRedisProxy(): void
     {
         $redisProxy = m::mock(RedisProxy::class);

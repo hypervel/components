@@ -93,13 +93,19 @@ class Deserializer
 
         $this->ensureAssertionsAreSupported($schema);
 
-        if (($type = $this->buildAnyOfComposition($schema, $refs)) !== null) {
+        $composition = $this->prepareComposition($schema, $refs);
+
+        if (($type = $this->buildAnyOfComposition($schema, $refs, $composition)) !== null) {
             $this->applyCommon($type, $schema);
 
             return $type;
         }
 
-        [$schema, $nullableFromUnion, $refs] = $this->normalizeUnions($schema, $refs);
+        if ($composition === null) {
+            $nullableFromUnion = false;
+        } else {
+            [$schema, $nullableFromUnion, $refs] = $this->normalizeUnions($schema, $refs, $composition);
+        }
 
         if ($nullableFromUnion) {
             $this->ensureAssertionsAreSupported($schema);
@@ -133,39 +139,81 @@ class Deserializer
     }
 
     /**
+     * Prepare the branches of an anyOf or oneOf composition.
+     *
+     * @param array<string, mixed> $schema
+     * @param array<int, string> $refs
+     * @return null|array{
+     *     keyword: 'anyOf'|'oneOf',
+     *     branches: array<int, array{0: array<string, mixed>, 1: array<int, string>}>,
+     *     nullBranches: int
+     * }
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function prepareComposition(array $schema, array $refs = []): ?array
+    {
+        $keyword = match (true) {
+            array_key_exists('anyOf', $schema) => 'anyOf',
+            array_key_exists('oneOf', $schema) => 'oneOf',
+            default => null,
+        };
+
+        if ($keyword === null) {
+            return null;
+        }
+
+        if (! is_array($schema[$keyword]) || $schema[$keyword] === []) {
+            throw new InvalidArgumentException("The JSON Schema [{$keyword}] keyword must be a non-empty array.");
+        }
+
+        $nullBranches = 0;
+        $branches = [];
+
+        foreach ($schema[$keyword] as $branch) {
+            $branch = $this->ensureSchemaFragmentIsArray(
+                $branch,
+                $this->describeBranch($keyword),
+            );
+
+            [$branch, $branchRefs] = $this->resolveRef($branch, $refs);
+
+            if ($this->isNullBranch($branch)) {
+                ++$nullBranches;
+            } else {
+                $branches[] = [$branch, $branchRefs];
+            }
+        }
+
+        return [
+            'keyword' => $keyword,
+            'branches' => $branches,
+            'nullBranches' => $nullBranches,
+        ];
+    }
+
+    /**
      * Build an anyOf composition unless it is the existing nullable single-schema form.
      *
      * @param array<string, mixed> $schema
      * @param array<int, string> $refs
+     * @param null|array{
+     *     keyword: 'anyOf'|'oneOf',
+     *     branches: array<int, array{0: array<string, mixed>, 1: array<int, string>}>,
+     *     nullBranches: int
+     * } $composition
      *
      * @throws InvalidArgumentException
      */
-    protected function buildAnyOfComposition(array $schema, array $refs = []): ?Types\AnyOfType
+    protected function buildAnyOfComposition(array $schema, array $refs = [], ?array $composition = null): ?Types\AnyOfType
     {
         if (! array_key_exists('anyOf', $schema)) {
             return null;
         }
 
-        if (! is_array($schema['anyOf']) || $schema['anyOf'] === []) {
-            throw new InvalidArgumentException('The JSON Schema [anyOf] keyword must be a non-empty array.');
-        }
-
-        $nullable = false;
-        $branches = [];
-
-        foreach ($schema['anyOf'] as $branch) {
-            if (! is_array($branch)) {
-                throw new InvalidArgumentException('Unable to represent the schema for an anyOf branch; boolean schemas are not supported.');
-            }
-
-            [$branch, $branchRefs] = $this->resolveRef($branch, $refs);
-
-            if ($this->isNullBranch($branch)) {
-                $nullable = true;
-            } else {
-                $branches[] = [$branch, $branchRefs];
-            }
-        }
+        $composition ??= $this->prepareComposition($schema, $refs);
+        $nullable = $composition['nullBranches'] > 0;
+        $branches = $composition['branches'];
 
         if ($nullable
             && count($branches) === 1
@@ -231,11 +279,7 @@ class Deserializer
         $requiredLookup = array_flip($required);
 
         foreach ($definitions as $key => $definition) {
-            if (! is_array($definition)) {
-                throw new InvalidArgumentException(
-                    "Unable to represent the schema for property [{$key}]; boolean schemas are not supported."
-                );
-            }
+            $definition = $this->ensureSchemaFragmentIsArray($definition, "property [{$key}]");
 
             $property = $this->build($definition, $refs);
 
@@ -284,13 +328,15 @@ class Deserializer
         $type = new Types\ArrayType;
 
         if (array_key_exists('items', $schema) && $schema['items'] !== true && $schema['items'] !== []) {
-            if (! is_array($schema['items']) || array_is_list($schema['items'])) {
+            $items = $this->ensureSchemaFragmentIsArray($schema['items'], 'the [items] keyword');
+
+            if (array_is_list($items)) {
                 throw new InvalidArgumentException(
                     'The JSON Schema [items] keyword must be true or a single object schema.'
                 );
             }
 
-            $type->items($this->build($schema['items'], $refs));
+            $type->items($this->build($items, $refs));
         }
 
         $type = $this->applyIntegerBounds($type, $schema, 'minItems', 'maxItems');
@@ -614,6 +660,75 @@ class Deserializer
     }
 
     /**
+     * Describe a composition branch.
+     */
+    protected function describeBranch(string $keyword): string
+    {
+        return ($keyword === 'anyOf' ? 'an ' : 'a ') . $keyword . ' branch';
+    }
+
+    /**
+     * Ensure the given schema fragment is an array.
+     *
+     * @return array<array-key, mixed>
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function ensureSchemaFragmentIsArray(mixed $fragment, string $context): array
+    {
+        if (is_bool($fragment)) {
+            throw new InvalidArgumentException(
+                "Unable to represent the schema for {$context}; boolean schemas are not supported."
+            );
+        }
+
+        if (! is_array($fragment)) {
+            throw new InvalidArgumentException(
+                "Unable to represent the schema for {$context}; the schema fragment must be an array, "
+                . get_debug_type($fragment) . ' given.'
+            );
+        }
+
+        return $fragment;
+    }
+
+    /**
+     * Merge two schema fragments without weakening represented assertions.
+     *
+     * @param array<string, mixed> $base
+     * @param array<string, mixed> $overlay
+     * @return array<string, mixed>
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function mergeSchemaFragments(array $base, array $overlay, string $context): array
+    {
+        $representedAssertions = [
+            ...static::TYPE_SPECIFIC_KEYWORDS,
+            'type',
+            'enum',
+            'anyOf',
+            'oneOf',
+        ];
+
+        foreach ($overlay as $keyword => $value) {
+            if (! array_key_exists($keyword, $base) || $base[$keyword] === $value) {
+                continue;
+            }
+
+            if (in_array($keyword, ['title', 'description', 'default'], true)) {
+                continue;
+            }
+
+            if (in_array($keyword, $representedAssertions, true)) {
+                throw new InvalidArgumentException("Conflicting [{$keyword}] between {$context}.");
+            }
+        }
+
+        return array_merge($base, $overlay);
+    }
+
+    /**
      * Ensure a general anyOf composition carries no competing structural constraints.
      *
      * @param array<string, mixed> $schema
@@ -637,43 +752,27 @@ class Deserializer
      *
      * @param array<string, mixed> $schema
      * @param array<int, string> $refs
+     * @param null|array{
+     *     keyword: 'anyOf'|'oneOf',
+     *     branches: array<int, array{0: array<string, mixed>, 1: array<int, string>}>,
+     *     nullBranches: int
+     * } $composition
      * @return array{0: array<string, mixed>, 1: bool, 2: array<int, string>}
      *
      * @throws InvalidArgumentException
      */
-    protected function normalizeUnions(array $schema, array $refs = []): array
+    protected function normalizeUnions(array $schema, array $refs = [], ?array $composition = null): array
     {
-        foreach (['anyOf', 'oneOf'] as $key) {
-            if (! array_key_exists($key, $schema)) {
-                continue;
-            }
+        $composition ??= $this->prepareComposition($schema, $refs);
 
-            if (! is_array($schema[$key]) || $schema[$key] === []) {
-                throw new InvalidArgumentException("The JSON Schema [{$key}] keyword must be a non-empty array.");
-            }
-
-            $nullBranches = 0;
-            $branches = [];
-
-            foreach ($schema[$key] as $branch) {
-                if (! is_array($branch)) {
-                    throw new InvalidArgumentException(
-                        "Unable to represent the schema for a {$key} branch; boolean schemas are not supported."
-                    );
-                }
-
-                [$branch, $branchRefs] = $this->resolveRef($branch, $refs);
-
-                if ($this->isNullBranch($branch)) {
-                    ++$nullBranches;
-                } else {
-                    $branches[] = [$branch, $branchRefs];
-                }
-            }
+        if ($composition !== null) {
+            $keyword = $composition['keyword'];
+            $nullBranches = $composition['nullBranches'];
+            $branches = $composition['branches'];
 
             // "oneOf" accepts an instance only when exactly one branch matches, so its nullable
             // collapse must not allow a second null match.
-            if ($key === 'oneOf' && $nullBranches > 1) {
+            if ($keyword === 'oneOf' && $nullBranches > 1) {
                 throw new InvalidArgumentException(
                     'A nullable "oneOf" must contain exactly one bare "null" branch.'
                 );
@@ -681,19 +780,19 @@ class Deserializer
 
             if ($nullBranches === 0 || count($branches) !== 1) {
                 throw new InvalidArgumentException(
-                    "Only a nullable \"{$key}\" (a single schema plus a bare \"null\" branch) is supported."
+                    "Only a nullable \"{$keyword}\" (a single schema plus a bare \"null\" branch) is supported."
                 );
             }
 
             [$branch, $branchRefs] = $branches[0];
 
-            if ($key === 'oneOf' && $this->mayAcceptNull($branch)) {
+            if ($keyword === 'oneOf' && $this->mayAcceptNull($branch)) {
                 throw new InvalidArgumentException(
                     'A nullable "oneOf" schema branch must declare a type that excludes "null".'
                 );
             }
 
-            if ($key === 'oneOf' && $this->hasBranchOnlyEnumExcludingNull($schema, $branch)) {
+            if ($keyword === 'oneOf' && $this->hasBranchOnlyEnumExcludingNull($schema, $branch)) {
                 throw new InvalidArgumentException(
                     'A branch-local [enum] that excludes null cannot be collapsed from a nullable "oneOf"; '
                     . 'include null in the enum or use an equivalent "anyOf" composition.'
@@ -701,25 +800,25 @@ class Deserializer
             }
 
             $siblings = $schema;
-            unset($siblings[$key]);
+            unset($siblings[$keyword]);
 
-            foreach ($siblings as $siblingKey => $value) {
-                if (array_key_exists($siblingKey, $branch) && $branch[$siblingKey] !== $value) {
-                    throw new InvalidArgumentException(
-                        "Conflicting [{$siblingKey}] between a \"{$key}\" branch and its sibling keys."
-                    );
-                }
-            }
-
-            $merged = array_merge($siblings, $branch);
-            $compositions = array_values(array_intersect(['anyOf', 'oneOf'], array_keys($merged)));
+            $compositions = array_values(array_intersect(
+                ['anyOf', 'oneOf'],
+                [...array_keys($branch), ...array_keys($siblings)],
+            ));
 
             if ($compositions !== []) {
                 throw new InvalidArgumentException(
                     'Structural keywords [' . implode(', ', $compositions)
-                    . "] are not supported alongside a nullable \"{$key}\"."
+                    . "] are not supported alongside a nullable \"{$keyword}\"."
                 );
             }
+
+            $merged = $this->mergeSchemaFragments(
+                $branch,
+                $siblings,
+                $this->describeBranch($keyword) . ' and its sibling keys',
+            );
 
             return [$merged, true, $branchRefs];
         }
@@ -808,7 +907,11 @@ class Deserializer
 
             $resolved = $this->lookupRef($ref);
             unset($schema['$ref']);
-            $schema = array_merge($resolved, $schema);
+            $schema = $this->mergeSchemaFragments(
+                $resolved,
+                $schema,
+                "the local \$ref [{$ref}] target and its sibling keys",
+            );
         }
 
         return [$schema, $refs];

@@ -99,36 +99,42 @@ class ScopedNodeTest extends TestCase
         }
     }
 
-    public function testSubtreeOperationRejectsRootWithoutScopeBeforeWriting(): void
+    public function testSubtreeOperationHydratesPartialRootFromThePersistedRow(): void
     {
-        $columns = ['id', 'menu_id', '_lft', '_rgt', 'parent_id', 'depth', 'title'];
-        $before = DB::table('menu_items')
-            ->orderBy('id')
-            ->get($columns)
-            ->map(fn (object $row): array => (array) $row)
-            ->all();
         $root = MenuItem::query()
             ->select(['id', '_lft', '_rgt', 'parent_id', 'depth'])
             ->findOrFail(2);
 
-        try {
-            MenuItem::fixSubtree($root);
-            $this->fail('Expected the incomplete subtree scope to be rejected.');
-        } catch (LogicException $exception) {
-            $this->assertSame(
-                'Nested set subtree repair for [Hypervel\Tests\NestedSet\Models\MenuItem] requires a concrete scoped([...]) selection because attribute [menu_id] was not selected.',
-                $exception->getMessage(),
-            );
-        }
+        MenuItem::fixSubtree($root);
 
-        $this->assertSame(
-            $before,
-            DB::table('menu_items')
-                ->orderBy('id')
-                ->get($columns)
-                ->map(fn (object $row): array => (array) $row)
-                ->all(),
+        $this->assertSame(1, $root->menu_id);
+        $this->assertTreeNotBroken(1);
+        $this->assertOtherScopeNotAffected();
+    }
+
+    #[DataProvider('subtreeOperations')]
+    public function testSubtreeOperationRejectsARootFromAnotherSelectedScope(
+        string $operation,
+        string $label,
+    ): void {
+        $root = MenuItem::findOrFail(4);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            "Nested set {$label} root [Hypervel\\Tests\\NestedSet\\Models\\MenuItem] does not match the query scoped([...]) selection.",
         );
+
+        $operation === 'fix'
+            ? MenuItem::scoped(['menu_id' => 1])->fixSubtree($root)
+            : MenuItem::scoped(['menu_id' => 1])->rebuildSubtree($root, []);
+    }
+
+    public static function subtreeOperations(): array
+    {
+        return [
+            'repair' => ['fix', 'subtree repair'],
+            'rebuild' => ['rebuild', 'subtree rebuild'],
+        ];
     }
 
     public function testScalarLookupsRequireAConcreteScopeSelection(): void
@@ -367,28 +373,30 @@ class ScopedNodeTest extends TestCase
         $this->assertEquals([3, 4], $nodes->find(3)->siblingsAndSelf->pluck('id')->sort()->values()->all());
     }
 
-    public function testRelationsTreatMissingScopeAndParentageAsEmpty(): void
-    {
+    #[DataProvider('scopedRelationParents')]
+    public function testRelationsRequireSelectedScopeAndParentage(
+        string $relation,
+        string $requiredColumn,
+    ): void {
         $node = MenuItem::query()
             ->select(['id', '_lft', '_rgt', 'depth'])
             ->findOrFail(5);
 
-        $this->assertTrue($node->ancestors()->get()->isEmpty());
-        $this->assertTrue($node->descendants()->get()->isEmpty());
-        $this->assertTrue($node->siblings()->get()->isEmpty());
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            "Nested set relation parent for [Hypervel\\Tests\\NestedSet\\Models\\MenuItem] requires the [{$requiredColumn}] column.",
+        );
 
-        $nodes = MenuItem::query()
-            ->select(['id', '_lft', '_rgt', 'depth'])
-            ->whereIn('id', [5, 6])
-            ->get();
+        $node->{$relation}()->get();
+    }
 
-        $nodes->load(['ancestors', 'descendants', 'siblings']);
-
-        foreach ($nodes as $partial) {
-            $this->assertTrue($partial->ancestors->isEmpty());
-            $this->assertTrue($partial->descendants->isEmpty());
-            $this->assertTrue($partial->siblings->isEmpty());
-        }
+    public static function scopedRelationParents(): array
+    {
+        return [
+            'ancestors' => ['ancestors', 'menu_id'],
+            'descendants' => ['descendants', 'menu_id'],
+            'siblings' => ['siblings', 'menu_id'],
+        ];
     }
 
     public function testRelationExistenceQueriesCorrelateExactScopes(): void
@@ -589,6 +597,72 @@ class ScopedNodeTest extends TestCase
         $node->save();
     }
 
+    public function testSavingPersistedPartialModelRequiresASelectedKey(): void
+    {
+        $node = MenuItem::query()
+            ->select(['_lft', '_rgt', 'depth', 'title'])
+            ->whereKey(2)
+            ->firstOrFail();
+        $node->title = 'changed';
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            'Nested set model [Hypervel\Tests\NestedSet\Models\MenuItem] requires the [id] column to be selected.',
+        );
+
+        $node->save();
+    }
+
+    public function testNewRawMutationDefersMissingScopeFailureUntilSave(): void
+    {
+        $node = new MenuItem(['title' => 'missing scope']);
+        DB::flushQueryLog();
+
+        $node->rawNode(1, 2, null, 0);
+
+        $this->assertSame([], DB::getQueryLog());
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('attribute [menu_id] was not selected');
+
+        $node->save();
+    }
+
+    public function testRawMutationLoadsOnlyMissingScopeIdentity(): void
+    {
+        $node = MenuItem::query()->select(['id'])->findOrFail(5);
+        DB::flushQueryLog();
+
+        $node->rawNode(4, 5, 2, 1)->save();
+
+        $this->assertSame(1, count(array_filter(
+            array_column(DB::getQueryLog(), 'query'),
+            static fn (string $query): bool => str_starts_with($query, 'select '),
+        )));
+        $this->assertSame(1, $node->menu_id);
+        $this->assertTreeNotBroken(1);
+    }
+
+    public function testRawMutationWithCompleteScopeDoesNotReadPersistedIdentity(): void
+    {
+        $node = MenuItem::findOrFail(5);
+        $node->title = 'updated';
+        DB::flushQueryLog();
+
+        $node->rawNode(
+            $node->getLft(),
+            $node->getRgt(),
+            $node->getParentId(),
+            $node->getDepth(),
+        )->save();
+
+        $this->assertSame(0, count(array_filter(
+            array_column(DB::getQueryLog(), 'query'),
+            static fn (string $query): bool => str_starts_with($query, 'select '),
+        )));
+        $this->assertSame('updated', MenuItem::findOrFail(5)->title);
+        $this->assertTreeNotBroken(1);
+    }
+
     public function testSavingTheSameNestedSetScopeValueRemainsValid(): void
     {
         $node = MenuItem::findOrFail(5);
@@ -625,10 +699,16 @@ class ScopedNodeTest extends TestCase
                 ->findOrFail(3)
             : MenuItem::findOrFail(3);
 
+        DB::flushQueryLog();
+
+        $source->appendToNode($target);
+
+        $this->assertSame([], DB::getQueryLog());
+
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Nodes must be in the same tree.');
 
-        $source->appendToNode($target);
+        $source->save();
     }
 
     public static function partialCrossScopeMutationModels(): array
@@ -753,8 +833,16 @@ class ScopedNodeTest extends TestCase
         string $parentTitle,
         array $columns,
         array $expected,
+        ?string $requiredColumn,
     ): void {
         $nodes = MenuItem::where('title', $parentTitle)->get();
+
+        if ($requiredColumn !== null) {
+            $this->expectException(LogicException::class);
+            $this->expectExceptionMessage(
+                "Nested set relation eager load for [Hypervel\\Tests\\NestedSet\\Models\\MenuItem] requires the [{$requiredColumn}] column.",
+            );
+        }
 
         $nodes->load([
             $relation => fn ($query) => $query->select($columns),
@@ -780,25 +868,29 @@ class ScopedNodeTest extends TestCase
                 'ancestors',
                 'menu item 3',
                 ['id', 'menu_id', '_rgt'],
-                [5 => [], 6 => []],
+                [],
+                '_lft',
             ],
             'ancestors without right bound' => [
                 'ancestors',
                 'menu item 3',
                 ['id', 'menu_id', '_lft'],
-                [5 => [], 6 => []],
+                [],
+                '_rgt',
             ],
             'descendants without left bound' => [
                 'descendants',
                 'menu item 2',
                 ['id', 'menu_id', '_rgt'],
-                [2 => [], 4 => []],
+                [],
+                '_lft',
             ],
             'descendants need no related right bound' => [
                 'descendants',
                 'menu item 2',
                 ['id', 'menu_id', '_lft'],
                 [2 => [5], 4 => [6]],
+                null,
             ],
         ];
     }

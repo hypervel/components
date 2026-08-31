@@ -389,6 +389,18 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add index `baz`(`foo`, `bar`)', $statements[0]);
     }
 
+    public function testWhereNotNullIndexUsesTheFullIndexFallback(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'users');
+        $blueprint->index(['account_id', 'archived_at'], 'users_active_index')
+            ->whereNotNull('archived_at');
+
+        $this->assertSame(
+            ['alter table `users` add index `users_active_index`(`account_id`, `archived_at`)'],
+            $blueprint->toSql(),
+        );
+    }
+
     public function testAddingIndexWithAlgorithm()
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');

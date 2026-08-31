@@ -13,6 +13,7 @@ use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\HttpServer\RequestBridge;
 use Hypervel\HttpServer\ResponseBridge;
+use Swoole\Coroutine\CanceledException;
 use Swoole\Http\Request as SwooleRequest;
 use Swoole\Http\Response as SwooleResponse;
 use Symfony\Component\HttpFoundation\Response;
@@ -65,6 +66,8 @@ class HttpServer implements OnRequestInterface, BootstrapsForServer
 
                 $response = $this->router->dispatch($request);
             }
+        } catch (CanceledException $throwable) {
+            throw $throwable;
         } catch (Throwable $throwable) {
             // Keep the original in flight while it is handled and emitted, so
             // any failure at that boundary carries the root cause as previous.

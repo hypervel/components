@@ -145,6 +145,31 @@ class ClientStreamingCallTest extends TestCase
         $call->write(new StringValue);
     }
 
+    public function testDroppingAnIncompleteCallAbandonsItsNativeStream(): void
+    {
+        [$call, , $state, $connection] = $this->call();
+
+        unset($call);
+
+        // Abandoned calls must release immediately, without waiting for cycle collection.
+        $this->assertTrue($state->isAbandoned());
+        $this->assertFalse($state->isComplete());
+        $this->assertFalse($connection->isAccepting());
+    }
+
+    public function testDroppingACompletedCallDoesNotAbandonItsNativeStream(): void
+    {
+        [$call, $client, $state, $connection] = $this->call();
+        $this->respondSuccessfully($client, 'reply');
+        $this->assertSame(StatusCode::Ok, $state->status()->code());
+
+        unset($call);
+
+        $this->assertFalse($state->isAbandoned());
+        $this->assertTrue($state->isComplete());
+        $this->assertTrue($connection->isAccepting());
+    }
+
     public function testWaitHalfClosesAndCachesOneUnaryResponse(): void
     {
         $deserializations = 0;

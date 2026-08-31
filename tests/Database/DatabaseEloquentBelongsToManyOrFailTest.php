@@ -12,6 +12,7 @@ use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
+use UnitEnum;
 
 class DatabaseEloquentBelongsToManyOrFailTest extends TestCase
 {
@@ -25,11 +26,20 @@ class DatabaseEloquentBelongsToManyOrFailTest extends TestCase
             'driver' => 'sqlite',
             'database' => ':memory:',
         ]);
+        $db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ], 'parent');
+        $db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ], 'related');
 
         $db->bootEloquent();
         $db->setAsGlobal();
 
         $this->createSchema();
+        $this->createSplitSchema();
     }
 
     public function createSchema(): void
@@ -51,8 +61,35 @@ class DatabaseEloquentBelongsToManyOrFailTest extends TestCase
         });
     }
 
+    public function createSplitSchema(): void
+    {
+        $this->schema('parent')->create('users', function ($table) {
+            $table->increments('id');
+            $table->string('email');
+        });
+
+        $this->schema('parent')->create('role_user', function ($table) {
+            $table->integer('user_id')->unsigned();
+            $table->integer('role_id')->unsigned();
+        });
+
+        $this->schema('related')->create('roles', function ($table) {
+            $table->increments('id');
+            $table->string('name');
+        });
+
+        $this->schema('related')->create('role_user', function ($table) {
+            $table->integer('user_id')->unsigned();
+            $table->integer('role_id')->unsigned();
+        });
+    }
+
     protected function tearDown(): void
     {
+        $this->schema('related')->drop('role_user');
+        $this->schema('related')->drop('roles');
+        $this->schema('parent')->drop('role_user');
+        $this->schema('parent')->drop('users');
         $this->schema()->drop('role_user');
         $this->schema()->drop('roles');
         $this->schema()->drop('users');
@@ -208,20 +245,48 @@ class DatabaseEloquentBelongsToManyOrFailTest extends TestCase
         $this->assertSame(0, DB::table('role_user')->count());
     }
 
+    public function testCustomPivotUsesThePivotQueryConnection(): void
+    {
+        OrFailSplitUser::create(['id' => 1, 'email' => 'taylor@hypervel.org']);
+        OrFailSplitRole::create(['id' => 1, 'name' => 'Admin']);
+
+        OrFailSplitUser::find(1)->rolesWithPivot()->attach(1);
+
+        $this->assertSame(0, $this->connection('parent')->table('role_user')->count());
+        $this->assertSame(1, $this->connection('related')->table('role_user')->count());
+    }
+
+    public function testOrFailMethodsTransactThePivotQueryConnection(): void
+    {
+        OrFailSplitUser::create(['id' => 1, 'email' => 'taylor@hypervel.org']);
+        OrFailSplitRole::create(['id' => 1, 'name' => 'Admin']);
+        $caught = null;
+
+        try {
+            OrFailSplitUser::find(1)->failingRoles()->attachOrFail(1);
+        } catch (RuntimeException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertInstanceOf(RuntimeException::class, $caught);
+        $this->assertSame('Attach failed after writing the pivot.', $caught->getMessage());
+        $this->assertSame(0, $this->connection('related')->table('role_user')->count());
+    }
+
     /**
      * Get a database connection instance.
      */
-    protected function connection(): Connection
+    protected function connection(?string $name = null): Connection
     {
-        return Eloquent::getConnectionResolver()->connection();
+        return Eloquent::getConnectionResolver()->connection($name);
     }
 
     /**
      * Get a schema builder instance.
      */
-    protected function schema(): Builder
+    protected function schema(?string $name = null): Builder
     {
-        return $this->connection()->getSchemaBuilder();
+        return $this->connection($name)->getSchemaBuilder();
     }
 }
 
@@ -265,5 +330,62 @@ class OrFailFailingPivot extends Pivot
         parent::save($options);
 
         throw new RuntimeException('Pivot save failed.');
+    }
+}
+
+class OrFailSplitUser extends Eloquent
+{
+    protected UnitEnum|string|null $connection = 'parent';
+
+    protected ?string $table = 'users';
+
+    protected array $guarded = [];
+
+    public bool $timestamps = false;
+
+    public function rolesWithPivot(): BelongsToMany
+    {
+        return $this->belongsToMany(OrFailSplitRole::class, 'role_user', 'user_id', 'role_id')
+            ->using(OrFailSplitPivot::class);
+    }
+
+    public function failingRoles(): BelongsToMany
+    {
+        return new OrFailAfterAttachBelongsToMany(
+            (new OrFailSplitRole)->newQuery(),
+            $this,
+            'role_user',
+            'user_id',
+            'role_id',
+            $this->getKeyName(),
+            (new OrFailSplitRole)->getKeyName(),
+            'failingRoles',
+        );
+    }
+}
+
+class OrFailSplitRole extends Eloquent
+{
+    protected UnitEnum|string|null $connection = 'related';
+
+    protected ?string $table = 'roles';
+
+    protected array $guarded = [];
+
+    public bool $timestamps = false;
+}
+
+class OrFailSplitPivot extends Pivot
+{
+    public bool $timestamps = false;
+}
+
+class OrFailAfterAttachBelongsToMany extends BelongsToMany
+{
+    public function attach(mixed $ids, array $attributes = [], bool $touch = true): void
+    {
+        parent::attach($ids, $attributes, $touch);
+
+        throw new RuntimeException('Attach failed after writing the pivot.');
     }
 }

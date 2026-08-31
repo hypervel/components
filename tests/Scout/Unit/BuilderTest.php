@@ -12,6 +12,7 @@ use Hypervel\Pagination\Paginator;
 use Hypervel\Scout\Builder;
 use Hypervel\Scout\Contracts\PaginatesEloquentModels;
 use Hypervel\Scout\Contracts\PaginatesEloquentModelsUsingDatabase;
+use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Scout;
 use Hypervel\Support\Collection;
@@ -507,6 +508,79 @@ class BuilderTest extends TestCase
         $this->assertSame(1, $paginated->currentPage());
     }
 
+    public function testGenericPaginatorsShareTheTransformedPayloadWithMappingAndMetadata(): void
+    {
+        Paginator::currentPathResolver(fn () => 'http://localhost/foo');
+
+        $model = m::mock(Model::class);
+        $engine = m::mock(Engine::class);
+        $model->shouldReceive('getPerPage')->times(4)->andReturn(15);
+        $model->shouldReceive('searchableUsing')->times(8)->andReturn($engine);
+        $model->shouldReceive('newCollection')->twice()->andReturnUsing(
+            fn (array $models) => new EloquentCollection($models)
+        );
+
+        $rawResults = ['hits' => ['raw'], 'estimatedTotalHits' => 30];
+        $transformedResults = ['hits' => ['transformed'], 'estimatedTotalHits' => 16];
+        $engine->shouldReceive('paginate')->times(4)->andReturn($rawResults);
+        $engine->shouldReceive('map')
+            ->twice()
+            ->withArgs(fn (Builder $builder, array $results, Model $givenModel): bool => $results === $transformedResults
+                && $givenModel === $model)
+            ->andReturn(new EloquentCollection);
+        $engine->shouldReceive('getTotalCount')
+            ->times(4)
+            ->with($transformedResults)
+            ->andReturn(16);
+
+        $callbackInvocations = 0;
+        $builder = (new Builder($model, 'zonda'))->withRawResults(
+            function () use (&$callbackInvocations, $transformedResults): array {
+                ++$callbackInvocations;
+
+                return $transformedResults;
+            }
+        );
+
+        $this->assertTrue($builder->simplePaginate(page: 1)->hasMorePages());
+        $this->assertSame(16, $builder->paginate(page: 1)->total());
+        $this->assertSame($transformedResults, $builder->paginateRaw(page: 1)->items());
+        $this->assertTrue($builder->simplePaginateRaw(page: 1)->hasMorePages());
+        $this->assertSame(4, $callbackInvocations);
+    }
+
+    public function testSimplePaginatorsApplyTheEloquentQueryCallbackToTheirTotals(): void
+    {
+        Paginator::currentPathResolver(fn () => 'http://localhost/foo');
+
+        $model = m::mock(Model::class . ', ' . SearchableInterface::class);
+        $engine = m::mock(Engine::class);
+        $eloquentQuery = m::mock(\Hypervel\Database\Eloquent\Builder::class);
+        $baseQuery = m::mock(\Hypervel\Database\Query\Builder::class);
+        $rawResults = ['hits' => [], 'estimatedTotalHits' => 16];
+
+        $model->shouldReceive('getPerPage')->twice()->andReturn(15);
+        $model->shouldReceive('searchableUsing')->times(4)->andReturn($engine);
+        $model->shouldReceive('newCollection')->once()->andReturn(new EloquentCollection);
+        $model->shouldReceive('getScoutKeyName')->twice()->andReturn('id');
+        $model->shouldReceive('queryScoutModelsByIds')
+            ->twice()
+            ->withArgs(fn (Builder $builder, array $ids): bool => count($ids) === 16)
+            ->andReturn($eloquentQuery);
+        $eloquentQuery->shouldReceive('toBase')->twice()->andReturn($baseQuery);
+        $baseQuery->shouldReceive('getCountForPagination')->twice()->andReturn(15);
+        $engine->shouldReceive('paginate')->twice()->andReturn($rawResults);
+        $engine->shouldReceive('map')->once()->andReturn(new EloquentCollection);
+        $engine->shouldReceive('getTotalCount')->twice()->andReturn(16);
+        $engine->shouldReceive('mapIdsFrom')->twice()->andReturn(new Collection(range(1, 16)));
+
+        $builder = (new Builder($model, 'zonda'))->query(static function (): void {
+        });
+
+        $this->assertFalse($builder->simplePaginate(page: 1)->hasMorePages());
+        $this->assertFalse($builder->simplePaginateRaw(page: 1)->hasMorePages());
+    }
+
     public function testPaginateDelegatesToEngineWhenImplementsPaginatesEloquentModels(): void
     {
         Paginator::currentPageResolver(fn () => 1);
@@ -673,7 +747,7 @@ class BuilderTest extends TestCase
 
         $model = m::mock(Model::class);
         $model->shouldReceive('getPerPage')->times(4)->andReturn(15);
-        $model->shouldReceive('searchableUsing')->times(6)->andReturn($engine = m::mock(Engine::class));
+        $model->shouldReceive('searchableUsing')->times(8)->andReturn($engine = m::mock(Engine::class));
         $model->shouldReceive('newCollection')->twice()->andReturnUsing(
             fn (array $models) => new EloquentCollection($models)
         );
@@ -712,7 +786,7 @@ class BuilderTest extends TestCase
         $model = m::mock(Model::class);
         $engine = m::mock(Engine::class);
         $model->shouldReceive('getPerPage')->times(5)->andReturn(15);
-        $model->shouldReceive('searchableUsing')->times(8)->andReturn($engine);
+        $model->shouldReceive('searchableUsing')->times(10)->andReturn($engine);
         $model->shouldReceive('newCollection')->twice()->andReturn(new EloquentCollection);
 
         $pages = [];

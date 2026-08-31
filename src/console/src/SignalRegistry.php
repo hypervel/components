@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Console;
 
+use Closure;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Engine\Signal;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 use function Hypervel\Coroutine\parallel;
@@ -49,12 +49,7 @@ class SignalRegistry
                 }
             } catch (Throwable $exception) {
                 foreach (array_reverse($registered) as $signal) {
-                    array_pop($this->signalHandlers[$signal]);
-
-                    if ($this->signalHandlers[$signal] === []) {
-                        unset($this->signalHandlers[$signal]);
-                        $this->cancelSignal($signal);
-                    }
+                    $this->popSignalHandler($signal);
                 }
 
                 throw $exception;
@@ -68,11 +63,7 @@ class SignalRegistry
         try {
             $this->waitSignal($signo);
         } catch (Throwable $exception) {
-            array_pop($this->signalHandlers[$signo]);
-
-            if ($this->signalHandlers[$signo] === []) {
-                unset($this->signalHandlers[$signo]);
-            }
+            $this->popSignalHandler($signo);
 
             throw $exception;
         }
@@ -119,6 +110,19 @@ class SignalRegistry
     }
 
     /**
+     * Remove the most recently registered handler for the given signal.
+     */
+    protected function popSignalHandler(int $signo): void
+    {
+        array_pop($this->signalHandlers[$signo]);
+
+        if ($this->signalHandlers[$signo] === []) {
+            unset($this->signalHandlers[$signo]);
+            $this->cancelSignal($signo);
+        }
+    }
+
+    /**
      * Spawn a coroutine to wait for the given signal and invoke registered handlers.
      */
     protected function waitSignal(int $signo): void
@@ -127,27 +131,26 @@ class SignalRegistry
             return;
         }
 
-        $this->handling[$signo] = Coroutine::create(function () use ($signo): void {
-            try {
-                while (true) {
-                    if (! Signal::wait($signo, $this->timeout)) {
-                        continue;
-                    }
-
-                    unset($this->handling[$signo]);
-
-                    $callbacks = array_map(fn ($callback) => fn () => $callback($signo), $this->signalHandlers[$signo] ?? []);
-
-                    try {
-                        parallel($callbacks, $this->concurrentLimit);
-                        return;
-                    } finally {
-                        posix_kill(posix_getpid(), $signo);
-                    }
+        Coroutine::createOwned(function () use ($signo): void {
+            while (true) {
+                if (! Signal::wait($signo, $this->timeout)) {
+                    continue;
                 }
-            } catch (CanceledException) {
-                // Intentional cancellation; the canceller owns the registry slot.
+
+                unset($this->handling[$signo]);
+
+                $callbacks = array_map(fn ($callback) => fn () => $callback($signo), $this->signalHandlers[$signo] ?? []);
+
+                try {
+                    parallel($callbacks, $this->concurrentLimit);
+                    return;
+                } finally {
+                    posix_kill(posix_getpid(), $signo);
+                }
             }
+        }, function (Closure $run) use ($signo): void {
+            $this->handling[$signo] = Coroutine::id();
+            $run();
         });
     }
 

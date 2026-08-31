@@ -251,6 +251,24 @@ class MailManagerTest extends TestCase
         ];
     }
 
+    public function testMailTransportPoolsNamedMailersButKeepsOnDemandBuildsDirectByDefault(): void
+    {
+        $this->app->make('config')->set('mail.mailers.php', [
+            'transport' => 'mail',
+            'pool' => ['max_objects' => 2],
+        ]);
+
+        $manager = new MailManager($this->app);
+        $named = $manager->mailer('php')->getSymfonyTransport();
+        $direct = $manager->build(['transport' => 'mail'])->getSymfonyTransport();
+        $pooled = $manager->build(['transport' => 'mail', 'pool' => true])->getSymfonyTransport();
+
+        $this->assertInstanceOf(TransportPoolProxy::class, $named);
+        $this->assertSame(2, $named->getDefinition()->options->maxObjects);
+        $this->assertInstanceOf(SendmailTransport::class, $direct);
+        $this->assertInstanceOf(TransportPoolProxy::class, $pooled);
+    }
+
     public function testOnDemandTransportsDoNotInheritNamedMailerFallbacks(): void
     {
         $this->app->make('config')->set('mail.sendmail', '/usr/sbin/sendmail -bs -i');
@@ -394,6 +412,7 @@ class MailManagerTest extends TestCase
         return [
             ['smtp'],
             ['sendmail'],
+            ['mail'],
             ['mailgun'],
             ['ses-v2'],
             ['postmark'],

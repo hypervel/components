@@ -2,6 +2,7 @@
 
 - [Introduction](#introduction)
     - [Resetting the Database After Each Test](#resetting-the-database-after-each-test)
+    - [Combining Database Reset Traits](#combining-database-reset-traits)
     - [Lazily Refreshing the Database](#lazily-refreshing-the-database)
     - [Refresh Hooks](#refresh-hooks)
 - [Model Factories](#model-factories)
@@ -61,6 +62,35 @@ The `Hypervel\Foundation\Testing\RefreshDatabase` trait does not migrate your da
 Hypervel application tests run inside a coroutine by default. When a transaction-based trait such as `RefreshDatabase` is used, database transactions are started and rolled back inside the test coroutine so transaction state remains isolated across pooled database connections.
 
 If you would like to totally reset the database, you may use the `Hypervel\Foundation\Testing\DatabaseMigrations` or `Hypervel\Foundation\Testing\DatabaseTruncation` traits instead. However, both of these options are significantly slower than the `RefreshDatabase` trait.
+
+<a name="combining-database-reset-traits"></a>
+### Combining Database Reset Traits
+
+Applications that use multiple database connections may combine `DatabaseTruncation` with `RefreshDatabase` or `DatabaseTransactions`. This is useful when some connections support transactions while others must have their tables truncated:
+
+```php
+<?php
+
+namespace Tests\Feature;
+
+use Hypervel\Foundation\Testing\DatabaseTruncation;
+use Hypervel\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class ExampleTest extends TestCase
+{
+    use DatabaseTruncation;
+    use RefreshDatabase;
+
+    protected array $connectionsToTransact = ['sqlite'];
+
+    protected array $connectionsToTruncate = ['clickhouse'];
+}
+```
+
+The connection lists should not overlap, since resetting the same connection with both strategies is unnecessary. `DatabaseTruncation` cannot be combined with `DatabaseMigrations` or `LazilyRefreshDatabase`.
+
+Automatic seeding is not available when a test combines database reset strategies because a single seeder cannot be ordered correctly for both connection lists. Instead, seed each connection from the hook that runs after its own reset. Seed transacting connections from `afterRefreshingDatabase` when using `RefreshDatabase`, or from `setUpInCoroutine` when using `DatabaseTransactions`, so the rows are rolled back with the test. Seed truncated connections from `afterTruncatingDatabase`.
 
 <a name="lazily-refreshing-the-database"></a>
 ### Lazily Refreshing the Database

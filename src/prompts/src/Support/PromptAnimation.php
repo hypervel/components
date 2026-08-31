@@ -42,7 +42,7 @@ class PromptAnimation
      */
     public function start(): void
     {
-        $this->coroutineId = Coroutine::fork(function (): void {
+        Coroutine::forkOwned(function (): void {
             try {
                 while ($this->stop->pop($this->interval / 1000) === false) {
                     ($this->render)();
@@ -50,6 +50,9 @@ class PromptAnimation
             } catch (Throwable $exception) {
                 $this->renderFailure = $exception;
             }
+        }, function (Closure $run): void {
+            $this->coroutineId = Coroutine::id();
+            $run();
         });
     }
 

@@ -12,6 +12,7 @@ use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class SafeCallerTest extends TestCase
 {
@@ -93,6 +94,50 @@ class SafeCallerTest extends TestCase
 
             (new Filesystem)->deleteDirectory($directory);
         }
+    }
+
+    public function testCallPreservesCancellationFromCallback(): void
+    {
+        $cancellation = new CanceledException('canceled');
+        $container = m::mock(Container::class);
+        $container->shouldNotReceive('has');
+        $caller = new SafeCaller($container);
+
+        try {
+            $caller->call(fn () => throw $cancellation);
+
+            $this->fail('The cancellation was not preserved.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testCallPreservesCancellationFromExceptionReporter(): void
+    {
+        $failure = new RuntimeException('failed');
+        $cancellation = new CanceledException('canceled');
+        $defaultCalled = false;
+        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler->shouldReceive('report')->once()->with($failure)->andThrow($cancellation);
+        $container = m::mock(Container::class);
+        $container->shouldReceive('has')->once()->with(ExceptionHandlerContract::class)->andReturnTrue();
+        $container->shouldReceive('make')->once()->with(ExceptionHandlerContract::class)->andReturn($handler);
+        $caller = new SafeCaller($container);
+
+        try {
+            $caller->call(
+                fn () => throw $failure,
+                function () use (&$defaultCalled): void {
+                    $defaultCalled = true;
+                },
+            );
+
+            $this->fail('The cancellation was not preserved.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertFalse($defaultCalled);
     }
 
     public function testCallWithoutExceptionHandlerInContainer(): void

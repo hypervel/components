@@ -17,9 +17,7 @@ class AncestorsRelation extends BaseRelation
             return;
         }
 
-        if (! $this->hasLoadedBounds($this->parent) || ! $this->hasConcreteScope($this->parent)) {
-            $this->query->whereRaw('0 = 1');
-
+        if (! $this->prepareLazyParent()) {
             return;
         }
 
@@ -59,17 +57,9 @@ class AncestorsRelation extends BaseRelation
      */
     protected function prepareEagerModels(array $models): array
     {
-        $eligible = [];
-
-        foreach ($models as $model) {
-            if ($this->hasLoadedBounds($model) && $this->hasConcreteScope($model)) {
-                $eligible[] = $model;
-            }
-        }
-
         $groups = [];
 
-        foreach (parent::prepareEagerModels($eligible) as $model) {
+        foreach (parent::prepareEagerModels($models) as $model) {
             $groups[$this->scopeKey($model)][] = $model;
         }
 
@@ -77,29 +67,27 @@ class AncestorsRelation extends BaseRelation
 
         foreach ($groups as $group) {
             usort($group, function (Model $left, Model $right): int {
-                $comparison = ($right->getLft() ?? PHP_INT_MIN) /* @phpstan-ignore method.notFound */
-                    <=> ($left->getLft() ?? PHP_INT_MIN); /* @phpstan-ignore method.notFound */
+                $comparison = $right->getLft() /* @phpstan-ignore method.notFound */
+                    <=> $left->getLft(); /* @phpstan-ignore method.notFound */
 
                 return $comparison !== 0
                     ? $comparison
-                    : ($left->getRgt() ?? PHP_INT_MAX) /* @phpstan-ignore method.notFound */
-                        <=> ($right->getRgt() ?? PHP_INT_MAX); /* @phpstan-ignore method.notFound */
+                    : $left->getRgt() /* @phpstan-ignore method.notFound */
+                        <=> $right->getRgt(); /* @phpstan-ignore method.notFound */
             });
 
             $minimumRgt = null;
 
             foreach ($group as $model) {
+                /** @var int $rgt */
                 $rgt = $model->getRgt();
 
-                if ($rgt !== null && $minimumRgt !== null && $rgt >= $minimumRgt) {
+                if ($minimumRgt !== null && $rgt >= $minimumRgt) {
                     continue;
                 }
 
                 $result[] = $model;
-
-                if ($rgt !== null) {
-                    $minimumRgt = $minimumRgt === null ? $rgt : min($minimumRgt, $rgt);
-                }
+                $minimumRgt = $minimumRgt === null ? $rgt : min($minimumRgt, $rgt);
             }
         }
 
@@ -124,6 +112,36 @@ class AncestorsRelation extends BaseRelation
         }
 
         return false;
+    }
+
+    /**
+     * Get the parent columns required to resolve ancestors.
+     */
+    protected function requiredParentColumns(Model $model): array
+    {
+        // Eager interval reduction sorts by both bounds even though the lazy
+        // ancestor predicate only consumes the right bound.
+        return $this->intervalColumns($model);
+    }
+
+    /**
+     * Get the related columns required to match ancestors.
+     */
+    protected function requiredRelatedColumns(Model $model): array
+    {
+        return $this->intervalColumns($model);
+    }
+
+    /**
+     * Get the complete interval and scope projection.
+     */
+    protected function intervalColumns(Model $model): array
+    {
+        $columns = array_fill_keys(array_keys($this->scopeValues($model)), false);
+        $columns[$model->getLftName()] = true; /* @phpstan-ignore method.notFound */
+        $columns[$model->getRgtName()] = true; /* @phpstan-ignore method.notFound */
+
+        return $columns;
     }
 
     /**

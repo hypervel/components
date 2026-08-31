@@ -785,6 +785,17 @@ class CacheRepositoryTest extends TestCase
         $this->assertFalse($result);
     }
 
+    public function testCounterFailuresAreReturnedWithoutCoercion(): void
+    {
+        $store = m::mock(Store::class);
+        $store->expects('increment')->with('increment', 2)->andReturnFalse();
+        $store->expects('decrement')->with('decrement', 3)->andReturnFalse();
+        $repository = new Repository($store);
+
+        $this->assertFalse($repository->increment('increment', 2));
+        $this->assertFalse($repository->decrement('decrement', 3));
+    }
+
     #[DataProvider('dataProviderTestGetSeconds')]
     public function testGetSeconds($duration)
     {

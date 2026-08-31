@@ -18,6 +18,7 @@ use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\TransferStats;
 use GuzzleHttp\UriTemplate\UriTemplate;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Http\Client\Events\ConnectionFailed;
 use Hypervel\Http\Client\Events\RequestSending;
@@ -35,11 +36,12 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
 use SensitiveParameter;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\VarDumper\VarDumper;
 use Throwable;
 use UnitEnum;
 
-class PendingRequest
+class PendingRequest implements Transient
 {
     use Conditionable;
     use Macroable;
@@ -180,7 +182,7 @@ class PendingRequest
     /**
      * The pending request promise.
      */
-    protected ?PromiseInterface $promise;
+    protected ?PromiseInterface $promise = null;
 
     /**
      * The sent request object, if a request has been made.
@@ -597,6 +599,16 @@ class PendingRequest
     }
 
     /**
+     * Prepend new middleware to the client handler stack.
+     */
+    public function prependMiddleware(callable $middleware): static
+    {
+        $this->middleware->prepend($middleware);
+
+        return $this;
+    }
+
+    /**
      * Add new request middleware the client handler stack.
      */
     public function withRequestMiddleware(callable $middleware): static
@@ -624,6 +636,14 @@ class PendingRequest
         $this->attributes = array_merge_recursive($this->attributes, $attributes);
 
         return $this;
+    }
+
+    /**
+     * Get the attributes stored with the request.
+     */
+    public function attributes(): array
+    {
+        return $this->attributes;
     }
 
     /**
@@ -1033,6 +1053,10 @@ class PendingRequest
                 return $this->runAfterResponseCallbacks($response);
             })
             ->otherwise(function (Throwable $e) {
+                if ($e instanceof CanceledException) {
+                    throw $e;
+                }
+
                 if ($e instanceof StrayRequestException) {
                     throw $e;
                 }
@@ -1090,6 +1114,8 @@ class PendingRequest
                 $response instanceof Response ? $response->toException() : $response,
                 $this
             ) : true;
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Exception $exception) {
             return $exception;
         }
@@ -1107,6 +1133,8 @@ class PendingRequest
             && ($this->throwIfCallback === null || call_user_func($this->throwIfCallback, $response))) {
             try {
                 $response->throw($this->throwCallback);
+            } catch (CanceledException $exception) {
+                throw $exception;
             } catch (Exception $exception) {
                 return $exception;
             }

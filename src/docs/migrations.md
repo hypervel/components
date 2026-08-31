@@ -1547,6 +1547,22 @@ $table->unique('email')->online();
 
 When using PostgreSQL, this adds the `CONCURRENTLY` option to the index creation statement.
 
+<a name="partial-indexes"></a>
+#### Partial Indexes
+
+To create an index that contains only rows where a column is not null, you may chain the `whereNotNull` method onto an ordinary index definition:
+
+```php
+$table->index(
+    ['account_id', 'archived_at'],
+    'records_archived_index',
+)->whereNotNull('archived_at');
+```
+
+PostgreSQL and SQLite create a partial index for this definition. MySQL and MariaDB do not support partial indexes, so they create the same ordinary index over every row. This allows the same migration to run on each supported database.
+
+The `whereNotNull` modifier must be chained onto the index definition returned by the table-level `index` or `rawIndex` method. Column index shorthand does not support this modifier. Calling `whereNotNull` on a column definition or a primary, unique, full text, spatial, or vector index throws a `LogicException`.
+
 <a name="renaming-indexes"></a>
 ### Renaming Indexes
 
@@ -1662,6 +1678,18 @@ Alternatively, you may pass an array containing the column name that holds the f
 
 ```php
 $table->dropForeign(['user_id']);
+```
+
+To drop a conventionally named foreign key constraint and its column in a single method call, you may use the `dropConstrainedForeignId` method:
+
+```php
+$table->dropConstrainedForeignId('user_id');
+```
+
+You may use the `dropConstrainedForeignIdFor` method to determine the column name from a model:
+
+```php
+$table->dropConstrainedForeignIdFor(User::class);
 ```
 
 When dropping an explicitly named foreign key, you may pass the constraint's columns as the first argument and its name as the second:

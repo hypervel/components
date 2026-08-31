@@ -7,6 +7,7 @@ namespace Hypervel\Coroutine;
 use BadMethodCallException;
 use Hypervel\Engine\Channel;
 use InvalidArgumentException;
+use Swoole\Coroutine\CanceledException;
 
 /**
  * Go-style WaitGroup for waiting on multiple coroutines.
@@ -78,9 +79,18 @@ class WaitGroup
         }
         if ($this->count > 0) {
             $this->waiting = true;
-            $done = $this->chan->pop($timeout);
-            $this->waiting = false;
-            return $done;
+
+            try {
+                $done = $this->chan->pop($timeout);
+
+                if ($done === false && $this->chan->isCanceled()) {
+                    throw new CanceledException('Waiting for the wait group was canceled.');
+                }
+
+                return $done;
+            } finally {
+                $this->waiting = false;
+            }
         }
         return true;
     }

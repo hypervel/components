@@ -30,6 +30,7 @@
     - [Testing Mailable Content](#testing-mailable-content)
     - [Testing Mailable Sending](#testing-mailable-sending)
 - [Mail and Local Development](#mail-and-local-development)
+    - [Array Driver](#array-driver)
 - [Events](#events)
 - [Custom Transports](#custom-transports)
     - [Additional Symfony Transports](#additional-symfony-transports)
@@ -305,7 +306,7 @@ The round robin transport selects a random mailer from the list of configured ma
 <a name="transport-pooling"></a>
 ### Transport Pooling
 
-Hypervel pools mail transports that hold persistent connections or API clients so they can be safely reused across concurrent requests. Pooling applies to the `smtp`, `sendmail`, `mailgun`, `ses-v2`, `postmark`, `resend`, `cloudflare`, `failover`, and `roundrobin` transports.
+Hypervel pools mail transports that hold persistent connections, API clients, interactive processes, or composite state so they can be safely reused across concurrent requests. Pooling applies to the `smtp`, `sendmail`, `mail`, `mailgun`, `ses-v2`, `postmark`, `resend`, `cloudflare`, `failover`, and `roundrobin` transports.
 
 Named mailers use pooling by default when their transport is poolable. On-demand mailers created with `Mail::build()` are direct by default and opt in explicitly:
 
@@ -1504,6 +1505,11 @@ Mail::assertNotOutgoing(function (OrderShipped $mail) use ($order) {
 ## Mail and Local Development
 
 When developing an application that sends email, you probably don't want to actually send emails to live email addresses. Hypervel provides several ways to "disable" the actual sending of emails during local development.
+
+<a name="array-driver"></a>
+#### Array Driver
+
+The `array` mail driver keeps sent messages in memory for the current execution. When parent context is copied into a child execution, the child receives an isolated snapshot of the parent's messages. Messages sent or flushed afterward do not affect the parent or sibling executions.
 
 <a name="log-driver"></a>
 #### Log Driver

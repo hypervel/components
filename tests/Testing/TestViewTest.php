@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testing\TestViewTest;
 
+use Closure;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Testing\TestComponent;
@@ -13,9 +14,45 @@ use Hypervel\View\Component;
 use Hypervel\View\View;
 use Mockery as m;
 use PHPUnit\Framework\AssertionFailedError;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class TestViewTest extends TestCase
 {
+    public function testViewDataAssertionsSupportKeysValuesClosuresAndLists(): void
+    {
+        $view = $this->makeTestView([
+            'user' => ['name' => 'Taylor'],
+            'count' => 2,
+        ]);
+
+        $view
+            ->assertViewHas('user.name')
+            ->assertViewHas('user.name', 'Taylor')
+            ->assertViewHas('count', static fn (int $count): bool => $count === 2)
+            ->assertViewHas(['user.name', 'count' => 2])
+            ->assertViewHasAll(['user.name', 'count' => 2])
+            ->assertViewMissing('missing');
+    }
+
+    #[DataProvider('failingViewDataAssertions')]
+    public function testViewDataAssertionsReportFailures(array $data, Closure $assertion): void
+    {
+        $this->expectException(AssertionFailedError::class);
+
+        $assertion($this->makeTestView($data));
+    }
+
+    public static function failingViewDataAssertions(): array
+    {
+        return [
+            'missing key' => [[], static fn (TestView $view): TestView => $view->assertViewHas('missing')],
+            'different value' => [['foo' => 'bar'], static fn (TestView $view): TestView => $view->assertViewHas('foo', 'baz')],
+            'rejected closure' => [['count' => 1], static fn (TestView $view): TestView => $view->assertViewHas('count', static fn (int $count): bool => $count > 1)],
+            'missing list binding' => [['foo' => 'bar'], static fn (TestView $view): TestView => $view->assertViewHasAll(['foo', 'missing'])],
+            'present key' => [['foo' => 'bar'], static fn (TestView $view): TestView => $view->assertViewMissing('foo')],
+        ];
+    }
+
     public function testAssertViewHasAcceptsTheExactKeylessModel(): void
     {
         $model = new TestModel;
@@ -104,6 +141,53 @@ class TestViewTest extends TestCase
             ->assertDontSee(['Goodbye', '<footer>'])
             ->assertDontSeeHtml(['<footer>', '<span>1</span>'])
             ->assertDontSeeText(['Goodbye World', '1']);
+    }
+
+    public function testRenderedViewAssertionsEscapeExpectedValues(): void
+    {
+        $view = $this->makeTestView([], '<p>&lt;script&gt;</p> <strong>raw</strong>');
+
+        $view
+            ->assertSee('<script>')
+            ->assertSeeInOrder(['<script>', 'raw'])
+            ->assertSeeText('<script> raw')
+            ->assertSeeTextInOrder(['<script>', 'raw'])
+            ->assertDontSee('<style>')
+            ->assertDontSeeText('<style>');
+    }
+
+    #[DataProvider('failingRenderedViewAssertions')]
+    public function testRenderedViewAssertionsReportFailures(Closure $assertion): void
+    {
+        $this->expectException(AssertionFailedError::class);
+
+        $assertion($this->makeTestView([], '<p>First</p><p>Second</p>'));
+    }
+
+    public static function failingRenderedViewAssertions(): array
+    {
+        return [
+            'missing content' => [static fn (TestView $view): TestView => $view->assertSee('missing')],
+            'wrong content order' => [static fn (TestView $view): TestView => $view->assertSeeInOrder(['Second', 'First'])],
+            'missing text' => [static fn (TestView $view): TestView => $view->assertSeeText('missing')],
+            'wrong text order' => [static fn (TestView $view): TestView => $view->assertSeeTextInOrder(['Second', 'First'])],
+            'present excluded content' => [static fn (TestView $view): TestView => $view->assertDontSee('First')],
+            'present excluded text' => [static fn (TestView $view): TestView => $view->assertDontSeeText('First')],
+        ];
+    }
+
+    public function testAssertViewEmptyAndStringConversion(): void
+    {
+        $view = $this->makeTestView([], '');
+
+        $this->assertSame('', (string) $view->assertViewEmpty());
+    }
+
+    public function testAssertViewEmptyRejectsRenderedContent(): void
+    {
+        $this->expectException(AssertionFailedError::class);
+
+        $this->makeTestView([], 'rendered')->assertViewEmpty();
     }
 
     public function testRenderedComponentAssertionsSupportArraysHtmlAndNormalizedText(): void

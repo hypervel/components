@@ -6,7 +6,9 @@ namespace Hypervel\Foundation\Testing;
 
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Application;
+use Hypervel\Foundation\Bootstrap\BootProviders;
 use Hypervel\Foundation\Testing\Attributes\UnitTest;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAuthentication;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
@@ -84,10 +86,21 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
      */
     protected function createApplication(): ApplicationContract
     {
-        /** @var ApplicationContract $app */
+        // Bootstrap hooks intentionally live on the concrete application, matching Laravel.
+        /** @var Application $app */
         $app = require Application::inferBasePath() . '/bootstrap/app.php';
 
         $this->prepareApplicationForCachedState($app);
+
+        // Install after proxy generation so resolving db cannot preload an aspect
+        // target, but before provider boot. Rebinding after a boot query strands the
+        // production resolver's pooled wrapper and leaves cached connections outside
+        // test transactions. The dispatcher remains stable through this hook;
+        // Testbench installs the same binding on its independent bootstrap path.
+        $app->beforeBootstrapping(BootProviders::class, static function (ApplicationContract $app): void {
+            $app->singleton('db.resolver', DatabaseConnectionResolver::class);
+            Model::setConnectionResolver($app->make('db'));
+        });
 
         $app->make(KernelContract::class)->bootstrap();
 

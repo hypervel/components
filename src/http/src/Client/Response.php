@@ -285,7 +285,7 @@ class Response implements ArrayAccess, Stringable
     /**
      * Get the response cookies.
      */
-    public function cookies(): CookieJar
+    public function cookies(): ?CookieJar
     {
         return $this->cookies;
     }

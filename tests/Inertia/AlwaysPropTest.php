@@ -32,6 +32,19 @@ class AlwaysPropTest extends TestCase
         $this->assertSame('date', $alwaysProp());
     }
 
+    public function testCallableArraysAreNotInvoked(): void
+    {
+        $target = new class {
+            public function resolve(): string
+            {
+                return 'resolved';
+            }
+        };
+        $value = [$target, 'resolve'];
+
+        $this->assertSame($value, (new AlwaysProp($value))());
+    }
+
     public function testCanAcceptCallables(): void
     {
         $callable = new class {

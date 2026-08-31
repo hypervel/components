@@ -20,7 +20,7 @@ export default {
             </tr>
 
             <tr>
-                <td class="table-fit text-muted">Command</td>
+                <td class="table-fit text-muted">Task</td>
                 <td>
                     <code>{{ slotProps.entry.content.command || '-' }}</code>
                 </td>

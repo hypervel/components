@@ -11,6 +11,7 @@ use League\Flysystem\FilesystemAdapter as FlysystemAdapter;
 use League\Flysystem\FilesystemOperator;
 use League\Flysystem\UnableToReadFile;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class AwsS3V3Adapter extends FilesystemAdapter
@@ -169,6 +170,8 @@ class AwsS3V3Adapter extends FilesystemAdapter
 
             $command = $this->client->getCommand('GetObject', $options);
             $stream = $this->client->execute($command)->get('Body')->detach();
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             $exception = UnableToReadFile::fromLocation($path, $exception->getMessage(), $exception);
 

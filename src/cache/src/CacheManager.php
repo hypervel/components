@@ -291,7 +291,7 @@ class CacheManager implements FactoryContract
             $connection,
             serializableClassPolicy: $this->serializableClassPolicy,
         );
-        $store->setTagMode($config['tag_mode'] ?? 'all');
+        $store->setTagMode($config['tag_mode'] ?? TagMode::All);
 
         return $this->repository(
             $store->setLockConnection($config['lock_connection'] ?? $connection),
@@ -390,16 +390,21 @@ class CacheManager implements FactoryContract
     }
 
     /**
-     * Re-set the event dispatcher on all resolved cache repositories.
+     * Re-set the event dispatcher on resolved event-emitting cache repositories.
      *
-     * Boot or tests only. Replaces the dispatcher on every cached repository
-     * for the worker lifetime; per-request use races across coroutines.
-     * Reached by Event::fake() / Event::fakeFor() to point cached repositories
-     * at the fake dispatcher and to restore them afterwards.
+     * Boot or tests only. Replaces the dispatcher on cached concrete repositories
+     * that already emit events, preserving disabled stores and custom repository
+     * implementations. Per-request use races across coroutines. Reached by
+     * Event::fake() / Event::fakeFor() to install and restore fake dispatchers.
      */
     public function refreshEventDispatcher(): void
     {
-        array_map($this->setEventDispatcher(...), $this->stores);
+        foreach ($this->stores as $repository) {
+            // The current dispatcher records whether this repository emits events.
+            if ($repository instanceof Repository && $repository->getEventDispatcher() !== null) {
+                $this->setEventDispatcher($repository);
+            }
+        }
     }
 
     /**
@@ -466,6 +471,8 @@ class CacheManager implements FactoryContract
             if (isset($this->stores[$cacheName])) {
                 unset($this->stores[$cacheName]);
             }
+
+            CoroutineContext::forget(self::MEMOIZED_CONTEXT_KEY_PREFIX . $cacheName);
         }
 
         return $this;

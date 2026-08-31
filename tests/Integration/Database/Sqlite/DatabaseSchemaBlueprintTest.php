@@ -9,9 +9,12 @@ use Exception;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
+use Override;
+use PDO;
 use RuntimeException;
 
 class DatabaseSchemaBlueprintTest extends SqliteTestCase
@@ -325,6 +328,98 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         });
 
         $this->assertSame($indexSql, $this->indexSql('MixedCase_Index'));
+    }
+
+    public function testPublicPartialIndexSurvivesRebuildAndRename(): void
+    {
+        $schema = DB::connection()->getSchemaBuilder();
+        $schema->create('items', function (Blueprint $table) {
+            $table->integer('account_id');
+            $table->dateTime('archived_at')->nullable();
+            $table->string('description');
+        });
+
+        $schema->table('items', function (Blueprint $table) {
+            $table->index(['account_id', 'archived_at'], 'items_active_index')
+                ->whereNotNull('archived_at');
+            $table->text('description')->change();
+        });
+
+        $indexSql = 'CREATE INDEX "items_active_index" on "items" ("account_id", "archived_at") where "archived_at" is not null';
+
+        $this->assertSame($indexSql, $this->indexSql('items_active_index'));
+        $this->assertSame([
+            'name' => 'items_active_index',
+            'columns' => ['account_id', 'archived_at'],
+            'type' => null,
+            'unique' => false,
+            'primary' => false,
+            'partial' => true,
+        ], collect($schema->getIndexes('items'))->firstWhere('name', 'items_active_index'));
+
+        $schema->table('items', function (Blueprint $table) {
+            $table->renameIndex('items_active_index', 'items_renamed_active_index');
+        });
+
+        $this->assertNull($this->indexSql('items_active_index'));
+        $this->assertSame(
+            'CREATE INDEX "items_renamed_active_index" on "items" ("account_id", "archived_at") where "archived_at" is not null',
+            $this->indexSql('items_renamed_active_index'),
+        );
+        $this->assertTrue(
+            collect($schema->getIndexes('items'))
+                ->firstWhere('name', 'items_renamed_active_index')['partial'],
+        );
+    }
+
+    public function testPublicPartialIndexPredicateFollowsSameBlueprintColumnRename(): void
+    {
+        $schema = DB::connection()->getSchemaBuilder();
+        $schema->create('items', function (Blueprint $table) {
+            $table->integer('account_id');
+            $table->dateTime('archived_at')->nullable();
+            $table->string('description');
+        });
+
+        $schema->table('items', function (Blueprint $table) {
+            $table->index('account_id', 'items_active_index')
+                ->whereNotNull('archived_at');
+            $table->renameColumn('archived_at', 'archived');
+            $table->text('description')->change();
+        });
+
+        $this->assertSame(
+            'CREATE INDEX "items_active_index" on "items" ("account_id") where "archived" is not null',
+            $this->indexSql('items_active_index'),
+        );
+    }
+
+    public function testLegacyRebuildRejectsNewPartialIndexReferencingDroppedPredicateColumn(): void
+    {
+        // SQLite versions before 3.35 rebuild tables to drop columns, so force that path on the current runtime.
+        $connection = new class(new PDO('sqlite::memory:'), ':memory:', '', ['driver' => 'sqlite', 'database' => ':memory:']) extends SQLiteConnection {
+            #[Override]
+            public function getServerVersion(): string
+            {
+                return '3.34.0';
+            }
+        };
+        $schema = $connection->getSchemaBuilder();
+        $schema->create('items', function (Blueprint $table) {
+            $table->integer('account_id');
+            $table->dateTime('archived_at')->nullable();
+        });
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage(
+            'Cannot rebuild table [items] because index [items_active_index] references a dropped column.',
+        );
+
+        $schema->table('items', function (Blueprint $table) {
+            $table->index('account_id', 'items_active_index')
+                ->whereNotNull('archived_at');
+            $table->dropColumn('archived_at');
+        });
     }
 
     public function testRebuildQualifiesReplayedIndexesForAnAttachedSchema(): void

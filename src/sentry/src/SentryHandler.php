@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry;
 
-use DateTimeInterface;
 use Monolog\Formatter\FormatterInterface;
 use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\AbstractProcessingHandler;
-use Monolog\Logger;
+use Monolog\Level;
+use Monolog\LogRecord;
 use Sentry\Breadcrumb;
 use Sentry\Event;
-use Sentry\Monolog\CompatibilityProcessingHandlerTrait;
 use Sentry\Severity;
 use Sentry\State\HubInterface;
 use Sentry\State\Scope;
@@ -20,8 +19,6 @@ use TypeError;
 
 class SentryHandler extends AbstractProcessingHandler
 {
-    use CompatibilityProcessingHandlerTrait;
-
     /**
      * The current application environment.
      */
@@ -40,14 +37,14 @@ class SentryHandler extends AbstractProcessingHandler
     /**
      * Create a new Sentry handler instance.
      *
-     * @param int|string $level The minimum logging level at which this handler will be triggered
+     * @param int|Level|string $level The minimum logging level at which this handler will be triggered
      * @param bool $bubble Whether the messages that are handled can bubble up the stack or not
      * @param bool $reportExceptions If false, records with an exception in context will be ignored
      * @param bool $useFormattedMessage If true, use the formatted message instead of the raw message
      */
     public function __construct(
         protected HubInterface $hub,
-        int|string $level = Logger::DEBUG,
+        int|string|Level $level = Level::Debug,
         bool $bubble = true,
         private readonly bool $reportExceptions = true,
         private readonly bool $useFormattedMessage = false,
@@ -57,25 +54,17 @@ class SentryHandler extends AbstractProcessingHandler
 
     public function handleBatch(array $records): void
     {
-        $level = $this->level;
+        $records = array_values(array_filter($records, $this->isHandling(...)));
 
-        // filter records based on their level
-        $records = array_filter(
-            $records,
-            function ($record) use ($level) {
-                return $record['level'] >= $level;
-            }
-        );
-
-        if (! $records) {
+        if ($records === []) {
             return;
         }
 
         // the record with the highest severity is the "main" one
         $record = array_reduce(
             $records,
-            function ($highest, $record) {
-                if ($highest === null || $record['level'] > $highest['level']) {
+            function (?LogRecord $highest, LogRecord $record): LogRecord {
+                if ($highest === null || $record->level->value > $highest->level->value) {
                     return $record;
                 }
 
@@ -85,15 +74,14 @@ class SentryHandler extends AbstractProcessingHandler
 
         // the other ones are added as a context item
         $logs = [];
-        foreach ($records as $r) {
-            $logs[] = $this->processRecord($r);
+        foreach ($records as $logRecord) {
+            $logs[] = $this->processRecord($logRecord);
         }
 
-        if ($logs) { /* @phpstan-ignore if.alwaysTrue */
-            $record['context']['logs'] = (string) $this->getBatchFormatter()->formatBatch($logs);
-        }
+        $context = $record->context;
+        $context['logs'] = (string) $this->getBatchFormatter()->formatBatch($logs);
 
-        $this->handle($record);
+        $this->handle($record->with(context: $context));
     }
 
     /**
@@ -121,39 +109,47 @@ class SentryHandler extends AbstractProcessingHandler
     /**
      * Translate Monolog log levels to Sentry Severity.
      */
-    protected function getLogLevel(int $logLevel): Severity
+    protected function getLogLevel(Level $logLevel): Severity
     {
-        return $this->getSeverityFromLevel($logLevel);
+        return match ($logLevel) {
+            Level::Debug => Severity::debug(),
+            Level::Warning => Severity::warning(),
+            Level::Error => Severity::error(),
+            Level::Critical, Level::Alert, Level::Emergency => Severity::fatal(),
+            default => Severity::info(),
+        };
     }
 
     /**
-     * Write a record to the handler.
-     *
-     * @suppress PhanTypeMismatchArgument
-     * @param mixed $record
+     * Write a log record.
      */
-    protected function doWrite($record): void
+    protected function write(LogRecord $record): void
     {
-        $exception = $record['context']['exception'] ?? null;
+        $this->doWrite($record);
+    }
+
+    /**
+     * Write a record to Sentry.
+     */
+    protected function doWrite(LogRecord $record): void
+    {
+        $context = $record->context;
+        $exception = $context['exception'] ?? null;
         $isException = $exception instanceof Throwable;
-        unset($record['context']['exception']);
+        unset($context['exception']);
 
         if (! $this->reportExceptions && $isException) {
             return;
         }
 
         $this->hub->withScope(
-            function (Scope $scope) use ($record, $isException, $exception) {
-                $context = ! empty($record['context']) && is_array($record['context'])
-                    ? $record['context']
-                    : [];
-
+            function (Scope $scope) use ($record, $context, $isException, $exception): void {
                 if (! empty($context)) {
                     $this->consumeContextAndApplyToScope($scope, $context);
                 }
 
-                if (! empty($record['extra']) && is_array($record['extra'])) {
-                    foreach ($record['extra'] as $key => $extra) {
+                if ($record->extra !== []) {
+                    foreach ($record->extra as $key => $extra) {
                         $scope->setExtra($key, $extra);
                     }
                 }
@@ -170,9 +166,9 @@ class SentryHandler extends AbstractProcessingHandler
                 }
 
                 $scope->addEventProcessor(
-                    function (Event $event) use ($record, $logger) {
-                        $event->setLevel($this->getLogLevel($record['level']));
-                        $event->setLogger($logger ?? $record['channel']);
+                    function (Event $event) use ($record, $logger): Event {
+                        $event->setLevel($this->getLogLevel($record->level));
+                        $event->setLogger($logger ?? $record->channel);
 
                         if (! empty($this->environment) && ! $event->getEnvironment()) {
                             $event->setEnvironment($this->environment);
@@ -182,9 +178,7 @@ class SentryHandler extends AbstractProcessingHandler
                             $event->setRelease($this->release);
                         }
 
-                        if (isset($record['datetime']) && $record['datetime'] instanceof DateTimeInterface) {
-                            $event->setTimestamp($record['datetime']->getTimestamp());
-                        }
+                        $event->setTimestamp($record->datetime->getTimestamp());
 
                         return $event;
                     }
@@ -194,9 +188,9 @@ class SentryHandler extends AbstractProcessingHandler
                     $this->hub->captureException($exception);
                 } else {
                     $this->hub->captureMessage(
-                        $this->useFormattedMessage || empty($record['message'])
-                            ? $record['formatted']
-                            : $record['message']
+                        $this->useFormattedMessage || $record->message === ''
+                            ? (string) $record->formatted
+                            : $record->message
                     );
                 }
             }

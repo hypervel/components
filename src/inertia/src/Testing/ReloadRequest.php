@@ -35,7 +35,10 @@ class ReloadRequest
      */
     public function __invoke(): TestResponse
     {
-        $headers = [Header::VERSION => $this->version];
+        $headers = [
+            Header::INERTIA => 'true',
+            Header::VERSION => $this->version,
+        ];
 
         if (! blank($this->only)) {
             $headers[Header::PARTIAL_COMPONENT] = $this->component;

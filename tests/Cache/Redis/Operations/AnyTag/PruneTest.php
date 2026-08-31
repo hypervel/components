@@ -5,30 +5,21 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache\Redis\Operations\AnyTag;
 
 use Hypervel\Cache\Redis\Operations\AnyTag\Prune;
+use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\PhpRedis;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
 use Mockery as m;
 
-/**
- * Tests for the AnyTag/Prune operation.
- */
 class PruneTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
-    public function testPruneReturnsEmptyStatsWhenNoActiveTagsInRegistry(): void
+    public function testPruneReturnsEmptyStatsWhenNoActiveTagsRemain(): void
     {
         $connection = $this->mockConnection();
-
-        // ZREMRANGEBYSCORE on registry removes expired tags
         $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->with('prefix:_any:tag:registry', '-inf', m::type('string'))
-            ->andReturn(2); // 2 expired tags removed
-
-        // ZRANGE returns empty (no active tags)
+            ->andReturn(2);
         $connection->shouldReceive('zRange')
             ->once()
             ->with('prefix:_any:tag:registry', 0, -1)
@@ -36,576 +27,240 @@ class PruneTest extends RedisCacheTestCase
 
         $store = $this->createStore($connection);
         $store->setTagMode('any');
-        $operation = new Prune($store->getContext());
 
-        $result = $operation->execute();
-
-        $this->assertSame(0, $result['hashes_scanned']);
-        $this->assertSame(0, $result['fields_checked']);
-        $this->assertSame(0, $result['orphans_removed']);
-        $this->assertSame(0, $result['empty_hashes_deleted']);
-        $this->assertSame(2, $result['expired_tags_removed']);
+        $this->assertSame([
+            'hashes_scanned' => 0,
+            'fields_checked' => 0,
+            'orphans_removed' => 0,
+            'empty_hashes_deleted' => 0,
+            'expired_tags_removed' => 2,
+            'orphaned_tags_removed' => 0,
+        ], (new Prune($store->getContext()))->execute());
     }
 
-    /**
-     * @test
-     */
-    public function testPruneRemovesOrphanedFieldsFromTagHash(): void
+    public function testPruneRemovesOrphansAtomicallyInBoundedPages(): void
     {
         $connection = $this->mockConnection();
-
-        // Step 1: Remove expired tags from registry
-        $connection->shouldReceive('zRemRangeByScore')
-            ->once()
-            ->with('prefix:_any:tag:registry', '-inf', m::type('string'))
-            ->andReturn(0);
-
-        // Step 2: Get active tags
-        $connection->shouldReceive('zRange')
-            ->once()
-            ->with('prefix:_any:tag:registry', 0, -1)
-            ->andReturn(['users']);
-
-        // Step 3: HSCAN the tag hash
+        $connection->shouldReceive('zRemRangeByScore')->once()->andReturn(0);
+        $connection->shouldReceive('zRange')->once()->andReturn(['users']);
         $connection->shouldReceive('hScan')
             ->once()
-            ->andReturnUsing(function ($tagHash, &$iterator, $match, $count) {
+            ->with('prefix:_any:tag:users:entries', m::any(), '*', 37)
+            ->andReturnUsing(function ($tagHash, &$iterator): array {
                 $this->assertSame(PhpRedis::initialScanCursor(), $iterator);
                 $iterator = 0;
-                return [
-                    'key1' => '1',
-                    'key2' => '1',
-                    'key3' => '1',
-                ];
+
+                return ['key1' => '1', 'key2' => '1', 'key3' => '1'];
             });
-
-        // Pipeline for EXISTS checks
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('exists')
-            ->times(3)
-            ->andReturn($connection);
-        $connection->shouldReceive('exec')
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
-            ->andReturn([1, 0, 1]); // key2 doesn't exist (orphaned)
-
-        // HDEL orphaned key2
-        $connection->shouldReceive('hDel')
-            ->once()
-            ->with('prefix:_any:tag:users:entries', 'key2')
+            ->with(
+                m::on(fn (string $script): bool => str_contains($script, "redis.call('EXISTS', KEYS[i])")),
+                [
+                    'prefix:_any:tag:users:entries',
+                    'prefix:key1',
+                    'prefix:key2',
+                    'prefix:key3',
+                ],
+                ['key1', 'key2', 'key3'],
+            )
             ->andReturn(1);
-
-        // HLEN to check if hash is empty
-        $connection->shouldReceive('hLen')
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
-            ->with('prefix:_any:tag:users:entries')
-            ->andReturn(2);
+            ->with(
+                m::on(fn (string $script): bool => str_contains($script, "redis.call('ZREM', KEYS[2], ARGV[1])")),
+                ['prefix:_any:tag:users:entries', 'prefix:_any:tag:registry'],
+                ['users'],
+            )
+            ->andReturn([0, 0]);
 
         $store = $this->createStore($connection);
         $store->setTagMode('any');
-        $operation = new Prune($store->getContext());
-
-        $result = $operation->execute();
+        $result = (new Prune($store->getContext()))->execute(37);
 
         $this->assertSame(1, $result['hashes_scanned']);
         $this->assertSame(3, $result['fields_checked']);
         $this->assertSame(1, $result['orphans_removed']);
         $this->assertSame(0, $result['empty_hashes_deleted']);
-        $this->assertSame(0, $result['expired_tags_removed']);
+        $this->assertSame(0, $result['orphaned_tags_removed']);
     }
 
-    /**
-     * @test
-     */
-    public function testPruneDeletesEmptyHashAfterRemovingOrphans(): void
+    public function testPruneRemovesAnEmptyHashFromTheRegistry(): void
     {
         $connection = $this->mockConnection();
-
-        $connection->shouldReceive('zRemRangeByScore')
-            ->once()
-            ->andReturn(0);
-
-        $connection->shouldReceive('zRange')
-            ->once()
-            ->andReturn(['users']);
-
+        $connection->shouldReceive('zRemRangeByScore')->once()->andReturn(0);
+        $connection->shouldReceive('zRange')->once()->andReturn(['forever-tag']);
         $connection->shouldReceive('hScan')
             ->once()
-            ->andReturnUsing(function ($tagHash, &$iterator, $match, $count) {
+            ->andReturnUsing(function ($tagHash, &$iterator): array {
                 $iterator = 0;
-                return ['key1' => '1'];
+
+                return ['orphan' => '1'];
             });
-
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('exists')->once()->andReturn($connection);
-        $connection->shouldReceive('exec')
+        $connection->shouldReceive('evalWithShaCache')->once()->andReturn(1);
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
-            ->andReturn([0]); // key1 doesn't exist (orphaned)
-
-        $connection->shouldReceive('hDel')
-            ->once()
-            ->with('prefix:_any:tag:users:entries', 'key1')
-            ->andReturn(1);
-
-        // Hash is now empty
-        $connection->shouldReceive('hLen')
-            ->once()
-            ->andReturn(0);
-
-        // Delete empty hash
-        $connection->shouldReceive('del')
-            ->once()
-            ->with('prefix:_any:tag:users:entries')
-            ->andReturn(1);
+            ->with(
+                m::type('string'),
+                ['prefix:_any:tag:forever-tag:entries', 'prefix:_any:tag:registry'],
+                ['forever-tag'],
+            )
+            ->andReturn([1, 1]);
+        $connection->shouldNotReceive('del');
 
         $store = $this->createStore($connection);
         $store->setTagMode('any');
-        $operation = new Prune($store->getContext());
+        $result = (new Prune($store->getContext()))->execute();
 
-        $result = $operation->execute();
-
-        $this->assertSame(1, $result['hashes_scanned']);
-        $this->assertSame(1, $result['fields_checked']);
         $this->assertSame(1, $result['orphans_removed']);
         $this->assertSame(1, $result['empty_hashes_deleted']);
+        $this->assertSame(1, $result['orphaned_tags_removed']);
     }
 
-    /**
-     * @test
-     */
-    public function testPruneHandlesMultipleTagHashes(): void
-    {
-        $connection = $this->mockConnection();
-
-        $connection->shouldReceive('zRemRangeByScore')
-            ->once()
-            ->andReturn(1); // 1 expired tag removed
-
-        $connection->shouldReceive('zRange')
-            ->once()
-            ->andReturn(['users', 'posts', 'comments']);
-
-        // First tag: users - 2 fields, 1 orphan
-        $connection->shouldReceive('hScan')
-            ->once()
-            ->with('prefix:_any:tag:users:entries', m::any(), '*', m::any())
-            ->andReturnUsing(function ($tagHash, &$iterator) {
-                $iterator = 0;
-                return ['u1' => '1', 'u2' => '1'];
-            });
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('exists')->twice()->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([1, 0]);
-        $connection->shouldReceive('hDel')
-            ->once()
-            ->with('prefix:_any:tag:users:entries', 'u2')
-            ->andReturn(1);
-        $connection->shouldReceive('hLen')
-            ->once()
-            ->with('prefix:_any:tag:users:entries')
-            ->andReturn(1);
-
-        // Second tag: posts - 1 field, 0 orphans
-        $connection->shouldReceive('hScan')
-            ->once()
-            ->with('prefix:_any:tag:posts:entries', m::any(), '*', m::any())
-            ->andReturnUsing(function ($tagHash, &$iterator) {
-                $iterator = 0;
-                return ['p1' => '1'];
-            });
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('exists')->once()->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([1]);
-        $connection->shouldReceive('hLen')
-            ->once()
-            ->with('prefix:_any:tag:posts:entries')
-            ->andReturn(1);
-
-        // Third tag: comments - 3 fields, all orphans (hash becomes empty)
-        $connection->shouldReceive('hScan')
-            ->once()
-            ->with('prefix:_any:tag:comments:entries', m::any(), '*', m::any())
-            ->andReturnUsing(function ($tagHash, &$iterator) {
-                $iterator = 0;
-                return ['c1' => '1', 'c2' => '1', 'c3' => '1'];
-            });
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('exists')->times(3)->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([0, 0, 0]);
-        $connection->shouldReceive('hDel')
-            ->once()
-            ->with('prefix:_any:tag:comments:entries', 'c1', 'c2', 'c3')
-            ->andReturn(3);
-        $connection->shouldReceive('hLen')
-            ->once()
-            ->with('prefix:_any:tag:comments:entries')
-            ->andReturn(0);
-        $connection->shouldReceive('del')
-            ->once()
-            ->with('prefix:_any:tag:comments:entries')
-            ->andReturn(1);
-
-        $store = $this->createStore($connection);
-        $store->setTagMode('any');
-        $operation = new Prune($store->getContext());
-
-        $result = $operation->execute();
-
-        $this->assertSame(3, $result['hashes_scanned']);
-        $this->assertSame(6, $result['fields_checked']); // 2 + 1 + 3
-        $this->assertSame(4, $result['orphans_removed']); // 1 + 0 + 3
-        $this->assertSame(1, $result['empty_hashes_deleted']);
-        $this->assertSame(1, $result['expired_tags_removed']);
-    }
-
-    /**
-     * @test
-     */
-    public function testPruneUsesCorrectTagHashKeyFormat(): void
-    {
-        $connection = $this->mockConnection();
-
-        $connection->shouldReceive('zRemRangeByScore')
-            ->once()
-            ->with('custom:_any:tag:registry', '-inf', m::type('string'))
-            ->andReturn(0);
-
-        $connection->shouldReceive('zRange')
-            ->once()
-            ->with('custom:_any:tag:registry', 0, -1)
-            ->andReturn(['users']);
-
-        // Verify correct tag hash key format
-        $connection->shouldReceive('hScan')
-            ->once()
-            ->with('custom:_any:tag:users:entries', m::any(), '*', m::any())
-            ->andReturnUsing(function ($tagHash, &$iterator) {
-                $iterator = 0;
-                return [];
-            });
-
-        $connection->shouldReceive('hLen')
-            ->once()
-            ->with('custom:_any:tag:users:entries')
-            ->andReturn(0);
-
-        $connection->shouldReceive('del')
-            ->once()
-            ->with('custom:_any:tag:users:entries')
-            ->andReturn(1);
-
-        $store = $this->createStore($connection, 'custom:');
-        $store->setTagMode('any');
-        $operation = new Prune($store->getContext());
-
-        $operation->execute();
-    }
-
-    /**
-     * @test
-     */
-    public function testPruneClusterModeUsesSequentialExistsChecks(): void
+    public function testClusterPruneBatchesOrphansThatRemainRemoved(): void
     {
         [$store, , $connection] = $this->createClusterStore(tagMode: 'any');
-
-        // Should NOT use pipeline in cluster mode
         $connection->shouldNotReceive('pipeline');
-
-        $connection->shouldReceive('zRemRangeByScore')
-            ->once()
-            ->andReturn(0);
-
-        $connection->shouldReceive('zRange')
-            ->once()
-            ->andReturn(['users']);
-
+        $connection->shouldReceive('zRemRangeByScore')->once()->andReturn(0);
+        $connection->shouldReceive('zRange')->once()->andReturn(['users']);
         $connection->shouldReceive('hScan')
             ->once()
-            ->andReturnUsing(function ($tagHash, &$iterator) {
+            ->andReturnUsing(function ($tagHash, &$iterator): array {
                 $iterator = 0;
-                return ['key1' => '1', 'key2' => '1'];
+
+                return ['live' => '1', 'orphan1' => '1', 'orphan2' => '1'];
             });
-
-        // Sequential EXISTS checks in cluster mode
-        $connection->shouldReceive('exists')
-            ->once()
-            ->with('prefix:key1')
-            ->andReturn(1);
-        $connection->shouldReceive('exists')
-            ->once()
-            ->with('prefix:key2')
-            ->andReturn(0);
-
+        $connection->shouldReceive('exists')->once()->with('prefix:live')->andReturn(1);
+        $connection->shouldReceive('exists')->twice()->with('prefix:orphan1')->andReturn(0);
+        $connection->shouldReceive('exists')->twice()->with('prefix:orphan2')->andReturn(0);
         $connection->shouldReceive('hDel')
             ->once()
-            ->with('prefix:_any:tag:users:entries', 'key2')
-            ->andReturn(1);
+            ->with('prefix:_any:tag:users:entries', 'orphan1', 'orphan2')
+            ->andReturn(2);
+        $connection->shouldReceive('hLen')->once()->andReturn(1);
 
-        $connection->shouldReceive('hLen')
-            ->once()
-            ->andReturn(1);
+        $result = (new Prune($store->getContext()))->execute();
 
-        $operation = new Prune($store->getContext());
-        $result = $operation->execute();
-
-        $this->assertSame(1, $result['hashes_scanned']);
-        $this->assertSame(2, $result['fields_checked']);
-        $this->assertSame(1, $result['orphans_removed']);
+        $this->assertSame(3, $result['fields_checked']);
+        $this->assertSame(2, $result['orphans_removed']);
     }
 
-    /**
-     * @test
-     */
-    public function testPruneHandlesEmptyHscanResult(): void
+    public function testClusterPruneRepairsAFieldOnlyWhenItIsStillMissing(): void
     {
-        $connection = $this->mockConnection();
-
-        $connection->shouldReceive('zRemRangeByScore')
-            ->once()
-            ->andReturn(0);
-
-        $connection->shouldReceive('zRange')
-            ->once()
-            ->andReturn(['users']);
-
-        // HSCAN returns empty (no fields in hash)
+        [$store, , $connection] = $this->createClusterStore(tagMode: 'any');
+        $connection->shouldReceive('zRemRangeByScore')->once()->andReturn(0);
+        $connection->shouldReceive('zRange')->once()->andReturn(['users']);
         $connection->shouldReceive('hScan')
             ->once()
-            ->andReturnUsing(function ($tagHash, &$iterator) {
+            ->andReturnUsing(function ($tagHash, &$iterator): array {
                 $iterator = 0;
+
+                return ['raced' => '1'];
+            });
+        $connection->shouldReceive('exists')
+            ->twice()
+            ->with('prefix:raced')
+            ->andReturn(0, 1);
+        $connection->shouldReceive('hDel')->once()->andReturn(1);
+        $connection->shouldReceive('sismember')
+            ->once()
+            ->with('prefix:raced:_any:tags', 'users')
+            ->andReturn(true);
+        $connection->shouldReceive('hsetnx')
+            ->once()
+            ->with('prefix:_any:tag:users:entries', 'raced', StoreContext::TAG_FIELD_VALUE)
+            ->andReturn(false);
+        $connection->shouldReceive('hLen')->once()->andReturn(1);
+
+        $result = (new Prune($store->getContext()))->execute();
+
+        $this->assertSame(0, $result['orphans_removed']);
+    }
+
+    public function testClusterPruneRepairsAFieldAfterConcurrentRemovalReturnsZero(): void
+    {
+        [$store, , $connection] = $this->createClusterStore(tagMode: 'any');
+        $connection->shouldReceive('zRemRangeByScore')->once()->andReturn(0);
+        $connection->shouldReceive('zRange')->once()->andReturn(['users']);
+        $connection->shouldReceive('hScan')
+            ->once()
+            ->andReturnUsing(function ($tagHash, &$iterator): array {
+                $iterator = 0;
+
+                return ['raced' => '1'];
+            });
+        $connection->shouldReceive('exists')
+            ->twice()
+            ->with('prefix:raced')
+            ->andReturn(0, 1);
+        $connection->shouldReceive('hDel')->once()->andReturn(0);
+        $connection->shouldReceive('sismember')
+            ->once()
+            ->with('prefix:raced:_any:tags', 'users')
+            ->andReturn(true);
+        $connection->shouldReceive('hsetnx')
+            ->once()
+            ->with('prefix:_any:tag:users:entries', 'raced', StoreContext::TAG_FIELD_VALUE)
+            ->andReturn(false);
+        $connection->shouldReceive('hLen')->once()->andReturn(1);
+
+        $result = (new Prune($store->getContext()))->execute();
+
+        $this->assertSame(0, $result['orphans_removed']);
+    }
+
+    public function testClusterPruneRepairsARegistryEntryWithoutOverwritingAWriterScore(): void
+    {
+        [$store, , $connection] = $this->createClusterStore(tagMode: 'any');
+        $connection->shouldReceive('zRemRangeByScore')->once()->andReturn(0);
+        $connection->shouldReceive('zRange')->once()->andReturn(['users']);
+        $connection->shouldReceive('hScan')
+            ->once()
+            ->andReturnUsing(function ($tagHash, &$iterator): array {
+                $iterator = 0;
+
                 return [];
             });
-
-        // Should still check HLEN
-        $connection->shouldReceive('hLen')
+        $connection->shouldReceive('hLen')->twice()->andReturn(0, 1);
+        $connection->shouldReceive('zrem')
             ->once()
+            ->with('prefix:_any:tag:registry', 'users')
+            ->andReturn(1);
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->with('prefix:_any:tag:registry', ['NX'], StoreContext::MAX_EXPIRY, 'users')
             ->andReturn(0);
 
-        $connection->shouldReceive('del')
-            ->once()
-            ->andReturn(1);
+        $result = (new Prune($store->getContext()))->execute();
 
-        $store = $this->createStore($connection);
-        $store->setTagMode('any');
-        $operation = new Prune($store->getContext());
-
-        $result = $operation->execute();
-
-        $this->assertSame(1, $result['hashes_scanned']);
-        $this->assertSame(0, $result['fields_checked']);
-        $this->assertSame(0, $result['orphans_removed']);
-        $this->assertSame(1, $result['empty_hashes_deleted']);
+        $this->assertSame(0, $result['empty_hashes_deleted']);
+        $this->assertSame(0, $result['orphaned_tags_removed']);
     }
 
-    /**
-     * @test
-     */
-    public function testPruneHandlesHscanWithMultipleIterations(): void
-    {
-        // Use FakeRedisClient stub for proper reference parameter handling
-        // (Mockery's andReturnUsing doesn't propagate &$iterator modifications)
-        $registryKey = 'prefix:_any:tag:registry';
-        $tagHashKey = 'prefix:_any:tag:users:entries';
-
-        $fakeClient = new FakeRedisClient(
-            scanResults: [],
-            execResults: [
-                [1, 0], // First EXISTS batch: key1 exists, key2 orphaned
-                [0],    // Second EXISTS batch: key3 orphaned
-            ],
-            hScanResults: [
-                $tagHashKey => [
-                    // First hScan: returns 2 fields, iterator = 100 (continue)
-                    ['fields' => ['key1' => '1', 'key2' => '1'], 'iterator' => 100],
-                    // Second hScan: returns 1 field, iterator = 0 (done)
-                    ['fields' => ['key3' => '1'], 'iterator' => 0],
-                ],
-            ],
-            zRangeResults: [
-                $registryKey => ['users'],
-            ],
-            hLenResults: [
-                $tagHashKey => 1, // 1 field remaining after cleanup
-            ],
-        );
-
-        $store = $this->createStoreWithFakeClient($fakeClient, tagMode: 'any');
-
-        $operation = new Prune($store->getContext());
-        $result = $operation->execute();
-
-        // Verify hScan was called twice (multi-iteration)
-        $this->assertSame(2, $fakeClient->getHScanCallCount());
-
-        // Verify stats
-        $this->assertSame(1, $result['hashes_scanned']);
-        $this->assertSame(3, $result['fields_checked']); // 2 + 1 fields
-        $this->assertSame(2, $result['orphans_removed']); // key2 + key3
-    }
-
-    public function testPruneContinuesAfterAnEmptyNonterminalHashPage(): void
+    public function testPruneContinuesAfterEmptyAndNonterminalHashPages(): void
     {
         $registryKey = 'prefix:_any:tag:registry';
         $tagHashKey = 'prefix:_any:tag:users:entries';
         $fakeClient = new FakeRedisClient(
-            execResults: [
-                [1],
-            ],
             hScanResults: [
                 $tagHashKey => [
                     ['fields' => [], 'iterator' => 100],
-                    ['fields' => ['key1' => '1'], 'iterator' => 0],
+                    ['fields' => ['key1' => '1'], 'iterator' => 50],
+                    ['fields' => ['key2' => '1'], 'iterator' => 0],
                 ],
             ],
             zRangeResults: [
                 $registryKey => ['users'],
             ],
-            hLenResults: [
-                $tagHashKey => 1,
-            ],
+            evalShaResults: [1, 0, [0, 0]],
         );
 
         $store = $this->createStoreWithFakeClient($fakeClient, tagMode: 'any');
-        $operation = new Prune($store->getContext());
+        $result = (new Prune($store->getContext()))->execute();
 
-        $result = $operation->execute();
-
-        $this->assertSame(1, $result['fields_checked']);
-        $this->assertSame(2, $fakeClient->getHScanCallCount());
-    }
-
-    /**
-     * @test
-     */
-    public function testPruneUsesCustomScanCount(): void
-    {
-        $connection = $this->mockConnection();
-
-        $connection->shouldReceive('zRemRangeByScore')
-            ->once()
-            ->andReturn(0);
-
-        $connection->shouldReceive('zRange')
-            ->once()
-            ->andReturn(['users']);
-
-        // HSCAN should use custom count
-        $connection->shouldReceive('hScan')
-            ->once()
-            ->with(m::any(), m::any(), '*', 500)
-            ->andReturnUsing(function ($tagHash, &$iterator) {
-                $iterator = 0;
-                return [];
-            });
-
-        $connection->shouldReceive('hLen')
-            ->once()
-            ->andReturn(0);
-
-        $connection->shouldReceive('del')
-            ->once()
-            ->andReturn(1);
-
-        $store = $this->createStore($connection);
-        $store->setTagMode('any');
-        $operation = new Prune($store->getContext());
-
-        $operation->execute(500);
-    }
-
-    /**
-     * @test
-     */
-    public function testPruneViaStoreOperationsContainer(): void
-    {
-        $connection = $this->mockConnection();
-
-        $connection->shouldReceive('zRemRangeByScore')
-            ->once()
-            ->andReturn(0);
-
-        $connection->shouldReceive('zRange')
-            ->once()
-            ->andReturn([]);
-
-        $store = $this->createStore($connection);
-        $store->setTagMode('any');
-
-        // Access via the operations container
-        $result = $store->anyTagOps()->prune()->execute();
-
-        $this->assertSame(0, $result['hashes_scanned']);
-    }
-
-    /**
-     * @test
-     */
-    public function testPruneRemovesExpiredTagsFromRegistry(): void
-    {
-        $connection = $this->mockConnection();
-
-        // 5 expired tags removed
-        $connection->shouldReceive('zRemRangeByScore')
-            ->once()
-            ->with('prefix:_any:tag:registry', '-inf', m::type('string'))
-            ->andReturn(5);
-
-        $connection->shouldReceive('zRange')
-            ->once()
-            ->andReturn([]);
-
-        $store = $this->createStore($connection);
-        $store->setTagMode('any');
-        $operation = new Prune($store->getContext());
-
-        $result = $operation->execute();
-
-        $this->assertSame(5, $result['expired_tags_removed']);
-    }
-
-    /**
-     * @test
-     */
-    public function testPruneDoesNotRemoveNonOrphanedFields(): void
-    {
-        $connection = $this->mockConnection();
-
-        $connection->shouldReceive('zRemRangeByScore')
-            ->once()
-            ->andReturn(0);
-
-        $connection->shouldReceive('zRange')
-            ->once()
-            ->andReturn(['users']);
-
-        $connection->shouldReceive('hScan')
-            ->once()
-            ->andReturnUsing(function ($tagHash, &$iterator) {
-                $iterator = 0;
-                return ['key1' => '1', 'key2' => '1', 'key3' => '1'];
-            });
-
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('exists')->times(3)->andReturn($connection);
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([1, 1, 1]); // All keys exist
-
-        // Should NOT call hDel since no orphans
-        $connection->shouldNotReceive('hDel');
-
-        $connection->shouldReceive('hLen')
-            ->once()
-            ->andReturn(3);
-
-        $store = $this->createStore($connection);
-        $store->setTagMode('any');
-        $operation = new Prune($store->getContext());
-
-        $result = $operation->execute();
-
-        $this->assertSame(1, $result['hashes_scanned']);
-        $this->assertSame(3, $result['fields_checked']);
-        $this->assertSame(0, $result['orphans_removed']);
-        $this->assertSame(0, $result['empty_hashes_deleted']);
+        $this->assertSame(3, $fakeClient->getHScanCallCount());
+        $this->assertCount(3, $fakeClient->getEvalShaCalls());
+        $this->assertSame(2, $result['fields_checked']);
+        $this->assertSame(1, $result['orphans_removed']);
     }
 }

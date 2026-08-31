@@ -116,6 +116,7 @@ class PruneIntegrationTest extends RedisCacheIntegrationTestCase
 
         // Verify hash exists
         $this->assertRedisKeyExists($this->anyModeTagKey('user:1'));
+        $this->assertTrue($this->anyModeRegistryHasTag('user:1'));
 
         // Delete the cache key outside the metadata-aware forget path to
         // simulate an orphaned field left by another invalidation path.
@@ -125,10 +126,13 @@ class PruneIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertTrue($this->anyModeTagHasEntry('user:1', 'post:1'));
 
         // Run prune
-        $this->store()->anyTagOps()->prune()->execute();
+        $result = $this->store()->anyTagOps()->prune()->execute();
 
-        // Hash should be deleted (was empty after orphan removal)
+        // The final HDEL removes the hash; prune also removes its registry member.
         $this->assertRedisKeyNotExists($this->anyModeTagKey('user:1'));
+        $this->assertFalse($this->anyModeRegistryHasTag('user:1'));
+        $this->assertSame(1, $result['empty_hashes_deleted']);
+        $this->assertSame(1, $result['orphaned_tags_removed']);
     }
 
     public function testAnyModePrunePreservesValidFields(): void
@@ -238,11 +242,14 @@ class PruneIntegrationTest extends RedisCacheIntegrationTestCase
 
         // Orphaned field in user:1
         $this->assertTrue($this->anyModeTagHasEntry('user:1', 'post:1'));
+        $this->assertTrue($this->anyModeRegistryHasTag('user:1'));
 
         // Prune should remove it
-        $this->store()->anyTagOps()->prune()->execute();
+        $result = $this->store()->anyTagOps()->prune()->execute();
 
         $this->assertFalse($this->anyModeTagHasEntry('user:1', 'post:1'));
+        $this->assertFalse($this->anyModeRegistryHasTag('user:1'));
+        $this->assertSame(1, $result['orphaned_tags_removed']);
     }
 
     // =========================================================================
@@ -361,7 +368,7 @@ class PruneIntegrationTest extends RedisCacheIntegrationTestCase
     // REGISTRY CLEANUP (ANY MODE)
     // =========================================================================
 
-    public function testAnyModePruneRemovesStaleTagsFromRegistry(): void
+    public function testAnyModeFlushRemovesTagsFromRegistry(): void
     {
         $this->setTagMode(TagMode::Any);
 

@@ -767,6 +767,9 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
         $connection->shouldReceive('query')->andReturnUsing(function () use ($connection, $grammar, $processor) {
             return new BaseBuilder($connection, $grammar, $processor);
         });
+        $connection->shouldReceive('table')->andReturnUsing(
+            fn ($table, $as = null) => $connection->query()->from($table, $as)
+        );
         $connection->shouldReceive('getDatabaseName')->andReturn('database');
         $resolver = m::mock(ConnectionResolverInterface::class, ['connection' => $connection]);
 

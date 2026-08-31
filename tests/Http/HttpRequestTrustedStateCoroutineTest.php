@@ -13,7 +13,7 @@ use function Hypervel\Coroutine\parallel;
 
 class HttpRequestTrustedStateCoroutineTest extends TestCase
 {
-    public function testConcurrentRequestsHaveIsolatedTrustedProxies()
+    public function testConcurrentRequestsHaveIsolatedTrustedProxies(): void
     {
         [$resultA, $resultB] = parallel([
             function () {
@@ -50,7 +50,7 @@ class HttpRequestTrustedStateCoroutineTest extends TestCase
         $this->assertTrue($resultB['isFrom']);
     }
 
-    public function testConcurrentClientIpResolutionIsIsolated()
+    public function testConcurrentClientIpResolutionIsIsolated(): void
     {
         [$clientA, $clientB] = parallel([
             function () {
@@ -83,7 +83,7 @@ class HttpRequestTrustedStateCoroutineTest extends TestCase
         $this->assertSame('8.8.8.8', $clientB);
     }
 
-    public function testConcurrentHostResolutionIsIsolated()
+    public function testConcurrentHostResolutionIsIsolated(): void
     {
         [$hostA, $hostB] = parallel([
             function () {
@@ -110,7 +110,7 @@ class HttpRequestTrustedStateCoroutineTest extends TestCase
         $this->assertSame('b.com', $hostB);
     }
 
-    public function testHostValidityFlagsAreIsolated()
+    public function testHostValidityFlagsAreIsolated(): void
     {
         [$resultA, $resultB] = parallel([
             function () {

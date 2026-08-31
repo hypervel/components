@@ -11,6 +11,7 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use Exception;
 use Foo\Bar\EloquentModelNamespacedStub;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
 use Hypervel\Contracts\Database\Eloquent\CastsInboundAttributes;
@@ -77,6 +78,8 @@ use stdClass;
 use Stringable as NativeStringable;
 use UnitEnum;
 use WeakMap;
+
+use function Hypervel\Coroutine\parallel;
 
 include_once 'Enums.php';
 
@@ -4117,6 +4120,124 @@ class DatabaseEloquentModelTest extends TestCase
         }
     }
 
+    public function testDisabledMissingAttributeStrictnessDoesNotTouchCoroutineContext(): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+        $contextKey = (new ReflectionClass(Model::class))
+            ->getReflectionConstant('MISSING_ATTRIBUTE_ACCESS_SUPPRESSED_CONTEXT_KEY')
+            ->getValue();
+        CoroutineContext::forget($contextKey);
+        $model = new ModelStub(['id' => 1]);
+        $model->exists = true;
+
+        $this->assertFalse(isset($model->missing));
+        $this->assertFalse(CoroutineContext::has($contextKey));
+    }
+
+    public function testMissingAttributeSuppressionIsIsolatedBetweenConcurrentAccessors(): void
+    {
+        $originalMode = Model::preventsAccessingMissingAttributes();
+        Model::preventAccessingMissingAttributes();
+
+        try {
+            $yielding = new MissingAttributeSuppressionModel(['yielding' => 'value']);
+            $yielding->exists = true;
+            $missing = new ModelStub;
+            $missing->exists = true;
+
+            [$exists, $siblingThrew] = parallel([
+                fn () => isset($yielding->yielding),
+                function () use ($missing): bool {
+                    usleep(5_000);
+
+                    try {
+                        $missing->missing;
+                    } catch (MissingAttributeException) {
+                        return true;
+                    }
+
+                    return false;
+                },
+            ]);
+
+            $this->assertTrue($exists);
+            $this->assertTrue($siblingThrew);
+        } finally {
+            Model::preventAccessingMissingAttributes($originalMode);
+        }
+    }
+
+    public function testNestedMissingAttributeChecksRestoreSuppression(): void
+    {
+        $originalMode = Model::preventsAccessingMissingAttributes();
+        Model::preventAccessingMissingAttributes();
+
+        try {
+            $model = new MissingAttributeSuppressionModel(['nested' => 'value']);
+            $model->exists = true;
+
+            $this->assertTrue(isset($model->nested));
+            $this->assertFalse($model->nestedCheckFoundMissingAttribute);
+            $this->expectException(MissingAttributeException::class);
+
+            $model->missing;
+        } finally {
+            Model::preventAccessingMissingAttributes($originalMode);
+        }
+    }
+
+    public function testThrowingExistenceAccessorRestoresMissingAttributeChecks(): void
+    {
+        $originalMode = Model::preventsAccessingMissingAttributes();
+        Model::preventAccessingMissingAttributes();
+        $failure = new RuntimeException('accessor failed');
+
+        try {
+            $model = new MissingAttributeSuppressionModel(['exploding' => 'value']);
+            $model->exists = true;
+            $model->attributeFailure = $failure;
+
+            try {
+                isset($model->exploding);
+                $this->fail('The accessor exception was not propagated.');
+            } catch (RuntimeException $exception) {
+                $this->assertSame($failure, $exception);
+            }
+
+            try {
+                $model->missing;
+                $this->fail('Missing attribute checks were not restored.');
+            } catch (MissingAttributeException) {
+                $this->addToAssertionCount(1);
+            }
+        } finally {
+            Model::preventAccessingMissingAttributes($originalMode);
+        }
+    }
+
+    public function testExistenceCheckSuppressesCustomMissingAttributeCallbackOnlyLocally(): void
+    {
+        $originalMode = Model::preventsAccessingMissingAttributes();
+        Model::preventAccessingMissingAttributes();
+        $callbackKeys = [];
+        Model::handleMissingAttributeViolationUsing(function (Model $model, string $key) use (&$callbackKeys): void {
+            $callbackKeys[] = $key;
+        });
+
+        try {
+            $model = new ModelStub;
+            $model->exists = true;
+
+            $this->assertFalse(isset($model->checked));
+            $model->reported;
+
+            $this->assertSame(['reported'], $callbackKeys);
+        } finally {
+            Model::preventAccessingMissingAttributes($originalMode);
+            Model::handleMissingAttributeViolationUsing(null);
+        }
+    }
+
     protected function addMockConnection($model)
     {
         $model->setConnectionResolver($resolver = m::mock(ConnectionResolverInterface::class));
@@ -4696,6 +4817,32 @@ class ModelStub extends Model
     public function scopeDate(Builder $builder, CarbonInterface $date)
     {
         $this->scopesCalled['date'] = $date;
+    }
+}
+
+class MissingAttributeSuppressionModel extends ModelStub
+{
+    public bool $nestedCheckFoundMissingAttribute = false;
+
+    public RuntimeException $attributeFailure;
+
+    public function getYieldingAttribute(mixed $value): mixed
+    {
+        usleep(20_000);
+
+        return $value;
+    }
+
+    public function getNestedAttribute(mixed $value): mixed
+    {
+        $this->nestedCheckFoundMissingAttribute = isset($this->missing);
+
+        return $value;
+    }
+
+    public function getExplodingAttribute(): never
+    {
+        throw $this->attributeFailure;
     }
 }
 

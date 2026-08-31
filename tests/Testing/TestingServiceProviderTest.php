@@ -40,10 +40,11 @@ class TestingServiceProviderTest extends TestCase
         ];
     }
 
-    public function testRegistersParallelTestingSingleton(): void
+    public function testLeavesParallelTestingUnboundForAutoSingletonResolution(): void
     {
-        $this->assertTrue($this->app->bound(ParallelTesting::class));
+        $this->assertFalse($this->app->bound(ParallelTesting::class));
         $this->assertInstanceOf(ParallelTesting::class, $this->app->make(ParallelTesting::class));
+        $this->assertFalse($this->app->bound(ParallelTesting::class));
     }
 
     public function testReturnsSameInstance(): void

@@ -31,6 +31,7 @@ use Hypervel\Support\Traits\Macroable;
 use JsonException;
 use ReflectionClass;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\ConsoleOutput;
@@ -1189,6 +1190,11 @@ class Application extends Container implements ApplicationContract, CachesConfig
             try {
                 $this->call($callback);
             } catch (Throwable $throwable) {
+                // Cancellation is injected asynchronously, so a dedicated catch analyzes as unreachable here.
+                if ($throwable instanceof CanceledException) {
+                    throw $throwable;
+                }
+
                 $exception ??= $throwable;
             }
         }

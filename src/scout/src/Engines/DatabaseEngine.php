@@ -90,10 +90,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
                 }
             })
             ->when(count($this->getFullTextColumns($builder)) === 0, function (EloquentBuilder $query) use ($builder): void {
-                $query->orderBy(
-                    $builder->model->getTable() . '.' . $builder->model->getScoutKeyName(),
-                    'desc'
-                );
+                $query->orderBy($builder->model->getQualifiedKeyName(), 'desc');
             })
             ->when($this->shouldOrderByRelevance($builder), function (EloquentBuilder $query) use ($builder): void {
                 $this->orderByRelevance($builder, $query);
@@ -117,10 +114,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
                 }
             })
             ->when(count($this->getFullTextColumns($builder)) === 0, function (EloquentBuilder $query) use ($builder): void {
-                $query->orderBy(
-                    $builder->model->getTable() . '.' . $builder->model->getScoutKeyName(),
-                    'desc'
-                );
+                $query->orderBy($builder->model->getQualifiedKeyName(), 'desc');
             })
             ->when($this->shouldOrderByRelevance($builder), function (EloquentBuilder $query) use ($builder): void {
                 $this->orderByRelevance($builder, $query);
@@ -146,10 +140,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
                 }
             })
             ->when(count($this->getFullTextColumns($builder)) === 0, function (EloquentBuilder $query) use ($builder): void {
-                $query->orderBy(
-                    $builder->model->getTable() . '.' . $builder->model->getScoutKeyName(),
-                    'desc'
-                );
+                $query->orderBy($builder->model->getQualifiedKeyName(), 'desc');
             })
             ->when($this->shouldOrderByRelevance($builder), function (EloquentBuilder $query) use ($builder): void {
                 $this->orderByRelevance($builder, $query);
@@ -201,13 +192,20 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
         $connectionType = $builder->modelConnectionType();
 
         return $query->where(function (EloquentBuilder $query) use ($connectionType, $builder, $columns, $prefixColumns, $fullTextColumns): void {
+            $primaryKey = $builder->model->getKeyName();
+            $integerPrimaryKey = in_array($builder->model->getKeyType(), ['int', 'integer'], true);
+            $primaryKeyValue = $builder->query;
             $canSearchPrimaryKey = ctype_digit((string) $builder->query)
-                && in_array($builder->model->getKeyType(), ['int', 'integer'], true)
-                && ($connectionType !== 'pgsql' || (int) $builder->query <= PHP_INT_MAX)
-                && in_array($builder->model->getScoutKeyName(), $columns, true);
+                && $integerPrimaryKey
+                && in_array($primaryKey, $columns, true);
+
+            if ($canSearchPrimaryKey && $connectionType === 'pgsql') {
+                $primaryKeyValue = ltrim((string) $builder->query, '0') ?: '0';
+                $canSearchPrimaryKey = filter_var($primaryKeyValue, FILTER_VALIDATE_INT) !== false;
+            }
 
             if ($canSearchPrimaryKey) {
-                $query->orWhere($builder->model->getQualifiedKeyName(), $builder->query);
+                $query->orWhere($builder->model->getQualifiedKeyName(), $primaryKeyValue);
             }
 
             $likeOperator = $connectionType === 'pgsql' ? 'ilike' : 'like';
@@ -217,7 +215,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
                     continue;
                 }
 
-                if ($canSearchPrimaryKey && $column === $builder->model->getScoutKeyName()) {
+                if ($integerPrimaryKey && $column === $primaryKey) {
                     continue;
                 }
 
@@ -398,6 +396,13 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
             /** @var SearchUsingFullText|SearchUsingPrefix $attributeInstance */
             $attributeInstance = $attribute->newInstance();
             $columns = array_merge($columns, $attributeInstance->columns);
+        }
+
+        if (in_array($builder->model->getKeyType(), ['int', 'integer'], true)) {
+            $columns = array_values(array_filter(
+                $columns,
+                fn (string $column): bool => $column !== $builder->model->getKeyName()
+            ));
         }
 
         return $this->attributeColumns[$modelClass][$attributeClass] = $columns;

@@ -48,14 +48,14 @@ class Serializer
             return static::filterAttributes($attributes);
         }
 
-        $attributes['type'] = match (get_class($type)) {
-            Types\ArrayType::class => 'array',
-            Types\BooleanType::class => 'boolean',
-            Types\IntegerType::class => 'integer',
-            Types\NumberType::class => 'number',
-            Types\ObjectType::class => 'object',
-            Types\StringType::class => 'string',
-            Types\UnionType::class => $attributes['types'],
+        $attributes['type'] = match (true) {
+            $type instanceof Types\ArrayType => 'array',
+            $type instanceof Types\BooleanType => 'boolean',
+            $type instanceof Types\IntegerType => 'integer',
+            $type instanceof Types\NumberType => 'number',
+            $type instanceof Types\ObjectType => 'object',
+            $type instanceof Types\StringType => 'string',
+            $type instanceof Types\UnionType => $attributes['types'],
             default => throw new RuntimeException('Unsupported [' . get_class($type) . '] type.'),
         };
 

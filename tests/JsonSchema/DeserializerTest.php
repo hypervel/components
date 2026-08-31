@@ -237,7 +237,7 @@ class DeserializerTest extends TestCase
     public function testItRejectsFalseItems(): void
     {
         $this->expectExceptionObject(new InvalidArgumentException(
-            'The JSON Schema [items] keyword must be true or a single object schema.'
+            'Unable to represent the schema for the [items] keyword; boolean schemas are not supported.'
         ));
 
         JsonSchema::fromArray([
@@ -488,7 +488,7 @@ class DeserializerTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testItMergesSiblingKeysOverARef(): void
+    public function testReferenceSiblingAnnotationsOverrideTargetAnnotations(): void
     {
         $type = JsonSchema::fromArray([
             'type' => 'object',
@@ -519,7 +519,7 @@ class DeserializerTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testItMergesEveryLevelOfAReferenceChainWithOuterSiblingsWinning(): void
+    public function testReferenceChainAnnotationsUseTheOutermostValue(): void
     {
         $type = JsonSchema::fromArray([
             '$ref' => '#/$defs/outer',
@@ -545,6 +545,110 @@ class DeserializerTest extends TestCase
             'minLength' => 1,
             'type' => 'string',
         ], $type->toArray());
+    }
+
+    #[DataProvider('compatibleReferenceSiblingProvider')]
+    public function testReferenceSiblingAssertionsMayBeMissingOrIdentical(array $siblings, array $expected): void
+    {
+        $type = JsonSchema::fromArray([
+            '$ref' => '#/$defs/value',
+            ...$siblings,
+            '$defs' => [
+                'value' => ['type' => 'string', 'minLength' => 1],
+            ],
+        ]);
+
+        $this->assertSame($expected, $type->toArray());
+    }
+
+    public static function compatibleReferenceSiblingProvider(): array
+    {
+        return [
+            'missing assertion' => [
+                ['maxLength' => 5],
+                ['minLength' => 1, 'maxLength' => 5, 'type' => 'string'],
+            ],
+            'identical assertions' => [
+                ['type' => 'string', 'minLength' => 1],
+                ['minLength' => 1, 'type' => 'string'],
+            ],
+        ];
+    }
+
+    #[DataProvider('referenceNullDefaultProvider')]
+    public function testReferenceSiblingAnnotationsPreserveExplicitNullDefaults(mixed $targetDefault): void
+    {
+        $type = JsonSchema::fromArray([
+            '$ref' => '#/$defs/value',
+            'default' => null,
+            '$defs' => [
+                'value' => ['type' => 'string', 'default' => $targetDefault],
+            ],
+        ]);
+
+        $this->assertSame([
+            'default' => null,
+            'type' => 'string',
+        ], $type->toArray());
+    }
+
+    public static function referenceNullDefaultProvider(): array
+    {
+        return [
+            'outer null overrides a target value' => ['fallback'],
+            'matching null defaults are identical' => [null],
+        ];
+    }
+
+    #[DataProvider('conflictingReferenceSiblingProvider')]
+    public function testItRejectsConflictingReferenceSiblingAssertions(array $target, array $siblings, string $keyword): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException(
+            'Conflicting [' . $keyword . '] between the local $ref [#/$defs/value] target and its sibling keys.'
+        ));
+
+        JsonSchema::fromArray([
+            '$ref' => '#/$defs/value',
+            ...$siblings,
+            '$defs' => ['value' => $target],
+        ]);
+    }
+
+    public static function conflictingReferenceSiblingProvider(): array
+    {
+        return [
+            'type' => [['type' => 'string'], ['type' => 'integer'], 'type'],
+            'scalar constraint' => [['type' => 'string', 'minLength' => 1], ['minLength' => 2], 'minLength'],
+            'format' => [['type' => 'string', 'format' => 'email'], ['format' => 'uuid'], 'format'],
+            'enum order' => [[
+                'type' => 'string',
+                'enum' => ['draft', 'published'],
+            ], [
+                'enum' => ['published', 'draft'],
+            ], 'enum'],
+            'required' => [['type' => 'object', 'required' => ['name']], ['required' => ['email']], 'required'],
+            'properties' => [[
+                'type' => 'object',
+                'properties' => ['name' => ['type' => 'string']],
+            ], [
+                'properties' => ['name' => ['type' => 'integer']],
+            ], 'properties'],
+        ];
+    }
+
+    public function testItRejectsAConflictingAssertionWithinAReferenceChain(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException(
+            'Conflicting [minLength] between the local $ref [#/$defs/target] target and its sibling keys.'
+        ));
+
+        JsonSchema::fromArray([
+            '$ref' => '#/$defs/outer',
+            '$defs' => [
+                'outer' => ['$ref' => '#/$defs/target', 'minLength' => 2],
+                'target' => ['type' => 'string', 'minLength' => 1],
+            ],
+        ]);
     }
 
     public function testItResolvesEscapedJsonPointerSegments(): void
@@ -764,6 +868,37 @@ class DeserializerTest extends TestCase
         ]);
     }
 
+    public function testNullableCompositionResolvesAReferencedBranchOnce(): void
+    {
+        [$type, $lookups, $nodes] = JsonSchemaCountingDeserializer::deserializeWithCounts([
+            'anyOf' => [
+                ['$ref' => '#/$defs/value'],
+                ['type' => 'null'],
+            ],
+            '$defs' => [
+                'value' => ['type' => 'string'],
+            ],
+        ]);
+
+        $this->assertInstanceOf(StringType::class, $type);
+        $this->assertSame(1, $lookups);
+        $this->assertSame(2, $nodes);
+    }
+
+    public function testNullableCompositionDoesNotChargeAnInlineBranchAsAReference(): void
+    {
+        [$type, $lookups, $nodes] = JsonSchemaCountingDeserializer::deserializeWithCounts([
+            'anyOf' => [
+                ['type' => 'string'],
+                ['type' => 'null'],
+            ],
+        ]);
+
+        $this->assertInstanceOf(StringType::class, $type);
+        $this->assertSame(0, $lookups);
+        $this->assertSame(1, $nodes);
+    }
+
     public function testItDeserializesAMultiTypeUnion(): void
     {
         $type = JsonSchema::fromArray([
@@ -935,6 +1070,82 @@ class DeserializerTest extends TestCase
                 'type' => ['string', 'null'],
             ], $type->toArray());
         }
+    }
+
+    #[DataProvider('nullableCompositionAnnotationProvider')]
+    public function testNullableCompositionSiblingAnnotationsOverrideBranchAnnotations(string $keyword, mixed $branchDefault): void
+    {
+        $type = JsonSchema::fromArray([
+            'title' => 'Outer title',
+            'description' => 'Outer description',
+            'default' => null,
+            $keyword => [
+                [
+                    'type' => 'string',
+                    'title' => 'Branch title',
+                    'description' => 'Branch description',
+                    'default' => $branchDefault,
+                ],
+                ['type' => 'null'],
+            ],
+        ]);
+
+        $this->assertSame([
+            'title' => 'Outer title',
+            'description' => 'Outer description',
+            'default' => null,
+            'type' => ['string', 'null'],
+        ], $type->toArray());
+    }
+
+    public static function nullableCompositionAnnotationProvider(): array
+    {
+        return [
+            'anyOf with a differing default' => ['anyOf', 'fallback'],
+            'anyOf with matching null defaults' => ['anyOf', null],
+            'oneOf with a differing default' => ['oneOf', 'fallback'],
+            'oneOf with matching null defaults' => ['oneOf', null],
+        ];
+    }
+
+    #[DataProvider('nullableCompositionKeywordProvider')]
+    public function testNullableCompositionSiblingAssertionsMayBeMissingOrIdentical(string $keyword): void
+    {
+        $type = JsonSchema::fromArray([
+            'minLength' => 2,
+            'maxLength' => 5,
+            $keyword => [
+                ['type' => 'string', 'minLength' => 2],
+                ['type' => 'null'],
+            ],
+        ]);
+
+        $this->assertSame([
+            'minLength' => 2,
+            'maxLength' => 5,
+            'type' => ['string', 'null'],
+        ], $type->toArray());
+    }
+
+    public static function nullableCompositionKeywordProvider(): array
+    {
+        return [
+            'anyOf' => ['anyOf'],
+            'oneOf' => ['oneOf'],
+        ];
+    }
+
+    public function testNullableCompositionIgnoresDifferingUnknownKeywords(): void
+    {
+        $type = JsonSchema::fromArray([
+            '$comment' => 'Outer comment',
+            'anyOf' => [
+                ['type' => 'string', '$comment' => 'Branch comment'],
+                ['type' => 'null'],
+            ],
+        ]);
+
+        $this->assertSame(['type' => ['string', 'null']], $type->toArray());
     }
 
     public function testItRejectsDuplicateBareNullBranchesInOneOf(): void
@@ -1158,19 +1369,60 @@ class DeserializerTest extends TestCase
         ];
     }
 
-    public function testItRejectsConflictingBranchAndOuterEnums(): void
-    {
+    #[DataProvider('conflictingNullableCompositionSiblingProvider')]
+    public function testItRejectsConflictingNullableCompositionSiblingAssertions(
+        string $composition,
+        array $branch,
+        array $siblings,
+        string $keyword,
+        string $branchDescription,
+    ): void {
         $this->expectExceptionObject(new InvalidArgumentException(
-            'Conflicting [enum] between a "anyOf" branch and its sibling keys.'
+            "Conflicting [{$keyword}] between {$branchDescription} and its sibling keys."
         ));
 
         JsonSchema::fromArray([
-            'enum' => ['archived'],
-            'anyOf' => [
-                ['type' => 'string', 'enum' => ['draft', 'published']],
+            ...$siblings,
+            $composition => [
+                $branch,
                 ['type' => 'null'],
             ],
         ]);
+    }
+
+    public static function conflictingNullableCompositionSiblingProvider(): array
+    {
+        return [
+            'type in anyOf' => ['anyOf', ['type' => 'string'], ['type' => 'integer'], 'type', 'an anyOf branch'],
+            'scalar constraint in oneOf' => [
+                'oneOf',
+                ['type' => 'string', 'minLength' => 1],
+                ['minLength' => 2],
+                'minLength',
+                'a oneOf branch',
+            ],
+            'enum in anyOf' => [
+                'anyOf',
+                ['type' => 'string', 'enum' => ['draft', 'published']],
+                ['enum' => ['archived']],
+                'enum',
+                'an anyOf branch',
+            ],
+            'required in oneOf' => [
+                'oneOf',
+                ['type' => 'object', 'required' => ['name']],
+                ['required' => ['email']],
+                'required',
+                'a oneOf branch',
+            ],
+            'properties in anyOf' => [
+                'anyOf',
+                ['type' => 'object', 'properties' => ['name' => ['type' => 'string']]],
+                ['properties' => ['name' => ['type' => 'integer']]],
+                'properties',
+                'an anyOf branch',
+            ],
+        ];
     }
 
     public function testItRejectsABranchOnlyEnumInNullableOneOf(): void
@@ -1280,6 +1532,13 @@ class DeserializerTest extends TestCase
             'oneOf sibling of anyOf' => [[
                 'anyOf' => [['type' => 'string'], ['type' => 'null']],
                 'oneOf' => [['type' => 'integer'], ['type' => 'null']],
+            ], 'oneOf', 'anyOf'],
+            'oneOf on both sides of anyOf' => [[
+                'anyOf' => [
+                    ['type' => 'string', 'oneOf' => [['type' => 'integer']]],
+                    ['type' => 'null'],
+                ],
+                'oneOf' => [['type' => 'boolean']],
             ], 'oneOf', 'anyOf'],
             'oneOf inside anyOf branch' => [[
                 'anyOf' => [
@@ -1715,7 +1974,6 @@ class DeserializerTest extends TestCase
             'anyOf' => [['type' => 'string', 'anyOf' => 'oops'], 'The JSON Schema [anyOf] keyword must be a non-empty array.'],
             'oneOf' => [['type' => 'string', 'oneOf' => 'oops'], 'The JSON Schema [oneOf] keyword must be a non-empty array.'],
             'numeric null' => [['type' => 'number', 'minimum' => null], 'The JSON Schema [minimum] constraint must be a number.'],
-            'items null' => [['type' => 'array', 'items' => null], 'The JSON Schema [items] keyword must be true or a single object schema.'],
         ];
     }
 
@@ -1733,7 +1991,10 @@ class DeserializerTest extends TestCase
         return [
             'properties' => [['properties' => null, 'minLength' => 2], 'The JSON Schema [properties] keyword must be an object.'],
             'required' => [['required' => null, 'minLength' => 2], 'The JSON Schema [required] keyword must be an array of strings.'],
-            'items' => [['items' => null, 'minLength' => 2], 'The JSON Schema [items] keyword must be true or a single object schema.'],
+            'items' => [[
+                'items' => null,
+                'minLength' => 2,
+            ], 'Unable to represent the schema for the [items] keyword; the schema fragment must be an array, null given.'],
             'uniqueItems' => [['uniqueItems' => null, 'minLength' => 2], 'The JSON Schema [uniqueItems] constraint must be a boolean.'],
             'minLength' => [['minLength' => null], 'The JSON Schema [minLength] constraint must be an integer.'],
             'minimum' => [['minimum' => null], 'The JSON Schema [minimum] constraint must be a number.'],
@@ -1751,6 +2012,34 @@ class DeserializerTest extends TestCase
                 'meta' => true,
             ],
         ]);
+    }
+
+    #[DataProvider('malformedSchemaFragmentProvider')]
+    public function testItReportsTheActualMalformedSchemaFragment(array $schema, string $message): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException($message));
+
+        JsonSchema::fromArray($schema);
+    }
+
+    public static function malformedSchemaFragmentProvider(): array
+    {
+        return [
+            'object property' => [[
+                'type' => 'object',
+                'properties' => ['meta' => new stdClass],
+            ], 'Unable to represent the schema for property [meta]; the schema fragment must be an array, stdClass given.'],
+            'null items' => [[
+                'type' => 'array',
+                'items' => null,
+            ], 'Unable to represent the schema for the [items] keyword; the schema fragment must be an array, null given.'],
+            'boolean anyOf branch' => [[
+                'anyOf' => [true, ['type' => 'null']],
+            ], 'Unable to represent the schema for an anyOf branch; boolean schemas are not supported.'],
+            'string oneOf branch' => [[
+                'oneOf' => ['invalid', ['type' => 'null']],
+            ], 'Unable to represent the schema for a oneOf branch; the schema fragment must be an array, string given.'],
+        ];
     }
 
     public function testItThrowsForANonNumericNumericConstraint(): void
@@ -1784,19 +2073,6 @@ class DeserializerTest extends TestCase
             'items' => [
                 ['type' => 'string'],
                 ['type' => 'integer'],
-            ],
-        ]);
-    }
-
-    public function testItThrowsWhenAUnionBranchConflictsWithSiblingKeys(): void
-    {
-        $this->expectExceptionObject(new InvalidArgumentException('Conflicting [type] between a "anyOf" branch and its sibling keys.'));
-
-        JsonSchema::fromArray([
-            'type' => 'integer',
-            'anyOf' => [
-                ['type' => 'string', 'minLength' => 3],
-                ['type' => 'null'],
             ],
         ]);
     }
@@ -1890,4 +2166,26 @@ class JsonSchemaDepthLimitedDeserializer extends Deserializer
 class JsonSchemaNodeLimitedDeserializer extends Deserializer
 {
     protected const int MAX_NODES = 1;
+}
+
+class JsonSchemaCountingDeserializer extends Deserializer
+{
+    protected const int MAX_NODES = 2;
+
+    protected int $lookups = 0;
+
+    public static function deserializeWithCounts(array $schema): array
+    {
+        $deserializer = new static($schema);
+        $type = $deserializer->build($schema);
+
+        return [$type, $deserializer->lookups, $deserializer->nodes];
+    }
+
+    protected function lookupRef(string $ref): array
+    {
+        ++$this->lookups;
+
+        return parent::lookupRef($ref);
+    }
 }

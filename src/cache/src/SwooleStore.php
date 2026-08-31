@@ -14,6 +14,7 @@ use Hypervel\Support\CarbonImmutable;
 use InvalidArgumentException;
 use Laravel\SerializableClosure\SerializableClosure;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class SwooleStore implements CanFlushLocks, LockProvider, Store
@@ -288,10 +289,18 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
 
         try {
             $this->registerIntervalIndex($metadataKey);
-        } catch (Throwable $e) {
-            $this->state->withRowLock($metadataKey, fn (): bool => $this->rawForget($metadataKey));
+        } catch (Throwable $failure) {
+            try {
+                $this->state->withRowLock($metadataKey, fn (): bool => $this->rawForget($metadataKey));
+            } catch (CanceledException $cleanupCancellation) {
+                if (! $failure instanceof CanceledException) {
+                    throw $cleanupCancellation;
+                }
+            } catch (Throwable) {
+                // Preserve the registration failure as primary.
+            }
 
-            throw $e;
+            throw $failure;
         }
 
         $this->registerLocalInterval($key);
@@ -920,16 +929,28 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
             $this->completeIntervalRefresh($metadataKey, $claimedAt);
 
             return $value;
-        } catch (Throwable $e) {
+        } catch (Throwable $failure) {
             if ($claimedAt !== null) {
-                $this->clearIntervalClaim($metadataKey, $claimedAt);
+                try {
+                    $this->clearIntervalClaim($metadataKey, $claimedAt);
+                } catch (CanceledException $cleanupCancellation) {
+                    if (! $failure instanceof CanceledException) {
+                        throw $cleanupCancellation;
+                    }
+                } catch (Throwable) {
+                    // Preserve the refresh failure as primary.
+                }
+            }
+
+            if ($failure instanceof CanceledException) {
+                throw $failure;
             }
 
             if ($rethrow) {
-                throw $e;
+                throw $failure;
             }
 
-            $this->reportIntervalException($e);
+            $this->reportIntervalException($failure);
 
             return null;
         }

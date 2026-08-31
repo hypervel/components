@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Pool;
 
+use Closure;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Pool\ConnectionInterface as PoolConnectionInterface;
+use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
@@ -20,8 +22,6 @@ use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
-
-use function Hypervel\Coroutine\go;
 
 /**
  * Wraps a database Connection for use with Hypervel's connection pool.
@@ -221,25 +221,50 @@ class PooledConnection implements PoolConnectionInterface
 
         $result = new Channel(1);
         $connection = $this->connection;
+        $started = null;
+        $callable = static function () use ($connection, $result): void {
+            try {
+                $healthy = $connection->ping();
+            } catch (CanceledException) {
+                return;
+            } catch (Throwable) {
+                $healthy = false;
+            }
+
+            $result->push($healthy, 0.0);
+        };
+        $wrapper = static function (Closure $run) use (&$started): void {
+            $started = Coroutine::id();
+            $run();
+        };
 
         try {
-            $started = go(static function () use ($connection, $result): void {
-                try {
-                    $healthy = $connection->ping();
-                } catch (CanceledException) {
-                    return;
-                } catch (Throwable) {
-                    $healthy = false;
-                }
+            FrameworkCoroutine::createOwned($callable, $wrapper);
+        } catch (CanceledException $exception) {
+            $this->cancelHeartbeatCoroutine($started);
 
-                $result->push($healthy, 0.0);
-            });
+            throw $exception;
         } catch (CoroutineCreateException) {
             return false;
         }
 
-        if ($result->pop($timeout) !== true) {
-            Coroutine::cancelById($started, throwException: true);
+        try {
+            $healthy = $result->pop($timeout);
+        } catch (CanceledException $exception) {
+            $this->cancelHeartbeatCoroutine($started);
+
+            throw $exception;
+        }
+
+        if ($healthy === false && $result->isCanceled()) {
+            $exception = new CanceledException('Waiting for a database heartbeat was canceled.');
+            $this->cancelHeartbeatCoroutine($started);
+
+            throw $exception;
+        }
+
+        if ($healthy !== true) {
+            $this->cancelHeartbeatCoroutine($started);
 
             return false;
         }
@@ -247,6 +272,16 @@ class PooledConnection implements PoolConnectionInterface
         $this->lastUseTime = hrtime(true) / 1e9;
 
         return true;
+    }
+
+    /**
+     * Cancel a live heartbeat coroutine.
+     */
+    private function cancelHeartbeatCoroutine(?int $coroutineId): void
+    {
+        if (is_int($coroutineId) && Coroutine::exists($coroutineId)) {
+            Coroutine::cancelById($coroutineId, throwException: true);
+        }
     }
 
     /**

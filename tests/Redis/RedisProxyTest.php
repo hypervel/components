@@ -10,6 +10,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Pool\PoolOption;
 use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Events\CommandFailed;
@@ -22,14 +23,20 @@ use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Redis\RedisSentinelFactory;
 use Hypervel\Redis\Subscriber\CommandBuilder;
+use Hypervel\Redis\Subscriber\Message;
+use Hypervel\Redis\Subscriber\Subscriber;
 use Hypervel\Tests\Redis\Fixtures\RespServer;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Redis as PhpRedis;
 use RedisCluster;
+use RedisClusterException;
+use RedisException;
 use RedisSentinel;
 use ReflectionClass;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Swoole\Coroutine\Channel as SwooleChannel;
 use Throwable;
 
 use function Hypervel\Coroutine\go;
@@ -110,6 +117,130 @@ class RedisProxyTest extends TestCase
             ],
             $redis->subscriptions,
         );
+    }
+
+    public function testSubscriberLoopDeliversMessagesUntilTheChannelCloses(): void
+    {
+        $message = new Message('updates', 'payload');
+        $channel = m::mock(Channel::class);
+        $channel->expects('pop')->twice()->andReturn($message, false);
+        $channel->expects('isCanceled')->andReturnFalse();
+        $subscriber = $this->mockSubscriber($channel);
+        $redis = $this->createRedisWithSubscriber($subscriber);
+        $received = [];
+
+        $redis->subscribe('updates', function (string $payload, string $channel) use (&$received): void {
+            $received[] = [$payload, $channel];
+        });
+
+        $this->assertSame([['payload', 'updates']], $received);
+    }
+
+    public function testSubscriberLoopConvertsNonThrowingMessageWaitCancellation(): void
+    {
+        $messageChannel = new Channel(1);
+        $ready = new SwooleChannel(1);
+        $subscriber = m::mock(Subscriber::class);
+        $subscriber->closed = false;
+        $subscriber->expects('subscribe')->with('updates');
+        $subscriber->expects('channel')->andReturnUsing(function () use ($messageChannel, $ready): Channel {
+            $ready->push(true);
+
+            return $messageChannel;
+        });
+        $subscriber->expects('close');
+        $redis = $this->createRedisWithSubscriber($subscriber);
+        $captured = null;
+        $coroutineId = Coroutine::create(function () use ($redis, &$captured): void {
+            try {
+                $redis->subscribe('updates', static function (): void {
+                });
+            } catch (Throwable $exception) {
+                $captured = $exception;
+            }
+        });
+
+        try {
+            $this->assertTrue($ready->pop());
+            $this->assertTrue(EngineCoroutine::cancelById($coroutineId));
+            $this->assertInstanceOf(CanceledException::class, $captured);
+            $this->assertSame('The Redis subscriber message wait was canceled.', $captured->getMessage());
+        } finally {
+            $messageChannel->close();
+        }
+    }
+
+    public function testSubscriberLoopPreservesCallbackCancellationOverOrdinaryCloseFailure(): void
+    {
+        $cancellation = new CanceledException('callback canceled');
+        $channel = m::mock(Channel::class);
+        $channel->expects('pop')->andReturn(new Message('updates', 'payload'));
+        $subscriber = $this->mockSubscriber($channel, new RuntimeException('close failed'));
+        $redis = $this->createRedisWithSubscriber($subscriber);
+
+        try {
+            $redis->subscribe('updates', static function () use ($cancellation): void {
+                throw $cancellation;
+            });
+            $this->fail('Expected the cancellation to escape.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testSubscriberLoopLetsCloseCancellationSupersedeOrdinaryCallbackFailure(): void
+    {
+        $cancellation = new CanceledException('close canceled');
+        $channel = m::mock(Channel::class);
+        $channel->expects('pop')->andReturn(new Message('updates', 'payload'));
+        $subscriber = $this->mockSubscriber($channel, $cancellation);
+        $redis = $this->createRedisWithSubscriber($subscriber);
+
+        try {
+            $redis->subscribe('updates', static function (): void {
+                throw new RuntimeException('callback failed');
+            });
+            $this->fail('Expected the cancellation to escape.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testSubscriberLoopPreservesCallbackCancellationOverCloseCancellation(): void
+    {
+        $callbackCancellation = new CanceledException('callback canceled');
+        $closeCancellation = new CanceledException('close canceled');
+        $channel = m::mock(Channel::class);
+        $channel->expects('pop')->andReturn(new Message('updates', 'payload'));
+        $subscriber = $this->mockSubscriber($channel, $closeCancellation);
+        $redis = $this->createRedisWithSubscriber($subscriber);
+
+        try {
+            $redis->subscribe('updates', static function () use ($callbackCancellation): void {
+                throw $callbackCancellation;
+            });
+            $this->fail('Expected the cancellation to escape.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($callbackCancellation, $exception);
+        }
+    }
+
+    public function testSubscriberLoopRetainsOrdinaryCloseFailurePrecedence(): void
+    {
+        $closeFailure = new RuntimeException('close failed');
+        $channel = m::mock(Channel::class);
+        $channel->expects('pop')->andReturn(new Message('updates', 'payload'));
+        $subscriber = $this->mockSubscriber($channel, $closeFailure);
+        $redis = $this->createRedisWithSubscriber($subscriber);
+
+        try {
+            $redis->subscribe('updates', static function (): void {
+                throw new RuntimeException('callback failed');
+            });
+            $this->fail('Expected the close failure to escape.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($closeFailure, $exception);
+        }
     }
 
     public function testConnectionBoundMethodsCannotBeCalledThroughProxy(): void
@@ -707,6 +838,47 @@ class RedisProxyTest extends TestCase
         }
     }
 
+    public function testCommandCancellationSkipsFailureEventAndStillReleasesTheConnection(): void
+    {
+        $cancellation = new CanceledException('command canceled');
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldNotReceive('hasListeners');
+        $connection = $this->createMockRedisConnection(
+            'get',
+            exception: $cancellation,
+            eventDispatcher: $dispatcher,
+        );
+        $connection->expects('release');
+
+        try {
+            $this->createRedis($connection)->get('key');
+            $this->fail('Expected the cancellation to escape.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testCommandNormalizesWrappedPhpRedisCancellation(): void
+    {
+        $nativeFailure = new RedisException('command canceled');
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldNotReceive('hasListeners');
+        $connection = $this->createMockRedisConnection(
+            'get',
+            exception: $nativeFailure,
+            eventDispatcher: $dispatcher,
+        );
+        $connection->expects('release');
+        $redis = $this->createRedis($connection);
+
+        $exception = $this->captureCancellationAtBoundary(function () use ($redis): void {
+            $redis->get('key');
+        });
+
+        $this->assertInstanceOf(CanceledException::class, $exception);
+        $this->assertSame($nativeFailure, $exception->getPrevious());
+    }
+
     public function testFailureEventTemporarilyPublishesTheOwnedConnection(): void
     {
         $commandException = new RuntimeException('Command failed.');
@@ -861,6 +1033,44 @@ class RedisProxyTest extends TestCase
         }
     }
 
+    public function testCleanupCancellationSupersedesOrdinaryCommandFailure(): void
+    {
+        $cancellation = new CanceledException('cleanup canceled');
+        $connection = $this->createMockRedisConnection(
+            'get',
+            exception: new RuntimeException('Command failed.'),
+        );
+        $connection->expects('release')->andThrow($cancellation);
+
+        try {
+            $this->createRedis($connection)->get('key');
+            $this->fail('Expected the cleanup cancellation to escape.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testEventCancellationRemainsPrimaryOverOrdinaryCleanupFailure(): void
+    {
+        $cancellation = new CanceledException('event canceled');
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->expects('hasListeners')->with(CommandExecuted::class)->andReturnTrue();
+        $dispatcher->expects('dispatch')->andThrow($cancellation);
+        $connection = $this->createMockRedisConnection(
+            'get',
+            'value',
+            eventDispatcher: $dispatcher,
+        );
+        $connection->expects('release')->andThrow(new RuntimeException('Cleanup failed.'));
+
+        try {
+            $this->createRedis($connection)->get('key');
+            $this->fail('Expected the event cancellation to escape.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
     public function testCleanupFailurePropagatesAfterSuccessfulCommand(): void
     {
         $cleanupException = new RuntimeException('Cleanup failed.');
@@ -924,6 +1134,83 @@ class RedisProxyTest extends TestCase
 
         $this->createRedis($connection)->transaction(static function (): void {
         });
+    }
+
+    public function testCallbackTransactionPreservesOperationCancellationOverCleanupFailure(): void
+    {
+        $cancellation = new CanceledException('exec canceled');
+        $transaction = m::mock(PhpRedis::class);
+        $transaction->expects('exec')->andThrow($cancellation);
+        $connection = $this->mockConnection();
+        $connection->expects('multi')->andReturn($transaction);
+        $connection->expects('invalidate');
+        $connection->expects('release')->andThrow(new RuntimeException('Cleanup failed.'));
+
+        try {
+            $this->createRedis($connection)->transaction(static function (): void {
+            });
+            $this->fail('Expected the operation cancellation to escape.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testCallbackTransactionNormalizesWrappedPhpRedisCancellation(): void
+    {
+        $nativeFailure = new RedisException('exec canceled');
+        $transaction = m::mock(PhpRedis::class);
+        $transaction->expects('exec')->andThrow($nativeFailure);
+        $connection = $this->mockConnection();
+        $connection->expects('multi')->andReturn($transaction);
+        $connection->expects('invalidate');
+        $connection->expects('release');
+        $redis = $this->createRedis($connection);
+
+        $exception = $this->captureCancellationAtBoundary(function () use ($redis): void {
+            $redis->transaction(static function (): void {
+            });
+        });
+
+        $this->assertInstanceOf(CanceledException::class, $exception);
+        $this->assertSame($nativeFailure, $exception->getPrevious());
+    }
+
+    public function testCallbackTransactionCleanupCancellationSupersedesOrdinaryOperationFailure(): void
+    {
+        $cancellation = new CanceledException('cleanup canceled');
+        $transaction = m::mock(PhpRedis::class);
+        $transaction->expects('exec')->andThrow(new RuntimeException('Exec failed.'));
+        $connection = $this->mockConnection();
+        $connection->expects('multi')->andReturn($transaction);
+        $connection->expects('invalidate');
+        $connection->expects('release')->andThrow($cancellation);
+
+        try {
+            $this->createRedis($connection)->transaction(static function (): void {
+            });
+            $this->fail('Expected the cleanup cancellation to escape.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testCallbackTransactionOrdinaryCleanupFailureRetainsFinallyPrecedence(): void
+    {
+        $cleanupFailure = new RuntimeException('Cleanup failed.');
+        $transaction = m::mock(PhpRedis::class);
+        $transaction->expects('exec')->andThrow(new RuntimeException('Exec failed.'));
+        $connection = $this->mockConnection();
+        $connection->expects('multi')->andReturn($transaction);
+        $connection->expects('invalidate');
+        $connection->expects('release')->andThrow($cleanupFailure);
+
+        try {
+            $this->createRedis($connection)->transaction(static function (): void {
+            });
+            $this->fail('Expected the cleanup failure to escape.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cleanupFailure, $exception);
+        }
     }
 
     public function testCallbackPipelineDoesNotClearWatchState(): void
@@ -1014,6 +1301,60 @@ class RedisProxyTest extends TestCase
         $redis->withConnection(function (RedisConnection $redisConnection) {
             throw new RuntimeException('Callback failed');
         });
+    }
+
+    public function testWithConnectionPreservesCallbackCancellationOverCleanupFailure(): void
+    {
+        $cancellation = new CanceledException('Callback canceled.');
+        $connection = $this->mockConnection();
+        $connection->expects('release')->andThrow(new RuntimeException('Cleanup failed.'));
+
+        try {
+            $this->createRedis($connection)->withConnection(
+                static function () use ($cancellation): never {
+                    throw $cancellation;
+                },
+            );
+            $this->fail('Expected the callback cancellation to escape.');
+        } catch (Throwable $throwable) {
+            $this->assertSame($cancellation, $throwable);
+        }
+    }
+
+    public function testWithConnectionCleanupCancellationSupersedesOrdinaryCallbackFailure(): void
+    {
+        $cancellation = new CanceledException('Cleanup canceled.');
+        $connection = $this->mockConnection();
+        $connection->expects('release')->andThrow($cancellation);
+
+        try {
+            $this->createRedis($connection)->withConnection(
+                static function (): never {
+                    throw new RuntimeException('Callback failed.');
+                },
+            );
+            $this->fail('Expected the cleanup cancellation to escape.');
+        } catch (Throwable $throwable) {
+            $this->assertSame($cancellation, $throwable);
+        }
+    }
+
+    public function testWithConnectionOrdinaryCleanupFailureRetainsFinallyPrecedence(): void
+    {
+        $cleanupFailure = new RuntimeException('Cleanup failed.');
+        $connection = $this->mockConnection();
+        $connection->expects('release')->andThrow($cleanupFailure);
+
+        try {
+            $this->createRedis($connection)->withConnection(
+                static function (): never {
+                    throw new RuntimeException('Callback failed.');
+                },
+            );
+            $this->fail('Expected the cleanup failure to escape.');
+        } catch (Throwable $throwable) {
+            $this->assertSame($cleanupFailure, $throwable);
+        }
     }
 
     public function testWithConnectionDoesNotReleaseContextConnectionOnException(): void
@@ -1144,6 +1485,34 @@ class RedisProxyTest extends TestCase
         $this->assertSame('result', $result);
         // Connection should be unpinned after completion
         $this->assertNull(CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+    }
+
+    public function testWithPinnedConnectionPreservesCallbackCancellationAndUnpinsBeforeCleanup(): void
+    {
+        $cancellation = new CanceledException('Callback canceled.');
+        $connection = $this->mockConnection();
+        $connection->expects('release')->andReturnUsing(function (): void {
+            $this->assertFalse(CoroutineContext::has(
+                RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default',
+            ));
+
+            throw new RuntimeException('Cleanup failed.');
+        });
+
+        try {
+            $this->createRedis($connection)->withPinnedConnection(
+                static function () use ($cancellation): never {
+                    throw $cancellation;
+                },
+            );
+            $this->fail('Expected the callback cancellation to escape.');
+        } catch (Throwable $throwable) {
+            $this->assertSame($cancellation, $throwable);
+        }
+
+        $this->assertFalse(CoroutineContext::has(
+            RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default',
+        ));
     }
 
     public function testWithoutSerializationOrCompressionReusesExistingContextConnection(): void
@@ -1492,6 +1861,63 @@ class RedisProxyTest extends TestCase
         }
     }
 
+    public function testClusterDiscoveryNormalizesWrappedCancellationAndStillReleases(): void
+    {
+        $nativeFailure = new RedisClusterException('Master discovery canceled.');
+        $connection = m::mock(PhpRedisClusterConnection::class);
+        $connection->expects('getConnection')->andReturnSelf();
+        $connection->expects('masters')->andThrow($nativeFailure);
+        $connection->expects('release')->andThrow(new RuntimeException('Release failed.'));
+        $pool = m::mock(RedisPool::class);
+        $pool->expects('getConfig')->andReturn([
+            'cluster' => [
+                'enabled' => true,
+                'seeds' => ['tcp://127.0.0.1:6379'],
+            ],
+        ]);
+        $pool->expects('get')->andReturn($connection);
+        $factory = m::mock(PoolFactory::class);
+        $factory->expects('getPool')->with('default')->andReturn($pool);
+        $redis = new RedisProxy($factory, 'default', $this->sentinelFactory());
+
+        $exception = $this->captureCancellationAtBoundary(function () use ($redis): void {
+            $redis->subscriber();
+        });
+
+        $this->assertInstanceOf(CanceledException::class, $exception);
+        $this->assertSame($nativeFailure, $exception->getPrevious());
+    }
+
+    public function testClusterDiscoveryReleaseCancellationSupersedesOrdinaryDiscoveryFailure(): void
+    {
+        $cancellation = new CanceledException('Release canceled.');
+        $connection = m::mock(PhpRedisClusterConnection::class);
+        $connection->expects('getConnection')->andReturnSelf();
+        $connection->expects('masters')->andThrow(new RuntimeException('Master discovery failed.'));
+        $connection->expects('release')->andThrow($cancellation);
+        $pool = m::mock(RedisPool::class);
+        $pool->expects('getConfig')->andReturn([
+            'cluster' => [
+                'enabled' => true,
+                'seeds' => ['tcp://127.0.0.1:6379'],
+            ],
+        ]);
+        $pool->expects('get')->andReturn($connection);
+        $factory = m::mock(PoolFactory::class);
+        $factory->expects('getPool')->with('default')->andReturn($pool);
+
+        try {
+            (new RedisProxy(
+                $factory,
+                'default',
+                $this->sentinelFactory(),
+            ))->subscriber();
+            $this->fail('Expected the release cancellation to escape.');
+        } catch (Throwable $throwable) {
+            $this->assertSame($cancellation, $throwable);
+        }
+    }
+
     public function testRedisClusterConstructorSignature(): void
     {
         $reflection = new ReflectionClass(RedisCluster::class);
@@ -1662,6 +2088,76 @@ class RedisProxyTest extends TestCase
         $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);
 
         return new RedisProxy($poolFactory, 'default', $this->sentinelFactory());
+    }
+
+    /**
+     * Create a Redis proxy that returns the given subscriber.
+     */
+    private function createRedisWithSubscriber(Subscriber $subscriber): RedisProxy
+    {
+        $poolFactory = m::mock(PoolFactory::class);
+        $poolFactory->shouldNotReceive('getPool');
+
+        return new class($poolFactory, 'default', $this->sentinelFactory(), $subscriber) extends RedisProxy {
+            public function __construct(
+                PoolFactory $poolFactory,
+                string $name,
+                RedisSentinelFactory $sentinelFactory,
+                private Subscriber $subscriber,
+            ) {
+                parent::__construct($poolFactory, $name, $sentinelFactory);
+            }
+
+            public function subscriber(): Subscriber
+            {
+                return $this->subscriber;
+            }
+        };
+    }
+
+    /**
+     * Create a subscriber with one message channel and configured close behavior.
+     */
+    private function mockSubscriber(
+        Channel $channel,
+        ?Throwable $closeFailure = null,
+    ): Subscriber&m\MockInterface {
+        $subscriber = m::mock(Subscriber::class);
+        $subscriber->closed = false;
+        $subscriber->expects('subscribe')->with('updates');
+        $subscriber->expects('channel')->andReturn($channel);
+        $close = $subscriber->expects('close');
+
+        if ($closeFailure !== null) {
+            $close->andThrow($closeFailure);
+        }
+
+        return $subscriber;
+    }
+
+    /**
+     * Capture cancellation raised while the current coroutine is canceled.
+     */
+    private function captureCancellationAtBoundary(callable $callback): Throwable
+    {
+        $blocker = new SwooleChannel(1);
+        $captured = null;
+        $coroutineId = Coroutine::create(function () use ($blocker, $callback, &$captured): void {
+            try {
+                $blocker->pop();
+            } catch (CanceledException) {
+                try {
+                    $callback();
+                } catch (Throwable $exception) {
+                    $captured = $exception;
+                }
+            }
+        });
+
+        $this->assertTrue(EngineCoroutine::cancelById($coroutineId, throwException: true));
+        $this->assertInstanceOf(Throwable::class, $captured);
+
+        return $captured;
     }
 
     /**

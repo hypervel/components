@@ -29,7 +29,7 @@ readonly class AccessTokenAuthenticator implements OAuthAuthenticator
      */
     public function set(PendingRequest $pendingRequest): void
     {
-        $pendingRequest->withHeader('Authorization', 'Bearer ' . $this->accessToken);
+        $pendingRequest->replaceHeaders(['Authorization' => 'Bearer ' . $this->accessToken]);
     }
 
     /**

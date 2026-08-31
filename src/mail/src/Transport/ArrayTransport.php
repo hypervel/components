@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail\Transport;
 
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Support\Collection;
 use Stringable;
 use Symfony\Component\Mailer\Envelope;
@@ -14,21 +15,13 @@ use Symfony\Component\Mime\RawMessage;
 class ArrayTransport implements Stringable, TransportInterface
 {
     /**
-     * The collection of Symfony Messages.
+     * The coroutine context key for array transport messages.
      */
-    protected Collection $messages;
-
-    /**
-     * Create a new array transport instance.
-     */
-    public function __construct()
-    {
-        $this->messages = new Collection;
-    }
+    public const string MESSAGE_STORE_CONTEXT_KEY = '__mail.array_transport_messages';
 
     public function send(RawMessage $message, ?Envelope $envelope = null): ?SentMessage
     {
-        return $this->messages[] = new SentMessage($message, $envelope ?? Envelope::create($message));
+        return $this->messageStore()->messagesFor($this)[] = new SentMessage($message, $envelope ?? Envelope::create($message));
     }
 
     /**
@@ -36,7 +29,7 @@ class ArrayTransport implements Stringable, TransportInterface
      */
     public function messages(): Collection
     {
-        return $this->messages;
+        return $this->messageStore()->messagesFor($this);
     }
 
     /**
@@ -44,7 +37,19 @@ class ArrayTransport implements Stringable, TransportInterface
      */
     public function flush(): Collection
     {
-        return $this->messages = new Collection;
+        return $this->messageStore()->flush($this);
+    }
+
+    /**
+     * Retrieve the current message store.
+     */
+    protected function messageStore(): ArrayTransportMessageStore
+    {
+        /** @var ArrayTransportMessageStore */
+        return CoroutineContext::getOrSet(
+            self::MESSAGE_STORE_CONTEXT_KEY,
+            fn () => new ArrayTransportMessageStore,
+        );
     }
 
     /**

@@ -12,6 +12,7 @@ use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Contracts\Pool\PoolOptionInterface;
 use InvalidArgumentException;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -79,6 +80,15 @@ abstract class Pool implements PoolInterface
             ) {
                 $this->flush();
             }
+        } catch (CanceledException $cancellation) {
+            try {
+                $this->discard($connection);
+            } catch (CanceledException) {
+            } catch (Throwable $exception) {
+                $this->report($exception);
+            }
+
+            throw $cancellation;
         } catch (Throwable $exception) {
             $this->report($exception);
         }
@@ -177,9 +187,18 @@ abstract class Pool implements PoolInterface
         }
 
         $this->channel->close();
+        $cancellation = null;
 
         while ($connection = $this->popIdleConnection()) {
-            $this->destroyConnection($connection);
+            try {
+                $this->destroyConnection($connection);
+            } catch (CanceledException $exception) {
+                $cancellation ??= $exception;
+            }
+        }
+
+        if ($cancellation !== null) {
+            throw $cancellation;
         }
     }
 
@@ -316,6 +335,8 @@ abstract class Pool implements PoolInterface
 
         try {
             $connection->close();
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             $this->report($exception);
         } finally {

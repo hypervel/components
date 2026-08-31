@@ -11,6 +11,7 @@
     - [Copying Coroutine Context](#copying-coroutine-context)
     - [Nested Coroutines](#nested-coroutines)
 - [Error Handling](#error-handling)
+    - [Coroutine Cancellation](#coroutine-cancellation)
     - [Reporting Unhandled Exceptions](#reporting-unhandled-exceptions)
 - [Deferred Coroutine Cleanup](#deferred-coroutine-cleanup)
 - [Channels](#channels)
@@ -291,6 +292,30 @@ go(function () {
 
 If you need to collect results or rethrow child coroutine exceptions in the parent coroutine, use [`parallel`](#running-work-in-parallel) or [`wait`](#the-wait-helper).
 
+<a name="coroutine-cancellation"></a>
+### Coroutine Cancellation
+
+Hypervel uses `Swoole\Coroutine\CanceledException` as a terminal control-flow signal. Framework-owned operations preserve this exception instead of reporting it, retrying the canceled work, or converting it into an ordinary fallback value.
+
+Most application code does not need special cancellation handling. If low-level application or package code catches `Throwable` to report, retry, wrap, or replace an operation failure, it should let cancellation escape first:
+
+```php
+use Swoole\Coroutine\CanceledException;
+use Throwable;
+
+try {
+    $result = performOperation();
+} catch (CanceledException $exception) {
+    throw $exception;
+} catch (Throwable $exception) {
+    report($exception);
+
+    return null;
+}
+```
+
+Cleanup that does not pause should remain in `finally` as usual. Code that owns child coroutines should use `wait`, `parallel`, or `WaitConcurrent` so Hypervel can cancel active children when their parent is canceled.
+
 <a name="reporting-unhandled-exceptions"></a>
 ### Reporting Unhandled Exceptions
 
@@ -388,7 +413,13 @@ if ($channel->isTimeout()) {
 if ($channel->isClosing()) {
     // The channel is closing or closed...
 }
+
+if ($channel->isCanceled()) {
+    // The last operation was canceled...
+}
 ```
+
+The timeout, closure, and cancellation state describes only the last channel operation. Inspect it immediately after `push` or `pop` returns `false`.
 
 You may also inspect the channel's capacity, current length, and availability:
 
@@ -454,6 +485,8 @@ $result = wait(function () {
 Copied values follow the same rules as [`go` and `Coroutine::fork`](#copying-coroutine-context).
 
 If the closure throws an exception, `wait` rethrows it in the waiting coroutine after the child's deferred callbacks have finished.
+
+If the child is canceled independently while its waiting parent remains active, `wait` throws `Hypervel\Coroutine\Exceptions\ChildCancellationException`. The native cancellation is available as the previous exception.
 
 If the timeout is reached, Hypervel cancels the child by throwing `Swoole\Coroutine\CanceledException` inside it. Hypervel then gives the child up to 10 seconds to finish and run its deferred callbacks before throwing `Hypervel\Coroutine\Exceptions\WaitTimeoutException` in the waiting coroutine.
 
@@ -599,6 +632,8 @@ try {
 }
 ```
 
+An independently canceled child is recorded as `Hypervel\Coroutine\Exceptions\ChildCancellationException`, with the native cancellation available as its previous exception.
+
 <a name="limiting-parallel-work"></a>
 ### Limiting Parallel Work
 
@@ -730,6 +765,15 @@ if (! $concurrent->wait(timeout: 5.0)) {
 }
 ```
 
+You may cancel every currently active child body using the `cancel` method:
+
+```php
+$concurrent->cancel();
+```
+
+Cancellation does not wait for child cleanup to finish. A child whose body has completed and is only running deferred cleanup is no longer active and is not interrupted.
+Each call targets the child bodies active at that time.
+
 <a name="locks"></a>
 ## Locks
 
@@ -812,6 +856,18 @@ The `join` method waits for the supplied child coroutine IDs to finish. You may 
 
 A `false` result may mean that none of the supplied coroutines remained active or that the timeout elapsed. It does not always indicate a failure.
 
+Low-level infrastructure that must distinguish a canceled native wait from its other `false` outcomes may inspect the engine cancellation state immediately:
+
+```php
+use Hypervel\Engine\Coroutine as EngineCoroutine;
+
+if (! Coroutine::join($coroutineIds) && EngineCoroutine::isCanceled()) {
+    // The join was canceled...
+}
+```
+
+This state is not durable. Read it only at the failed native operation boundary.
+
 The `afterCreated` method registers a callback that runs whenever `Coroutine::create` creates a coroutine. APIs built on `Coroutine::create`, including `go`, `co`, and `Coroutine::fork`, also run the callback:
 
 ```php
@@ -821,7 +877,7 @@ Coroutine::afterCreated(function () {
 ```
 
 > [!WARNING]
-> These callbacks remain registered for the lifetime of the Swoole worker. Register them during application boot or tests only.
+> These callbacks remain registered for the lifetime of the Swoole worker. Register them during application boot or tests only. They run synchronously during child startup and must not perform work that suspends the coroutine.
 
 The `flushState` method clears coroutine settings and callbacks stored for the current worker:
 

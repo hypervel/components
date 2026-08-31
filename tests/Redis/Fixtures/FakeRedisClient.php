@@ -124,6 +124,11 @@ class FakeRedisClient extends Redis
     private string $optPrefix = '';
 
     /**
+     * The last simulated Redis error.
+     */
+    private ?string $lastError = null;
+
+    /**
      * Configured zScan results per key.
      *
      * @var array<string, array<int, array{members: array<string, float>, iterator: int}>>
@@ -166,6 +171,32 @@ class FakeRedisClient extends Redis
     private array $zRemRangeByScoreResults = [];
 
     /**
+     * Recorded zRemRangeByScore calls for assertions.
+     *
+     * @var array<int, array{key: string, min: string, max: string}>
+     */
+    private array $zRemRangeByScoreCalls = [];
+
+    /**
+     * Configured EVALSHA results in call order.
+     *
+     * @var array<int, mixed>
+     */
+    private array $evalShaResults = [];
+
+    /**
+     * Current EVALSHA call index.
+     */
+    private int $evalShaCallIndex = 0;
+
+    /**
+     * Recorded EVALSHA calls for assertions.
+     *
+     * @var array<int, array{sha: string, args: array<mixed>, num_keys: int}>
+     */
+    private array $evalShaCalls = [];
+
+    /**
      * Create a new fake Redis client.
      *
      * @param array<int, array{keys: array<string>, iterator: int}> $scanResults Configured scan results
@@ -177,6 +208,7 @@ class FakeRedisClient extends Redis
      * @param array<string, array<int, array{members: array<string, float>, iterator: int}>> $zScanResults Configured zScan results
      * @param array<string, int> $zCardResults Configured zCard results per key
      * @param array<string, int> $zRemRangeByScoreResults Configured zRemRangeByScore results per key
+     * @param array<int, mixed> $evalShaResults Configured EVALSHA results in call order
      */
     public function __construct(
         array $scanResults = [],
@@ -188,6 +220,7 @@ class FakeRedisClient extends Redis
         array $zScanResults = [],
         array $zCardResults = [],
         array $zRemRangeByScoreResults = [],
+        array $evalShaResults = [],
     ) {
         // Note: We intentionally do NOT call parent::__construct() to avoid
         // any connection attempts. This fake client never connects to Redis.
@@ -200,6 +233,7 @@ class FakeRedisClient extends Redis
         $this->zScanResults = $zScanResults;
         $this->zCardResults = $zCardResults;
         $this->zRemRangeByScoreResults = $zRemRangeByScoreResults;
+        $this->evalShaResults = $evalShaResults;
     }
 
     /**
@@ -308,6 +342,56 @@ class FakeRedisClient extends Redis
     }
 
     /**
+     * Clear the last simulated Redis error.
+     */
+    public function clearLastError(): bool
+    {
+        $this->lastError = null;
+
+        return true;
+    }
+
+    /**
+     * Get the last simulated Redis error.
+     */
+    public function getLastError(): ?string
+    {
+        return $this->lastError;
+    }
+
+    /**
+     * Set the last simulated Redis error.
+     */
+    public function setFakeLastError(?string $lastError): void
+    {
+        $this->lastError = $lastError;
+    }
+
+    /**
+     * Simulate EVALSHA without connecting to Redis.
+     */
+    public function evalSha(string $sha1, array $args = [], int $num_keys = 0): mixed
+    {
+        $this->evalShaCalls[] = [
+            'sha' => $sha1,
+            'args' => $args,
+            'num_keys' => $num_keys,
+        ];
+
+        return $this->evalShaResults[$this->evalShaCallIndex++] ?? 0;
+    }
+
+    /**
+     * Get recorded EVALSHA calls for assertions.
+     *
+     * @return array<int, array{sha: string, args: array<mixed>, num_keys: int}>
+     */
+    public function getEvalShaCalls(): array
+    {
+        return $this->evalShaCalls;
+    }
+
+    /**
      * Simulate zRange to get sorted set members.
      *
      * @return array<string>|false|Redis
@@ -397,7 +481,20 @@ class FakeRedisClient extends Redis
             $this->pipelineQueue[] = ['method' => 'zRemRangeByScore', 'args' => [$key, $min, $max]];
             return $this;
         }
+
+        $this->zRemRangeByScoreCalls[] = ['key' => $key, 'min' => $min, 'max' => $max];
+
         return $this->zRemRangeByScoreResults[$key] ?? 0;
+    }
+
+    /**
+     * Get recorded zRemRangeByScore calls for test assertions.
+     *
+     * @return array<int, array{key: string, min: string, max: string}>
+     */
+    public function getZRemRangeByScoreCalls(): array
+    {
+        return $this->zRemRangeByScoreCalls;
     }
 
     /**
@@ -506,8 +603,12 @@ class FakeRedisClient extends Redis
         $this->zScanCallIndex = [];
         $this->zScanCalls = [];
         $this->zRemCalls = [];
+        $this->zRemRangeByScoreCalls = [];
+        $this->evalShaCallIndex = 0;
+        $this->evalShaCalls = [];
         $this->execCallIndex = 0;
         $this->inPipeline = false;
         $this->pipelineQueue = [];
+        $this->lastError = null;
     }
 }

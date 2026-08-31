@@ -21,6 +21,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class SqsQueue extends Queue implements QueueContract, ClearableQueue
@@ -214,8 +215,22 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
         if ($this->willOverflow($payload)) {
             $overflowPayload = $payload;
             [$path, $payload] = $this->prepareOverflowPayload($payload);
+            $store = $this->overflowStore();
 
-            $this->storeOverflowPayload($this->overflowStore(), $path, $overflowPayload);
+            try {
+                $this->storeOverflowPayload($store, $path, $overflowPayload);
+            } catch (CanceledException $cancellation) {
+                try {
+                    $this->cleanupOverflowPayloads($store, [$path]);
+                } catch (CanceledException) {
+                }
+
+                throw $cancellation;
+            } catch (Throwable $exception) {
+                $this->cleanupOverflowPayloads($store, [$path]);
+
+                throw $exception;
+            }
         }
 
         // The SDK retries connection failures, so a later error may follow an attempt SQS accepted.
@@ -377,6 +392,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
             }
 
             $writtenPaths = [];
+            $attemptedPath = null;
 
             try {
                 foreach ($chunk as $entry) {
@@ -386,10 +402,28 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
 
                     /** @var CacheRepository $store */
                     $overflowPayload = $overflow[$entry['Id']];
-                    $this->storeOverflowPayload($store, $overflowPayload['path'], $overflowPayload['payload']);
-                    $writtenPaths[] = $overflowPayload['path'];
+                    $attemptedPath = $overflowPayload['path'];
+                    $this->storeOverflowPayload($store, $attemptedPath, $overflowPayload['payload']);
+                    $writtenPaths[] = $attemptedPath;
+                    $attemptedPath = null;
                 }
+            } catch (CanceledException $cancellation) {
+                if ($attemptedPath !== null) {
+                    $writtenPaths[] = $attemptedPath;
+                }
+
+                try {
+                    /** @var CacheRepository $store */
+                    $this->cleanupOverflowPayloads($store, $writtenPaths);
+                } catch (CanceledException) {
+                }
+
+                throw $cancellation;
             } catch (Throwable $exception) {
+                if ($attemptedPath !== null) {
+                    $writtenPaths[] = $attemptedPath;
+                }
+
                 /** @var CacheRepository $store */
                 $this->cleanupOverflowPayloads($store, $writtenPaths);
                 $this->raiseBatchFailedEvents($attemptedMessages, $queue, $exception);
@@ -404,6 +438,8 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
                     'QueueUrl' => $queueUrl,
                     'Entries' => $chunk,
                 ]);
+            } catch (CanceledException $exception) {
+                throw $exception;
             } catch (Throwable $exception) {
                 $this->raiseBatchFailedEvents($attemptedMessages, $queue, $exception);
 
@@ -586,14 +622,22 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
      */
     protected function cleanupOverflowPayloads(CacheRepository $store, array $paths): void
     {
+        $cancellation = null;
+
         foreach ($paths as $path) {
             try {
                 if (! $store->forget($path)) {
                     throw new RuntimeException("Unable to delete the SQS overflow payload [{$path}].");
                 }
+            } catch (CanceledException $exception) {
+                $cancellation ??= $exception;
             } catch (Throwable $exception) {
                 PoolErrorReporter::report($exception);
             }
+        }
+
+        if ($cancellation !== null) {
+            throw $cancellation;
         }
     }
 

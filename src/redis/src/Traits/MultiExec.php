@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Redis\Traits;
 
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Redis\RedisCancellation;
 use Hypervel\Redis\RedisConnection;
 use Redis;
 use RedisCluster;
@@ -50,6 +51,9 @@ trait MultiExec
 
         $hasExistingConnection = CoroutineContext::has($this->getContextKey());
         $instance = $this->__call($command, []);
+        $result = null;
+        $operationFailure = null;
+        $cleanupFailure = null;
 
         try {
             $result = tap($instance, $callback)->exec();
@@ -61,20 +65,28 @@ trait MultiExec
                     $connection->clearWatchState();
                 }
             }
-
-            return $result;
         } catch (Throwable $exception) {
+            $operationFailure = RedisCancellation::cancellationFrom(
+                $exception,
+                'Executing the Redis transaction was canceled.',
+            ) ?? $exception;
             $connection = CoroutineContext::get($this->getContextKey());
 
             if ($connection instanceof RedisConnection) {
                 $connection->invalidate();
             }
+        }
 
-            throw $exception;
-        } finally {
-            if (! $hasExistingConnection) {
+        if (! $hasExistingConnection) {
+            try {
                 $this->releaseContextConnection();
+            } catch (Throwable $exception) {
+                $cleanupFailure = $exception;
             }
         }
+
+        RedisCancellation::throwOperationOrCleanupFailure($operationFailure, $cleanupFailure);
+
+        return $result;
     }
 }

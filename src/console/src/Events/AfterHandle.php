@@ -7,11 +7,12 @@ namespace Hypervel\Console\Events;
 use Hypervel\Console\Command;
 
 /**
- * Dispatched inside the coroutine after the command's handle method completes successfully.
+ * Dispatched inside the command execution boundary after its handle method completes successfully.
  *
  * Only fires when handle() returns without throwing. For failure cases, check
- * AfterExecute's throwable. Unlike CommandFinished (which fires at the Symfony level
- * outside the coroutine), this event runs inside the coroutine where Context is available.
+ * AfterExecute's throwable. Unlike CommandFinished, this event fires within the
+ * command's execution boundary. Commands may disable coroutine execution, so
+ * listeners must check before using coroutine-only APIs.
  */
 class AfterHandle
 {

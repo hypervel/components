@@ -120,7 +120,10 @@ class ScheduleWatcher extends Watcher
     protected function makeEntry(Event $task, array $outcome): IncomingEntry
     {
         return IncomingEntry::make(array_merge([
-            'command' => $task instanceof CallbackEvent ? 'Closure' : $task->command,
+            // Event::$command is an opaque shell string whose arguments cannot be classified safely.
+            'command' => $task instanceof CallbackEvent
+                ? 'Closure'
+                : 'Scheduled command',
             'description' => $task->description,
             'expression' => $task->expression,
             'timezone' => $task->timezone,

@@ -134,6 +134,9 @@ class HashLifecycleIntegrationTest extends RedisCacheIntegrationTestCase
         // Wait for original TTL to expire
         usleep(1500000); // 1.5 seconds
 
+        // Reading the expired field applies passive expiration deterministically.
+        $this->assertFalse($this->redis()->hget($tagHash, 'lifecycle:temp'));
+
         // Hash should be auto-deleted when orphaned field expired naturally
         $this->assertRedisKeyNotExists($tagHash);
     }

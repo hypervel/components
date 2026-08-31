@@ -68,13 +68,19 @@ class EventsTest extends TestCase
         $this->assertSame(1, $event->exitCode);
     }
 
-    public function testBeforeHandleCarriesCommand()
+    public function testBeforeHandleCarriesCommandAndOptionalInput(): void
     {
         $command = m::mock(Command::class);
+        $input = new ArrayInput([]);
 
         $event = new BeforeHandle($command);
 
         $this->assertSame($command, $event->command);
+        $this->assertNull($event->input);
+
+        $eventWithInput = new BeforeHandle($command, $input);
+
+        $this->assertSame($input, $eventWithInput->input);
     }
 
     public function testAfterHandleCarriesCommand()
@@ -86,17 +92,22 @@ class EventsTest extends TestCase
         $this->assertSame($command, $event->command);
     }
 
-    public function testAfterExecuteCarriesCommandAndOptionalThrowable()
+    public function testAfterExecuteCarriesCommandAndOptionalExecutionData(): void
     {
         $command = m::mock(Command::class);
 
         $event = new AfterExecute($command);
         $this->assertSame($command, $event->command);
         $this->assertNull($event->throwable);
+        $this->assertNull($event->input);
+        $this->assertNull($event->exitCode);
 
         $throwable = new RuntimeException('Execute failed');
-        $eventWithThrowable = new AfterExecute($command, $throwable);
+        $input = new ArrayInput([]);
+        $eventWithThrowable = new AfterExecute($command, $throwable, $input, 1);
         $this->assertSame($throwable, $eventWithThrowable->throwable);
+        $this->assertSame($input, $eventWithThrowable->input);
+        $this->assertSame(1, $eventWithThrowable->exitCode);
     }
 
     public function testScheduledTaskStartingCarriesTask()

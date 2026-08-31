@@ -6,11 +6,13 @@ namespace Hypervel\Tests\Pool;
 
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Pool\Channel;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use Swoole\Coroutine as SwooleCoroutine;
+use Swoole\Coroutine\CanceledException;
 use Swoole\Event;
 
 use function Hypervel\Coroutine\run;
@@ -66,6 +68,26 @@ class ChannelTest extends TestCase
 
         run(function () use ($channel): void {
             $this->assertFalse($channel->wait(0.001));
+        });
+    }
+
+    public function testWaitConvertsNonThrowingCancellation(): void
+    {
+        $channel = new Channel(1);
+
+        run(function () use ($channel): void {
+            $cancellation = null;
+            $coroutine = EngineCoroutine::create(function () use ($channel, &$cancellation): void {
+                try {
+                    $channel->wait(1.0);
+                } catch (CanceledException $exception) {
+                    $cancellation = $exception;
+                }
+            });
+
+            $this->assertTrue(EngineCoroutine::cancelById($coroutine->getId()));
+            $this->assertInstanceOf(CanceledException::class, $cancellation);
+            $this->assertSame('The connection pool wait was canceled.', $cancellation->getMessage());
         });
     }
 

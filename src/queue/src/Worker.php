@@ -14,7 +14,7 @@ use Hypervel\Contracts\Queue\Interruptible;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Coordinator\Timer;
-use Hypervel\Coroutine\Concurrent;
+use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Database\DetectsLostConnections;
 use Hypervel\Queue\Events\JobAttempted;
@@ -35,6 +35,7 @@ use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class Worker
@@ -226,8 +227,8 @@ class Worker
 
         $this->raiseWorkerStartingEvent($connectionName, $queue, $options);
 
-        $waiter = new Waiter;
-        $concurrent = new Concurrent($options->concurrency);
+        $waiter = $this->createPopWaiter();
+        $concurrent = new WaitConcurrent($options->concurrency);
 
         $this->monitorTimeoutJobs($options);
 
@@ -337,21 +338,31 @@ class Worker
                 }
             }
         } finally {
-            if ($this->monitorId !== null) {
-                $this->timer->clear($this->monitorId);
-                $this->monitorId = null;
+            try {
+                $concurrent->cancel();
+            } finally {
+                if ($this->monitorId !== null) {
+                    $this->timer->clear($this->monitorId);
+                    $this->monitorId = null;
+                }
             }
         }
     }
 
     /**
+     * Create the waiter used to pop jobs.
+     */
+    protected function createPopWaiter(): Waiter
+    {
+        return new Waiter(-1);
+    }
+
+    /**
      * Wait for every admitted job coroutine to finish.
      */
-    protected function waitForRunningJobs(Concurrent $concurrent): void
+    protected function waitForRunningJobs(WaitConcurrent $concurrent): void
     {
-        while (! $concurrent->isEmpty()) {
-            usleep(1000);
-        }
+        $concurrent->wait();
     }
 
     /**
@@ -565,6 +576,8 @@ class Worker
                     return $job;
                 }
             }
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $e) {
             $this->exceptions->report($e);
 
@@ -603,6 +616,8 @@ class Worker
         return $this->withCoroutineContext($options, function () use ($job, $connectionName, $options) {
             try {
                 $this->process($connectionName, $job, $options);
+            } catch (CanceledException $exception) {
+                throw $exception;
             } catch (Throwable $e) {
                 if (static::$reportJobExceptions) {
                     $this->exceptions->report($e);
@@ -665,6 +680,7 @@ class Worker
     {
         $runningJobId = null;
         $invalidPayloadException = null;
+        $canceled = false;
 
         try {
             try {
@@ -706,23 +722,35 @@ class Worker
             }
 
             $this->raiseAfterJobEvent($connectionName, $job);
+        } catch (CanceledException $exception) {
+            $canceled = true;
+
+            throw $exception;
         } catch (Throwable $e) {
             $exceptionOccurred = $e;
 
-            $this->handleJobException($connectionName, $job, $options, $e);
+            try {
+                $this->handleJobException($connectionName, $job, $options, $e);
+            } catch (CanceledException $exception) {
+                $canceled = true;
+
+                throw $exception;
+            }
         } finally {
             if ($runningJobId) {
                 unset($this->runningJobs[$runningJobId]);
             }
 
-            $this->events->dispatch(new JobAttempted(
-                $connectionName,
-                $job,
-                $exceptionOccurred ?? null
-            ));
+            if (! $canceled) {
+                $this->events->dispatch(new JobAttempted(
+                    $connectionName,
+                    $job,
+                    $exceptionOccurred ?? null
+                ));
 
-            if ($invalidPayloadException !== null && static::$reportJobExceptions) {
-                $this->exceptions->report($invalidPayloadException);
+                if ($invalidPayloadException !== null && static::$reportJobExceptions) {
+                    $this->exceptions->report($invalidPayloadException);
+                }
             }
         }
     }
@@ -758,6 +786,8 @@ class Worker
      */
     protected function handleJobException(string $connectionName, JobContract $job, WorkerOptions $options, Throwable $e): void
     {
+        $canceled = false;
+
         try {
             // First, we will go ahead and mark the job as failed if it will exceed the maximum
             // attempts it is allowed to run the next time we process it. If so we will just
@@ -788,11 +818,15 @@ class Worker
                 $job,
                 $e
             );
+        } catch (CanceledException $exception) {
+            $canceled = true;
+
+            throw $exception;
         } finally {
             // If we catch an exception, we will attempt to release the job back onto the queue
             // so it is not lost entirely. This'll let the job be retried at a later time by
             // another listener (or this same one). We will re-throw this exception after.
-            if (! $job->isDeleted() && ! $job->isReleased() && ! $job->hasFailed()) {
+            if (! $canceled && ! $job->isDeleted() && ! $job->isReleased() && ! $job->hasFailed()) {
                 $backoff = $this->calculateBackoff($job, $options);
 
                 $job->release($backoff);
@@ -866,7 +900,9 @@ class Worker
             $this->cache->put('job-exceptions:' . $uuid, 0, CarbonImmutable::now()->addDay());
         }
 
-        if ($maxExceptions <= $this->cache->increment('job-exceptions:' . $uuid)) {
+        $exceptions = $this->cache->increment('job-exceptions:' . $uuid);
+
+        if (is_int($exceptions) && $maxExceptions <= $exceptions) {
             $this->cache->forget('job-exceptions:' . $uuid);
 
             $this->failJob($job, $e);

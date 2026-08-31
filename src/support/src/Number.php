@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
+use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use NumberFormatter;
@@ -13,6 +15,16 @@ use RuntimeException;
 class Number
 {
     use Macroable;
+
+    /**
+     * The default locale.
+     */
+    protected const string DEFAULT_LOCALE = 'en';
+
+    /**
+     * The default currency.
+     */
+    protected const string DEFAULT_CURRENCY = 'USD';
 
     /**
      * Context key for the per-request locale override.
@@ -27,12 +39,12 @@ class Number
     /**
      * The current default locale.
      */
-    protected static string $locale = 'en';
+    protected static string $locale = self::DEFAULT_LOCALE;
 
     /**
      * The current default currency.
      */
-    protected static string $currency = 'USD';
+    protected static string $currency = self::DEFAULT_CURRENCY;
 
     /**
      * Format the given number according to the current locale.
@@ -304,14 +316,18 @@ class Number
      */
     public static function withLocale(string $locale, callable $callback): mixed
     {
-        $previousLocale = static::defaultLocale();
-
-        static::useLocale($locale);
+        $hadPreviousLocale = CoroutineContext::has(self::LOCALE_CONTEXT_KEY);
+        $previousLocale = CoroutineContext::get(self::LOCALE_CONTEXT_KEY);
+        CoroutineContext::set(self::LOCALE_CONTEXT_KEY, $locale);
 
         try {
             return $callback();
         } finally {
-            static::useLocale($previousLocale);
+            if ($hadPreviousLocale) {
+                CoroutineContext::set(self::LOCALE_CONTEXT_KEY, $previousLocale);
+            } else {
+                CoroutineContext::forget(self::LOCALE_CONTEXT_KEY);
+            }
         }
     }
 
@@ -320,14 +336,18 @@ class Number
      */
     public static function withCurrency(string $currency, callable $callback): mixed
     {
-        $previousCurrency = static::defaultCurrency();
-
-        static::useCurrency($currency);
+        $hadPreviousCurrency = CoroutineContext::has(self::CURRENCY_CONTEXT_KEY);
+        $previousCurrency = CoroutineContext::get(self::CURRENCY_CONTEXT_KEY);
+        CoroutineContext::set(self::CURRENCY_CONTEXT_KEY, $currency);
 
         try {
             return $callback();
         } finally {
-            static::useCurrency($previousCurrency);
+            if ($hadPreviousCurrency) {
+                CoroutineContext::set(self::CURRENCY_CONTEXT_KEY, $previousCurrency);
+            } else {
+                CoroutineContext::forget(self::CURRENCY_CONTEXT_KEY);
+            }
         }
     }
 
@@ -336,7 +356,13 @@ class Number
      */
     public static function useLocale(string $locale): void
     {
-        CoroutineContext::set(self::LOCALE_CONTEXT_KEY, $locale);
+        if (static::applicationIsBooted()) {
+            CoroutineContext::set(self::LOCALE_CONTEXT_KEY, $locale);
+
+            return;
+        }
+
+        static::$locale = $locale;
     }
 
     /**
@@ -344,7 +370,13 @@ class Number
      */
     public static function useCurrency(string $currency): void
     {
-        CoroutineContext::set(self::CURRENCY_CONTEXT_KEY, $currency);
+        if (static::applicationIsBooted()) {
+            CoroutineContext::set(self::CURRENCY_CONTEXT_KEY, $currency);
+
+            return;
+        }
+
+        static::$currency = $currency;
     }
 
     /**
@@ -364,6 +396,16 @@ class Number
     }
 
     /**
+     * Determine if the application has finished booting.
+     */
+    protected static function applicationIsBooted(): bool
+    {
+        $container = Container::getInstance();
+
+        return $container instanceof Application && $container->isBooted();
+    }
+
+    /**
      * Ensure the "intl" PHP extension is installed.
      */
     protected static function ensureIntlExtensionIsInstalled(): void
@@ -380,6 +422,8 @@ class Number
      */
     public static function flushState(): void
     {
+        static::$locale = self::DEFAULT_LOCALE;
+        static::$currency = self::DEFAULT_CURRENCY;
         static::flushMacros();
     }
 }

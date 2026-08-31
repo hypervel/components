@@ -58,13 +58,14 @@ class Decrement
 
             $pipeline = $connection->pipeline();
 
+            // Publish the counter before its memberships so concurrent pruning
+            // cannot mistake a newly written member for an orphan.
+            $pipeline->decrBy($prefix . $key, $value);
+
             // ZADD NX to each tag's sorted set (only add if not exists)
             foreach ($tagIds as $tagId) {
                 $pipeline->zadd($prefix . $tagId, ['NX'], self::FOREVER_SCORE, $key);
             }
-
-            // DECRBY for the value
-            $pipeline->decrBy($prefix . $key, $value);
 
             $results = $pipeline->exec();
 
@@ -72,8 +73,8 @@ class Decrement
                 return false;
             }
 
-            // Last result is the DECRBY result
-            return end($results);
+            // First result is the DECRBY result
+            return $results[0] ?? false;
         });
     }
 
@@ -85,13 +86,19 @@ class Decrement
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tagIds): int|false {
             $prefix = $this->context->prefix();
 
+            // Publish tag memberships only after Redis confirms the counter write.
+            $newValue = $connection->decrBy($prefix . $key, $value);
+
+            if (! is_int($newValue)) {
+                return false;
+            }
+
             // ZADD NX to each tag's sorted set (sequential - cross-slot)
             foreach ($tagIds as $tagId) {
                 $connection->zadd($prefix . $tagId, ['NX'], self::FOREVER_SCORE, $key);
             }
 
-            // DECRBY for the value
-            return $connection->decrBy($prefix . $key, $value);
+            return $newValue;
         });
     }
 }

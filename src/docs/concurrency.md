@@ -23,6 +23,8 @@ By default, Hypervel executes concurrent tasks using the `coroutine` driver. Eac
 
 If a task throws an exception, Hypervel waits for the other tasks to finish and then rethrows the first exception according to the input order of the task array.
 
+If the coroutine running `Concurrency::run` is canceled, Hypervel cancels its active tasks and preserves that cancellation. A task canceled independently is surfaced as `Hypervel\Coroutine\Exceptions\ChildCancellationException` instead of being confused with cancellation of its parent.
+
 The `Concurrency` facade supports three drivers: `coroutine` (the default), `process`, and `sync`.
 
 The `process` driver is available for unusual situations where you need full operating system process isolation. It serializes each closure, dispatches it to a hidden Artisan command in a separate PHP process, and serializes the result back to the parent process. Hypervel itself uses this for dispatching Composer hook events, which run outside the normal application lifecycle. You may also use it for work that must avoid long-lived worker state, needs a clean memory image, or calls PHP extensions that Swoole cannot hook and that would otherwise block the entire worker process.

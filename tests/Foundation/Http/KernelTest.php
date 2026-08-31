@@ -11,6 +11,7 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Events\Terminating;
+use Hypervel\Foundation\Http\Events\RequestHandled;
 use Hypervel\Foundation\Http\Kernel;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
@@ -19,6 +20,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -352,6 +354,57 @@ class KernelTest extends TestCase
         }
     }
 
+    public function testHandlePreservesRouterCancellationWithoutReportingOrDispatchingTheHandledEvent(): void
+    {
+        $app = new Application;
+        $events = new Dispatcher($app);
+        $app->instance('events', $events);
+        $app->bootstrapWith([]);
+        $cancellation = new CanceledException('canceled');
+        $handled = false;
+        $events->listen(RequestHandled::class, function () use (&$handled): void {
+            $handled = true;
+        });
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldNotReceive('report', 'render');
+        $app->instance(ExceptionHandler::class, $handler);
+        $router = m::mock(Router::class);
+        $router->expects('dispatch')->andThrow($cancellation);
+        $kernel = new Kernel($app, $router);
+
+        try {
+            $kernel->handle(Request::create('/'));
+            $this->fail('Expected request handling to preserve cancellation.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertFalse($handled);
+    }
+
+    public function testHandlePreservesCancellationFromTheHandledEventWithoutReporting(): void
+    {
+        $app = new Application;
+        $events = new Dispatcher($app);
+        $app->instance('events', $events);
+        $app->bootstrapWith([]);
+        $cancellation = new CanceledException('canceled');
+        $events->listen(RequestHandled::class, fn () => throw $cancellation);
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldNotReceive('report', 'render');
+        $app->instance(ExceptionHandler::class, $handler);
+        $router = m::mock(Router::class);
+        $router->expects('dispatch')->andReturn(new Response);
+        $kernel = new Kernel($app, $router);
+
+        try {
+            $kernel->handle(Request::create('/'));
+            $this->fail('Expected the handled event to preserve cancellation.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
     public function testTerminationIsExhaustiveAndPreservesTheFirstFailure(): void
     {
         $called = [];
@@ -431,6 +484,153 @@ class KernelTest extends TestCase
             'first duration',
             'second duration',
         ], $called);
+        $this->assertNull($kernel->requestStartedAt());
+    }
+
+    public function testTerminationCancellationStopsLaterStagesAndClearsTheRequestStartTime(): void
+    {
+        $called = [];
+        $app = new Application;
+        $events = new Dispatcher($app);
+        $app->instance('events', $events);
+        $app->instance('config', new Repository(['app' => ['timezone' => 'UTC']]));
+        $app->bootstrapWith([]);
+        $router = m::mock(Router::class);
+        $router->expects('dispatch')->andReturn(new Response);
+        $kernel = new Kernel($app, $router);
+        $request = Request::create('/');
+        $response = $kernel->handle($request);
+        $cancellation = new CanceledException('canceled');
+
+        $events->listen(function (Terminating $event) use (&$called, $cancellation): void {
+            $called[] = 'event';
+
+            throw $cancellation;
+        });
+        $app->instance('terminating-middleware', new class($called) {
+            public function __construct(private array &$called)
+            {
+            }
+
+            public function terminate(Request $request, Response $response): void
+            {
+                $this->called[] = 'middleware';
+            }
+        });
+        $kernel->setGlobalMiddleware(['terminating-middleware']);
+        $app->terminating(function () use (&$called): void {
+            $called[] = 'application';
+        });
+        $kernel->whenRequestLifecycleIsLongerThan(-1, function () use (&$called): void {
+            $called[] = 'duration';
+        });
+
+        try {
+            $kernel->terminate($request, $response);
+            $this->fail('Expected request termination to preserve cancellation.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame(['event'], $called);
+        $this->assertNull($kernel->requestStartedAt());
+    }
+
+    public function testMiddlewareCancellationSupersedesAnEarlierOrdinaryTerminationFailure(): void
+    {
+        $called = [];
+        $app = new Application;
+        $events = new Dispatcher($app);
+        $app->instance('events', $events);
+        $app->instance('config', new Repository(['app' => ['timezone' => 'UTC']]));
+        $app->bootstrapWith([]);
+        $router = m::mock(Router::class);
+        $router->expects('dispatch')->andReturn(new Response);
+        $kernel = new Kernel($app, $router);
+        $request = Request::create('/');
+        $response = $kernel->handle($request);
+        $cancellation = new CanceledException('canceled');
+
+        $events->listen(function (Terminating $event) use (&$called): void {
+            $called[] = 'event';
+
+            throw new RuntimeException('event failed');
+        });
+        $app->instance('cancelling-middleware', new class($called, $cancellation) {
+            public function __construct(private array &$called, private CanceledException $cancellation)
+            {
+            }
+
+            public function terminate(Request $request, Response $response): void
+            {
+                $this->called[] = 'cancelling middleware';
+
+                throw $this->cancellation;
+            }
+        });
+        $app->instance('later-middleware', new class($called) {
+            public function __construct(private array &$called)
+            {
+            }
+
+            public function terminate(Request $request, Response $response): void
+            {
+                $this->called[] = 'later middleware';
+            }
+        });
+        $kernel->setGlobalMiddleware(['cancelling-middleware', 'later-middleware']);
+        $app->terminating(function () use (&$called): void {
+            $called[] = 'application';
+        });
+
+        try {
+            $kernel->terminate($request, $response);
+            $this->fail('Expected middleware cancellation to supersede the earlier failure.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame(['event', 'cancelling middleware'], $called);
+        $this->assertNull($kernel->requestStartedAt());
+    }
+
+    public function testDurationHandlerCancellationSupersedesAnEarlierOrdinaryTerminationFailure(): void
+    {
+        $called = [];
+        $app = new Application;
+        $events = new Dispatcher($app);
+        $app->instance('events', $events);
+        $app->instance('config', new Repository(['app' => ['timezone' => 'UTC']]));
+        $app->bootstrapWith([]);
+        $router = m::mock(Router::class);
+        $router->expects('dispatch')->andReturn(new Response);
+        $kernel = new Kernel($app, $router);
+        $request = Request::create('/');
+        $response = $kernel->handle($request);
+        $cancellation = new CanceledException('canceled');
+
+        $events->listen(function (Terminating $event) use (&$called): void {
+            $called[] = 'event';
+
+            throw new RuntimeException('event failed');
+        });
+        $kernel->whenRequestLifecycleIsLongerThan(-1, function () use (&$called, $cancellation): void {
+            $called[] = 'cancelling duration';
+
+            throw $cancellation;
+        });
+        $kernel->whenRequestLifecycleIsLongerThan(-1, function () use (&$called): void {
+            $called[] = 'later duration';
+        });
+
+        try {
+            $kernel->terminate($request, $response);
+            $this->fail('Expected duration handler cancellation to supersede the earlier failure.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame(['event', 'cancelling duration'], $called);
         $this->assertNull($kernel->requestStartedAt());
     }
 

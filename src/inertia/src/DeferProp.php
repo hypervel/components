@@ -42,7 +42,7 @@ class DeferProp implements Deferrable, IgnoreFirstLoad, Mergeable, Onceable, Res
      */
     public function __invoke(): mixed
     {
-        return $this->resolveCallable($this->callback);
+        return $this->invokeCallable($this->callback);
     }
 
     /**

@@ -11,6 +11,8 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\Jobs\Job;
@@ -19,6 +21,7 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class QueueJobTest extends TestCase
@@ -142,6 +145,64 @@ class QueueJobTest extends TestCase
         $this->assertTrue($job->isDeleted());
     }
 
+    public function testBatchRollbackCancellationEscapesBeforeFurtherFailureCleanup(): void
+    {
+        $job = new QueueJobPayloadStub(json_encode([
+            'uuid' => 'job-uuid',
+            'job' => QueueJobTimeoutBatchStub::class,
+            'data' => ['commandName' => QueueJobTimeoutBatchStub::class],
+        ], JSON_THROW_ON_ERROR));
+        $timeout = TimeoutExceededException::forJob($job);
+        $gate = $this->armCurrentCoroutineCancellation();
+        $batchRepository = m::mock(BatchRepository::class);
+        $batchRepository->shouldReceive('rollBack')
+            ->once()
+            ->andReturnUsing(static function () use ($gate): never {
+                $gate->push(true);
+
+                throw new RuntimeException('Cancellation was not delivered.');
+            });
+        $container = m::mock(Container::class);
+        $container->shouldReceive('make')->once()->with(BatchRepository::class)->andReturn($batchRepository);
+        $job->setContainer($container);
+        $job->setConnectionName('redis');
+
+        try {
+            $job->fail($timeout);
+            $this->fail('Expected batch rollback cancellation to escape.');
+        } catch (CanceledException) {
+            $this->assertTrue($job->hasFailed());
+            $this->assertFalse($job->isDeleted());
+        }
+    }
+
+    public function testFailedHookCancellationSkipsTheFailedEvent(): void
+    {
+        $failure = new RuntimeException('Queue job failed.');
+        $job = new QueueJobPayloadStub(json_encode([
+            'uuid' => 'job-uuid',
+            'job' => QueueJobCancelingFailedHookStub::class,
+            'data' => [],
+        ], JSON_THROW_ON_ERROR));
+        $handler = new QueueJobCancelingFailedHookStub($this->armCurrentCoroutineCancellation());
+        $container = m::mock(Container::class);
+        $container->shouldReceive('make')
+            ->once()
+            ->with(QueueJobCancelingFailedHookStub::class)
+            ->andReturn($handler);
+        $container->shouldNotReceive('make')->with(Dispatcher::class);
+        $job->setContainer($container);
+        $job->setConnectionName('redis');
+
+        try {
+            $job->fail($failure);
+            $this->fail('Expected failed hook cancellation to escape.');
+        } catch (CanceledException) {
+            $this->assertTrue($job->hasFailed());
+            $this->assertTrue($job->isDeleted());
+        }
+    }
+
     #[DataProvider('failedJobDatabases')]
     public function testBatchRollbackFailurePreservesTimeoutForFailedJobCleanup(?string $databaseName): void
     {
@@ -198,6 +259,22 @@ class QueueJobTest extends TestCase
             'named connection' => ['sqlite'],
             'default connection' => [null],
         ];
+    }
+
+    /**
+     * Arm exact cancellation of the current coroutine at a controlled channel handoff.
+     */
+    private function armCurrentCoroutineCancellation(): Channel
+    {
+        $gate = new Channel(1);
+        $coroutineId = EngineCoroutine::id();
+
+        EngineCoroutine::create(static function () use ($coroutineId, $gate): void {
+            $gate->pop();
+            EngineCoroutine::cancelById($coroutineId, throwException: true);
+        });
+
+        return $gate;
     }
 
     protected function capturePayloadException(Job $job): InvalidPayloadException
@@ -261,6 +338,20 @@ class QueueJobFailedHookStub
     public function failed(array $data, ?Throwable $e, string $uuid, Job $job): never
     {
         throw $this->exception;
+    }
+}
+
+class QueueJobCancelingFailedHookStub
+{
+    public function __construct(protected Channel $gate)
+    {
+    }
+
+    public function failed(array $data, ?Throwable $e, string $uuid, Job $job): never
+    {
+        $this->gate->push(true);
+
+        throw new RuntimeException('Cancellation was not delivered.');
     }
 }
 

@@ -11,6 +11,7 @@ use Hypervel\Foundation\Testing\RefreshDatabaseState;
 use Hypervel\Support\Facades\ParallelTesting;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
+use Hypervel\Testbench\Concerns\WithHypervelMigrations;
 use Hypervel\Testbench\TestCase;
 use Override;
 use PHPUnit\Framework\Attributes\Test;
@@ -21,12 +22,15 @@ use function Hypervel\Testbench\workbench_path;
 class DatabaseTruncationExistingDatabaseTest extends TestCase
 {
     use DatabaseTruncation;
+    use WithHypervelMigrations;
 
     private static string $databaseDirectory;
 
     #[Override]
     protected function defineEnvironment(ApplicationContract $app): void
     {
+        RefreshDatabaseState::$migrated = true;
+
         self::$databaseDirectory = ParallelTesting::tempDir('database-truncation-existing');
 
         $files = new Filesystem;
@@ -42,15 +46,14 @@ class DatabaseTruncationExistingDatabaseTest extends TestCase
     #[Override]
     protected function defineDatabaseMigrations(): void
     {
-        RefreshDatabaseState::$migrated = true;
-
         $this->loadMigrationsFrom(workbench_path('database/migrations'));
     }
 
     #[Test]
     public function itRunsNewMigrationPathsWhenThePersistentDatabaseWasAlreadyMigrated(): void
     {
-        $this->assertCount(1, $this->cachedTestMigratorProcessors);
+        $this->assertCount(2, $this->cachedTestMigratorProcessors);
+        $this->assertTrue(Schema::hasTable('users'));
         $this->assertTrue(Schema::hasTable('testbench_users'));
     }
 

@@ -262,13 +262,16 @@ class PdoConnection extends Connection
     public function bindValues(PDOStatement $statement, array $bindings): void
     {
         foreach ($bindings as $key => $value) {
+            $parameter = $value instanceof BinaryParameter ? $value->value : $value;
+
             $statement->bindValue(
                 is_string($key) ? $key : $key + 1,
-                $value,
+                $parameter,
                 match (true) {
-                    is_int($value) => PDO::PARAM_INT,
-                    is_resource($value) => PDO::PARAM_LOB,
-                    default => PDO::PARAM_STR
+                    $value instanceof BinaryParameter => PDO::PARAM_LOB,
+                    is_int($parameter) => PDO::PARAM_INT,
+                    is_resource($parameter) => PDO::PARAM_LOB,
+                    default => PDO::PARAM_STR,
                 },
             );
         }

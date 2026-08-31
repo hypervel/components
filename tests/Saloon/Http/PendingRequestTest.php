@@ -10,6 +10,9 @@ use Hypervel\Saloon\Contracts\Body\BodyRepository;
 use Hypervel\Saloon\Enums\Method;
 use Hypervel\Saloon\Exceptions\MissingAuthenticatorException;
 use Hypervel\Saloon\Exceptions\PendingRequestException;
+use Hypervel\Saloon\Http\Auth\AccessTokenAuthenticator;
+use Hypervel\Saloon\Http\Auth\HeaderAuthenticator;
+use Hypervel\Saloon\Http\Auth\TokenAuthenticator;
 use Hypervel\Saloon\Http\Connector;
 use Hypervel\Saloon\Http\PendingRequest;
 use Hypervel\Saloon\Http\Request;
@@ -104,6 +107,30 @@ class PendingRequestTest extends TestCase
         $this->expectExceptionMessage('Custom authentication is required.');
 
         $pendingRequest->bootPlugins();
+    }
+
+    public function testAuthenticatorsReplaceLogicalHeadersRegardlessOfCase(): void
+    {
+        $pendingRequest = $this->pendingRequest(
+            new PendingRequestConnectorWithoutBodyStub,
+            new PendingRequestRequestStub,
+        );
+
+        $pendingRequest
+            ->withHeader('authorization', 'Bearer old')
+            ->authenticate(new TokenAuthenticator('first'))
+            ->authenticate(new AccessTokenAuthenticator('second'));
+
+        $this->assertSame(['Authorization' => 'Bearer second'], $pendingRequest->headers());
+
+        $pendingRequest
+            ->withHeader('x-api-key', 'old')
+            ->authenticate(new HeaderAuthenticator('new', 'X-Api-Key'));
+
+        $this->assertSame([
+            'Authorization' => 'Bearer second',
+            'X-Api-Key' => 'new',
+        ], $pendingRequest->headers());
     }
 
     protected function setUp(): void

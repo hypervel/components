@@ -10,8 +10,6 @@ use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\LoadConfiguration;
 use Hypervel\Testbench\Contracts\Attributes\Invokable;
 
-use function Hypervel\Testbench\package_path;
-
 #[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD)]
 final class UsesFrameworkConfiguration implements Invokable
 {
@@ -19,7 +17,7 @@ final class UsesFrameworkConfiguration implements Invokable
     {
         /** @var Application $app */
         $app->bind(LoadConfiguration::class, LoadConfiguration::class);
-        $app->useConfigPath(package_path('src', 'foundation', 'config'));
+        $app->useConfigPath(LoadConfiguration::frameworkConfigPath());
         $app->dontMergeFrameworkConfiguration();
 
         return null;

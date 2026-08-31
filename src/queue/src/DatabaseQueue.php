@@ -19,6 +19,7 @@ use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
@@ -367,6 +368,8 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
                     ))
                     ->all()
             );
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             foreach ($jobs as $job) {
                 $this->raiseJobQueueingFailedEvent($queue, $job['job'], $job['payload'], $job['delay'], $exception);

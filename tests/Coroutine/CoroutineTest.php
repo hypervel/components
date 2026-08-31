@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Coroutine;
 
+use Closure;
 use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testing\ParallelTesting;
@@ -97,6 +99,23 @@ class CoroutineTest extends TestCase
         });
 
         $this->assertTrue(true);
+    }
+
+    public function testTerminalCancellationIsNotReported(): void
+    {
+        $container = new Container;
+        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler->shouldNotReceive('report');
+        $container->instance(ExceptionHandlerContract::class, $handler);
+        Container::setInstance($container);
+        $blocker = new Channel(1);
+
+        $coroutineId = Coroutine::create(static function () use ($blocker): void {
+            $blocker->pop();
+        });
+
+        $this->assertTrue(EngineCoroutine::cancelById($coroutineId, throwException: true));
+        $this->assertFalse(Coroutine::exists($coroutineId));
     }
 
     public function testAfterCreatedCallbacksAreExecuted()
@@ -215,6 +234,74 @@ class CoroutineTest extends TestCase
 
         $this->assertTrue($secondCallbackRan);
         $this->assertTrue($mainCallableRan);
+    }
+
+    public function testOwnedCoroutineTransfersOwnershipBeforeStartupFailureReportingCanSuspend(): void
+    {
+        $container = new Container;
+        $handler = m::mock(ExceptionHandlerContract::class);
+        $container->instance(ExceptionHandlerContract::class, $handler);
+        Container::setInstance($container);
+        CoroutineContext::set('request-id', 'child-request');
+        $exception = new RuntimeException('The startup hook failed.');
+        $reportStarted = new Channel(1);
+        $releaseReport = new Channel(1);
+        $reportedContext = null;
+        $started = false;
+        $finalized = 0;
+        $secondCallbackRan = false;
+        $mainCallableRan = false;
+
+        $handler->shouldReceive('report')
+            ->once()
+            ->with($exception)
+            ->andReturnUsing(static function () use ($reportStarted, $releaseReport, &$reportedContext): void {
+                $reportedContext = CoroutineContext::get('request-id');
+                $reportStarted->push(true);
+                $releaseReport->pop();
+            });
+
+        Coroutine::afterCreated(static function () use ($exception): void {
+            throw $exception;
+        });
+        Coroutine::afterCreated(static function () use (&$secondCallbackRan): void {
+            $secondCallbackRan = true;
+        });
+
+        $coroutineId = null;
+
+        try {
+            $coroutineId = Coroutine::forkOwned(
+                static function () use (&$mainCallableRan): void {
+                    $mainCallableRan = true;
+                },
+                static function (Closure $run) use (&$started, &$finalized): void {
+                    try {
+                        $started = true;
+                        $run();
+                    } finally {
+                        ++$finalized;
+                    }
+                },
+            );
+
+            $this->assertTrue($reportStarted->pop(1));
+            $this->assertTrue($started);
+            $this->assertSame('child-request', $reportedContext);
+            $this->assertFalse($secondCallbackRan);
+            $this->assertFalse($mainCallableRan);
+
+            $this->assertTrue(EngineCoroutine::cancelById($coroutineId, throwException: true));
+            $this->assertFalse(Coroutine::exists($coroutineId));
+            $this->assertSame(1, $finalized);
+        } finally {
+            $releaseReport->push(true, 0.001);
+
+            if ($coroutineId !== null && Coroutine::exists($coroutineId)) {
+                EngineCoroutine::cancelById($coroutineId, throwException: true);
+                Coroutine::join([$coroutineId], 1);
+            }
+        }
     }
 
     #[RunInSeparateProcess]
