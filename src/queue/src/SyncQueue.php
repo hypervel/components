@@ -21,6 +21,11 @@ use Throwable;
 class SyncQueue extends Queue implements QueueContract
 {
     /**
+     * The name of the default queue.
+     */
+    protected string $default = 'sync';
+
+    /**
      * Create a new sync queue instance.
      */
     public function __construct(
@@ -195,7 +200,9 @@ class SyncQueue extends Queue implements QueueContract
      */
     protected function resolveJob(string $payload, ?string $queue): SyncJob
     {
-        return new SyncJob($this->container, $payload, $this->connectionName, $queue ?? 'sync');
+        $queue = $queue === null || $queue === '' ? $this->default : $queue;
+
+        return new SyncJob($this->container, $payload, $this->connectionName, $queue);
     }
 
     /**

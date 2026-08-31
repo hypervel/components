@@ -16,7 +16,9 @@ use Hypervel\Coordinator\Timer;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
+use Hypervel\Events\Dispatcher as EventsDispatcher;
 use Hypervel\Queue\DeferredQueue;
+use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Support\CarbonImmutable;
@@ -45,6 +47,35 @@ class QueueDeferredQueueTest extends TestCase
 
         $this->assertInstanceOf(SyncJob::class, $_SERVER['__deferred.test'][0]);
         $this->assertEquals(['foo' => 'bar'], $_SERVER['__deferred.test'][1]);
+    }
+
+    public function testJobsReportTheirResolvedQueueName(): void
+    {
+        $deferred = new DeferredQueue;
+        $deferred->setConnectionName('deferred-connection');
+        $container = $this->getContainer();
+        $events = new EventsDispatcher($container);
+        $observed = [];
+
+        $events->listen(JobProcessing::class, static function (JobProcessing $event) use (&$observed): void {
+            $observed[] = [$event->connectionName, $event->job->getQueue()];
+        });
+
+        $container->instance('events', $events);
+        $container->instance(Dispatcher::class, $events);
+        $deferred->setContainer($container);
+
+        foreach ([
+            [null, 'deferred'],
+            ['', 'deferred'],
+            ['emails', 'emails'],
+            // A queue named "0" is valid and must not be treated as empty.
+            ['0', '0'],
+        ] as [$queue, $expected]) {
+            $observed = [];
+            run(fn () => $deferred->push(DeferredQueueTestHandler::class, queue: $queue));
+            $this->assertSame([['deferred-connection', $expected]], $observed);
+        }
     }
 
     public function testPushSnapshotsMutableJobBeforeCoroutineEnd(): void

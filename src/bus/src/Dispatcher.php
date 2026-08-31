@@ -92,6 +92,7 @@ class Dispatcher implements QueueingDispatcher
         $uses = class_uses_recursive($command);
 
         if (isset($uses[InteractsWithQueue::class], $uses[Queueable::class]) && ! $command->job) {
+            // This synthetic job was never queued, so "sync" only labels its inline execution.
             $command->setJob(new SyncJob($this->container, json_encode([]), 'sync', 'sync'));
         }
 

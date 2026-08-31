@@ -41,7 +41,9 @@ return [
     | Omitting a database or Redis connection selects the corresponding
     | default connection. Database, Beanstalkd, and Redis retry timeouts
     | default to 60 seconds when omitted. Connection records for drivers
-    | without named queues may omit the "queue" member.
+    | without named queues may omit the "queue" member. The sync, background,
+    | and deferred drivers do not support configurable queue names and ignore
+    | a "queue" member on their connections.
     |
     | Except for sync and database, a dispatch waits for the most recently
     | started applicable transaction and its enclosing stack to commit.

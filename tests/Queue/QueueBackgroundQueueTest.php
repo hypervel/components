@@ -16,8 +16,10 @@ use Hypervel\Coordinator\Timer;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
+use Hypervel\Events\Dispatcher as EventsDispatcher;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\BackgroundQueue;
+use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Support\CarbonImmutable;
@@ -46,6 +48,35 @@ class QueueBackgroundQueueTest extends TestCase
 
         $this->assertInstanceOf(SyncJob::class, $_SERVER['__background.test'][0]);
         $this->assertEquals(['foo' => 'bar'], $_SERVER['__background.test'][1]);
+    }
+
+    public function testJobsReportTheirResolvedQueueName(): void
+    {
+        $background = new BackgroundQueue;
+        $background->setConnectionName('background-connection');
+        $container = $this->getContainer();
+        $events = new EventsDispatcher($container);
+        $observed = [];
+
+        $events->listen(JobProcessing::class, static function (JobProcessing $event) use (&$observed): void {
+            $observed[] = [$event->connectionName, $event->job->getQueue()];
+        });
+
+        $container->instance('events', $events);
+        $container->instance(Dispatcher::class, $events);
+        $background->setContainer($container);
+
+        foreach ([
+            [null, 'background'],
+            ['', 'background'],
+            ['emails', 'emails'],
+            // A queue named "0" is valid and must not be treated as empty.
+            ['0', '0'],
+        ] as [$queue, $expected]) {
+            $observed = [];
+            run(fn () => $background->push(BackgroundQueueTestHandler::class, queue: $queue));
+            $this->assertSame([['background-connection', $expected]], $observed);
+        }
     }
 
     public function testPushSnapshotsMutableJobBeforeBackgroundExecution(): void
