@@ -13,7 +13,7 @@ use Hypervel\Support\Facades\Facade;
  * @method static void assertNotSent(callable|string $value)
  * @method static void assertSent(callable|string $value)
  * @method static void assertSentCount(int $count, null|string $requestClass = null)
- * @method static void assertSentInOrder(array $callbacks)
+ * @method static void assertSentInOrder(array<int, string|Closure> $callbacks)
  * @method static \Hypervel\Contracts\Cache\Factory cache()
  * @method static \Hypervel\Saloon\SaloonManager clearFake()
  * @method static \Hypervel\Saloon\Http\Faking\MockClient fake(array<array-key, callable|\Hypervel\Saloon\Http\Faking\Fixture|\Hypervel\Saloon\Http\Faking\MockResponse>|\Hypervel\Saloon\Http\Faking\MockClient $responses = [])

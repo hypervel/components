@@ -13,7 +13,7 @@ use Hypervel\Console\Scheduling\Schedule as ConsoleSchedule;
  * @method static \Hypervel\Support\Collection dueEvents(\Hypervel\Contracts\Foundation\Application $app)
  * @method static \Hypervel\Support\Collection dueEventsAt(\Hypervel\Contracts\Foundation\Application $app, \DateTimeInterface $time)
  * @method static array events()
- * @method static array eventsForEnvironments(array $environments)
+ * @method static array<int, \Hypervel\Console\Scheduling\Event> eventsForEnvironments(array<int, string> $environments)
  * @method static \Hypervel\Console\Scheduling\Event exec(string $command, array $parameters = [], bool $isSystem = true)
  * @method static void flushMacros()
  * @method static void flushState()
