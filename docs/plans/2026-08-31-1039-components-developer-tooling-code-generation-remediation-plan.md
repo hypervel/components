@@ -131,7 +131,7 @@ $docblock_method ?? $original_method
 
 The fallback is used by single controller and named-route renders. Multi-method rendering always supplies `docblock_method`. Preserve this invariant: every render site supplies `original_method`, and every multi-method include supplies the explicit PHP method.
 
-Assert that existing controller methods use their original PHP method names rather than collision-renamed TypeScript identifiers. For deliberately invalid numeric fixture actions, assert the original action string rather than pretending a PHP method exists. Preserve invokable, named-route, and controller render behavior.
+Assert exact generated annotation lines for existing controller methods so prefix-related names cannot satisfy one another. For deliberately invalid numeric fixture actions, assert the original action string rather than pretending a PHP method exists. Preserve invokable, named-route, and controller render behavior.
 
 #### Parameterized middleware defaults (#114)
 
@@ -276,7 +276,7 @@ Run the standalone split-package install/autoload invocation manually after focu
 
 ### 8. Regenerate and verify the complete facade surface
 
-After #131–134 are complete, restore the upstream structured return PHPDoc missing from `src/database/src/Schema/Builder.php::getForeignKeys()`, derive the complete first-party facade list using the same discovery rules as `FacadeDocblocksTest`, run the documenter once over the complete list, and inspect every generated diff. Commit only output changes caused by corrected type resolution; never hand-edit generated method lists.
+After #131–134 are complete, restore the upstream structured return PHPDoc missing from `src/database/src/Schema/Builder.php::getForeignKeys()` and correct both Saloon `assertSentInOrder()` owners to `list<callable|string>`, matching the matcher they delegate to. Derive the complete first-party facade list using the same discovery rules as `FacadeDocblocksTest`, run the documenter once over the complete list, and inspect every generated diff. Commit only output changes caused by corrected source contracts or type resolution; never hand-edit generated method lists.
 
 Run:
 
