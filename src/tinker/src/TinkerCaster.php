@@ -50,7 +50,8 @@ class TinkerCaster
                 if (! is_null($val)) {
                     $results[Caster::PREFIX_VIRTUAL . $property] = $val;
                 }
-            } catch (Exception $e) {
+            } catch (Exception) {
+                // An unavailable probe is omitted without hiding the remaining details.
             }
         }
 
@@ -116,11 +117,7 @@ class TinkerCaster
 
         $hidden = array_flip($model->getHidden());
 
-        $appends = (function () {
-            return array_combine($this->appends, $this->appends); // @phpstan-ignore-line
-        })->bindTo($model, $model)();
-
-        foreach ($appends as $appended) {
+        foreach ($model->getAppends() as $appended) {
             $attributes[$appended] = $model->{$appended};
         }
 

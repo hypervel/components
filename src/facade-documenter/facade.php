@@ -29,6 +29,7 @@ use PHPStan\PhpDocParser\Ast\ConstExpr\ConstExprStringNode;
 use PHPStan\PhpDocParser\Ast\ConstExpr\ConstExprTrueNode;
 use PHPStan\PhpDocParser\Ast\ConstExpr\ConstFetchNode;
 use PHPStan\PhpDocParser\Ast\PhpDoc\MethodTagValueNode;
+use PHPStan\PhpDocParser\Ast\PhpDoc\MethodTagValueParameterNode;
 use PHPStan\PhpDocParser\Ast\Type\ArrayShapeNode;
 use PHPStan\PhpDocParser\Ast\Type\ArrayTypeNode;
 use PHPStan\PhpDocParser\Ast\Type\CallableTypeNode;
@@ -48,6 +49,44 @@ use PHPStan\PhpDocParser\Parser\TokenIterator;
 use PHPStan\PhpDocParser\Parser\TypeParser;
 use PHPStan\PhpDocParser\ParserConfig;
 
+const STRING_REFINEMENT_TYPES = [
+    'non-empty-string',
+    'non-falsy-string',
+    'truthy-string',
+    'literal-string',
+    'lowercase-string',
+    'numeric-string',
+    'uppercase-string',
+    'callable-string',
+    'interface-string',
+    'enum-string',
+    'trait-string',
+];
+
+const INTEGER_REFINEMENT_TYPES = [
+    'positive-int',
+    'negative-int',
+    'non-positive-int',
+    'non-negative-int',
+    'non-zero-int',
+];
+
+const ARRAY_REFINEMENT_TYPES = [
+    'list',
+    'non-empty-list',
+    'non-empty-array',
+];
+
+$supportedOptions = ['--lint', '--verbose'];
+$unknownOption = collect($argv)
+    ->skip(1)
+    ->first(fn ($argument) => str_starts_with($argument, '-') && ! in_array($argument, $supportedOptions, true));
+
+if ($unknownOption !== null) {
+    fwrite(STDERR, "Unknown option [{$unknownOption}]. Supported options are --lint and --verbose.\n");
+    exit(1);
+}
+
 $linting = in_array('--lint', $argv, true);
 $verbose = in_array('--verbose', $argv, true);
 $lintFailed = false;
@@ -61,12 +100,14 @@ collect($argv)
     ->filter(fn ($arg) => ! str_starts_with($arg, '-'))
     ->map(fn ($class) => new ReflectionClass($class))
     ->each(function ($facade) use ($filesystem, $linting, &$lintFailed) {
-        debug("Processing [{$facade->getName()}]...");
+        $facadeName = $facade->getName();
+
+        debug("Processing [{$facadeName}]...");
 
         $proxies = resolveProxies($facade);
 
         if ($proxies->isEmpty()) {
-            echo "Skipping [{$facade->getName()}] as no proxies were found." . PHP_EOL;
+            echo "Skipping [{$facadeName}] as no proxies were found." . PHP_EOL;
 
             return;
         }
@@ -97,18 +138,18 @@ collect($argv)
         $globalClassImports = resolveClassImports($facade)
             ->filter(fn ($fqcn) => ! str_contains(ltrim($fqcn, '\\'), '\\'));
 
-        $methods = $resolvedMethods->map(function ($method) use ($facade, $globalClassImports) {
+        $methods = $resolvedMethods->map(function ($method) use ($facadeName, $globalClassImports) {
             if ($method instanceof MethodTagValueNode) {
                 // The node renders its own static marker, while every facade method must be static.
                 $method = ' * @method ' . ($method->isStatic ? '' : 'static ') . $method;
             } else {
-                $parameters = $method['parameters']->map(function ($parameter) use ($facade, $method) {
+                $parameters = $method['parameters']->map(function ($parameter) use ($facadeName, $method) {
                     $rest = $parameter['variadic'] ? '...' : '';
 
                     $default = $parameter['optional']
                         ? ' = ' . resolveDefaultValue(
                             $parameter,
-                            $facade->getName(),
+                            $facadeName,
                             $method['declaringClass'],
                             $method['name'],
                         )
@@ -125,7 +166,7 @@ collect($argv)
 
         // Fix: ensure we keep the references to the Carbon library on the Date Facade...
 
-        if ($facade->getName() === Hypervel\Support\Facades\Date::class) {
+        if ($facadeName === Hypervel\Support\Facades\Date::class) {
             $methods->prepend(' *')
                 ->prepend(' * @see https://github.com/briannesbitt/Carbon/blob/master/src/Carbon/Factory.php')
                 ->prepend(' * @see https://carbon.nesbot.com/docs/');
@@ -136,7 +177,7 @@ collect($argv)
         $directMixins = resolveDocTags($facade->getDocComment() ?: '', '@mixin ');
 
         if ($methods->isEmpty()) {
-            echo "Skipping [{$facade->getName()}] as no methods were found." . PHP_EOL;
+            echo "Skipping [{$facadeName}] as no methods were found." . PHP_EOL;
 
             return;
         }
@@ -156,7 +197,7 @@ collect($argv)
         }
 
         if ($linting) {
-            echo "Did not find expected docblock for [{$facade->getName()}]." . PHP_EOL . PHP_EOL . $docblock . PHP_EOL . PHP_EOL;
+            echo "Did not find expected docblock for [{$facadeName}]." . PHP_EOL . PHP_EOL . $docblock . PHP_EOL . PHP_EOL;
             $lintFailed = true;
 
             return;
@@ -164,7 +205,7 @@ collect($argv)
 
         // Update the facade docblock...
 
-        echo "Updating docblock for [{$facade->getName()}]." . PHP_EOL;
+        echo "Updating docblock for [{$facadeName}]." . PHP_EOL;
         $path = $facade->getFileName();
         $contents = $filesystem->get($path);
         $permissions = $filesystem->chmod($path);
@@ -192,7 +233,7 @@ exit(0);
  */
 function exceptionHandler(Throwable $exception)
 {
-    echo (string) $exception . PHP_EOL;
+    fwrite(STDERR, (string) $exception . PHP_EOL);
     exit(1);
 }
 
@@ -319,19 +360,24 @@ function resolveDocMethods($class)
             /** @var MethodTagValueNode $method */
             $method = $tag->value;
 
-            $method->parameters = collect($method->parameters)->map(function ($parameter) use ($context) {
-                $parameter->type = new IdentifierTypeNode(
-                    $parameter->type ? (resolveDocblockTypes($context, $parameter->type) ?? 'mixed') : 'mixed'
-                );
-
-                return $parameter;
-            })->toArray();
-
-            $method->returnType = $method->returnType
-                ? new IdentifierTypeNode(resolveDocblockTypes($context, $method->returnType) ?? 'mixed')
-                : new IdentifierTypeNode('void');
-
-            return $method;
+            return new MethodTagValueNode(
+                $method->isStatic,
+                $method->returnType
+                    ? new IdentifierTypeNode(resolveDocblockTypes($context, $method->returnType) ?? 'mixed')
+                    : new IdentifierTypeNode('void'),
+                $method->methodName,
+                collect($method->parameters)->map(fn ($parameter) => new MethodTagValueParameterNode(
+                    new IdentifierTypeNode(
+                        $parameter->type ? (resolveDocblockTypes($context, $parameter->type) ?? 'mixed') : 'mixed'
+                    ),
+                    $parameter->isReference,
+                    $parameter->isVariadic,
+                    $parameter->parameterName,
+                    $parameter->defaultValue,
+                ))->toArray(),
+                $method->description,
+                $method->templateTypes,
+            );
         });
 }
 
@@ -356,12 +402,15 @@ function resolveDocParamType($method, $parameter)
 
     if ($paramTypeNode === null) {
         try {
-            $prototype = new ReflectionMethodDecorator($method->getPrototype(), $method->sourceClass()->getName());
-
-            return resolveDocParamType($prototype, $parameter);
-        } catch (Throwable) {
+            $prototype = $method->getPrototype();
+        } catch (ReflectionException) {
             return null;
         }
+
+        return resolveDocParamType(
+            new ReflectionMethodDecorator($prototype, $method->sourceClass()),
+            $parameter,
+        );
     }
 
     return resolveDocblockTypes($method, $paramTypeNode->type);
@@ -396,10 +445,29 @@ function resolveReturnDocType($method)
  */
 function parseDocblock($docblock)
 {
-    $parserConfig = new ParserConfig([]);
+    static $lexer;
+    static $parsedDocblocks = [];
+    static $phpDocParser;
 
-    return (new PhpDocParser($parserConfig, new TypeParser($parserConfig, new ConstExprParser($parserConfig)), new ConstExprParser($parserConfig)))->parse(
-        new TokenIterator((new Lexer($parserConfig))->tokenize($docblock ?: '/** */'))
+    $input = $docblock ?: '/** */';
+
+    if (array_key_exists($input, $parsedDocblocks)) {
+        return $parsedDocblocks[$input];
+    }
+
+    if (! isset($phpDocParser)) {
+        $parserConfig = new ParserConfig([]);
+        $constExprParser = new ConstExprParser($parserConfig);
+        $phpDocParser = new PhpDocParser(
+            $parserConfig,
+            new TypeParser($parserConfig, $constExprParser),
+            $constExprParser,
+        );
+        $lexer = new Lexer($parserConfig);
+    }
+
+    return $parsedDocblocks[$input] = $phpDocParser->parse(
+        new TokenIterator($lexer->tokenize($input))
     );
 }
 
@@ -439,18 +507,15 @@ function resolveDocblockTypes($method, $typeNode, int $depth = 1)
             // through to the default branch which preserves <...>.
             $identifier = $typeNode->type->name;
 
-            if ($identifier === 'class-string') {
+            if ($identifier === 'class-string' || isStringRefinementType($identifier)) {
                 return 'string';
             }
 
             // 'int' here covers int<min, max> bounded-int generics;
-            // int-mask-of lands here in wrapped form too.
-            if (in_array($identifier, ['int-mask-of', 'int'], strict: true)) {
+            // int-mask and int-mask-of land here in wrapped form too.
+            if (isIntegerRefinementType($identifier)
+                || in_array($identifier, ['int-mask', 'int-mask-of', 'int'], strict: true)) {
                 return 'int';
-            }
-
-            if ($identifier === 'list') {
-                return 'array';
             }
 
             if (in_array($identifier, ['key-of', 'value-of'], strict: true)) {
@@ -463,7 +528,24 @@ function resolveDocblockTypes($method, $typeNode, int $depth = 1)
                 return 'mixed';
             }
 
+            if (isArrayRefinementType($identifier)) {
+                $genericTypes = collect($typeNode->genericTypes)
+                    ->map(fn ($node) => resolveDocblockTypes($method, $node, $depth + 1));
+
+                if (in_array($identifier, ['list', 'non-empty-list'], true)) {
+                    return 'array<int, ' . ($genericTypes->first() ?? 'mixed') . '>';
+                }
+
+                return $genericTypes->isEmpty()
+                    ? 'array'
+                    : 'array<' . $genericTypes->implode(', ') . '>';
+            }
+
             $baseType = resolveDocblockTypes($method, $typeNode->type, $depth + 1);
+
+            if ($baseType === 'mixed') {
+                return 'mixed';
+            }
 
             $genericArgs = collect($typeNode->genericTypes)
                 ->map(fn ($node) => resolveDocblockTypes($method, $node, $depth + 1))
@@ -493,6 +575,10 @@ function resolveDocblockTypes($method, $typeNode, int $depth = 1)
         }
 
         if ($typeNode instanceof IdentifierTypeNode) {
+            if (($templateType = resolveTemplateType($method, $typeNode->name, $depth + 1)) !== null) {
+                return $templateType;
+            }
+
             if (($relative = resolveRelativeClassName($method, $typeNode->name)) !== null) {
                 return '\\' . $relative;
             }
@@ -501,15 +587,16 @@ function resolveDocblockTypes($method, $typeNode, int $depth = 1)
                 return (string) $typeNode;
             }
 
-            if (in_array($typeNode->name, ['class-string', 'uppercase-string'], strict: true)) {
+            if ($typeNode->name === 'class-string' || isStringRefinementType($typeNode->name)) {
                 return 'string';
             }
 
-            if ($typeNode->name === 'list') {
+            if (isArrayRefinementType($typeNode->name)) {
                 return 'array';
             }
 
-            if (in_array($typeNode->name, ['int-mask-of', 'non-negative-int'], strict: true)) {
+            if (isIntegerRefinementType($typeNode->name)
+                || in_array($typeNode->name, ['int-mask', 'int-mask-of'], strict: true)) {
                 return 'int';
             }
 
@@ -525,7 +612,7 @@ function resolveDocblockTypes($method, $typeNode, int $depth = 1)
                 }
             }
 
-            return handleUnknownIdentifierType($method, $typeNode, $depth);
+            return 'mixed';
         }
 
         if ($typeNode instanceof ConditionalTypeNode) {
@@ -612,13 +699,9 @@ function resolveDocblockTypes($method, $typeNode, int $depth = 1)
             throw $e;
         }
 
-        echo $e->getMessage();
-        echo PHP_EOL;
-        echo 'You can safely ignore this message if there is a native type declaration in place, which will be used as a fallback.';
-        echo PHP_EOL;
-        echo "You may tweak the {$e->method} function of the facade-documenter if a fix is required.";
-        echo PHP_EOL;
-        echo PHP_EOL;
+        fwrite(STDERR, $e->getMessage() . PHP_EOL);
+        fwrite(STDERR, 'You can safely ignore this message if there is a native type declaration in place, which will be used as a fallback.' . PHP_EOL);
+        fwrite(STDERR, "You may tweak the {$e->method} function of the facade-documenter if a fix is required." . PHP_EOL . PHP_EOL);
 
         return null;
     }
@@ -672,29 +755,49 @@ function resolveDocblockUnionMembers($method, $typeNode, int $depth): array
 }
 
 /**
- * Handle unknown identifier types.
+ * Resolve a method template type by name.
  *
  * @param \ReflectionClassDocblockContext|\ReflectionMethodDecorator $method
- * @param \PHPStan\PhpDocParser\Ast\Type\IdentifierTypeNode $typeNode
- * @return string
  */
-function handleUnknownIdentifierType($method, $typeNode, int $depth = 1)
+function resolveTemplateType($method, string $name, int $depth): ?string
 {
     $docblock = parseDocblock($method->getDocComment());
-    $boundTemplateType = collect([
+    $template = collect([
         ...$docblock->getTemplateTagValues('@phpstan-template'),
         ...$docblock->getTemplateTagValues(),
-    ])->firstWhere('name', $typeNode->name)?->bound;
+    ])->firstWhere('name', $name);
 
-    if ($boundTemplateType !== null) {
-        $resolvedTemplateType = resolveDocblockTypes($method, $boundTemplateType, $depth);
-
-        if ($resolvedTemplateType !== null) {
-            return $resolvedTemplateType;
-        }
+    if ($template === null) {
+        return null;
     }
 
-    return 'mixed';
+    return $template->bound === null
+        ? 'mixed'
+        : resolveDocblockTypes($method, $template->bound, $depth) ?? 'mixed';
+}
+
+/**
+ * Determine whether the identifier is a string refinement.
+ */
+function isStringRefinementType(string $name): bool
+{
+    return in_array($name, STRING_REFINEMENT_TYPES, true);
+}
+
+/**
+ * Determine whether the identifier is an integer refinement.
+ */
+function isIntegerRefinementType(string $name): bool
+{
+    return in_array($name, INTEGER_REFINEMENT_TYPES, true);
+}
+
+/**
+ * Determine whether the identifier is an array refinement.
+ */
+function isArrayRefinementType(string $name): bool
+{
+    return in_array($name, ARRAY_REFINEMENT_TYPES, true);
 }
 
 /**
@@ -717,11 +820,7 @@ function resolveConstFetchType($node, $method)
         return 'mixed';
     }
 
-    try {
-        $reflection = new ReflectionClass($className);
-    } catch (Throwable) {
-        return 'mixed';
-    }
+    $reflection = new ReflectionClass($className);
 
     if (str_contains($node->name, '*')) {
         $prefix = rtrim($node->name, '*');
@@ -758,11 +857,7 @@ function resolveKeyOrValueOf($node, $method, $keyType)
         return 'mixed';
     }
 
-    try {
-        $reflection = new ReflectionClass($className);
-    } catch (Throwable) {
-        return 'mixed';
-    }
+    $reflection = new ReflectionClass($className);
 
     if (! $reflection->hasConstant($node->name)) {
         return 'mixed';
@@ -853,7 +948,12 @@ function canPreserveConditionalTarget($method, $typeNode)
     }
 
     if ($typeNode instanceof GenericTypeNode) {
-        if (in_array($typeNode->type->name, ['class-string', 'int', 'int-mask-of', 'key-of', 'list', 'value-of'], true)) {
+        $identifier = $typeNode->type->name;
+
+        if (isStringRefinementType($identifier)
+            || isIntegerRefinementType($identifier)
+            || isArrayRefinementType($identifier)
+            || in_array($identifier, ['class-string', 'int', 'int-mask', 'int-mask-of', 'key-of', 'value-of'], true)) {
             return false;
         }
 
@@ -863,7 +963,14 @@ function canPreserveConditionalTarget($method, $typeNode)
     }
 
     if ($typeNode instanceof IdentifierTypeNode) {
-        if (in_array($typeNode->name, ['class-string', 'int-mask-of', 'list', 'non-negative-int', 'uppercase-string'], true)) {
+        if (resolveTemplateType($method, $typeNode->name, 1) !== null) {
+            return false;
+        }
+
+        if (isStringRefinementType($typeNode->name)
+            || isIntegerRefinementType($typeNode->name)
+            || isArrayRefinementType($typeNode->name)
+            || in_array($typeNode->name, ['class-string', 'int-mask', 'int-mask-of', 'key-of', 'value-of'], true)) {
             return false;
         }
 
@@ -1222,7 +1329,7 @@ function resolveName($method)
 function resolveMethods($class)
 {
     return collect($class->getMethods(ReflectionMethod::IS_PUBLIC))
-        ->map(fn ($method) => new ReflectionMethodDecorator($method, $class->getName()))
+        ->map(fn ($method) => new ReflectionMethodDecorator($method, $class))
         ->merge(resolveDocMethods($class))
         // PHP 8.5 binds traits before parent classes, making reflection order version-dependent.
         // Stable sorting also keeps native methods ahead of same-name @method tags.
@@ -1238,9 +1345,15 @@ function resolveMethods($class)
  */
 function conflictsWithFacade($facade, $method)
 {
-    return collect($facade->getMethods(ReflectionMethod::IS_PUBLIC | ReflectionMethod::IS_STATIC))
-        ->map(fn ($method) => strtolower($method->getName()))
-        ->containsStrict(strtolower(resolveName($method)));
+    static $facadeMethodNames = [];
+
+    $facadeName = $facade->getName();
+    $facadeMethodNames[$facadeName] ??= array_map(
+        fn ($method) => strtolower($method->getName()),
+        $facade->getMethods(ReflectionMethod::IS_PUBLIC | ReflectionMethod::IS_STATIC),
+    );
+
+    return in_array(strtolower(resolveName($method)), $facadeMethodNames[$facadeName], true);
 }
 
 /**
@@ -1292,17 +1405,61 @@ function resolveParameters($method)
 /**
  * Resolve the class whose file should be scanned for use imports when resolving
  * types inside a method's docblock. When a method was inherited from a trait,
- * the trait's own file (not the declaring class's file) holds the relevant
- * `use` statements.
+ * the exact direct or nested trait source range holds the relevant `use`
+ * statements.
  *
  * @param \ReflectionClassDocblockContext|\ReflectionMethodDecorator $method
  * @return \ReflectionClass
  */
 function resolveImportSource($method)
 {
-    return (new Collection($method->getDeclaringClass()->getTraits()))
-        ->first(fn ($trait) => $trait->getFileName() === $method->getFileName())
-        ?? $method->getDeclaringClass();
+    $declaringClass = $method->getDeclaringClass();
+    $filename = $method->getFileName();
+    $startLine = $method->getStartLine();
+
+    if ($filename === false || $startLine === false) {
+        return $declaringClass;
+    }
+
+    foreach (resolveNestedTraits($declaringClass) as $trait) {
+        $traitFilename = $trait->getFileName();
+        $traitStartLine = $trait->getStartLine();
+        $traitEndLine = $trait->getEndLine();
+
+        if ($traitFilename !== false
+            && $traitStartLine !== false
+            && $traitEndLine !== false
+            && $traitFilename === $filename
+            && $traitStartLine <= $startLine
+            && $startLine <= $traitEndLine) {
+            return $trait;
+        }
+    }
+
+    return $declaringClass;
+}
+
+/**
+ * Resolve every direct and nested trait used by a class.
+ *
+ * @param array<class-string, true> $resolved
+ * @return list<\ReflectionClass>
+ */
+function resolveNestedTraits(ReflectionClass $class, array &$resolved = []): array
+{
+    $traits = [];
+
+    foreach ($class->getTraits() as $trait) {
+        if (isset($resolved[$trait->getName()])) {
+            continue;
+        }
+
+        $resolved[$trait->getName()] = true;
+        $traits[] = $trait;
+        $traits = [...$traits, ...resolveNestedTraits($trait, $resolved)];
+    }
+
+    return $traits;
 }
 
 /**
@@ -1313,6 +1470,14 @@ function resolveImportSource($method)
  */
 function resolveClassImports($class)
 {
+    static $classImports = [];
+
+    $className = $class->getName();
+
+    if (array_key_exists($className, $classImports)) {
+        return collect($classImports[$className]);
+    }
+
     $source = file_get_contents($class->getFileName());
     $prefix = implode("\n", array_slice(explode("\n", $source), 0, $class->getStartLine() - 1));
     $tokens = PhpToken::tokenize($prefix);
@@ -1381,9 +1546,11 @@ function resolveClassImports($class)
         }
     }
 
-    return $namespaceName === $class->getNamespaceName()
-        ? collect($imports)
-        : collect();
+    $classImports[$className] = $namespaceName === $class->getNamespaceName()
+        ? $imports
+        : [];
+
+    return collect($classImports[$className]);
 }
 
 /**
@@ -1664,6 +1831,14 @@ class ReflectionClassDocblockContext
     }
 
     /**
+     * Return the source start line.
+     */
+    public function getStartLine(): false|int
+    {
+        return $this->class->getStartLine();
+    }
+
+    /**
      * Return the source class.
      */
     public function sourceClass(): ReflectionClass
@@ -1678,37 +1853,36 @@ class ReflectionClassDocblockContext
 class ReflectionMethodDecorator
 {
     /**
-     * @param \ReflectionMethod $method
-     * @param class-string $sourceClass
+     * Create a reflection method decorator.
      */
-    public function __construct(private $method, private $sourceClass)
-    {
+    public function __construct(
+        private ReflectionMethod $method,
+        private ReflectionClass $sourceClass,
+    ) {
     }
 
     /**
-     * @param string $name
-     * @param array $arguments
-     * @return mixed
+     * Pass calls to the underlying reflection method.
      */
-    public function __call($name, $arguments)
+    public function __call(string $name, array $arguments): mixed
     {
         return $this->method->{$name}(...$arguments);
     }
 
     /**
-     * @return \ReflectionMethod
+     * Return the underlying reflection method.
      */
-    public function toBase()
+    public function toBase(): ReflectionMethod
     {
         return $this->method;
     }
 
     /**
-     * @return \ReflectionClass
+     * Return the source class.
      */
-    public function sourceClass()
+    public function sourceClass(): ReflectionClass
     {
-        return new ReflectionClass($this->sourceClass);
+        return $this->sourceClass;
     }
 }
 

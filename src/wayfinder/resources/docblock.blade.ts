@@ -1,4 +1,4 @@
-/**{!! when(!str_contains($controller, '\\Closure'), PHP_EOL . " * @see {$controller}::" . ($isInvokable ? '__invoke' : $docblock_method ?? $method)) !!}
+/**{!! when(!str_contains($controller, '\\Closure'), PHP_EOL . " * @see {$controller}::" . ($isInvokable ? '__invoke' : $docblock_method ?? $original_method)) !!}
  * @see {!! $path !!}:{!! $line !!}
 @foreach ($parameters as $parameter)
 @if ($parameter->default !== null)

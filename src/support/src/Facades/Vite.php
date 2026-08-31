@@ -11,7 +11,7 @@ namespace Hypervel\Support\Facades;
  * @method static string|null cspNonce()
  * @method static void flush()
  * @method static void flushMacros()
- * @method static \Hypervel\Support\HtmlString fonts(null|array|string $aliases = null)
+ * @method static \Hypervel\Support\HtmlString fonts(null|array<int, string>|string $aliases = null)
  * @method static bool hasMacro(string $name)
  * @method static string hotFile()
  * @method static bool isRunningHot()

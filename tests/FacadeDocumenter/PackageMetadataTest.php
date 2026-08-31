@@ -26,6 +26,7 @@ class PackageMetadataTest extends TestCase
         $expectedDependencies = [
             'php',
             'composer-runtime-api',
+            'ext-tokenizer',
             'phpstan/phpdoc-parser',
             'hypervel/filesystem',
             'hypervel/support',

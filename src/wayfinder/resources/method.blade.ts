@@ -58,13 +58,19 @@
     ])
 @endif
 
-    return {!! $method !!}.definition.url
+@if ($parameters->isNotEmpty())
+    const normalizedPath = {!! $method !!}.definition.url
 @foreach ($parameters as $parameter)
             .replace(@js($parameter->placeholder), () => formatRouteParameter({!! $parsedArgs !!}.{!! $parameter->name !!}, @js($parameter->routeOptional), @js($parameter->name)))
     @if ($loop->last)
             .replace(/\/+$/, '')
     @endif
-@endforeach + queryParams({!! $options !!})
+@endforeach
+
+    return (normalizedPath || '/') + queryParams({!! $options !!})
+@else
+    return {!! $method !!}.definition.url + queryParams({!! $options !!})
+@endif
 }
 
 @foreach ($verbs as $verb)
