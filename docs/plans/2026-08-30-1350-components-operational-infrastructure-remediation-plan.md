@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation for audit findings 112, 124–126, 154, and 159 is complete against the current `0.4` branch. Targeted tests, full repository verification, self-review, and code review are complete.
+Implementation, verification, and review for audit findings 112, 124–126, 154, and 159 are complete against the current `0.4` branch, including the follow-up cache cleanup and test-timing corrections.
 
 ## Outcome
 
@@ -15,9 +15,12 @@ This slice will:
 - preserve underlying Sentinel and Cluster connection failures;
 - align cache increment/decrement implementations with the existing `Store` contract;
 - reject invalid cache tag modes at configuration boundaries;
+- make tagged-cache pruning remove orphaned metadata without racing concurrent writers;
+- publish all-mode cache values before their tag memberships and omit memberships for failed Cluster batch writes;
 - make the queue worker tolerate a cache counter failure without treating booleans as counts;
-- document the Redis queue migration batch argument; and
-- start Horizon through an array-form process command that uses executable paths, the application working directory, and useful failure diagnostics.
+- document the Redis queue migration batch argument;
+- start Horizon through an array-form process command that uses executable paths, the application working directory, and useful failure diagnostics; and
+- make recurring-timer continuation and stopping tests wait for the behavior they assert instead of relying on fixed scheduling delays.
 
 The implementation must preserve Laravel's public contracts. It must not add automatic Reverb recovery, distributed liveness machinery, runtime version probes, blocking bulk deletion fallbacks, or steady-state Redis work.
 
@@ -216,13 +219,27 @@ Use `TagMode::All` as `CacheManager`'s default rather than the magic string `'al
 
 The benchmark command must parse `--tag-mode` once with `TagMode::tryFrom()`, use `TagMode::supportedValues()` for its accepted-values message, and carry the enum through `runComparison()`, `runSuiteWithRuns()`, and `runSuite()`. Convert back to `$tagMode->value` only at the existing `ResultsFormatter::displayResultsTable()` string boundary and for console output. Comparison mode uses `TagMode::All` and `TagMode::Any` directly.
 
-### 9. Queue cleanup finding (154)
+### 9. Tagged-cache prune ownership and writer ordering
+
+Any-mode prune currently leaves an empty tag in the registry, while both tag modes use separate existence checks and metadata removals that can delete metadata published by a concurrent writer. Redis automatically deletes a hash or sorted set when its final field or member is removed, so the explicit final-key deletion is redundant and widens that race.
+
+For standalone Redis, keep each scan page bounded and execute the existence checks plus conditional `HDEL` or `ZREM` in one Lua call. Finalize an any-mode tag with one Lua call that checks `HLEN` and removes the empty tag from its registry atomically. Do not add an unbounded script or move the full prune into Lua.
+
+Redis Cluster cannot make the cross-slot value and metadata operations atomic. Collect orphan candidates, remove them with one variadic `HDEL` or `ZREM` per scan page, then recheck each candidate and conditionally repair it:
+
+- Any mode restores a removed hash field with `HSETNX` only when both the value and reverse-index membership now exist. If an empty hash was removed from the registry but revived, restore only a missing registry member with `ZADD NX MAX_EXPIRY`, preserving a writer's real score.
+- All mode restores a removed member with `ZADD NX -1` when its value appears after removal. The conservative forever score cannot cause premature expiry and preserves any score a writer already published.
+- Subtract repaired candidates from the batch removal count and clamp the result at zero. Statistics remain exact without a concurrent writer and may conservatively undercount during the repair race because a batch result cannot identify which candidate it removed; that rare imprecision avoids one Redis removal round trip per orphan. Keep the existing `empty_hashes_deleted` and `empty_sets_deleted` statistic names, documenting that they include structures Redis removed with their final entry. Add `orphaned_tags_removed` for any-mode registry cleanup.
+
+All-mode writers must publish the cache value before its memberships. Reorder `Put`, `Forever`, `Add`, `PutMany`, and the standalone `Increment` / `Decrement` pipelines without adding commands or round trips. Preserve `Add`'s unconditional membership behavior when `SET NX` reports an existing value. In Cluster `PutMany`, collect only successful `SETEX` keys, publish memberships only for those keys, skip `ZADD` when all writes fail, and still return `false` when any write fails. The standalone pipeline cannot branch on queued `SETEX` results before `exec()` without another round trip; keep its single-round-trip behavior and rely on prune to reclaim metadata after a failed value command.
+
+### 10. Queue cleanup finding (154)
 
 The driver-neutral database refactor already removed the never-supported SQL Server lock branch. Do not reintroduce a database-specific branch or add replacement runtime machinery.
 
 The remaining source change is to document `ARGV[2]` as the migration batch size in `LuaScripts::migrateExpiredJobs()`. Preserve raw `usleep()` calls, the queue worker's existing overridable `sleep()` method, and the shutdown-only 1 ms poll; Swoole hooks the relevant sleep calls and the existing seams already make tests deterministic.
 
-### 10. Horizon child process execution (finding 159)
+### 11. Horizon child process execution (finding 159)
 
 `HorizonRestartStrategy` passes `PhpBinary::path()` to Symfony's array-form `Process`. `PhpBinary::path()` is shell-escaped text for command strings, not an executable path. Keep it in `SupervisorCommandString` and `WorkerCommandString`, but use Hypervel's executable helpers for the array command:
 
@@ -263,6 +280,12 @@ If the child has already terminated after startup, throw a `RuntimeException` th
 - `src/cache/src/Redis/Operations/AnyTag/Decrement.php`
 - `src/cache/src/Redis/Operations/AllTag/Increment.php`
 - `src/cache/src/Redis/Operations/AllTag/Decrement.php`
+- `src/cache/src/Redis/Operations/AllTag/Add.php`
+- `src/cache/src/Redis/Operations/AllTag/Forever.php`
+- `src/cache/src/Redis/Operations/AllTag/Put.php`
+- `src/cache/src/Redis/Operations/AllTag/PutMany.php`
+- `src/cache/src/Redis/Operations/AllTag/Prune.php`
+- `src/cache/src/Redis/Operations/AnyTag/Prune.php`
 - `src/cache/src/Redis/Console/BenchmarkCommand.php`
 - `src/queue/src/Worker.php`
 - `src/queue/src/LuaScripts.php`
@@ -280,6 +303,7 @@ If the child has already terminated after startup, throw a `RuntimeException` th
 - `tests/Redis/PhpRedisClusterConnectionTest.php`
 - `tests/Cache/TagModeTest.php`
 - `tests/Cache/CacheManagerTest.php`
+- `tests/Cache/Redis/AllTaggedCacheTest.php`
 - `tests/Cache/Redis/RedisStoreTest.php`
 - `tests/Cache/Redis/Operations/IncrementTest.php`
 - `tests/Cache/Redis/Operations/DecrementTest.php`
@@ -287,10 +311,18 @@ If the child has already terminated after startup, throw a `RuntimeException` th
 - `tests/Cache/Redis/Operations/AnyTag/DecrementTest.php`
 - `tests/Cache/Redis/Operations/AllTag/IncrementTest.php`
 - `tests/Cache/Redis/Operations/AllTag/DecrementTest.php`
+- `tests/Cache/Redis/Operations/AllTag/AddTest.php`
+- `tests/Cache/Redis/Operations/AllTag/ForeverTest.php`
+- `tests/Cache/Redis/Operations/AllTag/PutTest.php`
+- `tests/Cache/Redis/Operations/AllTag/PutManyTest.php`
+- `tests/Cache/Redis/Operations/AllTag/PruneTest.php`
+- `tests/Cache/Redis/Operations/AnyTag/PruneTest.php`
+- `tests/Integration/Cache/Redis/PruneIntegrationTest.php`
 - `tests/Cache/CacheFailoverStoreTest.php`
 - `tests/Cache/CacheNullStoreTest.php`
 - `tests/Cache/CacheRepositoryTest.php`
 - `tests/Cache/Redis/Console/BenchmarkCommandTest.php`
+- `tests/Coordinator/TimerTest.php`
 - `tests/Queue/QueueWorkerTest.php`
 - `tests/Horizon/Console/HorizonRestartStrategyTest.php`
 
@@ -346,6 +378,19 @@ No root README or Laravel porting-guide entry is needed: the source fixes preser
 - In a separate-process test, use `ParallelTesting::tempDir()` to create an application directory containing spaces and a temporary PHP `artisan` script. Start the real Horizon process, record its working directory and arguments, and verify ordinary and zero-named environments without leaking the strategy's signal handlers or application base path to other tests.
 - Use a controlled `Process` test double for terminated startup failures and assert the exception includes the exit code and trimmed stderr. Also cover empty stderr without appending empty noise; do not race a real child against the production startup grace period.
 - Preserve shell-string tests for `SupervisorCommandString` and `WorkerCommandString`.
+
+### Tagged-cache pruning
+
+- Assert standalone prune uses one bounded Lua call per scan page and atomically removes empty any-mode registry entries.
+- Assert a custom scan count reaches the standalone `HSCAN` and bounds each Lua page.
+- Assert Cluster prune batches same-metadata-key removals into one variadic command per page, permanently removes durable orphans, and repairs value/hash, value/member, and hash/registry races with `HSETNX` or `ZADD NX` without overwriting writer metadata.
+- Strengthen the real Redis integration coverage to prove any-mode prune removes both empty tag hashes and registry members; the same integration suite runs against the real Cluster service in its CI job.
+- Assert every changed all-mode writer queues or issues the value command before memberships while preserving its return contract.
+- For Cluster `PutMany`, assert partial failure tags only successful values and total failure issues no `ZADD`. Keep the standalone pipeline single-round-trip failure coverage.
+
+### Full-suite timing regression
+
+- In both recurring-timer error-reporting tests, signal a `Channel` from the second callback and wait on that signal with a bounded timeout. Apply the same pattern to the stop-after-ten-ticks test. This preserves the exact continuation and stopping assertions without assuming the scheduler completes a fixed number of ticks within a short sleep.
 
 ## Verification
 
