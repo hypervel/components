@@ -19,9 +19,6 @@ class PutManyTest extends RedisCacheTestCase
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
     }
 
-    /**
-     * @test
-     */
     public function testPutManyWithTagsInPipelineMode(): void
     {
         $connection = $this->mockConnection();
@@ -30,28 +27,27 @@ class PutManyTest extends RedisCacheTestCase
 
         $expectedScore = 1061;
 
-        // Variadic ZADD: one command with all members for the tag
-        // Format: key, score1, member1, score2, member2, ...
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', $expectedScore, 'ns:foo', $expectedScore, 'ns:baz')
-            ->andReturn($connection);
-
-        // SETEX for each key
         $connection->shouldReceive('setex')
             ->once()
             ->with('prefix:ns:foo', 60, serialize('bar'))
-            ->andReturn($connection);
+            ->andReturn($connection)
+            ->ordered();
 
         $connection->shouldReceive('setex')
             ->once()
             ->with('prefix:ns:baz', 60, serialize('qux'))
-            ->andReturn($connection);
+            ->andReturn($connection)
+            ->ordered();
 
-        // Results: 1 ZADD (returns count of new members) + 2 SETEX (return true)
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', $expectedScore, 'ns:foo', $expectedScore, 'ns:baz')
+            ->andReturn($connection)
+            ->ordered();
+
         $connection->shouldReceive('exec')
             ->once()
-            ->andReturn([2, true, true]);
+            ->andReturn([true, true, 2]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->putMany()->execute(
@@ -64,9 +60,6 @@ class PutManyTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyWithMultipleTags(): void
     {
         $connection = $this->mockConnection();
@@ -93,7 +86,7 @@ class PutManyTest extends RedisCacheTestCase
 
         $connection->shouldReceive('exec')
             ->once()
-            ->andReturn([1, 1, true]);
+            ->andReturn([true, 1, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->putMany()->execute(
@@ -106,9 +99,6 @@ class PutManyTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyWithEmptyTags(): void
     {
         $connection = $this->mockConnection();
@@ -136,9 +126,6 @@ class PutManyTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyWithEmptyValuesReturnsTrue(): void
     {
         $connection = $this->mockConnection();
@@ -157,9 +144,6 @@ class PutManyTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyInClusterModeUsesVariadicZadd(): void
     {
         [$store, , $connection] = $this->createClusterStore();
@@ -169,23 +153,23 @@ class PutManyTest extends RedisCacheTestCase
 
         $expectedScore = 1061;
 
-        // Variadic ZADD: one command with all members for the tag
-        // This works in cluster because all members go to ONE sorted set (one slot)
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', $expectedScore, 'ns:foo', $expectedScore, 'ns:baz')
-            ->andReturn(2);
-
-        // Sequential SETEX for each key
         $connection->shouldReceive('setex')
             ->once()
             ->with('prefix:ns:foo', 60, serialize('bar'))
-            ->andReturn(true);
+            ->andReturn(true)
+            ->ordered();
 
         $connection->shouldReceive('setex')
             ->once()
             ->with('prefix:ns:baz', 60, serialize('qux'))
-            ->andReturn(true);
+            ->andReturn(true)
+            ->ordered();
+
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', $expectedScore, 'ns:foo', $expectedScore, 'ns:baz')
+            ->andReturn(2)
+            ->ordered();
 
         $result = $store->allTagOps()->putMany()->execute(
             ['foo' => 'bar', 'baz' => 'qux'],
@@ -197,9 +181,6 @@ class PutManyTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyReturnsFalseOnFailure(): void
     {
         $connection = $this->mockConnection();
@@ -212,7 +193,7 @@ class PutManyTest extends RedisCacheTestCase
         // One SETEX fails
         $connection->shouldReceive('exec')
             ->once()
-            ->andReturn([1, true, 1, false]);
+            ->andReturn([true, false, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->putMany()->execute(
@@ -225,9 +206,6 @@ class PutManyTest extends RedisCacheTestCase
         $this->assertFalse($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyReturnsFalseOnPipelineFailure(): void
     {
         $connection = $this->mockConnection();
@@ -253,9 +231,6 @@ class PutManyTest extends RedisCacheTestCase
         $this->assertFalse($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyEnforcesMinimumTtlOfOne(): void
     {
         $connection = $this->mockConnection();
@@ -275,7 +250,7 @@ class PutManyTest extends RedisCacheTestCase
 
         $connection->shouldReceive('exec')
             ->once()
-            ->andReturn([1, true]);
+            ->andReturn([true, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->putMany()->execute(
@@ -288,9 +263,6 @@ class PutManyTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyWithNumericValues(): void
     {
         $connection = $this->mockConnection();
@@ -307,7 +279,7 @@ class PutManyTest extends RedisCacheTestCase
 
         $connection->shouldReceive('exec')
             ->once()
-            ->andReturn([1, true]);
+            ->andReturn([true, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->putMany()->execute(
@@ -320,9 +292,6 @@ class PutManyTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyUsesCorrectPrefix(): void
     {
         $connection = $this->mockConnection();
@@ -344,7 +313,7 @@ class PutManyTest extends RedisCacheTestCase
 
         $connection->shouldReceive('exec')
             ->once()
-            ->andReturn([1, true]);
+            ->andReturn([true, 1]);
 
         $store = $this->createStore($connection, 'custom:');
         $result = $store->allTagOps()->putMany()->execute(
@@ -358,11 +327,9 @@ class PutManyTest extends RedisCacheTestCase
     }
 
     /**
-     * @test
-     *
      * Tests the maximum optimization benefit: multiple keys × multiple tags.
      * Before: O(keys × tags) ZADD commands
-     * After: O(tags) ZADD commands (each with all keys)
+     * After: O(tags) ZADD commands (each with all keys).
      */
     public function testPutManyWithMultipleTagsAndMultipleKeys(): void
     {
@@ -400,10 +367,9 @@ class PutManyTest extends RedisCacheTestCase
             ->with('prefix:ns:c', 60, serialize('val-c'))
             ->andReturn($connection);
 
-        // Results: 2 ZADDs + 3 SETEXs
         $connection->shouldReceive('exec')
             ->once()
-            ->andReturn([3, 3, true, true, true]);
+            ->andReturn([true, true, true, 3, 3]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->putMany()->execute(
@@ -416,9 +382,6 @@ class PutManyTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyInClusterModeWithMultipleTags(): void
     {
         [$store, , $connection] = $this->createClusterStore();
@@ -457,9 +420,6 @@ class PutManyTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyInClusterModeWithEmptyTags(): void
     {
         [$store, , $connection] = $this->createClusterStore();
@@ -483,9 +443,6 @@ class PutManyTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testPutManyInClusterModeReturnsFalseOnSetexFailure(): void
     {
         [$store, , $connection] = $this->createClusterStore();
@@ -494,8 +451,8 @@ class PutManyTest extends RedisCacheTestCase
 
         $connection->shouldReceive('zadd')
             ->once()
-            ->with('prefix:_all:tag:users:entries', $expectedScore, 'ns:foo', $expectedScore, 'ns:bar')
-            ->andReturn(2);
+            ->with('prefix:_all:tag:users:entries', $expectedScore, 'ns:foo')
+            ->andReturn(1);
 
         // First SETEX succeeds, second fails
         $connection->shouldReceive('setex')
@@ -518,9 +475,32 @@ class PutManyTest extends RedisCacheTestCase
         $this->assertFalse($result);
     }
 
-    /**
-     * @test
-     */
+    public function testPutManyInClusterModeSkipsMembershipsWhenAllWritesFail(): void
+    {
+        [$store, , $connection] = $this->createClusterStore();
+
+        $connection->shouldReceive('setex')
+            ->once()
+            ->with('prefix:ns:foo', 60, serialize('value1'))
+            ->andReturn(false);
+
+        $connection->shouldReceive('setex')
+            ->once()
+            ->with('prefix:ns:bar', 60, serialize('value2'))
+            ->andReturn(false);
+
+        $connection->shouldNotReceive('zadd');
+
+        $result = $store->allTagOps()->putMany()->execute(
+            ['foo' => 'value1', 'bar' => 'value2'],
+            60,
+            ['_all:tag:users:entries'],
+            'ns:'
+        );
+
+        $this->assertFalse($result);
+    }
+
     public function testPutManyInClusterModeWithEmptyValuesReturnsTrue(): void
     {
         [$store, , $connection] = $this->createClusterStore();

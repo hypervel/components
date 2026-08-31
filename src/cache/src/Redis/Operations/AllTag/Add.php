@@ -17,8 +17,9 @@ use Hypervel\Redis\RedisConnection;
  * Uses Redis SET with NX (only set if Not eXists) and EX (expiration) flags
  * for atomic "add if not exists" semantics without requiring Lua scripts.
  *
- * Note: Tag entries are always added, even if the key exists. This matches
- * the original behavior where addEntry() is called before checking existence.
+ * Tag entries are published after the value attempt even when the key already
+ * exists, preserving the existing membership behavior without exposing a
+ * metadata-before-value window to concurrent pruning.
  */
 class Add
 {
@@ -54,7 +55,7 @@ class Add
     /**
      * Execute using pipeline for standard Redis (non-cluster).
      *
-     * Pipelines ZADD commands for all tags, then uses SET NX EX for atomic add.
+     * Uses SET NX EX for atomic add, then pipelines ZADD commands for all tags.
      */
     private function executePipeline(string $key, mixed $value, int $seconds, array $tagIds): bool
     {
@@ -62,7 +63,15 @@ class Add
             $prefix = $this->context->prefix();
             $score = $this->context->expirationScore($seconds);
 
-            // Pipeline the ZADD operations for tag tracking
+            // Publish the value attempt before its memberships so concurrent
+            // pruning cannot mistake a newly written member for an orphan.
+            $result = $connection->set(
+                $prefix . $key,
+                $this->serialization->serialize($connection, $value),
+                ['EX' => $seconds, 'NX']
+            );
+
+            // Membership is unconditional to preserve existing-key behavior.
             if (! empty($tagIds)) {
                 $pipeline = $connection->pipeline();
 
@@ -73,13 +82,6 @@ class Add
                 $pipeline->exec();
             }
 
-            // SET key value EX seconds NX - atomic "add if not exists"
-            $result = $connection->set(
-                $prefix . $key,
-                $this->serialization->serialize($connection, $value),
-                ['EX' => $seconds, 'NX']
-            );
-
             return (bool) $result;
         });
     }
@@ -87,8 +89,8 @@ class Add
     /**
      * Execute using sequential commands for Redis Cluster.
      *
-     * Sequential ZADD commands since tags may be in different slots,
-     * then SET NX EX for atomic add.
+     * Uses SET NX EX for atomic add, then sequential ZADD commands because
+     * tags may be in different slots.
      */
     private function executeCluster(string $key, mixed $value, int $seconds, array $tagIds): bool
     {
@@ -96,17 +98,18 @@ class Add
             $prefix = $this->context->prefix();
             $score = $this->context->expirationScore($seconds);
 
-            // ZADD to each tag's sorted set (sequential - cross-slot)
-            foreach ($tagIds as $tagId) {
-                $connection->zadd($prefix . $tagId, $score, $key);
-            }
-
-            // SET key value EX seconds NX - atomic "add if not exists"
+            // Publish the value attempt before its memberships so concurrent
+            // pruning can repair cross-slot races without losing fresh metadata.
             $result = $connection->set(
                 $prefix . $key,
                 $this->serialization->serialize($connection, $value),
                 ['EX' => $seconds, 'NX']
             );
+
+            // Membership is unconditional to preserve existing-key behavior.
+            foreach ($tagIds as $tagId) {
+                $connection->zadd($prefix . $tagId, $score, $key);
+            }
 
             return (bool) $result;
         });

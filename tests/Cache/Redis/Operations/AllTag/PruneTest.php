@@ -8,14 +8,8 @@ use Hypervel\Cache\Redis\Operations\AllTag\Prune;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
 
-/**
- * Tests for the AllTag/Prune operation.
- */
 class PruneTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testPruneReturnsEmptyStatsWhenNoTagsFound(): void
     {
         $fakeClient = new FakeRedisClient(
@@ -36,9 +30,6 @@ class PruneTest extends RedisCacheTestCase
         $this->assertSame(0, $result['empty_sets_deleted']);
     }
 
-    /**
-     * @test
-     */
     public function testPruneRemovesStaleEntriesFromSingleTag(): void
     {
         $fakeClient = new FakeRedisClient(
@@ -68,9 +59,6 @@ class PruneTest extends RedisCacheTestCase
         $this->assertSame(0, $result['empty_sets_deleted']);
     }
 
-    /**
-     * @test
-     */
     public function testPruneDeletesEmptySortedSets(): void
     {
         $fakeClient = new FakeRedisClient(
@@ -100,9 +88,6 @@ class PruneTest extends RedisCacheTestCase
         $this->assertSame(1, $result['empty_sets_deleted']);
     }
 
-    /**
-     * @test
-     */
     public function testPruneHandlesMultipleTags(): void
     {
         $fakeClient = new FakeRedisClient(
@@ -136,17 +121,11 @@ class PruneTest extends RedisCacheTestCase
         $this->assertSame(1, $result['empty_sets_deleted']); // Only posts was empty
     }
 
-    /**
-     * @test
-     */
-    public function testPruneDeduplicatesScanResults(): void
+    public function testPruneProcessesDuplicateScanResults(): void
     {
-        // SafeScan iterates multiple times, returning duplicates
         $fakeClient = new FakeRedisClient(
             scanResults: [
-                // First scan: returns 2 keys, iterator = 100 (continue)
                 ['keys' => ['_all:tag:users:entries', '_all:tag:posts:entries'], 'iterator' => 100],
-                // Second scan: returns 1 duplicate + 1 new, iterator = 0 (done)
                 ['keys' => ['_all:tag:users:entries', '_all:tag:comments:entries'], 'iterator' => 0],
             ],
             zRemRangeByScoreResults: [
@@ -171,19 +150,10 @@ class PruneTest extends RedisCacheTestCase
 
         $result = $operation->execute();
 
-        // Verify scan was called twice (multi-iteration)
         $this->assertSame(2, $fakeClient->getScanCallCount());
-
-        // SafeScan yields each key as encountered (no deduplication in SafeScan itself),
-        // but Prune processes each unique tag once via the generator
-        // Actually, SafeScan is a generator - it yields duplicates if SCAN returns them
-        // The 4 keys scanned means duplicate 'users' was yielded twice
         $this->assertSame(4, $result['tags_scanned']);
     }
 
-    /**
-     * @test
-     */
     public function testPruneUsesCorrectScanPattern(): void
     {
         $fakeClient = new FakeRedisClient(
@@ -202,41 +172,36 @@ class PruneTest extends RedisCacheTestCase
         $this->assertSame('custom_prefix:_all:tag:*:entries', $fakeClient->getScanCalls()[0]['pattern']);
     }
 
-    /**
-     * @test
-     */
     public function testPrunePreservesForeverItems(): void
     {
-        // Forever items have score -1, ZREMRANGEBYSCORE uses '0' as lower bound
-        // This test verifies the behavior documentation
         $fakeClient = new FakeRedisClient(
             scanResults: [
                 ['keys' => ['_all:tag:users:entries'], 'iterator' => 0],
             ],
             zRemRangeByScoreResults: [
-                // 0 entries removed because all are forever items (score -1)
                 '_all:tag:users:entries' => 0,
             ],
             zScanResults: [
                 '_all:tag:users:entries' => [['members' => [], 'iterator' => 0]],
             ],
             zCardResults: [
-                '_all:tag:users:entries' => 5, // 5 forever items remain
+                '_all:tag:users:entries' => 5,
             ],
         );
 
         $store = $this->createStoreWithFakeClient($fakeClient);
-        $operation = new Prune($store->getContext());
+        $beforePrune = time();
+        $result = (new Prune($store->getContext()))->execute();
 
-        $result = $operation->execute();
-
+        $expiryRemoval = $fakeClient->getZRemRangeByScoreCalls()[0];
+        $this->assertSame('_all:tag:users:entries', $expiryRemoval['key']);
+        $this->assertSame('0', $expiryRemoval['min']);
+        $this->assertGreaterThanOrEqual($beforePrune, (int) $expiryRemoval['max']);
+        $this->assertLessThanOrEqual(time(), (int) $expiryRemoval['max']);
         $this->assertSame(0, $result['stale_entries_removed']);
         $this->assertSame(0, $result['empty_sets_deleted']);
     }
 
-    /**
-     * @test
-     */
     public function testPruneUsesCustomScanCount(): void
     {
         $fakeClient = new FakeRedisClient(
@@ -254,9 +219,6 @@ class PruneTest extends RedisCacheTestCase
         $this->assertSame(500, $fakeClient->getScanCalls()[0]['count']);
     }
 
-    /**
-     * @test
-     */
     public function testPruneViaStoreOperationsContainer(): void
     {
         $fakeClient = new FakeRedisClient(
@@ -273,9 +235,6 @@ class PruneTest extends RedisCacheTestCase
         $this->assertSame(0, $result['tags_scanned']);
     }
 
-    /**
-     * @test
-     */
     public function testPruneRemovesOrphanedEntries(): void
     {
         // Set up: tag has 3 members, but 2 cache keys don't exist (orphans)
@@ -292,13 +251,10 @@ class PruneTest extends RedisCacheTestCase
                     ['members' => ['key1' => 1234567890.0, 'key2' => 1234567891.0, 'key3' => 1234567892.0], 'iterator' => 0],
                 ],
             ],
-            // EXISTS results: key1 exists (1), key2 doesn't (0), key3 exists (1)
-            execResults: [
-                [1, 0, 1], // Pipeline results for EXISTS calls
-            ],
             zCardResults: [
                 '_all:tag:users:entries' => 2, // 2 remaining after orphan removal
             ],
+            evalShaResults: [1],
         );
 
         $store = $this->createStoreWithFakeClient($fakeClient);
@@ -309,11 +265,17 @@ class PruneTest extends RedisCacheTestCase
         $this->assertSame(3, $result['entries_checked']);
         $this->assertSame(1, $result['orphans_removed']); // key2 was orphaned
 
-        // Verify zRem was called to remove orphan
-        $zRemCalls = $fakeClient->getZRemCalls();
-        $this->assertCount(1, $zRemCalls);
-        $this->assertSame('_all:tag:users:entries', $zRemCalls[0]['key']);
-        $this->assertContains('key2', $zRemCalls[0]['members']);
+        $evalCall = $fakeClient->getEvalShaCalls()[0];
+        $this->assertSame(4, $evalCall['num_keys']);
+        $this->assertSame([
+            '_all:tag:users:entries',
+            'prefix:key1',
+            'prefix:key2',
+            'prefix:key3',
+            'key1',
+            'key2',
+            'key3',
+        ], $evalCall['args']);
     }
 
     public function testPruneContinuesAfterAnEmptyNonterminalMemberPage(): void
@@ -331,12 +293,10 @@ class PruneTest extends RedisCacheTestCase
                     ['members' => ['key1' => 1234567890.0], 'iterator' => 0],
                 ],
             ],
-            execResults: [
-                [1],
-            ],
             zCardResults: [
                 '_all:tag:users:entries' => 1,
             ],
+            evalShaResults: [0],
         );
 
         $store = $this->createStoreWithFakeClient($fakeClient);
@@ -348,9 +308,80 @@ class PruneTest extends RedisCacheTestCase
         $this->assertCount(2, $fakeClient->getZScanCalls());
     }
 
-    /**
-     * @test
-     */
+    public function testClusterPruneBatchesOrphansThatRemainRemoved(): void
+    {
+        [$store, , $connection] = $this->createClusterStore();
+        $connection->shouldNotReceive('pipeline');
+        $connection->shouldReceive('isCluster')->once()->andReturn(true);
+        $connection->shouldReceive('getShouldTransform')->once()->andReturn(false);
+        $connection->shouldReceive('masters')->once()->andReturn([['127.0.0.1', 7000]]);
+        $connection->shouldReceive('scan')
+            ->once()
+            ->andReturnUsing(function (&$iterator, $master, $pattern, $count): array {
+                $iterator = 0;
+
+                return ['prefix:_all:tag:users:entries'];
+            });
+        $connection->shouldReceive('zRemRangeByScore')->once()->andReturn(0);
+        $connection->shouldReceive('zScan')
+            ->once()
+            ->andReturnUsing(function ($tagKey, &$iterator): array {
+                $iterator = 0;
+
+                return ['live' => 1.0, 'orphan1' => 2.0, 'orphan2' => 3.0];
+            });
+        $connection->shouldReceive('exists')->once()->with('prefix:live')->andReturn(1);
+        $connection->shouldReceive('exists')->twice()->with('prefix:orphan1')->andReturn(0);
+        $connection->shouldReceive('exists')->twice()->with('prefix:orphan2')->andReturn(0);
+        $connection->shouldReceive('zrem')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', 'orphan1', 'orphan2')
+            ->andReturn(2);
+        $connection->shouldReceive('zCard')->once()->andReturn(1);
+
+        $result = (new Prune($store->getContext()))->execute();
+
+        $this->assertSame(3, $result['entries_checked']);
+        $this->assertSame(2, $result['orphans_removed']);
+    }
+
+    public function testClusterPruneRepairsMembershipWithoutOverwritingAWriterScore(): void
+    {
+        [$store, , $connection] = $this->createClusterStore();
+        $connection->shouldReceive('isCluster')->once()->andReturn(true);
+        $connection->shouldReceive('getShouldTransform')->once()->andReturn(false);
+        $connection->shouldReceive('masters')->once()->andReturn([['127.0.0.1', 7000]]);
+        $connection->shouldReceive('scan')
+            ->once()
+            ->andReturnUsing(function (&$iterator, $master, $pattern, $count): array {
+                $iterator = 0;
+
+                return ['prefix:_all:tag:users:entries'];
+            });
+        $connection->shouldReceive('zRemRangeByScore')->once()->andReturn(0);
+        $connection->shouldReceive('zScan')
+            ->once()
+            ->andReturnUsing(function ($tagKey, &$iterator): array {
+                $iterator = 0;
+
+                return ['raced' => 1.0];
+            });
+        $connection->shouldReceive('exists')
+            ->twice()
+            ->with('prefix:raced')
+            ->andReturn(0, 1);
+        $connection->shouldReceive('zrem')->once()->andReturn(1);
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'raced')
+            ->andReturn(0);
+        $connection->shouldReceive('zCard')->once()->andReturn(1);
+
+        $result = (new Prune($store->getContext()))->execute();
+
+        $this->assertSame(0, $result['orphans_removed']);
+    }
+
     public function testPruneHandlesOptPrefixCorrectly(): void
     {
         // When OPT_PREFIX is set, SCAN pattern needs prefix, but returned keys have it stripped

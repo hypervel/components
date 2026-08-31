@@ -11,30 +11,27 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
  */
 class ForeverTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testForeverStoresValueWithTagsInPipelineMode(): void
     {
         $connection = $this->mockConnection();
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        // ZADD for tag with score -1 (forever)
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', -1, 'mykey')
-            ->andReturn($connection);
-
-        // SET for cache value (no expiration)
         $connection->shouldReceive('set')
             ->once()
             ->with('prefix:mykey', serialize('myvalue'))
-            ->andReturn($connection);
+            ->andReturn($connection)
+            ->ordered();
+
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', -1, 'mykey')
+            ->andReturn($connection)
+            ->ordered();
 
         $connection->shouldReceive('exec')
             ->once()
-            ->andReturn([1, true]);
+            ->andReturn([true, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->forever()->execute(
@@ -46,9 +43,6 @@ class ForeverTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testForeverWithMultipleTags(): void
     {
         $connection = $this->mockConnection();
@@ -73,7 +67,7 @@ class ForeverTest extends RedisCacheTestCase
 
         $connection->shouldReceive('exec')
             ->once()
-            ->andReturn([1, 1, true]);
+            ->andReturn([true, 1, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->forever()->execute(
@@ -85,9 +79,6 @@ class ForeverTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testForeverWithEmptyTags(): void
     {
         $connection = $this->mockConnection();
@@ -114,9 +105,6 @@ class ForeverTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testForeverInClusterModeUsesSequentialCommands(): void
     {
         [$store, , $connection] = $this->createClusterStore();
@@ -124,17 +112,17 @@ class ForeverTest extends RedisCacheTestCase
         // Should NOT use pipeline in cluster mode
         $connection->shouldNotReceive('pipeline');
 
-        // Sequential ZADD with score -1
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', -1, 'mykey')
-            ->andReturn(1);
-
-        // Sequential SET
         $connection->shouldReceive('set')
             ->once()
             ->with('prefix:mykey', serialize('myvalue'))
-            ->andReturn(true);
+            ->andReturn(true)
+            ->ordered();
+
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', -1, 'mykey')
+            ->andReturn(1)
+            ->ordered();
 
         $result = $store->allTagOps()->forever()->execute(
             'mykey',
@@ -145,9 +133,6 @@ class ForeverTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testForeverReturnsFalseOnFailure(): void
     {
         $connection = $this->mockConnection();
@@ -160,7 +145,7 @@ class ForeverTest extends RedisCacheTestCase
         // SET returns false (failure)
         $connection->shouldReceive('exec')
             ->once()
-            ->andReturn([1, false]);
+            ->andReturn([false, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->forever()->execute(
@@ -172,9 +157,6 @@ class ForeverTest extends RedisCacheTestCase
         $this->assertFalse($result);
     }
 
-    /**
-     * @test
-     */
     public function testForeverUsesCorrectPrefix(): void
     {
         $connection = $this->mockConnection();
@@ -193,7 +175,7 @@ class ForeverTest extends RedisCacheTestCase
 
         $connection->shouldReceive('exec')
             ->once()
-            ->andReturn([1, true]);
+            ->andReturn([true, 1]);
 
         $store = $this->createStore($connection, 'custom:');
         $result = $store->allTagOps()->forever()->execute(
@@ -205,9 +187,6 @@ class ForeverTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testForeverWithNumericValue(): void
     {
         $connection = $this->mockConnection();
@@ -224,7 +203,7 @@ class ForeverTest extends RedisCacheTestCase
 
         $connection->shouldReceive('exec')
             ->once()
-            ->andReturn([1, true]);
+            ->andReturn([true, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->forever()->execute(

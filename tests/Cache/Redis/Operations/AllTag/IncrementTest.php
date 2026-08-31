@@ -17,21 +17,21 @@ class IncrementTest extends RedisCacheTestCase
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        // ZADD NX for tag with score -1 (only add if not exists)
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'counter')
-            ->andReturn($connection);
-
-        // INCRBY
         $connection->shouldReceive('incrby')
             ->once()
             ->with('prefix:counter', 1)
-            ->andReturn($connection);
+            ->andReturn($connection)
+            ->ordered();
+
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'counter')
+            ->andReturn($connection)
+            ->ordered();
 
         $connection->shouldReceive('exec')
             ->once()
-            ->andReturn([1, 5]);
+            ->andReturn([5, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->increment()->execute(
@@ -61,7 +61,7 @@ class IncrementTest extends RedisCacheTestCase
 
         $connection->shouldReceive('exec')
             ->once()
-            ->andReturn([0, 15]);  // 0 means key already existed (NX condition)
+            ->andReturn([15, 0]); // 0 means tag membership already existed
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->increment()->execute(

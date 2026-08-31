@@ -9,20 +9,10 @@ use Hypervel\Redis\PhpRedis;
 use Hypervel\Redis\RedisConnection;
 
 /**
- * Prune orphaned fields from any tag hashes.
+ * Prune orphaned fields and registry entries from any-mode tag hashes.
  *
- * This operation performs a complete cleanup of any-mode tag data:
- * 1. Removes expired tags from the registry (ZREMRANGEBYSCORE)
- * 2. Gets active tags from the registry (ZRANGE)
- * 3. Scans each tag hash for orphaned fields (HSCAN + EXISTS checks)
- * 4. Removes orphaned fields where the cache key no longer exists (HDEL)
- * 5. Deletes empty hashes (HLEN == 0)
- *
- * This cleanup is needed because in lazy flush mode, when cache keys are
- * deleted directly (not via tag flush), the hash field references remain.
- *
- * @see https://redis.io/commands/zremrangebyscore/
- * @see https://redis.io/commands/hscan/
+ * Lazy flush can leave hash fields behind when cache values are deleted
+ * directly instead of through the tagged cache.
  */
 class Prune
 {
@@ -42,8 +32,11 @@ class Prune
     /**
      * Execute the prune operation.
      *
+     * The empty_hashes_deleted statistic includes hashes found already empty or
+     * absent. Redis deletes a hash automatically when its final field is removed.
+     *
      * @param int $scanCount Number of fields per HSCAN iteration
-     * @return array{hashes_scanned: int, fields_checked: int, orphans_removed: int, empty_hashes_deleted: int, expired_tags_removed: int}
+     * @return array{hashes_scanned: int, fields_checked: int, orphans_removed: int, empty_hashes_deleted: int, expired_tags_removed: int, orphaned_tags_removed: int}
      */
     public function execute(int $scanCount = self::DEFAULT_SCAN_COUNT): array
     {
@@ -51,15 +44,15 @@ class Prune
             return $this->executeCluster($scanCount);
         }
 
-        return $this->executePipeline($scanCount);
+        return $this->executeUsingLua($scanCount);
     }
 
     /**
-     * Execute using pipeline for standard Redis.
+     * Execute using bounded Lua operations for standard Redis.
      *
-     * @return array{hashes_scanned: int, fields_checked: int, orphans_removed: int, empty_hashes_deleted: int, expired_tags_removed: int}
+     * @return array{hashes_scanned: int, fields_checked: int, orphans_removed: int, empty_hashes_deleted: int, expired_tags_removed: int, orphaned_tags_removed: int}
      */
-    private function executePipeline(int $scanCount): array
+    private function executeUsingLua(int $scanCount): array
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($scanCount) {
             $prefix = $this->context->prefix();
@@ -72,6 +65,7 @@ class Prune
                 'orphans_removed' => 0,
                 'empty_hashes_deleted' => 0,
                 'expired_tags_removed' => 0,
+                'orphaned_tags_removed' => 0,
             ];
 
             // Step 1: Remove expired tags from registry
@@ -88,7 +82,7 @@ class Prune
             // Step 3: Process each tag hash
             foreach ($tags as $tag) {
                 $tagHash = $this->context->tagHashKey($tag);
-                $result = $this->cleanupTagHashPipeline($connection, $tagHash, $prefix, $scanCount);
+                $result = $this->cleanupTagHashUsingLua($connection, (string) $tag, $tagHash, $prefix, $scanCount);
 
                 ++$stats['hashes_scanned'];
                 $stats['fields_checked'] += $result['checked'];
@@ -97,6 +91,8 @@ class Prune
                 if ($result['deleted']) {
                     ++$stats['empty_hashes_deleted'];
                 }
+
+                $stats['orphaned_tags_removed'] += $result['registry_removed'];
             }
 
             return $stats;
@@ -106,7 +102,7 @@ class Prune
     /**
      * Execute using sequential commands for Redis Cluster.
      *
-     * @return array{hashes_scanned: int, fields_checked: int, orphans_removed: int, empty_hashes_deleted: int, expired_tags_removed: int}
+     * @return array{hashes_scanned: int, fields_checked: int, orphans_removed: int, empty_hashes_deleted: int, expired_tags_removed: int, orphaned_tags_removed: int}
      */
     private function executeCluster(int $scanCount): array
     {
@@ -121,6 +117,7 @@ class Prune
                 'orphans_removed' => 0,
                 'empty_hashes_deleted' => 0,
                 'expired_tags_removed' => 0,
+                'orphaned_tags_removed' => 0,
             ];
 
             // Step 1: Remove expired tags from registry
@@ -137,7 +134,7 @@ class Prune
             // Step 3: Process each tag hash
             foreach ($tags as $tag) {
                 $tagHash = $this->context->tagHashKey($tag);
-                $result = $this->cleanupTagHashCluster($connection, $tagHash, $prefix, $scanCount);
+                $result = $this->cleanupTagHashCluster($connection, (string) $tag, $tagHash, $prefix, $scanCount);
 
                 ++$stats['hashes_scanned'];
                 $stats['fields_checked'] += $result['checked'];
@@ -146,6 +143,8 @@ class Prune
                 if ($result['deleted']) {
                     ++$stats['empty_hashes_deleted'];
                 }
+
+                $stats['orphaned_tags_removed'] += $result['registry_removed'];
             }
 
             return $stats;
@@ -153,12 +152,17 @@ class Prune
     }
 
     /**
-     * Clean up orphaned fields from a single tag hash using pipeline.
+     * Clean up orphaned fields from a single tag hash atomically in bounded pages.
      *
-     * @return array{checked: int, removed: int, deleted: bool}
+     * @return array{checked: int, removed: int, deleted: bool, registry_removed: int}
      */
-    private function cleanupTagHashPipeline(RedisConnection $connection, string $tagHash, string $prefix, int $scanCount): array
-    {
+    private function cleanupTagHashUsingLua(
+        RedisConnection $connection,
+        string $tag,
+        string $tagHash,
+        string $prefix,
+        int $scanCount,
+    ): array {
         $checked = 0;
         $removed = 0;
 
@@ -179,50 +183,47 @@ class Prune
             $fieldKeys = array_keys($fields);
             $checked += count($fieldKeys);
 
-            // Use pipeline to check existence of all cache keys
-            $pipeline = $connection->pipeline();
+            $keys = [$tagHash];
+
             foreach ($fieldKeys as $key) {
-                $pipeline->exists($prefix . $key);
-            }
-            $existsResults = $pipeline->exec();
-
-            // Collect orphaned fields (cache key doesn't exist)
-            $orphanedFields = [];
-            foreach ($fieldKeys as $index => $key) {
-                if (! $existsResults[$index]) {
-                    $orphanedFields[] = $key;
-                }
+                $keys[] = $prefix . $key;
             }
 
-            // Remove orphaned fields
-            if (! empty($orphanedFields)) {
-                $connection->hDel($tagHash, ...$orphanedFields);
-                $removed += count($orphanedFields);
-            }
+            $pageRemoved = $connection->evalWithShaCache(
+                $this->removeOrphanedFieldsScript(),
+                $keys,
+                $fieldKeys,
+            );
+
+            $removed += is_int($pageRemoved) ? $pageRemoved : 0;
         } while ($iterator !== 0);
 
-        // Check if hash is now empty and delete it
-        $deleted = false;
-        $hashLen = $connection->hlen($tagHash);
-        if ($hashLen === 0) {
-            $connection->del($tagHash);
-            $deleted = true;
-        }
+        $finalized = $connection->evalWithShaCache(
+            $this->removeEmptyTagFromRegistryScript(),
+            [$tagHash, $this->context->registryKey()],
+            [$tag],
+        );
 
         return [
             'checked' => $checked,
             'removed' => $removed,
-            'deleted' => $deleted,
+            'deleted' => is_array($finalized) && ($finalized[0] ?? 0) === 1,
+            'registry_removed' => is_array($finalized) && is_int($finalized[1] ?? null) ? $finalized[1] : 0,
         ];
     }
 
     /**
      * Clean up orphaned fields from a single tag hash using sequential commands (cluster mode).
      *
-     * @return array{checked: int, removed: int, deleted: bool}
+     * @return array{checked: int, removed: int, deleted: bool, registry_removed: int}
      */
-    private function cleanupTagHashCluster(RedisConnection $connection, string $tagHash, string $prefix, int $scanCount): array
-    {
+    private function cleanupTagHashCluster(
+        RedisConnection $connection,
+        string $tag,
+        string $tagHash,
+        string $prefix,
+        int $scanCount,
+    ): array {
         $checked = 0;
         $removed = 0;
 
@@ -242,34 +243,123 @@ class Prune
 
             $fieldKeys = array_keys($fields);
             $checked += count($fieldKeys);
-
-            // Check existence sequentially in cluster mode
             $orphanedFields = [];
+
             foreach ($fieldKeys as $key) {
-                if (! $connection->exists($prefix . $key)) {
+                if (! $this->keyExists($connection, $prefix . $key)) {
                     $orphanedFields[] = $key;
                 }
             }
 
-            // Remove orphaned fields
-            if (! empty($orphanedFields)) {
-                $connection->hDel($tagHash, ...$orphanedFields);
-                $removed += count($orphanedFields);
+            if ($orphanedFields === []) {
+                continue;
             }
+
+            $pageRemoved = $connection->hDel($tagHash, ...$orphanedFields);
+
+            if (! is_int($pageRemoved) || $pageRemoved === 0) {
+                continue;
+            }
+
+            $repaired = 0;
+
+            foreach ($orphanedFields as $key) {
+                // Cross-slot checks cannot be atomic in Cluster. Restore only
+                // when the value and its reverse index prove a writer won the
+                // race; HSETNX preserves metadata already republished by it.
+                if ($this->keyExists($connection, $prefix . $key)
+                    && $connection->sismember($this->context->reverseIndexKey($key), $tag)) {
+                    $connection->hsetnx($tagHash, $key, StoreContext::TAG_FIELD_VALUE);
+                    ++$repaired;
+                }
+            }
+
+            // A batch cannot identify which field each concurrent repair
+            // replaced, so statistics can under-count only during that race.
+            $removed += max(0, $pageRemoved - $repaired);
         } while ($iterator !== 0);
 
-        // Check if hash is now empty and delete it
         $deleted = false;
-        $hashLen = $connection->hlen($tagHash);
-        if ($hashLen === 0) {
-            $connection->del($tagHash);
+        $registryRemoved = 0;
+
+        if ($this->tagHashIsEmpty($connection, $tagHash)) {
+            $registryRemoved = (int) $connection->zrem($this->context->registryKey(), $tag);
             $deleted = true;
+
+            // A writer publishes the hash before the registry. If it revived
+            // the hash during the cross-slot cleanup, restore only a missing
+            // registry member and let the writer's real expiry win.
+            if (! $this->tagHashIsEmpty($connection, $tagHash)) {
+                $connection->zadd(
+                    $this->context->registryKey(),
+                    ['NX'],
+                    StoreContext::MAX_EXPIRY,
+                    $tag,
+                );
+
+                $deleted = false;
+                $registryRemoved = 0;
+            }
         }
 
         return [
             'checked' => $checked,
             'removed' => $removed,
             'deleted' => $deleted,
+            'registry_removed' => $registryRemoved,
         ];
+    }
+
+    /**
+     * Remove fields only while their corresponding cache keys are absent.
+     */
+    protected function removeOrphanedFieldsScript(): string
+    {
+        return <<<'LUA'
+            local tagHash = KEYS[1]
+            local removed = 0
+
+            for i = 2, #KEYS do
+                if redis.call('EXISTS', KEYS[i]) == 0 then
+                    removed = removed + redis.call('HDEL', tagHash, ARGV[i - 1])
+                end
+            end
+
+            return removed
+            LUA;
+    }
+
+    /**
+     * Remove an empty tag from the registry in the same atomic operation.
+     */
+    protected function removeEmptyTagFromRegistryScript(): string
+    {
+        return <<<'LUA'
+            if redis.call('HLEN', KEYS[1]) == 0 then
+                return {1, redis.call('ZREM', KEYS[2], ARGV[1])}
+            end
+
+            return {0, 0}
+            LUA;
+    }
+
+    /**
+     * Check the current Redis state without treating consecutive reads as stable.
+     *
+     * @phpstan-impure Redis may change between calls.
+     */
+    private function keyExists(RedisConnection $connection, string $key): bool
+    {
+        return (bool) $connection->exists($key);
+    }
+
+    /**
+     * Check the current hash state without treating consecutive reads as stable.
+     *
+     * @phpstan-impure Redis may change between calls.
+     */
+    private function tagHashIsEmpty(RedisConnection $connection, string $tagHash): bool
+    {
+        return $connection->hlen($tagHash) === 0;
     }
 }

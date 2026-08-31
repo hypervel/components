@@ -58,13 +58,14 @@ class Increment
 
             $pipeline = $connection->pipeline();
 
+            // Publish the counter before its memberships so concurrent pruning
+            // cannot mistake a newly written member for an orphan.
+            $pipeline->incrBy($prefix . $key, $value);
+
             // ZADD NX to each tag's sorted set (only add if not exists)
             foreach ($tagIds as $tagId) {
                 $pipeline->zadd($prefix . $tagId, ['NX'], self::FOREVER_SCORE, $key);
             }
-
-            // INCRBY for the value
-            $pipeline->incrBy($prefix . $key, $value);
 
             $results = $pipeline->exec();
 
@@ -72,8 +73,8 @@ class Increment
                 return false;
             }
 
-            // Last result is the INCRBY result
-            return end($results);
+            // First result is the INCRBY result
+            return $results[0] ?? false;
         });
     }
 

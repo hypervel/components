@@ -58,13 +58,14 @@ class Decrement
 
             $pipeline = $connection->pipeline();
 
+            // Publish the counter before its memberships so concurrent pruning
+            // cannot mistake a newly written member for an orphan.
+            $pipeline->decrBy($prefix . $key, $value);
+
             // ZADD NX to each tag's sorted set (only add if not exists)
             foreach ($tagIds as $tagId) {
                 $pipeline->zadd($prefix . $tagId, ['NX'], self::FOREVER_SCORE, $key);
             }
-
-            // DECRBY for the value
-            $pipeline->decrBy($prefix . $key, $value);
 
             $results = $pipeline->exec();
 
@@ -72,8 +73,8 @@ class Decrement
                 return false;
             }
 
-            // Last result is the DECRBY result
-            return end($results);
+            // First result is the DECRBY result
+            return $results[0] ?? false;
         });
     }
 

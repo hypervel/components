@@ -15,32 +15,28 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
  */
 class AddTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testAddWithTagsReturnsTrueWhenKeyAdded(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
 
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-
-        // ZADD for tag with TTL score
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', 1061, 'mykey')
-            ->andReturn($connection);
-
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([1]);
-
-        // SET NX EX for atomic add
         $connection->shouldReceive('set')
             ->once()
             ->with('prefix:mykey', serialize('myvalue'), ['EX' => 60, 'NX'])
-            ->andReturn(true);
+            ->andReturn(true)
+            ->ordered();
+
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection)->ordered();
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', 1061, 'mykey')
+            ->andReturn($connection)
+            ->ordered();
+        $connection->shouldReceive('exec')
+            ->once()
+            ->andReturn([1])
+            ->ordered();
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->add()->execute(
@@ -53,9 +49,6 @@ class AddTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testAddWithTagsReturnsFalseWhenKeyExists(): void
     {
         $connection = $this->mockConnection();
@@ -82,9 +75,6 @@ class AddTest extends RedisCacheTestCase
         $this->assertFalse($result);
     }
 
-    /**
-     * @test
-     */
     public function testAddWithMultipleTags(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
@@ -126,9 +116,6 @@ class AddTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testAddWithEmptyTagsSkipsPipeline(): void
     {
         $connection = $this->mockConnection();
@@ -153,9 +140,6 @@ class AddTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testAddInClusterModeUsesSequentialCommands(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
@@ -165,17 +149,17 @@ class AddTest extends RedisCacheTestCase
         // Should NOT use pipeline in cluster mode
         $connection->shouldNotReceive('pipeline');
 
-        // Sequential ZADD
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', 1061, 'mykey')
-            ->andReturn(1);
-
-        // SET NX EX for atomic add
         $connection->shouldReceive('set')
             ->once()
             ->with('prefix:mykey', serialize('myvalue'), ['EX' => 60, 'NX'])
-            ->andReturn(true);
+            ->andReturn(true)
+            ->ordered();
+
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', 1061, 'mykey')
+            ->andReturn(1)
+            ->ordered();
 
         $result = $store->allTagOps()->add()->execute(
             'mykey',
@@ -187,26 +171,23 @@ class AddTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testAddInClusterModeReturnsFalseWhenKeyExists(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
 
         [$store, , $connection] = $this->createClusterStore();
 
-        // Sequential ZADD (still happens even if key exists)
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', 1061, 'mykey')
-            ->andReturn(1);
-
-        // SET NX returns false when key exists (RedisCluster return type is string|bool)
         $connection->shouldReceive('set')
             ->once()
             ->with('prefix:mykey', serialize('myvalue'), ['EX' => 60, 'NX'])
-            ->andReturn(false);
+            ->andReturn(false)
+            ->ordered();
+
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', 1061, 'mykey')
+            ->andReturn(1)
+            ->ordered();
 
         $result = $store->allTagOps()->add()->execute(
             'mykey',
@@ -218,9 +199,6 @@ class AddTest extends RedisCacheTestCase
         $this->assertFalse($result);
     }
 
-    /**
-     * @test
-     */
     public function testAddEnforcesMinimumTtlOfOne(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
@@ -250,9 +228,6 @@ class AddTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    /**
-     * @test
-     */
     public function testAddWithNumericValue(): void
     {
         $connection = $this->mockConnection();
