@@ -48,6 +48,15 @@ class BenchmarkContextTest extends RedisCacheIntegrationTestCase
 
         [$benchmarkKeys, $unrelatedKeys] = $this->seedBenchmarkAndUnrelatedKeys();
 
+        $registryKey = $this->anyModeRegistryKey();
+        $this->redis()->zadd(
+            $registryKey,
+            StoreContext::MAX_EXPIRY,
+            '_bench:registry-tag',
+            StoreContext::MAX_EXPIRY,
+            'unrelated-tag',
+        );
+
         $this->benchmarkContext()->cleanup();
 
         foreach ($benchmarkKeys as $key) {
@@ -57,6 +66,9 @@ class BenchmarkContextTest extends RedisCacheIntegrationTestCase
         foreach ($unrelatedKeys as $key) {
             $this->assertRedisKeyExists($key);
         }
+
+        $this->assertFalse($this->redis()->zScore($registryKey, '_bench:registry-tag'));
+        $this->assertNotFalse($this->redis()->zScore($registryKey, 'unrelated-tag'));
     }
 
     /**

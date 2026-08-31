@@ -94,30 +94,6 @@ class BenchmarkContext
     }
 
     /**
-     * Get the current tag mode.
-     */
-    public function getTagMode(): TagMode
-    {
-        return $this->getStoreInstance()->getTagMode();
-    }
-
-    /**
-     * Check if the store is configured for 'any' tag mode.
-     */
-    public function isAnyMode(): bool
-    {
-        return $this->getTagMode() === TagMode::Any;
-    }
-
-    /**
-     * Check if the store is configured for 'all' tag mode.
-     */
-    public function isAllMode(): bool
-    {
-        return $this->getTagMode() === TagMode::All;
-    }
-
-    /**
      * Get patterns to match all tag storage structures with a given tag name prefix.
      *
      * Returns patterns for both tag modes to ensure complete cleanup
@@ -284,21 +260,20 @@ class BenchmarkContext
             $this->flushKeysByPattern($storeInstance, $pattern);
         }
 
-        // 3. Any mode: clean up benchmark entries from the tag registry
-        if ($this->isAnyMode()) {
-            $context = $storeInstance->getContext();
-            $context->withConnection(function (RedisConnection $connection) use ($context): void {
-                $registryKey = $context->registryKey();
-                $members = $connection->zRange($registryKey, 0, -1);
-                $benchmarkMembers = array_filter(
-                    $members,
-                    fn (string $member): bool => str_starts_with($member, self::KEY_PREFIX)
-                );
-                if (! empty($benchmarkMembers)) {
-                    $connection->zrem($registryKey, ...$benchmarkMembers);
-                }
-            });
-        }
+        // 3. Clean benchmark members from the any-mode registry even when an
+        // interrupted comparison leaves the store configured for all mode.
+        $context = $storeInstance->getContext();
+        $context->withConnection(function (RedisConnection $connection) use ($context): void {
+            $registryKey = (new TagKeyBuilder(TagMode::Any, $context->prefix()))->registryKey();
+            $members = $connection->zRange($registryKey, 0, -1);
+            $benchmarkMembers = array_filter(
+                $members,
+                fn (string $member): bool => str_starts_with($member, self::KEY_PREFIX)
+            );
+            if (! empty($benchmarkMembers)) {
+                $connection->zrem($registryKey, ...$benchmarkMembers);
+            }
+        });
     }
 
     /**
