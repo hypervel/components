@@ -532,7 +532,7 @@ class ResponseBridgeTest extends TestCase
         try {
             BinaryFileResponse::trustXSendfileTypeHeader();
             $request = Request::create('/', 'HEAD', server: [
-                'HTTP_X_SENDFILE_TYPE' => 'X-Custom-Sendfile',
+                'HTTP_X_SENDFILE_TYPE' => 'X-LIGHTTPD-send-file',
             ]);
             $response = new BinaryFileResponse($path);
             $response->deleteFileAfterSend();
@@ -541,7 +541,7 @@ class ResponseBridgeTest extends TestCase
 
             $swooleResponse->shouldNotReceive('sendfile');
             $swooleResponse->shouldNotReceive('write');
-            $swooleResponse->shouldReceive('header')->with('X-Custom-Sendfile', $path)->andReturnTrue();
+            $swooleResponse->shouldReceive('header')->with('X-LIGHTTPD-send-file', $path)->andReturnTrue();
             $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
 
             ResponseBridge::send($response, $swooleResponse, withBody: false, request: $request);
