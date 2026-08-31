@@ -9,13 +9,26 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Reverb\ReverbServiceProvider;
 use Hypervel\Reverb\Servers\Hypervel\Scaling\RedisSharedState;
 use Hypervel\Support\Facades\Redis;
-use Hypervel\Tests\Reverb\ReverbTestCase;
+use Hypervel\Testbench\TestCase;
 
-class ClearStateCommandTest extends ReverbTestCase
+class ClearStateCommandTest extends TestCase
 {
     use InteractsWithRedis;
+
+    /**
+     * Get package providers.
+     *
+     * @return array<int, class-string>
+     */
+    protected function getPackageProviders(ApplicationContract $app): array
+    {
+        return [
+            ReverbServiceProvider::class,
+        ];
+    }
 
     /**
      * Define environment setup.
