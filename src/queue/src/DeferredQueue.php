@@ -15,6 +15,11 @@ use Throwable;
 class DeferredQueue extends SyncQueue
 {
     /**
+     * The name of the default queue.
+     */
+    protected string $default = 'deferred';
+
+    /**
      * The exception callback that should be used for handling uncaught exceptions in defer.
      *
      * @var null|callable
