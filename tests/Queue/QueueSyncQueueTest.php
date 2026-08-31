@@ -73,6 +73,35 @@ class QueueSyncQueueTest extends TestCase
         $this->assertEquals(['foo' => 'bar'], $_SERVER['__sync.test'][1]);
     }
 
+    public function testJobsReportTheirResolvedQueueName(): void
+    {
+        $sync = new SyncQueue;
+        $sync->setConnectionName('sync-connection');
+        $container = $this->getContainer();
+        $events = new EventsDispatcher($container);
+        $observed = [];
+
+        $events->listen(JobProcessing::class, static function (JobProcessing $event) use (&$observed): void {
+            $observed[] = [$event->connectionName, $event->job->getQueue()];
+        });
+
+        $container->instance('events', $events);
+        $container->instance(EventDispatcher::class, $events);
+        $sync->setContainer($container);
+
+        foreach ([
+            [null, 'sync'],
+            ['', 'sync'],
+            ['emails', 'emails'],
+            // A queue named "0" is valid and must not be treated as empty.
+            ['0', '0'],
+        ] as [$queue, $expected]) {
+            $observed = [];
+            $sync->push(SyncQueueTestHandler::class, queue: $queue);
+            $this->assertSame([['sync-connection', $expected]], $observed);
+        }
+    }
+
     public function testFailedJobGetsHandledWhenAnExceptionIsThrown()
     {
         unset($_SERVER['__sync.failed']);
