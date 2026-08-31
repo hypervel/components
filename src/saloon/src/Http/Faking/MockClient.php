@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Saloon\Http\Faking;
 
-use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Saloon\Exceptions\NoMockResponseFoundException;
 use Hypervel\Saloon\Http\Connector;
