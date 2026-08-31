@@ -60,7 +60,7 @@ describe("parsedDefaults", () => {
                     neighbor: "neighbor",
                 }),
             ).toBe(
-                "/parsed-defaults/en/-12/1.5/1/0/UTC/second/runtime/literal-null/unsupported-array/neighbor",
+                "/parsed-defaults/en/-12/1.5/1/0/10/10/1000/10/-10/10/16/2/10/UTC/second/runtime/literal-null/unsupported-array/neighbor",
             );
 
             expect(() =>

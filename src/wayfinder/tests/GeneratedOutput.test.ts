@@ -35,3 +35,23 @@ test("emits tuple optionals only for contiguous optional suffixes", () => {
         `[locale: ${scalar} | null, timezone: ${scalar}]`,
     );
 });
+
+test("links generated methods to their original PHP actions", () => {
+    const controller = readFileSync(
+        path.join(
+            __dirname,
+            ".generated/actions/Hypervel/Tests/Wayfinder/Fixtures/Controllers/DisallowedMethodNameController.ts",
+        ),
+        "utf8",
+    );
+    const target =
+        "\\Hypervel\\Tests\\Wayfinder\\Fixtures\\Controllers\\DisallowedMethodNameController";
+
+    expect(controller).toContain("export const deleteMethod2");
+    expect(controller).toContain(`@see ${target}::delete`);
+    expect(controller).toContain(`@see ${target}::deleteMethod`);
+    expect(controller).not.toContain(`@see ${target}::deleteMethod2`);
+    expect(controller).toContain(`@see ${target}::404`);
+    expect(controller).toContain(`@see ${target}::2fa`);
+    expect(controller).toContain(`@see ${target}::default`);
+});
