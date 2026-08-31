@@ -164,6 +164,23 @@ class BenchmarkContext
     }
 
     /**
+     * Get every pattern needed to remove benchmark-owned keys.
+     *
+     * The all-mode value pattern overlaps tag storage today. The explicit tag
+     * patterns keep each key family covered if that value pattern narrows;
+     * deleting the overlap is idempotent.
+     *
+     * @return array<string>
+     */
+    public function getCleanupPatterns(): array
+    {
+        return [
+            ...$this->getCacheValuePatterns(self::KEY_PREFIX),
+            ...$this->getTagStoragePatterns(self::KEY_PREFIX),
+        ];
+    }
+
+    /**
      * Get a value prefixed with the benchmark prefix.
      *
      * Used for both cache keys and tag names to ensure complete isolation
@@ -232,9 +249,8 @@ class BenchmarkContext
      *
      * This method uses mode-aware patterns to ensure complete cleanup:
      * 1. Flush all tagged items via $store->tags()->flush()
-     * 2. Clean non-tagged benchmark keys
-     * 3. Clean any remaining tag storage structures (matching _bench: prefix)
-     * 4. Run prune command to clean up orphans
+     * 2. Clean remaining benchmark values and tag storage across both modes
+     * 3. Remove benchmark entries from the any-mode tag registry
      */
     public function cleanup(): void
     {
@@ -252,32 +268,23 @@ class BenchmarkContext
             $this->prefixed('cleanup:shared:3'),
         ];
 
-        // Standard tags (max 10)
-        for ($i = 0; $i < 10; ++$i) {
+        for ($i = 0; $i < $this->tagsPerItem; ++$i) {
             $tags[] = $this->prefixed("tag:{$i}");
         }
 
-        // Heavy tags (max 60 to cover extreme scale)
-        for ($i = 0; $i < 60; ++$i) {
+        for ($i = 0; $i < $this->heavyTags; ++$i) {
             $tags[] = $this->prefixed("heavy:tag:{$i}");
         }
 
-        // 1. Flush tagged items - this handles cache values, tag hashes/zsets, and registry
+        // 1. This is a fast pass through the public tag API; the physical patterns and registry sweep below guarantee cleanup.
         $store->tags($tags)->flush();
 
-        // 2. Clean up non-tagged benchmark keys using mode-aware patterns
-        // In all mode, tagged keys are at {prefix}{xxh128}:{key}, so we need multiple patterns
-        foreach ($this->getCacheValuePatterns(self::KEY_PREFIX) as $pattern) {
+        // 2. Clean up remaining keys from both modes, including all-mode namespaced values.
+        foreach ($this->getCleanupPatterns() as $pattern) {
             $this->flushKeysByPattern($storeInstance, $pattern);
         }
 
-        // 3. Clean up any remaining tag storage structures matching benchmark prefix
-        // Uses patterns for both modes to ensure complete cleanup after --compare-tag-modes
-        foreach ($this->getTagStoragePatterns(self::KEY_PREFIX) as $pattern) {
-            $this->flushKeysByPattern($storeInstance, $pattern);
-        }
-
-        // 4. Any mode: clean up benchmark entries from the tag registry
+        // 3. Any mode: clean up benchmark entries from the tag registry
         if ($this->isAnyMode()) {
             $context = $storeInstance->getContext();
             $context->withConnection(function (RedisConnection $connection) use ($context): void {

@@ -90,20 +90,62 @@ class BenchmarkCommandTest extends TestCase
         );
     }
 
-    public function testMemoryRecoveryGuidanceInheritsTheSharedPrefixWhenStorePrefixIsOmitted(): void
+    public function testMemoryRecoveryGuidanceIncludesEveryCleanupPattern(): void
     {
-        config()->set('cache.prefix', 'shared:');
+        $patterns = [
+            'value-pattern:*',
+            'namespaced-value-pattern:*',
+            'any-tag-pattern:*',
+            'all-tag-pattern:*',
+        ];
+
+        $context = m::mock(BenchmarkContext::class);
+        $context->expects('getCleanupPatterns')->once()->andReturn($patterns);
 
         $command = $this->createCommand();
         $output = new BufferedOutput;
         $command->setOutput(new OutputStyle(new ArrayInput([]), $output));
-        $command->exposedDisplayMemoryError(new BenchmarkMemoryException(1, 2, 50), 'redis');
+        $command->exposedDisplayMemoryError(new BenchmarkMemoryException(1, 2, 50), 'redis', $context);
 
         $outputText = $output->fetch();
 
-        $this->assertStringContainsString("redis-cli --scan --pattern 'shared:", $outputText);
-        $this->assertStringContainsString('| xargs -r -n 1000 redis-cli UNLINK', $outputText);
+        foreach ($patterns as $pattern) {
+            $this->assertSame(
+                1,
+                substr_count($outputText, escapeshellarg($pattern)),
+                "Recovery guidance should contain pattern [{$pattern}] exactly once.",
+            );
+        }
+
+        $this->assertStringContainsString(
+            'Flush the entire Redis database for this connection (removes all keys, not only cache)',
+            $outputText,
+        );
+        $this->assertSame(4, substr_count($outputText, 'redis-cli --scan --pattern'));
+        $this->assertSame(4, substr_count($outputText, '| xargs -r -n 1000 redis-cli UNLINK'));
         $this->assertStringNotContainsString('redis-cli KEYS', $outputText);
+        $this->assertStringNotContainsString('redis-cli DEL', $outputText);
+    }
+
+    public function testCleanupPatternsInheritTheSharedPrefixWhenStorePrefixIsOmitted(): void
+    {
+        config()->set('cache.prefix', 'shared:');
+
+        $context = new BenchmarkContext(
+            storeName: 'redis',
+            items: 1,
+            tagsPerItem: 1,
+            heavyTags: 1,
+            command: $this->createCommand(),
+            cacheManager: $this->app->make(CacheContract::class),
+        );
+
+        $this->assertSame([
+            'shared:_bench:*',
+            'shared:*:_bench:*',
+            'shared:_any:tag:_bench:*',
+            'shared:_all:tag:_bench:*',
+        ], $context->getCleanupPatterns());
     }
 
     public function testInvalidTagModeFailsBeforeBenchmarkSetup(): void
@@ -304,6 +346,7 @@ class BenchmarkCommandTest extends TestCase
     private function mockBenchmarkContext(?Throwable $cleanupException = null): BenchmarkContext
     {
         $context = m::mock(BenchmarkContext::class);
+        $context->allows('getCleanupPatterns')->andReturn(['cache:_bench:*']);
         $cleanup = $context->shouldReceive('cleanup')->once();
 
         if ($cleanupException === null) {
@@ -361,11 +404,14 @@ class TestableBenchmarkCommand extends BenchmarkCommand
         return $this->storeName;
     }
 
-    public function exposedDisplayMemoryError(BenchmarkMemoryException $exception, string $storeName): void
-    {
+    public function exposedDisplayMemoryError(
+        BenchmarkMemoryException $exception,
+        string $storeName,
+        BenchmarkContext $context,
+    ): void {
         $this->storeName = $storeName;
 
-        parent::displayMemoryError($exception);
+        parent::displayMemoryError($exception, $context);
     }
 }
 

@@ -156,7 +156,7 @@ class BenchmarkCommand extends Command
                 $this->runSuiteWithRuns($tagMode, $context, $runs);
             }
         } catch (BenchmarkMemoryException $exception) {
-            $this->displayMemoryError($exception);
+            $this->displayMemoryError($exception, $context);
 
             return self::FAILURE;
         } finally {
@@ -562,10 +562,8 @@ class BenchmarkCommand extends Command
     /**
      * Display memory exhaustion error with recovery guidance.
      */
-    protected function displayMemoryError(BenchmarkMemoryException $exception): void
+    protected function displayMemoryError(BenchmarkMemoryException $exception, BenchmarkContext $context): void
     {
-        $config = $this->hypervel->make('config');
-
         $this->newLine();
         $this->error('Benchmark aborted due to memory constraints.');
         $this->newLine();
@@ -574,20 +572,18 @@ class BenchmarkCommand extends Command
         $this->warn('Automatic cleanup will run next.');
         $this->line('   If benchmark keys remain, clean them up after fixing the memory issue:');
         $this->newLine();
-        $this->line('   Option 1 - Clear all cache (simple):');
+        $this->line('   Option 1 - Flush the entire Redis database for this connection (removes all keys, not only cache):');
         $this->line('   <fg=cyan>php artisan cache:clear ' . $this->storeName . '</>');
         $this->newLine();
-        $this->line('   Option 2 - Clear only benchmark keys (preserves other cache):');
-        $prefixKey = "cache.stores.{$this->storeName}.prefix";
-        $storePrefix = $config->get($prefixKey);
-        $cachePrefix = $storePrefix === null
-            ? $config->string('cache.prefix')
-            : $config->string($prefixKey);
-        $this->line(
-            '   <fg=cyan>redis-cli --scan --pattern '
-            . escapeshellarg($cachePrefix . BenchmarkContext::KEY_PREFIX . '*')
-            . ' | xargs -r -n 1000 redis-cli UNLINK</>'
-        );
+        $this->line('   Option 2 - Clear benchmark-owned keys only (preserves other cache):');
+
+        foreach ($context->getCleanupPatterns() as $pattern) {
+            $this->line(
+                '   <fg=cyan>redis-cli --scan --pattern '
+                . escapeshellarg($pattern)
+                . ' | xargs -r -n 1000 redis-cli UNLINK</>'
+            );
+        }
     }
 
     /**
