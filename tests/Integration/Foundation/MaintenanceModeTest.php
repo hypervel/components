@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Foundation;
 
-use DateTimeInterface;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
@@ -393,7 +392,7 @@ class MaintenanceModeTest extends TestCase
 
         $data = json_decode(file_get_contents(storage_path('framework/down')), true);
 
-        $expectedDate = CarbonImmutable::parse($datetime)->format(DateTimeInterface::RFC7231);
+        $expectedDate = CarbonImmutable::parse($datetime)->toRfc7231String();
         $this->assertSame($expectedDate, $data['retry']);
 
         CarbonImmutable::setTestNow();
@@ -408,10 +407,19 @@ class MaintenanceModeTest extends TestCase
         ];
     }
 
+    public function testMaintenanceModeRetryDatetimeIsConvertedToGmt(): void
+    {
+        $this->artisan(DownCommand::class, ['--retry' => '2023-01-08 12:00:00 Australia/Sydney']);
+
+        $data = json_decode(file_get_contents(storage_path('framework/down')), true);
+
+        $this->assertSame('Sun, 08 Jan 2023 01:00:00 GMT', $data['retry']);
+    }
+
     public function testMaintenanceModeRetryWithHttpDateHeader(): void
     {
         $retryDate = CarbonImmutable::now()->addWeek();
-        $expectedHeader = $retryDate->format(DateTimeInterface::RFC7231);
+        $expectedHeader = $retryDate->toRfc7231String();
 
         file_put_contents(storage_path('framework/down'), json_encode([
             'retry' => $expectedHeader,
@@ -442,7 +450,7 @@ class MaintenanceModeTest extends TestCase
 
         $data = json_decode(file_get_contents(storage_path('framework/down')), true);
 
-        $expectedDate = CarbonImmutable::createFromTimestamp($futureTimestamp)->format(DateTimeInterface::RFC7231);
+        $expectedDate = CarbonImmutable::createFromTimestamp($futureTimestamp)->toRfc7231String();
         $this->assertSame($expectedDate, $data['retry']);
     }
 

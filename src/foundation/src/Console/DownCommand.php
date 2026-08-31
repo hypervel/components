@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Console;
 
-use DateTimeInterface;
 use Exception;
 use Hypervel\Console\Command;
 use Hypervel\Foundation\Console\Concerns\ReloadsWorkers;
@@ -171,7 +170,7 @@ class DownCommand extends Command
             try {
                 $date = CarbonImmutable::parse($retry);
 
-                return $date->format(DateTimeInterface::RFC7231);
+                return $date->toRfc7231String();
             } catch (Exception) {
                 return null;
             }
