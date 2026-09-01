@@ -17,11 +17,13 @@ use Hypervel\Http\Request;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\RequestTerminated;
+use Hypervel\HttpServer\Events\ResponseSent;
 use Hypervel\HttpServer\Server;
 use Hypervel\Routing\Router;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -366,8 +368,12 @@ class ServerTest extends TestCase
         $kernel->shouldReceive('handle')->once()->andReturn(new Response('OK'));
         $kernel->shouldReceive('terminate')->once()->andThrow($terminateFailure);
 
+        $sentEvent = null;
         $terminatedEvent = null;
         $events = new Dispatcher;
+        $events->listen(ResponseSent::class, function (ResponseSent $event) use (&$sentEvent): void {
+            $sentEvent = $event;
+        });
         $events->listen(RequestTerminated::class, function (RequestTerminated $event) use (&$terminatedEvent): void {
             $terminatedEvent = $event;
         });
@@ -392,6 +398,8 @@ class ServerTest extends TestCase
             $this->assertSame($sendFailure, $exception);
         }
 
+        $this->assertInstanceOf(ResponseSent::class, $sentEvent);
+        $this->assertSame($sendFailure, $sentEvent->exception);
         $this->assertInstanceOf(RequestTerminated::class, $terminatedEvent);
         $this->assertSame($sendFailure, $terminatedEvent->exception);
     }
@@ -498,13 +506,17 @@ class ServerTest extends TestCase
 
         $kernel = m::mock(KernelContract::class);
         $kernel->shouldReceive('handle')->andReturn($response);
-        $kernel->shouldReceive('terminate');
+        $order = [];
+        $kernel->shouldReceive('terminate')->andReturnUsing(function () use (&$order): void {
+            $order[] = 'terminate';
+        });
 
         $dispatchedEvents = [];
         $events = new Dispatcher;
-        foreach ([RequestReceived::class, RequestHandled::class, RequestTerminated::class] as $eventClass) {
-            $events->listen($eventClass, function (object $event) use (&$dispatchedEvents): void {
+        foreach ([RequestReceived::class, RequestHandled::class, ResponseSent::class, RequestTerminated::class] as $eventClass) {
+            $events->listen($eventClass, function (object $event) use (&$dispatchedEvents, &$order): void {
                 $dispatchedEvents[$event::class] = $event;
+                $order[] = $event::class;
             });
         }
 
@@ -527,8 +539,17 @@ class ServerTest extends TestCase
         $this->assertNull($dispatchedEvents[RequestReceived::class]->response);
         $this->assertSame($response, $dispatchedEvents[RequestHandled::class]->response);
         $this->assertNull($dispatchedEvents[RequestHandled::class]->exception);
+        $this->assertSame($response, $dispatchedEvents[ResponseSent::class]->response);
+        $this->assertNull($dispatchedEvents[ResponseSent::class]->exception);
         $this->assertSame($response, $dispatchedEvents[RequestTerminated::class]->response);
         $this->assertNull($dispatchedEvents[RequestTerminated::class]->exception);
+        $this->assertSame([
+            RequestReceived::class,
+            RequestHandled::class,
+            ResponseSent::class,
+            'terminate',
+            RequestTerminated::class,
+        ], $order);
     }
 
     public function testOnRequestSkipsFallbackEmissionAndTerminationAfterCancellation(): void
@@ -542,7 +563,7 @@ class ServerTest extends TestCase
 
         $dispatchedEvents = [];
         $events = new Dispatcher;
-        foreach ([RequestHandled::class, RequestTerminated::class] as $eventClass) {
+        foreach ([RequestHandled::class, ResponseSent::class, RequestTerminated::class] as $eventClass) {
             $events->listen($eventClass, function (object $event) use (&$dispatchedEvents): void {
                 $dispatchedEvents[$event::class] = $event;
             });
@@ -570,6 +591,93 @@ class ServerTest extends TestCase
         $this->assertFalse(RequestContext::has());
     }
 
+    #[DataProvider('lifecycleCancellationStages')]
+    public function testOnRequestStopsAtCancellationDuringFinalization(
+        string $stage,
+        array $expectedOrder,
+    ): void {
+        CoordinatorManager::until(Constants::WORKER_START)->resume();
+        $cancellation = new CanceledException;
+        $order = [];
+
+        $kernel = m::mock(KernelContract::class);
+        $kernel->shouldReceive('handle')->once()->andReturn(new Response('OK'));
+        $kernel->shouldReceive('terminate')
+            ->times($stage === 'terminate' ? 1 : 0)
+            ->andReturnUsing(function () use ($stage, &$order, $cancellation): void {
+                $order[] = 'terminate';
+
+                if ($stage === 'terminate') {
+                    throw $cancellation;
+                }
+            });
+
+        $events = new Dispatcher;
+        $events->listen(RequestHandled::class, function () use ($stage, &$order, $cancellation): void {
+            $order[] = 'handled';
+
+            if ($stage === 'handled') {
+                throw $cancellation;
+            }
+        });
+        $events->listen(ResponseSent::class, function () use ($stage, &$order, $cancellation): void {
+            $order[] = 'sent';
+
+            if ($stage === 'sent') {
+                throw $cancellation;
+            }
+        });
+        $events->listen(RequestTerminated::class, function () use (&$order): void {
+            $order[] = 'terminated';
+        });
+
+        $container = m::mock(Container::class);
+        $container->shouldReceive('bound')->with('events')->andReturn(true);
+        $container->shouldReceive('make')->with('events')->andReturn($events);
+
+        $server = new Server($container);
+        $this->setKernel($server, $kernel);
+        $this->setServerName($server, 'http');
+
+        $swooleResponse = m::mock(SwooleResponse::class);
+
+        if ($stage === 'handled') {
+            $swooleResponse->shouldReceive('status', 'header', 'cookie', 'rawcookie', 'write', 'sendfile', 'end')->never();
+        } else {
+            $swooleResponse->shouldReceive('status')->once()->with(200)->andReturnTrue();
+            $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
+            $swooleResponse->shouldReceive('end')
+                ->once()
+                ->with('OK')
+                ->andReturnUsing(function () use ($stage, $cancellation): bool {
+                    if ($stage === 'send') {
+                        throw $cancellation;
+                    }
+
+                    return true;
+                });
+        }
+
+        try {
+            $server->onRequest($this->createSwooleRequest(), $swooleResponse);
+            $this->fail('Expected cancellation to propagate.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame($expectedOrder, $order);
+    }
+
+    public static function lifecycleCancellationStages(): array
+    {
+        return [
+            'handled listener' => ['handled', ['handled']],
+            'response send' => ['send', ['handled']],
+            'sent listener' => ['sent', ['handled', 'sent']],
+            'termination' => ['terminate', ['handled', 'sent', 'terminate']],
+        ];
+    }
+
     public function testOnRequestSkipsLifecycleEventDispatchWhenNoListenersAreRegistered(): void
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
@@ -578,6 +686,7 @@ class ServerTest extends TestCase
         $eventDispatcher->shouldReceive('hasListeners')->once()->with(RequestReceived::class)->andReturn(false);
         $eventDispatcher->shouldReceive('hasListeners')->once()->with(RequestTerminated::class)->andReturn(false);
         $eventDispatcher->shouldReceive('hasListeners')->once()->with(RequestHandled::class)->andReturn(false);
+        $eventDispatcher->shouldReceive('hasListeners')->once()->with(ResponseSent::class)->andReturn(false);
         $eventDispatcher->shouldNotReceive('dispatch');
 
         $kernel = m::mock(KernelContract::class);

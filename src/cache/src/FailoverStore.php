@@ -49,7 +49,8 @@ class FailoverStore extends TaggableStore implements CanFlushLocks, LockProvider
     public function __construct(
         protected CacheManager $cache,
         protected Dispatcher $events,
-        array $stores
+        array $stores,
+        protected ?string $failoverStoreName = null,
     ) {
         $this->stores = array_values($stores);
     }
@@ -423,7 +424,7 @@ class FailoverStore extends TaggableStore implements CanFlushLocks, LockProvider
     ): void {
         if (! in_array($store, $failingCaches, true)
             && $this->events->hasListeners(CacheFailedOver::class)) {
-            $this->events->dispatch(new CacheFailedOver($store, $exception));
+            $this->events->dispatch(new CacheFailedOver($store, $exception, $this->failoverStoreName));
         }
     }
 

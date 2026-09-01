@@ -9,8 +9,12 @@ use Composer\InstalledVersions;
 use Google\Protobuf\Internal\Message;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Engine\Http\V2\ClientFactoryInterface;
+use Hypervel\Grpc\ClientGrpcOperation;
 use Hypervel\Grpc\Compression;
 use Hypervel\Grpc\Exceptions\RpcException;
+use Hypervel\Grpc\GrpcOperationHandle;
+use Hypervel\Grpc\GrpcOperationResult;
+use Hypervel\Grpc\GrpcOperationRunner;
 use Hypervel\Grpc\Metadata;
 use Hypervel\Grpc\Protocol\Deadline;
 use Hypervel\Grpc\Protocol\FrameEncoder;
@@ -79,6 +83,8 @@ abstract class BaseClient
     private Endpoint $endpoint;
 
     private ClientFactoryInterface $clientFactory;
+
+    private GrpcOperationRunner $operationRunner;
 
     private Metadata $defaultMetadata;
 
@@ -200,6 +206,7 @@ abstract class BaseClient
         );
         $this->requestEncoder = new FrameEncoder($maxSendMessageSize);
         $this->clientFactory = Container::getInstance()->make(ClientFactoryInterface::class);
+        $this->operationRunner = Container::getInstance()->make(GrpcOperationRunner::class);
         $version = InstalledVersions::isInstalled('hypervel/grpc')
             ? InstalledVersions::getPrettyVersion('hypervel/grpc')
             : null;
@@ -277,6 +284,7 @@ abstract class BaseClient
             $compression,
         );
         $metadata = $this->prepareMetadata($metadata);
+        [$metadata, $operationHandle] = $this->startOperation($serviceMethod, $metadata);
         [$state] = $this->startInitialAttempt(
             $serviceMethod->path(),
             $body,
@@ -284,6 +292,7 @@ abstract class BaseClient
             $compression,
             $deadline,
             false,
+            $operationHandle,
         );
 
         return new UnaryCall(
@@ -300,6 +309,7 @@ abstract class BaseClient
                 $compression,
                 $deadline,
             ),
+            operationHandle: $operationHandle,
         );
     }
 
@@ -321,6 +331,7 @@ abstract class BaseClient
         [$timeout, $compression] = $this->normalizeCallOptions($options, false);
         $deadline = Deadline::fromTimeout($timeout);
         $metadata = $this->prepareMetadata($metadata);
+        [$metadata, $operationHandle] = $this->startOperation($serviceMethod, $metadata);
         [$state, $connection] = $this->startInitialAttempt(
             $serviceMethod->path(),
             '',
@@ -328,6 +339,7 @@ abstract class BaseClient
             $compression,
             $deadline,
             true,
+            $operationHandle,
         );
 
         return new ClientStreamingCall(
@@ -339,6 +351,7 @@ abstract class BaseClient
             $connection,
             $this->requestEncoder,
             $compression,
+            $operationHandle,
         );
     }
 
@@ -365,6 +378,7 @@ abstract class BaseClient
             $compression,
         );
         $metadata = $this->prepareMetadata($metadata);
+        [$metadata, $operationHandle] = $this->startOperation($serviceMethod, $metadata);
         [$state] = $this->startInitialAttempt(
             $serviceMethod->path(),
             $body,
@@ -372,6 +386,7 @@ abstract class BaseClient
             $compression,
             $deadline,
             false,
+            $operationHandle,
         );
 
         return new ServerStreamingCall(
@@ -388,6 +403,7 @@ abstract class BaseClient
                 $compression,
                 $deadline,
             ),
+            operationHandle: $operationHandle,
         );
     }
 
@@ -409,6 +425,7 @@ abstract class BaseClient
         [$timeout, $compression] = $this->normalizeCallOptions($options, false);
         $deadline = Deadline::fromTimeout($timeout);
         $metadata = $this->prepareMetadata($metadata);
+        [$metadata, $operationHandle] = $this->startOperation($serviceMethod, $metadata);
         [$state, $connection] = $this->startInitialAttempt(
             $serviceMethod->path(),
             '',
@@ -416,6 +433,7 @@ abstract class BaseClient
             $compression,
             $deadline,
             true,
+            $operationHandle,
         );
 
         return new BidiStreamingCall(
@@ -427,6 +445,7 @@ abstract class BaseClient
             $connection,
             $this->requestEncoder,
             $compression,
+            $operationHandle,
         );
     }
 
@@ -460,24 +479,39 @@ abstract class BaseClient
         Compression $compression,
         Deadline $deadline,
         bool $pipeline,
+        ?GrpcOperationHandle $operationHandle,
     ): array {
-        $this->ensureOpen();
-        $state = $this->newStreamState($deadline);
+        $attemptCount = 0;
 
-        $requestFactory = $this->requestFactory(
-            $path,
-            $body,
-            $metadata,
-            $compression,
-            $deadline,
-            0,
-            $pipeline,
-        );
+        try {
+            $this->ensureOpen();
+            $state = $this->newStreamState($deadline);
+            $requestFactory = $this->requestFactory(
+                $path,
+                $body,
+                $metadata,
+                $compression,
+                $deadline,
+                0,
+                $pipeline,
+            );
 
-        $connection = $this->nextConnection();
-        $connection->start($requestFactory, $state, $deadline);
+            $connection = $this->nextConnection();
+            $attemptCount = 1;
+            $connection->start($requestFactory, $state, $deadline);
 
-        return [$state, $connection];
+            return [$state, $connection];
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $throwable) {
+            $operationHandle?->finish(new GrpcOperationResult(
+                $throwable instanceof RpcException ? $throwable->status() : null,
+                $throwable,
+                $attemptCount,
+            ));
+
+            throw $throwable;
+        }
     }
 
     /**
@@ -521,6 +555,28 @@ abstract class BaseClient
 
             return $state;
         };
+    }
+
+    /**
+     * Start client observers and return their final outbound metadata.
+     *
+     * @return array{Metadata, ?GrpcOperationHandle}
+     */
+    private function startOperation(ServiceMethod $serviceMethod, Metadata $metadata): array
+    {
+        if (! $this->operationRunner->hasObservers()) {
+            return [$metadata, null];
+        }
+
+        $operation = new ClientGrpcOperation(
+            $serviceMethod,
+            $this->endpoint->host,
+            $this->endpoint->port,
+            $metadata,
+        );
+        $handle = $this->operationRunner->start($operation);
+
+        return [$operation->metadata(), $handle];
     }
 
     /**

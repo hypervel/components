@@ -15,11 +15,16 @@ use Hypervel\Grpc\Client\RetryBackoff;
 use Hypervel\Grpc\Client\RetryPolicy;
 use Hypervel\Grpc\Client\StreamState;
 use Hypervel\Grpc\Client\UnaryCall;
+use Hypervel\Grpc\Contracts\GrpcOperationObserver;
 use Hypervel\Grpc\Exceptions\ConnectionException;
 use Hypervel\Grpc\Exceptions\ProtocolException;
 use Hypervel\Grpc\Exceptions\RpcException;
+use Hypervel\Grpc\GrpcOperation;
+use Hypervel\Grpc\GrpcOperationHandle;
+use Hypervel\Grpc\GrpcOperationResult;
 use Hypervel\Grpc\Protocol\Deadline;
 use Hypervel\Grpc\Protocol\FrameEncoder;
+use Hypervel\Grpc\Protocol\ServiceMethod;
 use Hypervel\Grpc\Status;
 use Hypervel\Grpc\StatusCode;
 use Hypervel\Support\Sleep;
@@ -156,6 +161,29 @@ class UnaryCallTest extends TestCase
         }
     }
 
+    public function testDroppingAnUnfinishedCallReleasesResourcesWithoutFinishingObservation(): void
+    {
+        $deadline = Deadline::fromTimeout(null);
+        $state = $this->state($deadline);
+        $abandonments = 0;
+        $state->onAbandon(static function () use (&$abandonments): void {
+            ++$abandonments;
+        });
+        $observer = new UnaryCallGrpcOperationObserverStub;
+        $operationHandle = new GrpcOperationHandle(
+            new UnaryCallGrpcOperationStub,
+            [[$observer, null]],
+        );
+        $call = $this->call($state, $deadline, operationHandle: $operationHandle);
+
+        unset($call);
+
+        $this->assertSame(1, $abandonments);
+        $this->assertTrue($state->isAbandoned());
+        $this->assertSame([], $observer->results);
+        $this->assertFalse($operationHandle->isFinished());
+    }
+
     public function testWaitRejectsAResponseWithoutAMessage(): void
     {
         $deadline = Deadline::fromTimeout(null);
@@ -250,7 +278,12 @@ class UnaryCallTest extends TestCase
             new HttpClientException('socket lost', 104),
         );
         $state->fail($failure);
-        $call = $this->call($state, $deadline);
+        $observer = new UnaryCallGrpcOperationObserverStub;
+        $operationHandle = new GrpcOperationHandle(
+            new UnaryCallGrpcOperationStub,
+            [[$observer, null]],
+        );
+        $call = $this->call($state, $deadline, operationHandle: $operationHandle);
 
         foreach (['wait', 'metadata', 'status', 'trailers'] as $method) {
             try {
@@ -260,6 +293,11 @@ class UnaryCallTest extends TestCase
                 $this->assertSame($failure, $exception);
             }
         }
+
+        $call->cancel();
+
+        $this->assertCount(1, $observer->results);
+        $this->assertSame($failure, $observer->results[0]->exception);
     }
 
     public function testTrailersOnlyRetryTransitionsToASecondAttempt(): void
@@ -271,6 +309,11 @@ class UnaryCallTest extends TestCase
             headers: ['grpc-retry-pushback-ms' => '0'],
         ));
         $previousAttempts = [];
+        $observer = new UnaryCallGrpcOperationObserverStub;
+        $operationHandle = new GrpcOperationHandle(
+            new UnaryCallGrpcOperationStub,
+            [[$observer, null]],
+        );
         $call = $this->call(
             $first,
             $deadline,
@@ -282,6 +325,7 @@ class UnaryCallTest extends TestCase
 
                 return $state;
             },
+            operationHandle: $operationHandle,
         );
 
         $response = $call->wait();
@@ -289,6 +333,11 @@ class UnaryCallTest extends TestCase
         $this->assertInstanceOf(StringValue::class, $response);
         $this->assertSame('retried', $response->getValue());
         $this->assertSame([1], $previousAttempts);
+        $this->assertTrue($operationHandle->isFinished());
+        $this->assertCount(1, $observer->results);
+        $this->assertSame(StatusCode::Ok, $observer->results[0]->status?->code());
+        $this->assertNull($observer->results[0]->exception);
+        $this->assertSame(2, $observer->results[0]->attemptCount);
     }
 
     public function testCancellationBeforeRetryPublicationRestoresTheBackoffSequence(): void
@@ -573,6 +622,7 @@ class UnaryCallTest extends TestCase
         ?RetryPolicy $retryPolicy = null,
         ?Closure $attemptFactory = null,
         ?RetryBackoff $retryBackoff = null,
+        ?GrpcOperationHandle $operationHandle = null,
     ): UnaryCall {
         return new UnaryCall(
             $state,
@@ -583,6 +633,7 @@ class UnaryCallTest extends TestCase
             $retryPolicy,
             $attemptFactory,
             $retryBackoff,
+            operationHandle: $operationHandle,
         );
     }
 
@@ -651,5 +702,32 @@ class UnaryCallTest extends TestCase
     private function serialized(string $value): string
     {
         return (new StringValue)->setValue($value)->serializeToString();
+    }
+}
+
+class UnaryCallGrpcOperationStub implements GrpcOperation
+{
+    public function serviceMethod(): ?ServiceMethod
+    {
+        return null;
+    }
+}
+
+class UnaryCallGrpcOperationObserverStub implements GrpcOperationObserver
+{
+    /** @var list<GrpcOperationResult> */
+    public array $results = [];
+
+    public function starting(GrpcOperation $operation): null
+    {
+        return null;
+    }
+
+    public function finished(
+        GrpcOperation $operation,
+        mixed $token,
+        GrpcOperationResult $result,
+    ): void {
+        $this->results[] = $result;
     }
 }

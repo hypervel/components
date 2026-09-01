@@ -46,6 +46,16 @@ class PoolFactory
     }
 
     /**
+     * Get the existing pools keyed by their physical connection names.
+     *
+     * @return array<string, DbPool>
+     */
+    public function pools(): array
+    {
+        return $this->pools;
+    }
+
+    /**
      * Resolve the physical pool name for a requested connection name.
      */
     protected function getPoolName(string $name): string

@@ -4,5 +4,7 @@ includes:
 parameters:
     level: max
     tmpDir: .cache/phpstan-types
+    scanDirectories:
+        - src/database/src/PHPStan
     paths:
         - types

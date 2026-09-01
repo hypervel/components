@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
 use Hypervel\Engine\Coroutine;
 use Psr\Log\LoggerInterface;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class Timer
@@ -124,6 +125,8 @@ class Timer
 
                     try {
                         $result = $closure($isClosing);
+                    } catch (CanceledException) {
+                        break;
                     } catch (Throwable $exception) {
                         if ($this->logger !== null) {
                             $this->logger->error((string) $exception);

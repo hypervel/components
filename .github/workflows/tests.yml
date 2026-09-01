@@ -63,6 +63,8 @@ jobs:
 
       - name: Run Testbench dogfood package suite
         working-directory: dogfood/testbench-package
+        env:
+          OTEL_SDK_DISABLED: true
         run: vendor/bin/testbench package:test --parallel
 
   wayfinder_tests:

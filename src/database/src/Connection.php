@@ -12,6 +12,7 @@ use Generator;
 use Hypervel\Context\NonCopyableContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Database\Events\QueryFailed;
 use Hypervel\Database\Events\TransactionBeginning;
 use Hypervel\Database\Events\TransactionCommitted;
 use Hypervel\Database\Events\TransactionCommitting;
@@ -536,6 +537,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Run a SQL statement and log its execution context.
      *
+     * @throws CanceledException
      * @throws QueryException
      */
     protected function run(string $query, array $bindings, Closure $callback): mixed
@@ -552,14 +554,33 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         // caused by a connection that has been lost. If that is the cause, we'll try
         // to re-establish connection and re-run the query with a fresh connection.
         try {
-            $result = $this->runQueryCallback($query, $bindings, $callback);
-        } catch (QueryException $e) {
-            $result = $this->handleQueryException(
-                $e,
-                $query,
-                $bindings,
-                $callback
-            );
+            try {
+                $result = $this->runQueryCallback($query, $bindings, $callback);
+            } catch (QueryException $e) {
+                $result = $this->handleQueryException(
+                    $e,
+                    $query,
+                    $bindings,
+                    $callback
+                );
+            }
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            $events = $this->events;
+
+            if ($events?->hasListeners(QueryFailed::class)) {
+                $events->dispatch(new QueryFailed(
+                    $query,
+                    $bindings,
+                    $this->getElapsedTime($start),
+                    $this,
+                    $exception,
+                    $this->latestReadWriteTypeUsed(),
+                ));
+            }
+
+            throw $exception;
         }
 
         // Once we have run the query we will calculate the time that it took to run and
@@ -577,6 +598,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Run a SQL statement.
      *
+     * @throws CanceledException
      * @throws QueryException
      */
     protected function runQueryCallback(string $query, array $bindings, Closure $callback): mixed
@@ -735,6 +757,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Handle a query exception.
      *
+     * @throws CanceledException
      * @throws QueryException
      */
     protected function handleQueryException(QueryException $e, string $query, array $bindings, Closure $callback): mixed
@@ -754,6 +777,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Handle a query exception that occurred during query execution.
      *
+     * @throws CanceledException
      * @throws QueryException
      */
     protected function tryAgainIfCausedByLostConnection(QueryException $e, string $query, array $bindings, Closure $callback): mixed

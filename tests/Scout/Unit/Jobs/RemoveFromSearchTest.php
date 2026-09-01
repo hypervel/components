@@ -35,7 +35,7 @@ class RemoveFromSearchTest extends ScoutTestCase
         $collection = new Collection([$model1, $model2]);
 
         $engine = m::mock(Engine::class);
-        $engine->shouldReceive('delete')
+        $engine->shouldReceive('runDelete')
             ->once()
             ->with(m::on(function ($models) {
                 return $models instanceof RemoveableScoutCollection
@@ -62,7 +62,7 @@ class RemoveFromSearchTest extends ScoutTestCase
         $collection = new Collection([]);
 
         $engine = m::mock(Engine::class);
-        $engine->shouldNotReceive('delete');
+        $engine->shouldNotReceive('runDelete');
 
         $this->app->instance(EngineManager::class, new class($engine) {
             public function __construct(private Engine $engine)

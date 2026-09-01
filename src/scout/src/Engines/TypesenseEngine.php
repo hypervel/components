@@ -605,13 +605,22 @@ class TypesenseEngine extends Engine implements DeletesByFilter
             throw new InvalidArgumentException('Typesense filter deletion requires a non-empty filter.');
         }
 
-        $collection = $this->collection($builder->index ?? $builder->model->indexableAs());
+        $index = $builder->index ?? $builder->model->indexableAs();
 
-        try {
-            $collection->getDocuments()->delete(['filter_by' => $filters]);
-        } catch (ObjectNotFound) {
-            // The collection is already absent.
-        }
+        $this->runOperation(
+            'delete_by_filter',
+            $builder,
+            function () use ($filters, $index): void {
+                $collection = $this->collection($index);
+
+                try {
+                    $collection->getDocuments()->delete(['filter_by' => $filters]);
+                } catch (ObjectNotFound) {
+                    // The collection is already absent.
+                }
+            },
+            index: $index,
+        );
     }
 
     /**

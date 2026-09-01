@@ -31,7 +31,7 @@ class MakeSearchableUsingTest extends ScoutTestCase
 
         // Mock the engine to verify what gets passed to update()
         $engine = m::mock(Engine::class);
-        $engine->shouldReceive('update')
+        $engine->shouldReceive('runUpdate')
             ->once()
             ->with(m::on(function ($models) {
                 // Should only contain the published model, not the draft
@@ -68,7 +68,7 @@ class MakeSearchableUsingTest extends ScoutTestCase
 
         // Mock the engine - update should NOT be called
         $engine = m::mock(Engine::class);
-        $engine->shouldNotReceive('update');
+        $engine->shouldNotReceive('runUpdate');
 
         $this->app->instance(EngineManager::class, new class($engine) {
             public function __construct(private Engine $engine)
@@ -101,7 +101,7 @@ class MakeSearchableUsingTest extends ScoutTestCase
 
         // Mock the engine to verify what gets passed to update()
         $engine = m::mock(Engine::class);
-        $engine->shouldReceive('update')
+        $engine->shouldReceive('runUpdate')
             ->once()
             ->with(m::on(function ($models) {
                 // Should only contain the published model, not the draft
@@ -138,7 +138,7 @@ class MakeSearchableUsingTest extends ScoutTestCase
 
         // Mock the engine - update should NOT be called
         $engine = m::mock(Engine::class);
-        $engine->shouldNotReceive('update');
+        $engine->shouldNotReceive('runUpdate');
 
         $this->app->instance(EngineManager::class, new class($engine) {
             public function __construct(private Engine $engine)
@@ -173,7 +173,7 @@ class MakeSearchableUsingTest extends ScoutTestCase
 
         // Mock the engine to verify all models are passed
         $engine = m::mock(Engine::class);
-        $engine->shouldReceive('update')
+        $engine->shouldReceive('runUpdate')
             ->once()
             ->with(m::on(function ($models) {
                 return $models->count() === 2;

@@ -17,8 +17,13 @@ use Hypervel\Grpc\Client\ClientStreamingCall;
 use Hypervel\Grpc\Client\RetryPolicy;
 use Hypervel\Grpc\Client\ServerStreamingCall;
 use Hypervel\Grpc\Client\UnaryCall;
+use Hypervel\Grpc\ClientGrpcOperation;
 use Hypervel\Grpc\Compression;
+use Hypervel\Grpc\Contracts\GrpcOperationObserver;
 use Hypervel\Grpc\Exceptions\RpcException;
+use Hypervel\Grpc\GrpcOperation;
+use Hypervel\Grpc\GrpcOperationResult;
+use Hypervel\Grpc\GrpcOperationRunner;
 use Hypervel\Grpc\Metadata;
 use Hypervel\Grpc\Protocol\FrameDecoder;
 use Hypervel\Grpc\Protocol\FrameEncoder;
@@ -224,6 +229,113 @@ class BaseClientTest extends TestCase
         $this->assertArrayNotHasKey('x-default', $headers);
         $this->assertArrayNotHasKey('x-call', $headers);
         $this->assertSame(1, $client->prepareMetadataCalls);
+    }
+
+    public function testLogicalObserversCoverEveryCallShapeAndInjectFinalMetadata(): void
+    {
+        $engineClient = new ClientCallClient;
+        $this->bindFactory(new ClientCallClientFactory($engineClient));
+        $started = [];
+        $finished = [];
+        Container::getInstance()->make(GrpcOperationRunner::class)->observe(
+            new BaseClientGrpcOperationObserverStub(
+                function (GrpcOperation $operation) use (&$started): int {
+                    $this->assertInstanceOf(ClientGrpcOperation::class, $operation);
+                    $started[] = $operation;
+                    $operation->withMetadata($operation->metadata()->with('traceparent', 'injected'));
+
+                    return count($started);
+                },
+                static function (
+                    GrpcOperation $operation,
+                    mixed $token,
+                    GrpcOperationResult $result,
+                ) use (&$finished): void {
+                    $finished[] = [$operation, $token, $result];
+                },
+            ),
+        );
+        $client = $this->newClient();
+        $argument = new StringValue;
+        $deserialize = [StringValue::class, 'decode'];
+        $calls = [
+            $client->unary('/testing.Service/Unary', $argument, $deserialize),
+            $client->clientStream('/testing.Service/ClientStream', $deserialize),
+            $client->serverStream('/testing.Service/ServerStream', $argument, $deserialize),
+            $client->bidi('/testing.Service/BidiStream', $deserialize),
+        ];
+
+        foreach ($calls as $call) {
+            $call->cancel();
+            $call->cancel();
+        }
+
+        $this->assertCount(4, $started);
+        $this->assertCount(4, $finished);
+        $this->assertSame(
+            ['Unary', 'ClientStream', 'ServerStream', 'BidiStream'],
+            array_map(
+                static fn (ClientGrpcOperation $operation): string => $operation->serviceMethod()->method,
+                $started,
+            ),
+        );
+
+        foreach ($engineClient->sentRequests as $request) {
+            $this->assertSame('injected', $request->getHeaders()['traceparent']);
+        }
+
+        foreach ($finished as [$operation, $token, $result]) {
+            $this->assertContains($operation, $started);
+            $this->assertIsInt($token);
+            $this->assertSame(StatusCode::Cancelled, $result->status?->code());
+            $this->assertNull($result->exception);
+            $this->assertSame(1, $result->attemptCount);
+        }
+    }
+
+    public function testPreTransportFailureFinishesTheLogicalOperationWithoutAnAttempt(): void
+    {
+        $engineClient = new ClientCallClient;
+        $this->bindFactory(new ClientCallClientFactory($engineClient));
+        $finishedResult = null;
+        Container::getInstance()->make(GrpcOperationRunner::class)->observe(
+            new BaseClientGrpcOperationObserverStub(
+                function (GrpcOperation $operation): null {
+                    $this->assertInstanceOf(ClientGrpcOperation::class, $operation);
+                    $operation->withMetadata($operation->metadata()->with(
+                        'x-large',
+                        str_repeat('x', 1024),
+                    ));
+
+                    return null;
+                },
+                static function (
+                    GrpcOperation $operation,
+                    mixed $token,
+                    GrpcOperationResult $result,
+                ) use (&$finishedResult): void {
+                    $finishedResult = $result;
+                },
+            ),
+        );
+        $client = $this->newClient(options: ['max_metadata_size' => 256]);
+
+        try {
+            $client->unary(
+                '/testing.Service/Unary',
+                new StringValue,
+                [StringValue::class, 'decode'],
+            );
+            $this->fail('Expected oversized observed metadata to fail before transport start.');
+        } catch (RpcException $exception) {
+            $this->assertSame(StatusCode::ResourceExhausted, $exception->status()->code());
+        }
+
+        $this->assertInstanceOf(GrpcOperationResult::class, $finishedResult);
+        $this->assertSame(StatusCode::ResourceExhausted, $finishedResult->status?->code());
+        $this->assertInstanceOf(RpcException::class, $finishedResult->exception);
+        $this->assertSame(0, $finishedResult->attemptCount);
+        $this->assertSame([], $engineClient->sentRequests);
     }
 
     public function testUnaryRetryReusesPreparedMetadataSnapshot(): void
@@ -1132,5 +1244,27 @@ class DelayedClientCallClientFactory extends ClientCallClientFactory
         }
 
         return parent::make($host, $port, $ssl, $settings);
+    }
+}
+
+class BaseClientGrpcOperationObserverStub implements GrpcOperationObserver
+{
+    public function __construct(
+        private readonly Closure $startingCallback,
+        private readonly Closure $finishedCallback,
+    ) {
+    }
+
+    public function starting(GrpcOperation $operation): mixed
+    {
+        return ($this->startingCallback)($operation);
+    }
+
+    public function finished(
+        GrpcOperation $operation,
+        mixed $token,
+        GrpcOperationResult $result,
+    ): void {
+        ($this->finishedCallback)($operation, $token, $result);
     }
 }

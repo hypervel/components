@@ -8,6 +8,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
+use Hypervel\Queue\Events\JobPayloadFinalizing;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Queue\InvalidPayloadException;
@@ -468,6 +469,7 @@ class RedisQueueTest extends TestCase
     public function testPushJobQueueingAndJobQueuedEvents(): void
     {
         $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->with(JobPayloadFinalizing::class)->andReturnFalse()->once();
         $events->shouldReceive('hasListeners')->with(JobQueueing::class)->andReturn(true)->once();
         $events->shouldReceive('hasListeners')->with(JobQueued::class)->andReturn(true)->once();
         $events->shouldReceive('dispatch')->withArgs(function (JobQueueing $jobQueueing) {
@@ -483,8 +485,8 @@ class RedisQueueTest extends TestCase
         })->andReturnNull()->once();
 
         $container = m::mock(Container::class);
-        $container->shouldReceive('bound')->with('events')->andReturn(true)->twice();
-        $container->shouldReceive('make')->with('events')->andReturn($events)->twice();
+        $container->shouldReceive('bound')->with('events')->andReturn(true)->times(3);
+        $container->shouldReceive('make')->with('events')->andReturn($events)->times(3);
 
         $queue = new RedisQueue($this->app->make(RedisFactory::class), $this->defaultQueueName());
         $queue->setContainer($container);
@@ -496,14 +498,15 @@ class RedisQueueTest extends TestCase
     public function testBulkJobQueuedEvent(): void
     {
         $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->with(JobPayloadFinalizing::class)->andReturnFalse()->times(3);
         $events->shouldReceive('hasListeners')->with(JobQueueing::class)->andReturn(true)->times(3);
         $events->shouldReceive('hasListeners')->with(JobQueued::class)->andReturn(true)->times(3);
         $events->shouldReceive('dispatch')->with(m::type(JobQueueing::class))->andReturnNull()->times(3);
         $events->shouldReceive('dispatch')->with(m::type(JobQueued::class))->andReturnNull()->times(3);
 
         $container = m::mock(Container::class);
-        $container->shouldReceive('bound')->with('events')->andReturn(true)->times(6);
-        $container->shouldReceive('make')->with('events')->andReturn($events)->times(6);
+        $container->shouldReceive('bound')->with('events')->andReturn(true)->times(9);
+        $container->shouldReceive('make')->with('events')->andReturn($events)->times(9);
 
         $queue = new RedisQueue($this->app->make(RedisFactory::class), $this->defaultQueueName());
         $queue->setContainer($container);

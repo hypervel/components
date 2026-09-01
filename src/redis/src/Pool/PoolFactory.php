@@ -74,4 +74,14 @@ class PoolFactory
 
         return $this->pools[$name] = $this->container->make(RedisPool::class, ['name' => $name]);
     }
+
+    /**
+     * Get the existing pools keyed by connection name.
+     *
+     * @return array<string, RedisPool>
+     */
+    public function pools(): array
+    {
+        return $this->pools;
+    }
 }
