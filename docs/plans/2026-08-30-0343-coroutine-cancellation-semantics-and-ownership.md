@@ -2,7 +2,7 @@
 
 ## Goal
 
-Make coroutine cancellation a predictable terminal control-flow signal throughout Hypervel. A cancelled operation must not be mistaken for an application failure, retried, wrapped, reported, converted into a fallback value, or allowed to leave owned coroutine and resource state inconsistent.
+Make coroutine cancellation a predictable terminal control-flow signal throughout Hypervel. A canceled operation must not be mistaken for an application failure, retried, wrapped, reported, converted into a fallback value, or allowed to leave owned coroutine and resource state inconsistent.
 
 This is a framework correctness change, not a general exception-hardening exercise. It applies only where Hypervel owns both the cancellation contract and the boundary that can corrupt observable state. It preserves Laravel-compatible public APIs and all ordinary exception behavior.
 
@@ -20,13 +20,13 @@ The design is based on reproduced Swoole 6.2 behavior and the current Hypervel c
 
 - Swoole 6.1 added per-call exception delivery to coroutine cancellation. Passing `throwException: true` injects a catchable `CanceledException`; it is not a PHP.ini or process-global mode. Hypervel chooses it only at boundaries that need reliable interruption and exact ownership cleanup.
 - `Coroutine::cancelById($cid, throwException: true)` delivers the exact `Swoole\Coroutine\CanceledException` and normally resumes a target parked on blocking I/O synchronously until it terminates or yields again. A target suspended inside child creation accepts throwing cancellation but receives it when next scheduled; non-throwing cancellation is refused in that state.
-- Non-throwing cancellation makes supported blocking operations return `false` and expose Swoole's cancelled error state. Some hooked operations cannot be interrupted reliably without exception delivery.
+- Non-throwing cancellation makes supported blocking operations return `false` and expose Swoole's canceled error state. Some hooked operations cannot be interrupted reliably without exception delivery.
 - An uncaught cancellation escaping a raw `Hypervel\Engine\Coroutine` callback can terminate the worker. The high-level `Hypervel\Coroutine\Coroutine` wrapper has a terminal boundary; raw engine children do not.
 - A caught cancellation does not guarantee that the coroutine or worker has terminated. Code after the catch may run.
 - `Channel::pop()` returns `false` on cancellation and its error code remains available until the channel's next operation.
 - The current-coroutine cancellation flag is volatile: it is useful immediately after a failed native operation or a catch, but must not be stored or treated as durable state.
 - `Coroutine::join()` returns `false` for several reasons, including timeout, an inactive target, and cancellation. Callers must inspect cancellation immediately when the distinction matters.
-- Child creation starts the child synchronously. The parent can nevertheless be cancelled while `create()` is paused after the child has started and yielded.
+- Child creation starts the child synchronously. The parent can nevertheless be canceled while `create()` is paused after the child has started and yielded.
 
 These facts establish the following rules.
 
@@ -37,7 +37,7 @@ In this plan, preserving an exact cancellation means rethrowing the same deliver
 1. A native blocking boundary distinguishes success, timeout/closure, and cancellation immediately after the native operation.
 2. A transparent framework boundary rethrows the exact cancellation object unchanged. It does not wrap, report, retry, fail over, emit a failure event, or return a fallback.
 3. A terminal child boundary consumes exact cancellation without logging when no owner remains to observe it. This prevents cancellation from escaping a raw Swoole callback as a worker-fatal uncaught exception.
-4. A parent cancelled while it owns live children cancels only those children that are still live, then rethrows its own exact cancellation. A child cancelled independently becomes `ChildCancellationException` for an uncancelled parent.
+4. A parent canceled while it owns live children cancels only those children that are still live, then rethrows its own exact cancellation. A child canceled independently becomes `ChildCancellationException` for an uncanceled parent.
 5. Fixed, non-yielding local cleanup always runs. Finite cleanup over an already-acquired, configuration-bounded external set may continue only where abandonment would leak a resource or permanently orphan state.
 6. The original cancellation remains primary when cleanup also fails ordinarily. A cancellation raised by required cleanup supersedes an ordinary primary failure. Ordinary cleanup failures preserve existing reporting behavior.
 7. Ordinary exceptions, timeouts, empty results, retries, failover, events, and public return values remain unchanged.
@@ -90,20 +90,20 @@ If PHPStan's bundled Swoole stub lags the installed 6.2 API, use a line-scoped `
 
 ### Independent child cancellation
 
-Add `Hypervel\Coroutine\Exceptions\ChildCancellationException extends RuntimeException`. It represents a child that was cancelled while its owner was not cancelled. Preserve the native cancellation as `$previous`.
+Add `Hypervel\Coroutine\Exceptions\ChildCancellationException extends RuntimeException`. It represents a child that was canceled while its owner was not canceled. Preserve the native cancellation as `$previous`.
 
 This distinction prevents an independent child cancellation from being confused with cancellation of the parent operation. The owner-facing wait/create path classifies its own cancellation separately; a cancellation stored or delivered as a child outcome is therefore always wrapped without a defensive current-coroutine check:
 
 ```php
 if ($failure instanceof CanceledException) {
     throw new ChildCancellationException(
-        'A child coroutine was cancelled while its owner remained active.',
+        'A child coroutine was canceled while its owner remained active.',
         previous: $failure,
     );
 }
 ```
 
-Use a boundary-specific message at each construction site so logs and aggregate failure formatting identify whether the cancelled child belonged to Waiter, Parallel, Saloon, or Scout.
+Use a boundary-specific message at each construction site so logs and aggregate failure formatting identify whether the canceled child belonged to Waiter, Parallel, Saloon, or Scout.
 
 Do not add a cancellation token, status enum, or public ownership registry.
 
@@ -129,7 +129,7 @@ Update `Hypervel\Coroutine\Coroutine` so its wrapper has one explicit terminal o
 - exact cancellation raised by an `afterCreated` callback remains terminal;
 - ordinary `afterCreated` failures retain the current report-and-continue behavior.
 
-Keep the protected `printLog(Throwable): void` signature. Extract a protected `reportUncaught(Throwable): void` shared by the child-body and deferred-callback terminal boundaries. `printLog()` rethrows cancellation raised during reporting; `reportUncaught()` consumes both a cancellation argument and cancellation from `printLog()` because no owner exists above that terminal frame.
+Keep the protected `printLog(Throwable): void` signature. Extract a protected `reportUncaught(Throwable): void` shared by the child-body and deferred-callback terminal boundaries. `printLog()` rethrows cancellation raised during reporting and documents that exception contract; `reportUncaught()` documents and enforces that it consumes both a cancellation argument and cancellation from `printLog()` because no owner exists above that terminal frame.
 
 Keep `afterCreated` as a synchronous startup hook. Its documentation must state that callbacks must not suspend. Ordinary hook reporting remains prompt and coroutine-local, so the exception handler itself may yield before the application callable begins.
 
@@ -161,12 +161,12 @@ Do not change raw `Hypervel\Engine\Coroutine` into the high-level wrapper. Raw c
 
 1. Allocate the result channel before creation.
 2. Have the child publish its own coroutine ID before entering user work, so a parent interrupted before `create()` returns still has the child identity.
-3. If `pop()` throws cancellation, or returns `false` with a cancelled channel, cancel only the published, still-live child and preserve or synthesize exact parent cancellation.
+3. If `pop()` throws cancellation, or returns `false` with a canceled channel, cancel only the published, still-live child and preserve or synthesize exact parent cancellation.
 4. Do not join the child from the cancellation path.
 5. Use a local boolean to prevent a second cancel during cleanup.
 6. If cancellation is delivered while joining after a result was published, discard that result and preserve or synthesize exact parent cancellation.
 7. Preserve result values and exact ordinary exception identity.
-8. Convert an independently cancelled child to `ChildCancellationException`.
+8. Convert an independently canceled child to `ChildCancellationException`.
 
 Preserve the existing timeout contract: when the result can no longer be used, `Waiter` cancels its child, gives it the configured bounded cleanup allowance, and honors strict `waitForChildTermination`. This differs intentionally from reusable `WaitConcurrent`, whose timed-out children remain active. The queue worker already constructs its pop waiter through `createPopWaiter()` and uses an unbounded wait; preserve that extension point and behavior.
 
@@ -184,7 +184,7 @@ foreach (array_keys($children) as $cid) {
 }
 ```
 
-Use a separate never-cleared `$started` flag around each creation attempt. Move that marker, active-child publication, and fixed slot/WaitGroup/map cleanup into the owned wrapper. Keep result and throwable classification around the application callback: the private active map is cancelled only when the owning `wait()` immediately rethrows, so recording a startup cancellation would add unobservable state. A map entry may be consumed by child completion and therefore cannot prove whether creation started. Join on ordinary completion only; do not add a post-cancel join. Preserve input keys, deterministic failure ordering, context-copy behavior, and ordinary aggregate semantics. Store `ChildCancellationException` in keyed failure data for independently cancelled callback bodies. Document that result/failure inspection methods are not meaningful after the owning `wait()` itself is cancelled because surviving children may still be unwinding.
+Use a separate never-cleared `$started` flag around each creation attempt. Move that marker, active-child publication, and fixed slot/WaitGroup/map cleanup into the owned wrapper. Keep results and throwables in arrays local to one `wait()` call; children capture only those arrays, and the object publishes them after ordinary WaitGroup and join completion. This prevents a canceled run's surviving children from writing into a later run on the same instance. Reset the published object state when a run begins so inspection after a canceled run is empty and stable. Keep result and throwable classification around the application callback: the private active map is canceled only when the owning `wait()` immediately rethrows, so recording a startup cancellation would add unobservable state. A map entry may be consumed by child completion and therefore cannot prove whether creation started. Join on ordinary completion only; do not add a post-cancel join. Preserve input keys, deterministic failure ordering, context-copy behavior, and ordinary aggregate semantics. Store `ChildCancellationException` in keyed failure data for independently canceled callback bodies.
 
 #### Concurrent
 
@@ -205,10 +205,10 @@ Expose a public `cancel()` method because callers such as Saloon can yield while
 
 Update the two concrete consumers whose child failures otherwise disappear:
 
-- Saloon pool orchestration calls `cancel()` when cancellation interrupts the user-supplied request iterable, moves the ordinary `wait()` out of `finally`, and records independently cancelled request/callback children as `ChildCancellationException` in the existing keyed failure collection. It must not invoke response or exception handlers for the cancelled operation.
-- Scout's coroutine-scoped `ConcurrentImportRunner` records an independently cancelled import as `ChildCancellationException`, allowing `throwIfFailed()` to expose it rather than reporting a successful partial import.
+- Saloon pool orchestration calls `cancel()` when cancellation interrupts the user-supplied request iterable, moves the ordinary `wait()` out of `finally`, and records independently canceled request/callback children as `ChildCancellationException` in the existing keyed failure collection. It must not invoke response or exception handlers for the canceled operation.
+- Scout's coroutine-scoped `ConcurrentImportRunner` records an independently canceled import as `ChildCancellationException`, allowing `throwIfFailed()` to expose it rather than reporting a successful partial import.
 
-Saloon has three child catch regions to preserve: connector send, exception handler, and response handler. A cancelled send is a keyed request failure without invoking the exception handler; cancellation from either handler is a keyed callback failure. A successfully received response remains recorded when its response handler is cancelled.
+Saloon has three child catch regions to preserve: connector send, exception handler, and response handler. A canceled send is a keyed request failure without invoking the exception handler; cancellation from either handler is a keyed callback failure. A successfully received response remains recorded when its response handler is canceled.
 
 ### 4. Concurrency driver
 
@@ -220,7 +220,7 @@ Audit every child creation where the parent records a child ID, compensates in a
 
 Apply the patterns as follows:
 
-- `Waiter`: publish only the private child ID in the owned wrapper. Keep result initialization, result-defer registration, exception capture, and result conversion in the body. Parent creation, result-pop, and timeout cancellation paths already stop waiting after cancelling the child; moving result delivery ahead of `$run` would incorrectly reorder it behind defers registered by startup hooks. Remove the now-dead fallback from the returned creation ID.
+- `Waiter`: publish only the private child ID in the owned wrapper. Keep result initialization, result-defer registration, exception capture, and result conversion in the body. Parent creation, result-pop, and timeout cancellation paths already stop waiting after canceling the child; moving result delivery ahead of `$run` would incorrectly reorder it behind defers registered by startup hooks. Remove the now-dead fallback from the returned creation ID.
 - Database `PooledConnection::ping()` and Redis heartbeat checks: the owned wrapper publishes the child ID; parent wait cancellation cancels a live child and preserves or synthesizes exact parent cancellation. Ordinary timeout/unhealthy results remain `false`.
 - `Coordinator\Timer::{after,tick,until}`: precreate the timer slot, validate it in the child, publish the child ID there, and retain existing `clear()` rollback when creation itself fails. `clear()` remains non-throwing cooperative cancellation and does not promise to interrupt a callback already executing.
 - `Engine\SafeSocket`: use a started flag. Parent clears the loop only before start; child `finally` owns cleanup after start. Keep its exhaustive ordinary-error catch because it is a raw engine child.
@@ -233,7 +233,7 @@ Apply the patterns as follows:
 - gRPC client receiver: retain the raw engine child, set receiving state before creation, publish its ID as the callback's first statement, and clear it in the callback's `finally`. Parent creation cleanup applies only to `CoroutineCreateException`; `close()` retains ownership after a post-start parent cancellation.
 - HTTP server worker-start gate: use the boolean returned by the unbounded `Coordinator::yield()`. Its only `false` outcome is non-throwing cancellation, so synthesize a boundary-named `CanceledException` and leave the HTTP worker-started flag unset. Do not apply this latch to gRPC, Reverb, or WebSocket servers, whose startup paths differ.
 
-Leave the following fire-and-forget paths unchanged unless implementation tracing reveals a real owner and exact canceller: watcher restart strategy, server process listener, pool signal workers, BackgroundQueue's internal child, Redis command invoker, Sentry event handler, Prompt render helper, and private gRPC receiver error handling.
+Leave the following fire-and-forget paths unchanged unless implementation tracing reveals a real owner and exact cancellation source: watcher restart strategy, server process listener, pool signal workers, BackgroundQueue's internal child, Redis command invoker, Sentry event handler, Prompt render helper, and private gRPC receiver error handling.
 
 ### 6. Queue daemon structured ownership
 
@@ -245,7 +245,7 @@ The worker currently polls admitted jobs with `usleep(1000)`. Use the existing `
 - do not join or perform a second drain after cancellation;
 - clear the monitor and fixed worker state regardless of the terminal path.
 
-Land and verify the queue terminal-boundary changes before enabling daemon cancellation. A daemon-cancelled job must not be reported, failed, released, retried, counted as an attempt, or emitted as a completion. It remains broker-reserved for normal redelivery. Local non-yielding accounting such as processed counters completes; yielding deferred callbacks or lease release may continue after daemon return.
+Land and verify the queue terminal-boundary changes before enabling daemon cancellation. A daemon-canceled job must not be reported, failed, released, retried, counted as an attempt, or emitted as a completion. It remains broker-reserved for normal redelivery. Local non-yielding accounting such as processed counters completes; yielding deferred callbacks or lease release may continue after daemon return.
 
 The active-child map remains bounded by configured queue concurrency. This is structured ownership, not a global registry.
 
@@ -290,11 +290,11 @@ Queue lock-release paths attempt the required bounded releases with the same pre
 
 #### Native pool waits
 
-In object-pool and connection-pool channel adapters, a failed push/pop must distinguish cancellation immediately through `ChannelInterface::isCanceled()`. Never create, return, or recycle a resource after the acquiring coroutine was cancelled.
+In object-pool and connection-pool channel adapters, a failed push/pop must distinguish cancellation immediately through `ChannelInterface::isCanceled()`. Never create, return, or recycle a resource after the acquiring coroutine was canceled.
 
 `ObjectPool::destroyObject()` and the connection pool's destruction path must retain exact cancellation, complete fixed bookkeeping and capacity signalling, then rethrow. Ordinary destruction failures retain existing report/suppress behavior.
 
-If connection-pool low-frequency maintenance is cancelled after `Pool::get()` records a new borrow, discard that unreturned connection and preserve the original cancellation. `Connection::getConnection()` must not retry exact cancellation. A cancelled release listener still returns its connection exactly once; its cancellation remains primary over cleanup failure, while cancellation from release itself escapes when no earlier cancellation exists.
+If connection-pool low-frequency maintenance is canceled after `Pool::get()` records a new borrow, discard that unreturned connection and preserve the original cancellation. `Connection::getConnection()` must not retry exact cancellation. A canceled release listener still returns its connection exactly once; its cancellation remains primary over cleanup failure, while cancellation from release itself escapes when no earlier cancellation exists.
 
 Leave `checkIdleConnection()` and frequency clearing unchanged. First-party pools install the non-yielding `Frequency`, while the optional `ConstantFrequency` uses only non-throwing timer cancellation; neither boundary has a first-party exact-cancellation delivery path.
 
@@ -316,7 +316,7 @@ Their precedence is:
 
 Acquire the `Lease` immediately after `get()`, before borrowed-resource configuration. Configuration failure discards through the lease. Use the helpers from `PoolProxy`, `FilesystemPoolProxy`, `ClientPooledFilesystem`, `QueuePoolProxy`, pooled `Job`, and `LeasedStream::wrap()` after it closes the source stream. Inner `QueuePoolProxy::pop()` recovery may finalize and throw into the outer failure boundary; the outer helper remains safe because `Lease` finalization is idempotent.
 
-SQS job deletion must not start overflow-cache deletion if lease release is cancelled; cancellation during overflow deletion escapes exactly.
+SQS job deletion must not start overflow-cache deletion if lease release is canceled; cancellation during overflow deletion escapes exactly.
 
 Destructors and stream-close fallbacks remain no-throw best-effort boundaries. `PoolErrorReporter` ignores exact cancellation supplied to it or raised while resolving the handler, so these terminal fallbacks neither throw nor misreport control flow. Correct fixed pool bookkeeping prevents a capacity leak even when external cleanup cannot complete.
 
@@ -324,7 +324,7 @@ Destructors and stream-close fallbacks remain no-throw best-effort boundaries. `
 
 Pool `close()` paths may continue only over their already-acquired, configured idle resources. Retain the first cancellation from closing or destroying an idle resource, finish the finite local drain, then rethrow. The connection-pool wrapper preserves its existing full-drain guarantee after destruction begins rethrowing cancellation; it does not add cancellation handling around non-throwing frequency cleanup.
 
-Leave `PoolRecycler` unchanged. It uses non-throwing timer cancellation while waiting, owns no public exact canceller, and has no demonstrated leak requiring more machinery.
+Leave `PoolRecycler` unchanged. It uses non-throwing timer cancellation while waiting, owns no public exact cancellation source, and has no demonstrated leak requiring more machinery.
 
 ### 9. Cache boundaries
 
@@ -351,6 +351,12 @@ No new public cache API or event is required.
 
 Transaction commit callback executors in `DatabaseTransactionRecord` and `DatabaseTransactionsManager` stop immediately and preserve exact cancellation because later commit callbacks may start new outbound work. Rollback callback executors retain the first cancellation, finish their finite registered cleanup sets, and throw cancellation ahead of any ordinary failure. Existing exhaustive first-ordinary-failure behavior remains unchanged.
 
+Database pool shutdown detaches the complete selected pool set before cleanup, drains that finite configured set, retains the first cancellation, and preserves the existing first ordinary failure otherwise. Single-pool flush remains unchanged. Connection resolver and lifecycle drains follow the same cancellation precedence. A pooled connection always returns or discards its lease exactly once after rollback or release-listener failure; exact cancellation remains primary over ordinary release cleanup, while release cancellation supersedes an ordinary primary failure. `Connection::disconnect()` always resets local transaction state, with cancellation winning over ordinary disconnect or reset failures.
+
+Connection resolver setup/discard cleanup follows that same failure precedence. A pooled close always clears its held connection when disconnect fails, whether ordinarily or through cancellation.
+
+Transaction methods keep their existing state-update order. Cancellation from the transaction manager stops before commit/rollback events because those events are observational and may contain unbounded listeners. After an ordinary manager failure, the matching event still runs; event cancellation wins, while two ordinary failures retain the first. The six existing cleanup catches in transaction exception handling, begin, commit recovery, and rollback recovery stop converting cleanup cancellation into retry or recovery state: cleanup cancellation supersedes an ordinary primary, while an original cancellation remains primary when the required rollback is also canceled. Use local catches at those owning boundaries rather than a shared helper or trait.
+
 #### HTTP client
 
 When an exact cancellation reaches `PendingRequest`, rethrow it before retry callbacks, connection wrapping, promise fallback, or response synthesis. Cancellation in the global synchronous `retry()` helper likewise escapes before its predicate, delay, or retry. Do not add cause-chain recovery for cancellation transformed by a third-party HTTP stack.
@@ -367,7 +373,7 @@ Normalize cancellation at Redis-owned command, transaction, pool factory, proxy,
 - invoke the classifier as the first catch action at every direct phpredis boundary; exact catches remain sufficient after a wrapper has normalized the native failure and at non-phpredis boundaries;
 - `RedisConnection::close()` owns normalization of its native `close()` call, always clears wrapper state, suppresses ordinary close errors as before, and declares that cancellation may escape;
 - cancellation release marks the connection invalid, resets its held state, and returns it through an observer-free pool release exactly once; an open pool does not proactively close or discard it, while an already-closed pool retains its existing bounded destruction and capacity-repair behavior;
-- a later borrow reconnects an invalid connection from the last confirmed tracked database rather than inspecting the cancelled native client; ordinary invalidation still closes the known-bad socket deterministically;
+- a later borrow reconnects an invalid connection from the last confirmed tracked database rather than inspecting the canceled native client; ordinary invalidation still closes the known-bad socket deterministically;
 - cancellation raised while logging release failure takes the same invalidating observer-free release path, while successful queueing/watch logging retains the existing discard behavior;
 - fixed pool bookkeeping runs, the original cancellation remains primary over cleanup failure, and cancellation raised by required cleanup supersedes an ordinary primary failure;
 - standalone, Sentinel, and cluster return shapes remain unchanged;
@@ -379,7 +385,7 @@ The Laravel-style subscriber proxy is a separate stream/channel boundary. Replac
 
 Document the helper only as an internal phpredis boundary rule. Keep Telescope and Sentry consumers unchanged; correct event suppression means they naturally receive no false failure.
 
-Cancelling phpredis 6.3.0 during a TLS connection handshake under Swoole 6.2.2 has reproduced a PHP 8.4 process exit with code 139 before Hypervel can catch an exception. This is consistent with the hooked TLS cancellation defect addressed by [swoole/swoole-src#6182](https://github.com/swoole/swoole-src/pull/6182), but the shared root cause is not proven against a patched build. Cover the Hypervel boundary in a child PHP process so a native crash cannot terminate PHPUnit. The child enables `SWOOLE_HOOK_ALL`, runs a local stalled TLS peer, publishes connection and handshake readiness through child-local channels, cancels without sleeps, and succeeds only when `PhpRedisConnection` surfaces exact `CanceledException`. Skip this regression on the known-broken `SWOOLE_VERSION_ID <= 60202`; later unfixed runtimes fail through the child process. Do not add a Hypervel workaround or external TLS Redis service.
+Canceling phpredis 6.3.0 during a TLS connection handshake under Swoole 6.2.2 has reproduced a PHP 8.4 process exit with code 139 before Hypervel can catch an exception. This is consistent with the hooked TLS cancellation defect addressed by [swoole/swoole-src#6182](https://github.com/swoole/swoole-src/pull/6182), but the shared root cause is not proven against a patched build. Cover the Hypervel boundary in a child PHP process so a native crash cannot terminate PHPUnit. The child enables `SWOOLE_HOOK_ALL`, runs a local stalled TLS peer, publishes connection and handshake readiness through child-local channels, cancels without sleeps, and succeeds only when `PhpRedisConnection` surfaces exact `CanceledException`. Skip this regression on the known-broken `SWOOLE_VERSION_ID <= 60202`; later unfixed runtimes fail through the child process. Do not add a Hypervel workaround or external TLS Redis service.
 
 #### Filesystem
 
@@ -422,11 +428,11 @@ At framework event boundaries:
 - observer cancellation supersedes an ordinary listener failure and stops later observers;
 - ordinary listener and observer behavior remains unchanged.
 
-Completion events are allowed after cancellation only when they are the matching cleanup boundary for work already begun and their contract does not claim success. Console `AfterExecute` remains such a cleanup boundary. HTTP handled, terminated, and deferred lifecycle events are not emitted for a cancelled request.
+Completion events are allowed after cancellation only when they are the matching cleanup boundary for work already begun and their contract does not claim success. Console `AfterExecute` remains such a cleanup boundary. HTTP handled, terminated, and deferred lifecycle events are not emitted for a canceled request.
 
 #### HTTP, Reverb, WebSocket, and View
 
-- Main HTTP server preserves exact cancellation, skips success/failure response lifecycle events, and always clears fixed `RequestContext` state.
+- Main HTTP server preserves exact cancellation and skips success/failure response lifecycle events. The request remains in `RequestContext` through coroutine-deferred request cleanup; coroutine-context destruction clears it after those callbacks finish. Do not forget it early in `onRequest()`.
 - Reverb HTTP server does not render or send a synthetic error response after cancellation; its fixed coroutine-local request state still unwinds normally.
 - WebSocket handshake cancellation does not send a synthetic error response or publish a committed connection. Message callback cancellation terminates that callback quietly; connection-close cleanup always removes descriptor and context state.
 - View rendering preserves exact cancellation while flushing renderer state. Cleanup cancellation follows the normal precedence rules and must not turn cancellation into an ordinary view error.
@@ -438,16 +444,19 @@ gRPC has both raw engine children and protocol state shared by multiple waiters,
 #### Client call and stream state
 
 - Preserve exact cancellation through `BaseClient`, `Call`, unary, client-streaming, server-streaming, and bidirectional call APIs.
-- Add public idempotent `Call::cancel(): void`. Applications need a deterministic way to abort an in-flight unary or long-lived streaming call before its deadline while retaining the multiplexed connection; relying on object destruction is nondeterministic, and cancelling one waiting coroutine intentionally cannot terminate a shared logical call. The method closes the native stream, publishes a truthful CANCELLED status, prevents later retry publication, and clears retained payload state. Runtime coroutine cancellation remains local to one waiter and must not call this shared operation-level method.
-- A cancelled waiter detaches only itself. It must not poison shared stream state or cancel unrelated waiters.
-- Retain a destructively dequeued payload in a per-reader pending slot until deserialization succeeds. A cancelled/yielding reader leaves the payload for the next reader. Zero-length payloads are valid.
+- Add public idempotent `Call::cancel(): void`. Applications need a deterministic way to abort an in-flight unary or long-lived streaming call before its deadline while retaining the multiplexed connection; relying on object destruction is nondeterministic, and canceling one waiting coroutine intentionally cannot terminate a shared logical call. The method closes the native stream, publishes a truthful CANCELLED status, prevents later retry publication, and clears retained payload state. Runtime coroutine cancellation remains local to one waiter and must not call this shared operation-level method.
+- A canceled waiter detaches only itself. It must not poison shared stream state or cancel unrelated waiters.
+- Retain a destructively dequeued payload in a per-reader pending slot until deserialization succeeds. A canceled or yielding reader leaves the payload for the next reader. Zero-length payloads are valid.
 - Release reader claims in `finally`.
 - Roll back retry/backoff state only for transitions that were not externally published.
 - Explicit call cancellation and ordinary terminal protocol errors clear pending state.
+- Retry keeps its existing attempt semaphore for transition serialization, but `cancel()` never waits on that semaphore. A lazily allocated private channel wakes a positive backoff delay; cancellation during backoff or attempt creation is rechecked before publication, an unpublished replacement state is abandoned, and an ordinary failure from the unpublished factory does not replace the already-published cancellation.
+- Logical cancellation claimed while a completed attempt is still retry-eligible is stored on the call and mapped before the four reachable terminal consumers use status: `metadata()`, `trailers()`, `status()`, and `nextPayload()`. Writer completion needs no mapping because retryable calls cannot expose streaming writes and direct cancellation already rewrites that state.
+- Increment the attempt count only when a replacement state is published. Repeated cancellation remains idempotent, and cancellation after an already-final logical outcome preserves that outcome.
 
 #### Connection receiver
 
-The raw receiver child self-publishes ownership as described above. `close()` can cooperatively cancel and join it; no exact cancellation escapes unhandled from the raw child. Cancellation while native transport state is uncertain terminates that connection for other multiplexed calls while preserving the cancelled caller's exact exception. Closing a set of client connections retains the first cancellation over ordinary close failures.
+The raw receiver child self-publishes ownership as described above. `close()` can cooperatively cancel and join it; no exact cancellation escapes unhandled from the raw child. Cancellation while native transport state is uncertain terminates that connection for other multiplexed calls while preserving the canceled caller's exact exception. Closing a set of client connections retains the first cancellation over ordinary close failures.
 
 In `closeRetiredConnectionIfIdle()`, terminate the connection and return success instead of throwing a post-termination native-close exception that has no consumer and would escape the raw receiver as worker-fatal:
 
@@ -487,20 +496,20 @@ Use deterministic channels/barriers and explicit ownership signals. Do not use s
 
 ### Engine and coroutine primitives
 
-- Channel reports cancelled only immediately after a cancelled operation and distinguishes timeout/closure.
+- Channel reports canceled only immediately after a canceled operation and distinguishes timeout/closure.
 - Coroutine reports false outside a coroutine and true at the immediate cancellation boundary.
 - WaitGroup clears waiting state on timeout, ordinary failure, and cancellation.
-- Waiter cancels a live child when its parent is cancelled, avoids double cancel, preserves ordinary results, and wraps independent child cancellation.
+- Waiter cancels a live child when its parent is canceled, avoids double cancel, preserves ordinary results, and wraps independent child cancellation.
 - High-level Coroutine does not report terminal cancellation; ordinary child failures still report.
 - Ordinary startup-hook failures are reported promptly in the child context and retain report-and-continue behavior. Exact hook cancellation remains terminal without requiring a test that suspends inside a callback whose contract forbids suspension.
 
 ### Structured owners
 
-- Parallel handles cancellation during child creation, cancels only live children, cannot mutate-snapshot into an invalid cancel, preserves keys/order, and wraps independent child cancellation.
+- Parallel handles cancellation during child creation, cancels only live children, cannot mutate-snapshot into an invalid cancel, preserves keys/order, and wraps independent child cancellation. One deterministic reuse regression keeps two canceled callbacks parked until the next run starts, then makes one return and one throw; neither result nor throwable may enter the next run's published state.
 - Concurrent never leaks or double-releases a slot across pre-start failure, post-start parent cancellation, child failure, and success.
 - WaitConcurrent timeout remains reusable; explicit cancel targets every body active at call time; parent and independent-child cancellation remain distinct.
 - A supported startup regression makes an ordinary hook fail and its exception handler yield before the body. It proves prompt in-context reporting, ownership transfer before reporting, and exactly-once slot/count release for Concurrent and WaitConcurrent after cancellation. The test releases the blocked reporter and joins relevant child IDs so it cannot pass with a stranded coroutine.
-- Saloon cancellation while its request iterable is suspended cancels active bodies; independently cancelled children surface in keyed pool failures without invoking handlers. Scout surfaces the same child failure through its runner.
+- Saloon cancellation while its request iterable is suspended cancels active bodies; independently canceled children surface in keyed pool failures without invoking handlers. Scout surfaces the same child failure through its runner.
 - Waiter, Parallel, Saloon, and Scout assertions verify that every `ChildCancellationException` has a boundary-specific message and the exact native cancellation as its previous exception.
 - CoroutineDriver preserves keys, context, first failure order, and documented timeout behavior.
 - Queue daemon orderly stop waits without polling; abnormal stop cancels admitted jobs and emits no false queue outcome.
@@ -525,10 +534,10 @@ The scalar SignalRegistry regression must prove that a registration failure canc
 - Connection-pool contention tests cover native throwing and converted non-throwing cancellation, unchanged capacity, no phantom borrow, and successful later checkout. Post-checkout maintenance cancellation discards the unreturned borrow and preserves exact identity.
 - Lease tests cover all four primary/cleanup combinations and configuration failure immediately after acquire. Focused consumer tests prove that each pooled filesystem, stream, queue, and job boundary delegates to that shared precedence instead of reimplementing it.
 - Pool close tests prove finite drain and first-cancellation retention without unbounded waiting.
-- Connection tests prove exact cancellation is never retried, cancelled release listeners still release exactly once, an earlier cancellation survives release cleanup, and cancellation from release itself escapes when no earlier failure exists.
-- Cache tests prove no miss/failure/failover event, fallback, partial stack continuation, or false lock/limiter result on cancellation. Failover coverage proves first-success, every-store, and lock-flush operations stop before the next backend while ordinary listener interruption and failure aggregation remain unchanged. Stack coverage proves a throwing or cancelled current write is compensated with earlier completed layers and cannot be resurrected by read back-fill, an explicit `false` result preserves an untouched pre-existing value, full reverse-order compensation continues with the required failure precedence, and later cancellation supersedes an earlier ordinary multi-store failure.
+- Connection tests prove exact cancellation is never retried, canceled release listeners still release exactly once, an earlier cancellation survives release cleanup, and cancellation from release itself escapes when no earlier failure exists.
+- Cache tests prove no miss/failure/failover event, fallback, partial stack continuation, or false lock/limiter result on cancellation. Failover coverage proves first-success, every-store, and lock-flush operations stop before the next backend while ordinary listener interruption and failure aggregation remain unchanged. Stack coverage proves a throwing or canceled current write is compensated with earlier completed layers and cannot be resurrected by read back-fill, an explicit `false` result preserves an untouched pre-existing value, full reverse-order compensation continues with the required failure precedence, and later cancellation supersedes an earlier ordinary multi-store failure.
 - SwooleStore tests interrupt shared-claim cleanup and prove the store remains usable with correct precedence.
-- Database tests prove no retry/wrap/fallback after cancellation, commit callbacks stop within and across transaction records, and rollback callbacks finish their bounded drain with cancellation precedence. HTTP tests prove no retry/wrap/fallback after cancellation.
+- Database tests prove no retry/wrap/fallback after cancellation, pool/resolver/lifecycle drains finish their bounded selected sets with the required precedence, pooled release finalizes exactly once, disconnect resets local state, manager cancellation skips transaction events, ordinary manager failure still permits its event, and exact cancellation escapes each transaction recovery catch. Commit callbacks stop within and across transaction records, while rollback callbacks finish their bounded drain with cancellation precedence. HTTP tests prove no retry/wrap/fallback after cancellation.
 - Redis unit and integration tests cover native standalone/cluster wrapping, transactions, pooling, heartbeat, events, and the subprocess-isolated TLS connection cancellation above. Connection release coverage proves exact and wrapped cancellation classification, exactly-once observer-free release, invalid reconnect database selection, ordinary deterministic close, no proactive open-pool close during cancellation, and correct closed-pool cleanup. Subscriber coverage proves boundary-named synthesis after non-throwing channel cancellation, exact callback-cancellation identity, cleanup precedence, falsy message handling, and unchanged orderly closure and ordinary failure behavior. Run integration coverage against the supported Redis extension/service matrix.
 - Shared, AWS, and GCS adapter tests prove exact cancellation at Hypervel-owned range-reader boundaries under report-and-fallback configuration, no false report, shared source-stream cleanup, and unchanged ordinary fallback.
 
@@ -538,12 +547,12 @@ The scalar SignalRegistry regression must prove that a registration failure canc
 - Exception handler and HTTP/console kernels do not report/render/status-convert cancellation, including cancellation raised during policy/report/render/termination.
 - Shared health controller preserves HTML and JSON behavior while cancellation escapes in application and testbench routes.
 - Event tests cover listener cancellation, observer cancellation precedence, and ordinary observer behavior.
-- HTTP tests prove request completion events are not emitted after cancellation. Reverb, WebSocket, and View tests prove no synthetic error/success work continues and fixed context/render state is cleared.
+- HTTP tests prove request completion events are not emitted after cancellation, a coroutine-deferred listener sees the exact active request, and the parent has no request context after the child request coroutine exits. Reverb, WebSocket, and View tests prove no synthetic error/success work continues and fixed context/render state is cleared.
 
 ### gRPC
 
-- Unit tests cover serializer transparency, idempotent operation-level cancel, per-waiter detachment, pending payload reuse including empty payload, retry rollback boundaries, receiver ownership, and retired-connection close.
-- Integration tests cover unary and every streaming shape, deadline cancellation, one waiter cancelling while another continues, abandoned call cleanup, and connection reuse/closure.
+- Unit tests cover serializer transparency, idempotent operation-level cancel, per-waiter detachment, pending payload reuse including empty payload, cancellation during retry backoff and attempt creation, concurrent retry observers, exact attempt publication counts, unpublished-state abandonment, retry rollback boundaries, receiver ownership, and retired-connection close.
+- Integration tests cover unary and every streaming shape, deadline cancellation, one waiter canceling while another continues, abandoned call cleanup, and connection reuse/closure.
 - Use the real integration server for lifecycle behavior; mocks are sufficient only for local protocol state.
 
 ### Regression and quality gates
