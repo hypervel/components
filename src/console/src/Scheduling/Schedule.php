@@ -203,11 +203,11 @@ class Schedule
         $this->events[] = $event = new CallbackEvent(
             $this->eventMutex,
             function () use ($job, $queue, $connection) {
-                $job = is_string($job) ? Container::getInstance()->make($job) : $job;
-
-                // Cloneable jobs get isolated dispatch state on each firing. Jobs that
-                // deliberately forbid cloning must retain their resolved identity.
-                if ((new ReflectionObject($job))->isCloneable()) {
+                // Class strings require per-firing construction; supplied objects are
+                // retained by this callback and need copying when PHP permits it.
+                if (is_string($job)) {
+                    $job = Container::getInstance()->makeTransient($job);
+                } elseif ((new ReflectionObject($job))->isCloneable()) {
                     $job = clone $job;
                 }
 

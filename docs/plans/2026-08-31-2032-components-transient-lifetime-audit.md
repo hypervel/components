@@ -4,13 +4,14 @@
 
 Make every container-buildable framework class use the lifetime implied by who owns its state. Eleven caller-owned value, date, response, and builder hierarchies must opt out of Hypervel's unbound concrete auto-singleton cache through the existing `Hypervel\Contracts\Container\Transient` marker. Worker-safe services must remain cached.
 
-Use the existing container contract only. Do not add a registry, reflection heuristic, runtime guard, exception path, or another abstraction to the container lifetime mechanism. Remove concrete bindings that become redundant, preserve canonical string-key bindings, correct nearby lifetime guidance, and cover the public behavior rather than marker syntax.
+Use the existing `Transient` lifetime semantics for both hierarchy-wide and per-call freshness. Add one `makeTransient(string $abstract)` container operation for a call site that must suppress only Hypervel's implicit auto-singleton while retaining aliases, bindings, explicit lifetimes, extenders, resolving callbacks, and normal nested dependency lifetimes. Do not add a registry, reflection heuristic, cache eviction, exception path, or another lifetime abstraction. Remove concrete bindings that become redundant, preserve canonical string-key bindings, correct nearby lifetime guidance, and cover public behavior rather than marker syntax.
 
 ## Runtime model and design rules
 
 - `Container::resolve()` already excludes `Transient` hierarchies from auto-singleton publication and shared-resolution coordination with `is_a(..., Transient::class, true)`. `Container::computeBuildRecipe()` uses the same check when deriving execution scope. The marker is inherited and adds no new hot-path work.
 - An unbound auto-singleton is deliberately absent from `bound()`. This preserves nullable/default constructor parameters. A transient class remains unbound, so an optional dependency such as `?Collection $items = null` still receives `null`.
 - Explicit `bind()`, `singleton()`, `scoped()`, and `instance()` registrations remain authoritative for a transient class. Parameterized `make()` / `makeWith()` already bypass every cache.
+- `makeTransient()` is the per-call equivalent of the marker. It behaves exactly like normal zero-parameter resolution except that an ordinary unbound concrete cannot read, coordinate, or publish an implicit auto-singleton. Explicit shared lifetimes still win. The method takes no parameter array because non-empty parameters already make `make()` bypass every cache.
 - State ownership decides the lifetime:
   - worker-owned caches, registries, configuration, callbacks, and connections remain auto-singletoned;
   - caller-, request-, or operation-owned values use `Transient` only when freshness is intrinsic to the full class hierarchy;
@@ -39,6 +40,23 @@ class Collection implements ArrayAccess, Enumerable, Transient
     // Existing implementation is unchanged.
 }
 ```
+
+### Per-call transient resolution
+
+Add `makeTransient(string $abstract): mixed` to the concrete container, `Hypervel\Contracts\Container\Container`, and the `App` facade method list. This is a Hypervel-specific resolution strategy and therefore belongs on the contract beside `build()` / `buildWith()`; Laravel does not need it because Laravel already constructs ordinary unbound concretes on every `make()`.
+
+`makeTransient()` must be a thin wrapper over `resolve()`. Derive the per-call transient flag inside `resolve()` only after canonical alias resolution and before-resolving callbacks, or an alias such as `Mailer::class` or a callback-registered singleton could bypass its explicit lifetime. Extract `isExplicitlyShared()` for the predicate shared by `isShared()` and `resolve()`: instances, explicit shared bindings, and class-level `#[Singleton]` / `#[Scoped]` attributes are explicit. Preserve `isShared()`'s existing scoped-instance registry write and its bound guard before derived execution-scope analysis; `isDerivedExecutionScoped()` owns the remaining class-existence check. The flag must:
+
+- remain false for explicit `singleton()`, `scoped()`, `instance()`, `#[Singleton]`, and `#[Scoped]` lifetimes;
+- override constructor-derived execution scope, which is a safety inference rather than an explicit lifetime and is already excluded by `Transient`, `SelfBuilding`, and explicit non-shared bindings;
+- prevent awaiting, reading, coordinating, and publishing only the implicit auto-singleton;
+- leave explicit non-shared bindings, `Transient`, and `SelfBuilding` behavior unchanged;
+- stay out of `BuildRecipe` analysis and its worker-lifetime static cache;
+- leave contextual resolution, circular checks, resolving callbacks, extenders, nested dependency lifetimes, and resolved tracking unchanged.
+
+Keep the warmed ordinary path in its existing order. An in-flight resolution should inspect the transient mode only after finding an owner, and the auto-singleton read should put `! $transient` last. Derive the effective flag only after that cache misses. The raw flag is correct at the auto-singleton read because every explicit shared lifetime clears any implicit cache entry or publishes through a different cache; the derived flag remains authoritative for scoped reads, coordination, and publication. Document this asymmetry beside the read so it is not later collapsed into earlier lifetime analysis.
+
+The observable effect is intentionally narrow: only an ordinary unbound, non-shared class differs from `make()`. This is the missing call-site counterpart to the hierarchy-wide marker, not a general cache-bypass API.
 
 ## 1. Mark intrinsically fresh framework hierarchies
 
@@ -101,7 +119,7 @@ Keep the approved `AGENTS.md` changes that:
 - explain state ownership rather than treating all mutable classes alike, while naming services, middleware, listeners, factories, and formatters as the normal auto-singleton class families;
 - identify unscoped constructor-captured request state as a coroutine-safety defect;
 - warn against inferring `Transient` from setters or a no-argument constructor;
-- replace the contradictory binding list with one ordered resolution-strategy list covering auto-singletons, canonical singletons, instances, execution scope, scoped and fresh bindings, `Transient`, `SelfBuilding`, parameterized `make()`, and direct `build()`.
+- replace the contradictory binding list with one ordered resolution-strategy list covering auto-singletons, canonical singletons, instances, execution scope, scoped and fresh bindings, `Transient`, per-call `makeTransient()`, `SelfBuilding`, parameterized `make()`, and direct `build()`.
 
 Update the matching auto-singleton comment in `src/container/src/Container.php`. It currently says services are stateless singletons by design, which is narrower than the real rule: worker-safe services may retain service-owned initialized state. Keep the surrounding explanation of explicit bindings, `SelfBuilding`, `Transient`, `raiseEvents`, and `$autoSingletons` intact.
 
@@ -116,7 +134,9 @@ $this->app->bind('Illuminate\\Queue\\CallQueuedHandler', CallQueuedHandler::clas
 
 Add one concise WHY comment: `CallQueuedHandler::$runningCommand` is per-job state, so concurrent jobs require fresh handler instances. A single framework-internal class at one registration boundary is correctly modeled by `bind()`; marking its hierarchy transient would be broader than the need.
 
-In `Console\Scheduling\Schedule::job()`, clone the resolved or retained job once before choosing queued or synchronous dispatch when PHP reports that the object is cloneable. A class-string may resolve to an auto-singleton, while a caller-supplied object is retained and may be dispatched repeatedly by the long-lived schedule callback. Queued dispatch applies connection/queue state and may hand the object to a retaining fake; synchronous `Bus\Dispatcher::dispatchNow()` may attach a synthetic `SyncJob`, and either handler may mutate job state. The existing queued clone was introduced only for class-string auto-singletons, but the shared boundary deliberately protects caller-supplied cloneable objects from sequential reuse as well. A deliberately non-cloneable job must be dispatched as resolved because PHP forbids copying it and the public API accepts arbitrary job objects. Use the exact `ReflectionObject::isCloneable()` capability check with no cache, registry, exception control flow, or new container API.
+In `Console\Scheduling\Schedule::job()`, resolve class-string jobs through `makeTransient()` on every firing. Cloning an auto-singleton is incorrect even when possible because the constructor and its per-firing context still run only once. Fresh container resolution restores Laravel's construction semantics while preserving Hypervel's explicit binding lifetimes and resolution hooks.
+
+Caller-supplied objects are retained by the long-lived callback. Clone them before dispatch when PHP reports that copying is allowed, so queued connection/queue mutation and synchronous `SyncJob` or handler mutation cannot leak into later firings or caller reuse. A deliberately non-cloneable supplied object must be dispatched as supplied because PHP forbids copying it and the public API accepts arbitrary job objects. Keep one short WHY comment at the branch so class-string construction and supplied-object copying are not collapsed back into one mechanism.
 
 ### `DefaultProviders` value semantics
 
@@ -216,7 +236,7 @@ These collection corrections need only exact declarations and direct null compar
 
 ### Scheduling documentation
 
-Add one concise paragraph after the two documented `Schedule::job(new Heartbeat)` examples. Explain that Hypervel clones the job object before each due firing so dispatch state is not retained, while a job class with a non-public `__clone()` method is dispatched as the same instance. This is a documented scheduling behavior, not a reason for a porting-guide entry.
+Add one concise paragraph after the two documented `Schedule::job(new Heartbeat)` examples. Explain that class-string jobs are resolved through the container for every due firing. A supplied job object is cloned before each firing when PHP permits copying, while an object with a non-public `__clone()` method is dispatched as supplied. This is documented scheduling behavior, not a reason for a separate porting-guide inventory.
 
 ### Container documentation
 
@@ -233,9 +253,13 @@ Keep the existing warning that constructor-injecting a transient into a longer-l
 
 Correct the adjacent per-call-state guidance to include `scoped()` for one instance per request or job, alongside `bind()` and direct `build()` for freshness at narrower boundaries. Keep `Transient` as the separate hierarchy-wide choice.
 
+Add `makeTransient()` beside `make()` and `build()` in the resolution table and lifecycle guidance. Define it as one normal container resolution that suppresses only the implicit auto-singleton. State that explicit lifetimes remain authoritative and that `makeTransient()` is preferable to `build()` when aliases, top-level bindings, extenders, or resolving callbacks must remain active.
+
 ### Laravel porting guide
 
 In `src/docs/porting-from-laravel.md`, replace the narrow sentence that only Eloquent models implement `Transient` with a concise reference to Hypervel's built-in transient families and link readers to the container documentation. Do not turn the porting guide into a full inventory or repeat the lifetime explanation.
+
+Add `makeTransient()` to the lifecycle table as Hypervel's per-call counterpart to Laravel's naturally fresh unbound `make()`. Keep the explanation concise and link to the canonical container documentation.
 
 Under Contracts, state that `Hypervel\Contracts\Support\MessageBag` extends `Stringable`, so a custom implementation without `__toString()` fails at class declaration instead of later when rendered through `ViewErrorBag`. This is a deliberate correction of a verified Laravel contract defect, not a new rendering API.
 
@@ -295,7 +319,9 @@ Add one focused `testFrameworkDatesResolveFreshFromTheContainer()` method beside
 - Keep `tests/Pipeline/CoroutineIsolationTest.php` unchanged; it already proves two application-resolved concrete pipelines do not share mutable state across interleaved coroutines after the binding removal.
 - Keep `tests/Integration/Http/ResponseBindingTest.php` unchanged; it already proves fresh concrete responses and fresh resolution through the Symfony alias after the response binding removal. `FrameworkTransientTest` supplies the missing JSON-response coverage.
 - Keep the existing `LoggedExceptionCollection` tests unchanged. `FoundationServiceProvider` deliberately publishes one test-lifetime collection through `instance()`, and `MakesHttpRequestsTest` proves that an explicit replacement is retained; explicit instances remain authoritative over the inherited collection marker.
-- Keep `tests/Queue/LaravelInteropTest.php` as regression coverage for the retained queue bindings. In `ScheduleTest.php`, retain the regression that fires a class-string synchronous job twice through one event, mutates each dispatched instance, and proves each firing receives a pristine, distinct clone. Complete the cloneability/dispatch matrix with a cloneable queued job that proves queue state lands only on its clone, plus synchronous and queued regressions proving a caller-supplied job with a private `__clone()` reaches the respective dispatcher unchanged. The queued cases are distinct coverage because the clone historically lived inside `dispatchToQueue()` and queue/connection mutation must land on the cloneable copy but necessarily applies directly to the non-cloneable object.
+- Keep `tests/Queue/LaravelInteropTest.php` as regression coverage for the retained queue bindings. In `ScheduleTest.php`, replace the identity-only class-string regression with a construction counter and per-construction stamp proving a synchronous class-string job is constructed for every firing. Add two queued events for the same non-cloneable class string: the first supplies a queue override and the second must retain its own default, directly covering the `$queue ?? $job->queue` bleed boundary. Keep the supplied-object cloneability/dispatch matrix: cloneable queued jobs receive queue state only on the clone, while synchronous and queued objects with private `__clone()` reach their dispatcher unchanged.
+- Extend `ContainerTest.php` with focused `makeTransient()` coverage: two calls ignore a warmed auto-singleton without evicting or replacing it; explicit singleton, scoped, instance, class-level `#[Singleton]` / `#[Scoped]`, and one non-shared binding retain their established behavior; aliases, extenders, and before/resolving/after callbacks remain active; and nested worker-shared dependencies remain shared. Cover a canonical aliased singleton explicitly so the transient flag cannot be derived before alias resolution. Prove constructor-derived execution scope is bypassed per call while ordinary `make()` remains scoped. Do not duplicate the existing hierarchy-wide `Transient` matrix.
+- Extend `CoroutineSafetyTest.php` across both shared-resolution branches. A slow normal auto-singleton resolution and `makeTransient()` of the same class must neither await nor publish each other's object, and the normal result must remain the later normal cache hit. Run the explicit-singleton callback fixture with both ordinary and transient waiters, proving that both join the owner and observe the completed callback state without duplicating the fixture.
 - Extend `types/Database/Eloquent/Collection.php` with PHPStan assertions proving that inherited `flatMap()` and `mapInto()` of a non-model target expose a base support collection and that `findOrFail()` preserves its scalar-model and array-collection results. In `types/Collections/Collection.php`, add representative `flatten()` assertions proving interface-typed receivers retain `Enumerable` inference and lazy receivers retain `LazyCollection` inference.
 
 Do not add a duplicate generic `Transient` test, a marker- or binding-presence test, an accessor exposing protected state, or another auto-singleton negative control. `tests/Container/ContainerTest.php` already covers generic transient inheritance, explicit lifetime overrides, instances, scoped bindings, extenders, nullable/default dependency preservation, parameterized resolution, and auto-singleton behavior.
@@ -305,12 +331,14 @@ Do not add a duplicate generic `Transient` test, a marker- or binding-presence t
 - Existing constructors, aliases, binding APIs, and explicit lifetime precedence remain intact. The only deliberate Laravel contract tightening is `MessageBag` requiring the string conversion that `ViewErrorBag` already performs; custom implementations without `__toString()` now fail at declaration instead of render time.
 - The collection native return types express existing runtime behavior without adding a branch or allocation. They use PHP 8.4-compatible unions and retain the existing generic precision.
 - `DefaultProviders::except()` removes a callback and loose comparison by returning to the existing `Collection::diff()` primitive.
-- No container algorithm changes. Each relevant path already performs the `is_a(..., Transient::class, true)` check; only its result changes for the eleven declared hierarchies.
+- The hierarchy markers do not change the container algorithm. Each relevant path already performs the `is_a(..., Transient::class, true)` check; only its result changes for the eleven declared hierarchies.
+- `makeTransient()` adds one false-by-default resolver flag. A warmed ordinary auto-singleton pays only one predictable boolean after the existing cache lookup conditions and performs no new lifetime analysis. Transient calls reuse the existing resolver and suppress only implicit auto-singleton coordination, reads, and publication; benchmark the normal and per-call paths to confirm the remaining branch is noise.
+- `resolve()` gains an optional fourth protected parameter for the per-call mode. This is a deliberate Hypervel 0.4 extension-point signature change; subclass overrides must accept it. Keep `shouldCoordinateSharedResolution()`'s protected signature unchanged by gating transient calls at its sole call site.
 - Correctly fresh value objects allocate once per requested instance. Worker-safe services continue using the auto-singleton cache. This is the narrow performance boundary the audit is intended to enforce.
 - Removing the redundant concrete Pipeline and Response bindings avoids their closure/binding lookup while preserving behavior through the marker. Canonical string-key behavior remains explicit.
-- `ReflectionObject::isCloneable()` adds one exact capability check only when a scheduled job fires. It avoids an unsupported clone attempt without a cache or repeated request-path work; scheduler cadence makes its measured nanosecond-scale cost negligible.
+- `ReflectionObject::isCloneable()` runs only for supplied scheduled objects. Class-string jobs use fresh construction and incur no reflection or clone.
 - Disable Composer's process timeout on the `test`, `test:parallel`, and `test:testbench` scripts. The full suite can exceed Composer's default 300-second wrapper limit on a loaded machine; each runner and CI job retains its own failure and job-timeout behavior.
-- Do not add a benchmark. There is no new mechanism to benchmark, and a benchmark that rewards incorrectly caching caller-owned values would measure the wrong contract.
+- Do not add a committed benchmark harness. Run a local focused microbenchmark comparing ordinary warmed `make()` before and after the resolver change and measuring `makeTransient()` against direct transient resolution. The correctness tests remain authoritative; the benchmark only verifies that the false-by-default branch adds no meaningful normal-path cost.
 
 ## Implementation sequence
 
@@ -321,10 +349,11 @@ Do not add a duplicate generic `Transient` test, a marker- or binding-presence t
 5. Remove the concrete Pipeline binding, then run the unchanged API-client and pipeline coroutine tests to verify constructor fallback container injection and mutable-state isolation.
 6. Remove the HTTP response factory and run `ResponseBindingTest.php` plus `FrameworkTransientTest.php`.
 7. Add `DefaultProvidersTest.php`, run it to confirm receiver mutation and empty-list restoration, apply the complete value-semantic correction, and rerun it. Copy and port `SupportViewErrorBagTest.php`, run it to expose the numeric-key transform defect, then apply the complete `MessageBag` contract and implementation type correction and rerun it.
-8. Correct the container and queue-handler comments. Add and run the Schedule synchronous-dispatch regression, move the job clone behind an exact cloneability check at the common dispatch boundary, complete the cloneable/non-cloneable synchronous/queued regression matrix, and rerun `ScheduleTest.php`.
-9. Verify the contributor-guide edit already present in the worktree, apply the user-documentation updates, then inspect every changed comment and paragraph against the final source.
-10. Run `git diff --check`, the focused tests below, and then `composer fix` once from the repository root.
-11. Self-review every changed file and trace the marker through container publication, coordination, execution-scope derivation, aliases, defaults, and explicit bindings. Remove stale imports, methods, comments, or duplicated tests before code review.
+8. Add failing focused `makeTransient()` tests to `ContainerTest.php` and `CoroutineSafetyTest.php`. Implement the contract, facade annotation, concrete method, and resolver flag; run both files and targeted container PHPStan.
+9. Correct the container and queue-handler comments. Replace class-string cloning with per-firing transient resolution, complete the class-string construction/queue-isolation and supplied-object cloneability matrix, and rerun `ScheduleTest.php`.
+10. Verify the contributor-guide edit already present in the worktree, add the `makeTransient()` strategy, apply the user-documentation updates, then inspect every changed comment and paragraph against the final source.
+11. Run `git diff --check`, targeted formatting and static analysis, and the focused tests below. Do not rerun the full parallel suite for this reviewed correction.
+12. Self-review every changed file and trace both marker and per-call transient resolution through container publication, coordination, build recipes, aliases, defaults, explicit bindings, callbacks, extenders, and nested dependencies. Remove stale imports, methods, comments, or duplicated tests before code review.
 
 ## Validation
 
@@ -332,6 +361,8 @@ Run changed test files immediately when written, then finish with:
 
 ```bash
 ./vendor/bin/phpunit --no-progress tests/Container/FrameworkTransientTest.php
+./vendor/bin/phpunit --no-progress tests/Container/ContainerTest.php
+./vendor/bin/phpunit --no-progress tests/Container/CoroutineSafetyTest.php
 ./vendor/bin/phpunit --no-progress tests/Support/SupportCollectionTest.php
 ./vendor/bin/phpunit --no-progress tests/Support/SupportLazyCollectionTest.php
 ./vendor/bin/phpunit --no-progress tests/ApiClient/PendingRequestTest.php
@@ -341,7 +372,6 @@ Run changed test files immediately when written, then finish with:
 ./vendor/bin/phpunit --no-progress tests/Integration/Http/ResponseBindingTest.php
 ./vendor/bin/phpunit --no-progress tests/Queue/LaravelInteropTest.php
 ./vendor/bin/phpunit --no-progress tests/Console/Scheduling/ScheduleTest.php
-composer fix
 ```
 
 Run `./vendor/bin/phpstan analyse --configuration=phpstan.types.neon.dist` immediately after changing `types/Database/Eloquent/Collection.php`; the `types/` fixtures are not PHPUnit tests.
@@ -350,13 +380,14 @@ Run `./vendor/bin/phpstan analyse --configuration=phpstan.types.neon.dist` immed
 
 - All eleven caller-owned hierarchies resolve fresh when unbound. The nine mutable classes have representative mutation isolation, the two dates have clock freshness coverage, and `ContainerTest::testTransientLifetimeIsInheritedBySubclasses()` covers inheritance by application subclasses.
 - Explicit bindings still override `Transient`, covered by `ContainerTest::testTransientClassCanBeExplicitlySingletoned()` and its neighboring lifetime tests; nullable/default constructor dependencies remain defaults, covered by `ContainerTest::testResolutionOfClassWithDefaultParameters()`.
+- `makeTransient()` ignores and never mutates an ordinary unbound auto-singleton while retaining explicit binding lifetimes, canonical aliases, callbacks, extenders, nested dependency lifetimes, resolved tracking, circular checks, and shared-resolution isolation.
 - Concrete Pipeline and Response bindings are gone; the `'pipeline'` and `'request'` bindings and Symfony response alias retain their intended behavior.
-- Queue handler freshness remains explicit. Cloneable scheduled queued and synchronous jobs receive a fresh clone on every event firing, including class strings resolved from the auto-singleton cache; non-cloneable jobs remain accepted and are dispatched as-is.
+- Queue handler freshness remains explicit. Ordinary class-string jobs are constructed through the full container resolution pipeline on every firing without reading or publishing an implicit auto-singleton. Explicit lifetimes remain authoritative. Supplied cloneable jobs receive an isolated clone on every firing; non-cloneable supplied jobs remain accepted and are dispatched as-is.
 - All public collection methods have exact native return types. The thirteen transformation methods are correct across the interface, shared trait, support implementations, and Eloquent overrides; Eloquent `find()` and `findOrFail()` express their mixed and model-or-collection boundaries. False inherited and conditional PHPDoc returns are corrected, existing valid generic annotations remain precise, and the PHPStan fixtures prove the load-bearing hierarchy paths.
 - Optional collection filters use strict null guards consistently across eager and lazy implementations; an empty non-callable string can no longer silently disable filtering or produce different eager and lazy results.
 - `DefaultProviders` preserves explicit empty lists, `merge()` is pure, and `except()` uses the precise existing collection primitive.
 - The message-bag contract expresses the string conversion required by `ViewErrorBag`; the complete upstream suite plus empty fallback coverage passes, numeric constructor keys reach formatting without a type error, and all affected implementation PHPDocs describe their real array-key shapes.
 - Contributor and user documentation describe the same ownership-based lifetime model and complete built-in family list.
-- No new registry, guard, reflection heuristic, or runtime exception remains in the container lifetime mechanism.
+- `makeTransient()` is the only added container surface. No registry, cache eviction, reflection heuristic, alternate recipe, runtime exception, or second lifetime mechanism remains.
 - No rejected candidate is marked, and no marker-only test, stale comment, unused import, dead method, or redundant binding remains anywhere in the change set.
-- Focused tests and `composer fix` pass.
+- Targeted formatting, static analysis, and focused tests pass.

@@ -250,6 +250,7 @@ Rules that follow from this:
 - One instance per coroutine / request → `scoped()`.
 - Fresh instance required by a specific binding → `bind()`.
 - Freshness intrinsic to the whole class hierarchy → `Transient`.
+- One resolution should ignore only the implicit auto-singleton while retaining aliases, bindings, extenders, and resolving callbacks → `makeTransient()`.
 - Class-controlled construction through `newInstance()` → `SelfBuilding`.
 - One contextual resolution with explicit constructor parameters → `make()` / `makeWith()` with parameters. Aliases, binding definitions, and resolving callbacks still apply, but cached lifetimes are bypassed.
 - Direct construction that intentionally bypasses top-level bindings and caches → `build()` / `buildWith()`. Do not use these when aliases, test swaps, or resolving callbacks must be honored.

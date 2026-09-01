@@ -90,6 +90,7 @@ namespace Hypervel\Support\Facades;
  * @method static void macro(string $name, callable|object $macro)
  * @method static \Hypervel\Contracts\Foundation\MaintenanceMode maintenanceMode()
  * @method static mixed make(string $abstract, array $parameters = [])
+ * @method static mixed makeTransient(string $abstract)
  * @method static mixed makeWith(string $abstract, array $parameters = [])
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static string path(string $path = '')

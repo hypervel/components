@@ -124,13 +124,22 @@ class ScheduleTest extends TestCase
         $this->container->instance(Dispatcher::class, $dispatcher);
         $this->container->instance('files', new Filesystem);
 
-        $event = (new Schedule)->job(ScheduleTestMutableJob::class);
-        $event->run($this->container);
-        $event->run($this->container);
+        ScheduleTestMutableJob::$constructions = 0;
+
+        try {
+            $event = (new Schedule)->job(ScheduleTestMutableJob::class);
+            $event->run($this->container);
+            $event->run($this->container);
+
+            $constructions = ScheduleTestMutableJob::$constructions;
+        } finally {
+            ScheduleTestMutableJob::$constructions = 0;
+        }
 
         self::assertCount(2, $dispatched);
         self::assertNotSame($dispatched[0], $dispatched[1]);
-        self::assertFalse($this->container->make(ScheduleTestMutableJob::class)->handled);
+        self::assertSame([1, 2], array_column($dispatched, 'construction'));
+        self::assertSame(2, $constructions);
     }
 
     public function testNonCloneableSynchronousJobIsDispatchedWithoutCloning(): void
@@ -185,6 +194,31 @@ class ScheduleTest extends TestCase
         $this->container->instance('files', new Filesystem);
 
         (new Schedule)->job($job, 'queue-name', 'connection-name')->run($this->container);
+    }
+
+    public function testNonCloneableQueuedClassStringDoesNotRetainQueueStateAcrossEvents(): void
+    {
+        $dispatched = [];
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('dispatch')
+            ->twice()
+            ->andReturnUsing(static function (object $job) use (&$dispatched): void {
+                $dispatched[] = $job;
+            });
+
+        $this->container->instance(Dispatcher::class, $dispatcher);
+        $this->container->instance('files', new Filesystem);
+
+        $schedule = new Schedule;
+        $first = $schedule->job(ScheduleTestNonCloneableQueuedJob::class, 'first');
+        $second = $schedule->job(ScheduleTestNonCloneableQueuedJob::class);
+
+        $first->run($this->container);
+        $second->run($this->container);
+
+        self::assertNotSame($dispatched[0], $dispatched[1]);
+        self::assertSame('first', $dispatched[0]->queue);
+        self::assertNull($dispatched[1]->queue);
     }
 
     public function testItCanFilterEventsByEnvironments(): void
@@ -568,7 +602,16 @@ class ScheduleTestUndescribedCommandStub extends Command
 
 class ScheduleTestMutableJob
 {
+    public static int $constructions = 0;
+
+    public readonly int $construction;
+
     public bool $handled = false;
+
+    public function __construct()
+    {
+        $this->construction = ++static::$constructions;
+    }
 }
 
 class ScheduleTestNonCloneableJob

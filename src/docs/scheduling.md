@@ -132,7 +132,7 @@ use Hypervel\Support\Facades\Schedule;
 Schedule::job(new Heartbeat, 'heartbeats', 'sqs')->everyFiveMinutes();
 ```
 
-Hypervel clones the job object before each due firing, so state set during dispatch is not retained between runs. If your job class declares a non-public `__clone` method, the same instance is dispatched instead.
+When you pass a job class string, Hypervel resolves it through the container for every due firing. When you pass a job object, Hypervel clones it before each firing when PHP permits copying; if the class declares a non-public `__clone` method, the supplied instance is dispatched instead.
 
 <a name="scheduling-shell-commands"></a>
 ### Scheduling Shell Commands
