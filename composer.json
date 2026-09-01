@@ -419,7 +419,7 @@
         "test:dogfood": [
             "Composer\\Config::disableProcessTimeout",
             "composer --working-dir=dogfood/testbench-package install --prefer-dist -n -o",
-            "env OTEL_SDK_DISABLED=true composer --working-dir=dogfood/testbench-package test"
+            "composer --working-dir=dogfood/testbench-package test"
         ],
         "analyse": [
             "phpstan analyse",
