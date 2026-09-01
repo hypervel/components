@@ -86,7 +86,13 @@ class AnyTaggedCache extends AnyModeTaggedCache
         } catch (Throwable $exception) {
             $this->event(
                 KeyWriteFailed::class,
-                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
+                fn (): KeyWriteFailed => new KeyWriteFailed(
+                    $this->getName(),
+                    $key,
+                    NullSentinel::unwrap($value),
+                    $seconds,
+                    exception: $exception,
+                )
             );
 
             throw $exception;
@@ -152,7 +158,13 @@ class AnyTaggedCache extends AnyModeTaggedCache
             foreach ($values as $key => $value) {
                 $this->event(
                     KeyWriteFailed::class,
-                    fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), (string) $key, NullSentinel::unwrap($value), $seconds)
+                    fn (): KeyWriteFailed => new KeyWriteFailed(
+                        $this->getName(),
+                        (string) $key,
+                        NullSentinel::unwrap($value),
+                        $seconds,
+                        exception: $exception,
+                    )
                 );
             }
 
@@ -216,7 +228,12 @@ class AnyTaggedCache extends AnyModeTaggedCache
         } catch (Throwable $exception) {
             $this->event(
                 KeyWriteFailed::class,
-                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value))
+                fn (): KeyWriteFailed => new KeyWriteFailed(
+                    $this->getName(),
+                    $key,
+                    NullSentinel::unwrap($value),
+                    exception: $exception,
+                )
             );
 
             throw $exception;

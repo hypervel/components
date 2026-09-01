@@ -7,9 +7,11 @@ namespace Hypervel\Tests\Cache;
 use __PHP_Incomplete_Class;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\CacheManager;
+use Hypervel\Cache\Events\CacheFailedOver;
 use Hypervel\Cache\MemoizedStore;
 use Hypervel\Cache\NullStore;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Cache\Repository;
 use Hypervel\Cache\StorageStore;
 use Hypervel\Cache\SwooleStore;
 use Hypervel\Cache\SwooleTableManager;
@@ -18,6 +20,7 @@ use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
+use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
@@ -34,6 +37,7 @@ use Mockery as m;
 use Mockery\MockInterface;
 use Redis;
 use ReflectionProperty;
+use RuntimeException;
 use stdClass;
 
 class CacheManagerTest extends TestCase
@@ -93,6 +97,44 @@ class CacheManagerTest extends TestCase
 
         $this->assertInstanceOf(ArrayStore::class, $arrayCache->getStore());
         $this->assertInstanceOf(NullStore::class, $nullCache->getStore());
+    }
+
+    public function testFailoverDriverPassesItsConfiguredNameToFailoverEvents(): void
+    {
+        $app = $this->getApp([
+            'cache' => [
+                'stores' => [
+                    'primary' => ['driver' => 'primary'],
+                    'secondary' => ['driver' => 'secondary'],
+                    'resilient' => [
+                        'driver' => 'failover',
+                        'stores' => ['primary', 'secondary'],
+                    ],
+                ],
+            ],
+        ]);
+        $failure = new RuntimeException('primary unavailable');
+        $primary = m::mock(Store::class);
+        $primary->shouldReceive('get')->once()->with('key')->andThrow($failure);
+        $secondary = m::mock(Store::class);
+        $secondary->shouldReceive('get')->once()->with('key')->andReturn('value');
+        $captured = null;
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(CacheFailedOver::class)->andReturnTrue();
+        $events->shouldReceive('dispatch')->once()->andReturnUsing(function (CacheFailedOver $event) use (&$captured): void {
+            $captured = $event;
+        });
+        $app->instance(Dispatcher::class, $events);
+
+        $cacheManager = new CacheManager($app);
+        $cacheManager->extend('primary', fn (): Repository => new Repository($primary));
+        $cacheManager->extend('secondary', fn (): Repository => new Repository($secondary));
+
+        $this->assertSame('value', $cacheManager->store('resilient')->get('key'));
+        $this->assertInstanceOf(CacheFailedOver::class, $captured);
+        $this->assertSame('resilient', $captured->failoverStoreName);
+        $this->assertSame('primary', $captured->storeName);
+        $this->assertSame($failure, $captured->exception);
     }
 
     public function testManagerBuiltSerializingStoresShareOnePolicy(): void
@@ -645,7 +687,7 @@ class CacheManagerTest extends TestCase
         $this->assertSame(TagMode::Any, $store->getTagMode());
     }
 
-    public function testRedisDriverFallsBackToAllForInvalidTagMode(): void
+    public function testRedisDriverRejectsInvalidTagMode(): void
     {
         $userConfig = [
             'cache' => [
@@ -663,11 +705,12 @@ class CacheManagerTest extends TestCase
         $app = $this->getAppWithRedis($userConfig);
         $cacheManager = new CacheManager($app);
 
-        $repository = $cacheManager->store('redis');
-        $store = $repository->getStore();
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Invalid cache tag mode [invalid]. Supported modes are [any, all].'
+        );
 
-        $this->assertInstanceOf(RedisStore::class, $store);
-        $this->assertSame(TagMode::All, $store->getTagMode());
+        $cacheManager->store('redis');
     }
 
     public function testSessionDriverResolvesSessionStore()

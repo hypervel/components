@@ -152,6 +152,8 @@ use Hypervel\Contracts\Support\Arrayable;
 
 Some packages also define package-local contracts, such as `Hypervel\Permission\Contracts\Role` or `Hypervel\Scout\Contracts\SearchableInterface`. When porting a package, prefer the contract namespace used by the Hypervel package you are integrating with.
 
+`Hypervel\Contracts\Support\MessageBag` extends `Stringable`, so a custom message bag without `__toString()` fails at class declaration rather than later when `ViewErrorBag` renders it.
+
 <a name="missing-equivalents"></a>
 ### Missing Equivalents
 
@@ -408,11 +410,12 @@ Container lifecycles are adapted for Swoole:
 | One instance per request or job coroutine | `scoped()` |
 | One instance per worker | `singleton()` |
 | Fresh instance at the call site | `build()` or `buildWith()` |
+| One normal resolution without implicit auto-singletoning or constructor-derived execution scope | `makeTransient()` |
 | Fresh instance for every unbound resolution of a class hierarchy | Implement `Hypervel\Contracts\Container\Transient` on its base class |
 | Resolve using bindings and lifecycle rules | `make()` |
 
 > [!WARNING]
-> Unbound concrete classes are automatically cached for the worker lifetime after their first resolution. If an unbound class captures the current user, tenant, request, or other mutable per-request data in its constructor, ordinary tests may pass while concurrent requests receive another request's state. Register the class with `bind()` for a fresh instance, use `scoped()` for one instance per request or job coroutine, construct a fresh instance with `build()`, or implement `Transient` when every subclass must always be fresh. Eloquent models already implement `Transient`.
+> Unbound concrete classes are automatically cached for the worker lifetime after their first resolution. If an unbound class captures the current user, tenant, request, or other mutable per-request data in its constructor, ordinary tests may pass while concurrent requests receive another request's state. Register the class with `bind()` for a fresh instance, use `scoped()` for one instance per request or job coroutine, call `makeTransient()` for one normal resolution without implicit auto-singletoning or constructor-derived execution scope, construct a guaranteed fresh instance with `build()`, or implement `Transient` when every subclass must always be fresh. Hypervel's intrinsically fresh model, value, builder, pending-request, pipeline, and response families already implement `Transient`; see [Transient Classes](/docs/{{version}}/container#transient-classes) for the current list and binding behavior.
 
 Hypervel treats a contextual attribute's resolved value as authoritative, including `null`. Laravel constructor injection may fall through from `null` to class or primitive resolution, a contextual binding, or a declared default. Move that fallback into the attribute resolver when porting code that relies on this behavior.
 

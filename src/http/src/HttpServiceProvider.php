@@ -20,7 +20,6 @@ class HttpServiceProvider extends ServiceProvider
     {
         $this->registerPsr18Discovery();
         $this->registerRequestFactory();
-        $this->registerResponseFactory();
     }
 
     /**
@@ -78,15 +77,5 @@ class HttpServiceProvider extends ServiceProvider
             return RequestContext::getOrNull()
                 ?? Request::create($app->make('config')->get('app.url') ?? 'http://localhost');
         });
-    }
-
-    /**
-     * Register the response factory.
-     */
-    protected function registerResponseFactory(): void
-    {
-        // Response is mutable, so it must bypass the container's unbound
-        // concrete auto-singleton and remain fresh for every resolution.
-        $this->app->bind(Response::class, static fn (): Response => new Response);
     }
 }

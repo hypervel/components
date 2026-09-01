@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Saloon\Http\Faking;
 
-use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Saloon\Exceptions\NoMockResponseFoundException;
 use Hypervel\Saloon\Http\Connector;
@@ -263,7 +262,7 @@ class MockClient
     /**
      * Assert that requests were sent in order.
      *
-     * @param list<class-string<Request>|Closure|string> $callbacks
+     * @param list<callable|string> $callbacks
      */
     public function assertSentInOrder(array $callbacks): void
     {

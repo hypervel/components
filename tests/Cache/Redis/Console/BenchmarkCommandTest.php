@@ -90,16 +90,95 @@ class BenchmarkCommandTest extends TestCase
         );
     }
 
-    public function testMemoryRecoveryGuidanceInheritsTheSharedPrefixWhenStorePrefixIsOmitted(): void
+    public function testMemoryRecoveryGuidanceIncludesEveryCleanupPattern(): void
     {
-        config()->set('cache.prefix', 'shared:');
+        $patterns = [
+            'value-pattern:*',
+            'namespaced-value-pattern:*',
+            'any-tag-pattern:*',
+            'all-tag-pattern:*',
+        ];
+
+        $context = m::mock(BenchmarkContext::class);
+        $context->expects('getCleanupPatterns')->once()->andReturn($patterns);
 
         $command = $this->createCommand();
         $output = new BufferedOutput;
         $command->setOutput(new OutputStyle(new ArrayInput([]), $output));
-        $command->exposedDisplayMemoryError(new BenchmarkMemoryException(1, 2, 50), 'redis');
+        $command->exposedDisplayMemoryError(new BenchmarkMemoryException(1, 2, 50), 'redis', $context);
 
-        $this->assertStringContainsString('redis-cli KEYS "shared:', $output->fetch());
+        $outputText = $output->fetch();
+
+        foreach ($patterns as $pattern) {
+            $this->assertSame(
+                1,
+                substr_count($outputText, escapeshellarg($pattern)),
+                "Recovery guidance should contain pattern [{$pattern}] exactly once.",
+            );
+        }
+
+        $this->assertStringContainsString(
+            'Flush the entire Redis database for this connection (removes all keys, not only cache)',
+            $outputText,
+        );
+        $this->assertSame(4, substr_count($outputText, 'redis-cli --scan --pattern'));
+        $this->assertSame(4, substr_count($outputText, '| xargs -r -n 1000 redis-cli UNLINK'));
+        $this->assertStringNotContainsString('redis-cli KEYS', $outputText);
+        $this->assertStringNotContainsString('redis-cli DEL', $outputText);
+    }
+
+    public function testCleanupPatternsInheritTheSharedPrefixWhenStorePrefixIsOmitted(): void
+    {
+        config()->set('cache.prefix', 'shared:');
+
+        $context = new BenchmarkContext(
+            storeName: 'redis',
+            items: 1,
+            tagsPerItem: 1,
+            heavyTags: 1,
+            command: $this->createCommand(),
+            cacheManager: $this->app->make(CacheContract::class),
+        );
+
+        $this->assertSame([
+            'shared:_bench:*',
+            'shared:*:_bench:*',
+            'shared:_any:tag:_bench:*',
+            'shared:_all:tag:_bench:*',
+        ], $context->getCleanupPatterns());
+    }
+
+    public function testInvalidTagModeFailsBeforeBenchmarkSetup(): void
+    {
+        $command = new BenchmarkCommand;
+        $command->setHypervel($this->app);
+        $output = new BufferedOutput;
+
+        $this->assertSame(Command::FAILURE, $command->run(
+            new ArrayInput(['--tag-mode' => 'invalid']),
+            $output,
+        ));
+        $this->assertStringContainsString(
+            'Invalid tag mode: invalid. Available: any, all',
+            $output->fetch(),
+        );
+    }
+
+    public function testValidTagModeIsPassedThroughAsAnEnum(): void
+    {
+        $this->mockFullCacheStore('redis');
+        $context = $this->mockBenchmarkContext();
+        $context->expects('getStoreInstance')->andReturn(m::mock(RedisStore::class));
+        $command = $this->createFullCommand($context);
+
+        $this->assertSame(Command::SUCCESS, $command->run(new ArrayInput([
+            '--scale' => 'small',
+            '--runs' => '1',
+            '--tag-mode' => 'any',
+            '--force' => true,
+            '--store' => 'redis',
+        ]), new NullOutput));
+        $this->assertSame(TagMode::Any, $command->tagMode);
     }
 
     public function testSuccessfulBenchmarkCleansUpOnce(): void
@@ -267,6 +346,7 @@ class BenchmarkCommandTest extends TestCase
     private function mockBenchmarkContext(?Throwable $cleanupException = null): BenchmarkContext
     {
         $context = m::mock(BenchmarkContext::class);
+        $context->allows('getCleanupPatterns')->andReturn(['cache:_bench:*']);
         $cleanup = $context->shouldReceive('cleanup')->once();
 
         if ($cleanupException === null) {
@@ -324,17 +404,22 @@ class TestableBenchmarkCommand extends BenchmarkCommand
         return $this->storeName;
     }
 
-    public function exposedDisplayMemoryError(BenchmarkMemoryException $exception, string $storeName): void
-    {
+    public function exposedDisplayMemoryError(
+        BenchmarkMemoryException $exception,
+        string $storeName,
+        BenchmarkContext $context,
+    ): void {
         $this->storeName = $storeName;
 
-        parent::displayMemoryError($exception);
+        parent::displayMemoryError($exception, $context);
     }
 }
 
 class FullBenchmarkCommand extends BenchmarkCommand
 {
     public bool $comparisonRan = false;
+
+    public ?TagMode $tagMode = null;
 
     /**
      * Create a benchmark command with controlled execution behavior.
@@ -364,5 +449,15 @@ class FullBenchmarkCommand extends BenchmarkCommand
         if ($this->comparisonException !== null) {
             throw $this->comparisonException;
         }
+    }
+
+    /**
+     * Capture the parsed tag mode without running benchmark scenarios.
+     */
+    protected function runSuiteWithRuns(TagMode $tagMode, BenchmarkContext $context, int $runs, bool $returnResults = false): array
+    {
+        $this->tagMode = $tagMode;
+
+        return [];
     }
 }

@@ -222,7 +222,9 @@ class CacheFeature extends Feature
         // End of span for ForgettingKey event
         if ($event instanceof KeyForgotten || $event instanceof KeyForgetFailed) {
             $this->maybeFinishSpan(
-                $event instanceof KeyForgotten ? SpanStatus::ok() : SpanStatus::internalError()
+                $event instanceof KeyForgotten
+                    ? SpanStatus::ok()
+                    : ($event->exception === null ? null : SpanStatus::internalError())
             );
 
             return true;

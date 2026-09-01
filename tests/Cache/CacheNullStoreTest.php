@@ -39,7 +39,7 @@ class CacheNullStoreTest extends TestCase
     {
         $store = new NullStore;
         $this->assertFalse($store->increment('foo'));
-        $this->assertFalse($store->decrement('foo'));
+        $this->assertFalse($store->decrement('foo', 2));
     }
 
     public function testTouchReturnsFalse()
@@ -80,6 +80,7 @@ class CacheNullStoreTest extends TestCase
         $this->assertSame([CacheFlushing::class, CacheFlushFailed::class], array_map(get_class(...), $captured));
         $this->assertSame('null', $captured[1]->storeName);
         $this->assertSame(['users', 'posts'], $captured[1]->tags);
+        $this->assertNull($captured[1]->exception);
     }
 
     public function testLocksCanBeFlushed(): void

@@ -21,6 +21,7 @@ use Hypervel\Redis\Subscriber\Subscriber;
 use Hypervel\Redis\Traits\MultiExec;
 use Hypervel\Support\Arr;
 use Redis;
+use RedisException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
@@ -849,6 +850,8 @@ class RedisProxy implements ConnectionContract
      * @param string $pattern The pattern to match (e.g., "cache:test:*").
      *                        Should NOT include OPT_PREFIX - it's handled automatically.
      * @return int Number of keys deleted
+     *
+     * @throws RedisException
      */
     public function flushByPattern(string $pattern): int
     {

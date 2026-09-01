@@ -10,6 +10,8 @@ use Generator;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
+use Hypervel\Contracts\Pool\ConnectionInterface as PoolConnectionInterface;
 use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
@@ -347,6 +349,54 @@ class PooledConnectionTest extends DatabaseTestCase
 
         $this->assertTrue($result);
         $this->assertFalse($pooledConnection->check());
+    }
+
+    public function testCloseForgetsTheConnectionWhenTransactionCleanupFails(): void
+    {
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+        $connection = $pooledConnection->getConnection();
+        $failure = new RuntimeException('Transaction cleanup failed.');
+        $connection->beginTransaction();
+        $connection->afterRollBack(static fn () => throw $failure);
+
+        try {
+            $pooledConnection->close();
+            $this->fail('Expected transaction cleanup to fail.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($failure, $throwable);
+        }
+
+        $this->assertFalse($pooledConnection->check());
+
+        $pooledConnection->release();
+        $pool->close();
+    }
+
+    public function testCloseForgetsTheConnectionWhenTransactionCleanupIsCanceled(): void
+    {
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+        $connection = $pooledConnection->getConnection();
+        $cancellation = new CanceledException('Transaction cleanup was canceled.');
+        $connection->beginTransaction();
+        $connection->afterRollBack(static fn () => throw $cancellation);
+
+        try {
+            $pooledConnection->close();
+            $this->fail('Expected transaction cleanup cancellation to propagate.');
+        } catch (CanceledException $throwable) {
+            $this->assertSame($cancellation, $throwable);
+        }
+
+        $this->assertFalse($pooledConnection->check());
+
+        $pooledConnection->release();
+        $pool->close();
     }
 
     public function testGetActiveConnectionReconnectsWhenStale(): void
@@ -857,6 +907,196 @@ class PooledConnectionTest extends DatabaseTestCase
         $pooledConnection->release();
 
         $this->assertTrue($fired, 'ReleaseConnection event should be dispatched when configured');
+    }
+
+    public function testOrdinaryReleaseListenerFailureStillReturnsAnInvalidConnection(): void
+    {
+        $this->app->make('config')->set('database.connections.pool_test.pool.events', [
+            ReleaseConnection::class,
+        ]);
+        $failure = new RuntimeException('Release listener failed.');
+        $this->app->make(Dispatcher::class)->listen(
+            ReleaseConnection::class,
+            static fn () => throw $failure
+        );
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+        $pooledConnection->release();
+
+        $this->assertTrue($this->isInvalid($pooledConnection));
+        $this->assertSame(1, $pool->getConnectionsInChannel());
+
+        $pool->close();
+    }
+
+    public function testReleasePreservesTheFirstOrdinaryCleanupFailure(): void
+    {
+        $this->app->make('config')->set('database.connections.pool_test.pool.events', [
+            ReleaseConnection::class,
+        ]);
+        $listenerFailure = new RuntimeException('Release listener failed.');
+        $loggingFailure = new RuntimeException('Release failure logging failed.');
+        $poolReleaseFailure = new RuntimeException('Pool release failed.');
+        $logger = m::mock(StdoutLoggerInterface::class);
+        $logger->shouldReceive('error')->once()->andThrow($loggingFailure);
+        $this->app->instance(StdoutLoggerInterface::class, $logger);
+        $this->app->make(Dispatcher::class)->listen(
+            ReleaseConnection::class,
+            static fn () => throw $listenerFailure
+        );
+        $pool = new FailingReleaseDbPool($this->app, 'pool_test');
+        $pool->releaseFailure = $poolReleaseFailure;
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+
+        try {
+            $pooledConnection->release();
+            $this->fail('Expected release failure logging to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($loggingFailure, $exception);
+        }
+
+        $this->assertSame(1, $pool->getConnectionsInChannel());
+
+        $pool->close();
+    }
+
+    public function testRollbackCancellationStillReturnsTheConnectionAndEscapesExactly(): void
+    {
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+        $connection = $pooledConnection->getConnection();
+        $cancellation = new CanceledException('Rollback was canceled.');
+        $connection->beginTransaction();
+        $connection->afterRollBack(static fn () => throw $cancellation);
+
+        try {
+            $pooledConnection->release();
+            $this->fail('Expected rollback cancellation to propagate.');
+        } catch (CanceledException $throwable) {
+            $this->assertSame($cancellation, $throwable);
+        }
+
+        $this->assertTrue($this->isInvalid($pooledConnection));
+        $this->assertSame(1, $pool->getConnectionsInChannel());
+
+        $pool->close();
+    }
+
+    public function testReleaseListenerCancellationStillReturnsTheConnectionAndEscapesExactly(): void
+    {
+        $this->app->make('config')->set('database.connections.pool_test.pool.events', [
+            ReleaseConnection::class,
+        ]);
+        $cancellation = new CanceledException('Release listener was canceled.');
+        $this->app->make(Dispatcher::class)->listen(
+            ReleaseConnection::class,
+            static fn () => throw $cancellation
+        );
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+
+        try {
+            $pooledConnection->release();
+            $this->fail('Expected release listener cancellation to propagate.');
+        } catch (CanceledException $throwable) {
+            $this->assertSame($cancellation, $throwable);
+        }
+
+        $this->assertTrue($this->isInvalid($pooledConnection));
+        $this->assertSame(1, $pool->getConnectionsInChannel());
+
+        $pool->close();
+    }
+
+    public function testPoolReleaseCancellationEscapesAfterReturningTheConnectionOnce(): void
+    {
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+        $connection = $pooledConnection->getConnection();
+        $cancellation = new CanceledException('Pool release was canceled.');
+        $this->stageRollbackCallback($connection, static fn () => throw $cancellation);
+        $pool->close();
+
+        try {
+            $pooledConnection->release();
+            $this->fail('Expected pool release cancellation to propagate.');
+        } catch (CanceledException $throwable) {
+            $this->assertSame($cancellation, $throwable);
+        }
+
+        $this->assertSame(0, $pool->getCurrentConnections());
+    }
+
+    public function testOperationCancellationRemainsPrimaryOverPoolReleaseCancellation(): void
+    {
+        $this->app->make('config')->set('database.connections.pool_test.pool.events', [
+            ReleaseConnection::class,
+        ]);
+        $operationCancellation = new CanceledException('Release listener was canceled.');
+        $cleanupCancellation = new CanceledException('Pool release was canceled.');
+        $this->app->make(Dispatcher::class)->listen(
+            ReleaseConnection::class,
+            static fn () => throw $operationCancellation
+        );
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+        $this->stageRollbackCallback(
+            $pooledConnection->getConnection(),
+            static fn () => throw $cleanupCancellation
+        );
+        $pool->close();
+
+        try {
+            $pooledConnection->release();
+            $this->fail('Expected release listener cancellation to propagate.');
+        } catch (CanceledException $throwable) {
+            $this->assertSame($operationCancellation, $throwable);
+        }
+
+        $this->assertSame(0, $pool->getCurrentConnections());
+    }
+
+    public function testPoolReleaseCancellationSupersedesAnOrdinaryListenerFailure(): void
+    {
+        $this->app->make('config')->set('database.connections.pool_test.pool.events', [
+            ReleaseConnection::class,
+        ]);
+        $listenerFailure = new RuntimeException('Release listener failed.');
+        $cleanupCancellation = new CanceledException('Pool release was canceled.');
+        $this->app->make(Dispatcher::class)->listen(
+            ReleaseConnection::class,
+            static fn () => throw $listenerFailure
+        );
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+        $this->stageRollbackCallback(
+            $pooledConnection->getConnection(),
+            static fn () => throw $cleanupCancellation
+        );
+        $pool->close();
+
+        try {
+            $pooledConnection->release();
+            $this->fail('Expected pool release cancellation to propagate.');
+        } catch (CanceledException $throwable) {
+            $this->assertSame($cleanupCancellation, $throwable);
+        }
+
+        $this->assertSame(0, $pool->getCurrentConnections());
     }
 
     public function testReuseCheckDoesNotResetLastUseTime(): void
@@ -1393,6 +1633,16 @@ class PooledConnectionTest extends DatabaseTestCase
         return new PooledConnection($this->app, $pool, $config);
     }
 
+    private function stageRollbackCallback(Connection $connection, callable $callback): void
+    {
+        $manager = $connection->getTransactionManager();
+        $this->assertNotNull($manager);
+        $connectionName = $connection->getName() ?? '';
+
+        $manager->begin($connectionName, 1);
+        $manager->addCallbackForRollback($callback, $connectionName);
+    }
+
     private function ageConnectionGeneration(PooledConnection $connection): void
     {
         (new ReflectionProperty(PooledConnection::class, 'createdAt'))->setValue($connection, hrtime(true) / 1e9 - 5.0);
@@ -1445,6 +1695,23 @@ class PoolSessionConfigurator implements SessionConfigurator
 
         if ($this->applyCallback instanceof Closure) {
             ($this->applyCallback)($pdo, $state, $connection);
+        }
+    }
+}
+
+class FailingReleaseDbPool extends DbPool
+{
+    public ?RuntimeException $releaseFailure = null;
+
+    /**
+     * Release a connection back to the pool.
+     */
+    public function release(PoolConnectionInterface $connection): void
+    {
+        parent::release($connection);
+
+        if ($this->releaseFailure !== null) {
+            throw $this->releaseFailure;
         }
     }
 }

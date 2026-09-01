@@ -3,7 +3,16 @@ import {
     manyOptional,
     optional,
     requiredWithOptional,
+    root,
 } from "./.generated/actions/Hypervel/Tests/Wayfinder/Fixtures/Controllers/OptionalController";
+
+describe("root", () => {
+    test("url", () => {
+        expect(root.url()).toBe("/");
+        expect(root.url({ locale: "en" })).toBe("/en");
+        expect(root.url(undefined, { query: { page: 2 } })).toBe("/?page=2");
+    });
+});
 
 describe("optional", async () => {
     test("url", () => {

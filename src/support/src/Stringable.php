@@ -8,6 +8,7 @@ use ArrayAccess;
 use Carbon\CarbonInterface;
 use Closure;
 use Countable;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Dumpable;
@@ -16,7 +17,7 @@ use Hypervel\Support\Traits\Tappable;
 use JsonSerializable;
 use Stringable as BaseStringable;
 
-class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
+class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Transient
 {
     use Conditionable;
     use Dumpable;

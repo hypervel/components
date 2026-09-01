@@ -15,6 +15,11 @@ use Throwable;
 class BackgroundQueue extends SyncQueue
 {
     /**
+     * The name of the default queue.
+     */
+    protected string $default = 'background';
+
+    /**
      * The exception callback that should be used for handling uncaught exceptions in background execution.
      *
      * @var null|callable

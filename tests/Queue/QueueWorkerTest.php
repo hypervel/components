@@ -9,6 +9,7 @@ use DateTimeInterface;
 use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
@@ -1020,6 +1021,43 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldNotHaveReceived('dispatch', [m::type(JobProcessed::class)]);
     }
 
+    public function testJobIsFailedWhenTheMaxExceptionsCounterReachesTheLimit(): void
+    {
+        $exception = new RuntimeException('Job failed.');
+        $job = new WorkerFakeJob;
+        $job->maxExceptions = 3;
+        $cache = m::mock(CacheContract::class);
+        $cache->expects('get')->with('job-exceptions:' . $job->uuid)->andReturnTrue();
+        $cache->expects('increment')->with('job-exceptions:' . $job->uuid)->andReturn(3);
+        $cache->expects('forget')->with('job-exceptions:' . $job->uuid)->andReturnTrue();
+        $worker = $this->getWorker()->setCache($cache);
+
+        $worker->markJobAsFailedIfWillExceedMaxExceptionsForTest($job, $exception);
+
+        $this->assertSame($exception, $job->failedWith);
+    }
+
+    public function testBooleanMaxExceptionsCounterResultsDoNotFailTheJob(): void
+    {
+        foreach ([false, true] as $counterResult) {
+            $exception = new RuntimeException('Job failed.');
+            $job = new WorkerFakeJob;
+            $job->maxExceptions = 0;
+            $cache = m::mock(CacheContract::class);
+            $cache->expects('get')->with('job-exceptions:' . $job->uuid)->andReturnTrue();
+            $cache->expects('increment')->with('job-exceptions:' . $job->uuid)->andReturn($counterResult);
+            $cache->shouldNotReceive('forget');
+            $worker = $this->getWorker()->setCache($cache);
+
+            $worker->markJobAsFailedIfWillExceedMaxExceptionsForTest($job, $exception);
+
+            $this->assertNull(
+                $job->failedWith,
+                sprintf('The boolean counter result [%s] failed the job.', $counterResult ? 'true' : 'false'),
+            );
+        }
+    }
+
     public function testJobBasedMaxRetries()
     {
         $job = new WorkerFakeJob(function ($job) {
@@ -1563,6 +1601,11 @@ class InsomniacWorker extends Worker
             jobsAdmitted: 0,
             hasRunningJobs: $hasRunningJobs,
         );
+    }
+
+    public function markJobAsFailedIfWillExceedMaxExceptionsForTest(Job $job, Throwable $exception): void
+    {
+        parent::markJobAsFailedIfWillExceedMaxExceptions('default', $job, $exception);
     }
 
     protected function supportsAsyncSignals(): bool

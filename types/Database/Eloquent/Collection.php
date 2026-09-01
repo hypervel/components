@@ -10,6 +10,8 @@ assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection);
 assertType('User|null', $collection->find(1));
 assertType("'string'|User", $collection->find(1, 'string'));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->find([1]));
+assertType('User', $collection->findOrFail(1));
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->findOrFail([1]));
 
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->load('string'));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->load(['string']));
@@ -94,7 +96,7 @@ assertType('bool', $collection->contains(function ($user) {
 }));
 assertType('bool', $collection->contains('string', '=', 'string'));
 
-assertType('array<int, (int|string)>', $collection->modelKeys());
+assertType('array<int|string|null>', $collection->modelKeys());
 
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->merge($collection));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->merge([new User]));
@@ -124,6 +126,18 @@ assertType(
         return ['string' => new User];
     })
 );
+
+assertType(
+    'Hypervel\Support\Collection<int, User>',
+    $collection->flatMap(function ($user, $int) {
+        assertType('User', $user);
+        assertType('int', $int);
+
+        return [$user];
+    })
+);
+
+assertType('Hypervel\Support\Collection<int, stdClass>', $collection->mapInto(stdClass::class));
 
 assertType(
     'Hypervel\Database\Eloquent\Collection<int, User>',

@@ -395,7 +395,7 @@ class PendingRequest implements Transient
         $request->prependMiddleware(function (callable $handler) use ($request): callable {
             return function (RequestInterface $psrRequest, array $options) use ($handler, $request): PromiseInterface {
                 $httpRequest = (new HttpRequest($psrRequest))
-                    ->withData($options['hypervel_data'] ?? [])
+                    ->withData($options[ClientPendingRequest::DATA_OPTION] ?? [])
                     ->setRequestAttributes($request->attributes());
                 $apiRequest = ApiRequest::createFrom($httpRequest)
                     ->withContext($this->context());

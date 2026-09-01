@@ -19,6 +19,7 @@ use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\DatabaseQueue;
+use Hypervel\Queue\Events\JobPayloadFinalizing;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Queue\Events\JobQueueingFailed;
@@ -153,7 +154,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
         $queue->push($job, ['data']);
 
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
     }
 
     public static function pushJobsDataProvider()
@@ -201,7 +202,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
         $queue->later($delay, 'foo', ['data']);
 
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
     }
 
     public static function delayedJobDeadlineProvider(): array
@@ -240,7 +241,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
         $queue->push($job, ['data']);
 
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
     }
 
     public function testFailureToCreatePayloadFromObject()
@@ -361,9 +362,20 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $connection = m::mock(ConnectionInterface::class);
         $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
         $resolver->shouldReceive('connection')->with(null)->andReturn($connection)->once();
-        $query->shouldReceive('insert')->once()->andReturnTrue();
+        $query->shouldReceive('insert')->once()->andReturnUsing(function (array $records): bool {
+            $this->assertSame('first-final', json_decode($records[0]['payload'], true)['telemetry']);
+            $this->assertSame('second-final', json_decode($records[1]['payload'], true)['telemetry']);
+
+            return true;
+        });
 
         $events = [];
+        $dispatcher->listen(JobPayloadFinalizing::class, static function (JobPayloadFinalizing $event) use (&$events): void {
+            $events[] = $event;
+            $payload = $event->payload();
+            $payload['telemetry'] = $event->job . '-final';
+            $event->payload = json_encode($payload, JSON_THROW_ON_ERROR);
+        });
         $dispatcher->listen(JobQueueing::class, static function (JobQueueing $event) use (&$events): void {
             $events[] = $event;
         });
@@ -373,14 +385,18 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
         $this->assertTrue($queue->bulk(['first', 'second'], queue: 'emails'));
         $this->assertSame([
+            JobPayloadFinalizing::class,
+            JobPayloadFinalizing::class,
             JobQueueing::class,
             JobQueueing::class,
             JobQueued::class,
             JobQueued::class,
         ], array_map(static fn (object $event): string => $event::class, $events));
-        $this->assertSame(['first', 'second', 'first', 'second'], array_column($events, 'job'));
-        $this->assertNull($events[2]->id);
-        $this->assertNull($events[3]->id);
+        $this->assertSame(['first', 'second', 'first', 'second', 'first', 'second'], array_column($events, 'job'));
+        $this->assertSame('first-final', $events[2]->payload()['telemetry']);
+        $this->assertSame('second-final', $events[3]->payload()['telemetry']);
+        $this->assertNull($events[4]->id);
+        $this->assertNull($events[5]->id);
     }
 
     public function testBulkRaisesExactFailureEventsWhenInsertThrows(): void

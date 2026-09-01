@@ -1786,6 +1786,8 @@ class ProcessPodcast implements ShouldQueue
 
 In this example, the job is released for ten seconds if the application is unable to obtain a Redis lock and will continue to be retried up to 25 times. However, the job will fail if three unhandled exceptions are thrown by the job.
 
+`MaxExceptions` tracks failures using an atomic counter on your default cache store. If that store uses Redis with PhpRedis serialization, configure counters as described in the [cache increment and decrement documentation](/docs/{{version}}/cache#incrementing-decrementing-values).
+
 <a name="stopping-retries-by-exception"></a>
 #### Stopping Retries by Exception
 
@@ -3740,6 +3742,8 @@ class AppServiceProvider extends ServiceProvider
 ```
 
 Hypervel dispatches a `JobQueueing` event immediately before a job is sent to its queue and a `JobQueued` event after the queue accepts it. If the enqueue attempt throws an exception, a `JobQueueingFailed` event is dispatched with the original exception instead. Jobs deferred until a database transaction commits do not dispatch these events unless the enqueue attempt actually begins.
+
+The `JobPayloadFinalizing` event runs immediately before `JobQueueing` and may replace its encoded `payload`. It also provides the connection, queue, job, and normalized delay. Use this event for last-mile payload changes that must reach the queue backend. Listening to both events deliberately runs both listeners for each asynchronous job.
 
 Using the `looping` method on the `Queue` [facade](/docs/{{version}}/facades), you may specify callbacks that execute before the worker attempts to fetch a job from a queue. For example, you might register a closure to rollback any transactions that were left open by a previously failed job:
 

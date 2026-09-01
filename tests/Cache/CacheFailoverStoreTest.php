@@ -41,6 +41,17 @@ class CacheFailoverStoreTest extends TestCase
         $this->assertSame([['key', 'stdClass']], $handled);
     }
 
+    public function testCountersPreserveEveryContractValidResult(): void
+    {
+        $backingStore = m::mock(Store::class);
+        $backingStore->expects('increment')->with('increment', 2)->andReturnTrue();
+        $backingStore->expects('decrement')->with('decrement', 3)->andReturnFalse();
+        $store = $this->makeFailoverStore(['cache' => $backingStore]);
+
+        $this->assertTrue($store->increment('increment', 2));
+        $this->assertFalse($store->decrement('decrement', 3));
+    }
+
     public function testLockFlushCapabilityRequiresAtLeastOneLockProvider(): void
     {
         $store = $this->makeFailoverStore([
@@ -398,6 +409,33 @@ class CacheFailoverStoreTest extends TestCase
         $this->assertSame(['third', 'first', 'second'], $failedStores);
     }
 
+    public function testFailoverEventCarriesLogicalAndFailedBackingStoreNames(): void
+    {
+        $exception = new RuntimeException('primary unavailable');
+        $first = m::mock(Store::class);
+        $first->shouldReceive('get')->once()->with('key')->andThrow($exception);
+        $second = m::mock(Store::class);
+        $second->shouldReceive('get')->once()->with('key')->andReturn('value');
+        $captured = null;
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(CacheFailedOver::class)->andReturnTrue();
+        $events->shouldReceive('dispatch')->once()->andReturnUsing(function (CacheFailedOver $event) use (&$captured): void {
+            $captured = $event;
+        });
+
+        $result = $this->makeFailoverStore(
+            ['primary' => $first, 'secondary' => $second],
+            $events,
+            failoverStoreName: 'resilient',
+        )->get('key');
+
+        $this->assertSame('value', $result);
+        $this->assertInstanceOf(CacheFailedOver::class, $captured);
+        $this->assertSame('primary', $captured->storeName);
+        $this->assertSame('resilient', $captured->failoverStoreName);
+        $this->assertSame($exception, $captured->exception);
+    }
+
     public function testSeparateLockStoreReportingRequiresEveryLockProviderToBeSeparate(): void
     {
         $separate = $this->lockStore();
@@ -442,6 +480,7 @@ class CacheFailoverStoreTest extends TestCase
         array $stores,
         ?Dispatcher $events = null,
         ?array $storeNames = null,
+        ?string $failoverStoreName = null,
     ): FailoverStore {
         $cache = m::mock(CacheManager::class);
 
@@ -455,6 +494,7 @@ class CacheFailoverStoreTest extends TestCase
             $cache,
             $events ?? m::mock(Dispatcher::class),
             $storeNames ?? array_keys($stores),
+            $failoverStoreName,
         );
     }
 

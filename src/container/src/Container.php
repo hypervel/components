@@ -336,33 +336,47 @@ class Container implements ContainerContract
      */
     public function isShared(string $abstract): bool
     {
+        if ($this->isExplicitlyShared($abstract)) {
+            return true;
+        }
+
+        if (isset($this->bindings[$abstract])) {
+            return false;
+        }
+
+        if (! $this->isDerivedExecutionScoped($abstract)) {
+            return false;
+        }
+
+        $this->scopedInstances[$abstract] = true;
+
+        return true;
+    }
+
+    /**
+     * Determine if a given type has an explicit shared lifetime.
+     */
+    protected function isExplicitlyShared(string $abstract): bool
+    {
         if (isset($this->instances[$abstract]) || array_key_exists($abstract, $this->instances)) {
             return true;
         }
 
-        if (isset($this->bindings[$abstract]['shared']) && $this->bindings[$abstract]['shared'] === true) {
-            return true;
+        if (isset($this->bindings[$abstract])) {
+            return $this->bindings[$abstract]['shared'] === true;
         }
 
-        if (isset($this->bindings[$abstract]) || ! class_exists($abstract)) {
+        if (! class_exists($abstract)) {
             return false;
         }
 
         $scopedType = $this->getScopedType($abstract);
 
-        if ($scopedType === null && $this->isDerivedExecutionScoped($abstract)) {
-            $scopedType = 'scoped';
-        }
-
-        if ($scopedType === null) {
-            return false;
-        }
-
         if ($scopedType === 'scoped') {
             $this->scopedInstances[$abstract] = true;
         }
 
-        return true;
+        return $scopedType !== null;
     }
 
     /**
@@ -1078,6 +1092,23 @@ class Container implements ContainerContract
     }
 
     /**
+     * Resolve the given type with a transient implicit lifetime.
+     *
+     * Explicit lifetimes remain authoritative.
+     *
+     * @template TClass of object
+     *
+     * @param class-string<TClass>|string $abstract
+     * @return ($abstract is class-string<TClass> ? TClass : mixed)
+     *
+     * @throws BindingResolutionException
+     */
+    public function makeTransient(string $abstract): mixed
+    {
+        return $this->resolve($abstract, transient: true);
+    }
+
+    /**
      * @template TClass of object
      *
      * @param class-string<TClass>|string $id
@@ -1115,8 +1146,12 @@ class Container implements ContainerContract
      * @throws BindingResolutionException
      * @throws CircularDependencyException
      */
-    protected function resolve(string $abstract, array $parameters = [], bool $raiseEvents = true): mixed
-    {
+    protected function resolve(
+        string $abstract,
+        array $parameters = [],
+        bool $raiseEvents = true,
+        bool $transient = false,
+    ): mixed {
         $abstract = $this->getAlias($abstract);
 
         // First we'll fire any event handlers which handle the "before" resolving of
@@ -1150,18 +1185,31 @@ class Container implements ContainerContract
             && $this->sharedResolutions !== []
             && isset($this->sharedResolutions[$abstract])
             && $this->sharedResolutions[$abstract]->ownerId !== SwooleCoroutine::getCid()
+            && (! $transient || $this->isExplicitlyShared($abstract))
         ) {
             return $this->awaitSharedResolution($abstract, $this->sharedResolutions[$abstract]);
         }
 
         // Check auto-singletons before deriving scope so warmed ordinary services
         // return without repeating immutable class-lifetime analysis.
-        if ($applyImplicitLifetime && isset($this->autoSingletons[$abstract]) && ! $needsContextualBuild) {
+        // Explicit shared lifetimes never retain an auto-singleton entry, so the
+        // raw mode can skip this cache before its effective lifetime is derived.
+        if ($applyImplicitLifetime
+            && isset($this->autoSingletons[$abstract])
+            && ! $needsContextualBuild
+            && ! $transient
+        ) {
             return $this->autoSingletons[$abstract];
         }
 
+        $transientResolution = $transient && ! $this->isExplicitlyShared($abstract);
+
         // For scoped bindings, check coroutine-local Context instead of process-global $instances.
-        if ($applyImplicitLifetime && $this->isScoped($abstract) && ! $needsContextualBuild) {
+        if ($applyImplicitLifetime
+            && ! $transientResolution
+            && $this->isScoped($abstract)
+            && ! $needsContextualBuild
+        ) {
             $contextKey = self::SCOPED_CONTEXT_PREFIX . $abstract;
             if (CoroutineContext::has($contextKey)) {
                 return CoroutineContext::get($contextKey);
@@ -1222,7 +1270,7 @@ class Container implements ContainerContract
                 $concrete = $this->getConcrete($abstract);
             }
 
-            if ($this->shouldCoordinateSharedResolution(
+            if (! $transientResolution && $this->shouldCoordinateSharedResolution(
                 $abstract,
                 $concrete,
                 $needsContextualBuild,
@@ -1252,7 +1300,7 @@ class Container implements ContainerContract
             // the instances in "memory" so we can return it later without creating an
             // entirely new instance of an object on each subsequent request for it.
             if (! $needsContextualBuild) {
-                if ($applyImplicitLifetime && $this->isShared($abstract)) {
+                if ($applyImplicitLifetime && ! $transientResolution && $this->isShared($abstract)) {
                     if ($this->isScoped($abstract)) {
                         CoroutineContext::set(self::SCOPED_CONTEXT_PREFIX . $abstract, $object);
                         $publishedCache = 'scoped';
@@ -1262,13 +1310,14 @@ class Container implements ContainerContract
                         $publishedCache = 'instance';
                         $publishedValue = $object;
                     }
-                } elseif ($raiseEvents && ! isset($this->bindings[$abstract]) && is_string($concrete) && class_exists($concrete)
+                } elseif ($raiseEvents && ! $transientResolution
+                    && ! isset($this->bindings[$abstract]) && is_string($concrete) && class_exists($concrete)
                     && ! is_a($concrete, SelfBuilding::class, true)
                     && ! is_a($concrete, Transient::class, true)
                 ) {
                     // Auto-singleton: unbound concrete classes are cached for Swoole performance.
-                    // In Swoole's long-running process model, services are stateless singletons
-                    // by design. Re-creating them on every resolution wastes CPU and memory.
+                    // Worker-safe services may retain service-owned initialized state; rebuilding
+                    // them on every resolution wastes CPU and memory.
                     //
                     // Explicit bind() overrides this — bound classes follow their binding type.
                     // SelfBuilding classes control their own construction, while Transient

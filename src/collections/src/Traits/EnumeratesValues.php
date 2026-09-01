@@ -328,7 +328,7 @@ trait EnumeratesValues
             : $key;
 
         return $this
-            ->unless($filter == null)
+            ->unless($filter === null)
             ->filter($filter)
             ->take(2)
             ->count() === 2;
@@ -433,16 +433,13 @@ trait EnumeratesValues
     /**
      * Map a collection and flatten the result by a single level.
      *
-     * No return type: Eloquent\Collection::collapse() returns base collection,
-     * which would violate `: static` when called on Eloquent\Collection.
-     *
      * @template TFlatMapKey of array-key
      * @template TFlatMapValue
      *
      * @param callable(TValue, TKey): (array<TFlatMapKey, TFlatMapValue>|Collection<TFlatMapKey, TFlatMapValue>) $callback
-     * @return static<TFlatMapKey, TFlatMapValue>
+     * @return Collection<TFlatMapKey, TFlatMapValue>|static<TFlatMapKey, TFlatMapValue>
      */
-    public function flatMap(callable $callback)
+    public function flatMap(callable $callback): Collection|static
     {
         return $this->map($callback)->collapse();
     }
@@ -453,9 +450,9 @@ trait EnumeratesValues
      * @template TMapIntoValue
      *
      * @param class-string<TMapIntoValue> $class
-     * @return static<TKey, TMapIntoValue>
+     * @return Collection<TKey, TMapIntoValue>|static<TKey, TMapIntoValue>
      */
-    public function mapInto(string $class)
+    public function mapInto(string $class): Collection|static
     {
         if (is_subclass_of($class, BackedEnum::class)) {
             return $this->map(fn ($value, $key) => $class::from($value));
@@ -516,7 +513,7 @@ trait EnumeratesValues
      * @param (callable(TValue, TKey): bool)|string|TValue $key
      * @return static<int<0, 1>, static<TKey, TValue>>
      */
-    public function partition(mixed $key, mixed $operator = null, mixed $value = null)
+    public function partition(mixed $key, mixed $operator = null, mixed $value = null): Collection|static
     {
         $callback = func_num_args() === 1
             ? $this->valueRetriever($key)

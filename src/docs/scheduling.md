@@ -132,6 +132,8 @@ use Hypervel\Support\Facades\Schedule;
 Schedule::job(new Heartbeat, 'heartbeats', 'sqs')->everyFiveMinutes();
 ```
 
+When you pass a job class string, Hypervel resolves it through the container for every due firing. Explicit container lifetimes remain authoritative, so a job registered as a singleton is dispatched as that same instance on every firing.
+
 <a name="scheduling-shell-commands"></a>
 ### Scheduling Shell Commands
 

@@ -1907,6 +1907,153 @@ class ContainerTest extends TestCase
         $this->assertSame($first, $second);
     }
 
+    public function testMakeTransientIgnoresAutoSingletonWithoutReplacingIt(): void
+    {
+        $container = new Container;
+
+        $shared = $container->make(MakeTransientStub::class);
+        $first = $container->makeTransient(MakeTransientStub::class);
+        $second = $container->makeTransient(MakeTransientStub::class);
+
+        $this->assertNotSame($shared, $first);
+        $this->assertNotSame($first, $second);
+        $this->assertSame($shared, $container->make(MakeTransientStub::class));
+    }
+
+    public function testMakeTransientPreservesExplicitLifetimes(): void
+    {
+        $singletonContainer = new Container;
+        $singletonContainer->singleton(MakeTransientStub::class);
+        $singleton = $singletonContainer->makeTransient(MakeTransientStub::class);
+
+        $this->assertSame($singleton, $singletonContainer->makeTransient(MakeTransientStub::class));
+
+        $scopedContainer = new Container;
+        $scopedContainer->scoped(MakeTransientStub::class);
+        $scoped = $scopedContainer->makeTransient(MakeTransientStub::class);
+
+        $this->assertSame($scoped, $scopedContainer->makeTransient(MakeTransientStub::class));
+
+        $singletonAttributeContainer = new Container;
+        $singletonAttribute = $singletonAttributeContainer->makeTransient(ContainerSingletonAttribute::class);
+
+        $this->assertSame(
+            $singletonAttribute,
+            $singletonAttributeContainer->makeTransient(ContainerSingletonAttribute::class),
+        );
+
+        $scopedAttributeContainer = new Container;
+        $scopedAttribute = $scopedAttributeContainer->makeTransient(ContainerScopedAttribute::class);
+
+        $this->assertSame(
+            $scopedAttribute,
+            $scopedAttributeContainer->makeTransient(ContainerScopedAttribute::class),
+        );
+
+        $instanceContainer = new Container;
+        $instance = new MakeTransientStub;
+        $instanceContainer->instance(MakeTransientStub::class, $instance);
+
+        $this->assertSame($instance, $instanceContainer->makeTransient(MakeTransientStub::class));
+
+        $boundContainer = new Container;
+        $boundContainer->bind(MakeTransientStub::class);
+
+        $this->assertNotSame(
+            $boundContainer->makeTransient(MakeTransientStub::class),
+            $boundContainer->makeTransient(MakeTransientStub::class),
+        );
+    }
+
+    public function testMakeTransientOverridesDerivedExecutionScopePerCall(): void
+    {
+        $container = new Container;
+
+        $first = $container->makeTransient(ContainerExecutionScopedConsumer::class);
+        $second = $container->makeTransient(ContainerExecutionScopedConsumer::class);
+
+        $this->assertNotSame($first, $second);
+        $this->assertNotSame($first->value, $second->value);
+
+        $scoped = $container->make(ContainerExecutionScopedConsumer::class);
+
+        $this->assertNotSame($second, $scoped);
+        $this->assertSame($scoped, $container->make(ContainerExecutionScopedConsumer::class));
+    }
+
+    public function testMakeTransientHonorsLifetimeRegisteredBeforeResolution(): void
+    {
+        $container = new Container;
+        $registered = false;
+        $container->beforeResolving(
+            MakeTransientStub::class,
+            function (string $abstract, array $parameters, Container $container) use (&$registered): void {
+                if ($registered) {
+                    return;
+                }
+
+                $registered = true;
+                $container->singleton($abstract);
+            },
+        );
+
+        $shared = $container->makeTransient(MakeTransientStub::class);
+
+        $this->assertSame($shared, $container->makeTransient(MakeTransientStub::class));
+    }
+
+    public function testMakeTransientResolvesAliasesBeforeDeterminingTheLifetime(): void
+    {
+        $container = new Container;
+        $container->singleton('make-transient', fn (): MakeTransientStub => new MakeTransientStub);
+        $container->alias('make-transient', MakeTransientStub::class);
+
+        $shared = $container->make('make-transient');
+
+        $this->assertSame($shared, $container->makeTransient(MakeTransientStub::class));
+    }
+
+    public function testMakeTransientHonorsContainerHooks(): void
+    {
+        $container = new Container;
+        $callbacks = [];
+
+        $container->beforeResolving(
+            MakeTransientStub::class,
+            function () use (&$callbacks): void {
+                $callbacks[] = 'before';
+            },
+        );
+        $container->extend(MakeTransientStub::class, function (MakeTransientStub $instance): MakeTransientStub {
+            $instance->marks[] = 'extended';
+
+            return $instance;
+        });
+        $container->resolving(MakeTransientStub::class, function () use (&$callbacks): void {
+            $callbacks[] = 'resolving';
+        });
+        $container->afterResolving(MakeTransientStub::class, function () use (&$callbacks): void {
+            $callbacks[] = 'after';
+        });
+
+        $instance = $container->makeTransient(MakeTransientStub::class);
+
+        $this->assertSame(['extended'], $instance->marks);
+        $this->assertSame(['before', 'resolving', 'after'], $callbacks);
+        $this->assertTrue($container->resolved(MakeTransientStub::class));
+    }
+
+    public function testMakeTransientPreservesNestedDependencyLifetimes(): void
+    {
+        $container = new Container;
+
+        $first = $container->makeTransient(MakeTransientConsumerStub::class);
+        $second = $container->makeTransient(MakeTransientConsumerStub::class);
+
+        $this->assertNotSame($first, $second);
+        $this->assertSame($first->dependency, $second->dependency);
+    }
+
     public function testTransientClassIsNotAutoSingletoned(): void
     {
         $container = new Container;
@@ -2579,6 +2726,23 @@ class AutoSingletonWithParamStub
 {
     public function __construct(
         public readonly string $value,
+    ) {
+    }
+}
+
+class MakeTransientStub
+{
+    public array $marks = [];
+}
+
+class MakeTransientDependencyStub
+{
+}
+
+class MakeTransientConsumerStub
+{
+    public function __construct(
+        public readonly MakeTransientDependencyStub $dependency,
     ) {
     }
 }

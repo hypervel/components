@@ -33,6 +33,13 @@
 
 [Redis](https://redis.io) is an open source, advanced key-value store. It is often referred to as a data structure server since keys can contain [strings](https://redis.io/docs/latest/develop/data-types/strings/), [hashes](https://redis.io/docs/latest/develop/data-types/hashes/), [lists](https://redis.io/docs/latest/develop/data-types/lists/), [sets](https://redis.io/docs/latest/develop/data-types/sets/), and [sorted sets](https://redis.io/docs/latest/develop/data-types/sorted-sets/).
 
+<div class="content-list" markdown="1">
+
+- Redis server 6.2+ ([Version Policy](https://redis.io/docs/latest/operate/oss_and_stack/install/version-mgmt/))
+- Valkey 7.2+ ([Version Policy](https://valkey.io/topics/releases/))
+
+</div>
+
 Before using Redis with Hypervel, you should install and enable the [PhpRedis](https://github.com/phpredis/phpredis) PHP extension. Hypervel's Redis integration is built on PhpRedis and uses pooled connections so Redis commands may be executed efficiently across Swoole coroutines.
 
 <a name="configuration"></a>
@@ -111,7 +118,7 @@ Hypervel communicates with Redis using the PhpRedis extension. Standalone connec
 
 A non-zero `read_timeout` is applied both when the Redis socket is opened and as the PhpRedis `Redis::OPT_READ_TIMEOUT` option. A value of `0.0` leaves PHP's `default_socket_timeout` in effect. The optional `name` value sets the client name on standalone Redis connections.
 
-The `context` option accepts stream options directly or nested under an `ssl` or `stream` key. If you need to configure PhpRedis options such as `prefix`, `scan`, `serializer`, `compression`, `compression_level`, `tcp_keepalive`, or `pack_ignore_numbers`, add them to the `options` array. The `pack_ignore_numbers` option requires PhpRedis 6.2 or later and applies only to standalone connections. Connection options override shared options, while a non-null top-level connection `prefix` takes final precedence.
+The `context` option accepts stream options directly or nested under an `ssl` or `stream` key. If you need to configure PhpRedis options such as `prefix`, `scan`, `serializer`, `compression`, `compression_level`, `tcp_keepalive`, or `pack_ignore_numbers`, add them to the `options` array. The `pack_ignore_numbers` option requires PhpRedis 6.2 or later and applies to standalone and Cluster connections. Connection options override shared options, while a non-null top-level connection `prefix` takes final precedence.
 
 <a name="retry-and-backoff-configuration"></a>
 #### Retry and Backoff Configuration
@@ -157,6 +164,8 @@ The PhpRedis extension may also be configured to use a variety of serializers an
 ```
 
 Currently supported serializers include: `Redis::SERIALIZER_NONE` (default), `Redis::SERIALIZER_PHP`, `Redis::SERIALIZER_JSON`, `Redis::SERIALIZER_IGBINARY`, and `Redis::SERIALIZER_MSGPACK`.
+
+Redis atomic counters must remain unencoded. Connections used for atomic increments or decrements should either use `Redis::SERIALIZER_NONE` or enable `pack_ignore_numbers` with PhpRedis 6.2 or later. This applies to standalone and Cluster connections.
 
 When relying on Cache's [serializable class allowlist](/docs/{{version}}/cache#serializable-cached-objects), configure the connection used by the Redis cache store with `Redis::SERIALIZER_NONE`. Options in the shared `options` array also apply to that connection.
 
@@ -377,7 +386,7 @@ Redis::enableEvents();
 Redis::disableEvents();
 ```
 
-Redis pools snapshot their event configuration when they are created, so these methods should be called before any Redis connection is used. Existing pools are not changed.
+These methods are intended for application boot. If a pool was created earlier in the same startup lifecycle with the other setting, Hypervel replaces that pool generation on its next use. Matching pools are left untouched. Connections already checked out from a replaced generation may finish their current work and are destroyed when returned.
 
 <a name="holding-a-pooled-connection"></a>
 #### Holding a Pooled Connection
@@ -525,6 +534,8 @@ $deleted = Redis::flushByPattern('users:*');
 ```
 
 When calling `flushByPattern` on an already-held connection, acquire the connection with `transform: false`.
+
+If Redis cannot delete a scanned batch, `flushByPattern` throws a `RedisException` instead of returning an incomplete count.
 
 <a name="transactions"></a>
 ### Transactions

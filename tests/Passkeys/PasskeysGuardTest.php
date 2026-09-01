@@ -129,7 +129,6 @@ class PasskeysGuardTest extends TestCase
     private function selectedOwnerMorphClass(VerifyPasskey $verifier): string
     {
         $method = new ReflectionMethod($verifier, 'ownerMorphClassForGuard');
-        $method->setAccessible(true);
 
         return $method->invoke($verifier, Passkeys::guard());
     }

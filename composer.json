@@ -62,6 +62,7 @@
             "Hypervel\\NestedSet\\": "src/nested-set/src/",
             "Hypervel\\Notifications\\": "src/notifications/src/",
             "Hypervel\\ObjectPool\\": "src/object-pool/src/",
+            "Hypervel\\OpenTelemetry\\": "src/opentelemetry/src/",
             "Hypervel\\Pagination\\": "src/pagination/src/",
             "Hypervel\\Passkeys\\": "src/passkeys/src/",
             "Hypervel\\Pipeline\\": "src/pipeline/src/",
@@ -183,6 +184,11 @@
         "nikic/php-parser": "^5.7",
         "nunomaduro/termwind": "^2.0",
         "nyholm/psr7": "^1.0",
+        "open-telemetry/api": "^1.10",
+        "open-telemetry/context": "^1.5",
+        "open-telemetry/exporter-otlp": "^1.4",
+        "open-telemetry/sdk": "^1.15",
+        "open-telemetry/sem-conv": "^1.38",
         "paragonie/constant_time_encoding": "^3.1",
         "phpoption/phpoption": "^1.9",
         "phpstan/phpdoc-parser": "^2.3",
@@ -263,6 +269,7 @@
         "hypervel/nested-set": "self.version",
         "hypervel/notifications": "self.version",
         "hypervel/object-pool": "self.version",
+        "hypervel/opentelemetry": "self.version",
         "hypervel/pagination": "self.version",
         "hypervel/passkeys": "self.version",
         "hypervel/pipeline": "self.version",
@@ -310,7 +317,7 @@
         "mockery/mockery": "1.6.x-dev",
         "opis/json-schema": "^2.6.0",
         "pda/pheanstalk": "^8.0.2",
-        "phpstan/phpstan": "^2.0",
+        "phpstan/phpstan": "^2.2.11",
         "phpunit/phpunit": "^13.0.3",
         "pusher/pusher-php-server": "^7.2",
         "resend/resend-php": "^1.0",
@@ -329,7 +336,8 @@
     "config": {
         "sort-packages": true,
         "allow-plugins": {
-            "php-http/discovery": true
+            "php-http/discovery": true,
+            "tbachert/spi": true
         }
     },
     "extra": {
@@ -361,6 +369,7 @@
                 "Hypervel\\NestedSet\\NestedSetServiceProvider",
                 "Hypervel\\Notifications\\NotificationServiceProvider",
                 "Hypervel\\ObjectPool\\ObjectPoolServiceProvider",
+                "Hypervel\\OpenTelemetry\\OpenTelemetryServiceProvider",
                 "Hypervel\\Pagination\\PaginationServiceProvider",
                 "Hypervel\\Passkeys\\PasskeysServiceProvider",
                 "Hypervel\\Fortify\\FortifyServiceProvider",
@@ -393,6 +402,7 @@
                 "Hypervel\\View\\ViewServiceProvider"
             ],
             "aliases": {
+                "OpenTelemetry": "Hypervel\\OpenTelemetry\\Facades\\OpenTelemetry",
                 "Saloon": "Hypervel\\Saloon\\Facades\\Saloon",
                 "Sentry": "Hypervel\\Sentry\\Facade"
             }
@@ -402,13 +412,22 @@
         }
     },
     "scripts": {
-        "test": "phpunit",
-        "test:parallel": "paratest",
+        "test": [
+            "Composer\\Config::disableProcessTimeout",
+            "phpunit"
+        ],
+        "test:parallel": [
+            "Composer\\Config::disableProcessTimeout",
+            "paratest"
+        ],
         "test:profile": [
             "Composer\\Config::disableProcessTimeout",
             "@php src/testing/bin/hypervel-test-profile"
         ],
-        "test:testbench": "php src/testbench/bin/testbench package:test --parallel tests/Testbench",
+        "test:testbench": [
+            "Composer\\Config::disableProcessTimeout",
+            "php src/testbench/bin/testbench package:test --parallel tests/Testbench"
+        ],
         "test:dogfood": [
             "Composer\\Config::disableProcessTimeout",
             "composer --working-dir=dogfood/testbench-package install --prefer-dist -n -o",

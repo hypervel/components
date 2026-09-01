@@ -11,6 +11,8 @@ use Hypervel\Cache\Events\CacheFlushed;
 use Hypervel\Cache\Events\CacheFlushFailed;
 use Hypervel\Cache\Events\CacheFlushing;
 use Hypervel\Contracts\Cache\Store;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -77,7 +79,18 @@ abstract class TaggedCache extends Repository
     {
         $this->event(CacheFlushing::class, fn (): CacheFlushing => new CacheFlushing($this->getName()));
 
-        $result = $this->tags->reset();
+        try {
+            $result = $this->tags->reset();
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            $this->event(
+                CacheFlushFailed::class,
+                fn (): CacheFlushFailed => new CacheFlushFailed($this->getName(), exception: $exception)
+            );
+
+            throw $exception;
+        }
 
         if ($result) {
             $this->event(CacheFlushed::class, fn (): CacheFlushed => new CacheFlushed($this->getName()));

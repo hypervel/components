@@ -23,7 +23,7 @@ class Increment
     /**
      * Execute the increment operation.
      */
-    public function execute(string $key, int $value = 1): int
+    public function execute(string $key, int $value = 1): int|false
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value) {
             return $connection->incrBy($this->context->prefix() . $key, $value);

@@ -233,7 +233,8 @@ class CacheManager implements FactoryContract
         return $this->repository(new FailoverStore(
             $this,
             $this->app->make(DispatcherContract::class),
-            $config['stores']
+            $config['stores'],
+            $config['store'],
         ), ['events' => false, ...$config]);
     }
 
@@ -291,7 +292,7 @@ class CacheManager implements FactoryContract
             $connection,
             serializableClassPolicy: $this->serializableClassPolicy,
         );
-        $store->setTagMode($config['tag_mode'] ?? 'all');
+        $store->setTagMode($config['tag_mode'] ?? TagMode::All);
 
         return $this->repository(
             $store->setLockConnection($config['lock_connection'] ?? $connection),

@@ -123,8 +123,10 @@ class ObjectPoolTest extends TestCase
         }
 
         usleep(5_000);
+        $this->assertSame(2, $pool->getWaiters());
         $pool->close();
         usleep(5_000);
+        $this->assertSame(0, $pool->getWaiters());
         $pool->release($borrowed);
 
         ksort($messages);
@@ -647,6 +649,7 @@ class ObjectPoolTest extends TestCase
             'total' => 2,
             'idle' => 1,
             'borrowed' => 1,
+            'waiters' => 0,
             'closed' => false,
         ], $pool->getStats());
 
@@ -657,6 +660,7 @@ class ObjectPoolTest extends TestCase
             'total' => 0,
             'idle' => 0,
             'borrowed' => 0,
+            'waiters' => 0,
             'closed' => true,
         ], $pool->getStats());
     }

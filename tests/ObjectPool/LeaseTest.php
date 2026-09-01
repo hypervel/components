@@ -375,6 +375,11 @@ class ContractOnlyObjectPool implements ObjectPoolContract
         return 0;
     }
 
+    public function getWaiters(): int
+    {
+        return 0;
+    }
+
     public function getOptions(): PoolOptions
     {
         return PoolOptions::fromArray([]);
@@ -382,6 +387,6 @@ class ContractOnlyObjectPool implements ObjectPoolContract
 
     public function getStats(): array
     {
-        return ['total' => 0, 'idle' => 0, 'borrowed' => 0, 'closed' => false];
+        return ['total' => 0, 'idle' => 0, 'borrowed' => 0, 'waiters' => 0, 'closed' => false];
     }
 }

@@ -1412,8 +1412,8 @@ EOT,
             ['foo' => 'baz'],
         ]));
 
-        $response->assertJson(function (AssertableJson $json) {
-        });
+        $this->assertSame($response, $response->assertJson(function (AssertableJson $json) {
+        }));
     }
 
     public function testAssertJsonWithFluentHasAnyThrows(): void
@@ -1840,10 +1840,10 @@ EOT,
     {
         $response = TestResponse::fromBaseResponse(new Response(new JsonSerializableSingleResourceWithIntegersStub));
 
-        $response->assertJsonMissingExact(['id' => 2]);
+        $this->assertSame($response, $response->assertJsonMissingExact(['id' => 2]));
 
         // This is missing because bar has changed to baz
-        $response->assertJsonMissingExact(['id' => 20, 'foo' => 'baz']);
+        $this->assertSame($response, $response->assertJsonMissingExact(['id' => 20, 'foo' => 'baz']));
     }
 
     public function testAssertJsonMissingExactCanFail(): void
@@ -2470,7 +2470,7 @@ EOT,
             (new Response)->setContent(json_encode($data))
         );
 
-        $testResponse->assertJsonMissingValidationErrors();
+        $this->assertSame($testResponse, $testResponse->assertJsonMissingValidationErrors());
     }
 
     public function testAssertJsonMissingValidationErrorsWithoutArgumentCanFail(): void

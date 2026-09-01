@@ -6,6 +6,8 @@ namespace Hypervel\Tests\Cache;
 
 use __PHP_Incomplete_Class;
 use BadMethodCallException;
+use Hypervel\Cache\Events\CacheFlushFailed;
+use Hypervel\Cache\Events\CacheFlushing;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\ForgettingKey;
@@ -439,6 +441,7 @@ class CacheStackStoreTagsTest extends TestCase
 
         $this->assertSame([WritingKey::class, KeyWriteFailed::class], array_map(get_class(...), $captured));
         $this->assertSame(['tag'], $captured[1]->tags);
+        $this->assertSame($exception, $captured[1]->exception);
     }
 
     public function testTaggedPutDoesNotDispatchFailureEventWhenTheStoreIsCanceled(): void
@@ -489,6 +492,7 @@ class CacheStackStoreTagsTest extends TestCase
         $this->assertSame([WritingKey::class, KeyWriteFailed::class], array_map(get_class(...), $captured));
         $this->assertSame(['tag'], $captured[1]->tags);
         $this->assertNull($captured[1]->seconds);
+        $this->assertSame($exception, $captured[1]->exception);
     }
 
     public function testTaggedForeverDoesNotDispatchFailureEventWhenTheStoreIsCanceled(): void
@@ -535,6 +539,7 @@ class CacheStackStoreTagsTest extends TestCase
 
         $this->assertSame([ForgettingKey::class, KeyForgetFailed::class], array_map(get_class(...), $captured));
         $this->assertSame(['tag'], $captured[1]->tags);
+        $this->assertSame($exception, $captured[1]->exception);
     }
 
     public function testTaggedExpiredPutDoesNotDispatchFailureEventWhenTheStoreIsCanceled(): void
@@ -678,6 +683,63 @@ class CacheStackStoreTagsTest extends TestCase
         } catch (CanceledException $exception) {
             $this->assertSame($cancellation, $exception);
         }
+    }
+
+    public function testClearDispatchesFailureEventWithExactTagSetException(): void
+    {
+        $exception = new RuntimeException('tag flush failed');
+        $firstTaggable = $this->anyModeTaggableStore();
+        $secondTaggable = $this->anyModeTaggableStore();
+        $firstTaggedCache = m::mock(TaggedCache::class);
+        $secondTaggedCache = m::mock(TaggedCache::class);
+        $firstTagSet = m::mock(TagSet::class);
+        $secondTagSet = m::mock(TagSet::class);
+        $firstTaggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($firstTaggedCache);
+        $secondTaggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($secondTaggedCache);
+        $firstTaggedCache->shouldReceive('getTags')->once()->andReturn($firstTagSet);
+        $secondTaggedCache->shouldReceive('getTags')->once()->andReturn($secondTagSet);
+        $firstTagSet->shouldReceive('flush')->once()->andThrow($exception);
+        $secondTagSet->shouldReceive('flush')->once()->andThrow(new RuntimeException('second tag flush failed'));
+
+        $captured = [];
+        $cache = (new Repository(new StackStore([$firstTaggable, $secondTaggable]), ['store' => 'stack']))->tags(['tag']);
+        $cache->setEventDispatcher($this->capturingDispatcher($captured));
+
+        try {
+            $cache->clear();
+            $this->fail('Expected the tagged flush exception to be rethrown.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertSame([CacheFlushing::class, CacheFlushFailed::class], array_map(get_class(...), $captured));
+        $this->assertSame($exception, $captured[1]->exception);
+    }
+
+    public function testClearCancellationSkipsFailureEventAndRemainingTaggableLayers(): void
+    {
+        $cancellation = new CanceledException;
+        $firstTaggable = $this->anyModeTaggableStore();
+        $secondTaggable = $this->anyModeTaggableStore();
+        $firstTaggedCache = m::mock(TaggedCache::class);
+        $firstTagSet = m::mock(TagSet::class);
+        $firstTaggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($firstTaggedCache);
+        $firstTaggedCache->shouldReceive('getTags')->once()->andReturn($firstTagSet);
+        $firstTagSet->shouldReceive('flush')->once()->andThrow($cancellation);
+        $secondTaggable->shouldNotReceive('tags');
+
+        $captured = [];
+        $cache = (new Repository(new StackStore([$firstTaggable, $secondTaggable]), ['store' => 'stack']))->tags(['tag']);
+        $cache->setEventDispatcher($this->capturingDispatcher($captured));
+
+        try {
+            $cache->clear();
+            $this->fail('Expected the tagged flush cancellation to be rethrown.');
+        } catch (CanceledException $caught) {
+            $this->assertSame($cancellation, $caught);
+        }
+
+        $this->assertSame([CacheFlushing::class], array_map(get_class(...), $captured));
     }
 
     private function anyModeTaggableStore(): TaggableStore|m\MockInterface

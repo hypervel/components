@@ -20,6 +20,7 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\ViewErrorBag;
 use Stringable;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class View implements ArrayAccess, Htmlable, Stringable, ViewContract
@@ -151,6 +152,10 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
         $this->factory->callComposer($this);
 
+        if ($this->factory->hasRenderedObservers()) {
+            return $this->renderContentsWithObservers();
+        }
+
         $this->factory->notifyRendering($this);
 
         $contents = $this->getContents();
@@ -158,6 +163,40 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
         // Once we've finished rendering the view, we'll decrement the render count
         // so that each section gets flushed out next time a view is created and
         // no old sections are staying around in the memory of an environment.
+        $this->factory->decrementRender();
+
+        return $contents;
+    }
+
+    /**
+     * Get the view contents while notifying completion observers.
+     */
+    protected function renderContentsWithObservers(): string
+    {
+        $contents = '';
+        $exception = null;
+
+        try {
+            $this->factory->notifyRendering($this);
+            $contents = $this->getContents();
+        } catch (CanceledException $throwable) {
+            throw $throwable;
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        }
+
+        try {
+            $this->factory->notifyRendered($this, $exception);
+        } catch (CanceledException $throwable) {
+            throw $throwable;
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
+
         $this->factory->decrementRender();
 
         return $contents;

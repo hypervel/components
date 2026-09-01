@@ -6,6 +6,7 @@ namespace Hypervel\Redis\Operations;
 
 use Hypervel\Redis\RedisConnection;
 use Redis;
+use RedisException;
 
 /**
  * Flush (delete) Redis keys matching a pattern.
@@ -70,6 +71,8 @@ final class FlushByPattern
      * @param string $pattern The pattern to match (e.g., "cache:test:*").
      *                        Should NOT include OPT_PREFIX - it's handled automatically.
      * @return int Number of keys deleted
+     *
+     * @throws RedisException
      */
     public function execute(string $pattern): int
     {
@@ -101,21 +104,23 @@ final class FlushByPattern
     /**
      * Delete a batch of keys.
      *
-     * Uses UNLINK (async delete) when available for better performance,
-     * falls back to DEL for older Redis versions.
-     *
      * @param array<string> $keys Keys to delete (without OPT_PREFIX - phpredis adds it)
      * @return int Number of keys deleted
+     *
+     * @throws RedisException
      */
     private function deleteKeys(array $keys): int
     {
-        if (empty($keys)) {
-            return 0;
-        }
-
-        // UNLINK is non-blocking (async) delete, available since Redis 4.0
+        $this->connection->clearLastError();
         $result = $this->connection->unlink(...$keys);
 
-        return is_int($result) ? $result : 0;
+        if (is_int($result)) {
+            return $result;
+        }
+
+        throw new RedisException(
+            $this->connection->getLastError()
+                ?? 'Redis UNLINK failed while deleting keys by pattern.',
+        );
     }
 }

@@ -127,12 +127,20 @@ class Kernel implements KernelContract
             $this->symfonyDispatcher = new EventDispatcher;
 
             $this->symfonyDispatcher->addListener(ConsoleEvents::COMMAND, function (ConsoleCommandEvent $event) {
+                if (! $this->events->hasListeners(CommandStarting::class)) {
+                    return;
+                }
+
                 $this->events->dispatch(
                     new CommandStarting($event->getCommand()?->getName() ?? '', $event->getInput(), $event->getOutput())
                 );
             });
 
             $this->symfonyDispatcher->addListener(ConsoleEvents::TERMINATE, function (ConsoleTerminateEvent $event) {
+                if (! $this->events->hasListeners(CommandFinished::class)) {
+                    return;
+                }
+
                 $this->events->dispatch(
                     new CommandFinished($event->getCommand()?->getName() ?? '', $event->getInput(), $event->getOutput(), $event->getExitCode())
                 );
@@ -194,7 +202,9 @@ class Kernel implements KernelContract
         $cancellation = null;
 
         try {
-            $this->events->dispatch(new Terminating);
+            if ($this->events->hasListeners(Terminating::class)) {
+                $this->events->dispatch(new Terminating);
+            }
         } catch (CanceledException $throwable) {
             $cancellation = $throwable;
         } catch (Throwable $throwable) {
@@ -518,18 +528,18 @@ class Kernel implements KernelContract
 
         $this->bootstrap();
 
-        $this->artisan = (new ConsoleApplication($this->app, $this->events, $this->app->version()))
+        $artisan = (new ConsoleApplication($this->app, $this->events, $this->app->version()))
             ->resolveCommands($this->commands)
             ->setContainerCommandLoader();
 
-        $this->app->instance(ApplicationContract::class, $this->artisan);
-
         if ($this->symfonyDispatcher instanceof EventDispatcher) {
-            $this->artisan->setDispatcher($this->symfonyDispatcher);
-            $this->artisan->setSignalsToDispatchEvent();
+            $artisan->setDispatcher($this->symfonyDispatcher);
+            $artisan->setSignalsToDispatchEvent();
         }
 
-        return $this->artisan;
+        $this->setArtisan($artisan);
+
+        return $artisan;
     }
 
     /**
@@ -538,6 +548,14 @@ class Kernel implements KernelContract
     public function setArtisan(?ApplicationContract $artisan): void
     {
         $this->artisan = $artisan;
+
+        if ($artisan === null) {
+            $this->app->forgetInstance(ApplicationContract::class);
+
+            return;
+        }
+
+        $this->app->instance(ApplicationContract::class, $artisan);
     }
 
     /**
