@@ -132,7 +132,7 @@ use Hypervel\Support\Facades\Schedule;
 Schedule::job(new Heartbeat, 'heartbeats', 'sqs')->everyFiveMinutes();
 ```
 
-When you pass a job class string, Hypervel resolves it through the container for every due firing. When you pass a job object, Hypervel clones it before each firing when PHP permits copying; if the class declares a non-public `__clone` method, the supplied instance is dispatched instead.
+When you pass a job class string, Hypervel resolves it through the container for every due firing. Explicit container lifetimes remain authoritative, so a job registered as a singleton is dispatched as that same instance on every firing. When you pass a job object, Hypervel clones it before each firing when PHP permits copying; if the class declares a non-public `__clone` method, the supplied instance is dispatched instead.
 
 <a name="scheduling-shell-commands"></a>
 ### Scheduling Shell Commands

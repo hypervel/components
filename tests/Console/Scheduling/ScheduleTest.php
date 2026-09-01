@@ -142,6 +142,24 @@ class ScheduleTest extends TestCase
         self::assertSame(2, $constructions);
     }
 
+    public function testExplicitlySharedClassStringJobIsDispatchedAsTheRegisteredInstance(): void
+    {
+        $job = new ScheduleTestMutableJob;
+        ScheduleTestMutableJob::$constructions = 0;
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('dispatchNow')
+            ->once()
+            ->andReturnUsing(static function (object $dispatched) use ($job): void {
+                self::assertSame($job, $dispatched);
+            });
+
+        $this->container->instance(ScheduleTestMutableJob::class, $job);
+        $this->container->instance(Dispatcher::class, $dispatcher);
+        $this->container->instance('files', new Filesystem);
+
+        (new Schedule)->job(ScheduleTestMutableJob::class)->run($this->container);
+    }
+
     public function testNonCloneableSynchronousJobIsDispatchedWithoutCloning(): void
     {
         $job = new ScheduleTestNonCloneableJob;
