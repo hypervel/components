@@ -24,6 +24,13 @@ use Symfony\Component\Console\Output\NullOutput;
 
 class SeedCommandTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        RecordsRootSeeder::$instances = [];
+    }
+
     protected function tearDown(): void
     {
         CoroutineContext::forget(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
@@ -31,12 +38,12 @@ class SeedCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function testHandle()
+    public function testHandle(): void
     {
         $seeder = m::mock(Seeder::class);
         $seeder->shouldReceive('setContainer')->once()->andReturnSelf();
         $seeder->shouldReceive('setCommand')->once()->andReturnSelf();
-        $seeder->shouldReceive('__invoke')->once()->andReturnUsing(function () {
+        $seeder->shouldReceive('__invoke')->once()->andReturnUsing(function (): void {
             Assert::assertSame(
                 'sqlite',
                 CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY),
@@ -65,7 +72,7 @@ class SeedCommandTest extends TestCase
         );
     }
 
-    public function testWithoutModelEvents()
+    public function testWithoutModelEvents(): void
     {
         $instance = new UserWithoutModelEventsSeeder;
 
@@ -97,7 +104,7 @@ class SeedCommandTest extends TestCase
         Assert::assertSame($dispatcher, Model::getEventDispatcher());
     }
 
-    public function testHandleRestoresPreviousConnectionWhenSeederThrows()
+    public function testHandleRestoresPreviousConnectionWhenSeederThrows(): void
     {
         // Simulate a pre-existing Context override (e.g., from an outer
         // migrator run) — seeding should restore that exact value if the
@@ -136,7 +143,7 @@ class SeedCommandTest extends TestCase
         );
     }
 
-    public function testProhibitable()
+    public function testProhibitable(): void
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
 
@@ -154,7 +161,7 @@ class SeedCommandTest extends TestCase
         Assert::assertSame(Command::FAILURE, $code);
     }
 
-    public function testHandleWithoutDatabaseOptionUsesResolverDefault()
+    public function testHandleWithoutDatabaseOptionUsesResolverDefault(): void
     {
         // Regression for the SeedCommand::getDatabase() change: when no
         // --database is given, SeedCommand should read the current default
@@ -164,7 +171,7 @@ class SeedCommandTest extends TestCase
         $seeder = m::mock(Seeder::class);
         $seeder->shouldReceive('setContainer')->once()->andReturnSelf();
         $seeder->shouldReceive('setCommand')->once()->andReturnSelf();
-        $seeder->shouldReceive('__invoke')->once()->andReturnUsing(function () {
+        $seeder->shouldReceive('__invoke')->once()->andReturnUsing(function (): void {
             Assert::assertSame(
                 'tenant_reporting',
                 CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY),
@@ -243,7 +250,7 @@ class SeedCommandTest extends TestCase
         );
     }
 
-    public function testHandleDoesNotMutateConfigDatabaseDefault()
+    public function testHandleDoesNotMutateConfigDatabaseDefault(): void
     {
         // Regression: db:seed must use Context, not config mutation. config
         // ('database.default') should be untouched after a seed run.
@@ -276,6 +283,33 @@ class SeedCommandTest extends TestCase
             'db:seed must not mutate config("database.default")',
         );
     }
+
+    public function testHandleResolvesAFreshUnboundRootSeederForEachRun(): void
+    {
+        $resolver = m::mock(ConnectionResolverInterface::class);
+
+        $app = new ApplicationDatabaseSeedStub([
+            ConnectionResolverInterface::class => $resolver,
+        ]);
+
+        $command = new SeedCommand($resolver);
+        $command->setHypervel($app);
+
+        $input = [
+            '--force' => true,
+            '--database' => 'sqlite',
+            '--class' => RecordsRootSeeder::class,
+        ];
+
+        $command->run(new ArrayInput($input), new NullOutput);
+        $command->run(new ArrayInput($input), new NullOutput);
+
+        $this->assertCount(2, RecordsRootSeeder::$instances);
+        $this->assertNotSame(
+            RecordsRootSeeder::$instances[0],
+            RecordsRootSeeder::$instances[1],
+        );
+    }
 }
 
 class ApplicationDatabaseSeedStub extends Application
@@ -305,7 +339,7 @@ class UserWithoutModelEventsSeeder extends Seeder
 {
     use WithoutModelEvents;
 
-    public function run()
+    public function run(): void
     {
         Assert::assertInstanceOf(NullDispatcher::class, Model::getEventDispatcher());
     }
@@ -316,5 +350,16 @@ class ThrowingSeeder extends Seeder
     public function run(): never
     {
         throw new RuntimeException('Seeder failed');
+    }
+}
+
+class RecordsRootSeeder extends Seeder
+{
+    /** @var list<self> */
+    public static array $instances = [];
+
+    public function run(): void
+    {
+        static::$instances[] = $this;
     }
 }

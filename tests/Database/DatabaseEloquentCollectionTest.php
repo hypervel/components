@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Database\DatabaseEloquentCollectionTest;
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
@@ -258,6 +259,25 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->assertEquals([2, 3], $c->find([2, 3, 4])->pluck('id')->all());
     }
 
+    public function testFindDoesNotMatchNullModelKeys(): void
+    {
+        $keyless = new CollectionModel;
+        $emptyString = (new CollectionModel)->setKeyType('string')->forceFill(['id' => '']);
+        $zero = (new CollectionModel)->forceFill(['id' => 0]);
+
+        $collection = new Collection([$keyless, $emptyString, $zero]);
+
+        $this->assertSame('default', $collection->find(null, fn () => 'default'));
+        $this->assertSame('default', $collection->find(new CollectionModel, fn () => 'default'));
+        $this->assertSame($emptyString, $collection->find('', fn () => $this->fail()));
+        $this->assertSame($zero, $collection->find(0, fn () => $this->fail()));
+        $this->assertSame([], $collection->find([null])->all());
+        $this->assertSame([$emptyString], $collection->find([''])->values()->all());
+        $this->assertSame([$zero], $collection->find([0])->values()->all());
+
+        $this->assertSame([], (new Collection([$keyless]))->find([''])->all());
+    }
+
     public function testFindOrFailFindsModelById()
     {
         $mockModel = m::mock(Model::class);
@@ -357,6 +377,26 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->assertEquals(new Collection([$one, $two, $three]), $c1->merge($c2));
     }
 
+    public function testCollectionDictionarySkipsNullModelKeys(): void
+    {
+        $emptyString = (new CollectionModel)->setKeyType('string')->forceFill(['id' => '']);
+
+        $this->assertSame(
+            ['' => $emptyString],
+            (new Collection([$emptyString, new CollectionModel]))->getDictionary()
+        );
+    }
+
+    public function testCollectionMergeSkipsNullModelKeys(): void
+    {
+        $emptyString = (new CollectionModel)->setKeyType('string')->forceFill(['id' => '']);
+
+        $this->assertSame(
+            [$emptyString],
+            (new Collection([$emptyString]))->merge([new CollectionModel])->all()
+        );
+    }
+
     public function testMap()
     {
         $one = m::mock(Model::class);
@@ -430,6 +470,17 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->assertEquals(new Collection([$one]), $c1->diff($c2));
     }
 
+    public function testCollectionDiffRetainsNullKeyedModels(): void
+    {
+        $keyless = new CollectionModel;
+        $emptyString = (new CollectionModel)->setKeyType('string')->forceFill(['id' => '']);
+
+        $this->assertSame(
+            [$keyless],
+            (new Collection([$keyless]))->diff(new Collection([$emptyString]))->all()
+        );
+    }
+
     public function testCollectionReturnsDuplicateBasedOnlyOnKeys()
     {
         $one = new CollectionModel;
@@ -452,46 +503,15 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->assertSame([1 => $two, 2 => $three], $duplicates);
     }
 
-    public function testCollectionRetainsDictionaryDuplicateSemanticsForKeylessModels(): void
+    public function testCollectionReturnsDuplicatesUsingCallbackValues(): void
     {
-        $first = new CollectionModel;
-        $second = new CollectionModel;
-        $third = new CollectionModel;
-
-        $models = Collection::make([$first, $second, $third]);
-
-        $this->assertSame([1 => $second, 2 => $third], $models->duplicates()->all());
-        $this->assertSame([1 => $second, 2 => $third], $models->duplicatesStrict()->all());
-    }
-
-    public function testKeylessModelsDoNotPoisonLaterKeyedDuplicateDetection(): void
-    {
-        $keyless = new CollectionModel;
-        $keyed = new CollectionModel;
-        $keyed->id = 1;
-
-        $models = Collection::make([$keyless, $keyed]);
-
-        $this->assertSame([], $models->duplicates()->all());
-        $this->assertSame([], $models->duplicatesStrict()->all());
-    }
-
-    public function testCollectionDuplicateDetectionPreservesKeylessTableAndConnectionDistinctions(): void
-    {
-        $firstTable = (new CollectionModel)->setTable('first_models');
-        $secondTable = (new CollectionModel)->setTable('second_models');
+        $first = (new CollectionModel)->forceFill(['id' => 1]);
+        $second = (new CollectionModel)->forceFill(['id' => 1]);
+        $third = (new CollectionModel)->forceFill(['id' => 2]);
 
         $this->assertSame(
-            [0 => $firstTable],
-            Collection::make([$firstTable, $secondTable])->duplicates()->all()
-        );
-
-        $firstConnection = (new CollectionModel)->setConnection('first');
-        $secondConnection = (new CollectionModel)->setConnection('second');
-
-        $this->assertSame(
-            [0 => $firstConnection],
-            Collection::make([$firstConnection, $secondConnection])->duplicates()->all()
+            [1 => 1],
+            Collection::make([$first, $second, $third])->duplicates('id')->all()
         );
     }
 
@@ -526,6 +546,16 @@ class DatabaseEloquentCollectionTest extends TestCase
         $c2 = new Collection([$two, $three]);
 
         $this->assertEquals(new Collection([$two]), $c1->intersect($c2));
+    }
+
+    public function testCollectionIntersectExcludesNullKeyedModels(): void
+    {
+        $emptyString = (new CollectionModel)->setKeyType('string')->forceFill(['id' => '']);
+
+        $this->assertSame(
+            [],
+            (new Collection([new CollectionModel]))->intersect(new Collection([$emptyString]))->all()
+        );
     }
 
     public function testCollectionReturnsUniqueItems()
@@ -599,6 +629,15 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->assertEquals(new Collection([$one]), $c->except([2, 3]));
     }
 
+    public function testOnlyAndExceptIgnoreNullKeys(): void
+    {
+        $emptyString = (new CollectionModel)->setKeyType('string')->forceFill(['id' => '']);
+        $collection = new Collection([$emptyString]);
+
+        $this->assertSame([], $collection->only([null])->all());
+        $this->assertSame([$emptyString], $collection->except([null])->all());
+    }
+
     public function testNewInstanceIsUsedByEloquentCollectionMethods(): void
     {
         $one = new CollectionModel;
@@ -640,12 +679,17 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->assertSame('model-tag', $except->tag);
         $this->assertSame([$one], $except->values()->all());
 
+        $found = $collection->find([1, 2]);
+        $this->assertInstanceOf(TestEloquentCollectionWithExtraState::class, $found);
+        $this->assertSame('model-tag', $found->tag);
+        $this->assertSame([$one, $two], $found->values()->all());
+
         $empty = new TestEloquentCollectionWithExtraState([], 'empty-tag');
 
-        $found = $empty->find([1]);
-        $this->assertInstanceOf(TestEloquentCollectionWithExtraState::class, $found);
-        $this->assertSame('empty-tag', $found->tag);
-        $this->assertEmpty($found->all());
+        $emptyFound = $empty->find([1]);
+        $this->assertInstanceOf(TestEloquentCollectionWithExtraState::class, $emptyFound);
+        $this->assertSame('empty-tag', $emptyFound->tag);
+        $this->assertEmpty($emptyFound->all());
 
         $fresh = $empty->fresh();
         $this->assertInstanceOf(TestEloquentCollectionWithExtraState::class, $fresh);
@@ -872,6 +916,25 @@ class DatabaseEloquentCollectionTest extends TestCase
 
         $c = new Collection;
         $c->toQuery();
+    }
+
+    public function testConvertingCollectionWithoutModelKeysToQueryThrowsException(): void
+    {
+        $model = m::mock(CollectionModel::class)->makePartial();
+        $model->shouldReceive('getKey')->once()->andReturn(null);
+        $model->shouldReceive('getKeyName')->once()->andReturn('id');
+        $model->shouldNotReceive('newModelQuery');
+
+        $this->expectException(MissingAttributeException::class);
+
+        (new Collection([$model]))->toQuery();
+    }
+
+    public function testConvertingMixedCollectionToQueryChecksTypesBeforeModelKeys(): void
+    {
+        $this->expectException(LogicException::class);
+
+        (new Collection([new CollectionModel, new User]))->toQuery();
     }
 
     public function testLoadExistsShouldCastBool()

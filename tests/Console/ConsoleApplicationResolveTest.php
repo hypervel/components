@@ -474,6 +474,21 @@ class ConsoleApplicationResolveTest extends TestCase
         $this->assertSame("foo\n", $output->fetch());
     }
 
+    public function testSequentialCallsUseFreshCommandInstances(): void
+    {
+        $recorder = new StubCommandExecutionRecorder;
+        $this->app->instance(StubCommandExecutionRecorder::class, $recorder);
+
+        $artisan = $this->createApp($this->app);
+        $artisan->resolve(StubExecutionIdentityCommand::class);
+        $artisan->setContainerCommandLoader();
+
+        $this->assertSame(0, $artisan->call('test:execution-identity'));
+        $this->assertSame(0, $artisan->call('test:execution-identity'));
+        $this->assertCount(2, $recorder->commands);
+        $this->assertNotSame($recorder->commands[0], $recorder->commands[1]);
+    }
+
     public function testConcurrentCallsUseIsolatedCommandInstances()
     {
         $artisan = $this->createApp($this->app);
@@ -708,6 +723,30 @@ class StubStatefulCommand extends Command
 
         return self::SUCCESS;
     }
+}
+
+#[AsCommand(name: 'test:execution-identity')]
+class StubExecutionIdentityCommand extends Command
+{
+    public function __construct(private readonly StubCommandExecutionRecorder $recorder)
+    {
+        parent::__construct();
+    }
+
+    public function handle(): int
+    {
+        $this->recorder->commands[] = $this;
+
+        return self::SUCCESS;
+    }
+}
+
+class StubCommandExecutionRecorder
+{
+    /**
+     * @var list<StubExecutionIdentityCommand>
+     */
+    public array $commands = [];
 }
 
 class StubNestedCallerCommand extends Command

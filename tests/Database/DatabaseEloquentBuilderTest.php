@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Database\DatabaseEloquentBuilderTest;
 use BadMethodCallException;
 use Closure;
 use Hypervel\Database\BinaryParameter;
+use Hypervel\Database\ClassMorphViolationException;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
@@ -2270,6 +2271,17 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select * from "model_parent_stubs" where "model_parent_stubs"."morph_type" is null', $builder->toSql());
     }
 
+    public function testWhereNotMorphedToNull(): void
+    {
+        $model = new ModelParentStub;
+        $this->mockConnectionForModel($model, '');
+
+        $builder = $model->whereNotMorphedTo('morph', null);
+
+        $this->assertSame('select * from "model_parent_stubs" where "model_parent_stubs"."morph_type" is not null', $builder->toSql());
+        $this->assertSame([], $builder->getBindings());
+    }
+
     public function testWhereNotMorphedTo()
     {
         $model = new ModelParentStub;
@@ -2555,21 +2567,88 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame([ModelCloseRelatedStub::class], $builder->getBindings());
     }
 
-    public function testWhereMorphedToAlias()
+    public function testWhereMorphedToAlias(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, '');
 
-        Relation::morphMap([
+        Relation::enforceMorphMap([
             'alias' => ModelCloseRelatedStub::class,
         ]);
 
         $builder = $model->whereMorphedTo('morph', ModelCloseRelatedStub::class);
 
         $this->assertSame('select * from "model_parent_stubs" where "model_parent_stubs"."morph_type" = ?', $builder->toSql());
-        $this->assertEquals(['alias'], $builder->getBindings());
+        $this->assertSame(['alias'], $builder->getBindings());
+    }
 
-        Relation::morphMap([], false);
+    public function testWhereMorphedToAcceptsStoredAliasesWhenMorphMapIsRequired(): void
+    {
+        $model = new ModelParentStub;
+        $this->mockConnectionForModel($model, '');
+
+        Relation::enforceMorphMap([
+            ModelCloseRelatedStub::class => ModelFarRelatedStub::class,
+        ]);
+
+        $classAliasBuilder = $model->whereMorphedTo('morph', ModelCloseRelatedStub::class);
+        $plainAliasBuilder = $model->whereMorphedTo('morph', 'legacy-alias');
+
+        $this->assertSame([ModelCloseRelatedStub::class], $classAliasBuilder->getBindings());
+        $this->assertSame(['legacy-alias'], $plainAliasBuilder->getBindings());
+    }
+
+    public function testWhereMorphedToClassRequiresMorphMap(): void
+    {
+        $model = new ModelParentStub;
+        $this->mockConnectionForModel($model, '');
+
+        Relation::requireMorphMap();
+
+        $this->expectException(ClassMorphViolationException::class);
+
+        $model->whereMorphedTo('morph', ModelCloseRelatedStub::class);
+    }
+
+    public function testWhereMorphedToAbstractClassRequiresMorphMap(): void
+    {
+        $model = new ModelParentStub;
+        $this->mockConnectionForModel($model, '');
+
+        Relation::requireMorphMap();
+
+        $this->expectException(ClassMorphViolationException::class);
+
+        $model->whereMorphedTo('morph', AbstractModelRelatedStub::class);
+    }
+
+    public function testWhereNotMorphedToClassRequiresMorphMap(): void
+    {
+        $model = new ModelParentStub;
+        $this->mockConnectionForModel($model, '');
+
+        Relation::requireMorphMap();
+
+        $this->expectException(ClassMorphViolationException::class);
+
+        $model->whereNotMorphedTo('morph', ModelCloseRelatedStub::class);
+    }
+
+    public function testWhereMorphedToClassUsesIntegerAliasForBothPolarities(): void
+    {
+        $model = new ModelParentStub;
+        $this->mockConnectionForModel($model, '');
+
+        Relation::morphMap([
+            0 => ModelCloseRelatedStub::class,
+            2 => ModelFarRelatedStub::class,
+        ]);
+
+        $builder = $model->whereMorphedTo('morph', ModelCloseRelatedStub::class);
+        $negativeBuilder = $model->whereNotMorphedTo('morph', ModelCloseRelatedStub::class);
+
+        $this->assertSame(['0'], $builder->getBindings());
+        $this->assertSame(['0'], $negativeBuilder->getBindings());
     }
 
     public function testWhereKeyMethodWithInt()
@@ -3545,6 +3624,10 @@ class ModelCloseRelatedStub extends Model
     {
         return $this->hasMany(ModelOtherFarRelatedStub::class);
     }
+}
+
+abstract class AbstractModelRelatedStub extends Model
+{
 }
 
 class ModelFarRelatedStub extends Model

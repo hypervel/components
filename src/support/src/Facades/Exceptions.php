@@ -40,7 +40,7 @@ use Throwable;
  * @method static void assertReported(string|\Closure $exception)
  * @method static void assertReportedCount(int $count)
  * @method static \Hypervel\Contracts\Debug\ExceptionHandler handler()
- * @method static array reported()
+ * @method static array<int, Throwable> reported()
  * @method static \Hypervel\Support\Testing\Fakes\ExceptionHandlerFake setHandler(\Hypervel\Contracts\Debug\ExceptionHandler $handler)
  * @method static \Hypervel\Support\Testing\Fakes\ExceptionHandlerFake throwFirstReported()
  * @method static \Hypervel\Support\Testing\Fakes\ExceptionHandlerFake throwOnReport()

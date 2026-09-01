@@ -6,8 +6,10 @@ namespace Hypervel\Database\Eloquent\Concerns;
 
 use BadMethodCallException;
 use Closure;
+use Hypervel\Database\ClassMorphViolationException;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\RelationNotFoundException;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
@@ -555,6 +557,9 @@ trait QueriesRelationships
      *
      * @param  \Hypervel\Database\Eloquent\Relations\MorphTo<*, *>|string  $relation
      * @param null|\Hypervel\Database\Eloquent\Model|iterable<int, \Hypervel\Database\Eloquent\Model>|string $model
+     *
+     * @throws ClassMorphViolationException
+     * @throws InvalidArgumentException
      */
     public function whereMorphedTo(MorphTo|string $relation, mixed $model, string $boolean = 'and'): static
     {
@@ -568,11 +573,7 @@ trait QueriesRelationships
         }
 
         if (is_string($model)) {
-            $morphMap = Relation::morphMap();
-
-            if (! empty($morphMap) && in_array($model, $morphMap)) {
-                $model = array_search($model, $morphMap, true);
-            }
+            $model = $this->getMorphTypeForQuery($model);
 
             // @phpstan-ignore method.notFound (getMorphType exists on MorphTo, not base Relation)
             return $this->where($relation->qualifyColumn($relation->getMorphType()), $model, null, $boolean);
@@ -600,7 +601,10 @@ trait QueriesRelationships
      * Add a not morph-to relationship condition to the query.
      *
      * @param  \Hypervel\Database\Eloquent\Relations\MorphTo<*, *>|string  $relation
-     * @param \Hypervel\Database\Eloquent\Model|iterable<int, \Hypervel\Database\Eloquent\Model>|string $model
+     * @param null|\Hypervel\Database\Eloquent\Model|iterable<int, \Hypervel\Database\Eloquent\Model>|string $model
+     *
+     * @throws ClassMorphViolationException
+     * @throws InvalidArgumentException
      */
     public function whereNotMorphedTo(MorphTo|string $relation, mixed $model, string $boolean = 'and'): static
     {
@@ -608,12 +612,13 @@ trait QueriesRelationships
             $relation = $this->getRelationWithoutConstraints($relation);
         }
 
-        if (is_string($model)) {
-            $morphMap = Relation::morphMap();
+        if (is_null($model)) {
+            // @phpstan-ignore method.notFound, return.type (getMorphType exists on MorphTo; mixin returns $this at runtime)
+            return $this->whereNotNull($relation->qualifyColumn($relation->getMorphType()), $boolean);
+        }
 
-            if (! empty($morphMap) && in_array($model, $morphMap)) {
-                $model = array_search($model, $morphMap, true);
-            }
+        if (is_string($model)) {
+            $model = $this->getMorphTypeForQuery($model);
 
             return $this->whereNot(fn ($query) => $query->whereNullSafeEquals(
                 // @phpstan-ignore method.notFound (getMorphType exists on MorphTo, not base Relation)
@@ -655,11 +660,33 @@ trait QueriesRelationships
      * Add a not morph-to relationship condition to the query with an "or where" clause.
      *
      * @param  \Hypervel\Database\Eloquent\Relations\MorphTo<*, *>|string  $relation
-     * @param \Hypervel\Database\Eloquent\Model|iterable<int, \Hypervel\Database\Eloquent\Model>|string $model
+     * @param null|\Hypervel\Database\Eloquent\Model|iterable<int, \Hypervel\Database\Eloquent\Model>|string $model
      */
     public function orWhereNotMorphedTo(MorphTo|string $relation, mixed $model): static
     {
         return $this->whereNotMorphedTo($relation, $model, 'or');
+    }
+
+    /**
+     * Resolve the morph type for a relationship query.
+     *
+     * @throws ClassMorphViolationException
+     */
+    protected function getMorphTypeForQuery(string $model): string
+    {
+        if (Relation::requiresMorphMap()) {
+            $morphMap = Relation::morphMap();
+
+            if (
+                ! in_array($model, $morphMap, true)
+                && ! array_key_exists($model, $morphMap)
+                && is_a($model, Model::class, true)
+            ) {
+                throw new ClassMorphViolationException($model);
+            }
+        }
+
+        return (string) Relation::getMorphAlias($model);
     }
 
     /**

@@ -58,6 +58,7 @@ Route::get('/invalid-js-name', function () {
 })->name('invalid#js@name');
 
 Route::post('/optional/{parameter?}', [OptionalController::class, 'optional'])->name('optional');
+Route::get('/{locale?}', [OptionalController::class, 'root'])->name('optional-root');
 Route::post('/many-optional/{one?}/{two?}/{three?}', [OptionalController::class, 'manyOptional']);
 Route::post('/required-with-optional/{required}/{one?}/{two?}', [OptionalController::class, 'requiredWithOptional']);
 Route::get('/literal/[ draft ]/(bar )/ .replace', fn () => 'literal')->name('literal.syntax');
@@ -73,7 +74,7 @@ Route::get('/audit-entries/{audit_entry}', [AuditEntryController::class, 'show']
 Route::middleware(UrlDefaultsMiddleware::class)->post('/with-defaults/{locale}', [UrlDefaultsController::class, 'onlyDefaults']);
 Route::middleware(UrlDefaultsMiddleware::class)->post('/with-defaults/{locale}/also/{timezone}', [UrlDefaultsController::class, 'mixedDefaults']);
 Route::middleware(UrlDefaultsMiddleware::class)->get(
-    '/parsed-defaults/{locale}/{signed}/{ratio}/{enabled}/{disabled}/{dynamic}/{secondary}/{computed}/{literalNull}/{unsupported}/{neighbor}',
+    '/parsed-defaults/{locale}/{signed}/{ratio}/{enabled}/{disabled}/{octalLower}/{octalUpper}/{separated}/{positiveOctal}/{negativeOctal}/{legacyOctal}/{hexadecimal}/{binary}/{decimal}/{dynamic}/{secondary}/{computed}/{literalNull}/{unsupported}/{neighbor}',
     [UrlDefaultsController::class, 'parsedDefaults'],
 );
 

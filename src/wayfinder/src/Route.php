@@ -252,7 +252,7 @@ class Route
      */
     public function name(): ?string
     {
-        $name = $this->base->getName();
+        $name = $this->originalName();
 
         if (! $name || Str::endsWith($name, '.') || Str::startsWith($name, 'generated::')) {
             return null;
@@ -263,6 +263,14 @@ class Route
         }
 
         return $name;
+    }
+
+    /**
+     * Return the route's unmodified name.
+     */
+    public function originalName(): ?string
+    {
+        return $this->base->getName();
     }
 
     /**

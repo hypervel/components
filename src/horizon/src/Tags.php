@@ -99,8 +99,6 @@ class Tags
             $models[] = collect(
                 (new ReflectionClass($target))->getProperties()
             )->map(function ($property) use ($target) {
-                $property->setAccessible(true);
-
                 $value = static::getValue($property, $target);
 
                 if ($value instanceof Model) {

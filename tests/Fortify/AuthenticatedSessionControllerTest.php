@@ -115,7 +115,6 @@ class AuthenticatedSessionControllerTest extends TestCase
 
         $reflection = new ReflectionClass($loginRateLimiter);
         $method = $reflection->getMethod('throttleKey');
-        $method->setAccessible(true);
 
         $request = $this->mock(
             Request::class,

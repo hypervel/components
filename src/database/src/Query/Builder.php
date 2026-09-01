@@ -1236,7 +1236,7 @@ class Builder implements BuilderContract
             $values = $values->toArray();
         }
 
-        $values = Arr::flatten($values);
+        $values = Arr::whereNotNull(Arr::flatten($values));
 
         foreach ($values as &$value) {
             $value = (int) ($value instanceof BackedEnum ? $value->value : $value);

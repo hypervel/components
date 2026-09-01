@@ -16,8 +16,12 @@ trait InteractsWithDictionary
      *
      * @throws InvalidArgumentException
      */
-    protected function getDictionaryKey(mixed $attribute): mixed
+    protected function getDictionaryKey(mixed $attribute): int|string|null
     {
+        if (is_null($attribute) || is_string($attribute) || is_int($attribute)) {
+            return $attribute;
+        }
+
         if (is_object($attribute)) {
             if (method_exists($attribute, '__toString')) {
                 return $attribute->__toString();
@@ -30,6 +34,6 @@ trait InteractsWithDictionary
             throw new InvalidArgumentException('Model attribute value is an object but does not have a __toString method.');
         }
 
-        return $attribute;
+        return (string) $attribute;
     }
 }

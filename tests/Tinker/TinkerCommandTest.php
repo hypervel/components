@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Tinker;
 
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Support\Env;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tinker\Console\TinkerCommand;
 use Hypervel\Tinker\TinkerServiceProvider;
 use Psy\Configuration;
@@ -16,6 +18,46 @@ use Symfony\Component\VarDumper\Caster\Caster;
 
 class TinkerCommandTest extends TestCase
 {
+    private ?string $originalComposerVendorDirectory = null;
+
+    private Filesystem $filesystem;
+
+    private string $temporaryDirectory;
+
+    protected function setUp(): void
+    {
+        $originalComposerVendorDirectory = Env::get('COMPOSER_VENDOR_DIR');
+        $this->originalComposerVendorDirectory = is_string($originalComposerVendorDirectory)
+            ? $originalComposerVendorDirectory
+            : null;
+
+        Env::deleteMany(['COMPOSER_VENDOR_DIR']);
+        Env::flushRepository();
+
+        parent::setUp();
+
+        $this->filesystem = new Filesystem;
+        $this->temporaryDirectory = ParallelTesting::tempDir('TinkerCommandTest');
+        $this->filesystem->deleteDirectory($this->temporaryDirectory);
+        $this->filesystem->ensureDirectoryExists($this->temporaryDirectory);
+    }
+
+    protected function tearDown(): void
+    {
+        try {
+            $this->filesystem->deleteDirectory($this->temporaryDirectory);
+
+            Env::deleteMany(['COMPOSER_VENDOR_DIR']);
+            Env::flushRepository();
+
+            if ($this->originalComposerVendorDirectory !== null) {
+                Env::getRepository()->set('COMPOSER_VENDOR_DIR', $this->originalComposerVendorDirectory);
+            }
+        } finally {
+            parent::tearDown();
+        }
+    }
+
     protected function getPackageProviders(Application $app): array
     {
         return [TinkerServiceProvider::class];
@@ -29,8 +71,12 @@ class TinkerCommandTest extends TestCase
 
     public function testExecuteSuccess(): void
     {
+        $this->assertFalse($this->app->resolved(TinkerCommand::class));
+
         $this->artisan('tinker', ['--execute' => 'echo "hello";'])
             ->assertExitCode(0);
+
+        $this->assertTrue($this->app->resolved(TinkerCommand::class));
     }
 
     public function testOptionalCommandAndAliasListsMayBeOmitted(): void
@@ -53,7 +99,7 @@ class TinkerCommandTest extends TestCase
 
     public function testExecuteRunsInsideCoroutine(): void
     {
-        $file = tempnam(sys_get_temp_dir(), 'tinker_coroutine_');
+        $file = $this->temporaryDirectory . '/coroutine.txt';
 
         $code = sprintf(
             "file_put_contents('%s', \\Hypervel\\Coroutine\\Coroutine::inCoroutine() ? 'true' : 'false');",
@@ -64,8 +110,6 @@ class TinkerCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->assertSame('true', file_get_contents($file));
-
-        unlink($file);
     }
 
     public function testConfiguredCasterIsAppliedByTheTinkerPresenter(): void
@@ -75,7 +119,7 @@ class TinkerCommandTest extends TestCase
         ]);
 
         /** @var TinkerCommand $command */
-        $command = $this->app->make('command.tinker');
+        $command = $this->app->make(TinkerCommand::class);
         $command->setHypervel($this->app);
 
         $configuration = new Configuration;

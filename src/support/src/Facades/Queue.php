@@ -90,7 +90,7 @@ use Hypervel\Support\Testing\Fakes\QueueFake;
  * @method static \Hypervel\Support\Collection pushed(string $job, callable|null $callback = null)
  * @method static array pushedJobs()
  * @method static \Hypervel\Support\Collection<int, mixed> pushedRaw(null|\Closure $callback = null)
- * @method static array rawPushes()
+ * @method static array<int, mixed> rawPushes()
  * @method static void releaseUniqueJobLocks()
  * @method static void reserve(object|string $job, \UnitEnum|string|null $queue = null)
  * @method static \Hypervel\Support\Collection reservedJobs(\UnitEnum|string|null $queue = null)

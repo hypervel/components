@@ -6,6 +6,10 @@ namespace Hypervel\Tests\Wayfinder\Fixtures\Controllers;
 
 class OptionalController
 {
+    public function root(): void
+    {
+    }
+
     public function optional(): void
     {
     }

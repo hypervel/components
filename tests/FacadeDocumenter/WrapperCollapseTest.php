@@ -164,7 +164,7 @@ class WrapperCollapseTest extends FacadeDocumenterTestCase
         $this->assertStringNotContainsString('int<', $contents);
     }
 
-    public function testListCollapsesToArray(): void
+    public function testListPreservesItsValueTypeAsArray(): void
     {
         $this->writeAppFile(
             'WrapperCollapse/ListType/Proxy.php',
@@ -212,7 +212,7 @@ class WrapperCollapseTest extends FacadeDocumenterTestCase
 
         $contents = $this->appFileContents('App\WrapperCollapse\ListType\Facade');
 
-        $this->assertStringContainsString('@method static array tags()', $contents);
+        $this->assertStringContainsString('@method static array<int, string> tags()', $contents);
         $this->assertStringNotContainsString('list<', $contents);
     }
 }

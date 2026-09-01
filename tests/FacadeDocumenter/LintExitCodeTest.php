@@ -210,4 +210,53 @@ class LintExitCodeTest extends FacadeDocumenterTestCase
         $this->assertStringContainsString('Did not find expected docblock for [App\Lint\Multiple\SecondFacade].', $output);
         $this->assertStringContainsString('@method static int beta()', $output);
     }
+
+    public function testUnknownOptionFailsBeforeWritingFacadeFiles(): void
+    {
+        $this->writeAppFile(
+            'Lint/UnknownOption/Proxy.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\Lint\UnknownOption;
+
+                class Proxy
+                {
+                    public function ping(): string
+                    {
+                        return 'pong';
+                    }
+                }
+                PHP
+        );
+
+        $this->writeAppFile(
+            'Lint/UnknownOption/Facade.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\Lint\UnknownOption;
+
+                /** @see \App\Lint\UnknownOption\Proxy */
+                class Facade
+                {
+                }
+                PHP
+        );
+
+        $before = $this->appFileContents('App\Lint\UnknownOption\Facade');
+        $process = $this->runDocumenter([
+            '--unknown',
+            'App\Lint\UnknownOption\Facade',
+        ]);
+
+        $this->assertSame(1, $process->getExitCode());
+        $this->assertSame('', $process->getOutput());
+        $this->assertStringContainsString('Unknown option [--unknown].', $process->getErrorOutput());
+        $this->assertSame($before, $this->appFileContents('App\Lint\UnknownOption\Facade'));
+    }
 }

@@ -503,6 +503,8 @@ $flight = Flight::where('number', 'FR 900')->first();
 $freshFlight = $flight->fresh();
 ```
 
+A persisted model must have its primary key loaded before calling either method. Otherwise, Hypervel will throw a `Hypervel\Database\Eloquent\MissingAttributeException` exception.
+
 The `refresh` method will re-hydrate the existing model using fresh data from the database. In addition, all of its loaded relationships will be refreshed as well:
 
 ```php

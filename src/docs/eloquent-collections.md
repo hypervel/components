@@ -173,6 +173,8 @@ $users = $users->fresh();
 $users = $users->fresh('comments');
 ```
 
+Every persisted model in the collection must have its primary key loaded, as described in the [refreshing models](/docs/{{version}}/eloquent#refreshing-models) documentation. Otherwise, Hypervel will throw a `Hypervel\Database\Eloquent\MissingAttributeException` exception.
+
 <a name="method-intersect"></a>
 #### `intersect($items)` {.collection-method}
 
@@ -322,6 +324,8 @@ $users->toQuery()->update([
 ```
 
 The collection may not be empty and must contain models of the same type.
+
+Every model in the collection must have its primary key loaded because the returned query is constrained by those keys. Otherwise, Hypervel will throw a `Hypervel\Database\Eloquent\MissingAttributeException` exception.
 
 <a name="method-unique"></a>
 #### `unique($key = null, $strict = false)` {.collection-method}

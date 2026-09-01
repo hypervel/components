@@ -63,7 +63,7 @@
     },
     "require-dev": {
         "fakerphp/faker": "^1.24",
-        "phpstan/phpstan": "2.2.9"
+        "phpstan/phpstan": "^2.2.11"
     },
     "suggest": {
         "fakerphp/faker": "Required to use Eloquent model factories (^1.24)."

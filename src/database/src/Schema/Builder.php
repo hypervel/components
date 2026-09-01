@@ -445,6 +445,8 @@ class Builder
 
     /**
      * Get the foreign keys for a given table.
+     *
+     * @return list<array{name: null|string, columns: list<string>, foreign_schema: null|string, foreign_table: string, foreign_columns: list<string>, on_update: null|string, on_delete: null|string}>
      */
     public function getForeignKeys(string $table): array
     {

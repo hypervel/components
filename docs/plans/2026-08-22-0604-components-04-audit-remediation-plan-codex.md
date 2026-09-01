@@ -10,7 +10,7 @@ Resolve every genuine issue retained in this master plan against the current 0.4
 
 - Every genuine finding retained in this master plan remains open unless noted below.
 - Finding 123 was valid but is already fixed on the current branch.
-- Findings 4, 9, 14, 93, 119, 129, and 153 require no change: some are false positives, while the rest propose churn or machinery for deliberate behavior that is already correct.
+- Findings 4, 9, 14, 93, 129, and 153 require no change: some are false positives, while the rest propose churn or machinery for deliberate behavior that is already correct.
 - Finding 88 is an exact duplicate of finding 32 and must not become a second patch.
 - Findings 6 and 26 are only partially correct as written. Their valid portions remain in this plan; their invalid portions are explicitly rejected below.
 - Some audit statements about Laravel were stale or incorrect. A defect shared with current Laravel remains a defect, but the plan does not cite false upstream parity as evidence.
@@ -27,7 +27,6 @@ Resolve every genuine issue retained in this master plan against the current 0.4
 | 32 | Confirmed | This is the canonical keyed-resource-collection issue. |
 | 88 | Exact duplicate | Same file, cause, behavior, and fix as 32. Cover it with the 32 tests and close both audit IDs together. |
 | 93 | Rejected | Moving methods to a preferred class location is style-only churn. Narrowing the concrete path() return to string would needlessly diverge from Laravel's nullable signature and could make existing subclasses incompatible. |
-| 119 | False positive | The defaults on tinker.alias, tinker.dont_alias, and tinker.commands intentionally allow those lists to be removed; TinkerCommandTest explicitly pins that behavior. Typed getters without defaults would break a supported configuration. |
 | 123 | Valid, already resolved | RedisConnection::callGet is mixed on the current branch. Retain or extend the serializer regression test, but do not schedule another production change. |
 | 129 | Rejected | Framework reset methods are no-throw lifecycle boundaries by design, and the subscriber already preserves the first error across its explicit outer cleanup stages. Wrapping roughly two hundred static resets in per-call fault-isolation machinery optimizes for unsupported throwing reset implementations and weakens the simple at-most-once cleanup contract. |
 | 153 | Rejected | Immediate hard termination is deliberate, documented, and pinned by testKillDoesNotWaitForUnrelatedActiveJobs. The timed-out coroutine is not cancellable, so the worker is poisoned; draining siblings delays the hard timeout while the stuck job can continue side effects. |
@@ -100,32 +99,12 @@ Each row is an implementation requirement. Test names are descriptive; use the r
 | 92 | Remove pagination's hard runtime requirements on database and http. Keep them in require-dev and add Composer suggests only if the optional model/resource transformations need explanation. | Standalone pagination Composer install/autoload; metadata has no cycle; model/pivot/resource instanceof paths still work when optional packages are installed. |
 | 93 | No change; see disposition above. | Preserve nullable-path and state-flush behavior. |
 
-### Wayfinder and Tinker
-
-| ID | Proposed implementation | Required tests |
-|---:|---|---|
-| 104 | Resolve the root seeder with Container::build, matching Seeder::resolve and its fresh-instance convention. | Two programmatic db:seed runs receive distinct root objects; nested seeder remains fresh; container dependencies inject correctly. |
-| 113 | Render Wayfinder @see with docblock_method when explicitly supplied, otherwise original_method, never the allocated TypeScript identifier. | Reserved PHP method renamed in TS; collision suffix; invokable; named and controller files; IDE target string. |
-| 114 | Strip the :parameters suffix from gathered middleware before class reflection for URL::defaults extraction. | Parameterized class middleware, alias-resolved middleware, unparameterized middleware, and absent class. |
-| 115 | Detect duplicate route names before generation and fail with a generator exception listing both conflicting routes. Do not emit ambiguous overloads because Laravel route caching also treats duplicate names as invalid. | Two different URIs with one name; identical duplicate; error identifies methods/URIs; ordinary grouped namespaces compile. |
-| 116 | After optional parameter replacement and trailing-slash normalization, floor an empty generated URL to slash before query-string concatenation. Avoid lookbehind-dependent JavaScript. | Root optional parameter omitted and present; root with query; nested optional route; generated runtime and typecheck. |
-| 117 | Parse PHP integer literals by explicit prefix, including 0o/0O with octdec, and reuse the helper for signed literals. | 0o/0O, legacy octal, hex, binary, decimal, separators, positive/negative signs. |
-| 118 | Remove the `command.tinker` binding and register TinkerCommand::class directly so AsCommand populates the lazy command map. Laravel's string key exists to support its deferred provider, which Hypervel intentionally omits; retaining an alias would carry that mechanism's residue into the canonical container surface. Record the deliberate omission at the port's natural source/test location and in the package's concise `Differences From Laravel` note. | Artisan list does not instantiate the command; `tinker` resolves lazily and runs; class resolution remains a worker singleton through Hypervel auto-singletoning; `command.tinker` is not bound; documentation identifies class resolution as the modern surface. |
-| 119 | No change; see disposition above. | Preserve optional-list omission test. |
-| 120 | Remove `App\Nova` from Tinker's shipped `dont_alias` default. Nova is a Laravel-only package with no Hypervel equivalent, so this is framework-specific integration residue rather than a canonical API. Preserve the configurable exclusion list for applications that need their own entries. | Shipped default is empty; published config is empty; an application-supplied `dont_alias` list still prevents aliases normally. |
-| 121 | Replace the bound-closure appends read with Model::getAppends and drop the unused catch variable. | Empty and multiple appends; hidden/visible prefixes; accessor evaluation; exception probing unchanged. |
-| 122 | Save and restore/delete COMPOSER_VENDOR_DIR in teardown with try/finally, and use ParallelTesting::tempDir with unconditional teardown cleanup for the coroutine scratch file. | Environment restored after success and failure; scratch removed after failed assertion; later TestStateRegistrars test sees original environment. |
-
-### Redis, cache, facade documenter, queue, and Horizon
+### Redis, cache, queue, and Horizon
 
 | ID | Proposed implementation | Required tests |
 |---:|---|---|
 | 123 | No production change; retain the resolved disposition above. | Serializer-enabled get returns array, object, int, float, string, and null mapping without TypeError. |
 | 129 | No change; see disposition above. | Preserve reset/subscriber lifecycle tests. |
-| 131 | Add per-run memoization for class imports by source file/namespace, parsed docblocks by exact string, facade method-name sets by class, and ReflectionMethodDecorator source ReflectionClass. Hoist immutable PHPDoc parser objects. Do not add production counters or test-only observability seams. | Generated output remains byte-identical; cache keys separate namespaces/files/docblocks and cannot cross-contaminate results; a focused before/after benchmark outside timing-sensitive CI demonstrates the repeated-input speedup. |
-| 132 | Recursively walk traits-of-traits and parent traits when matching a method's source file for import resolution. Guard cycles/duplicates by trait name. | Public method declared in a nested trait resolves that trait's imports; parent trait chain; class import with same short name does not win. |
-| 133 | Map supported PHPStan scalar refinements to runtime base types and preserve generic values: list<T>/non-empty-list<T> becomes array<int,T>, non-empty-array<K,V> preserves K,V, string refinements become string, signed integer refinements become int. Keep template resolution before unknown fallback. | Each listed pseudo-type; nested union/intersection/generic; template named like a class; generated facade PHPDoc contains no unintended mixed. |
-| 134 | Catch only ReflectionException around getPrototype, reject unknown CLI flags with nonzero exit, send warnings/exceptions to STDERR, and add ext-tokenizer to facade-documenter's package requirements. | Malformed prototype docblock surfaces; typoed flag fails without writing; stdout remains generated output only; metadata assertion and standalone script smoke test. |
 | 153 | No change; see disposition above. | Preserve immediate-kill, non-drain, timeout event, and idempotency documentation coverage. |
 | 160 | Port the current laravel/vonage-notification-channel package into a Hypervel split package, then make Horizon's existing routeSmsNotificationsTo API effective by adding the missing route in SendNotification and channel selection in LongWaitDetected::via, adapted to the current `vonage` channel, `toVonage`, and VonageMessage. Do not copy Horizon upstream's obsolete `nexmo` name or introduce a second/deprecated driver. `Vonage\Client` caches service objects whose `APIResource` mutates `lastRequest`/`lastResponse` around yielding HTTP calls, so framework-created channels build a fresh SDK Client per send while sharing only normalized immutable configuration and Hypervel's coroutine-safe PSR-18 transport. Add per-execution memoization only later if measurement proves construction material. Keep the Vonage facade non-caching and preserve direct construction with a supplied Client and per-message `usingClient` overrides. Add the package README, canonical notification docs, Horizon docs, `HorizonServiceProvider.stub`, and Horizon Boost notification reference using `vonage` only. | Ported package provider/config, route resolution, message construction, channel send/failure, facade, direct constructor, and per-message override; deterministic concurrent sends cannot exchange SDK request/response state; repeated sends get distinct SDK clients but reuse the safe HTTP transport; Horizon's two consumers use `vonage`; absent number adds no channel; mail/Slack composition; public routeSmsNotificationsTo remains unchanged; all docs/stubs/Boost references contain no `nexmo` surface. |
 
@@ -150,9 +129,7 @@ For every changed test file:
 
 Additional required checks:
 
-- Wayfinder: run npm test, npm run test:cached, and npm run typecheck from src/wayfinder.
 - Split-package metadata changes: run the package metadata tests and a clean standalone Composer install/autoload smoke test.
-- Facade documenter: run lint and write modes against representative facades, confirm diagnostics use STDERR, then run static analysis.
 - Documentation changes: verify every claimed API and difference against the final source; update package README and src/docs together where both describe it.
 - Runtime races: use barriers/channels to force the bad ordering. A test that merely starts two coroutines without controlling their interleaving is insufficient.
 
@@ -164,7 +141,7 @@ After all package work is complete:
 ## Completion criteria
 
 - Every audit ID retained in this plan has the disposition recorded above.
-- Findings 4, 9, 14, 93, 119, 129, and 153 remain unchanged for the stated reasons.
+- Findings 4, 9, 14, 93, 129, and 153 remain unchanged for the stated reasons.
 - Finding 88 is closed by 32 rather than implemented twice.
 - Finding 123 remains fixed and regression-covered.
 - No worker-global mutable state is introduced without an explicit boot-only contract and reset path.

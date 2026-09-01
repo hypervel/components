@@ -174,7 +174,7 @@ abstract class HasOneOrMany extends Relation
      * Build model dictionary keyed by the relation's foreign key.
      *
      * @param \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> $results
-     * @return array<array<int, TRelatedModel>>
+     * @return array<array<array-key, TRelatedModel>>
      */
     protected function buildDictionary(EloquentCollection $results): array
     {
@@ -186,6 +186,10 @@ abstract class HasOneOrMany extends Relation
 
         foreach ($results as $key => $item) {
             $pairKey = $this->getDictionaryKey($item->{$foreign});
+
+            if ($pairKey === null) {
+                continue;
+            }
 
             if ($isAssociative) {
                 $dictionary[$pairKey][$key] = $item;

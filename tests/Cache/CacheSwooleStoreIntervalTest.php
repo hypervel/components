@@ -889,7 +889,6 @@ PHP);
     private function invoke(SwooleStore $store, string $method, mixed ...$arguments): mixed
     {
         $reflection = new ReflectionMethod($store, $method);
-        $reflection->setAccessible(true);
 
         return $reflection->invoke($store, ...$arguments);
     }
@@ -955,7 +954,6 @@ PHP);
     private function localIntervals(SwooleStore $store): array
     {
         $property = new ReflectionProperty($store, 'intervals');
-        $property->setAccessible(true);
 
         return $property->getValue($store);
     }

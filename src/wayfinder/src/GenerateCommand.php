@@ -100,6 +100,7 @@ class GenerateCommand extends Command
                     return [];
                 }
 
+                $middleware = Str::before($middleware, ':');
                 $this->urlDefaults[$middleware] ??= $this->getDefaultsForMiddleware($middleware);
 
                 return $this->urlDefaults[$middleware];
@@ -107,6 +108,10 @@ class GenerateCommand extends Command
 
             return new Route($route, $globalUrlDefaults->merge($defaults), $this->forcedScheme);
         });
+
+        if (! $this->option('skip-routes')) {
+            $this->ensureUniqueRouteNames($routes);
+        }
 
         $this->writeWayfinderHelperFile();
 
@@ -152,6 +157,38 @@ class GenerateCommand extends Command
         }
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * Ensure every generated route name identifies one observable route.
+     *
+     * @param Collection<int, Route> $routes
+     */
+    private function ensureUniqueRouteNames(Collection $routes): void
+    {
+        $duplicates = $routes
+            ->filter(fn (Route $route): bool => $route->name() !== null)
+            ->groupBy(fn (Route $route): string => (string) $route->name())
+            ->filter(fn (Collection $routes): bool => $routes->count() > 1);
+
+        if ($duplicates->isEmpty()) {
+            return;
+        }
+
+        $descriptions = $duplicates->map(function (Collection $routes, string $name): string {
+            $conflicts = $routes->map(fn (Route $route): string => sprintf(
+                '[%s] (%s %s)',
+                $route->originalName(),
+                $route->verbs()->pluck('actual')->map(fn (string $method): string => strtoupper($method))->implode('|'),
+                $route->uri(),
+            ));
+
+            return sprintf('[%s]: %s', $name, $conflicts->implode(', '));
+        });
+
+        throw new InvalidArgumentException(
+            'Duplicate generated route names: ' . $descriptions->implode('; '),
+        );
     }
 
     /**
@@ -1144,7 +1181,7 @@ class GenerateCommand extends Command
         if (count($tokens) === 1 && is_array($first)) {
             return match ($first[0]) {
                 T_CONSTANT_ENCAPSED_STRING => [true, $this->decodeQuotedString($first[1])],
-                T_LNUMBER => [true, intval(str_replace('_', '', $first[1]), 0)],
+                T_LNUMBER => [true, $this->parseIntegerLiteral($first[1])],
                 T_DNUMBER => [true, (float) str_replace('_', '', $first[1])],
                 T_STRING => match (strtolower($first[1])) {
                     'true' => [true, true],
@@ -1161,13 +1198,25 @@ class GenerateCommand extends Command
             && is_array($tokens[1])
             && in_array($tokens[1][0], [T_LNUMBER, T_DNUMBER], true)) {
             $number = $tokens[1][0] === T_LNUMBER
-                ? intval(str_replace('_', '', $tokens[1][1]), 0)
+                ? $this->parseIntegerLiteral($tokens[1][1])
                 : (float) str_replace('_', '', $tokens[1][1]);
 
             return [true, $this->tokenText($first) === '-' ? -$number : $number];
         }
 
         return [true, null];
+    }
+
+    /**
+     * Parse a PHP integer literal.
+     */
+    private function parseIntegerLiteral(string $literal): int
+    {
+        $literal = str_replace('_', '', $literal);
+
+        return strncasecmp($literal, '0o', 2) === 0
+            ? (int) octdec(substr($literal, 2))
+            : intval($literal, 0);
     }
 
     /**

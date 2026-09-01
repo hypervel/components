@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database;
+namespace Hypervel\Tests\Database\PHPStan;
 
 use Hypervel\Database\PHPStan\ForwardedFluentMethodExtension;
 use Hypervel\Tests\TestCase;

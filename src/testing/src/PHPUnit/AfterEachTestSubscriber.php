@@ -174,7 +174,6 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Database\Query\Grammars\PostgresGrammar::flushState();
         \Hypervel\Database\Schema\Blueprint::flushState();
         \Hypervel\Database\Schema\Builder::flushState();
-        \Hypervel\Database\Seeder::flushState();
         \Hypervel\Di\Aop\AspectCollector::flushState();
         \Hypervel\Di\Aop\AspectManager::flushState();
         \Hypervel\Di\Aop\AstVisitorRegistry::flushState();

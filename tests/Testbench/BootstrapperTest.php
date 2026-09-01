@@ -911,7 +911,6 @@ class BootstrapperTest extends TestCase
         string $bootstrapper = Bootstrapper::class,
     ): string {
         $method = new ReflectionMethod($bootstrapper, 'createRuntimeCopy');
-        $method->setAccessible(true);
 
         return $method->invoke(null, $sourcePath, $workingPath);
     }
@@ -962,8 +961,6 @@ class BootstrapperTest extends TestCase
         $reflection = new ReflectionClass(Bootstrapper::class);
         $method = new ReflectionMethod(Bootstrapper::class, 'deleteRuntimeDirectory');
         $previousFilesystem = $reflection->getStaticPropertyValue('filesystem');
-
-        $method->setAccessible(true);
 
         try {
             $reflection->setStaticPropertyValue('filesystem', $filesystem);

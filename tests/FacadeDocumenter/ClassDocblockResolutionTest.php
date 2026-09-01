@@ -237,6 +237,92 @@ class ClassDocblockResolutionTest extends FacadeDocumenterTestCase
         $this->assertStringNotContainsString('@method static \stdClass fetch()', $contents);
     }
 
+    public function testCachedClassDocblocksAreResolvedIndependently(): void
+    {
+        $this->writeAppFile(
+            'ClassDocblock/Cached/FirstProxy.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\ClassDocblock\Cached;
+
+                /**
+                 * @method $this duplicate(self $value)
+                 */
+                class FirstProxy
+                {
+                }
+                PHP
+        );
+
+        $this->writeAppFile(
+            'ClassDocblock/Cached/SecondProxy.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\ClassDocblock\Cached;
+
+                /**
+                 * @method $this duplicate(self $value)
+                 */
+                class SecondProxy
+                {
+                }
+                PHP
+        );
+
+        $this->writeAppFile(
+            'ClassDocblock/Cached/FirstFacade.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\ClassDocblock\Cached;
+
+                /** @see \App\ClassDocblock\Cached\FirstProxy */
+                class FirstFacade
+                {
+                }
+                PHP
+        );
+
+        $this->writeAppFile(
+            'ClassDocblock/Cached/SecondFacade.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\ClassDocblock\Cached;
+
+                /** @see \App\ClassDocblock\Cached\SecondProxy */
+                class SecondFacade
+                {
+                }
+                PHP
+        );
+
+        $process = $this->runDocumenter([
+            'App\ClassDocblock\Cached\FirstFacade',
+            'App\ClassDocblock\Cached\SecondFacade',
+        ]);
+
+        $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput() . $process->getOutput());
+        $this->assertStringContainsString(
+            '@method static \App\ClassDocblock\Cached\FirstProxy duplicate(\App\ClassDocblock\Cached\FirstProxy $value)',
+            $this->appFileContents('App\ClassDocblock\Cached\FirstFacade'),
+        );
+        $this->assertStringContainsString(
+            '@method static \App\ClassDocblock\Cached\SecondProxy duplicate(\App\ClassDocblock\Cached\SecondProxy $value)',
+            $this->appFileContents('App\ClassDocblock\Cached\SecondFacade'),
+        );
+    }
+
     /**
      * Use facade imports only for global method types managed by the formatter.
      */
