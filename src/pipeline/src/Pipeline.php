@@ -6,6 +6,7 @@ namespace Hypervel\Pipeline;
 
 use Closure;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Pipeline\Pipeline as PipelineContract;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
@@ -13,7 +14,7 @@ use RuntimeException;
 use Throwable;
 use UnitEnum;
 
-class Pipeline implements PipelineContract
+class Pipeline implements PipelineContract, Transient
 {
     use Conditionable;
     use Macroable;
