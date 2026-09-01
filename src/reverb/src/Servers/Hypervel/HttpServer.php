@@ -7,10 +7,15 @@ namespace Hypervel\Reverb\Servers\Hypervel;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Events\Dispatcher as EventDispatcherContract;
 use Hypervel\Contracts\Server\BootstrapsForServer;
 use Hypervel\Contracts\Server\OnRequestInterface;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
+use Hypervel\Http\Request;
+use Hypervel\HttpServer\Events\RequestHandled;
+use Hypervel\HttpServer\Events\RequestReceived;
+use Hypervel\HttpServer\Events\ResponseSent;
 use Hypervel\HttpServer\RequestBridge;
 use Hypervel\HttpServer\ResponseBridge;
 use Swoole\Coroutine\CanceledException;
@@ -32,9 +37,16 @@ class HttpServer implements OnRequestInterface, BootstrapsForServer
 
     protected int $maxRequestSize;
 
+    protected string $serverName = 'reverb';
+
+    protected ?EventDispatcherContract $event = null;
+
     public function __construct(
         protected Container $container,
     ) {
+        if ($this->container->bound('events')) {
+            $this->event = $this->container->make('events');
+        }
     }
 
     /**
@@ -42,6 +54,7 @@ class HttpServer implements OnRequestInterface, BootstrapsForServer
      */
     public function bootstrapForServer(string $serverName): void
     {
+        $this->serverName = $serverName;
         $this->router = $this->container->make(ReverbRouter::class);
         $this->router->compileAndWarm();
         $this->maxRequestSize = $this->container->make('config')
@@ -64,10 +77,18 @@ class HttpServer implements OnRequestInterface, BootstrapsForServer
                 $request = RequestBridge::createFromSwoole($swooleRequest);
                 RequestContext::set($request);
 
+                if ($this->event?->hasListeners(RequestReceived::class)) {
+                    $this->event->dispatch(new RequestReceived(
+                        request: $request,
+                        response: null,
+                        server: $this->serverName,
+                    ));
+                }
+
                 $response = $this->router->dispatch($request);
             }
-        } catch (CanceledException $throwable) {
-            throw $throwable;
+        } catch (CanceledException $cancellation) {
+            throw $cancellation;
         } catch (Throwable $throwable) {
             // Keep the original in flight while it is handled and emitted, so
             // any failure at that boundary carries the root cause as previous.
@@ -81,14 +102,72 @@ class HttpServer implements OnRequestInterface, BootstrapsForServer
                 $response = $request !== null
                     ? $handler->render($request, $throwable)
                     : new Response('Internal Server Error', 500);
-                ResponseBridge::send($response, $swooleResponse, request: $request);
+                $this->sendResponse($request, $response, $swooleResponse, $throwable);
 
                 /* @phpstan-ignore finally.exitPoint */
                 return;
             }
         }
 
-        ResponseBridge::send($response, $swooleResponse, request: $request);
+        $this->sendResponse($request, $response, $swooleResponse);
+    }
+
+    /**
+     * Send a routed response through its observable transport boundary.
+     */
+    protected function sendResponse(
+        ?Request $request,
+        Response $response,
+        SwooleResponse $swooleResponse,
+        ?Throwable $exception = null,
+    ): void {
+        $terminalException = null;
+
+        if ($request !== null) {
+            try {
+                if ($this->event?->hasListeners(RequestHandled::class)) {
+                    $this->event->dispatch(new RequestHandled(
+                        request: $request,
+                        response: $response,
+                        exception: $exception,
+                        server: $this->serverName,
+                    ));
+                }
+            } catch (CanceledException $throwable) {
+                throw $throwable;
+            } catch (Throwable $throwable) {
+                $terminalException = $throwable;
+            }
+        }
+
+        try {
+            ResponseBridge::send($response, $swooleResponse, request: $request);
+        } catch (CanceledException $throwable) {
+            throw $throwable;
+        } catch (Throwable $throwable) {
+            $terminalException ??= $throwable;
+        }
+
+        if ($request !== null) {
+            try {
+                if ($this->event?->hasListeners(ResponseSent::class)) {
+                    $this->event->dispatch(new ResponseSent(
+                        request: $request,
+                        response: $response,
+                        exception: $exception ?? $terminalException,
+                        server: $this->serverName,
+                    ));
+                }
+            } catch (CanceledException $throwable) {
+                throw $throwable;
+            } catch (Throwable $throwable) {
+                $terminalException ??= $throwable;
+            }
+        }
+
+        if ($terminalException !== null) {
+            throw $terminalException;
+        }
     }
 
     /**
