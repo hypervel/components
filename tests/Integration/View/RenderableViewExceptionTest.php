@@ -25,6 +25,21 @@ class RenderableViewExceptionTest extends TestCase
         $response->assertSee('This is a renderable exception.');
     }
 
+    public function testResponseRenderedByExceptionThrownInViewGetsHandled(): void
+    {
+        Route::get('/', function () {
+            return View::make('renderable-exception', [
+                'exception' => new ResponseRenderableException,
+            ]);
+        });
+
+        $response = $this->get('/');
+
+        $response->assertStatus(418);
+        $response->assertHeader('X-View-Exception', 'handled');
+        $response->assertSee('This is a response renderable exception.');
+    }
+
     protected function defineEnvironment(ApplicationContract $app): void
     {
         $app->make('config')->set('view.paths', [__DIR__ . '/templates']);
@@ -33,8 +48,20 @@ class RenderableViewExceptionTest extends TestCase
 
 class RenderableException extends Exception
 {
+    public function render(Request $request): string
+    {
+        return 'This is a renderable exception.';
+    }
+}
+
+class ResponseRenderableException extends Exception
+{
     public function render(Request $request): Response
     {
-        return new Response('This is a renderable exception.');
+        return new Response(
+            'This is a response renderable exception.',
+            418,
+            ['X-View-Exception' => 'handled']
+        );
     }
 }

@@ -109,7 +109,7 @@ Anything found follows When to Stop and Report — "the task didn't ask me to fi
 
 During implementation, run new or changed test files immediately. After completing a coherent implementation slice, run the affected package or focused test suite.
 
-At a meaningful checkpoint—such as before code review or after completing a substantial slice—run `composer fix` once. It runs the full formatter, PHPStan, parallel test suite, and Testbench tests, so do not run those full checks separately at the same checkpoint.
+At a meaningful checkpoint—such as before code review or after completing a substantial slice—run `composer fix` once. It runs `lint:fix`, both PHPStan configurations, the full parallel suite, the Testbench suite, and dogfood tests, so do not run those full checks separately at the same checkpoint.
 
 After review fixes, run the relevant targeted tests. Repeat `composer fix` only when the changes warrant another full-repository check.
 

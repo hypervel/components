@@ -28,17 +28,6 @@ Resolve every genuine issue retained in this master plan against the current 0.4
 
 Each row is an implementation requirement. Test names are descriptive; use the repository's established test file for that component or create the narrowly corresponding file.
 
-### Translation and views
-
-| ID | Proposed implementation | Required tests |
-|---:|---|---|
-| 2 | Stop automatically retaining every parsed key on NamespacedItemResolver. Keep setParsedKey and flushParsedKeys exactly as the public explicit cache API, but parse ordinary keys directly; the explode/str_contains work is cheaper and safer than a per-call context lookup or an arbitrary worker cache cap. | Arbitrary validation/translation keys do not grow worker state; explicitly seeded parsed keys still hit and flush; parse output remains identical; a focused microbenchmark confirms the uncached parser is not a material translation regression. |
-| 3 | Keep successful translation groups in the worker cache, but store empty/missing locale-group results only in execution-local negative state. This avoids permanent attacker-driven locale growth without repeating filesystem probes inside one request/job. | Thousands of missing locales leave worker loaded state unchanged; one execution probes a missing/legitimate-empty group once; a later execution can discover a newly added translation; positive groups remain worker-cached. |
-| 5 | Extract `Translator::get()`'s lookup body into a protected internal method with separate substitution replacements and missing-key-callback replacements. `get()` passes `$replace` for both; `choice()` passes `[]` for substitution and the caller's `$replace` to the missing callback, then substitutes only after plural segment selection. Keep every public signature unchanged and do not duplicate lookup. | Callback receives locale, key, and exact replacements; a replacement containing a pipe does not alter plural selection; normal translation replacement remains once-only. |
-| 6 | Widen ViewException::render to mixed and forward all native Laravel exception render results. Keep report as bool or null. | String, array, View, Responsable, Response, and null render forwarding; bool/null report forwarding; original exception behavior when methods are absent. |
-| 7 | Retain the worker cache only for existing named views, whose keyspace is application-defined. For raw inline component source, derive the deterministic xxh128 view name and keep only execution-local reuse; ensure the source file exists on the first use in that execution. Make view:clear clear the execution-local marker so an immediate re-render recreates the source. Do not add an arbitrary eviction cap. | Named views reuse worker state; thousands of unique inline sources do not grow the worker map; repeated inline render in one execution avoids repeated stats; delete/view:clear then render recreates the source; no cross-component collision. |
-| 8 | Preserve the public abstract Engines\Engine base, but make getLastRendered return nullable string to match its initialized state. | Anonymous concrete subclass returns null before render and the rendered path afterward. |
-
 ### Mail, notifications, collections, and support
 
 | ID | Proposed implementation | Required tests |
@@ -77,10 +66,9 @@ Each row is an implementation requirement. Test names are descriptive; use the r
 
 Use package-sized commits that remain reviewable and bisectable. The following order avoids building fixes on obsolete primitives:
 
-1. Translation and views: 2, 3, 5-8.
-2. Mail, notifications, and data representation: 21, 23, 26, 30-32, 34-35, 82.
-3. Image and pagination: 83-87, 89-92.
-4. Vonage notification channel port followed by Horizon wiring: 160.
+1. Mail, notifications, and data representation: 21, 23, 26, 30-32, 34-35, 82.
+2. Image and pagination: 83-87, 89-92.
+3. Vonage notification channel port followed by Horizon wiring: 160.
 
 Do not combine unrelated packages merely because their findings have the same severity.
 
