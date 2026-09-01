@@ -371,7 +371,7 @@ Run each changed test file immediately while implementing, then run the focused 
 ./vendor/bin/phpunit --no-progress tests/Integration/Foundation/Console/ViewClearCommandTest.php
 ```
 
-At the implementation checkpoint run `composer fix` once. It owns formatting, PHPStan, the full parallel suite, and Testbench verification. If it fails, correct with targeted checks, inspect the `fix` script, then run the failed and remaining stages as required by `AGENTS.md`.
+At the implementation checkpoint run `composer fix` once. It owns `lint:fix`, both PHPStan configurations, the full parallel suite, the Testbench suite, and dogfood tests. If it fails, correct with targeted checks, inspect the `fix` script, then run the failed and remaining stages as required by `AGENTS.md`.
 
 Final review must trace:
 
