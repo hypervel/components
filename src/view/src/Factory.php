@@ -16,6 +16,8 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\View\Engines\EngineResolver;
 use InvalidArgumentException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class Factory implements FactoryContract
 {
@@ -82,6 +84,14 @@ class Factory implements FactoryContract
      * components, etc.).
      */
     protected array $renderingObservers = [];
+
+    /**
+     * The registered post-render observers.
+     *
+     * These boot-time registrations persist for the worker lifetime and are
+     * intentionally independent from the per-coroutine rendering state.
+     */
+    protected array $renderedObservers = [];
 
     /**
      * Create a new view factory instance.
@@ -331,6 +341,48 @@ class Factory implements FactoryContract
     {
         foreach ($this->renderingObservers as $observer) {
             $observer($view);
+        }
+    }
+
+    /**
+     * Register a post-render observer.
+     *
+     * Boot-only. The observer is called after each view's engine completes,
+     * receiving the View instance and any ordinary rendering failure. Observers
+     * persist for the worker lifetime on this singleton.
+     */
+    public function observeRendered(callable $observer): void
+    {
+        $this->renderedObservers[] = $observer;
+    }
+
+    /**
+     * Determine if any post-render observers are registered.
+     */
+    public function hasRenderedObservers(): bool
+    {
+        return $this->renderedObservers !== [];
+    }
+
+    /**
+     * Notify post-render observers that a view finished rendering.
+     */
+    public function notifyRendered(ViewContract $view, ?Throwable $exception): void
+    {
+        $observerException = null;
+
+        foreach ($this->renderedObservers as $observer) {
+            try {
+                $observer($view, $exception);
+            } catch (CanceledException $throwable) {
+                throw $throwable;
+            } catch (Throwable $throwable) {
+                $observerException ??= $throwable;
+            }
+        }
+
+        if ($observerException !== null) {
+            throw $observerException;
         }
     }
 
