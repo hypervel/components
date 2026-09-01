@@ -4,7 +4,7 @@
 
 Make every container-buildable framework class use the lifetime implied by who owns its state. Eleven caller-owned value, date, response, and builder hierarchies must opt out of Hypervel's unbound concrete auto-singleton cache through the existing `Hypervel\Contracts\Container\Transient` marker. Worker-safe services must remain cached.
 
-Use the existing container contract only. Do not add a registry, reflection heuristic, runtime guard, exception path, or another lifetime abstraction. Remove concrete bindings that become redundant, preserve canonical string-key bindings, correct nearby lifetime guidance, and cover the public behavior rather than marker syntax.
+Use the existing container contract only. Do not add a registry, reflection heuristic, runtime guard, exception path, or another abstraction to the container lifetime mechanism. Remove concrete bindings that become redundant, preserve canonical string-key bindings, correct nearby lifetime guidance, and cover the public behavior rather than marker syntax.
 
 ## Runtime model and design rules
 
@@ -116,7 +116,7 @@ $this->app->bind('Illuminate\\Queue\\CallQueuedHandler', CallQueuedHandler::clas
 
 Add one concise WHY comment: `CallQueuedHandler::$runningCommand` is per-job state, so concurrent jobs require fresh handler instances. A single framework-internal class at one registration boundary is correctly modeled by `bind()`; marking its hierarchy transient would be broader than the need.
 
-In `Console\Scheduling\Schedule::job()`, clone the resolved or retained job once before choosing queued or synchronous dispatch. A class-string may resolve to an auto-singleton, while a caller-supplied object is retained by the long-lived schedule callback. Queued dispatch applies connection/queue state and may hand the object to a retaining fake; synchronous `Bus\Dispatcher::dispatchNow()` may attach a synthetic `SyncJob`, and either handler may mutate job state. Moving the existing clone to this shared boundary protects every firing and leaves `dispatchToQueue()` aligned with Laravel without adding a second clone.
+In `Console\Scheduling\Schedule::job()`, clone the resolved or retained job once before choosing queued or synchronous dispatch when PHP reports that the object is cloneable. A class-string may resolve to an auto-singleton, while a caller-supplied object is retained and may be dispatched repeatedly by the long-lived schedule callback. Queued dispatch applies connection/queue state and may hand the object to a retaining fake; synchronous `Bus\Dispatcher::dispatchNow()` may attach a synthetic `SyncJob`, and either handler may mutate job state. The existing queued clone was introduced only for class-string auto-singletons, but the shared boundary deliberately protects caller-supplied cloneable objects from sequential reuse as well. A deliberately non-cloneable job must be dispatched as resolved because PHP forbids copying it and the public API accepts arbitrary job objects. Use the exact `ReflectionObject::isCloneable()` capability check with no cache, registry, exception control flow, or new container API.
 
 ### `DefaultProviders` value semantics
 
@@ -214,6 +214,10 @@ These collection corrections need only exact declarations and direct null compar
 
 ## 3. User documentation
 
+### Scheduling documentation
+
+Add one concise paragraph after the two documented `Schedule::job(new Heartbeat)` examples. Explain that Hypervel clones the job object before each due firing so dispatch state is not retained, while a job class with a non-public `__clone()` method is dispatched as the same instance. This is a documented scheduling behavior, not a reason for a porting-guide entry.
+
 ### Container documentation
 
 Update `src/docs/container.md` under **Transient Classes** to name the built-in families that already or now implement the marker:
@@ -291,7 +295,7 @@ Add one focused `testFrameworkDatesResolveFreshFromTheContainer()` method beside
 - Keep `tests/Pipeline/CoroutineIsolationTest.php` unchanged; it already proves two application-resolved concrete pipelines do not share mutable state across interleaved coroutines after the binding removal.
 - Keep `tests/Integration/Http/ResponseBindingTest.php` unchanged; it already proves fresh concrete responses and fresh resolution through the Symfony alias after the response binding removal. `FrameworkTransientTest` supplies the missing JSON-response coverage.
 - Keep the existing `LoggedExceptionCollection` tests unchanged. `FoundationServiceProvider` deliberately publishes one test-lifetime collection through `instance()`, and `MakesHttpRequestsTest` proves that an explicit replacement is retained; explicit instances remain authoritative over the inherited collection marker.
-- Keep `tests/Queue/LaravelInteropTest.php` as regression coverage for the retained queue bindings. Add a `ScheduleTest.php` regression that fires a class-string synchronous job twice through one event, mutates each dispatched instance, and proves each firing receives a pristine, distinct clone.
+- Keep `tests/Queue/LaravelInteropTest.php` as regression coverage for the retained queue bindings. In `ScheduleTest.php`, retain the regression that fires a class-string synchronous job twice through one event, mutates each dispatched instance, and proves each firing receives a pristine, distinct clone. Complete the cloneability/dispatch matrix with a cloneable queued job that proves queue state lands only on its clone, plus synchronous and queued regressions proving a caller-supplied job with a private `__clone()` reaches the respective dispatcher unchanged. The queued cases are distinct coverage because the clone historically lived inside `dispatchToQueue()` and queue/connection mutation must land on the cloneable copy but necessarily applies directly to the non-cloneable object.
 - Extend `types/Database/Eloquent/Collection.php` with PHPStan assertions proving that inherited `flatMap()` and `mapInto()` of a non-model target expose a base support collection and that `findOrFail()` preserves its scalar-model and array-collection results. In `types/Collections/Collection.php`, add representative `flatten()` assertions proving interface-typed receivers retain `Enumerable` inference and lazy receivers retain `LazyCollection` inference.
 
 Do not add a duplicate generic `Transient` test, a marker- or binding-presence test, an accessor exposing protected state, or another auto-singleton negative control. `tests/Container/ContainerTest.php` already covers generic transient inheritance, explicit lifetime overrides, instances, scoped bindings, extenders, nullable/default dependency preservation, parameterized resolution, and auto-singleton behavior.
@@ -304,6 +308,7 @@ Do not add a duplicate generic `Transient` test, a marker- or binding-presence t
 - No container algorithm changes. Each relevant path already performs the `is_a(..., Transient::class, true)` check; only its result changes for the eleven declared hierarchies.
 - Correctly fresh value objects allocate once per requested instance. Worker-safe services continue using the auto-singleton cache. This is the narrow performance boundary the audit is intended to enforce.
 - Removing the redundant concrete Pipeline and Response bindings avoids their closure/binding lookup while preserving behavior through the marker. Canonical string-key behavior remains explicit.
+- `ReflectionObject::isCloneable()` adds one exact capability check only when a scheduled job fires. It avoids an unsupported clone attempt without a cache or repeated request-path work; scheduler cadence makes its measured nanosecond-scale cost negligible.
 - Disable Composer's process timeout on the `test`, `test:parallel`, and `test:testbench` scripts. The full suite can exceed Composer's default 300-second wrapper limit on a loaded machine; each runner and CI job retains its own failure and job-timeout behavior.
 - Do not add a benchmark. There is no new mechanism to benchmark, and a benchmark that rewards incorrectly caching caller-owned values would measure the wrong contract.
 
@@ -316,7 +321,7 @@ Do not add a duplicate generic `Transient` test, a marker- or binding-presence t
 5. Remove the concrete Pipeline binding, then run the unchanged API-client and pipeline coroutine tests to verify constructor fallback container injection and mutable-state isolation.
 6. Remove the HTTP response factory and run `ResponseBindingTest.php` plus `FrameworkTransientTest.php`.
 7. Add `DefaultProvidersTest.php`, run it to confirm receiver mutation and empty-list restoration, apply the complete value-semantic correction, and rerun it. Copy and port `SupportViewErrorBagTest.php`, run it to expose the numeric-key transform defect, then apply the complete `MessageBag` contract and implementation type correction and rerun it.
-8. Correct the container and queue-handler comments. Add and run the Schedule synchronous-dispatch regression, move the job clone to the common dispatch boundary, and rerun `ScheduleTest.php`.
+8. Correct the container and queue-handler comments. Add and run the Schedule synchronous-dispatch regression, move the job clone behind an exact cloneability check at the common dispatch boundary, complete the cloneable/non-cloneable synchronous/queued regression matrix, and rerun `ScheduleTest.php`.
 9. Verify the contributor-guide edit already present in the worktree, apply the user-documentation updates, then inspect every changed comment and paragraph against the final source.
 10. Run `git diff --check`, the focused tests below, and then `composer fix` once from the repository root.
 11. Self-review every changed file and trace the marker through container publication, coordination, execution-scope derivation, aliases, defaults, and explicit bindings. Remove stale imports, methods, comments, or duplicated tests before code review.
@@ -346,11 +351,12 @@ Run `./vendor/bin/phpstan analyse --configuration=phpstan.types.neon.dist` immed
 - All eleven caller-owned hierarchies resolve fresh when unbound. The nine mutable classes have representative mutation isolation, the two dates have clock freshness coverage, and `ContainerTest::testTransientLifetimeIsInheritedBySubclasses()` covers inheritance by application subclasses.
 - Explicit bindings still override `Transient`, covered by `ContainerTest::testTransientClassCanBeExplicitlySingletoned()` and its neighboring lifetime tests; nullable/default constructor dependencies remain defaults, covered by `ContainerTest::testResolutionOfClassWithDefaultParameters()`.
 - Concrete Pipeline and Response bindings are gone; the `'pipeline'` and `'request'` bindings and Symfony response alias retain their intended behavior.
-- Queue handler freshness remains explicit, and scheduled queued and synchronous jobs receive a fresh clone on every event firing, including class strings resolved from the auto-singleton cache.
+- Queue handler freshness remains explicit. Cloneable scheduled queued and synchronous jobs receive a fresh clone on every event firing, including class strings resolved from the auto-singleton cache; non-cloneable jobs remain accepted and are dispatched as-is.
 - All public collection methods have exact native return types. The thirteen transformation methods are correct across the interface, shared trait, support implementations, and Eloquent overrides; Eloquent `find()` and `findOrFail()` express their mixed and model-or-collection boundaries. False inherited and conditional PHPDoc returns are corrected, existing valid generic annotations remain precise, and the PHPStan fixtures prove the load-bearing hierarchy paths.
 - Optional collection filters use strict null guards consistently across eager and lazy implementations; an empty non-callable string can no longer silently disable filtering or produce different eager and lazy results.
 - `DefaultProviders` preserves explicit empty lists, `merge()` is pure, and `except()` uses the precise existing collection primitive.
 - The message-bag contract expresses the string conversion required by `ViewErrorBag`; the complete upstream suite plus empty fallback coverage passes, numeric constructor keys reach formatting without a type error, and all affected implementation PHPDocs describe their real array-key shapes.
 - Contributor and user documentation describe the same ownership-based lifetime model and complete built-in family list.
-- No rejected candidate is marked, and no new registry, guard, reflection heuristic, runtime exception, marker-only test, stale comment, unused import, dead method, or redundant binding remains.
+- No new registry, guard, reflection heuristic, or runtime exception remains in the container lifetime mechanism.
+- No rejected candidate is marked, and no marker-only test, stale comment, unused import, dead method, or redundant binding remains anywhere in the change set.
 - Focused tests and `composer fix` pass.
