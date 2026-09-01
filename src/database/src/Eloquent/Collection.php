@@ -28,11 +28,10 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @template TFindDefault
      *
-     * @param mixed $key
      * @param TFindDefault $default
      * @return ($key is (array<mixed>|\Hypervel\Contracts\Support\Arrayable<array-key, mixed>) ? static : TFindDefault|TModel)
      */
-    public function find($key, $default = null)
+    public function find(mixed $key, mixed $default = null): mixed
     {
         if ($key instanceof Model) {
             $key = $key->getKey();
@@ -69,12 +68,11 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Find a model in the collection by key or throw an exception.
      *
-     * @param mixed $key
-     * @return TModel
+     * @return ($key is (array<mixed>|\Hypervel\Contracts\Support\Arrayable<array-key, mixed>) ? static : TModel)
      *
      * @throws \Hypervel\Database\Eloquent\ModelNotFoundException
      */
-    public function findOrFail($key)
+    public function findOrFail(mixed $key): Model|static
     {
         $result = $this->find($key);
 
@@ -448,7 +446,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<TKey, TMapValue>|static<TKey, TMapValue>
      */
     #[Override]
-    public function map(callable $callback)
+    public function map(callable $callback): BaseCollection
     {
         $result = parent::map($callback);
 
@@ -468,7 +466,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<TMapWithKeysKey, TMapWithKeysValue>|static<TMapWithKeysKey, TMapWithKeysValue>
      */
     #[Override]
-    public function mapWithKeys(callable $callback)
+    public function mapWithKeys(callable $callback): BaseCollection
     {
         $result = parent::mapWithKeys($callback);
 
@@ -762,7 +760,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<array-key, int>
      */
     #[Override]
-    public function countBy(callable|string|null $countBy = null)
+    public function countBy(callable|string|null $countBy = null): BaseCollection
     {
         return $this->toBase()->countBy($countBy);
     }
@@ -771,7 +769,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, mixed>
      */
     #[Override]
-    public function collapse()
+    public function collapse(): BaseCollection
     {
         return $this->toBase()->collapse();
     }
@@ -780,7 +778,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, mixed>
      */
     #[Override]
-    public function flatten(int|float $depth = INF)
+    public function flatten(int|float $depth = INF): BaseCollection
     {
         return $this->toBase()->flatten($depth);
     }
@@ -789,7 +787,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<TModel, TKey>
      */
     #[Override]
-    public function flip()
+    public function flip(): BaseCollection
     {
         return $this->toBase()->flip();
     }
@@ -798,7 +796,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, TKey>
      */
     #[Override]
-    public function keys()
+    public function keys(): BaseCollection
     {
         return $this->toBase()->keys();
     }
@@ -809,7 +807,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, TModel|TPadValue>
      */
     #[Override]
-    public function pad(int $size, mixed $value)
+    public function pad(int $size, mixed $value): BaseCollection
     {
         return $this->toBase()->pad($size, $value);
     }
@@ -818,7 +816,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int<0, 1>, static<TKey, TModel>>
      */
     #[Override]
-    public function partition(mixed $key, mixed $operator = null, mixed $value = null)
+    public function partition(mixed $key, mixed $operator = null, mixed $value = null): BaseCollection
     {
         // @phpstan-ignore return.type (parent returns base Collection, we convert to Support Collection)
         return parent::partition(...func_get_args())->toBase();
@@ -828,7 +826,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<array-key, mixed>
      */
     #[Override]
-    public function pluck(Closure|string|int|array|null $value, Closure|string|int|array|null $key = null)
+    public function pluck(Closure|string|int|array|null $value, Closure|string|int|array|null $key = null): BaseCollection
     {
         return $this->toBase()->pluck($value, $key);
     }
@@ -839,7 +837,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, \Hypervel\Support\Collection<int, TModel|TZipValue>>
      */
     #[Override]
-    public function zip(\Hypervel\Contracts\Support\Arrayable|iterable ...$items)
+    public function zip(Arrayable|iterable ...$items): BaseCollection
     {
         return $this->toBase()->zip(...$items);
     }
