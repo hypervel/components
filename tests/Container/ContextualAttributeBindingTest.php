@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Container;
 
+use ArrayObject;
 use Attribute;
 use Hypervel\Auth\AuthManager;
+use Hypervel\Auth\GenericUser;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\Repository as CacheRepository;
 use Hypervel\Config\Repository;
@@ -18,13 +20,16 @@ use Hypervel\Container\Attributes\CurrentUser;
 use Hypervel\Container\Attributes\Database;
 use Hypervel\Container\Attributes\Give;
 use Hypervel\Container\Attributes\Log;
+use Hypervel\Container\Attributes\RequestAttribute;
 use Hypervel\Container\Attributes\RouteParameter;
 use Hypervel\Container\Attributes\Storage;
 use Hypervel\Container\Attributes\Tag;
 use Hypervel\Container\Container;
 use Hypervel\Container\RewindableGenerator;
+use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Hypervel\Contracts\Auth\Guard as GuardContract;
+use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Container\ContextualAttribute;
 use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Database\ConnectionInterface;
@@ -40,6 +45,9 @@ use Mockery as m;
 use Psr\Log\LoggerInterface;
 use ReflectionParameter;
 use RuntimeException;
+use TypeError;
+
+use function Hypervel\Coroutine\parallel;
 
 class ContextualAttributeBindingTest extends TestCase
 {
@@ -169,6 +177,43 @@ class ContextualAttributeBindingTest extends TestCase
         $this->assertTrue($container->isScoped(AuthedTest::class));
 
         $container->make(AuthedTest::class);
+    }
+
+    public function testAuthenticatedAttributesCanExtractPropertyPaths(): void
+    {
+        $container = new Container;
+        $user = new GenericUser([
+            'id' => 10,
+            'profile' => ['id' => 20],
+        ]);
+
+        $manager = m::mock(AuthManager::class);
+        $manager->shouldReceive('userResolver')->twice()->andReturn(fn () => $user);
+        $container->singleton('auth', fn () => $manager);
+
+        $resolved = $container->make(AuthenticatedPropertyTest::class);
+
+        $this->assertTrue($container->isScoped(AuthenticatedPropertyTest::class));
+        $this->assertSame(10, $resolved->userId);
+        $this->assertSame(20, $resolved->profileId);
+    }
+
+    public function testAuthenticatedNullIsAuthoritativeForMakeAndCall(): void
+    {
+        $container = new Container;
+        $manager = m::mock(AuthManager::class);
+        $manager->shouldReceive('userResolver')->times(3)->andReturn(fn () => null);
+        $container->singleton('auth', fn () => $manager);
+
+        $withoutDefault = $container->make(NullableAuthenticatedWithoutDefault::class);
+        $withDefault = $container->make(NullableAuthenticatedWithDefault::class);
+        $called = $container->call(
+            fn (#[Authenticated] ?AuthenticatableContract $user): ?AuthenticatableContract => $user,
+        );
+
+        $this->assertNull($withoutDefault->user);
+        $this->assertNull($withDefault->user);
+        $this->assertNull($called);
     }
 
     public function testCacheAttribute()
@@ -308,6 +353,98 @@ class ContextualAttributeBindingTest extends TestCase
         });
 
         $container->make(RouteParameterTestWithoutParameterName::class);
+    }
+
+    public function testRouteParameterCanExtractSupportedPropertyPaths(): void
+    {
+        $container = new Container;
+        $model = new ContextualRouteModel;
+        $model->setAttribute('id', 40);
+
+        $request = m::mock(Request::class);
+        $request->shouldReceive('route')->with('array')->andReturn(['nested' => ['id' => 10]]);
+        $request->shouldReceive('route')->with('array-access')->andReturn(new ArrayObject(['id' => 20]));
+        $request->shouldReceive('route')->with('object')->andReturn((object) ['nested' => (object) ['id' => 30]]);
+        $request->shouldReceive('route')->with('model')->andReturn($model);
+        $request->shouldReceive('route')->with('missing')->andReturn(['other' => 50]);
+        $request->shouldReceive('route')->with('null')->andReturnNull();
+        $container->singleton('request', fn () => $request);
+
+        $resolved = $container->make(RouteParameterPropertyTest::class);
+
+        $this->assertTrue($container->isScoped(RouteParameterPropertyTest::class));
+        $this->assertSame(10, $resolved->arrayId);
+        $this->assertSame(20, $resolved->arrayAccessId);
+        $this->assertSame(30, $resolved->objectId);
+        $this->assertSame(40, $resolved->modelId);
+        $this->assertNull($resolved->missingId);
+        $this->assertNull($resolved->nullId);
+    }
+
+    public function testRouteParameterPropertyRejectsScalarValues(): void
+    {
+        $container = new Container;
+        $request = m::mock(Request::class);
+        $request->shouldReceive('route')->with('post')->andReturn(123);
+        $container->singleton('request', fn () => $request);
+
+        $this->expectException(BindingResolutionException::class);
+        $this->expectExceptionMessage('Cannot extract property path [id] from scalar [int] resolved by [Hypervel\Container\Attributes\RouteParameter].');
+
+        $container->make(ScalarRouteParameterPropertyTest::class);
+    }
+
+    public function testMissingRouteParameterDoesNotConstructAnEmptyModel(): void
+    {
+        $container = new Container;
+        $request = m::mock(Request::class);
+        $request->shouldReceive('route')->with('post')->andReturnNull();
+        $container->singleton('request', fn () => $request);
+
+        $this->expectException(TypeError::class);
+
+        $container->make(MissingRouteModelTest::class);
+    }
+
+    public function testRequestAttributeResolvesSelectedBagValue(): void
+    {
+        $container = new Container;
+        $request = Request::create('/');
+        $request->attributes->set('tenant', 'acme');
+        $container->singleton('request', fn () => $request);
+
+        $this->assertTrue($container->isScoped(RequestAttributeTest::class));
+        $this->assertSame('acme', $container->make(RequestAttributeTest::class)->tenant);
+    }
+
+    public function testRouteAndAuthenticatedPropertyExtractionIsIsolatedBetweenExecutions(): void
+    {
+        $auth = $this->app->make('auth');
+
+        $resolve = function (string $routeId, int $userId) use ($auth): array {
+            $request = Request::create('/');
+            $request->setRouteResolver(fn () => new ContextualAttributeTestRoute([
+                'team' => (object) ['id' => $routeId],
+            ]));
+            RequestContext::set($request);
+            $auth->resolveUsersUsing(fn () => new GenericUser(['id' => $userId]));
+
+            usleep(5000);
+
+            $resolved = $this->app->make(InterleavedContextualPropertyTest::class);
+
+            return [$resolved->routeId, $resolved->userId];
+        };
+
+        $results = parallel([
+            fn () => $resolve('route-a', 10),
+            fn () => $resolve('route-b', 20),
+        ]);
+
+        $this->assertSame([
+            ['route-a', 10],
+            ['route-b', 20],
+        ], $results);
     }
 
     public function testContextAttribute()
@@ -654,6 +791,31 @@ final class AuthedTest
     }
 }
 
+final class AuthenticatedPropertyTest
+{
+    public function __construct(
+        #[Authenticated(property: 'id')]
+        public int $userId,
+        #[CurrentUser(property: 'profile.id')]
+        public int $profileId,
+    ) {
+    }
+}
+
+final class NullableAuthenticatedWithoutDefault
+{
+    public function __construct(#[Authenticated] public ?AuthenticatableContract $user)
+    {
+    }
+}
+
+final class NullableAuthenticatedWithDefault
+{
+    public function __construct(#[Authenticated] public ?AuthenticatableContract $user = null)
+    {
+    }
+}
+
 final class CacheTest
 {
     public function __construct(
@@ -770,6 +932,78 @@ final class RouteParameterTestWithoutParameterName
 {
     public function __construct(#[RouteParameter] Model $foo, #[RouteParameter] string $bar)
     {
+    }
+}
+
+final class RouteParameterPropertyTest
+{
+    public function __construct(
+        #[RouteParameter('array', 'nested.id')]
+        public int $arrayId,
+        #[RouteParameter('array-access', 'id')]
+        public int $arrayAccessId,
+        #[RouteParameter('object', 'nested.id')]
+        public int $objectId,
+        #[RouteParameter('model', 'id')]
+        public int $modelId,
+        #[RouteParameter('missing', 'id')]
+        public ?int $missingId,
+        #[RouteParameter('null', 'id')]
+        public ?int $nullId,
+    ) {
+    }
+}
+
+final class ScalarRouteParameterPropertyTest
+{
+    public function __construct(#[RouteParameter('post', 'id')] public ?int $postId)
+    {
+    }
+}
+
+final class ContextualRouteModel extends Model
+{
+}
+
+final class MissingRouteModelTest
+{
+    public function __construct(#[RouteParameter('post')] public ContextualRouteModel $post)
+    {
+    }
+}
+
+final class RequestAttributeTest
+{
+    public function __construct(#[RequestAttribute('tenant')] public string $tenant)
+    {
+    }
+}
+
+final class InterleavedContextualPropertyTest
+{
+    public function __construct(
+        #[RouteParameter('team', 'id')]
+        public string $routeId,
+        #[CurrentUser(property: 'id')]
+        public int $userId,
+    ) {
+    }
+}
+
+final class ContextualAttributeTestRoute
+{
+    public function __construct(private array $parameters)
+    {
+    }
+
+    public function hasParameters(): bool
+    {
+        return true;
+    }
+
+    public function parameter(string $name, mixed $default = null): mixed
+    {
+        return $this->parameters[$name] ?? $default;
     }
 }
 

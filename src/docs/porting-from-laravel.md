@@ -414,6 +414,10 @@ Container lifecycles are adapted for Swoole:
 > [!WARNING]
 > Unbound concrete classes are automatically cached for the worker lifetime after their first resolution. If an unbound class captures the current user, tenant, request, or other mutable per-request data in its constructor, ordinary tests may pass while concurrent requests receive another request's state. Register the class with `bind()` for a fresh instance, use `scoped()` for one instance per request or job coroutine, construct a fresh instance with `build()`, or implement `Transient` when every subclass must always be fresh. Eloquent models already implement `Transient`.
 
+Hypervel treats a contextual attribute's resolved value as authoritative, including `null`. Laravel constructor injection may fall through from `null` to class or primitive resolution, a contextual binding, or a declared default. Move that fallback into the attribute resolver when porting code that relies on this behavior.
+
+On PHP 8.5 and later, `#[BindWhen]` conditions must depend only on boot-stable state. A matching condition becomes a normal worker-lifetime binding in Hypervel, while an unmatched condition may be evaluated again on a later resolution. Do not read the current request, user, or tenant from the condition.
+
 <a name="coroutine-aware-dependencies"></a>
 ### Coroutine-Aware Dependencies
 
@@ -711,6 +715,7 @@ When reviewing a Laravel port, confirm the following:
 - Code that receives framework-created dates handles immutable Carbon instances correctly.
 - Service providers extend `Hypervel\Support\ServiceProvider`, keep bindings in `register`, and do not use `DeferrableProvider`.
 - Request-specific state is not stored on static properties, singleton services, service providers, managers, or unbound concrete services.
+- Contextual attribute null fallbacks and `BindWhen` conditions have been adapted to Hypervel's worker-lifetime container behavior.
 - Per-request values use context, coroutine context, scoped bindings, or fresh objects, while static caches contain only worker-safe immutable data.
 - Runtime configuration mutation has been removed or replaced with request-scoped state.
 - Third-party I/O and PHP extensions are coroutine-aware or deliberately isolated in a separate process.

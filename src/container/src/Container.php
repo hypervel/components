@@ -7,6 +7,7 @@ namespace Hypervel\Container;
 use Closure;
 use Exception;
 use Hypervel\Container\Attributes\Bind;
+use Hypervel\Container\Attributes\BindWhen;
 use Hypervel\Container\Attributes\Scoped;
 use Hypervel\Container\Attributes\Singleton;
 use Hypervel\Context\CoroutineContext;
@@ -541,7 +542,7 @@ class Container implements ContainerContract
     {
         return function ($container, $parameters = []) use ($abstract, $concrete) {
             if ($abstract === $concrete) {
-                return $container->build($concrete);
+                return $container->buildForResolution($concrete);
             }
 
             return $container->resolve(
@@ -1235,7 +1236,7 @@ class Container implements ContainerContract
             // the binding. This will instantiate the types, as well as resolve any of
             // its "nested" dependencies recursively until all have gotten resolved.
             $object = $this->isBuildable($concrete, $abstract)
-                ? $this->build($concrete)
+                ? $this->buildForResolution($concrete)
                 : $this->make($concrete);
 
             // If we defined any extenders for this type, we'll need to spin through them
@@ -1453,8 +1454,7 @@ class Container implements ContainerContract
             return $this->bindings[$abstract]['concrete'];
         }
 
-        if ($this->environmentResolver === null
-            || ($this->checkedForAttributeBindings[$abstract] ?? false)) {
+        if ($this->checkedForAttributeBindings[$abstract] ?? false) {
             return $abstract;
         }
 
@@ -1462,7 +1462,7 @@ class Container implements ContainerContract
     }
 
     /**
-     * Get the concrete binding for an abstract from the Bind attribute.
+     * Get the concrete binding for an abstract from the BindWhen or Bind attributes.
      */
     protected function getConcreteBindingFromAttributes(string $abstract): mixed
     {
@@ -1474,35 +1474,14 @@ class Container implements ContainerContract
             return $abstract;
         }
 
-        $bindAttributes = $reflected->getAttributes(Bind::class);
-
-        if ($bindAttributes === []) {
-            return $abstract;
-        }
-
-        $concrete = $maybeConcrete = null;
-
-        foreach ($bindAttributes as $reflectedAttribute) {
-            $instance = $reflectedAttribute->newInstance();
-
-            if ($instance->environments === ['*']) {
-                $maybeConcrete = $instance->concrete;
-
-                continue;
-            }
-
-            if ($this->currentEnvironmentIs($instance->environments)) {
-                $concrete = $instance->concrete;
-
-                break;
-            }
-        }
-
-        if ($maybeConcrete !== null && $concrete === null) {
-            $concrete = $maybeConcrete;
-        }
+        $concrete = $this->resolveConcreteFromAttributes($reflected);
 
         if ($concrete === null) {
+            if ($reflected->getAttributes(BindWhen::class) !== []
+                || ($this->environmentResolver === null && $reflected->getAttributes(Bind::class) !== [])) {
+                unset($this->checkedForAttributeBindings[$abstract]);
+            }
+
             return $abstract;
         }
 
@@ -1513,6 +1492,47 @@ class Container implements ContainerContract
         };
 
         return $this->bindings[$abstract]['concrete'];
+    }
+
+    /**
+     * Resolve the concrete from the Bind and BindWhen attributes in declaration order.
+     *
+     * @param ReflectionClass<object> $reflected
+     * @return null|class-string
+     */
+    protected function resolveConcreteFromAttributes(ReflectionClass $reflected): ?string
+    {
+        $wildcard = null;
+
+        foreach ($reflected->getAttributes() as $reflectedAttribute) {
+            $name = $reflectedAttribute->getName();
+
+            if ($name === BindWhen::class) {
+                $instance = $reflectedAttribute->newInstance();
+
+                if (($instance->condition)($this)) {
+                    return $instance->concrete;
+                }
+
+                continue;
+            }
+
+            if ($name === Bind::class && $this->environmentResolver !== null) {
+                $instance = $reflectedAttribute->newInstance();
+
+                if ($instance->environments === ['*']) {
+                    $wildcard ??= $instance->concrete;
+
+                    continue;
+                }
+
+                if ($this->currentEnvironmentIs($instance->environments)) {
+                    return $instance->concrete;
+                }
+            }
+        }
+
+        return $wildcard;
     }
 
     /**
@@ -1816,11 +1836,6 @@ class Container implements ContainerContract
             return $this->notInstantiable($concrete);
         }
 
-        if (is_a($concrete, SelfBuilding::class, true)
-            && ! in_array($concrete, $this->getBuildStack(), true)) {
-            return $this->buildSelfBuildingInstance($concrete, $recipe);
-        }
-
         $this->pushBuildStack($concrete);
 
         try {
@@ -1858,6 +1873,27 @@ class Container implements ContainerContract
         }
 
         return $instance;
+    }
+
+    /**
+     * Build a concrete as part of container resolution.
+     */
+    protected function buildForResolution(Closure|string $concrete): mixed
+    {
+        if ($concrete instanceof Closure
+            || ! is_a($concrete, SelfBuilding::class, true)
+            || in_array($concrete, $this->getBuildStack(), true)
+        ) {
+            return $this->build($concrete);
+        }
+
+        $recipe = $this->getBuildRecipe($concrete);
+
+        if (! $recipe->classExists || ! $recipe->isInstantiable) {
+            return $this->build($concrete);
+        }
+
+        return $this->buildSelfBuildingInstance($concrete, $recipe);
     }
 
     /**
@@ -1910,23 +1946,21 @@ class Container implements ContainerContract
                 continue;
             }
 
-            $result = null;
-
-            // Contextual attributes are checked BEFORE class/primitive resolution.
-            // This is critical for #[Config], #[Give], etc. to work correctly.
             if ($paramRecipe->contextualAttribute !== null) {
+                // A contextual result is authoritative even when it is null, matching
+                // method injection and preventing fallback dependency construction.
                 $result = $this->resolveFromAttribute(
                     $paramRecipe->contextualAttribute,
                     $paramRecipe->getReflectionParameter(),
                 );
+            } else {
+                // If the class is null, it means the dependency is a string or some other
+                // primitive type which we can not resolve since it is not a class and
+                // we will just bomb out with an error since we have no-where to go.
+                $result = ($paramRecipe->className === null)
+                    ? $this->resolvePrimitive($paramRecipe)
+                    : $this->resolveClass($paramRecipe);
             }
-
-            // If the class is null, it means the dependency is a string or some other
-            // primitive type which we can not resolve since it is not a class and
-            // we will just bomb out with an error since we have no-where to go.
-            $result ??= ($paramRecipe->className === null)
-                ? $this->resolvePrimitive($paramRecipe)
-                : $this->resolveClass($paramRecipe);
 
             if ($paramRecipe->attributes !== []) {
                 $this->fireAfterResolvingAttributeCallbacks($paramRecipe->attributes, $result);

@@ -385,6 +385,32 @@ interface EventPusher
 }
 ```
 
+<a name="bind-when-attribute"></a>
+#### Conditional Bind Attribute
+
+On PHP 8.5 and later, the `BindWhen` attribute may select an implementation using a closure. Conditional and environment-specific bindings are checked in declaration order. The first unconditional `Bind` remains the fallback when none of them match:
+
+```php
+<?php
+
+namespace App\Contracts;
+
+use App\Services\RedisEventPusher;
+use Hypervel\Container\Attributes\BindWhen;
+use Hypervel\Contracts\Container\Container;
+
+#[BindWhen(
+    RedisEventPusher::class,
+    static fn (Container $container): bool => $container->bound('redis'),
+)]
+interface EventPusher
+{
+    // ...
+}
+```
+
+`BindWhen` conditions must depend only on state established during application boot. Once a condition matches, Hypervel registers a normal binding that remains in the worker for its lifetime. A condition that has not matched may be evaluated again on a later resolution.
+
 <a name="contextual-binding"></a>
 ### Contextual Binding
 
@@ -435,7 +461,7 @@ class PhotoController extends Controller
 }
 ```
 
-In addition to the `Storage` attribute, Hypervel offers `Auth`, `Cache`, `Config`, `Context`, `Database` (with `DB` as a short alias), `Give`, `Log`, `RouteParameter`, and [Tag](#tagging) attributes:
+In addition to the `Storage` attribute, Hypervel offers `Auth`, `Authenticated`, `Cache`, `Config`, `Context`, `CurrentUser`, `Database` (with `DB` as a short alias), `Give`, `Log`, `RequestAttribute`, `RouteParameter`, and [Tag](#tagging) attributes:
 
 ```php
 <?php
@@ -452,6 +478,7 @@ use Hypervel\Container\Attributes\Context;
 use Hypervel\Container\Attributes\DB;
 use Hypervel\Container\Attributes\Give;
 use Hypervel\Container\Attributes\Log;
+use Hypervel\Container\Attributes\RequestAttribute;
 use Hypervel\Container\Attributes\RouteParameter;
 use Hypervel\Container\Attributes\Tag;
 use Hypervel\Contracts\Auth\Guard;
@@ -470,6 +497,7 @@ class PhotoController extends Controller
         #[DB('mysql')] protected ConnectionInterface $connection,
         #[Give(DatabaseRepository::class)] protected UserRepository $users,
         #[Log('daily', name: 'photos')] protected LoggerInterface $log,
+        #[RequestAttribute('tenant')] protected string $tenant,
         #[RouteParameter] protected Photo $photo,
         #[Tag('reports')] protected iterable $reports,
     ) {
@@ -478,7 +506,9 @@ class PhotoController extends Controller
 }
 ```
 
-The `RouteParameter` attribute resolves the route parameter matching the variable name. If needed, you may specify the route parameter name explicitly: `#[RouteParameter('photo')]`.
+The `RequestAttribute` attribute resolves a value from the current request's attributes bag. The `RouteParameter` attribute resolves the route parameter matching the variable name. If needed, you may specify the route parameter name explicitly: `#[RouteParameter('photo')]`.
+
+`RouteParameter` and the user attributes may also extract a dot-notated property path from the resolved object. For example, `#[RouteParameter('photo', 'id')] int $photoId` resolves the route model's ID, while `#[CurrentUser(property: 'id')] int $userId` resolves the current user's ID. Property access uses `data_get`, so object accessors and Eloquent relationships may execute while the path is traversed.
 
 Pass `memo: true` to `Cache` to inject a request-scoped memoized repository. The optional `name` argument on `Log` creates a named logger and is supported by Monolog-backed channels. Driver identifiers accepted by `Auth`, `Authenticated`, `Cache`, `Log`, and `Storage` may also be unit or backed enum cases; Hypervel uses the unit case name or backed value as the identifier.
 
@@ -548,6 +578,10 @@ class Config implements ContextualAttribute
 ```
 
 The current `ReflectionParameter` is passed as the third argument, allowing custom attributes to inspect the parameter name or type when resolving a value.
+
+A contextual attribute's resolved value is authoritative, including `null`. Hypervel does not fall through to class or primitive resolution, another contextual binding, or a declared constructor default after the resolver runs. Return the intended fallback from the resolver itself when an attribute needs one.
+
+Only implement `ContextualAttribute` when the attribute resolves the parameter's value. A marker used with `afterResolvingAttribute()` may remain an ordinary PHP attribute; it does not need a contextual resolver.
 
 If a custom contextual attribute resolves request or job state, implement `Hypervel\Contracts\Container\ExecutionScopedAttribute` instead. Its `isExecutionScoped` method tells the container to keep an otherwise unbound consuming class within the current execution. The method may use the attribute's options when only some forms are execution-specific.
 
