@@ -233,7 +233,8 @@ class CacheManager implements FactoryContract
         return $this->repository(new FailoverStore(
             $this,
             $this->app->make(DispatcherContract::class),
-            $config['stores']
+            $config['stores'],
+            $config['store'],
         ), ['events' => false, ...$config]);
     }
 

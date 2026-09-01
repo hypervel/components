@@ -9,7 +9,11 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
+use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Request as HttpRequest;
+use Hypervel\HttpServer\Events\RequestHandled;
+use Hypervel\HttpServer\Events\RequestReceived;
+use Hypervel\HttpServer\Events\ResponseSent;
 use Hypervel\Routing\Route;
 use Hypervel\Routing\Router;
 use Hypervel\Tests\TestCase;
@@ -28,6 +32,52 @@ use Symfony\Component\HttpFoundation\Response;
 
 class ServerHandshakeTest extends TestCase
 {
+    public function testDispatchesHttpLifecycleAroundNativeHandshakeEmission(): void
+    {
+        $order = [];
+        $observedEvents = [];
+        $events = new Dispatcher;
+
+        foreach ([RequestReceived::class, RequestHandled::class, ResponseSent::class] as $eventClass) {
+            $events->listen($eventClass, function (object $event) use (&$order, &$observedEvents): void {
+                $order[] = $event::class;
+                $observedEvents[$event::class] = $event;
+            });
+        }
+
+        $container = $this->container($events);
+        $container->shouldReceive('make')->once()->with(Security::class)->andReturn(new Security);
+        $container->shouldReceive('make')->once()->with(WebSocketStub::class)->andReturn(new WebSocketStub);
+        $nativeServer = m::mock(SwooleWebSocketServer::class);
+        $nativeServer->shouldReceive('isEstablished')->once()->with(42)->andReturnTrue();
+        $response = $this->response(
+            Response::HTTP_SWITCHING_PROTOCOLS,
+            onEnd: function () use (&$order): bool {
+                $order[] = 'send';
+
+                return true;
+            },
+        );
+
+        (new HandshakeLifecycleServer(
+            $container,
+            $this->router(Response::HTTP_SWITCHING_PROTOCOLS),
+            $nativeServer,
+        ))->onHandshake($this->request(), $response);
+
+        $this->assertSame([
+            RequestReceived::class,
+            RequestHandled::class,
+            'send',
+            ResponseSent::class,
+        ], $order);
+        $this->assertNull($observedEvents[RequestReceived::class]->response);
+        $this->assertSame(Response::HTTP_SWITCHING_PROTOCOLS, $observedEvents[RequestHandled::class]->response->getStatusCode());
+        $this->assertSame($observedEvents[RequestHandled::class]->response, $observedEvents[ResponseSent::class]->response);
+        $this->assertNull($observedEvents[ResponseSent::class]->exception);
+        $this->assertSame('websocket', $observedEvents[ResponseSent::class]->server);
+    }
+
     public function testPublishesConnectionOnlyAfterSuccessfulLiveHandshakeEmission(): void
     {
         $container = $this->container();
@@ -55,7 +105,12 @@ class ServerHandshakeTest extends TestCase
 
     public function testEmissionFailureRollsBackUnpublishedConnectionState(): void
     {
-        $container = $this->container();
+        $sentEvent = null;
+        $events = new Dispatcher;
+        $events->listen(ResponseSent::class, function (ResponseSent $event) use (&$sentEvent): void {
+            $sentEvent = $event;
+        });
+        $container = $this->container($events);
         $container->shouldReceive('make')->once()->with(Security::class)->andReturn(new Security);
         $container->shouldReceive('make')->once()->with(WebSocketStub::class)->andReturn(new WebSocketStub);
 
@@ -73,6 +128,8 @@ class ServerHandshakeTest extends TestCase
             $this->fail('Expected handshake emission failure.');
         } catch (RuntimeException $exception) {
             $this->assertSame('Unable to complete the response.', $exception->getMessage());
+            $this->assertInstanceOf(ResponseSent::class, $sentEvent);
+            $this->assertSame($exception, $sentEvent->exception);
             $this->assertNull(FdCollector::get(42));
             $this->assertArrayNotHasKey(42, WebSocketContext::getStorage());
         }
@@ -121,7 +178,14 @@ class ServerHandshakeTest extends TestCase
 
     public function testHandshakeCancellationSkipsFallbackEmissionAndReleasesContext(): void
     {
-        $container = $this->container();
+        $dispatchedEvents = [];
+        $events = new Dispatcher;
+        foreach ([RequestReceived::class, RequestHandled::class, ResponseSent::class] as $eventClass) {
+            $events->listen($eventClass, function (object $event) use (&$dispatchedEvents): void {
+                $dispatchedEvents[] = $event::class;
+            });
+        }
+        $container = $this->container($events);
         $container->shouldReceive('make')->once()->with(Security::class)->andReturn(new Security);
 
         $router = m::mock(Router::class);
@@ -143,6 +207,7 @@ class ServerHandshakeTest extends TestCase
                 ->onHandshake($this->request(), $response);
             $this->fail('Expected handshake cancellation to be rethrown.');
         } catch (CanceledException) {
+            $this->assertSame([RequestReceived::class], $dispatchedEvents);
             $this->assertNull(FdCollector::get(42));
             $this->assertArrayNotHasKey(42, WebSocketContext::getStorage());
         }
@@ -151,12 +216,16 @@ class ServerHandshakeTest extends TestCase
     /**
      * Create the package container mock.
      */
-    protected function container(): Container
+    protected function container(?Dispatcher $events = null): Container
     {
         $container = m::mock(Container::class);
         $container->shouldReceive('make')->once()->with(StdoutLoggerInterface::class)
             ->andReturn(m::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing());
-        $container->shouldReceive('bound')->once()->with('events')->andReturnFalse();
+        $container->shouldReceive('bound')->once()->with('events')->andReturn($events !== null);
+
+        if ($events !== null) {
+            $container->shouldReceive('make')->once()->with('events')->andReturn($events);
+        }
 
         return $container;
     }
@@ -213,11 +282,16 @@ class ServerHandshakeTest extends TestCase
         int $status,
         string $content = '',
         bool $endResult = true,
+        ?Closure $onEnd = null,
     ): SwooleResponse {
         $response = m::mock(SwooleResponse::class);
         $response->shouldReceive('status')->once()->with($status)->andReturnTrue();
         $response->shouldReceive('header')->zeroOrMoreTimes()->andReturnTrue();
-        $response->shouldReceive('end')->once()->with($content)->andReturn($endResult);
+        $expectation = $response->shouldReceive('end')->once()->with($content);
+
+        $onEnd === null
+            ? $expectation->andReturn($endResult)
+            : $expectation->andReturnUsing($onEnd);
 
         return $response;
     }

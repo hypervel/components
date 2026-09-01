@@ -341,7 +341,13 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
         } catch (Throwable $exception) {
             $this->event(
                 KeyWriteFailed::class,
-                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
+                fn (): KeyWriteFailed => new KeyWriteFailed(
+                    $this->getName(),
+                    $key,
+                    NullSentinel::unwrap($value),
+                    $seconds,
+                    exception: $exception,
+                )
             );
 
             throw $exception;
@@ -407,7 +413,13 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
             foreach ($values as $key => $value) {
                 $this->event(
                     KeyWriteFailed::class,
-                    fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), (string) $key, NullSentinel::unwrap($value), $seconds)
+                    fn (): KeyWriteFailed => new KeyWriteFailed(
+                        $this->getName(),
+                        (string) $key,
+                        NullSentinel::unwrap($value),
+                        $seconds,
+                        exception: $exception,
+                    )
                 );
             }
 
@@ -510,7 +522,12 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
         } catch (Throwable $exception) {
             $this->event(
                 KeyWriteFailed::class,
-                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value))
+                fn (): KeyWriteFailed => new KeyWriteFailed(
+                    $this->getName(),
+                    $key,
+                    NullSentinel::unwrap($value),
+                    exception: $exception,
+                )
             );
 
             throw $exception;
@@ -818,7 +835,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
         } catch (Throwable $exception) {
             $this->event(
                 KeyForgetFailed::class,
-                fn (): KeyForgetFailed => new KeyForgetFailed($this->getName(), $key)
+                fn (): KeyForgetFailed => new KeyForgetFailed($this->getName(), $key, exception: $exception)
             );
 
             throw $exception;
@@ -859,11 +876,25 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
         return $result;
     }
 
+    /**
+     * Remove all items from the cache.
+     */
     public function clear(): bool
     {
         $this->event(CacheFlushing::class, fn (): CacheFlushing => new CacheFlushing($this->getName()));
 
-        $result = $this->store->flush();
+        try {
+            $result = $this->store->flush();
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            $this->event(
+                CacheFlushFailed::class,
+                fn (): CacheFlushFailed => new CacheFlushFailed($this->getName(), exception: $exception)
+            );
+
+            throw $exception;
+        }
 
         if ($result) {
             $this->event(CacheFlushed::class, fn (): CacheFlushed => new CacheFlushed($this->getName()));
@@ -892,7 +923,18 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
 
         $this->event(CacheLocksFlushing::class, fn (): CacheLocksFlushing => new CacheLocksFlushing($this->getName()));
 
-        $result = $store->flushLocks();
+        try {
+            $result = $store->flushLocks();
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            $this->event(
+                CacheLocksFlushFailed::class,
+                fn (): CacheLocksFlushFailed => new CacheLocksFlushFailed($this->getName(), exception: $exception)
+            );
+
+            throw $exception;
+        }
 
         if ($result) {
             $this->event(

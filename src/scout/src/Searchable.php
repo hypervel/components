@@ -175,7 +175,7 @@ trait Searchable
             return;
         }
 
-        $models->first()->searchableUsing()->update($models);
+        $models->first()->searchableUsing()->runUpdate($models);
     }
 
     /**
@@ -214,7 +214,7 @@ trait Searchable
             return;
         }
 
-        $models->first()->searchableUsing()->delete($models);
+        $models->first()->searchableUsing()->runDelete($models);
     }
 
     /**
@@ -320,7 +320,7 @@ trait Searchable
 
         Scout::guardModelFlush($self, $engine, $force);
 
-        $engine->flush($self);
+        $engine->runFlush($self);
     }
 
     /**

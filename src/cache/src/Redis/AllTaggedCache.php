@@ -7,6 +7,7 @@ namespace Hypervel\Cache\Redis;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Cache\Events\CacheFlushed;
+use Hypervel\Cache\Events\CacheFlushFailed;
 use Hypervel\Cache\Events\CacheFlushing;
 use Hypervel\Cache\Events\KeyWriteFailed;
 use Hypervel\Cache\Events\KeyWritten;
@@ -115,7 +116,13 @@ class AllTaggedCache extends NamespacedTaggedCache
         } catch (Throwable $exception) {
             $this->event(
                 KeyWriteFailed::class,
-                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
+                fn (): KeyWriteFailed => new KeyWriteFailed(
+                    $this->getName(),
+                    $key,
+                    NullSentinel::unwrap($value),
+                    $seconds,
+                    exception: $exception,
+                )
             );
 
             throw $exception;
@@ -178,7 +185,13 @@ class AllTaggedCache extends NamespacedTaggedCache
             foreach ($values as $key => $value) {
                 $this->event(
                     KeyWriteFailed::class,
-                    fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), (string) $key, NullSentinel::unwrap($value), $seconds)
+                    fn (): KeyWriteFailed => new KeyWriteFailed(
+                        $this->getName(),
+                        (string) $key,
+                        NullSentinel::unwrap($value),
+                        $seconds,
+                        exception: $exception,
+                    )
                 );
             }
 
@@ -277,7 +290,12 @@ class AllTaggedCache extends NamespacedTaggedCache
         } catch (Throwable $exception) {
             $this->event(
                 KeyWriteFailed::class,
-                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value))
+                fn (): KeyWriteFailed => new KeyWriteFailed(
+                    $this->getName(),
+                    $key,
+                    NullSentinel::unwrap($value),
+                    exception: $exception,
+                )
             );
 
             throw $exception;
@@ -305,10 +323,22 @@ class AllTaggedCache extends NamespacedTaggedCache
     {
         $this->event(CacheFlushing::class, fn (): CacheFlushing => new CacheFlushing($this->getName()));
 
-        $this->store->allTagOps()->flush()->execute($this->tags->tagIds(), $this->tags->getNames());
+        try {
+            $this->store->allTagOps()->flush()->execute($this->tags->tagIds(), $this->tags->getNames());
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            $this->event(
+                CacheFlushFailed::class,
+                fn (): CacheFlushFailed => new CacheFlushFailed($this->getName(), exception: $exception)
+            );
+
+            throw $exception;
+        }
 
         $this->event(CacheFlushed::class, fn (): CacheFlushed => new CacheFlushed($this->getName()));
 
+        // The atomic Redis operation reports failure by throwing, including when no keys exist.
         return true;
     }
 

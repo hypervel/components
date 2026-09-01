@@ -226,7 +226,7 @@ class SearchableModelTest extends ScoutTestCase
     public function testRemoveAllFromSearchGuardsTheResolvedEngineBeforeFlushing(): void
     {
         $engine = m::mock(Engine::class);
-        $engine->shouldReceive('flush')
+        $engine->shouldReceive('runFlush')
             ->once()
             ->with(m::type(SearchableModel::class));
         $manager = m::mock(EngineManager::class);

@@ -188,7 +188,7 @@ abstract class AnyModeTaggedCache extends TaggedCache
         } catch (Throwable $exception) {
             $this->event(
                 KeyForgetFailed::class,
-                fn (): KeyForgetFailed => new KeyForgetFailed($this->getName(), $key)
+                fn (): KeyForgetFailed => new KeyForgetFailed($this->getName(), $key, exception: $exception)
             );
 
             throw $exception;

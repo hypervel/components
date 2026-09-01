@@ -101,6 +101,7 @@
     - [gRPC](/docs/{{version}}/grpc)
     - [Horizon](/docs/{{version}}/horizon)
     - [Nested Set](/docs/{{version}}/nested-set)
+    - [OpenTelemetry](/docs/{{version}}/opentelemetry)
     - [Precognition](/docs/{{version}}/precognition)
     - [Prompts](/docs/{{version}}/prompts)
     - [Reverb](/docs/{{version}}/reverb)

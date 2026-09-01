@@ -8,7 +8,10 @@ use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Builder;
 use Hypervel\Scout\Contracts\DeletesByFilter;
+use Hypervel\Scout\Contracts\EngineOperationObserver;
 use Hypervel\Scout\Contracts\SearchableInterface;
+use Hypervel\Scout\EngineOperation;
+use Hypervel\Scout\EngineOperationRunner;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Engines\TypesenseEngine;
 use Hypervel\Scout\Exceptions\NotSupportedException;
@@ -19,6 +22,7 @@ use InvalidArgumentException;
 use Mockery as m;
 use Mockery\MockInterface;
 use ReflectionMethod;
+use Throwable;
 use Typesense\ApiCall;
 use Typesense\Client as TypesenseClient;
 use Typesense\Collection as TypesenseCollection;
@@ -607,7 +611,11 @@ class TypesenseEngineTest extends TestCase
         $model->searchParameters = ['filter_by' => 'from_model:=true'];
         $builder = (new Builder($model, ''))
             ->options(['filter_by' => 'status:=active || status:=trial']);
-        $engine = $this->createPartialEngineWithConfig($client);
+        $runner = new EngineOperationRunner;
+        $observer = new TypesenseEngineOperationObserver;
+        $runner->observe($observer);
+        $engine = $this->createPartialEngineWithConfig($client)
+            ->setOperationRunner($runner, 'typesense');
         $this->assertInstanceOf(DeletesByFilter::class, $engine);
         Scout::prepareBuilderUsing(function (Builder $givenBuilder, Engine $givenEngine) use ($builder, $engine): void {
             $this->assertSame($builder, $givenBuilder);
@@ -616,6 +624,10 @@ class TypesenseEngineTest extends TestCase
         });
 
         $engine->deleteByFilter($builder);
+
+        $this->assertCount(1, $observer->operations);
+        $this->assertSame('delete_by_filter', $observer->operations[0]->operation);
+        $this->assertSame('write_index', $observer->operations[0]->index);
     }
 
     public function testDeleteByFilterUsesAnExplicitCollection(): void
@@ -682,6 +694,26 @@ class TypesenseEngineTest extends TestCase
         }
 
         $this->assertTrue($prepared);
+    }
+
+    public function testDeleteByFilterDoesNotNotifyObserversForAnEmptyFilter(): void
+    {
+        $client = m::mock(TypesenseClient::class);
+        $client->shouldNotReceive('getCollections');
+        $observer = m::mock(EngineOperationObserver::class);
+        $observer->shouldNotReceive('starting');
+        $observer->shouldNotReceive('finished');
+        $runner = new EngineOperationRunner;
+        $runner->observe($observer);
+        $engine = $this->createPartialEngineWithConfig($client)
+            ->setOperationRunner($runner, 'typesense');
+        $model = m::mock(TypesenseLifecycleModel::class)->makePartial();
+        $model->shouldNotReceive('indexableAs');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Typesense filter deletion requires a non-empty filter.');
+
+        $engine->deleteByFilter(new Builder($model, ''));
     }
 
     public function testDeleteIndexCallsTypesenseDelete(): void
@@ -1216,6 +1248,30 @@ class TypesenseEngineTest extends TestCase
             });
 
         return $engine;
+    }
+}
+
+class TypesenseEngineOperationObserver implements EngineOperationObserver
+{
+    /**
+     * The observed operations.
+     *
+     * @var array<EngineOperation>
+     */
+    public array $operations = [];
+
+    public function starting(EngineOperation $operation): mixed
+    {
+        $this->operations[] = $operation;
+
+        return null;
+    }
+
+    public function finished(
+        EngineOperation $operation,
+        mixed $token,
+        ?Throwable $exception
+    ): void {
     }
 }
 

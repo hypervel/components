@@ -363,30 +363,47 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
      */
     protected function sendBatchedMessages(array $messages, ?string $queue): void
     {
-        $entries = [];
-        $overflow = [];
-
         foreach ($messages as $id => $message) {
-            $entry = $this->prepareSendMessageBatchEntry($id, $message, $queue);
-
-            if ($this->willOverflow($message['payload'])) {
-                [$path, $entry['MessageBody']] = $this->prepareOverflowPayload($message['payload']);
-                $overflow[(string) $id] = ['path' => $path, 'payload' => $message['payload']];
-            }
-
-            $entries[] = $entry;
+            $messages[$id]['payload'] = $this->finalizePayloadForQueueing(
+                $queue,
+                $message['job'],
+                $message['payload'],
+                $message['delay'],
+            );
         }
 
-        $queueUrl = $this->getQueue($queue);
-        $store = $overflow === [] ? null : $this->overflowStore();
+        $outstandingMessageIds = array_fill_keys(array_keys($messages), true);
+
+        try {
+            $entries = [];
+            $overflow = [];
+
+            foreach ($messages as $id => $message) {
+                $entry = $this->prepareSendMessageBatchEntry($id, $message, $queue);
+
+                if ($this->willOverflow($message['payload'])) {
+                    [$path, $entry['MessageBody']] = $this->prepareOverflowPayload($message['payload']);
+                    $overflow[(string) $id] = ['path' => $path, 'payload' => $message['payload']];
+                }
+
+                $entries[] = $entry;
+            }
+
+            $queueUrl = $this->getQueue($queue);
+            $store = $overflow === [] ? null : $this->overflowStore();
+            $chunks = $this->chunkBatchEntries($entries);
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $queue, $exception);
+
+            throw $exception;
+        }
 
         // Dispatch chunks serially so later messages cannot arrive ahead of an unsent failed chunk...
-        foreach ($this->chunkBatchEntries($entries) as $chunk) {
-            $attemptedMessages = [];
-
+        foreach ($chunks as $chunk) {
             foreach ($chunk as $entry) {
                 $message = $messages[$entry['Id']];
-                $attemptedMessages[$entry['Id']] = $message;
 
                 $this->raiseJobQueueingEvent($queue, $message['job'], $message['payload'], $message['delay']);
             }
@@ -426,7 +443,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
 
                 /** @var CacheRepository $store */
                 $this->cleanupOverflowPayloads($store, $writtenPaths);
-                $this->raiseBatchFailedEvents($attemptedMessages, $queue, $exception);
+                $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $queue, $exception);
 
                 throw $exception;
             }
@@ -441,17 +458,18 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
             } catch (CanceledException $exception) {
                 throw $exception;
             } catch (Throwable $exception) {
-                $this->raiseBatchFailedEvents($attemptedMessages, $queue, $exception);
+                $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $queue, $exception);
 
                 throw $exception;
             }
 
             foreach ($result['Successful'] ?? [] as $success) {
-                if (! isset($attemptedMessages[$success['Id']])) {
+                if (! isset($outstandingMessageIds[$success['Id']])) {
                     continue;
                 }
 
-                $message = $attemptedMessages[$success['Id']];
+                $message = $messages[$success['Id']];
+                unset($outstandingMessageIds[$success['Id']]);
 
                 $this->raiseJobQueuedEvent(
                     $queue,
@@ -495,26 +513,24 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
                 $this->cleanupOverflowPayloads($store, $rejectedPaths);
             }
 
-            $failedMessages = [];
-
-            foreach ($result['Failed'] as $rejected) {
-                if (isset($attemptedMessages[$rejected['Id']])) {
-                    $failedMessages[$rejected['Id']] = $attemptedMessages[$rejected['Id']];
-                }
-            }
-
-            $this->raiseBatchFailedEvents($failedMessages, $queue, $exception);
+            $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $queue, $exception);
 
             throw $exception;
         }
     }
 
     /**
-     * Raise queueing-failed events for the given prepared messages.
+     * Raise queueing-failed events for every outstanding message.
      */
-    protected function raiseBatchFailedEvents(array $messages, ?string $queue, Throwable $exception): void
-    {
-        foreach ($messages as $message) {
+    protected function raiseBatchFailedEvents(
+        array $messages,
+        array $outstandingMessageIds,
+        ?string $queue,
+        Throwable $exception,
+    ): void {
+        foreach (array_keys($outstandingMessageIds) as $id) {
+            $message = $messages[$id];
+
             $this->raiseJobQueueingFailedEvent(
                 $queue,
                 $message['job'],

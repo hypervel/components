@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Events;
 
+use Throwable;
+
 class CacheLocksFlushFailed
 {
     /**
@@ -11,6 +13,7 @@ class CacheLocksFlushFailed
      */
     public function __construct(
         public readonly ?string $storeName,
+        public readonly ?Throwable $exception = null,
     ) {
     }
 }

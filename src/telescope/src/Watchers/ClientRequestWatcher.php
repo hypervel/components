@@ -8,6 +8,7 @@ use GuzzleHttp\Promise\Create;
 use GuzzleHttp\TransferStats;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Di\Aop\ProceedingJoinPoint;
+use Hypervel\Http\Client\PendingRequest;
 use Hypervel\Http\Client\Request;
 use Hypervel\Support\Json;
 use Hypervel\Support\Str;
@@ -162,8 +163,8 @@ class ClientRequestWatcher extends Watcher
      */
     protected function buildPayload(RequestInterface $request, array $options): array|string
     {
-        if (isset($options['hypervel_data'])) {
-            return $this->structuredPayload($request, $options['hypervel_data']);
+        if (isset($options[PendingRequest::DATA_OPTION])) {
+            return $this->structuredPayload($request, $options[PendingRequest::DATA_OPTION]);
         }
 
         return $this->getRequestPayload($request);

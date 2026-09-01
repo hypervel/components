@@ -11,6 +11,9 @@ use Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests;
 use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
+use Hypervel\HttpServer\Events\RequestHandled;
+use Hypervel\HttpServer\Events\RequestReceived;
+use Hypervel\HttpServer\Events\ResponseSent;
 use Hypervel\Routing\Router;
 use Hypervel\Session\ArraySessionHandler;
 use Hypervel\Session\Store;
@@ -332,6 +335,35 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertSame('http://localhost/hello?foo=bar', url()->full());
         $this->assertSame('http://localhost/hello', url()->current());
         $this->assertSame(['foo' => 'bar'], request()->all());
+    }
+
+    public function testCallDispatchesHttpServerLifecycleBeforeTermination(): void
+    {
+        $order = [];
+        $events = $this->app->make('events');
+
+        foreach ([RequestReceived::class, RequestHandled::class, ResponseSent::class] as $eventClass) {
+            $events->listen($eventClass, function (object $event) use (&$order): void {
+                $order[] = $event::class;
+            });
+        }
+
+        TerminatingMiddleware::$callback = function () use (&$order): void {
+            $order[] = 'terminate';
+        };
+
+        $this->app->make(Router::class)
+            ->get('/lifecycle', fn () => 'ok')
+            ->middleware(TerminatingMiddleware::class);
+
+        $this->get('/lifecycle')->assertOk();
+
+        $this->assertSame([
+            RequestReceived::class,
+            RequestHandled::class,
+            ResponseSent::class,
+            'terminate',
+        ], $order);
     }
 
     public function testCallPropagatesFlashedInputToParentCoroutine()

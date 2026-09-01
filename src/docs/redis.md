@@ -386,7 +386,7 @@ Redis::enableEvents();
 Redis::disableEvents();
 ```
 
-Redis pools snapshot their event configuration when they are created, so these methods should be called before any Redis connection is used. Existing pools are not changed.
+These methods are intended for application boot. If a pool was created earlier in the same startup lifecycle with the other setting, Hypervel replaces that pool generation on its next use. Matching pools are left untouched. Connections already checked out from a replaced generation may finish their current work and are destroyed when returned.
 
 <a name="holding-a-pooled-connection"></a>
 #### Holding a Pooled Connection
