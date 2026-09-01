@@ -62,7 +62,6 @@ class DatabaseEloquentRelationTest extends TestCase
 
     public function testCanDisableParentTouchingForAllModels()
     {
-        /** @var \Illuminate\Tests\Database\NoTouchingModelStub $related */
         $related = m::mock(NoTouchingModelStub::class)->makePartial();
         $related->shouldReceive('getUpdatedAtColumn')->never();
         $related->shouldReceive('freshTimestampString')->never();
@@ -234,8 +233,6 @@ class DatabaseEloquentRelationTest extends TestCase
         $this->assertEquals([
             'reset' => ResetModelStub::class,
         ], Relation::morphMap());
-
-        Relation::morphMap([], false);
     }
 
     public function testSettingMorphMapWithNumericKeys()
@@ -245,15 +242,24 @@ class DatabaseEloquentRelationTest extends TestCase
         $this->assertEquals([
             1 => 'App\User',
         ], Relation::morphMap());
+    }
 
-        Relation::morphMap([], false);
+    public function testGetMorphedModel(): void
+    {
+        Relation::morphMap(['user' => 'App\User', 1 => 'App\Team']);
+
+        $this->assertSame('App\User', Relation::getMorphedModel('user'));
+        $this->assertSame('App\Team', Relation::getMorphedModel(1));
+        $this->assertNull(Relation::getMorphedModel('does_not_exist'));
+        $this->assertNull(Relation::getMorphedModel(null));
     }
 
     public function testGetMorphAlias()
     {
-        Relation::morphMap(['user' => 'App\User']);
+        Relation::morphMap(['user' => 'App\User', 0 => 'App\Team']);
 
         $this->assertSame('user', Relation::getMorphAlias('App\User'));
+        $this->assertSame(0, Relation::getMorphAlias('App\Team'));
         $this->assertSame('Does\Not\Exist', Relation::getMorphAlias('Does\Not\Exist'));
     }
 
