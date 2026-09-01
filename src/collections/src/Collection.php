@@ -338,7 +338,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
 
         $uniqueItems = $items->unique(null, $strict);
 
-        $compare = $this->duplicateComparator($strict);
+        $compare = $items->duplicateComparator($strict);
 
         $duplicates = $this->newInstance();
 

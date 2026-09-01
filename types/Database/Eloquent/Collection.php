@@ -94,7 +94,7 @@ assertType('bool', $collection->contains(function ($user) {
 }));
 assertType('bool', $collection->contains('string', '=', 'string'));
 
-assertType('array<int, (int|string)>', $collection->modelKeys());
+assertType('array<int|string|null>', $collection->modelKeys());
 
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->merge($collection));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->merge([new User]));
