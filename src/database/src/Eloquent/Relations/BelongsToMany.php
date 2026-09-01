@@ -258,7 +258,7 @@ class BelongsToMany extends Relation
         foreach ($models as $model) {
             $key = $this->getDictionaryKey($model->{$this->parentKey});
 
-            if (isset($dictionary[$key])) {
+            if ($key !== null && isset($dictionary[$key])) {
                 $model->setRelation(
                     $relation,
                     $this->related->newCollection($dictionary[$key])
@@ -273,7 +273,7 @@ class BelongsToMany extends Relation
      * Build model dictionary keyed by the relation's foreign key.
      *
      * @param \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> $results
-     * @return array<list<TRelatedModel>>
+     * @return array<array<array-key, TRelatedModel>>
      */
     protected function buildDictionary(EloquentCollection $results): array
     {
@@ -286,6 +286,10 @@ class BelongsToMany extends Relation
 
         foreach ($results as $key => $result) {
             $value = $this->getDictionaryKey($result->{$this->accessor}->{$this->foreignPivotKey});
+
+            if ($value === null) {
+                continue;
+            }
 
             if ($isAssociative) {
                 $dictionary[$value][$key] = $result;

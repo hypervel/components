@@ -14,9 +14,9 @@ use Mockery as m;
 
 class DatabaseEloquentBelongsToTest extends TestCase
 {
-    protected $builder;
+    protected Builder $builder;
 
-    protected $related;
+    protected Model $related;
 
     public function testBelongsToWithDefault()
     {
@@ -154,6 +154,67 @@ class DatabaseEloquentBelongsToTest extends TestCase
         $this->assertEquals(2, $models[1]->foo->getAttribute('id'));
         $this->assertSame('3', (string) $models[2]->foo->getAttribute('id'));
         $this->assertEquals(5, $models[3]->foo->getAttribute('id')->value);
+    }
+
+    public function testModelsWithNullRelatedKeysAreNotMatchedToEmptyStringForeignKeys(): void
+    {
+        $relation = $this->getRelation();
+
+        $result = new class extends Model {
+            protected array $attributes = ['id' => null];
+        };
+
+        $model = new ModelStub;
+        $model->foreign_key = '';
+
+        $relation->match([$model], new Collection([$result]), 'foo');
+
+        $this->assertFalse($model->relationLoaded('foo'));
+    }
+
+    public function testModelsWithNullForeignKeysAreNotMatchedToEmptyStringRelatedKeys(): void
+    {
+        $relation = $this->getRelation();
+
+        $result = new class extends Model {
+            protected string $keyType = 'string';
+
+            protected array $attributes = ['id' => ''];
+        };
+
+        $model = new ModelStub;
+        $model->foreign_key = null;
+
+        $relation->match([$model], new Collection([$result]), 'foo');
+
+        $this->assertFalse($model->relationLoaded('foo'));
+    }
+
+    public function testModelsWithFloatKeysAreProperlyMatchedToParents(): void
+    {
+        $relation = $this->getRelation();
+
+        $result1 = new class extends Model {
+            protected string $keyType = 'string';
+
+            protected array $attributes = ['id' => 1.5];
+        };
+
+        $result2 = new class extends Model {
+            protected string $keyType = 'string';
+
+            protected array $attributes = ['id' => 1.9];
+        };
+
+        $model1 = new ModelStub;
+        $model1->foreign_key = 1.5;
+        $model2 = new ModelStub;
+        $model2->foreign_key = 1.9;
+
+        $models = $relation->match([$model1, $model2], new Collection([$result1, $result2]), 'foo');
+
+        $this->assertSame($result1, $models[0]->foo);
+        $this->assertSame($result2, $models[1]->foo);
     }
 
     public function testAssociateMethodSetsForeignKeyOnModel()
@@ -428,22 +489,22 @@ class DatabaseEloquentBelongsToTest extends TestCase
 
 class ModelStub extends Model
 {
-    public $foreign_key = 'foreign.value';
+    public mixed $foreign_key = 'foreign.value';
 }
 
 class AnotherModelStub extends Model
 {
-    public $foreign_key = 'foreign.value.two';
+    public string $foreign_key = 'foreign.value.two';
 }
 
 class ModelStubWithZeroId extends Model
 {
-    public $foreign_key = 0;
+    public int $foreign_key = 0;
 }
 
 class MissingModelStub extends Model
 {
-    public $foreign_key;
+    public mixed $foreign_key = null;
 }
 
 class ModelStubWithBackedEnumCast extends Model

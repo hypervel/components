@@ -277,7 +277,6 @@ class SyncIndexSettingsCommandTest extends TestCase
         $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();
 
         $method = new ReflectionMethod(SyncIndexSettingsCommand::class, 'indexName');
-        $method->setAccessible(true);
 
         $config = m::mock(Repository::class);
         $config->shouldReceive('string')
@@ -294,7 +293,6 @@ class SyncIndexSettingsCommandTest extends TestCase
         $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();
 
         $method = new ReflectionMethod(SyncIndexSettingsCommand::class, 'indexName');
-        $method->setAccessible(true);
 
         $config = m::mock(Repository::class);
         $config->shouldReceive('string')

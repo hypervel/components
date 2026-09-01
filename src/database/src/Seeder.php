@@ -7,11 +7,12 @@ namespace Hypervel\Database;
 use Hypervel\Console\Command;
 use Hypervel\Console\View\Components\TwoColumnDetail;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Database\Console\Seeds\WithoutModelEvents;
 use Hypervel\Support\Arr;
 use InvalidArgumentException;
 
-abstract class Seeder
+abstract class Seeder implements Transient
 {
     /**
      * The container instance.
@@ -28,12 +29,17 @@ abstract class Seeder
      *
      * @var array<int, class-string>
      */
-    protected static array $called = [];
+    protected array $called = [];
+
+    /**
+     * The root seeder while this instance is running as a child.
+     */
+    private ?Seeder $root = null;
 
     /**
      * Run the given seeder class.
      *
-     * @param array<int, class-string>|class-string $class
+     * @param array<int, class-string<Seeder>>|class-string<Seeder> $class
      */
     public function call(array|string $class, bool $silent = false, array $parameters = []): static
     {
@@ -50,8 +56,17 @@ abstract class Seeder
             }
 
             $startTime = microtime(true);
+            $root = $this->root ?? $this;
+            $previousRoot = $seeder->root;
+            $seeder->root = $root;
 
-            $seeder->__invoke($parameters);
+            try {
+                $seeder->__invoke($parameters);
+            } finally {
+                // Restore the previous root so a re-entered shared seeder keeps its outer attachment
+                // and a later root invocation resets its own registry.
+                $seeder->root = $previousRoot;
+            }
 
             if ($silent === false && isset($this->command)) {
                 $runTime = number_format((microtime(true) - $startTime) * 1000);
@@ -62,7 +77,7 @@ abstract class Seeder
                 $this->command->getOutput()->writeln('');
             }
 
-            static::$called[] = $class;
+            $root->called[] = $class;
         }
 
         return $this;
@@ -71,7 +86,7 @@ abstract class Seeder
     /**
      * Run the given seeder class.
      *
-     * @param array<int, class-string>|class-string $class
+     * @param array<int, class-string<Seeder>>|class-string<Seeder> $class
      */
     public function callWith(array|string $class, array $parameters = []): static
     {
@@ -81,7 +96,7 @@ abstract class Seeder
     /**
      * Silently run the given seeder class.
      *
-     * @param array<int, class-string>|class-string $class
+     * @param array<int, class-string<Seeder>>|class-string<Seeder> $class
      */
     public function callSilent(array|string $class, array $parameters = []): static
     {
@@ -91,14 +106,14 @@ abstract class Seeder
     /**
      * Run the given seeder class once.
      *
-     * @param array<int, class-string>|class-string $class
+     * @param array<int, class-string<Seeder>>|class-string<Seeder> $class
      */
     public function callOnce(array|string $class, bool $silent = false, array $parameters = []): static
     {
         $classes = Arr::wrap($class);
 
         foreach ($classes as $class) {
-            if (in_array($class, static::$called)) {
+            if (in_array($class, ($this->root ?? $this)->called, true)) {
                 continue;
             }
 
@@ -110,13 +125,13 @@ abstract class Seeder
 
     /**
      * Resolve an instance of the given seeder class.
+     *
+     * @param class-string<Seeder> $class
      */
     protected function resolve(string $class): Seeder
     {
         if (isset($this->container)) {
-            // build() instead of make() — seeders must be fresh instances,
-            // not auto-singletoned, since they carry mutable per-run state.
-            $instance = $this->container->build($class);
+            $instance = $this->container->make($class);
 
             $instance->setContainer($this->container);
         } else {
@@ -151,20 +166,16 @@ abstract class Seeder
     }
 
     /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        static::$called = [];
-    }
-
-    /**
      * Run the database seeds.
      *
      * @throws InvalidArgumentException
      */
     public function __invoke(array $parameters = []): mixed
     {
+        if ($this->root === null) {
+            $this->called = [];
+        }
+
         if (! method_exists($this, 'run')) {
             throw new InvalidArgumentException('Method [run] missing from ' . get_class($this));
         }

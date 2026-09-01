@@ -390,23 +390,35 @@ class ProcessTest extends TestCase
     {
         $factory = new Factory;
         $failure = new RuntimeException('Wait callback failed.');
-        $process = $factory->forever()->start("printf 'ready\\n'; sleep 60");
-        $processId = $process->id();
+        $processId = null;
+        $caughtException = null;
+        $nativeProcessWasRunning = null;
+        $invokedProcessWasRunning = null;
+        $command = <<<'SH'
+        trap 'exit 0' TERM; while :; do printf '%s\n' "$$"; done
+        SH;
+        $process = $factory->timeout(5)->start($command);
 
         try {
-            $process->wait(static function () use ($failure): void {
+            $process->wait(static function (string $type, string $buffer) use (&$processId, $failure): void {
+                if (preg_match('/\d+/', $buffer, $matches) === 1) {
+                    $processId = (int) $matches[0];
+                }
+
                 throw $failure;
             });
-
-            $this->fail('The wait callback failure was not thrown.');
         } catch (RuntimeException $exception) {
-            $this->assertSame($failure, $exception);
-            $this->assertNotNull($processId);
-            $this->assertFalse($this->processIsRunning($processId));
-            $this->assertFalse($process->running());
+            $caughtException = $exception;
+            $nativeProcessWasRunning = $processId !== null && $this->processIsRunning($processId);
+            $invokedProcessWasRunning = $process->running();
         } finally {
             $this->reapProcess($processId, $process);
         }
+
+        $this->assertSame($failure, $caughtException);
+        $this->assertNotNull($processId);
+        $this->assertFalse($nativeProcessWasRunning);
+        $this->assertFalse($invokedProcessWasRunning);
     }
 
     #[RequiresOperatingSystem('Linux|Darwin')]

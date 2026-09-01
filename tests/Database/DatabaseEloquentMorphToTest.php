@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\DatabaseEloquentMorphToTest;
 
+use Hypervel\Database\ClassMorphViolationException;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Builder;
@@ -16,13 +17,14 @@ use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Tests\Database\Fixtures\TestEnum;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
 
 class DatabaseEloquentMorphToTest extends TestCase
 {
-    protected $builder;
+    protected Builder $builder;
 
-    protected $related;
+    protected Model $related;
 
     protected function addMockConnection(Model $model): void
     {
@@ -86,6 +88,34 @@ class DatabaseEloquentMorphToTest extends TestCase
                 ],
             ],
         ], $dictionary);
+    }
+
+    public function testLookupDictionaryExcludesModelsWithNullForeignKeys(): void
+    {
+        $relation = $this->getRelation();
+        $relation->addEagerConstraints([
+            (object) ['morph_type' => 'morph_type_1', 'foreign_key' => null],
+        ]);
+
+        $this->assertSame([], $relation->getDictionary());
+    }
+
+    public function testLookupDictionaryRetainsZeroMorphTypesAndSkipsEmptyTypes(): void
+    {
+        $relation = $this->getRelation();
+        $relation->addEagerConstraints([
+            $integerZero = (object) ['morph_type' => 0, 'foreign_key' => 'integer-zero'],
+            $stringZero = (object) ['morph_type' => '0', 'foreign_key' => 'string-zero'],
+            (object) ['morph_type' => '', 'foreign_key' => 'empty'],
+            (object) ['morph_type' => null],
+        ]);
+
+        $this->assertSame([
+            0 => [
+                'integer-zero' => [$integerZero],
+                'string-zero' => [$stringZero],
+            ],
+        ], $relation->getDictionary());
     }
 
     public function testMorphToWithDefault()
@@ -205,6 +235,127 @@ class DatabaseEloquentMorphToTest extends TestCase
         $parent->shouldReceive('setRelation')->once()->with('relation', null);
 
         $relation->associate(null);
+    }
+
+    public function testAssociateMethodUsesConfiguredOwnerKeyWithZeroValue(): void
+    {
+        $builder = m::mock(Builder::class);
+        $builder->shouldReceive('getModel')->andReturn(new MorphToAssociateRelatedStub);
+
+        $parent = new MorphToAssociateParentStub;
+        $associate = (new MorphToAssociateRelatedStub)->forceFill([
+            'model_id' => 7,
+            'custom_key' => 0,
+        ]);
+
+        $relation = Relation::noConstraints(fn () => new MorphTo(
+            $builder,
+            $parent,
+            'foreign_key',
+            'custom_key',
+            'morph_type',
+            'relation'
+        ));
+
+        $this->assertSame($parent, $relation->associate($associate));
+        $this->assertSame(0, $parent->getAttribute('foreign_key'));
+        $this->assertSame(MorphToAssociateRelatedStub::class, $parent->getAttribute('morph_type'));
+        $this->assertSame($associate, $parent->getRelation('relation'));
+    }
+
+    public function testAssociateMethodUsesConfiguredOwnerKeyWithNullValue(): void
+    {
+        $builder = m::mock(Builder::class);
+        $builder->shouldReceive('getModel')->andReturn(new MorphToAssociateRelatedStub);
+
+        $parent = new MorphToAssociateParentStub;
+        $associate = (new MorphToAssociateRelatedStub)->forceFill([
+            'model_id' => 7,
+            'custom_key' => null,
+        ]);
+
+        $relation = Relation::noConstraints(fn () => new MorphTo(
+            $builder,
+            $parent,
+            'foreign_key',
+            'custom_key',
+            'morph_type',
+            'relation'
+        ));
+
+        $this->assertSame($parent, $relation->associate($associate));
+        $this->assertNull($parent->getAttribute('foreign_key'));
+        $this->assertSame(MorphToAssociateRelatedStub::class, $parent->getAttribute('morph_type'));
+        $this->assertSame($associate, $parent->getRelation('relation'));
+    }
+
+    public function testAssociateMethodRejectsScalarValuesBeforeChangingTheParent(): void
+    {
+        $builder = m::mock(Builder::class);
+        $builder->shouldReceive('getModel')->andReturn(new MorphToAssociateRelatedStub);
+
+        $parent = (new MorphToAssociateParentStub)->forceFill([
+            'foreign_key' => 'original-id',
+            'morph_type' => 'original-type',
+        ]);
+
+        $relation = Relation::noConstraints(fn () => new MorphTo(
+            $builder,
+            $parent,
+            'foreign_key',
+            'custom_key',
+            'morph_type',
+            'relation'
+        ));
+
+        try {
+            $relation->associate(5);
+            $this->fail('Expected an invalid argument exception.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame('MorphTo relationships may only be associated with a model instance or null.', $exception->getMessage());
+        }
+
+        $this->assertSame('original-id', $parent->getAttribute('foreign_key'));
+        $this->assertSame('original-type', $parent->getAttribute('morph_type'));
+        $this->assertFalse($parent->relationLoaded('relation'));
+    }
+
+    public function testAssociateMethodRejectsUnmappedModelsBeforeChangingTheParent(): void
+    {
+        $builder = m::mock(Builder::class);
+        $builder->shouldReceive('getModel')->andReturn(new MorphToAssociateRelatedStub);
+
+        $parent = (new MorphToAssociateParentStub)->forceFill([
+            'foreign_key' => 'original-id',
+            'morph_type' => 'original-type',
+        ]);
+        $originalRelation = new MorphToAssociateRelatedStub;
+        $parent->setRelation('relation', $originalRelation);
+        $associate = (new MorphToAssociateRelatedStub)->forceFill([
+            'custom_key' => 7,
+        ]);
+
+        $relation = Relation::noConstraints(fn () => new MorphTo(
+            $builder,
+            $parent,
+            'foreign_key',
+            'custom_key',
+            'morph_type',
+            'relation'
+        ));
+
+        Relation::requireMorphMap();
+
+        try {
+            $relation->associate($associate);
+            $this->fail('Expected a class morph violation exception.');
+        } catch (ClassMorphViolationException $exception) {
+            $this->assertSame(MorphToAssociateRelatedStub::class, $exception->model);
+        }
+
+        $this->assertSame('original-id', $parent->getAttribute('foreign_key'));
+        $this->assertSame('original-type', $parent->getAttribute('morph_type'));
+        $this->assertSame($originalRelation, $parent->getRelation('relation'));
     }
 
     public function testDissociateMethodDeletesUnsetsKeyAndTypeOnModel()
@@ -460,9 +611,18 @@ class RelatedStub extends Model
     protected ?string $table = 'related_stubs';
 }
 
+class MorphToAssociateParentStub extends Model
+{
+}
+
+class MorphToAssociateRelatedStub extends Model
+{
+    protected string $primaryKey = 'model_id';
+}
+
 class AccessibleMorphTo extends MorphTo
 {
-    public function callMatchToMorphParents(string $type, EloquentCollection $results): void
+    public function callMatchToMorphParents(int|string $type, EloquentCollection $results): void
     {
         $this->matchToMorphParents($type, $results);
     }

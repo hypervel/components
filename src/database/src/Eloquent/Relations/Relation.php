@@ -65,7 +65,7 @@ abstract class Relation implements BuilderContract
     /**
      * An array to map morph names to their class names in the database.
      *
-     * @var array<string, class-string<\Hypervel\Database\Eloquent\Model>>
+     * @var array<int|string, class-string<\Hypervel\Database\Eloquent\Model>>
      */
     public static array $morphMap = [];
 
@@ -426,7 +426,8 @@ abstract class Relation implements BuilderContract
      * Boot-only. Sets both worker-wide morph state (requireMorphMap + morphMap)
      * shared by every coroutine.
      *
-     * @param array<string, class-string<\Hypervel\Database\Eloquent\Model>> $map
+     * @param array<int|string, class-string<\Hypervel\Database\Eloquent\Model>> $map
+     * @return array<int|string, class-string<\Hypervel\Database\Eloquent\Model>>
      */
     public static function enforceMorphMap(array $map, bool $merge = true): array
     {
@@ -442,8 +443,8 @@ abstract class Relation implements BuilderContract
      * worker lifetime and applies to every polymorphic resolution across all
      * coroutines.
      *
-     * @param null|array<string, class-string<\Hypervel\Database\Eloquent\Model>> $map
-     * @return array<string, class-string<\Hypervel\Database\Eloquent\Model>>
+     * @param null|array<int|string, class-string<\Hypervel\Database\Eloquent\Model>> $map
+     * @return array<int|string, class-string<\Hypervel\Database\Eloquent\Model>>
      */
     public static function morphMap(?array $map = null, bool $merge = true): array
     {
@@ -459,10 +460,10 @@ abstract class Relation implements BuilderContract
     }
 
     /**
-     * Builds a table-keyed array from model class names.
+     * Build a table-keyed array from model class names.
      *
-     * @param null|array<string, class-string<\Hypervel\Database\Eloquent\Model>>|list<class-string<\Hypervel\Database\Eloquent\Model>> $models
-     * @return null|array<string, class-string<\Hypervel\Database\Eloquent\Model>>
+     * @param null|array<int|string, class-string<\Hypervel\Database\Eloquent\Model>> $models
+     * @return null|array<int|string, class-string<\Hypervel\Database\Eloquent\Model>>
      */
     protected static function buildMorphMapFromModels(?array $models = null): ?array
     {
@@ -480,8 +481,12 @@ abstract class Relation implements BuilderContract
      *
      * @return null|class-string<\Hypervel\Database\Eloquent\Model>
      */
-    public static function getMorphedModel(string $alias): ?string
+    public static function getMorphedModel(int|string|null $alias): ?string
     {
+        if (is_null($alias)) {
+            return null;
+        }
+
         return static::$morphMap[$alias] ?? null;
     }
 
@@ -492,7 +497,9 @@ abstract class Relation implements BuilderContract
      */
     public static function getMorphAlias(string $className): int|string
     {
-        return array_search($className, static::$morphMap, strict: true) ?: $className;
+        $alias = array_search($className, static::$morphMap, strict: true);
+
+        return $alias !== false ? $alias : $className;
     }
 
     /**

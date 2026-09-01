@@ -119,7 +119,6 @@ class InteractsWithDatabaseTest extends TestCase
         // Use reflection to access the protected $faker property
         $reflectedClass = new ReflectionClass($factory);
         $fakerProperty = $reflectedClass->getProperty('faker');
-        $fakerProperty->setAccessible(true);
 
         // Trigger faker initialization by calling make()
         $factory->make();

@@ -178,7 +178,7 @@ class RateLimitTest extends TestCase
         CarbonImmutable::setTestNow($now);
         [$manager, , $http] = $this->manager();
         $http->fake(['*' => $http->sequence()
-            ->push([], 429, ['Retry-After' => $now->addSeconds(5)->format(DateTimeInterface::RFC7231)])
+            ->push([], 429, ['Retry-After' => $now->addSeconds(5)->toRfc7231String()])
             ->push([], 429, ['Retry-After' => 'invalid'])
             ->push(['ok' => true])]);
         $connector = new PlainRateLimitConnectorStub($manager);

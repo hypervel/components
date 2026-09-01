@@ -341,7 +341,7 @@ class SaloonManager
     /**
      * Assert that requests were sent in order.
      *
-     * @param list<class-string<Request>|Closure|string> $callbacks
+     * @param list<callable|string> $callbacks
      */
     public function assertSentInOrder(array $callbacks): void
     {

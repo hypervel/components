@@ -111,6 +111,17 @@ class RouteTest extends TestCase
         $this->assertSame("'/status/{status?}/members/{member?}'", $route->uri());
     }
 
+    public function testOriginalNamePreservesNamespacedRouteNames(): void
+    {
+        $baseRoute = new BaseRoute(['GET'], 'package', fn () => null);
+        $baseRoute->name('my-package::store');
+
+        $route = new Route($baseRoute, new Collection, null);
+
+        $this->assertSame('my-package::store', $route->originalName());
+        $this->assertSame('namespaced.my-package.store', $route->name());
+    }
+
     private function routeFor(string $serializedClosure): Route
     {
         return new Route(

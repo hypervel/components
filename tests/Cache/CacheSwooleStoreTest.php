@@ -1018,7 +1018,6 @@ class CacheSwooleStoreTest extends TestCase
     private function tableKey(SwooleStore $store, string $method, string $key): string
     {
         $reflection = new ReflectionMethod($store, $method);
-        $reflection->setAccessible(true);
 
         return $reflection->invoke($store, $key);
     }
