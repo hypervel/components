@@ -150,20 +150,21 @@ class Collection extends BaseCollection implements QueueableCollection
             ->whereKey(array_values($modelKeys))
             ->select($keyName)
             ->withAggregate($relations, $column, $function) // @phpstan-ignore method.notFound (withAggregate is on Eloquent\Builder; PHPStan loses type through chain)
-            ->get()
-            ->keyBy($keyName);
+            ->get();
 
         if ($models->isEmpty()) {
             return $this;
         }
 
-        $attributes = Arr::except(
-            array_keys($models->first()->getAttributes()),
+        $attributes = array_keys(Arr::except(
+            $models->first()->getAttributes(),
             $keyName
-        );
+        ));
 
-        $this->each(function ($item, $collectionKey) use ($models, $attributes, $modelKeys) {
-            $aggregateModel = $models->get($modelKeys[$collectionKey]);
+        $modelsByKey = $this->getDictionary($models);
+
+        $this->each(function ($item, $collectionKey) use ($modelsByKey, $attributes, $modelKeys) {
+            $aggregateModel = $modelsByKey[$this->getDictionaryKey($modelKeys[$collectionKey])] ?? null;
 
             if ($aggregateModel === null) {
                 return;

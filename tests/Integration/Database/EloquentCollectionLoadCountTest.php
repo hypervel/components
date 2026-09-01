@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Integration\Database\EloquentCollectionLoadCountTest;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
@@ -31,6 +32,15 @@ class EloquentCollectionLoadCountTest extends DatabaseTestCase
         Schema::create('likes', function (Blueprint $table) {
             $table->increments('id');
             $table->unsignedInteger('post_id');
+        });
+
+        Schema::create('float_key_posts', function (Blueprint $table) {
+            $table->decimal('id', 4, 2)->primary();
+        });
+
+        Schema::create('float_key_comments', function (Blueprint $table) {
+            $table->increments('id');
+            $table->decimal('float_key_post_id', 4, 2);
         });
 
         $post = Post::create();
@@ -146,6 +156,41 @@ class EloquentCollectionLoadCountTest extends DatabaseTestCase
         $this->assertSame('0', (string) $posts[1]->likes_count);
     }
 
+    public function testLoadCountMatchesDistinctFloatPrimaryKeys(): void
+    {
+        $firstPost = FloatKeyPost::create(['id' => 1.25]);
+        $secondPost = FloatKeyPost::create(['id' => 1.75]);
+
+        $firstPost->comments()->save(new FloatKeyComment);
+        $secondPost->comments()->saveMany([new FloatKeyComment, new FloatKeyComment]);
+
+        $posts = FloatKeyPost::query()->orderBy('id')->get();
+
+        $this->assertSame(1.25, $posts[0]->getKey());
+        $this->assertSame(1.75, $posts[1]->getKey());
+
+        $posts->loadCount('comments');
+
+        $this->assertSame('1', (string) $posts[0]->comments_count);
+        $this->assertSame('2', (string) $posts[1]->comments_count);
+    }
+
+    public function testLoadCountPreservesTheOriginalPrimaryKeyWhenTheCurrentKeyHasChanged(): void
+    {
+        $post = Post::query()->findOrFail(1);
+        $otherPost = Post::query()->findOrFail(2);
+        $originalKey = $post->getKey();
+
+        $post->setAttribute($post->getKeyName(), $otherPost->getKey());
+
+        Collection::make([$post])->loadCount('comments');
+
+        $this->assertSame('0', (string) $post->comments_count);
+        $this->assertSame($originalKey, $post->getOriginal($post->getKeyName()));
+        $this->assertSame($otherPost->getKey(), $post->getKey());
+        $this->assertTrue($post->isDirty($post->getKeyName()));
+    }
+
     public function testLoadCountDoesNotOverrideAttributesWithDefaultValue()
     {
         $post = Post::first();
@@ -185,6 +230,34 @@ class Comment extends Model
 }
 
 class Like extends Model
+{
+    public bool $timestamps = false;
+}
+
+class FloatKeyPost extends Model
+{
+    public bool $incrementing = false;
+
+    protected string $keyType = 'string';
+
+    protected array $fillable = ['id'];
+
+    protected array $casts = [
+        'id' => 'float',
+    ];
+
+    public bool $timestamps = false;
+
+    /**
+     * Get the comments for the post.
+     */
+    public function comments(): HasMany
+    {
+        return $this->hasMany(FloatKeyComment::class);
+    }
+}
+
+class FloatKeyComment extends Model
 {
     public bool $timestamps = false;
 }
