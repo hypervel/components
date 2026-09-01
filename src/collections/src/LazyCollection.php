@@ -1709,6 +1709,14 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
         });
     }
 
+    /**
+     * Pad collection to the specified length with a value.
+     *
+     * @template TPadValue
+     *
+     * @param TPadValue $value
+     * @return static<int, TPadValue|TValue>
+     */
     #[Override]
     public function pad(int $size, mixed $value): static
     {
