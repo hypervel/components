@@ -10,6 +10,7 @@ use Hypervel\Contracts\Events\Dispatcher as EventDispatcherContract;
 use Hypervel\Contracts\Http\Kernel as KernelContract;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
+use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Filesystem\Filesystem;
@@ -31,6 +32,7 @@ use Swoole\Http\Request as SwooleRequest;
 use Swoole\Http\Response as SwooleResponse;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 use function Hypervel\Coroutine\wait;
 
@@ -189,27 +191,41 @@ class ServerTest extends TestCase
         $this->assertTrue($handled);
     }
 
-    public function testOnRequestSetsRequestInContext(): void
+    public function testOnRequestKeepsRequestInContextThroughDeferredTermination(): void
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
 
         $capturedRequest = null;
+        $terminatedRequest = null;
+        $eventRequest = null;
+        $handlingCoroutineId = null;
+        $terminationCoroutineId = null;
 
         $kernel = m::mock(KernelContract::class);
         $kernel->shouldReceive('handle')
             ->once()
-            ->andReturnUsing(function (Request $request) use (&$capturedRequest): Response {
+            ->andReturnUsing(function (Request $request) use (&$capturedRequest, &$handlingCoroutineId): Response {
                 $capturedRequest = RequestContext::get();
+                $handlingCoroutineId = EngineCoroutine::id();
 
                 return new Response('OK');
             });
         $kernel->shouldReceive('terminate')->once();
 
+        $events = new Dispatcher;
+        $events->listen(RequestTerminated::class, function (RequestTerminated $event) use (&$terminatedRequest, &$eventRequest, &$terminationCoroutineId): void {
+            $terminatedRequest = RequestContext::getOrNull();
+            $eventRequest = $event->request;
+            $terminationCoroutineId = EngineCoroutine::id();
+        });
+
         $container = m::mock(Container::class);
-        $container->shouldReceive('bound')->with('events')->andReturn(false);
+        $container->shouldReceive('bound')->with('events')->andReturn(true);
+        $container->shouldReceive('make')->with('events')->andReturn($events);
 
         $server = new Server($container);
         $this->setKernel($server, $kernel);
+        $this->setServerName($server, 'http');
 
         $swooleRequest = $this->createSwooleRequest();
         $swooleResponse = m::mock(SwooleResponse::class);
@@ -217,9 +233,12 @@ class ServerTest extends TestCase
         $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
         $swooleResponse->shouldReceive('end')->withAnyArgs()->andReturnTrue();
 
-        $server->onRequest($swooleRequest, $swooleResponse);
+        wait(fn () => $server->onRequest($swooleRequest, $swooleResponse));
 
+        $this->assertSame($handlingCoroutineId, $terminationCoroutineId);
         $this->assertInstanceOf(Request::class, $capturedRequest);
+        $this->assertSame($capturedRequest, $eventRequest);
+        $this->assertSame($capturedRequest, $terminatedRequest);
         $this->assertFalse(RequestContext::has());
     }
 
@@ -580,15 +599,38 @@ class ServerTest extends TestCase
         $swooleResponse = m::mock(SwooleResponse::class);
         $swooleResponse->shouldReceive('status', 'header', 'cookie', 'rawcookie', 'write', 'sendfile', 'end')->never();
 
-        try {
-            $server->onRequest($this->createSwooleRequest(), $swooleResponse);
-            $this->fail('Expected cancellation to propagate.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
-        }
+        $caughtCancellation = null;
+        $failure = null;
+        $completed = new Channel(1);
+        $requestCoroutine = EngineCoroutine::create(function () use (
+            $completed,
+            $server,
+            $swooleResponse,
+            &$caughtCancellation,
+            &$failure,
+        ): void {
+            try {
+                $server->onRequest($this->createSwooleRequest(), $swooleResponse);
+            } catch (CanceledException $exception) {
+                $caughtCancellation = $exception;
+            } catch (Throwable $throwable) {
+                $failure = $throwable;
+            } finally {
+                $completed->push(true);
+            }
+        });
 
-        $this->assertSame([], $dispatchedEvents);
-        $this->assertFalse(RequestContext::has());
+        try {
+            $this->assertTrue($completed->pop(1));
+            $this->assertNull($failure);
+            $this->assertSame($cancellation, $caughtCancellation);
+            $this->assertSame([], $dispatchedEvents);
+            $this->assertFalse(RequestContext::has());
+        } finally {
+            if (EngineCoroutine::exists($requestCoroutine->getId())) {
+                EngineCoroutine::cancelById($requestCoroutine->getId(), throwException: true);
+            }
+        }
     }
 
     #[DataProvider('lifecycleCancellationStages')]
