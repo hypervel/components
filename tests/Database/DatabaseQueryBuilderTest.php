@@ -1372,7 +1372,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals([0 => 1], $builder->getBindings());
     }
 
-    public function testWhereIntegerInRaw()
+    public function testWhereIntegerInRaw(): void
     {
         $builder = $this->getBuilder();
         $builder->select('*')->from('users')->whereIntegerInRaw('id', [
@@ -1404,7 +1404,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals([0 => 1], $builder->getBindings());
     }
 
-    public function testWhereIntegerNotInRaw()
+    public function testWhereIntegerNotInRaw(): void
     {
         $builder = $this->getBuilder();
         $builder->select('*')->from('users')->whereIntegerNotInRaw('id', ['1a', 2]);

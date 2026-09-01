@@ -60,7 +60,7 @@ class DatabaseEloquentRelationTest extends TestCase
         $relation->touch();
     }
 
-    public function testCanDisableParentTouchingForAllModels()
+    public function testCanDisableParentTouchingForAllModels(): void
     {
         $related = m::mock(NoTouchingModelStub::class)->makePartial();
         $related->shouldReceive('getUpdatedAtColumn')->never();
@@ -226,7 +226,7 @@ class DatabaseEloquentRelationTest extends TestCase
         $this->assertFalse($relatedChild::isIgnoringTouch());
     }
 
-    public function testSettingMorphMapWithNumericArrayUsesTheTableNames()
+    public function testSettingMorphMapWithNumericArrayUsesTheTableNames(): void
     {
         Relation::morphMap([ResetModelStub::class]);
 
@@ -235,7 +235,7 @@ class DatabaseEloquentRelationTest extends TestCase
         ], Relation::morphMap());
     }
 
-    public function testSettingMorphMapWithNumericKeys()
+    public function testSettingMorphMapWithNumericKeys(): void
     {
         Relation::morphMap([1 => 'App\User']);
 
@@ -254,7 +254,7 @@ class DatabaseEloquentRelationTest extends TestCase
         $this->assertNull(Relation::getMorphedModel(null));
     }
 
-    public function testGetMorphAlias()
+    public function testGetMorphAlias(): void
     {
         Relation::morphMap(['user' => 'App\User', 0 => 'App\Team']);
 
