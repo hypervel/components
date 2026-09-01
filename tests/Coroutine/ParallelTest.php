@@ -246,6 +246,7 @@ class ParallelTest extends TestCase
         $childCoroutineId = null;
         $childCancellation = null;
         $outcome = null;
+        $runnerFailure = null;
 
         $parallel->add(static function () use ($childStarted, $blocker, &$childCoroutineId, &$childCancellation): void {
             $childCoroutineId = Coroutine::id();
@@ -259,9 +260,13 @@ class ParallelTest extends TestCase
             }
         }, 'canceled');
 
-        $runner = EngineCoroutine::create(function () use ($parallel, &$outcome): void {
-            $parallel->wait(false);
-            $outcome = $parallel->getThrowables()['canceled'];
+        $runner = EngineCoroutine::create(function () use ($parallel, &$outcome, &$runnerFailure): void {
+            try {
+                $parallel->wait(false);
+                $outcome = $parallel->getThrowables()['canceled'];
+            } catch (Throwable $throwable) {
+                $runnerFailure = $throwable;
+            }
         });
 
         $this->assertTrue($childStarted->pop());
@@ -269,6 +274,7 @@ class ParallelTest extends TestCase
         $this->assertTrue(EngineCoroutine::cancelById($childCoroutineId, throwException: true));
         Coroutine::join([$runner->getId()]);
 
+        $this->assertNull($runnerFailure);
         $this->assertInstanceOf(ChildCancellationException::class, $outcome);
         $this->assertSame('A child coroutine managed by Parallel was canceled while its owner remained active.', $outcome->getMessage());
         $this->assertSame($childCancellation, $outcome->getPrevious());
@@ -282,6 +288,7 @@ class ParallelTest extends TestCase
         $childCoroutineIds = [];
         $childCancellations = [];
         $parentCancellation = null;
+        $runnerFailure = null;
 
         foreach (['first', 'second'] as $key) {
             $parallel->add(static function () use (
@@ -302,29 +309,183 @@ class ParallelTest extends TestCase
             }, $key);
         }
 
-        $runner = EngineCoroutine::create(function () use ($parallel, &$parentCancellation): void {
+        $runner = EngineCoroutine::create(function () use (
+            $parallel,
+            &$parentCancellation,
+            &$runnerFailure,
+        ): void {
             try {
                 $parallel->wait();
             } catch (CanceledException $exception) {
                 $parentCancellation = $exception;
+            } catch (Throwable $throwable) {
+                $runnerFailure = $throwable;
             }
         });
 
-        $this->assertTrue($childrenStarted->pop());
-        $this->assertTrue($childrenStarted->pop());
-
         try {
+            $this->assertTrue($childrenStarted->pop(1));
+            $this->assertTrue($childrenStarted->pop(1));
             $this->assertTrue(EngineCoroutine::cancelById($runner->getId(), throwException: true));
             $this->assertInstanceOf(CanceledException::class, $parentCancellation);
+            $this->assertNull($runnerFailure);
             $this->assertCount(2, $childCancellations);
 
             foreach ($childCoroutineIds as $childCoroutineId) {
                 $this->assertFalse(Coroutine::exists($childCoroutineId));
             }
         } finally {
+            if (Coroutine::exists($runner->getId())) {
+                EngineCoroutine::cancelById($runner->getId(), throwException: true);
+            }
+
             foreach ($childCoroutineIds as $childCoroutineId) {
                 if (Coroutine::exists($childCoroutineId)) {
                     EngineCoroutine::cancelById($childCoroutineId, throwException: true);
+                }
+            }
+        }
+    }
+
+    public function testCanceledRunCannotPublishAResultIntoTheNextRun(): void
+    {
+        $parallel = new Parallel;
+        $firstStarted = new Channel(2);
+        $firstCancellationCaught = new Channel(2);
+        $firstBlocker = new Channel(1);
+        $releaseFirstResult = new Channel(1);
+        $releaseFirstThrowable = new Channel(1);
+        $currentDeferred = new Channel(1);
+        $releaseCurrent = new Channel(1);
+        $firstResultChildCoroutineId = null;
+        $firstThrowableChildCoroutineId = null;
+        $firstOwnerCancellation = null;
+        $firstOwnerFailure = null;
+        $currentOwnerCancellation = null;
+        $currentOwnerFailure = null;
+        $currentResult = null;
+        $currentOwner = null;
+        $lateFailure = new RuntimeException('stale failure');
+
+        $parallel->add(static function () use (
+            $firstStarted,
+            $firstCancellationCaught,
+            $firstBlocker,
+            $releaseFirstResult,
+            &$firstResultChildCoroutineId,
+        ): string {
+            $firstResultChildCoroutineId = Coroutine::id();
+            $firstStarted->push(true);
+
+            try {
+                $firstBlocker->pop();
+            } catch (CanceledException) {
+                $firstCancellationCaught->push(true);
+                $releaseFirstResult->pop();
+            }
+
+            return 'stale';
+        }, 'result');
+        $parallel->add(static function () use (
+            $firstStarted,
+            $firstCancellationCaught,
+            $firstBlocker,
+            $releaseFirstThrowable,
+            $lateFailure,
+            &$firstThrowableChildCoroutineId,
+        ): never {
+            $firstThrowableChildCoroutineId = Coroutine::id();
+            $firstStarted->push(true);
+
+            try {
+                $firstBlocker->pop();
+            } catch (CanceledException) {
+                $firstCancellationCaught->push(true);
+                $releaseFirstThrowable->pop();
+            }
+
+            throw $lateFailure;
+        }, 'failure');
+
+        // Keep the owner raw so assertions remain parent-visible, but consume cleanup cancellation.
+        $firstOwner = EngineCoroutine::create(function () use (
+            $parallel,
+            &$firstOwnerCancellation,
+            &$firstOwnerFailure,
+        ): void {
+            try {
+                $parallel->wait(false);
+            } catch (CanceledException $exception) {
+                $firstOwnerCancellation = $exception;
+            } catch (Throwable $throwable) {
+                $firstOwnerFailure = $throwable;
+            }
+        });
+
+        try {
+            $this->assertTrue($firstStarted->pop(1));
+            $this->assertTrue($firstStarted->pop(1));
+            $this->assertTrue(EngineCoroutine::cancelById($firstOwner->getId(), throwException: true));
+            $this->assertTrue($firstCancellationCaught->pop(1));
+            $this->assertTrue($firstCancellationCaught->pop(1));
+            $this->assertInstanceOf(CanceledException::class, $firstOwnerCancellation);
+            $this->assertNull($firstOwnerFailure);
+            $this->assertSame([], $parallel->getThrowables());
+
+            $parallel->clear();
+            $parallel->add(static function () use ($currentDeferred, $releaseCurrent): string {
+                Coroutine::defer(static function () use ($currentDeferred, $releaseCurrent): void {
+                    $currentDeferred->push(true);
+                    $releaseCurrent->pop();
+                });
+
+                return 'current';
+            }, 'result');
+
+            $currentOwner = EngineCoroutine::create(function () use (
+                $parallel,
+                &$currentOwnerCancellation,
+                &$currentOwnerFailure,
+                &$currentResult,
+            ): void {
+                try {
+                    $currentResult = $parallel->wait(false);
+                } catch (CanceledException $exception) {
+                    $currentOwnerCancellation = $exception;
+                } catch (Throwable $throwable) {
+                    $currentOwnerFailure = $throwable;
+                }
+            });
+
+            $this->assertTrue($currentDeferred->pop(1));
+            $this->assertTrue($releaseFirstResult->push(true));
+            $this->assertTrue($releaseFirstThrowable->push(true));
+            $this->assertIsInt($firstResultChildCoroutineId);
+            $this->assertIsInt($firstThrowableChildCoroutineId);
+            Coroutine::join([$firstResultChildCoroutineId, $firstThrowableChildCoroutineId], 1);
+            $this->assertFalse(Coroutine::exists($firstResultChildCoroutineId));
+            $this->assertFalse(Coroutine::exists($firstThrowableChildCoroutineId));
+
+            $this->assertTrue($releaseCurrent->push(true));
+            Coroutine::join([$currentOwner->getId()], 1);
+            $this->assertFalse(Coroutine::exists($currentOwner->getId()));
+
+            $this->assertNull($currentOwnerCancellation);
+            $this->assertNull($currentOwnerFailure);
+            $this->assertSame(['result' => 'current'], $currentResult);
+            $this->assertSame([], $parallel->getThrowables());
+        } finally {
+            $releaseFirstResult->push(true, 0.001);
+            $releaseFirstThrowable->push(true, 0.001);
+            $releaseCurrent->push(true, 0.001);
+
+            foreach ([$firstResultChildCoroutineId, $firstThrowableChildCoroutineId, $firstOwner->getId(), $currentOwner?->getId()] as $coroutineId) {
+                if (is_int($coroutineId) && Coroutine::exists($coroutineId)) {
+                    Coroutine::join([$coroutineId], 0.001);
+                }
+
+                if (is_int($coroutineId) && Coroutine::exists($coroutineId)) {
+                    EngineCoroutine::cancelById($coroutineId, throwException: true);
                 }
             }
         }
@@ -338,6 +499,7 @@ class ParallelTest extends TestCase
         $firstCancellation = null;
         $secondStarted = false;
         $parentCancellation = null;
+        $runnerFailure = null;
 
         $parallel->add(static function () use ($firstStarted, $blocker, &$firstCancellation): void {
             $firstStarted->push(true);
@@ -352,19 +514,25 @@ class ParallelTest extends TestCase
             $secondStarted = true;
         }, 'second');
 
-        $runner = EngineCoroutine::create(function () use ($parallel, &$parentCancellation): void {
+        $runner = EngineCoroutine::create(function () use (
+            $parallel,
+            &$parentCancellation,
+            &$runnerFailure,
+        ): void {
             try {
                 $parallel->wait();
             } catch (CanceledException $exception) {
                 $parentCancellation = $exception;
+            } catch (Throwable $throwable) {
+                $runnerFailure = $throwable;
             }
         });
 
-        $this->assertTrue($firstStarted->pop());
-
         try {
+            $this->assertTrue($firstStarted->pop(1));
             $this->assertTrue(EngineCoroutine::cancelById($runner->getId()));
             $this->assertInstanceOf(CanceledException::class, $parentCancellation);
+            $this->assertNull($runnerFailure);
             $this->assertSame('Waiting to start parallel work was canceled.', $parentCancellation->getMessage());
             $this->assertInstanceOf(CanceledException::class, $firstCancellation);
             $this->assertFalse($secondStarted);
@@ -386,6 +554,8 @@ class ParallelTest extends TestCase
         $parentCoroutineId = null;
         $childCoroutineId = null;
         $parentCancellation = null;
+        $parentFailure = null;
+        $cancellerFailure = null;
         $childBodyRan = false;
         $failStartup = true;
 
@@ -409,31 +579,54 @@ class ParallelTest extends TestCase
             $childBodyRan = true;
         });
 
-        $canceller = EngineCoroutine::create(static function () use ($reportStarted, &$parentCoroutineId): void {
-            $reportStarted->pop();
+        $canceller = EngineCoroutine::create(static function () use (
+            $reportStarted,
+            &$parentCoroutineId,
+            &$cancellerFailure,
+        ): void {
+            try {
+                $reportStarted->pop();
 
-            if (is_int($parentCoroutineId)) {
-                EngineCoroutine::cancelById($parentCoroutineId, throwException: true);
+                if (is_int($parentCoroutineId)) {
+                    EngineCoroutine::cancelById($parentCoroutineId, throwException: true);
+                }
+            } catch (Throwable $throwable) {
+                $cancellerFailure = $throwable;
             }
         });
 
-        $parent = EngineCoroutine::create(function () use ($parallel, &$parentCoroutineId, &$parentCancellation): void {
+        $parent = EngineCoroutine::create(function () use (
+            $parallel,
+            &$parentCoroutineId,
+            &$parentCancellation,
+            &$parentFailure,
+        ): void {
             $parentCoroutineId = EngineCoroutine::id();
 
             try {
                 $parallel->wait();
             } catch (CanceledException $exception) {
                 $parentCancellation = $exception;
+            } catch (Throwable $throwable) {
+                $parentFailure = $throwable;
             }
         });
 
         try {
+            $this->assertNull($cancellerFailure);
+            $this->assertNull($parentFailure);
             $this->assertInstanceOf(CanceledException::class, $parentCancellation);
             $this->assertFalse($childBodyRan);
             $this->assertIsInt($childCoroutineId);
             $this->assertFalse(Coroutine::exists($childCoroutineId));
         } finally {
             $releaseReport->push(true, 0.001);
+
+            foreach ([$parent->getId(), $canceller->getId()] as $coroutineId) {
+                if (Coroutine::exists($coroutineId)) {
+                    EngineCoroutine::cancelById($coroutineId, throwException: true);
+                }
+            }
 
             if (is_int($childCoroutineId) && Coroutine::exists($childCoroutineId)) {
                 EngineCoroutine::cancelById($childCoroutineId, throwException: true);

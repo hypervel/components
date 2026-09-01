@@ -25,6 +25,9 @@ class Parallel
 
     protected ?Channel $concurrentChannel = null;
 
+    /**
+     * @var array<array-key, mixed>
+     */
     protected array $results = [];
 
     /**
@@ -77,11 +80,13 @@ class Parallel
             throw new RunningInNonCoroutineException('Parallel execution requires an active coroutine.');
         }
 
-        // Reset per-run state so previous runs cannot leak into this one. Without this, a
-        // failure from an earlier wait() would remain in $throwables and surface through
-        // getThrowables() on subsequent runs, regardless of the current run's outcome.
+        // Inspection reflects only a run that completed normally. Children from a canceled
+        // run retain their local arrays and cannot publish into a later run.
         $this->results = [];
         $this->throwables = [];
+
+        $results = [];
+        $throwables = [];
 
         $waitGroup = new WaitGroup;
         $coroutineIds = [];
@@ -107,19 +112,19 @@ class Parallel
                         $slotAcquired = true;
                     }
 
-                    $this->results[$key] = null;
-                    $childCallable = function () use ($callback, $key): void {
+                    $results[$key] = null;
+                    $childCallable = function () use ($callback, $key, &$results, &$throwables): void {
                         try {
-                            $this->results[$key] = $callback();
+                            $results[$key] = $callback();
                         } catch (CanceledException $exception) {
-                            $this->throwables[$key] = new ChildCancellationException(
+                            $throwables[$key] = new ChildCancellationException(
                                 'A child coroutine managed by Parallel was canceled while its owner remained active.',
                                 previous: $exception,
                             );
-                            unset($this->results[$key]);
+                            unset($results[$key]);
                         } catch (Throwable $throwable) {
-                            $this->throwables[$key] = $throwable;
-                            unset($this->results[$key]);
+                            $throwables[$key] = $throwable;
+                            unset($results[$key]);
                         }
                     };
                     $wrapper = function (Closure $run) use ($waitGroup, &$children, &$started): void {
@@ -152,8 +157,8 @@ class Parallel
 
                     throw $exception;
                 } catch (Throwable $throwable) {
-                    $this->throwables[$key] = $throwable;
-                    unset($this->results[$key]);
+                    $throwables[$key] = $throwable;
+                    unset($results[$key]);
 
                     // Once the child starts, its finally block exclusively owns both releases.
                     if (! $started) {
@@ -180,6 +185,9 @@ class Parallel
             $this->cancelChildren($children);
             throw $exception;
         }
+
+        $this->results = $results;
+        $this->throwables = $throwables;
 
         if ($throw && ($throwableCount = count($this->throwables)) > 0) {
             $message = 'Detecting ' . $throwableCount . ' throwable occurred during parallel execution:' . PHP_EOL . $this->formatThrowables($this->throwables);
