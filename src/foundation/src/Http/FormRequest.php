@@ -19,10 +19,9 @@ use Hypervel\Foundation\Http\Attributes\StopOnFirstFailure;
 use Hypervel\Foundation\Http\Traits\HasCasts;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Redirector;
-use Hypervel\Support\Arr;
 use Hypervel\Support\ValidatedInput;
+use Hypervel\Validation\UnknownFields;
 use Hypervel\Validation\ValidatesWhenResolvedTrait;
-use Hypervel\Validation\ValidationRuleParser;
 use ReflectionClass;
 
 class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
@@ -265,51 +264,9 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
      */
     protected function validateNoUnknownFields(Validator $validator): void
     {
-        $knownFields = $this->knownFields($validator);
         $input = $this->isJson() ? $this->json()->all() : $this->request->all();
 
-        foreach (array_keys(Arr::dot($input)) as $inputKey) {
-            if (! isset($knownFields[$inputKey])) {
-                $message = $validator->getTranslator()->string('validation.prohibited', [
-                    'attribute' => str_replace('_', ' ', $inputKey),
-                ]);
-
-                $validator->errors()->add($inputKey, $message);
-            }
-        }
-    }
-
-    /**
-     * Get the known input fields from the validator's effective rules.
-     *
-     * @return array<string, true>
-     */
-    protected function knownFields(Validator $validator): array
-    {
-        $fields = [];
-        $rulesWithoutPlaceholders = $validator->getRulesWithoutPlaceholders();
-
-        if ($this->unfilteredValidationRules !== null) {
-            $rulesWithoutPlaceholders = array_replace($this->unfilteredValidationRules, $rulesWithoutPlaceholders);
-        }
-
-        foreach ($rulesWithoutPlaceholders as $attribute => $rules) {
-            $attribute = (string) $attribute;
-            $fields[$attribute] = true;
-
-            /** @var array<int, array|object|string> $rules */
-            $rules = (array) $rules;
-
-            foreach ($rules as $rule) {
-                [$rule, $parameters] = ValidationRuleParser::parse($rule);
-
-                if ($rule === 'Confirmed') {
-                    $fields[(string) ($parameters[0] ?? $attribute . '_confirmation')] = true;
-                }
-            }
-        }
-
-        return $fields;
+        UnknownFields::validate($validator, $input, $this->unfilteredValidationRules);
     }
 
     /**

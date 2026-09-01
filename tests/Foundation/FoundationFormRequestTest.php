@@ -361,7 +361,7 @@ class FoundationFormRequestTest extends TestCase
         );
     }
 
-    public function testFailOnUnknownFieldsWildcardMatchesSingleSegmentOnly(): void
+    public function testFailOnUnknownFieldsAllowsContentsOfWildcardArrayRules(): void
     {
         $request = $this->createRequest(
             [
@@ -373,11 +373,32 @@ class FoundationFormRequestTest extends TestCase
             'POST'
         );
 
-        $exception = $this->catchException(ValidationException::class, function () use ($request) {
-            $request->validateResolved();
-        });
+        $request->validateResolved();
 
-        $this->assertTrue($exception->validator->errors()->has('items.0.name'));
+        $this->assertSame([
+            'items' => [
+                ['name' => 'a'],
+            ],
+        ], $request->validated());
+    }
+
+    public function testFailOnUnknownFieldsAllowsContentsOfDeclaredArrays(): void
+    {
+        $request = $this->createRequest(
+            [
+                'meta' => ['source' => 'import'],
+                'tags' => ['framework', 'php'],
+            ],
+            FoundationTestFormRequestFailOnUnknownFieldsWithOpaqueArraysStub::class,
+            'POST'
+        );
+
+        $request->validateResolved();
+
+        $this->assertSame([
+            'meta' => ['source' => 'import'],
+            'tags' => ['framework', 'php'],
+        ], $request->validated());
     }
 
     public function testFailOnUnknownFieldsRejectsMultipleUnknownKeys(): void
@@ -1001,6 +1022,23 @@ class FoundationTestFormRequestFailOnUnknownFieldsSingleSegmentWildcardStub exte
     public function rules(): array
     {
         return ['items.*' => 'array'];
+    }
+
+    public function authorize(): bool
+    {
+        return true;
+    }
+}
+
+#[FailOnUnknownFields]
+class FoundationTestFormRequestFailOnUnknownFieldsWithOpaqueArraysStub extends FormRequest
+{
+    public function rules(): array
+    {
+        return [
+            'meta' => 'array',
+            'tags' => 'array',
+        ];
     }
 
     public function authorize(): bool
