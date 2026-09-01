@@ -61,6 +61,7 @@
             "Hypervel\\NestedSet\\": "src/nested-set/src/",
             "Hypervel\\Notifications\\": "src/notifications/src/",
             "Hypervel\\ObjectPool\\": "src/object-pool/src/",
+            "Hypervel\\OpenTelemetry\\": "src/opentelemetry/src/",
             "Hypervel\\Pagination\\": "src/pagination/src/",
             "Hypervel\\Passkeys\\": "src/passkeys/src/",
             "Hypervel\\Pipeline\\": "src/pipeline/src/",
@@ -182,6 +183,11 @@
         "nikic/php-parser": "^5.7",
         "nunomaduro/termwind": "^2.0",
         "nyholm/psr7": "^1.0",
+        "open-telemetry/api": "^1.10",
+        "open-telemetry/context": "^1.5",
+        "open-telemetry/exporter-otlp": "^1.4",
+        "open-telemetry/sdk": "^1.15",
+        "open-telemetry/sem-conv": "^1.38",
         "paragonie/constant_time_encoding": "^3.1",
         "phpoption/phpoption": "^1.9",
         "phpstan/phpdoc-parser": "^2.3",
@@ -261,6 +267,7 @@
         "hypervel/nested-set": "self.version",
         "hypervel/notifications": "self.version",
         "hypervel/object-pool": "self.version",
+        "hypervel/opentelemetry": "self.version",
         "hypervel/pagination": "self.version",
         "hypervel/passkeys": "self.version",
         "hypervel/pipeline": "self.version",
@@ -327,7 +334,8 @@
     "config": {
         "sort-packages": true,
         "allow-plugins": {
-            "php-http/discovery": true
+            "php-http/discovery": true,
+            "tbachert/spi": true
         }
     },
     "extra": {
@@ -358,6 +366,7 @@
                 "Hypervel\\NestedSet\\NestedSetServiceProvider",
                 "Hypervel\\Notifications\\NotificationServiceProvider",
                 "Hypervel\\ObjectPool\\ObjectPoolServiceProvider",
+                "Hypervel\\OpenTelemetry\\OpenTelemetryServiceProvider",
                 "Hypervel\\Pagination\\PaginationServiceProvider",
                 "Hypervel\\Passkeys\\PasskeysServiceProvider",
                 "Hypervel\\Fortify\\FortifyServiceProvider",
@@ -390,6 +399,7 @@
                 "Hypervel\\View\\ViewServiceProvider"
             ],
             "aliases": {
+                "OpenTelemetry": "Hypervel\\OpenTelemetry\\Facades\\OpenTelemetry",
                 "Saloon": "Hypervel\\Saloon\\Facades\\Saloon",
                 "Sentry": "Hypervel\\Sentry\\Facade"
             }
@@ -409,7 +419,7 @@
         "test:dogfood": [
             "Composer\\Config::disableProcessTimeout",
             "composer --working-dir=dogfood/testbench-package install --prefer-dist -n -o",
-            "composer --working-dir=dogfood/testbench-package test"
+            "env OTEL_SDK_DISABLED=true composer --working-dir=dogfood/testbench-package test"
         ],
         "analyse": [
             "phpstan analyse",
