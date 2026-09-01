@@ -235,6 +235,14 @@ abstract class Pool implements PoolInterface
     }
 
     /**
+     * Get the number of coroutines waiting for a connection.
+     */
+    public function getWaiters(): int
+    {
+        return $this->channel->waiters();
+    }
+
+    /**
      * Initialize pool options from configuration.
      */
     protected function initOption(array $options = []): void

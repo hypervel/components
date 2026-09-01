@@ -54,10 +54,12 @@ class ChannelTest extends TestCase
             });
 
             usleep(5_000);
+            $this->assertSame(1, $channel->waiters());
             $channel->push($object);
             usleep(5_000);
 
             $this->assertSame([true, $object], $result);
+            $this->assertSame(0, $channel->waiters());
         });
     }
 
