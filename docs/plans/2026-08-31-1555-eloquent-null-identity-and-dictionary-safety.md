@@ -8,7 +8,7 @@ The pull requests identify the changed surface only. At implementation start, fe
 
 ## Outcome
 
-Stop null model and relation keys from becoming PHP array offsets, colliding with valid empty-string or zero keys, or losing float precision during dictionary matching. Raw integer `IN` primitives must discard null before casting so they cannot manufacture an unbound `0` literal. Identity-dependent refresh, aggregate, and collection-query operations must fail with `MissingAttributeException` before constructing an unsafe or incomplete key constraint when the required primary key is absent. Integer morph aliases, including `0`, must round-trip through inverse lookup, model serialization, class-string morph queries, association, and eager loading while the database representation remains a string. Morph association must use the configured owner-key column for every value, reject scalar input that cannot identify a morph type, enforce required maps for class-string queries, and support null as both sides of the `whereMorphedTo()` predicate. Duplicate detection with a callback must compare the callback's mapped values rather than applying Eloquent model comparison to scalars.
+Stop null model and relation keys from becoming PHP array offsets, colliding with valid empty-string or zero keys, or losing float precision during dictionary matching. Raw integer `IN` primitives must discard null before casting so they cannot manufacture an unbound `0` literal. Identity-dependent refresh, aggregate, and collection-query operations must fail with `MissingAttributeException` before constructing an unsafe or incomplete key constraint when the required primary key is absent. Aggregate hydration must use the selected primary key only to match result rows, never overwrite or synchronize the source model's identity. Integer morph aliases, including `0`, must round-trip through inverse lookup, model serialization, class-string morph queries, association, and eager loading while the database representation remains a string. Morph association must use the configured owner-key column for every value, reject scalar input that cannot identify a morph type, enforce required maps for class-string queries, and support null as both sides of the `whereMorphedTo()` predicate. Duplicate detection with a callback must compare the callback's mapped values rather than applying Eloquent model comparison to scalars.
 
 The final code keeps Laravel's current dictionary semantics for valid keys and ports its null-key behavior. It does not preserve Hypervel's earlier keyless `duplicates()` output: Laravel treats Eloquent dictionary/set operations as operations on persisted models with keys, and closed [laravel/framework#31141](https://github.com/laravel/framework/issues/31141) with `toBase()` as the path for ordinary collection behavior. No Swoole or coroutine constraint justifies the old Hypervel branch.
 
@@ -19,13 +19,14 @@ The final code keeps Laravel's current dictionary semantics for valid keys and p
 - `''`, `0`, `'0'`, integer keys, numeric strings, stringable values, and backed/unit enums remain valid. Float keys are normalized to strings so values such as `1.5` and `1.9` cannot both become integer offset `1`.
 - Morph-map keys remain `int|string`, but model morph types are serialized as strings because every standard morph schema helper creates a string type column. Numeric PHP array-key normalization must not break eager loading, and the string-key eager path must retain valid foreign keys `0`, `'0'`, and `''`.
 - A raw null morph type or `''` means no relation. A null morph type is skipped before reading the foreign key; normalized null foreign keys are skipped independently.
-- `MorphTo::associate()` chooses the configured owner-key column from configuration alone. Values `0`, `''`, and null must not switch the write to the model primary key because every lazy and eager read still uses the configured owner key. Non-model scalar input is rejected before either morph column or the loaded relation is mutated.
+- `MorphTo::associate()` chooses the configured owner-key column from configuration alone. Values `0`, `''`, and null must not switch the write to the model primary key because every lazy and eager read still uses the configured owner key. Non-model scalar input is rejected before either morph column or the loaded relation is mutated, and every associated-model value is resolved before either parent attribute is written.
 - Required morph maps apply equally to model instances and model class strings passed to `whereMorphedTo()` or `whereNotMorphedTo()`. Registered map keys, including class-shaped legacy aliases, and unregistered stored alias strings remain valid. The normal non-strict query path adds no class loading or model construction.
 - `whereNotMorphedTo($relation, null)` compiles `IS NOT NULL`, the exact inverse of `whereMorphedTo($relation, null)`; its `orWhere` wrapper inherits the same behavior.
 - Keyless models may still exist in ordinary Eloquent collections and `modelKeys()` still reports their null key. Do not invent object identity, synthetic dictionary keys, or supported set semantics for them.
 - `find()` retains its existing loose compatibility for two non-null keys, but neither the requested key nor a model key may be null. Keep a short comment because the deliberate loose comparison is an exception to the repository's strict-comparison rule.
 - `fresh()` ignores unsaved models, including unsaved models with manually assigned keys. It validates every existing model key before issuing a query and performs no query when no existing models remain.
 - `loadAggregate()` requires a key for every model because it cannot load an aggregate without row identity. This is based on key presence, not `exists`: the existing soft-deleted-model test uses models with `exists === false` and retained keys and must keep passing.
+- The primary key selected by `loadAggregate()` is matching metadata, not an aggregate attribute. It must not be force-filled or synchronized onto the source model, including when the source model's current key differs from its original key.
 - `toQuery()` retains its existing empty-collection and mixed-model validation order, then requires a key for every model. A null key must never reach the integer-key `whereKey()` path, where it is cast to `0` and can target a legitimate zero-keyed row during a bulk mutation.
 - Null requested keys in both `only()` and `except()` are discarded. This removes `only()`'s `array_flip()` warning and prevents `except([null])` from deleting a valid `''`-keyed model.
 - No new shared/static state, cache, registry, I/O fallback, query, compatibility switch, exception class, or generic identity abstraction is added. `fresh()` removes a pointless query for all-unsaved input.
@@ -61,6 +62,7 @@ The current Laravel PHPDocs still describe some morph maps as string-keyed despi
 - `Collection::find()` still equates unrelated null identities through `null == null`; a non-null empty-string request can also match a null model key through loose comparison.
 - `Collection::fresh()` passes null and unsaved manual keys into bound `whereIn()` and reads a null dictionary offset after the query. Bound null cannot alias integer zero here; the guard is required for parity with individual `Model::fresh()`, a useful missing-identity exception, and removal of the pointless unsaved-key query.
 - `Collection::loadAggregate()` passes null keys into `whereKey()`. On integer-key models that first becomes raw `id in (0)` and can aggregate a legitimate zero-keyed row; the method then fails through `null->getAttributes()`, either while inspecting an empty result collection or while hydrating a mixed collection.
+- `Collection::loadAggregate()` attempts to exclude the selected primary key with `Arr::except(array_keys($attributes), $keyName)`. Because the attribute names are values in that list, the exclusion removes nothing. Hydration then force-fills and synchronizes the query result's primary key; after a model's current key is changed, this overwrites its original identity and makes a later `save()` target the wrong row.
 - `Collection::toQuery()` passes `modelKeys()` directly to `whereKey()`. For an integer-key model, `whereIntegerInRaw()` casts a null key to `0`, so a collection query can target a row the keyless model does not identify.
 - `Query\Builder::whereIntegerInRaw()` is the shared owner of the null-to-zero conversion. Its `whereIntegerNotInRaw()` and both `orWhere` variants delegate to the same method, and the grammar emits its integer values as unbound SQL literals.
 - `Collection::only()` warns when `array_flip()` receives null. `except()` is warning-free but treats null as `''` and removes a legitimate empty-string identity.
@@ -158,6 +160,19 @@ Return a new empty collection before querying when the map is empty. Pass only `
 
 Resolve each source model key once into a collection-keyed map before the query. Throw `MissingAttributeException($item, $item->getKeyName())` for any null key, regardless of `exists`. Pass the stored values to `whereKey()` and reuse the stored key for aggregate-result lookup and hydration. If every source row has been physically deleted, return the original collection unchanged before inspecting aggregate attributes. If only some rows are missing, skip those source items with a bare closure return while hydrating every surviving row. Do not remove missing source items, synthesize zero aggregate values, clear stale aggregate attributes, throw for a concurrent hard delete, or return `false` from the `each()` callback. Preserve support for soft-deleted models with retained keys, one aggregate query, original attribute/cast synchronization, and the six direct convenience wrappers. The direct method and all six wrappers are also reached through the corresponding model methods; `loadMorphCount()` reaches the same guard on each related-model subcollection. Add `@throws MissingAttributeException` to this changed public method only.
 
+Keep the aggregate query result as a collection through empty-result and attribute discovery. Then build the result map with `$this->getDictionary($models)` and normalize the stored source key with `getDictionaryKey()` for lookup. This accepts the builder's iterable base-collection return, uses the owning model-dictionary primitive without a PHPStan suppression or second collection allocation, and prevents distinct float identities from becoming the same PHP integer array key.
+
+Exclude the selected primary key from the result model's attribute map before collecting the hydrateable attribute names:
+
+```php
+$attributes = array_keys(Arr::except(
+    $models->first()->getAttributes(),
+    $keyName
+));
+```
+
+This keeps the key available for dictionary matching but prevents `forceFill()` and `syncOriginalAttributes()` from changing the source model's identity. Do not add a special key rollback, dirty-state repair, or save guard.
+
 **`toQuery()`**
 
 After the existing empty-collection and mixed-model checks, resolve each model key once while preserving collection keys. Throw `MissingAttributeException($model, $model->getKeyName())` when any key is null, before calling `newModelQuery()` or `whereKey()`. Pass only the validated key array to `whereKey()`. Keep the existing `LogicException` precedence for empty and mixed collections, preserve valid zero keys, and add `@throws MissingAttributeException` alongside the existing exception annotation.
@@ -243,6 +258,7 @@ Update `src/database/src/Eloquent/Relations/MorphTo.php`:
 - remove `array_filter()` from the string-key branch of `gatherKeysByType()` so zero and empty-string foreign identities survive;
 - widen alias-value parameters on `getResultsByType()`, `gatherKeysByType()`, `createModelByType()`, and `matchToMorphParents()` to `int|string`. Column-name parameters and properties remain string.
 - in `associate()`, reject non-`Model`, non-null input with `InvalidArgumentException` before changing state, then choose the associated column with `$this->ownerKey ?? $model->getKeyName()`. Do not inspect the owner-key value when choosing between columns.
+- resolve both the configured owner-key value and `getMorphClass()` result before either parent attribute is written. The owner-key read already preceded mutation; the behavior change is that strict morph-map validation can no longer leave the parent with a new foreign key and stale morph type.
 
 Do not add a cache, alias helper, downstream union types, or a second serialization format. PHP array keys force numeric strings to integers; the four parameter widenings are the direct representation of that fact.
 
@@ -294,6 +310,7 @@ Use real `CollectionModel` instances and `setKeyType('string')` for the empty-st
 - extend the existing `testWhereIntegerInRaw()` with `[1, null]` and assert the exact SQL is `select * from "users" where "id" in (1)`, not `in (1, 0)`;
 - extend the existing `testWhereIntegerNotInRaw()` with `[1, null]` and assert the exact SQL is `select * from "users" where "id" not in (1)`, not `not in (1, 0)`;
 - retain the existing ordinary, nested, enum, `orWhere`, and empty-list coverage. Do not duplicate the two assertions through every delegating wrapper: both polarity and all wrappers share `whereIntegerInRaw()`.
+- add `: void` to both changed raw-integer test methods so the modified code follows the repository's full-typing rule.
 
 ### Relation matching tests
 
@@ -327,6 +344,8 @@ Do not add a separate boolean-key matrix or direct protected-trait test. The flo
   - retain the existing soft-deleted-model test as the control proving that `exists === false` with a retained key remains supported;
   - physically delete one source row through a separate query, assert the aggregate load still issues one query, hydrates the surviving row, and leaves the missing source item without a synthesized aggregate attribute;
   - physically delete every source row through a separate query, assert the aggregate load still issues one query and returns the same collection with its source attributes unchanged.
+  - use a dedicated decimal-key model and related table to prove distinct float identities receive their own aggregate counts. Store exact decimal values `1.25` and `1.75`, set `incrementing = false`, route `whereKey()` through bound predicates with `keyType = 'string'`, and cast the primary key to `float` so the unchanged result map reaches the raw PHP float-key collision instead of an earlier integer-query coercion. The `1.25` model's count assertion owns the behavioral red; float-to-integer deprecations are secondary evidence.
+  - load one existing integer-key post, change its current key to another existing post's key, then call `loadCount()`. Assert the aggregate follows the current key while the original key remains the originally loaded identity and the key stays dirty. Do not call `save()`; preserving the original key directly proves that its later update predicate remains safe without turning the regression into a database-write test.
 
 ### Complete upstream test port
 
@@ -334,6 +353,7 @@ Do not add a separate boolean-key matrix or direct protected-trait test. The flo
   - port the complete current `13.x` `testGetMorphedModel()` from #60954 with all four assertions;
   - extend the existing inverse-alias test with a non-list map and strict assertion that alias `0` is returned as integer `0`;
   - retain the existing numeric morph-map and alias tests.
+  - add `: void` to the four existing test methods changed by this branch; do not sweep untouched legacy methods in the file.
 
 ### Integer morph-alias integration and query tests
 
@@ -352,6 +372,7 @@ Do not add a separate boolean-key matrix or direct protected-trait test. The flo
   - prove a configured owner-key value `0` is written as integer `0` rather than falling back to a different primary key;
   - prove a configured owner-key value null writes null rather than a different primary key; omit a separate `''` case because no value branch remains;
   - prove scalar input throws `InvalidArgumentException` before either stored morph column or the loaded relation changes.
+  - require a morph map that excludes the associated model and prove `ClassMorphViolationException` leaves the original foreign key, morph type, and loaded relation unchanged. The foreign-key assertion owns the behavioral red; the other two characterize the complete unchanged state. Rely on the suite subscriber for morph-map cleanup.
 - `tests/Database/DatabaseEloquentBuilderTest.php`
 - make the existing mapped class-string query test use `enforceMorphMap()`, proving mapped classes remain valid in strict mode;
 - add separate positive- and negative-query regressions proving an unmapped model class throws `ClassMorphViolationException`; both direct methods own a distinct string branch even though resolution is shared;
@@ -370,7 +391,7 @@ Laravel #59019 introduced no tests, and current `13.x` has no later dedicated re
 5. Run targeted PHPStan while finalizing `InteractsWithDictionary` and `Collection` typing. Fix real declarations first; use one local `@var` for `enum_value()` only if needed. Add no global ignore.
 6. At the completed checkpoint, run `composer fix` once. It owns formatting, both PHPStan configurations, the parallel component suite, Testbench package tests, and dogfood tests; do not rerun those full commands separately at the same checkpoint.
 7. Inspect `git diff --check`, the full branch diff, and every changed method's callers/callees. Confirm current `13.x` parity, valid zero/empty/enum/stringable behavior, raw integer-list behavior through Eloquent `whereKey()` / `whereKeyNot()`, relation eager constraints, and Scout, custom collection state, deleted-model aggregate behavior, all seven direct collection aggregate entry points and their model/morph delegations, `toQuery()`'s empty/mixed/key validation order, integer morph aliases through writes, inverse lookup, eager loading, and both class-string query polarities, morph-map static cleanup, and absence of stale comments, tests, ignores, imports, or documentation.
-8. Request peer code review after the full self-review. Apply review fixes one file at a time, rerun affected tests, and repeat the full checkpoint only if the fixes can affect wider checks.
+8. Request peer code review after the full self-review. Apply review fixes one file at a time and rerun affected tests. For these aggregate-mapping and morph-association review fixes, run the union of the eleven changed test files and every measured caller test file for `loadAggregate()` and `MorphTo::associate()` (37 files) with `--fail-on-deprecation`, plus targeted PHPStan, changed-file formatting, and `git diff --check`; do not repeat the full checkpoint.
 
 ## Completion criteria
 
@@ -378,6 +399,7 @@ Laravel #59019 introduced no tests, and current `13.x` has no later dedicated re
 - The changed dictionary paths emit no null-offset, float-key, or `array_flip()` issues on PHP 8.5, and raw integer `IN`/`NOT IN` lists never convert null into literal zero.
 - Null cannot alias `''`; valid `''`, zero, enum, stringable, integer, and float identities retain the documented behavior above.
 - Missing identity fails before refresh or aggregate SQL, or before a collection query's key constraint, with `MissingAttributeException`; unsaved refresh input performs no query; soft-deleted aggregate input with a retained key remains valid; `toQuery()` cannot turn null into integer key `0`.
+- Aggregate hydration never overwrites or synchronizes the source model's primary key; a changed current key remains dirty against the identity originally loaded from the database.
 - Integer and null morph aliases work and all morph-map types describe integer and string keys truthfully.
 - Integer morph aliases serialize to string morph-column values and work through association, eager loading, inverse lookup, and positive/negative class-string morph queries, including alias and foreign key zero.
 - Morph association uses the configured owner-key column for zero, empty-string, and null values; scalar input fails before mutation; strict maps reject unmapped model class strings in both query polarities without instantiating them, while stored aliases remain queryable; and null positive/negative morph predicates compile as `IS NULL` / `IS NOT NULL`.
