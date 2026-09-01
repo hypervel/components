@@ -946,7 +946,7 @@ For end-to-end tests, start a test gRPC server and call it through your applicat
 Hypervel's gRPC client and server are tested against an independent grpc-go implementation. However, Swoole's HTTP/2 APIs impose a few limitations:
 
 - Hypervel servers support unary and server-streaming methods. Server-side client streaming and bidirectional streaming are not available because Swoole gives the request handler the complete body instead of exposing each incoming HTTP/2 data frame. Hypervel clients may use all four call types against compatible servers.
-- Client call objects do not provide a `cancel` method because Swoole cannot reset an individual client stream. Deadlines are still enforced.
+- Swoole cannot reset an individual client stream. Calling `cancel` abandons the stream locally, reports `CANCELLED`, and retires the connection instead of sending `RST_STREAM`. Deadlines are still enforced.
 - Swoole may reduce independently repeated metadata fields to one value and does not expose the inbound `:scheme` pseudo-header. Hypervel preserves repeated values whenever the transport exposes them, but inbound duplicate-field and metadata-size validation can only cover the values Swoole provides.
 - A peer stream reset fails only the affected call, but its HTTP/2 error code is not available from Swoole.
 - Swoole merges initial response metadata immediately followed by final metadata without a response message into one uncommitted response. Since this cannot be distinguished from a Trailers-Only response, an explicitly retry-enabled call may retry it.
