@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\OpenTelemetry\OpenTelemetryServiceProvider;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Symfony\Component\Process\Process;
 
@@ -89,6 +90,19 @@ class PublishedConfigurationTest extends TestCase
             'rpc.client.call.duration' => true,
             'rpc.server.call.duration' => true,
         ], $metrics);
+    }
+
+    public function testPublishedDefaultsUseOtlpProtobufTransport(): void
+    {
+        $configuration = $this->runConfigurationProcess([]);
+
+        $this->assertSame(['otlp'], $configuration['metrics']['exporter']);
+        $this->assertSame(['otlp'], $configuration['traces']['exporter']);
+        $this->assertSame(['otlp'], $configuration['logs']['exporter']);
+        $this->assertSame(
+            'http/protobuf',
+            $configuration['exporters']['otlp']['protocol'],
+        );
     }
 
     public function testPublishedConfigurationUsesSdkTypedResolution(): void
@@ -189,6 +203,7 @@ class PublishedConfigurationTest extends TestCase
         );
     }
 
+    #[WithConfig('opentelemetry.enabled', false)]
     public function testConfigurationCacheFreezesSdkResolvedValuesUntilRebuilt(): void
     {
         $files = new Filesystem;
@@ -198,7 +213,10 @@ class PublishedConfigurationTest extends TestCase
             $this->artisan('vendor:publish', ['--tag' => 'opentelemetry-config'])
                 ->assertSuccessful();
 
-            $this->withEnvironment(['OTEL_SERVICE_NAME' => 'cached-one'], function (): void {
+            $this->withEnvironment([
+                'OTEL_SERVICE_NAME' => 'cached-one',
+                'OTEL_SDK_DISABLED' => 'true',
+            ], function (): void {
                 $this->artisan('config:cache')->assertSuccessful();
             });
 
@@ -208,7 +226,10 @@ class PublishedConfigurationTest extends TestCase
                 $cached['opentelemetry']['resource_attributes']['service.name'],
             );
 
-            $this->withEnvironment(['OTEL_SERVICE_NAME' => 'cached-two'], function (): void {
+            $this->withEnvironment([
+                'OTEL_SERVICE_NAME' => 'cached-two',
+                'OTEL_SDK_DISABLED' => 'true',
+            ], function (): void {
                 $cached = require $this->app->getCachedConfigPath();
                 $this->assertSame(
                     'cached-one',
@@ -302,6 +323,9 @@ class PublishedConfigurationTest extends TestCase
             dirname(__DIR__, 2) . '/src/opentelemetry/config/opentelemetry.php',
         ], env: [
             'COMPOSER_DEV_MODE' => false,
+            'OTEL_TRACES_EXPORTER' => false,
+            'OTEL_METRICS_EXPORTER' => false,
+            'OTEL_LOGS_EXPORTER' => false,
             'OTEL_SERVICE_NAME' => false,
         ]);
         $process->mustRun();

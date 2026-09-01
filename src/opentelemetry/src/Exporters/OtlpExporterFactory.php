@@ -23,6 +23,7 @@ use OpenTelemetry\SDK\Metrics\Data\Temporality;
 use OpenTelemetry\SDK\Metrics\MetricExporterInterface;
 use OpenTelemetry\SDK\Trace\SpanExporterInterface;
 use Psr\Http\Client\ClientInterface;
+use RuntimeException;
 
 /**
  * Create OTLP/HTTP exporters with coroutine-compatible Guzzle transports.
@@ -81,13 +82,14 @@ class OtlpExporterFactory implements ExporterFactory
      */
     protected function transport(array $config, string $signal): TransportInterface
     {
+        $signalPrefix = $this->signalPrefix($signal);
         $config = $this->signalConfig($config, $signal);
-        $this->validateSignalConfig($config);
+        $this->validateSignalConfig($config, $signalPrefix);
         $client = $this->client($config);
 
         return (new PsrTransportFactory($client, $this->httpFactory, $this->httpFactory))->create(
             $config['endpoint'],
-            $this->contentType($config['protocol']),
+            $this->contentType($config['protocol'], $signalPrefix),
             $config['headers'],
             $config['compression'] === 'none' ? null : $config['compression'],
             $config['timeout'] / 1000,
@@ -96,7 +98,7 @@ class OtlpExporterFactory implements ExporterFactory
     }
 
     /**
-     * Validate network settings before constructing an exporter transport.
+     * Validate final signal settings before constructing an exporter transport.
      *
      * @param array{
      *     endpoint: string,
@@ -110,22 +112,22 @@ class OtlpExporterFactory implements ExporterFactory
      *     max_retries: int
      * } $config
      */
-    protected function validateSignalConfig(array $config): void
+    protected function validateSignalConfig(array $config, string $signalPrefix): void
     {
         if ($config['endpoint'] === '') {
-            throw new InvalidArgumentException('The OTLP endpoint must not be empty.');
+            throw new InvalidArgumentException("The OTLP [{$signalPrefix}] endpoint must not be empty.");
         }
 
-        $this->contentType($config['protocol']);
+        $this->contentType($config['protocol'], $signalPrefix);
 
         if (! in_array($config['compression'], ['none', 'gzip'], true)) {
             throw new InvalidArgumentException(
-                "Unsupported OTLP compression [{$config['compression']}]. Use [none] or [gzip].",
+                "Unsupported OTLP [{$signalPrefix}] compression [{$config['compression']}]. Use [none] or [gzip].",
             );
         }
 
         if ($config['timeout'] <= 0) {
-            throw new InvalidArgumentException('The OTLP timeout must be a positive integer.');
+            throw new InvalidArgumentException("The OTLP [{$signalPrefix}] timeout must be a positive integer.");
         }
 
         if ($config['max_retries'] < 0) {
@@ -134,7 +136,7 @@ class OtlpExporterFactory implements ExporterFactory
 
         if (($config['client_certificate'] === null) !== ($config['client_key'] === null)) {
             throw new InvalidArgumentException(
-                'The OTLP client certificate and client key must be configured together.',
+                "The OTLP [{$signalPrefix}] client certificate and client key must be configured together.",
             );
         }
 
@@ -142,9 +144,28 @@ class OtlpExporterFactory implements ExporterFactory
             $path = $config[$option];
 
             if ($path !== null && ! is_readable($path)) {
-                throw new InvalidArgumentException("The OTLP {$option} file [{$path}] is not readable.");
+                throw new InvalidArgumentException("The OTLP [{$signalPrefix}] {$option} file [{$path}] is not readable.");
             }
         }
+
+        if ($config['protocol'] === Protocols::HTTP_PROTOBUF && ! extension_loaded('protobuf')) {
+            throw new RuntimeException(
+                "The \"protobuf\" PHP extension is required to export the OTLP [{$signalPrefix}] signal using [http/protobuf]. Install ext-protobuf or select [http/json].",
+            );
+        }
+    }
+
+    /**
+     * Return the configuration prefix for an OpenTelemetry signal.
+     */
+    protected function signalPrefix(string $signal): string
+    {
+        return match ($signal) {
+            Signals::TRACE => 'traces',
+            Signals::METRICS => 'metrics',
+            Signals::LOGS => 'logs',
+            default => throw new InvalidArgumentException("Unsupported OpenTelemetry signal [{$signal}]."),
+        };
     }
 
     /**
@@ -164,12 +185,7 @@ class OtlpExporterFactory implements ExporterFactory
      */
     protected function signalConfig(array $config, string $signal): array
     {
-        $prefix = match ($signal) {
-            Signals::TRACE => 'traces',
-            Signals::METRICS => 'metrics',
-            Signals::LOGS => 'logs',
-            default => throw new InvalidArgumentException("Unsupported OpenTelemetry signal [{$signal}]."),
-        };
+        $prefix = $this->signalPrefix($signal);
         $endpoint = $config["{$prefix}_endpoint"] ?? null;
 
         return [
@@ -188,13 +204,13 @@ class OtlpExporterFactory implements ExporterFactory
     /**
      * Return the OTLP content type for an HTTP protocol.
      */
-    protected function contentType(string $protocol): string
+    protected function contentType(string $protocol, string $signalPrefix): string
     {
         return match ($protocol) {
             Protocols::HTTP_PROTOBUF => ContentTypes::PROTOBUF,
             Protocols::HTTP_JSON => ContentTypes::JSON,
             default => throw new InvalidArgumentException(
-                "Unsupported OTLP protocol [{$protocol}]. Use [http/protobuf] or [http/json].",
+                "Unsupported OTLP [{$signalPrefix}] protocol [{$protocol}]. Use [http/protobuf] or [http/json].",
             ),
         };
     }

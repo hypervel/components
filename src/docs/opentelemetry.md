@@ -47,6 +47,8 @@ You may install the OpenTelemetry integration using Composer:
 composer require hypervel/opentelemetry
 ```
 
+The default OTLP/HTTP protobuf exporter requires the `ext-protobuf` PHP extension. See [OTLP Export](#otlp-export) when using another exporter or protocol.
+
 You may publish the package configuration using the `vendor:publish` Artisan command:
 
 ```shell
@@ -78,9 +80,11 @@ You may select OTLP JSON instead:
 OTEL_EXPORTER_OTLP_PROTOCOL=http/json
 ```
 
+The `ext-protobuf` extension is required whenever an active built-in OTLP exporter resolves to `http/protobuf`, including through a signal-specific protocol override. Without it, telemetry startup fails: the server does not reach a serving state, and a standalone Artisan command or custom server process fails when it binds. JSON, `console`, `none`, custom exporter drivers, and complete provider overrides do not require the extension.
+
 Shared endpoint, header, compression, timeout, certificate, client certificate, and client key settings may be overridden for each signal using the standard `OTEL_EXPORTER_OTLP_TRACES_*`, `OTEL_EXPORTER_OTLP_METRICS_*`, and `OTEL_EXPORTER_OTLP_LOGS_*` variables. A shared endpoint receives the standard `/v1/traces`, `/v1/metrics`, or `/v1/logs` path. A signal-specific endpoint is used exactly as configured.
 
-Compression defaults to `none`. Set `OTEL_EXPORTER_OTLP_COMPRESSION=gzip` when reduced network use is worth the additional worker CPU cost. The portable PHP protobuf encoder works without an extension, but `ext-protobuf` is strongly recommended for direct OTLP export in high-throughput applications because it substantially reduces encoding work.
+Compression defaults to `none`. Set `OTEL_EXPORTER_OTLP_COMPRESSION=gzip` when reduced network use is worth the additional worker CPU cost. Extension-backed protobuf is the recommended high-throughput path. JSON remains useful for lower-volume or heavily sampled telemetry, but it performed materially worse in sustained tracing benchmarks.
 
 The `max_retries` option in the `otlp` exporter record controls the upstream transport's existing retry loop. The configured OTLP timeout applies to each HTTP attempt. Retries, backoff, and `Retry-After` may make a flush take longer than one timeout period.
 

@@ -9,6 +9,10 @@ use Hypervel\OpenTelemetry\Exporters\OtlpExporterFactory;
 use Hypervel\Tests\TestCase;
 use OpenTelemetry\API\Common\Time\Clock;
 use OpenTelemetry\Contrib\Otlp\Protocols;
+use OpenTelemetry\SDK\Common\Future\CancellationInterface;
+use OpenTelemetry\SDK\Common\Future\FutureInterface;
+use OpenTelemetry\SDK\Trace\SpanDataInterface;
+use OpenTelemetry\SDK\Trace\SpanExporterInterface;
 use OpenTelemetry\SDK\Trace\SpanProcessor\BatchSpanProcessor;
 use OpenTelemetry\SDK\Trace\TracerProviderBuilder;
 use Swoole\Coroutine\Channel;
@@ -30,7 +34,9 @@ class OtlpExporterIntegrationTest extends TestCase
 
     public function testSlowOtlpExportYieldsToOtherCoroutines(): void
     {
-        $exporter = (new OtlpExporterFactory)->spanExporter($this->exporterConfiguration());
+        $exporter = new RecordingSpanExporter(
+            (new OtlpExporterFactory)->spanExporter($this->exporterConfiguration()),
+        );
         $provider = (new TracerProviderBuilder)
             ->addSpanProcessor(new BatchSpanProcessor(
                 $exporter,
@@ -73,6 +79,7 @@ class OtlpExporterIntegrationTest extends TestCase
         $this->assertTrue($heartbeatObserved);
         $this->assertFalse($prematureResult, 'The export completed before another coroutine could run.');
         $this->assertSame('success', $result);
+        $this->assertSame([true], $exporter->results);
         $this->assertTrue($shutdown);
     }
 
@@ -82,14 +89,14 @@ class OtlpExporterIntegrationTest extends TestCase
     private function exporterConfiguration(): array
     {
         $endpoint = sprintf(
-            'http://%s:%d/timeout?time=2',
+            'http://%s:%d/timeout?time=2&body=%%7B%%7D',
             $this->getServerHost(),
             $this->getServerPort(),
         );
 
         return [
             'endpoint' => $endpoint,
-            'protocol' => Protocols::HTTP_PROTOBUF,
+            'protocol' => Protocols::HTTP_JSON,
             'headers' => [],
             'compression' => 'none',
             'timeout' => 5000,
@@ -106,5 +113,48 @@ class OtlpExporterIntegrationTest extends TestCase
             'traces_client_key' => null,
             'max_retries' => 0,
         ];
+    }
+}
+
+class RecordingSpanExporter implements SpanExporterInterface
+{
+    /** @var list<bool> */
+    public array $results = [];
+
+    /**
+     * Create a recording span exporter.
+     */
+    public function __construct(private SpanExporterInterface $exporter)
+    {
+    }
+
+    /**
+     * Export a batch of spans.
+     *
+     * @param iterable<SpanDataInterface> $batch
+     */
+    public function export(iterable $batch, ?CancellationInterface $cancellation = null): FutureInterface
+    {
+        return $this->exporter->export($batch, $cancellation)->map(function (bool $result): bool {
+            $this->results[] = $result;
+
+            return $result;
+        });
+    }
+
+    /**
+     * Shut down the exporter.
+     */
+    public function shutdown(?CancellationInterface $cancellation = null): bool
+    {
+        return $this->exporter->shutdown($cancellation);
+    }
+
+    /**
+     * Force the exporter to flush.
+     */
+    public function forceFlush(?CancellationInterface $cancellation = null): bool
+    {
+        return $this->exporter->forceFlush($cancellation);
     }
 }

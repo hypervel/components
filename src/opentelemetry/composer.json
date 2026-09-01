@@ -75,7 +75,7 @@
         "symfony/http-foundation": "^8.1"
     },
     "suggest": {
-        "ext-protobuf": "Strongly recommended for high-throughput OTLP protobuf encoding.",
+        "ext-protobuf": "Required when a built-in OTLP exporter uses the http/protobuf protocol (the default).",
         "hypervel/grpc": "Enables gRPC client and server instrumentation (^0.4).",
         "hypervel/scout": "Enables Scout search-engine instrumentation (^0.4)."
     },
