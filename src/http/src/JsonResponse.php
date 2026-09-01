@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Http;
 
 use ArrayObject;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Support\Json;
@@ -17,7 +18,7 @@ use Symfony\Component\HttpFoundation\JsonResponse as BaseJsonResponse;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use TypeError;
 
-class JsonResponse extends BaseJsonResponse
+class JsonResponse extends BaseJsonResponse implements Transient
 {
     use Concerns\PreparesResponse;
     use ResponseTrait, Macroable {
