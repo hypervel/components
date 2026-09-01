@@ -15,6 +15,8 @@ use OpenTelemetry\SDK\Trace\SpanDataInterface;
 use OpenTelemetry\SDK\Trace\SpanExporterInterface;
 use OpenTelemetry\SDK\Trace\SpanProcessor\BatchSpanProcessor;
 use OpenTelemetry\SDK\Trace\TracerProviderBuilder;
+use OpenTelemetry\SDK\Trace\TracerProviderInterface;
+use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use Swoole\Coroutine\Channel;
 use Throwable;
 
@@ -35,18 +37,11 @@ class OtlpExporterIntegrationTest extends TestCase
     public function testSlowOtlpExportYieldsToOtherCoroutines(): void
     {
         $exporter = new RecordingSpanExporter(
-            (new OtlpExporterFactory)->spanExporter($this->exporterConfiguration()),
+            (new OtlpExporterFactory)->spanExporter(
+                $this->exporterConfiguration(Protocols::HTTP_JSON, 'time=2&body=%7B%7D'),
+            ),
         );
-        $provider = (new TracerProviderBuilder)
-            ->addSpanProcessor(new BatchSpanProcessor(
-                $exporter,
-                Clock::getDefault(),
-                maxQueueSize: 8,
-                scheduledDelayMillis: 60_000,
-                maxExportBatchSize: 8,
-                autoFlush: false,
-            ))
-            ->build();
+        $provider = $this->provider($exporter);
         $provider->getTracer('hypervel.integration')
             ->spanBuilder('slow-otlp-export')
             ->startSpan()
@@ -83,20 +78,57 @@ class OtlpExporterIntegrationTest extends TestCase
         $this->assertTrue($shutdown);
     }
 
+    #[RequiresPhpExtension('protobuf')]
+    public function testOtlpExporterUsesNativeProtobufEncoding(): void
+    {
+        $exporter = new RecordingSpanExporter(
+            (new OtlpExporterFactory)->spanExporter(
+                $this->exporterConfiguration(Protocols::HTTP_PROTOBUF, 'time=0'),
+            ),
+        );
+        $provider = $this->provider($exporter);
+        $provider->getTracer('hypervel.integration')
+            ->spanBuilder('native-protobuf-export')
+            ->startSpan()
+            ->end();
+
+        $this->assertTrue($provider->forceFlush());
+        $this->assertSame([true], $exporter->results);
+        $this->assertTrue($provider->shutdown());
+    }
+
     /**
-     * Return OTLP settings for the delayed engine test endpoint.
+     * Create a tracer provider for a recording exporter.
      */
-    private function exporterConfiguration(): array
+    private function provider(RecordingSpanExporter $exporter): TracerProviderInterface
+    {
+        return (new TracerProviderBuilder)
+            ->addSpanProcessor(new BatchSpanProcessor(
+                $exporter,
+                Clock::getDefault(),
+                maxQueueSize: 8,
+                scheduledDelayMillis: 60_000,
+                maxExportBatchSize: 8,
+                autoFlush: false,
+            ))
+            ->build();
+    }
+
+    /**
+     * Return OTLP settings for an engine test endpoint.
+     */
+    private function exporterConfiguration(string $protocol, string $query): array
     {
         $endpoint = sprintf(
-            'http://%s:%d/timeout?time=2&body=%%7B%%7D',
+            'http://%s:%d/timeout?%s',
             $this->getServerHost(),
             $this->getServerPort(),
+            $query,
         );
 
         return [
             'endpoint' => $endpoint,
-            'protocol' => Protocols::HTTP_JSON,
+            'protocol' => $protocol,
             'headers' => [],
             'compression' => 'none',
             'timeout' => 5000,

@@ -15,6 +15,7 @@ use OpenTelemetry\Contrib\Otlp\MetricExporter;
 use OpenTelemetry\Contrib\Otlp\Protocols;
 use OpenTelemetry\Contrib\Otlp\SpanExporter;
 use OpenTelemetry\SDK\Metrics\Data\Temporality;
+use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use Psr\Http\Client\ClientInterface;
 use Symfony\Component\Process\Process;
 
@@ -129,6 +130,20 @@ class OtlpExporterFactoryTest extends TestCase
     {
         $factory = new TestOtlpExporterFactory;
         $config = $this->config();
+        $config['temporality'] = 'cumulative';
+
+        $this->assertInstanceOf(SpanExporter::class, $factory->spanExporter($config));
+        $this->assertInstanceOf(MetricExporter::class, $factory->metricExporter($config));
+        $this->assertInstanceOf(LogsExporter::class, $factory->logExporter($config));
+        $this->assertCount(1, $factory->createdOptions);
+    }
+
+    #[RequiresPhpExtension('protobuf')]
+    public function testEverySignalCreatesANativeProtobufExporter(): void
+    {
+        $factory = new TestOtlpExporterFactory;
+        $config = $this->config();
+        $config['protocol'] = Protocols::HTTP_PROTOBUF;
         $config['temporality'] = 'cumulative';
 
         $this->assertInstanceOf(SpanExporter::class, $factory->spanExporter($config));
