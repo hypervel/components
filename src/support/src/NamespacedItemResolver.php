@@ -7,7 +7,7 @@ namespace Hypervel\Support;
 class NamespacedItemResolver
 {
     /**
-     * A cache of the parsed items.
+     * The explicitly seeded parsed items.
      */
     protected array $parsed = [];
 
@@ -16,28 +16,13 @@ class NamespacedItemResolver
      */
     public function parseKey(string $key): array
     {
-        // If we've already parsed the given key, we'll return the cached version we
-        // already have, as this will save us some processing. We cache off every
-        // key we parse so we can quickly return it on all subsequent requests.
         if (isset($this->parsed[$key])) {
             return $this->parsed[$key];
         }
 
-        // If the key does not contain a double colon, it means the key is not in a
-        // namespace, and is just a regular configuration item. Namespaces are a
-        // tool for organizing configuration items for things such as modules.
-        if (! str_contains($key, '::')) {
-            $segments = explode('.', $key);
-
-            $parsed = $this->parseBasicSegments($segments);
-        } else {
-            $parsed = $this->parseNamespacedSegments($key);
-        }
-
-        // Once we have the parsed array of this key's elements, such as its groups
-        // and namespace, we will cache each array inside a simple list that has
-        // the key and the parsed array for quick look-ups for later requests.
-        return $this->parsed[$key] = $parsed;
+        return ! str_contains($key, '::')
+            ? $this->parseBasicSegments(explode('.', $key))
+            : $this->parseNamespacedSegments($key);
     }
 
     /**
@@ -82,6 +67,9 @@ class NamespacedItemResolver
 
     /**
      * Set the parsed value of a key.
+     *
+     * Entries remain cached for this resolver instance's lifetime, which is the
+     * worker lifetime when called on the shared translator.
      */
     public function setParsedKey(string $key, array $parsed): void
     {
