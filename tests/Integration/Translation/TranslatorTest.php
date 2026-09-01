@@ -108,6 +108,27 @@ class TranslatorTest extends TestCase
         $this->assertSame('ht', $missingLocale);
     }
 
+    public function testChoicePassesCallerReplacementsToMissingKeyCallback(): void
+    {
+        $received = null;
+        $translator = $this->app->make('translator');
+
+        $translator->handleMissingKeysUsing(function (string $key, array $replace, string $locale, bool $fallback) use (&$received): string {
+            $received = [$key, $replace, $locale, $fallback];
+
+            return '{1} Hello :name|[2,*] Hello :name, you have :count messages';
+        });
+
+        $this->assertSame(
+            'Hello Taylor, you have 3 messages',
+            $translator->choice('missing.greeting', 3, ['name' => 'Taylor'])
+        );
+        $this->assertSame(
+            ['missing.greeting', ['name' => 'Taylor'], 'en', true],
+            $received
+        );
+    }
+
     public function testFileValidationDoesNotAttemptToTranslateAlreadyTranslatedMessages(): void
     {
         $keysLookedUp = [];
