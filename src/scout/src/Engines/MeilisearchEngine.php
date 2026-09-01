@@ -304,7 +304,7 @@ class MeilisearchEngine extends Engine implements DeletesByFilter, UpdatesIndexS
     {
         $scoutKey = $builder->model->getScoutKeyName();
 
-        return $this->mapIdsFrom($this->search($builder), $scoutKey);
+        return $this->mapIdsFrom($this->runSearch($builder), $scoutKey);
     }
 
     /**
@@ -416,25 +416,34 @@ class MeilisearchEngine extends Engine implements DeletesByFilter, UpdatesIndexS
             throw new InvalidArgumentException('Meilisearch filter deletion requires a non-empty filter.');
         }
 
-        $index = $this->meilisearch->index($builder->index ?? $builder->model->indexableAs());
-        $task = $index->deleteDocuments(['filter' => $filter]);
+        $indexName = $builder->index ?? $builder->model->indexableAs();
 
-        // Bulk purges favor bounded service load over the SDK's interactive polling cadence.
-        $result = $this->meilisearch->waitForTask(
-            $task['taskUid'],
-            self::FILTER_DELETE_TIMEOUT_IN_MS,
-            self::FILTER_DELETE_INTERVAL_IN_MS,
+        $this->runOperation(
+            'delete_by_filter',
+            $builder,
+            function () use ($filter, $indexName): void {
+                $index = $this->meilisearch->index($indexName);
+                $task = $index->deleteDocuments(['filter' => $filter]);
+
+                // Bulk purges favor bounded service load over the SDK's interactive polling cadence.
+                $result = $this->meilisearch->waitForTask(
+                    $task['taskUid'],
+                    self::FILTER_DELETE_TIMEOUT_IN_MS,
+                    self::FILTER_DELETE_INTERVAL_IN_MS,
+                );
+
+                if (($result['status'] ?? null) === 'failed'
+                    && ($result['error']['code'] ?? null) === 'index_not_found') {
+                    // Meilisearch reports an already-absent index through its asynchronous task.
+                    return;
+                }
+
+                if (($result['status'] ?? null) !== 'succeeded') {
+                    throw new ScoutException('Meilisearch filter deletion did not complete successfully.');
+                }
+            },
+            index: $indexName,
         );
-
-        if (($result['status'] ?? null) === 'failed'
-            && ($result['error']['code'] ?? null) === 'index_not_found') {
-            // Meilisearch reports an already-absent index through its asynchronous task.
-            return;
-        }
-
-        if (($result['status'] ?? null) !== 'succeeded') {
-            throw new ScoutException('Meilisearch filter deletion did not complete successfully.');
-        }
     }
 
     /**

@@ -11,6 +11,7 @@ use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Console\SyncIndexSettingsCommand;
 use Hypervel\Scout\Contracts\UpdatesIndexSettings;
 use Hypervel\Scout\EngineManager;
+use Hypervel\Scout\EngineOperationRunner;
 use Hypervel\Scout\Engines\CollectionEngine;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Scout;
@@ -53,7 +54,7 @@ class SyncIndexSettingsCommandTest extends TestCase
         $config = new Repository(['scout' => ['driver' => null]]);
         $container = m::mock(Container::class);
         $container->shouldReceive('make')->once()->with('config')->andReturn($config);
-        $manager = new EngineManager($container);
+        $manager = new EngineManager($container, new EngineOperationRunner);
 
         $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();
         $command->shouldReceive('option')->with('driver')->andReturn(null);

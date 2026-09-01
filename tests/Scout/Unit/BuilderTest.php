@@ -4,15 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Unit;
 
+use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Pagination\Paginator;
 use Hypervel\Scout\Builder;
+use Hypervel\Scout\Contracts\EngineOperationObserver;
 use Hypervel\Scout\Contracts\PaginatesEloquentModels;
 use Hypervel\Scout\Contracts\PaginatesEloquentModelsUsingDatabase;
 use Hypervel\Scout\Contracts\SearchableInterface;
+use Hypervel\Scout\EngineOperation;
+use Hypervel\Scout\EngineOperationRunner;
+use Hypervel\Scout\Engines\DatabaseEngine;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Scout;
 use Hypervel\Support\Collection;
@@ -282,13 +287,13 @@ class BuilderTest extends TestCase
         ]], $builder->wheres);
     }
 
-    public function testRawCallsEngineSearch(): void
+    public function testRawCallsEngineSearchEntryPoint(): void
     {
         $model = m::mock(Model::class);
         $engine = m::mock(Engine::class);
         $model->shouldReceive('searchableUsing')->andReturn($engine);
 
-        $engine->shouldReceive('search')
+        $engine->shouldReceive('runSearch')
             ->once()
             ->andReturn(['hits' => [], 'totalHits' => 0]);
 
@@ -375,7 +380,7 @@ class BuilderTest extends TestCase
         $model = m::mock(Model::class);
         $engine = m::mock(Engine::class);
         $model->shouldReceive('searchableUsing')->times(5)->andReturn($engine);
-        $engine->shouldReceive('search')->once()->andReturn([]);
+        $engine->shouldReceive('runSearch')->once()->andReturn([]);
         $engine->shouldReceive('keys')->once()->andReturn(new Collection);
         $engine->shouldReceive('get')->twice()->andReturn(new EloquentCollection);
         $engine->shouldReceive('cursor')->once()->andReturn(new LazyCollection([]));
@@ -408,8 +413,10 @@ class BuilderTest extends TestCase
 
         $model = m::mock(Model::class);
         $model->shouldReceive('getPerPage')->times(4)->andReturn(15);
+        $model->shouldNotReceive('searchableAs');
         $engine = m::mock(Engine::class . ', ' . PaginatesEloquentModels::class);
         $model->shouldReceive('searchableUsing')->times(4)->andReturn($engine);
+        $this->passThroughEngineOperations($engine, 4);
         $engine->shouldReceive('paginate')->twice()->andReturn(new LengthAwarePaginator([], 0, 15, 1));
         $engine->shouldReceive('simplePaginate')->twice()->andReturn(new Paginator([], 15, 1));
         $builder = new Builder($model, 'query');
@@ -454,7 +461,7 @@ class BuilderTest extends TestCase
         }
         $results = new EloquentCollection($items);
 
-        $engine->shouldReceive('paginate')->once();
+        $engine->shouldReceive('runPaginate')->once();
         $engine->shouldReceive('map')->andReturn($results);
         $engine->shouldReceive('getTotalCount')->andReturn(16);
 
@@ -491,7 +498,7 @@ class BuilderTest extends TestCase
         }
         $results = new EloquentCollection($items);
 
-        $engine->shouldReceive('paginate')->once();
+        $engine->shouldReceive('runPaginate')->once();
         $engine->shouldReceive('map')->andReturn($results);
         $engine->shouldReceive('getTotalCount')->andReturn(16);
 
@@ -522,7 +529,7 @@ class BuilderTest extends TestCase
 
         $rawResults = ['hits' => ['raw'], 'estimatedTotalHits' => 30];
         $transformedResults = ['hits' => ['transformed'], 'estimatedTotalHits' => 16];
-        $engine->shouldReceive('paginate')->times(4)->andReturn($rawResults);
+        $engine->shouldReceive('runPaginate')->times(4)->andReturn($rawResults);
         $engine->shouldReceive('map')
             ->twice()
             ->withArgs(fn (Builder $builder, array $results, Model $givenModel): bool => $results === $transformedResults
@@ -569,7 +576,7 @@ class BuilderTest extends TestCase
             ->andReturn($eloquentQuery);
         $eloquentQuery->shouldReceive('toBase')->twice()->andReturn($baseQuery);
         $baseQuery->shouldReceive('getCountForPagination')->twice()->andReturn(15);
-        $engine->shouldReceive('paginate')->twice()->andReturn($rawResults);
+        $engine->shouldReceive('runPaginate')->twice()->andReturn($rawResults);
         $engine->shouldReceive('map')->once()->andReturn(new EloquentCollection);
         $engine->shouldReceive('getTotalCount')->twice()->andReturn(16);
         $engine->shouldReceive('mapIdsFrom')->twice()->andReturn(new Collection(range(1, 16)));
@@ -581,6 +588,72 @@ class BuilderTest extends TestCase
         $this->assertFalse($builder->simplePaginateRaw(page: 1)->hasMorePages());
     }
 
+    public function testQueryCallbackTotalSearchIsObservedAfterPagination(): void
+    {
+        Paginator::currentPathResolver(fn () => 'http://localhost/foo');
+
+        $model = m::mock(Model::class . ', ' . SearchableInterface::class);
+        $engine = m::mock(Engine::class)->makePartial();
+        $eloquentQuery = m::mock(\Hypervel\Database\Eloquent\Builder::class);
+        $baseQuery = m::mock(\Hypervel\Database\Query\Builder::class);
+        $rawResults = ['hits' => [], 'estimatedTotalHits' => 2];
+        $runner = new EngineOperationRunner;
+        $observer = m::mock(EngineOperationObserver::class);
+
+        $observer->shouldReceive('starting')
+            ->once()
+            ->with(m::on(fn (EngineOperation $operation): bool => $operation->operation === 'paginate'))
+            ->ordered()
+            ->andReturn('paginate');
+        $observer->shouldReceive('finished')
+            ->once()
+            ->with(
+                m::on(fn (EngineOperation $operation): bool => $operation->operation === 'paginate'),
+                'paginate',
+                null,
+            )
+            ->ordered();
+        $observer->shouldReceive('starting')
+            ->once()
+            ->with(m::on(fn (EngineOperation $operation): bool => $operation->operation === 'search'))
+            ->ordered()
+            ->andReturn('search');
+        $observer->shouldReceive('finished')
+            ->once()
+            ->with(
+                m::on(fn (EngineOperation $operation): bool => $operation->operation === 'search'),
+                'search',
+                null,
+            )
+            ->ordered();
+
+        $runner->observe($observer);
+        $engine->setOperationRunner($runner, 'fixture');
+
+        $model->shouldReceive('getPerPage')->once()->andReturn(15);
+        $model->shouldReceive('searchableUsing')->twice()->andReturn($engine);
+        $model->shouldReceive('searchableAs')->twice()->andReturn('read_index');
+        $model->shouldReceive('newCollection')->once()->andReturn(new EloquentCollection);
+        $model->shouldReceive('getScoutKeyName')->once()->andReturn('id');
+        $model->shouldReceive('queryScoutModelsByIds')
+            ->once()
+            ->withArgs(fn (Builder $builder, array $ids): bool => $ids === [1, 2])
+            ->andReturn($eloquentQuery);
+        $eloquentQuery->shouldReceive('toBase')->once()->andReturn($baseQuery);
+        $baseQuery->shouldReceive('getCountForPagination')->once()->andReturn(2);
+        $engine->shouldReceive('paginate')->once()->andReturn($rawResults);
+        $engine->shouldReceive('map')->once()->andReturn(new EloquentCollection);
+        $engine->shouldReceive('getTotalCount')->once()->andReturn(2);
+        $engine->shouldReceive('mapIdsFrom')->once()->andReturn(new Collection([1]));
+        $engine->shouldReceive('search')->once()->andReturn(['hits' => [1, 2]]);
+        $engine->shouldReceive('mapIds')->once()->andReturn(new Collection([1, 2]));
+
+        $builder = (new Builder($model, 'zonda'))->query(static function (): void {
+        });
+
+        $this->assertSame(2, $builder->paginate(page: 1)->total());
+    }
+
     public function testPaginateDelegatesToEngineWhenImplementsPaginatesEloquentModels(): void
     {
         Paginator::currentPageResolver(fn () => 1);
@@ -588,10 +661,12 @@ class BuilderTest extends TestCase
 
         $model = m::mock(Model::class);
         $model->shouldReceive('getPerPage')->andReturn(15);
+        $model->shouldNotReceive('searchableAs');
 
         // Create a mock engine that implements PaginatesEloquentModels
         $engine = m::mock(Engine::class . ', ' . PaginatesEloquentModels::class);
         $model->shouldReceive('searchableUsing')->andReturn($engine);
+        $this->passThroughEngineOperations($engine, 1);
 
         $expectedPaginator = new LengthAwarePaginator([], 0, 15, 1);
 
@@ -614,10 +689,12 @@ class BuilderTest extends TestCase
 
         $model = m::mock(Model::class);
         $model->shouldReceive('getPerPage')->andReturn(15);
+        $model->shouldNotReceive('searchableAs');
 
         // Create a mock engine that implements PaginatesEloquentModels
         $engine = m::mock(Engine::class . ', ' . PaginatesEloquentModels::class);
         $model->shouldReceive('searchableUsing')->andReturn($engine);
+        $this->passThroughEngineOperations($engine, 1);
 
         $expectedPaginator = new Paginator([], 15, 1);
 
@@ -640,10 +717,12 @@ class BuilderTest extends TestCase
 
         $model = m::mock(Model::class);
         $model->shouldReceive('getPerPage')->andReturn(15);
+        $model->shouldNotReceive('searchableAs');
 
         // Create a mock engine that implements PaginatesEloquentModelsUsingDatabase
         $engine = m::mock(Engine::class . ', ' . PaginatesEloquentModelsUsingDatabase::class);
         $model->shouldReceive('searchableUsing')->andReturn($engine);
+        $this->passThroughEngineOperations($engine, 1);
 
         $expectedPaginator = new LengthAwarePaginator([], 0, 15, 1);
 
@@ -666,10 +745,12 @@ class BuilderTest extends TestCase
 
         $model = m::mock(Model::class);
         $model->shouldReceive('getPerPage')->andReturn(15);
+        $model->shouldNotReceive('searchableAs');
 
         // Create a mock engine that implements PaginatesEloquentModelsUsingDatabase
         $engine = m::mock(Engine::class . ', ' . PaginatesEloquentModelsUsingDatabase::class);
         $model->shouldReceive('searchableUsing')->andReturn($engine);
+        $this->passThroughEngineOperations($engine, 1);
 
         $expectedPaginator = new Paginator([], 15, 1);
 
@@ -689,9 +770,11 @@ class BuilderTest extends TestCase
     {
         $model = m::mock(Model::class);
         $model->shouldReceive('getPerPage')->twice()->andReturn(15);
+        $model->shouldNotReceive('searchableAs');
 
         $engine = m::mock(Engine::class . ', ' . PaginatesEloquentModels::class);
         $model->shouldReceive('searchableUsing')->twice()->andReturn($engine);
+        $this->passThroughEngineOperations($engine, 2);
 
         $expectedPaginator = new LengthAwarePaginator([], 0, 15, 1);
         $expectedSimplePaginator = new Paginator([], 15, 1);
@@ -715,9 +798,11 @@ class BuilderTest extends TestCase
     {
         $model = m::mock(Model::class);
         $model->shouldReceive('getPerPage')->twice()->andReturn(15);
+        $model->shouldNotReceive('searchableAs');
 
         $engine = m::mock(Engine::class . ', ' . PaginatesEloquentModelsUsingDatabase::class);
         $model->shouldReceive('searchableUsing')->twice()->andReturn($engine);
+        $this->passThroughEngineOperations($engine, 2);
 
         $expectedPaginator = new LengthAwarePaginator([], 0, 15, 1);
         $expectedSimplePaginator = new Paginator([], 15, 1);
@@ -737,6 +822,28 @@ class BuilderTest extends TestCase
         $this->assertSame($expectedSimplePaginator, $builder->simplePaginateRaw(pageName: 'results', page: 1));
     }
 
+    public function testOptionalPaginationDoesNotResolveSearchIndexWithoutObservers(): void
+    {
+        Paginator::currentPageResolver(fn () => 1);
+        Paginator::currentPathResolver(fn () => 'http://localhost/foo');
+
+        $model = m::mock(Model::class);
+        $model->shouldReceive('getPerPage')->once()->andReturn(15);
+        $model->shouldNotReceive('searchableAs');
+
+        $engine = m::mock(DatabaseEngine::class)->makePartial();
+        $engine->setOperationRunner(new EngineOperationRunner, 'database');
+        $model->shouldReceive('searchableUsing')->once()->andReturn($engine);
+
+        $expectedPaginator = new LengthAwarePaginator([], 0, 15, 1);
+        $engine->shouldReceive('paginateUsingDatabase')
+            ->once()
+            ->with(m::type(Builder::class), 15, 'page', 1)
+            ->andReturn($expectedPaginator);
+
+        $this->assertSame($expectedPaginator, (new Builder($model, 'query'))->paginate());
+    }
+
     public function testGenericPaginationUsesFreshContainerSubstitutionsAndDefaultPerPageForZero(): void
     {
         Paginator::currentPageResolver(fn () => 1);
@@ -754,7 +861,7 @@ class BuilderTest extends TestCase
 
         $rawResults = ['hits' => [], 'estimatedTotalHits' => 0];
 
-        $engine->shouldReceive('paginate')->times(4)->andReturn($rawResults);
+        $engine->shouldReceive('runPaginate')->times(4)->andReturn($rawResults);
         $engine->shouldReceive('map')->twice()->andReturn(new EloquentCollection);
         $engine->shouldReceive('getTotalCount')->times(4)->andReturn(0);
 
@@ -791,7 +898,7 @@ class BuilderTest extends TestCase
 
         $pages = [];
         $rawResults = ['hits' => [], 'estimatedTotalHits' => 0];
-        $engine->shouldReceive('paginate')->times(5)->andReturnUsing(
+        $engine->shouldReceive('runPaginate')->times(5)->andReturnUsing(
             function (Builder $_, int $perPage, int $page) use (&$pages, $rawResults): array {
                 $this->assertSame(15, $perPage);
                 $pages[] = $page;
@@ -865,7 +972,7 @@ class BuilderTest extends TestCase
 
         $rawResults = ['hits' => [], 'estimatedTotalHits' => 16];
 
-        $engine->shouldReceive('paginate')->once()->andReturn($rawResults);
+        $engine->shouldReceive('runPaginate')->once()->andReturn($rawResults);
         $engine->shouldReceive('getTotalCount')->andReturn(16);
 
         $builder = new Builder($model, 'zonda');
@@ -903,6 +1010,23 @@ class BuilderTest extends TestCase
 
         $this->assertSame($builder, $result);
         $this->assertSame(['id' => [4, 5, 6]], $builder->whereNotIns);
+    }
+
+    /**
+     * Let mocked optional engine operations execute their narrowed callback.
+     */
+    protected function passThroughEngineOperations(m\MockInterface&Engine $engine, int $times): void
+    {
+        $engine->shouldReceive('runOperation')
+            ->times($times)
+            ->with(
+                'paginate',
+                m::type(Builder::class),
+                m::type(Closure::class),
+            )
+            ->andReturnUsing(
+                fn (string $operation, Builder $builder, Closure $callback): mixed => $callback()
+            );
     }
 }
 

@@ -458,20 +458,27 @@ class AlgoliaEngine extends Engine implements DeletesByFilter, UpdatesIndexSetti
 
         $index = $builder->index ?? $builder->model->indexableAs();
 
-        try {
-            /** @var array{taskID: int}|UpdatedAtResponse $response */
-            $response = $this->algolia->deleteBy($index, ['filters' => $filters]);
-        } catch (NotFoundException) {
-            // The index is already absent.
-            return;
-        }
+        $this->runOperation(
+            'delete_by_filter',
+            $builder,
+            function () use ($filters, $index): void {
+                try {
+                    /** @var array{taskID: int}|UpdatedAtResponse $response */
+                    $response = $this->algolia->deleteBy($index, ['filters' => $filters]);
+                } catch (NotFoundException) {
+                    // The index is already absent.
+                    return;
+                }
 
-        /** @var null|array<string, mixed>|GetTaskResponse $task */
-        $task = $this->algolia->waitForTask($index, $response['taskID']);
+                /** @var null|array<string, mixed>|GetTaskResponse $task */
+                $task = $this->algolia->waitForTask($index, $response['taskID']);
 
-        if (($task['status'] ?? null) !== 'published') {
-            throw new ScoutException('Algolia filter deletion did not complete successfully.');
-        }
+                if (($task['status'] ?? null) !== 'published') {
+                    throw new ScoutException('Algolia filter deletion did not complete successfully.');
+                }
+            },
+            index: $index,
+        );
     }
 
     /**
