@@ -386,6 +386,40 @@ class ComponentTest extends TestCase
         $this->assertSame([], $cacheA);
     }
 
+    public function testBladeViewCacheCanForgetOneInlineViewWithoutFlushingOtherVariants(): void
+    {
+        $componentA = new TestInlineViewComponentWhereRenderDependsOnProps('A');
+        $componentB = new TestInlineViewComponentWhereRenderDependsOnProps('B');
+
+        $this->viewFactory->shouldReceive('exists')->times(3)->andReturn(false);
+        $this->config->shouldReceive('string')->times(3)->with('view.compiled')->andReturn($this->compiledPath);
+        $this->viewFactory->shouldReceive('replaceNamespace')
+            ->with('__components', $this->compiledPath)
+            ->times(3);
+
+        $compiledViewNameA = '__components::9b0498cbe3839becd0d496e05c553485';
+        $compiledViewNameB = '__components::9d1b9bc4078a3e7274d3766ca02423f3';
+        $cacheAKey = hash('xxh128', sprintf('%s::%s', $componentA::class, 'A'));
+        $cacheBKey = hash('xxh128', sprintf('%s::%s', $componentB::class, 'B'));
+
+        $this->assertSame($compiledViewNameA, $componentA->resolveView());
+        $this->assertSame($compiledViewNameB, $componentB->resolveView());
+
+        $componentA::forgetBladeView('A');
+
+        $cache = (fn () => $componentA::$bladeViewCache)->call($componentA);
+        $this->assertSame([$cacheBKey => $compiledViewNameB], $cache);
+
+        $this->assertSame($compiledViewNameB, $componentB->resolveView());
+        $this->assertSame($compiledViewNameA, $componentA->resolveView());
+
+        $cache = (fn () => $componentA::$bladeViewCache)->call($componentA);
+        $this->assertSame([
+            $cacheBKey => $compiledViewNameB,
+            $cacheAKey => $compiledViewNameA,
+        ], $cache);
+    }
+
     public function testFactoryGetsSharedBetweenComponents()
     {
         $regular = new TestRegularViewNameViewComponent;

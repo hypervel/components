@@ -48,6 +48,8 @@ abstract class Component
     /**
      * The cache of blade view names, keyed by contents.
      *
+     * Content-addressed mappings remain worker-cached so stable and finite variants stay warm.
+     *
      * @var array<string, string>
      */
     protected static array $bladeViewCache = [];
@@ -149,11 +151,11 @@ abstract class Component
     }
 
     /**
-     * Create a Blade view with the raw component string content.
+     * Resolve and cache the Blade view for the given component string.
      */
     protected function extractBladeViewFromString(string $contents): string
     {
-        $key = hash('xxh128', sprintf('%s::%s', static::class, $contents));
+        $key = static::bladeViewCacheKey($contents);
 
         if (isset(static::$bladeViewCache[$key])) {
             return static::$bladeViewCache[$key];
@@ -164,6 +166,14 @@ abstract class Component
         }
 
         return static::$bladeViewCache[$key] = $this->createBladeViewFromString($this->factory(), $contents);
+    }
+
+    /**
+     * Get the cache key for the given Blade view contents.
+     */
+    protected static function bladeViewCacheKey(string $contents): string
+    {
+        return hash('xxh128', sprintf('%s::%s', static::class, $contents));
     }
 
     /**
@@ -290,6 +300,7 @@ abstract class Component
             'withAttributes',
             'flushCache',
             'flushState',
+            'forgetBladeView',
             'forgetFactory',
             'forgetComponentsResolver',
             'ignoredParameterNames',
@@ -380,8 +391,9 @@ abstract class Component
     /**
      * Flush the component's cached state.
      *
-     * Boot or tests only. Clears the worker-wide reflection and view caches
-     * shared by every coroutine; next render rebuilds them.
+     * Boot or tests only when called directly. Clears the worker-wide reflection
+     * and view caches shared by every coroutine; next render rebuilds them. The
+     * view:clear command owns runtime invalidation.
      */
     public static function flushCache(): void
     {
@@ -390,6 +402,16 @@ abstract class Component
         static::$methodCache = [];
         static::$propertyCache = [];
         static::$ignoredParameterNames = [];
+    }
+
+    /**
+     * Forget the cached Blade view name for the given contents.
+     *
+     * @internal
+     */
+    public static function forgetBladeView(string $contents): void
+    {
+        unset(static::$bladeViewCache[static::bladeViewCacheKey($contents)]);
     }
 
     /**
