@@ -266,6 +266,18 @@ class CacheIntegrationTest extends SentryTestCase
         $this->assertSame(SpanStatus::internalError(), $span->getStatus());
     }
 
+    public function testCacheForgetFalseResultFinishesItsSpanWithoutErrorStatus(): void
+    {
+        $store = m::mock(Store::class);
+        $store->shouldReceive('forget')->once()->with('foo')->andReturnFalse();
+
+        $span = $this->executeAndReturnMostRecentSpan(
+            fn () => $this->repository($store)->forget('foo'),
+        );
+
+        $this->assertNull($span->getStatus());
+    }
+
     public function testCacheSpanReplacesSessionKeyWithPlaceholder(): void
     {
         $this->markSkippedIfTracingEventsNotAvailable();

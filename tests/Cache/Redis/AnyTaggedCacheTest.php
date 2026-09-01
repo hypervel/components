@@ -813,6 +813,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
 
         $this->assertSame([WritingKey::class, KeyWriteFailed::class], array_map(get_class(...), $captured));
         $this->assertSame(['users'], $captured[1]->tags);
+        $this->assertSame($exception, $captured[1]->exception);
     }
 
     public function testPutDoesNotDispatchFailureEventWhenTheOperationIsCanceled(): void
@@ -866,6 +867,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
             array_map(get_class(...), $captured),
         );
         $this->assertSame(['first', 'second'], array_map(static fn (KeyWriteFailed $event): string => $event->key, array_slice($captured, 1)));
+        $this->assertSame([$exception, $exception], array_map(static fn (KeyWriteFailed $event): RuntimeException => $event->exception, array_slice($captured, 1)));
     }
 
     public function testPutManyDoesNotDispatchFailureEventsWhenTheOperationIsCanceled(): void
@@ -930,6 +932,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
 
         $this->assertSame([WritingKey::class, KeyWriteFailed::class], array_map(get_class(...), $captured));
         $this->assertNull($captured[1]->seconds);
+        $this->assertSame($exception, $captured[1]->exception);
     }
 
     public function testForeverDoesNotDispatchFailureEventWhenTheOperationIsCanceled(): void

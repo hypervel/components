@@ -83,7 +83,13 @@ class StackTaggedCache extends AnyModeTaggedCache
         } catch (Throwable $exception) {
             $this->event(
                 KeyWriteFailed::class,
-                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
+                fn (): KeyWriteFailed => new KeyWriteFailed(
+                    $this->getName(),
+                    $key,
+                    NullSentinel::unwrap($value),
+                    $seconds,
+                    exception: $exception,
+                )
             );
 
             throw $exception;
@@ -138,7 +144,12 @@ class StackTaggedCache extends AnyModeTaggedCache
         } catch (Throwable $exception) {
             $this->event(
                 KeyWriteFailed::class,
-                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value))
+                fn (): KeyWriteFailed => new KeyWriteFailed(
+                    $this->getName(),
+                    $key,
+                    NullSentinel::unwrap($value),
+                    exception: $exception,
+                )
             );
 
             throw $exception;

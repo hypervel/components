@@ -288,7 +288,7 @@ Once you have configured a store that uses the `failover` driver, you will need 
 CACHE_STORE=failover
 ```
 
-When a cache store operation fails and failover is activated, Hypervel will dispatch the `Hypervel\Cache\Events\CacheFailedOver` event, allowing you to report or log that a cache store has failed.
+When a cache store operation fails and failover is activated, Hypervel will dispatch the `Hypervel\Cache\Events\CacheFailedOver` event, allowing you to report or log that a cache store has failed. Its `storeName` identifies the failed backing store, while `failoverStoreName` identifies the configured failover store when available.
 
 Reads, writes, increments, locks, and other ordinary operations stop after the first store call that does not throw. `forget` and `flush` instead attempt every configured store so a stale lower-priority value cannot reappear later. They return `false` after a partial failure; if every store throws, the last exception is rethrown.
 
@@ -1165,6 +1165,8 @@ To execute code on every cache operation, you may listen for various [events](/d
 | `Hypervel\Cache\Events\WritingManyKeys`         |
 
 </div>
+
+`KeyWriteFailed`, `KeyForgetFailed`, `CacheFlushFailed`, and `CacheLocksFlushFailed` expose a nullable `exception`. It contains the exact thrown exception when an operation throws and remains `null` when the store reports failure by returning `false`.
 
 To increase performance, you may disable cache events by setting the `events` configuration option to `false` for a given cache store in your application's `config/cache.php` configuration file:
 
