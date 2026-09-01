@@ -1,0 +1,946 @@
+# Hypervel Data Package
+
+## Status
+
+- Implementation in progress with explicit owner approval.
+- Target repository: `contrib/hypervel/components-data`.
+- Target branch: `feature/data-package`, created from the greenfield `0.4` branch.
+- Package: `hypervel/data`, component directory `src/data`, namespace `Hypervel\Data`.
+- Hypervel 0.4 has not been released. Prior Hypervel `DataObject` APIs are not a compatibility contract; no aliases, deprecations, migration shims, or compatibility switches are required.
+
+## Outcome
+
+Create a first-party, coroutine-safe data object package with the familiar public shape of `spatie/laravel-data`, adapted for Hypervel and redesigned where the upstream internals impose avoidable latency, allocation, or framework coupling.
+
+The completed package must provide:
+
+- concise typed DTO construction from arrays, JSON, objects, Eloquent models, requests, and custom named factories;
+- recursive casting for nested data objects, collections, enums, dates, unions, iterables, and custom types;
+- Laravel-style validation inference, validation attributes, authorization, messages, attribute names, and validator hooks;
+- independent input/output name mapping;
+- `Optional`, defaults, lazy properties, computed/hidden properties, partial transformation, and appended values;
+- typed data collections and paginator/cursor-paginator support;
+- controller injection, FormRequest casting, Eloquent JSON casting, HTTP resources, Precognition, Inertia, and Saloon interoperability;
+- clean Symfony VarDumper output that shows each object's current logical view without exposing package internals;
+- immutable reflection metadata analyzed once per used class and retained for the worker lifetime;
+- predictable performance for large SDK graphs and collections, without runtime discovery, generated metadata, or a service-locator pipeline in ordinary construction;
+- first-party documentation, generators, tests, attribution, and component split metadata.
+
+Acceptance is behavioral and architectural, not merely API-shaped: ordinary `Data::from(array)` and `toArray()` calls must take lean fixed paths without service-locator pipelines, request-specific state must never be stored globally, measured specializations must earn their complexity, and every adopted feature must have focused tests.
+
+## Governing Constraints
+
+1. Follow the root `CLAUDE.md` and `contrib/hypervel/components/AGENTS.md` in full.
+2. Preserve Laravel and Spatie public vocabulary when it remains well designed. Hypervel-native ownership, coroutine safety, performance, and simpler code take precedence over parity.
+3. Prefer the permission component's first-party port structure: local namespace, package provider, README attribution/differences, retained MIT notice, PHPUnit tests, Hypervel-native integration.
+4. Port source and matching tests one file or coherent primitive at a time. Maintain a source/test disposition ledger during implementation so no upstream surface is silently forgotten.
+5. Use immutable worker-safe metadata and boot-stable typed configuration. Store request, validator, authenticated user, route, include/exclude, and lazy evaluation state only in a root operation or object instance.
+6. Do not add replaceable pipelines, compatibility flags, generated or remote metadata caches, broad event systems, or abstractions justified only by hypothetical use.
+7. Do not keep the current `Hypervel\Support\DataObject` behavior merely because it exists. Keep a behavior only when it remains useful under the new design.
+8. Do not make broad Validation, Container, HTTP, Foundation, Database, Inertia, or Saloon changes unless the change is independently sound for that owning component.
+9. Optimize measured hot paths while retaining clarity. No absolute performance claim is accepted without a retained, reproducible benchmark.
+10. Remove superseded code, tests, documentation, comments, and cleanup hooks in the same implementation. The result must read as one design.
+
+## Verified Research Baseline
+
+### Local sources
+
+| Source | Relevant conclusion |
+| --- | --- |
+| Hypervel components `0.4` | The current DTO is one `Support\DataObject` class plus Foundation request casts, a Database cast, docs, and tests. Hypervel already has compiled Validation rule plans and wildcard traversal, container `SelfBuilding` and contextual attributes, JSON resources, Precognition, Inertia props, paginator responses, and worker-lifetime reflection caching. Reuse those boundaries. |
+| `examples/spatie/laravel-data` main at `ce296f22` (`4.23.0-3-gce296f22`) | Use its valuable public vocabulary, leaf attributes/casts/transformers, behavior, tests, and documentation as the released feature reference. Do not copy its configurable pipeline/resolver graph, request-lifetime container lookups, structure discovery, or cache-store metadata. The initial sync entry records stable release `4.23.0`; the ledger separately pins this reviewed commit. |
+| Spatie `origin/v5` at `ed630ee1` | Adopt the fixed flow described by the draft `docs/superpowers/specs/2026-08-28-data-v5-creation-design.md` and foundations plan: non-recursive internal entry points, validated-payload construction, one validator for a nested tree, recorded wire keys, shared `Data`/`Dto`/`Resource` engine, focused factory hooks, and the `ConstructionState`/`CreationContext` split. The branch implements foundations only and the spec is explicitly draft, so every adoption remains a Hypervel design decision. Do not adopt its unproven generated structure cache: Hypervel retains immutable metadata for the worker lifetime. |
+| `examples/laravel-validated-dto` | Its smaller surface confirms the usefulness of explicit mapping and casts, but its mutable central object, magic mutation, partially initialized lazy constructor, and Eloquent coupling are not suitable foundations. No source is ported from it. |
+| `spatie/typescript-transformer` | TypeScript generation is a general reflection/discovery concern spanning ordinary classes and enums. It remains a separate package concern; Data exposes no TypeScript-only runtime API. |
+| Symfony VarDumper and Hypervel Foundation | `AbstractCloner` resolves interface casters for implementing classes, and Foundation registers worker-global default casters directly with idempotent `??=` assignment. Data can use the same extension boundary without a manager, mode setting, or Foundation change. |
+
+### Existing Hypervel behavior
+
+`src/support/src/DataObject.php`, `tests/Support/DataObjectTest.php`, and every direct integration reference were read in full. The useful semantics are:
+
+- configured date parsing with exact concrete date targets preserved;
+- nested typed construction, including enums, date interfaces, unions, DNF values, and existing object instances;
+- owner-specific input names and custom dependency conversion;
+- custom output serialization;
+- FormRequest casts for one object, arrays, and collections;
+- JSON-column casting;
+- live output after public property mutation;
+- plain-object and `WithResponse` use from Saloon.
+
+The undesirable mechanisms are:
+
+- `make(array $data, bool $autoResolve)` and a process-wide auto-casting switch;
+- mutable global date/config switches;
+- base-class reflection arrays exposed as global static state;
+- per-instance serialized-array caching plus `refresh()`/`update()` invalidation;
+- read-only `ArrayAccess` on the object itself;
+- implicit snake-case mapping;
+- stringly owner hooks that duplicate attributes, casts, and transformers.
+
+### Upstream performance evidence
+
+- A Spatie discussion reports a 200+ class graph taking roughly 89 seconds uncached, 76 seconds with package structure caching, and 2.3 seconds with a purpose-built mapper. Treat these as reporter measurements, not universal numbers; they demonstrate that large DTO graphs require an intentionally lean path: <https://github.com/spatie/laravel-data/discussions/1076>.
+- A Spatie discussion reports validation of 5,000 collection items at about 188 ms with Laravel validation and 13,456 ms through the package. Again, the values are reporter measurements; the design response is one nested Validator using wildcard rules: <https://github.com/spatie/laravel-data/discussions/875>.
+- Recursive dispatch through user `from*` methods has caused OOM/segfault behavior upstream. Internal construction must never call an overridable public entry point: <https://github.com/spatie/laravel-data/issues/1194>.
+
+### Feature comparison and decision
+
+| Area | Spatie | Wendell | Hypervel decision |
+| --- | --- | --- | --- |
+| Core API | `Data`, `Dto`, `Resource`, `from`, `collect`, `factory` | `SimpleDTO` with explicit `fromArray`/`fromRequest` methods | Use Spatie names and class split. |
+| Mapping/casting | Rich attributes, mappers, casts, transformers | Small attribute set | Port the rich Spatie surface with fixed internals. |
+| Validation | Inference, 90+ attributes, request lifecycle | Rules attributes and validator methods | Port applicable Spatie validation behavior onto Hypervel Validation. |
+| Collections | Typed collections and paginator variants | Arrays/collections through the base object | Use dedicated typed collections; no collection behavior on every DTO. |
+| HTTP/resources | Responsable, partials, wrapping | Response helpers on the base object | Use Hypervel JSON-resource machinery through an adapter. |
+| Eloquent | Castable data and collections | Base class is Eloquent-castable | Keep casts in `hypervel/data`, not Support or Database. |
+| Runtime architecture | Configurable normalizer/pipeline/resolver graph | Mutable central class | Fixed engines, immutable metadata, per-operation factory hooks. |
+| Metadata | Cache-store structures plus discovery | Reflection per use | Immutable `DataClassRepository` entries built once per used class and retained by the worker. |
+| Optional integrations | Inertia, Livewire, TypeScript adapter | None | Port Inertia; omit Livewire because Hypervel has no equivalent; keep TypeScript ownership separate. |
+
+## Public API Decisions
+
+### Primary classes
+
+- `Hypervel\Data\Data`: full creation, validation, transformation, collection, resource, wrapping, lazy, partial, append, and empty-shape behavior.
+- `Hypervel\Data\Dto`: creation, automatic Request validation, and explicit validation APIs without transformation, resource, Eloquent-cast, partial, wrapping, or empty-shape concerns.
+- `Hypervel\Data\Resource`: creation and transformation/resource behavior without the public validation conveniences.
+- `Hypervel\Data\Optional`: sentinel that preserves a property as not supplied. `null` represents a null value, whether supplied explicitly or produced from nullable omission.
+- `Hypervel\Data\Lazy`: lazy/conditional/relation/Inertia value wrappers.
+- `Hypervel\Data\DataCollection`, `PaginatedDataCollection`, and `CursorPaginatedDataCollection`: typed, Macroable collection forms.
+
+Keep the familiar `Optional` name. `Hypervel\Support\Optional` remains Laravel's `optional()` helper wrapper; the classes have different semantics and namespaces, so renaming Data's absence sentinel would reduce Spatie/LLM familiarity without fixing a technical collision.
+
+`Data`, `Dto`, and `Resource` use `ValidationStrategy::OnlyRequests` by default. For arrays, models, JSON, and other non-Request sources this is as lean as `Disabled`; the distinction matters only for user-controlled Request input. All three classes share `SelfBuilding`, so validating controller-injected objects is the safe and Laravel-familiar default. `Dto` retains `validate()`, `validateAndCreate()`, and factory validation controls. `Resource` may change validation through the shared configuration/factory but does not implement the validation contract or expose the static validation conveniences. This intentionally diverges from the v5 draft's disabled `Dto`/`Resource` defaults without collapsing their distinct capability surfaces.
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Data;
+
+use Hypervel\Data\Attributes\DataCollectionOf;
+use Hypervel\Data\Attributes\MapInputName;
+use Hypervel\Data\Attributes\MapOutputName;
+use Hypervel\Data\Attributes\Validation\Email;
+use Hypervel\Data\Data;
+use Hypervel\Data\DataCollection;
+use Hypervel\Data\Optional;
+
+final class UserData extends Data
+{
+    public function __construct(
+        public int $id,
+        #[MapInputName('email_address'), MapOutputName('email')]
+        #[Email]
+        public string $email,
+        public string|Optional $displayName,
+        #[DataCollectionOf(RoleData::class)]
+        public DataCollection $roles,
+    ) {
+    }
+}
+
+$user = UserData::from($payload);
+$users = UserData::collect($rows, DataCollection::class);
+```
+
+Do not add `make()` as a synonym. `from()` is the established data-package API; constructors remain available when no normalization or casting is wanted.
+
+All three base classes retain `optional()`, `from()`, `collect()`, `factory()`, and `normalizers()`. `Data` and `Dto` expose `validate()`, `validateAndCreate()`, and `getValidationRules()`; `Data` and `Resource` expose transformation, resource, wrapping, append, partial, and `empty()` behavior. `WithData` lets a Model, Request, or ordinary source class name its associated data class and expose `getData()` without coupling that source to construction internals. `Lazy` retains Hypervel's `Macroable` behavior so applications can define boot-time lazy strategies.
+
+`validate()` enables validation, forces named creation methods off, and exits before casting/construction, returning the Validator's validated payload like `Request::validate()`. `getValidationRules(array $payload)` likewise forces named methods off and exits after rule generation; retain its upstream array-only signature so rule introspection never authorizes or normalizes a Request merely for API symmetry. `validateAndCreate()` enables the ordinary complete flow, including named methods. A named method that returns the target object owns its validation and finishes creation after root Request authorization, so `validate($payload)` may reject input that `validateAndCreate($payload)` accepts through such a method. Document that distinction instead of transforming a finished object back into an input payload. All three entry points use the same Fill/compiler/Validator engine and context toggles rather than parallel validation semantics.
+
+### Presence and nullability
+
+Presence has one Laravel-familiar wire-to-PHP resolution order: declared default, then `Optional`, then `null` when the type is nullable, otherwise an error.
+
+| Declaration | Missing key | Explicit `null` |
+| --- | --- | --- |
+| `string $name` | validation/construction error | error |
+| `?string $name` | resolves to `null` | accepted |
+| `?string $name = null` | constructor default | accepted |
+| `string|Optional $name` | `Optional::create()` | error |
+| `string|null|Optional $name` | `Optional::create()` | accepted |
+
+There is no `auto_optional`, `auto_null`, or strict-mode compatibility setting. Nullable omission resolves to `null`; declare an `Optional` union when application code must observe that the wire key was absent.
+
+### Mapping
+
+- No input or output mapper is active by default.
+- Port `MapName`, `MapInputName`, `MapOutputName`, `NameMapper`, `ProvidedNameMapper`, and the camel/snake/kebab/studly/lower/upper mappers.
+- Class attributes set defaults; property attributes override them; package config may set global input/output defaults.
+- Input and output mapping remain independent.
+- On input, the mapped wire key wins when both it and the PHP property name exist. The actual chosen wire path is retained in construction state so validation errors use the key the caller sent; when the value is absent, the mapped key is the canonical path for a presence error.
+- `MapInputName` supports upstream dot notation such as `artists.0.name`; the compiled input path distinguishes a missing segment from an explicitly null value.
+- Nested collection rules use the same mapping tree as construction. Mapping is compiled into metadata rather than recomputed for every value.
+- Reject identical effective input paths and identical effective output keys when class metadata is built. Prefix overlap such as `artist` and `artist.name` remains valid. Every public data property participates in input ownership through its PHP name and any distinct mapped path, including inherited, computed, hidden, and contextual promoted properties; hidden properties alone are excluded from output ownership because they never emit a value. PHP array-key normalization defines integer/string key equivalence without package-owned normalization. This deliberately prevents input fan-out whose validation and unknown-field behavior would depend on source type, computed-property collisions, and silent output overwrite.
+- Throw `InvalidDataDeclaration` for a collision. Its factory receives the target data class, effective path/key, and both `DataProperty` definitions so the message names each declaring class and property. Input messages direct callers to assign unique paths or use a distinctly named computed property for a derived value. Do not retain mapper-provenance metadata merely for diagnostics.
+
+### Casts and transformers
+
+Port the familiar extension contracts and attributes:
+
+```php
+interface Cast
+{
+    public function cast(
+        DataProperty $property,
+        mixed $value,
+        ConstructionState $state,
+        CreationContext $context,
+    ): mixed;
+}
+
+interface Transformer
+{
+    public function transform(
+        DataProperty $property,
+        mixed $value,
+        TransformationContext $context,
+    ): mixed;
+}
+```
+
+- `Uncastable` is the explicit "try the next candidate" result; `null` is data, not a sentinel.
+- Port `WithCast`, `WithCastable`, `WithTransformer`, `WithCastAndTransformer`, `GetsCast`, and `Castable`.
+- Cast precedence is property `WithCast`, per-factory casts, configured global casts, then the fixed type fallback. Transformer precedence is property `WithTransformer`, configured global transformers, then the fixed type fallback. Metadata preselects applicable configured recipes so ordinary values do not search maps at runtime.
+- Attribute-specified casts/transformers are instantiated from cached `ReflectionAttribute` recipes at most once per recipe per root operation, never on the ordinary property path. This is necessary because PHP attribute arguments may contain `new` objects; `ReflectionAttribute::newInstance()` recreates that graph for the operation instead of retaining it in worker metadata. An extension object may be invoked for several values in that operation and therefore must not retain per-value payload state; operation state belongs in `CreationContext`/`TransformationContext`. Extensions whose constructors capture request-scoped dependencies must use an appropriate scoped or transient binding rather than an unbound auto-singleton.
+- Configured cast/transformer maps retain declaration order and are reduced to the applicable candidates in property metadata; a more specific property attribute still wins.
+- Date, enum, iterable, and Arrayable handling is fixed built-in fallback logic. The empty configured maps contain only application overrides and are consulted before that fallback; metadata preselects applicable override recipes, so the ordinary path needs neither a stock-class-string table nor a runtime map search.
+- Custom normalizers remain available globally and per data class, but fixed built-ins are not represented as a configurable pipeline. A custom normalizer is resolved once per root creation and runs only when the metadata/config feature bit says one exists; like casts, it may be called for multiple nodes and keeps operation state in the supplied context rather than on the service. One-off source adaptation belongs in a typed named factory rather than another factory collection API.
+- Class normalizers run in declared order, then configured global custom normalizers, with the fixed array/model/request/Arrayable/object/JSON handlers as fallbacks. Keep the familiar `Normalizer::normalize(mixed): null|array|Normalized` contract: the first non-null result wins. Within a normalized source, `UnknownProperty` distinguishes a missing key from an explicit null.
+- Existing instances satisfying a declared type pass through unchanged before any conversion.
+- Ambiguous Data-object and Data-container unions are not guessed. Existing finished values pass when any accepting arm also accepts their declared/eager item type; an unrelated non-Data union arm may accept its value unchanged. Otherwise a property/configured/factory cast, morph discriminator, or named factory must make the choice explicit. After applicable casts decline, fail with every `Container<ItemData>` candidate instead of choosing a container precedence or returning raw items.
+- Wire payloads never become arbitrary class names automatically. A morph must be returned by the declared Data morph method or a typed named factory and must be a concrete subtype of the declared base.
+
+Date handling keeps the useful current behavior: interfaces use Hypervel's configured Date factory, an exact concrete `DateTimeInterface` implementation is constructed as that exact type, input accepts the configured format or format list, and output uses the configured format unless a property transformer overrides it.
+
+### Construction factory and hooks
+
+`Data::factory()` returns a fresh fluent `CreationContextFactory`; it is never stored globally and does not accept a previous operation context. Reusing an in-flight `CreationContext` would also reuse per-operation hooks and mutable traversal options, so this intentionally narrows v4's `factory(?CreationContext)` signature. Preserve the familiar controls `validationStrategy()`, `withoutValidation()`, `onlyValidateRequests()`, `alwaysValidate()`, `withPropertyNameMapping()`, `withoutPropertyNameMapping()`, `withMagicalCreation()`, `withoutMagicalCreation()`, `ignoreMagicalMethod()`, `withCast()`, and `withCastCollection()`, plus per-factory custom normalizers and these ordered per-operation hooks:
+
+1. `prepareData`
+2. `beforeValidation`
+3. `beforeRules`
+4. `afterRules`
+5. `withValidator`
+6. `afterValidation`
+7. `beforeCreation`
+8. `afterCreation`
+
+```php
+$user = UserData::factory()
+    ->alwaysValidate()
+    ->prepareData(fn (array $data): array => [...$data, 'source' => 'import'])
+    ->withValidator(fn (Validator $validator) => $validator->after($check))
+    ->from($payload);
+```
+
+These are targeted customization points, not a replaceable creation pipeline. Class-owned Laravel-style extension methods remain supported and are compiled as metadata feature bits:
+
+```php
+public static function authorize(): bool|Response;
+public static function rules(ValidationContext $context): array;
+public static function messages(): array;
+public static function attributes(): array;
+public static function withValidator(Validator $validator): void;
+public static function after(): array;
+public static function normalizers(): array;
+public static function stopOnFirstFailure(): bool;
+public static function redirect(): string;
+public static function redirectRoute(): string;
+public static function errorBag(): string;
+```
+
+These are canonical signatures, not an interface; as with FormRequest lifecycle methods, additional typed parameters may be container-resolved for a declared method.
+
+Hook semantics follow the fixed v5 draft. `prepareData`, `beforeValidation`, and `afterValidation` receive and return assembled payload arrays. `beforeValidation` and `afterValidation` run after the prepare stage, so their output is authoritative post-prepare payload: reconciliation may apply fixed source normalization and a named factory to a genuinely new or changed value, but it never reopens custom normalizers or `prepareData`. Reconciliation reselects every property's wire key from the final payload and reselects morphs, while recursive structure work touches only changed Data-bearing values and preserves unchanged sibling structure and named-factory results. `beforeCreation` receives and returns final casted property values before Hypervel contextual constructor parameters are injected, so it must not return raw values that still require casting and the documented contextual-wins rule remains absolute. `afterCreation` receives and may replace the constructed object with another instance of the target class. `beforeRules` is per property and the first non-null returned rule list replaces inference. `afterRules` is per property and transforms the inferred/replaced rule list. `withValidator` receives the root Validator before it runs, and `after()` returns Validator after-callbacks just as a FormRequest does. Transforming hooks chain in registration order. Keep the class-owned static `withValidator()` as a deliberate Laravel-style divergence from the v5 draft for invariant behavior during controller injection; factory hooks customize one call. The familiar redirect/error-bag/stop methods are retained for container-resolved or runtime-computed values. When both forms exist, a declared method takes precedence over the corresponding Foundation attribute; otherwise the attribute is the zero-call declarative path. Store only method-presence bits and attribute scalar values in metadata and invoke all user methods per root operation, so their results can never become worker state.
+
+The two creation hooks are not aliases for named factories: `beforeCreation` is the only operation-scoped hook over final casted payload values, and `afterCreation` is the only operation-scoped replacement/decorator point that does not require changing the Data class. They are part of Spatie v5's deliberately bounded hook set, use the same root context arrays as the other hooks, and add only a false feature-bit branch when absent. Do not add adjacent `beforeCast`/`afterCast` hooks or an application-wide hook registry without a demonstrated requirement.
+
+Use Foundation's existing class attributes for declarative request-validation configuration: `#[StopOnFirstFailure]`, `#[ErrorBag]`, `#[RedirectTo]`, `#[RedirectToRoute]`, and `#[FailOnUnknownFields]`. Compile their scalar values into Data metadata. Retain Spatie's methods only where they add runtime computation; this avoids changing Foundation's attribute signatures or adding another redirect abstraction. For each setting, a declared method overrides its corresponding attribute. On validation failure, resolve the existing `Hypervel\Contracts\Routing\UrlGenerator` contract and then follow FormRequest's URL-before-route precedence: the effective `redirect()`/`#[RedirectTo]` value, the effective `redirectRoute()`/`#[RedirectToRoute]` value, then the previous URL. A computed full URL from `redirect()` covers parameterized routes. The same method-over-attribute rule governs `errorBag()` and `stopOnFirstFailure()`. Do not copy FormRequest's mutable request instance state.
+
+Port typed public static `from*` named creation methods. Public dispatch chooses the first compatible method in declaration order. `DataMethod::matchPayloads(CreationContext $context, mixed ...$payloads)` performs one deterministic left-to-right match and returns `null` or an immutable `DataMethodMatch` containing the final argument shape and whether invocation requires the container. The walk fills each declared non-variadic `CreationContext` parameter with the operation's exact instance at its declared name or offset without consuming a raw payload; contextual parameters, defaults, and injectable single named class parameters are skipped as appropriate. Union and intersection types are payloads, not implicitly injectable dependencies. Positional values consume the leftmost compatible parameter, while named values match exact parameter names. Unknown names fail unless a declared variadic consumes their values. Do not retain a separate boolean `accepts()` pass, defer context substitution, or let the container fabricate a context.
+
+Non-variadic arguments use exact parameter-name keys; raw variadic values use a numeric tail. Invoke a match directly with named arguments when no variadic payload exists, or a positional list when a variadic has payload and every preceding parameter was supplied without Container behavior. Use a dynamic first-class callable with `Container::call()` only when a contextual parameter, a non-variadic attributed parameter, an omitted injectable dependency, or a variadic after a skipped parameter requires it; create the callable only on that slow path. This retains the Data class on Hypervel's contextual build stack without exposing `Container::bindMethod()` as an inconsistent factory hook. On a Container path with a non-empty single-class variadic payload, emit the first value under its class-name key and the rest as the numeric tail. `BoundMethod` consumes that value at the variadic recipe before appending the tail, so it cannot fabricate an extra instance. An earlier parameter of the same class cannot steal the key: the matcher either supplied it by parameter name, resolved it contextually, or consumed the leftmost compatible payload before reaching the variadic. With no caller payload, a class-typed variadic follows Laravel and Hypervel's ordinary Container resolution and may receive container-provided instances.
+
+Returning the target data object finishes that node, so validation attributes, explicit class rules, casts, and creation hooks do not run for the path the method already built. Existing declared Data instances follow the same rule. Returning another normalizable value continues through validation/casting without matching again. Root request authorization still runs before either outcome in create mode; validation-only and rule-introspection modes disable named-method dispatch because their array/rule return contracts cannot represent an object exit. The internal engine never invokes `from()` or `factory()`.
+
+Retain typed public static `collect*` methods for whole-collection customization. Normalize items once into a source-shaped container, then select one method against that exact invocation value; never match the raw source and replace its payload afterward. Check the requested `$into` target independently through the method's declared return type. Arrays, ordinary collection subclasses, package wrappers, and Hypervel paginator clones retain their source shape; Eloquent sources become base `Hypervel\Support\Collection` for empty and non-empty Data results. A contract-only paginator may still feed a non-paginator `$into` through `items()`, but has no rebuildable source shape and therefore selects no `collect*` method. Matching never enumerates a preserved `LazyCollection`. Inject `CreationContext`/container dependencies through the selected invocation path and never duplicate normalized items across several factory parameters. The magical-creation toggles and ignore list cover both `from*` and `collect*`; item construction never redispatches through the public collection entry point.
+
+Do not port `withOptionalValues()`/`withoutOptionalValues()`, although the v5 draft retains them. Suppressing `Optional` can leave a declared `string|Optional` property uninitialized, which is not a valid data-object state. Callers that intentionally want another absence representation must declare it in the PHP type/default or reshape the input through a named factory/hook.
+
+Also deliberately diverge from the v5 draft's global/class/property auto-null mode. One fixed rule is easier to reason about: omitted nullable values become `null`, while `Optional` preserves absence. A JSON contract that requires the key but permits explicit null uses `#[Present]` with the nullable type; generated SDKs can emit that declaration directly. This achieves strict wire presence without a global compatibility mode and two override attributes.
+
+For multiple payloads, the first source containing a property supplies it, including explicit `null` or `Optional`. Callers express precedence by argument order; no null-specific override exception is hidden in the engine.
+
+### Validation
+
+Use Hypervel Validation directly; do not port Spatie's rule-inferrer registry.
+
+- A deterministic compiler derives presence, nullable, primitive, enum, date, array, collection, and nested data rules from immutable metadata. Every constructable non-`WithoutValidation` property contributes at least a presence rule so `Validator::validated()` cannot silently drop it; `mixed` and object-only declarations receive the same required/default/`Optional`/nullable presence rule as any other property even when no narrower type rule exists.
+- An absent nullable property without a default resolves to `null` and receives `nullable`, never an implicit `present`. This matches Laravel validation, current Spatie/Laravel Data behavior, Hypervel's superseded DataObject, and the established DTO corpus. `Optional` remains the explicit way to preserve the distinction between omission and `null`. A default suppresses only inferred presence rules. Explicit class rules and validation attributes still apply when the key is absent, so `#[Required]` and a `rules()` entry have the same unsurprising effect.
+- Primitive inference uses `integer` for `int`, `numeric` for `float`, `boolean` for `bool`, and `string` for `string`; it does not weaken integer declarations to `numeric`.
+- A `rules()` entry replaces generated rules for that key. Class-level `#[MergeValidationRules]` opts into upstream merge behavior; requiring/present rules suppress only the corresponding inferred requirement, never other explicit rules. Ancestor class rules choose their output shape from the compiled child graph rather than predicting it from hook presence: concrete translations collapse back to their one shared structural wildcard only when that real rule key already exists before the final marker pass. This fixes merge mode's generated-rule lookup and retains wildcard plan reuse in replace mode. Resolve each class's declarations in one local class-owned rule map while leaving generated and nested accumulator rules untouched: a fanned wildcard merges into an existing class-owned exact value without moving it, while any ordinary exact or structural declaration unsets and reassigns its key so it replaces the earlier class contribution at its declaration position. After all declarations, combine each final class-owned value with the untouched accumulator baseline once. Merge mode filters inferred `required` only when the final class-owned rules control presence, then appends those rules to the baseline; replace mode writes the class rules directly and clears stale inferred-presence ownership for that key. Unset and reinsert each combined key in class-owned order, leaving generated-only keys ahead of class-written keys. Keep the map per class invocation so ancestors see child output only as their baseline, and perform structural collapse before any class writes so it observes only real generated or nested wildcard rules. Messages and attributes remain nested-first, first-write-wins exact declarations; their suffixed keys cannot use the rule-map collapse predicate.
+- One root `Validator` validates the entire nested payload. Materialize a `LazyCollection` whenever validation or rule introspection must inspect its item graph; preserve laziness only for creation operations that neither validate nor return validation rules.
+- During Fill, the first collection item establishes the shared structure template. Equal later items allocate no structure; a different selected class or mapped-key/PHP-key choice records only that value in a sparse `items[$rawIndex]` overlay and latches every active enclosing collection to concrete. Every value accepted by the metadata-owned finished-value predicate is written through an explicit finished-property or finished-item state operation, which atomically ensures the current structure path and latches every active enclosing collection. Ordinary state writes never infer finishedness from runtime types. Fill completes across the whole payload before rule compilation begins, so a difference or finished value observed in any later item governs the first item's wildcard eligibility. In the construction payload, only mapped property keys use dot-path semantics; raw item keys remain one segment, so a string key containing `.` cannot collide with nested keys. Do not build a full per-item structure, finished-state overlay, or separate signature per item. An empty collection compiles the canonical mapped metadata shape as genuine wildcard rules; one static item uses its observed shape.
+- A structurally uniform collection with no finished values and no dynamic rule graph compiles its first item directly at the wildcard path. A class has a dynamic rule graph when it or any recursively validated unambiguous Data/DataCollection descendant declares `rules(ValidationContext)`, or when it is property-morphable and its payload-selected subtype cannot be known from metadata. Skip computed, non-validating, and promoted contextual properties. Cache this pure class-graph result as a worker-bounded class-string boolean in `DataClassRepository`; keep operation hook state out of that cache. Factory `beforeRules`/`afterRules` hooks make the current operation dynamic immediately. For a structurally uniform dynamic collection, compile every item speculatively at the structural wildcard path into isolated accumulators containing rules, inferred-required paths, messages, attributes, preserved paths, additional fields, allowed subtrees, finished structural paths, and structural marker candidates. `ValidationAccumulator::equals()` compares these outputs incrementally and stops at the first difference. It projects only `preservedPaths` through `ValidationPath::get()`; additional fields, allowed subtrees, finished paths, and marker-candidate records are already canonical arrays and compare directly. Rule values compare recursively with strict ordered scalar/array equality, object identity by default, and rendered strings only for objects that Validation itself reduces to strings; callback-bearing `Exists`/`Unique` rules also require the same class/string form and identical callback arrays. If every accumulator matches, commit the first result, including any identical nested exact rules and their fully structural marker provenance. At the first mismatch, discard the speculative results and recompile the collection concretely through the authoritative path. Finished values cannot reach speculation because Fill has already latched every enclosing collection non-uniform. This keeps dynamic rules on the fast wildcard path when their complete output is uniform without assuming user code is stable.
+- Carry both the emitted validation path and its fully structural path through compiler traversal; collection items append their raw key only to the emitted path and append `*` to the structural path. Record the structural path of every finished property and item in one flat accumulator set. When a final emitted rule path differs from its structural path, record one candidate under that fully structural key with the emitted rule path as a contributor; do not thread finished flags through compiler recursion or marker metadata. After all nested and ancestor class rules have replaced or merged the final rule map, make one final marker pass. A candidate crosses a finished value when it equals or descends from a recorded finished structural path. If it crosses one and any final non-empty contributor retains `Distinct`, throw `CannotBuildValidationRule`, independent of whether payload expansion can see the finished object. Otherwise suppress the marker. For candidates without a finished ancestor, prove every expansion is covered by a non-empty exact contributor or a non-empty wildcard contributor belonging to that candidate. Empty contributors cannot count: Validator would expand an empty wildcard into a rule-map key and `validated()` would retain a value checked by no rule. Prepend every accepted generated empty marker so Laravel's first-declared wildcard identity governs `Distinct`, labels, and dependent-field substitution; never reorder real user/class rules. Identity always uses the fully structural path, so validation is unchanged when the same class and payload compile through full wildcards, partial wildcards, or exact rules. Nested `Distinct` therefore follows Laravel and compares across every wildcard level, not separately within each immediate collection. A finished collection emits no narrower substitute for its suppressed global identity. All-finished collections emit no concrete rules, while empty collections already own genuine wildcard rules and need neither markers nor rejection. Do not infer finished values from preserved paths, which also contain `WithoutValidation` declarations.
+- Use concrete per-index rules when wildcard accumulators differ. This is an intentional Hypervel divergence from the v5 draft's always-concrete rules so Hypervel can retain its compiled wildcard walk and repeated string-rule plan reuse. Do not emit `Rule::forEach`/`CompilableRules`; they bypass the direct wildcard path. Hypervel Validation safely batches exact `Exists`/`Unique` rules as well as wildcard rules. `AttributePlan` records how many parsed presence checks can consume a precomputed lookup: callback-bearing rules and non-scalar query shapes are excluded, while an unsafe-to-submit check still counts when ordered execution may later make it consume another check's fact. During every `passes()`, `Validator::compileRules()` resets and sums that immutable count across every concrete plan, including cache hits and repeated wildcard expansions; never memoize the total across executions because `setData()` may re-expand the graph. Enter batching only when the execution contains at least two possible consumers, then precompute every candidate that passes the existing query-shape, mutation, exclusion, nullable, value, upload, callback, field-reference, stop-on-first, validator-class, and verifier gates. Do not apply a submitted-value or per-group minimum: a single safe value may intentionally supply a fact to a later mutation-aware consumer. Do not add a second consumer-identity scheme or eagerly resolve unsafe query metadata. Exact `Distinct` grouping comes from the empty structural marker rather than a second comparison engine.
+- Preserve Validation's zero-regex fast path for a bare `*`, and repair its optimized walker so partial-segment wildcards such as `items.a*.value` retain Laravel behavior. A partial-pattern branch matches only children of the current array; literal recursion remains unchanged because it must emit missing nested leaves for rules such as `required`. Complete Validator's existing dot/asterisk placeholder symmetry so `\*` addresses a literal asterisk in rule keys and dependent-field references, wildcard-expanded literal-asterisk keys never leak the worker placeholder hash, and `getRulesWithoutPlaceholders()` returns Validator notation consistently. Data's `ValidationPath` canonical parser must also round-trip PHP integer array keys so reparsing `get()` retains item-path identity: convert only canonical in-range integer strings, leaving leading-zero, plus-prefixed, negative-zero, decimal, and out-of-range strings literal. The round-trip guarantee excludes raw segments ending in a backslash; keep and test the documented Validator-notation fail-closed boundary instead of adding a second escape grammar. Do not add a regex cache for the uncommon partial form or change `explodeRules()`'s result shape.
+- User `rules()`, `messages()`, and `attributes()` use PHP property-name space and are translated to the wire keys chosen during Fill, including nested collection paths. `ValidationContext` exposes the current payload, complete payload, and path without storing request state in metadata.
+- Construct from the Validator's validated/exclusion-filtered payload, not the original request array. Laravel's wildcard expansion can place concrete leaves after exact rules, so mixed wildcard/exact graphs can make `Validator::validated()` rebuild a source list in rule order and turn it into a non-list JSON object. After restoring deliberate unvalidated values, recursively restore surviving keys to the pre-validation payload's insertion order without reindexing gaps; retain filtered values exactly and append any validator-produced keys absent from the source in their existing order. Do this once at the Data validation payload boundary before `afterValidation` hooks, not in Validation, the compiler, collection construction, or `CompiledValidation`. Honor the application-wide `includeUnvalidatedArrayKeys()`/`excludeUnvalidatedArrayKeys()` setting rather than overriding Laravel's factory behavior.
+- Preserve filled values only for properties explicitly marked `WithoutValidation` and observed finished Data values. A finished value owns its complete mapped path: inferred rules, validation attributes, and explicit class rules do not run for that path or descendants. Record declared `WithoutValidation` paths even when the wildcard template item omits the property, plus exact observed finished-value paths. After `validated()`, copy only existing values at those paths from the complete pre-validation payload. Traverse `ValidationPath::rawSegments()` directly: `null` expands over actual collection keys, while string/int segments remain literal, including a collection key named `*`; use `array_key_exists()` throughout so present null is restored. Do not retain first-item values, materialize concrete paths, or merge arbitrary unvalidated input back into construction.
+- Resolve constructor defaults, `Optional`, and nullable omission only after validation.
+- Preserve Laravel error bags, messages, translated property names, redirects, stop-on-first-failure, and Precognition filtering/authorization behavior where their owning Hypervel APIs support them. Data uses `#[FailOnUnknownFields]` per class only; it does not inherit FormRequest's process-global `failOnUnknownFields()` toggle or add another global/config setting.
+- Compile nested rules/messages/attribute labels across the whole tree, but invoke request authorization and `withValidator()` only for the root object, matching the documented upstream behavior.
+- Resolve parameters declared by validation lifecycle methods through the container once per root validation. This cost exists only when a class declares such a method.
+- When `#[FailOnUnknownFields]` enables rejection, call `UnknownFields::validate(Validator $validator, array $input, ?array $unfilteredRules = null, array $additionalFields = [], array $allowedSubtrees = [])`. The Validation-owned helper derives exact known paths from the Validator's already-expanded effective rules and adds confirmation fields. A path with an `array` rule and no descendant rule is an opaque allowed subtree. Data also passes mapped unstructured `mixed` and non-enum/non-date object paths, structured/mixed `WithoutValidation` paths, structured/mixed contextual promoted paths, and observed finished Data paths through `$allowedSubtrees`; scalar `WithoutValidation` and scalar contextual promoted paths use `$additionalFields`. Ordinary nested Data and typed Data collections remain structured and never become opaque merely because they are nested. Echoed contextual input is therefore known but discarded, and the server-resolved value still wins. An allowed subtree matches the path itself and dot-separated descendants, so a declared `array $meta` accepts `meta.foo` without weakening a structured `items.*.id` schema.
+- An ambiguous Data-object or Data-container property becomes an opaque allowed subtree only when a property attribute cast, configured cast, or applicable operation cast owns that wire shape. Without a cast, strict validation remains fail-closed; validation-only mode deliberately treats a cast-owned ambiguous shape as opaque even though it does not invoke the cast. A single selected nested Data schema still validates before its cast. Use `WithoutValidation` when a single-arm cast needs a different wire shape.
+- `UnknownFields` walks input leaves once instead of flattening them with `Arr::dot()`. It carries escaped Validator notation for exact/subtree comparison and ordinary unescaped dotted notation for messages and error keys, preserving existing error ergonomics. Escape literal dots and asterisks in each raw key, and derive ancestors using only unescaped dots so a literal-dot key cannot collide with a nested path. Match Validator's existing fail-closed interpretation when a raw segment ends in a backslash before a child: Validator notation does not escape backslashes, and inventing a second grammar only inside unknown-field checking would remain inconsistent with effective rule keys.
+- Unknown-field checking is per selected Data class. Only a node marked `#[FailOnUnknownFields]` records its normalized source input before its own `prepareData`; a strict parent therefore still sees a caller key that its hook removes before a child is filled, while hook-added keys are not treated as caller input. Direct Request sources contribute only JSON/body input and intentionally ignore query parameters, matching FormRequest's tested boundary; every non-Request source contributes its complete normalized input even when it originated from a parent Request's nested value. Preserve the original normalized sources while resolving properties from the prepared payload so snapshots require no deep copy. Merge strict-node snapshots at their observed root paths into one root-shaped input tree and run one root Validator after-callback.
+- Rule wildcards remain expanded by Validator. Data-owned auxiliary field and subtree paths may contain whole structural `*` segments, which `UnknownFields` matches segment by segment against the input walk; a field pattern must have equal length, while a subtree pattern accepts its own path and descendants. Escaped `\*` is literal. An unescaped `*` inside any non-whole segment is unsupported and fails closed without matching either a wildcard or a literal input key. Carry raw input segments from the recursive walk so auxiliary matching does not reparse ambiguous escaped notation or materialize per-item paths.
+- Foundation is a direct dependency because Data's FormRequest casts implement its contracts and Precognition uses its concrete hook. Use the request's existing Precognition rule filtering and Foundation's after-validation hook directly; do not duplicate or conditionally probe for that behavior inside Data.
+- Any contextual attribute on a constructor parameter is recorded with `ReflectionParameter::getAttributes(ContextualAttribute::class, ReflectionAttribute::IS_INSTANCEOF)` and resolved through `Container::resolveFromAttribute()`. Do not depend on Container's internal reflection utility. Constructor recipe resolution must treat the resolved value as authoritative, including `null`, matching `Container::call()` and route-dependency resolution. It takes precedence over primitive/class contextual bindings and declared defaults. This prevents a missing route value from falling through to an empty model and an unauthenticated nullable contract from falling through to an impossible container build. Document this intentional Laravel difference for porters; do not add a null-fallback compatibility mode.
+- Extend Container's `RouteParameter` and `Authenticated`/`CurrentUser` attributes with an optional second `property` path so `#[RouteParameter('post', 'id')] int $postId` and `#[CurrentUser(property: 'id')] int $userId` extract a value from the whole route-model/user object without Data-owned injection aliases. These two attributes need the argument because they return whole domain objects; `Config` and `Context` already own dotted lookup, while `RequestAttribute` returns the explicitly selected request-bag value. Omitted, each attribute retains its current whole-object behavior. A shared `Attributes\Concerns\ExtractsPropertyValue` concern returns the whole value when the path is `null`, throws an actionable `BindingResolutionException` when a path is requested from a scalar, and otherwise delegates to `data_get()` for arrays, `ArrayAccess`, public/magic objects, and nested paths. A missing path or null source returns `null`. Object accessors and Eloquent relations may therefore execute while traversing a path; document this rather than adding incomplete lazy-load guards. Widen `Authenticated::resolve()` from `?Authenticatable` to `mixed`: a requested property may have any declared PHP type, while the whole-user path remains unchanged.
+- Port Laravel's exact `RequestAttribute(string $parameter)` API and implement Hypervel's `ExecutionScopedAttribute`; do not add a property-path argument to a value the caller already selected from the request attributes bag.
+- Port Laravel's exact `BindWhen` API. Its source parses on Hypervel's PHP 8.4 floor, while closure-bearing attribute declarations require PHP 8.5; load the fixture conditionally and mark its tests with `#[RequiresPhp('>= 8.5.0')]` so they run on Hypervel's existing PHP 8.5 CI leg. Resolve `Bind` and `BindWhen` in declaration order, retain the first wildcard `Bind`, and clear checked misses when a condition may later match. A successful condition becomes an ordinary worker-lifetime container registration, so conditions must depend only on boot-stable state; a failed condition remains eligible for reevaluation. Document this architecture constraint without adding a runtime guard, compatibility encoding, or lifecycle cache.
+- Contextual injection applies only to constructor parameters. A promoted parameter is a data property; its contextual value always wins, and the property is neither read from payload nor validated. A non-promoted contextual parameter is a constructor-only dependency and must not share a name with a public data property: reject that collision at metadata build and direct the developer to promote the attributed parameter when it is the data property or rename it when it is a separate dependency. Non-promoted public data properties remain payload-assigned and cannot carry contextual injection. Resolve each contextual parameter only at its node's instantiation, with no cross-node memoization, because custom handlers receive the `ReflectionParameter` and may intentionally return a fresh value.
+- Do not port Spatie's `From*` aliases, property injection contracts, or `replaceWhenPresentInPayload = false` mode. To let payload win, omit the contextual attribute and reshape/augment through a typed named factory or factory hook. Record the constructor-only target, contextual-wins rule, validation exclusion, and replacement alternative in `Differences From Laravel`.
+- `LoadRelation` remains a separate explicit Data attribute because it controls model normalization rather than dependency injection. Ordinary creation performs no container lookup or relation query.
+- Model normalization reads only requested attributes and already-loaded relations. It never calls `Model::toArray()`. `LoadRelation` authorizes loading; a collected Eloquent collection batches `loadMissing()` before item construction to prevent N+1 queries.
+- Port the fluent database-constraint support used by `Exists` and `Unique` (`where`, `whereIn`, `whereNot`, `whereNotIn`, `whereNull`, `whereNotNull`, and related references) against Hypervel's native rule objects rather than encoding SQL behavior in Data.
+
+Port every applicable upstream validation attribute whose Laravel rule is supported. The implementation ledger must account for this complete upstream set:
+
+`Accepted`, `AcceptedIf`, `ActiveUrl`, `After`, `AfterOrEqual`, `Alpha`, `AlphaDash`, `AlphaNumeric`, `ArrayType`, `Bail`, `Before`, `BeforeOrEqual`, `Between`, `BooleanType`, `Confirmed`, `CurrentPassword`, `Date`, `DateEquals`, `DateFormat`, `Declined`, `DeclinedIf`, `Different`, `Digits`, `DigitsBetween`, `Dimensions`, `Distinct`, `DoesntEndWith`, `DoesntStartWith`, `Email`, `EndsWith`, `Enum`, `Exclude`, `ExcludeIf`, `ExcludeUnless`, `ExcludeWith`, `ExcludeWithout`, `Exists`, `File`, `Filled`, `GreaterThan`, `GreaterThanOrEqualTo`, `IP`, `IPv4`, `IPv6`, `Image`, `In`, `InArray`, `IntegerType`, `Json`, `LessThan`, `LessThanOrEqualTo`, `ListType`, `Lowercase`, `MacAddress`, `Max`, `MaxDigits`, `MimeTypes`, `Mimes`, `Min`, `MinDigits`, `MultipleOf`, `NotIn`, `NotRegex`, `Nullable`, `Numeric`, `Password`, `Present`, `Prohibited`, `ProhibitedIf`, `ProhibitedUnless`, `Prohibits`, `Regex`, `Required`, `RequiredArrayKeys`, `RequiredIf`, `RequiredUnless`, `RequiredWith`, `RequiredWithAll`, `RequiredWithout`, `RequiredWithoutAll`, `Rule`, `Same`, `Size`, `Sometimes`, `StartsWith`, `StringType`, `Timezone`, `Ulid`, `Unique`, `Uppercase`, `Url`, and `Uuid`, plus the base/custom validation attribute contracts.
+
+Audit each ported attribute's production-facing native contract rather than retaining an upstream test-fixture type. In particular, `CurrentPassword` accepts `string|BackedEnum|ExternalReference|null`; upstream's concrete `DummyBackedEnum` test type makes arbitrary application enums fail in installed packages. `RuleDenormalizer` supports backed values, not pure `UnitEnum` names, so do not widen that contract or add global enum-name normalization. Cover an application-owned backed enum functionally and grep `src/data/src` for test-namespace imports after each attribute group; no subprocess autoload harness or source-lint test is needed.
+
+Every value supplied directly or through `create(string ...$parameters)` must be accepted by both its constructor parameter and its final property or explicitly converted to that destination type; never rely on upstream weak scalar coercion under Hypervel's strict types. Numeric string-rule attributes retain their numeric direct-construction types alongside `string`, and `Dimensions` accepts the same `int|string`/`float|string` constraint types as Hypervel's native rule rather than adding a duplicate numeric parser. `GreaterThan`, `GreaterThanOrEqualTo`, `LessThan`, and `LessThanOrEqualTo` retain numeric strings lexically in an `int|float|string|FieldReference` property while converting only nonnumeric strings to `FieldReference`; an arbitrary-precision numeric-string regression must prove denormalization does not cast or reformat the value before Hypervel's `BigNumber` comparison. The shared string-attribute test parses every expected rule through `ValidationRuleParser`, proves `create()` does not throw, and asserts exact denormalized identity only when the attribute inherits the base `StringValidationAttribute::create()` unchanged. Transforming overrides such as date factories need construction coverage but not textual identity. Keep a focused object-rule round-trip for `Dimensions`, and audit constructor-to-storage flow as each attribute group lands; do not maintain an exclusion list, add blind casts, or catch and fall back from type failures.
+
+String-rule null encoding has one structural rule. A top-level `null` in `parameters()` omits an optional argument, such as a null `Distinct` mode; a `null` nested inside a value list emits the Validator's literal `null` token, which the twelve dependent validators decode through `ValidatesAttributes::convertValuesToNull()` when the compared field is null. The eight variadic dependent attributes (`RequiredIf`, `RequiredUnless`, `ProhibitedIf`, `ProhibitedUnless`, `MissingIf`, `MissingUnless`, `PresentIf`, and `PresentUnless`) share `null|array|bool|int|float|string|BackedEnum|ExternalReference` comparison values. Single-value dependent attributes keep `null` out because top-level omission would create a malformed rule; callers use the string `'null'`. Field-list variadics keep `array|string|FieldReference`. PHP `null` and the string `'null'` are intentionally indistinguishable in Laravel's Validator string grammar; Data adds no escape syntax.
+
+Pass-through string attributes leave `ExternalReference` values for `RuleDenormalizer`; any attribute that validates, filters, casts, or feeds a native rule object resolves the value first through the existing helper. Split pipe-delimited declarations unless the trimmed declaration begins case-insensitively with `regex:`, `not_regex:`, or `notregex:`; merely containing `regex:` later in a combined declaration must not turn the whole string into an invalid rule name. Regex patterns containing a literal pipe remain array-form rules. Correct upstream's five broken interpreted paths: `Distinct`, `Email`, `Enum`, `In`, and `NotIn`. A resolved null `Distinct` mode means bare `distinct`; other values use its strict two-value allowlist. `Enum` resolves before native-rule/class-string selection. `In`/`NotIn` resolve top-level references before the native-rule short circuit, convert declared `Arrayable` values, flatten, then resolve/convert/flatten nested list values before constructing the native rule; keep the direct code in both upstream-shaped classes instead of adding a resolver abstraction. Email references remain one scalar mode each. Email supports all native built-ins including `filter_unicode` plus existing class strings, and any unsupported or non-string mode throws instead of silently weakening requested validation. Make the owning raw Validator fail the same way while preserving bare `email`, explicit `rfc`, and custom class strings; document unsupported-mode failure in the Validation guide. Do not add global eager reference resolution, a registry, a second resolver, or Email array fan-out.
+
+Because this is first-party Hypervel functionality, also add thin attributes for supported native rules that Spatie does not yet expose: `AnyOf`, `Ascii`, `Base64`, `Can`, `Contains`, `Decimal`, `DoesntContain`, `Encoding`, `Extensions`, `HexColor`, `InArrayKeys`, `Missing`, `MissingIf`, `MissingUnless`, `MissingWith`, `MissingWithAll`, `PresentIf`, `PresentUnless`, `PresentWith`, `PresentWithAll`, `ProhibitedIfAccepted`, `ProhibitedIfDeclined`, `RequiredIfAccepted`, and `RequiredIfDeclined`. These are direct declarative wrappers, not a second validation implementation.
+
+If an attribute maps to a Laravel rule that Hypervel Validation is unintentionally missing, add that rule to Validation with its Laravel behavior/tests and then port the attribute. Do not silently omit the attribute or add a Data-only approximation. Rules tied to a Laravel subsystem Hypervel intentionally does not provide must be recorded as deliberate omissions in the ledger.
+
+### Transformation
+
+- `Data::toArray()`, `all()`, `transform()`, `toJson()`, and `jsonSerialize()` always reflect current property values; there is no result cache or refresh protocol.
+- The ordinary transform loop reads precompiled property metadata and writes mapped output directly.
+- Allocate a full `TransformationContext` only for lazy values, partials, a custom transformer, wrapping/additional resource data, or a configured maximum depth. A simple object does not build include/exclude trees. `PartialsDefinition::isEmpty()` is the required nested-node guard that preserves this invariant: an object with no instance definitions reuses its narrowed child context without resolving definitions or compiling trees.
+- Port `Hidden`, `Computed`, `Lazy`, `AutoLazy`, `AutoClosureLazy`, `AutoWhenLoadedLazy`, include/exclude/only/except, conditional inclusion, appended values, and maximum-depth protection. A supplied value for a `#[Computed]` or PHP 8.4 virtual property throws an actionable declaration/input exception; there is no compatibility switch that silently ignores it.
+- Compile each partial mode into one immutable tree. Every node retains an exact-endpoint bit, a propagating fully-selected-subtree bit for terminal `*`, and named children, so exact selection cannot be confused with a traversal prefix. `include` retains and traverses either form; `except`/`exclude` remove only exact endpoints or fully selected subtrees; `only` treats an empty child map as unrestricted and otherwise retains named children, matching upstream `only('*')`, `only('*', 'nested.a')`, and `only('nested.*')`. A pure fully-selected node reuses itself while descending. `PartialTree::merge()` composes two selections by unioning endpoints, subtree selection, and children; it is not lifetime provenance and does not require reverse path generation. Propagating `include('*')` deliberately fixes upstream's order-dependent loss of explicit nested includes. Invalid partial paths throw; there is no ignore-invalid-partials compatibility flag.
+- Before internally transforming a reached nested Data node, resolve its non-empty instance partial store with temporary consumption and merge those node-relative selections into the narrowed parent context through `TransformationContext::withMergedPartials()`. Do this at the nested-property and typed-iterable-item call sites, outside `transformData()`, so the root store is not resolved twice. Item contexts remain local to `transformIterableItem()`; never hoist an item merge into the shared iterable context, because each item may own different partials. A repeated object consumes a temporary at its first reached occurrence while permanent definitions apply every time. During the collection slice, delete the two currently unreachable non-`BaseData` public-transform branches and route collection containers and items through one internal loop that retains the root transformer extension cache and applies the same per-node rule.
+- `all()` preserves raw nested Data and collection identity. When child partials apply, retain the four resolved definition lists beside the compiled trees and add their decoupled remainders to the returned nested object's existing partial store. Temporary and permanent definitions keep their own lifetimes; conditions are evaluated once against the object that declared them and propagate as unconditional resolved definitions. Terminal selections do not propagate, while `nested.*` and a bare `*` propagate the fully selected subtree. These lists are root-relative and exist only for shallow outward propagation: `TransformationContext::child()` clears them, and propagation reads the parent before returning without recursion. Consult definitions only when partials exist; ordinary `all()` and every `toArray()` avoid this work. Do not add lifetime flags or a reverse operation to `PartialTree`.
+- Maximum depth defaults to `null`, matching upstream and avoiding an invented limit. When configured, reaching it throws `MaxTransformationDepthReached`; no silent empty-array mode is added.
+- Cyclic object graphs are unsupported. Do not impose identity-set work on every ordinary nested SDK transform: the realistic recursive `Lazy`/relationship case creates fresh Data instances and would not be stopped by identity anyway. Applications with recursive includes configure `max_transformation_depth`; the default remains `null` for upstream familiarity and unbounded legitimate trees.
+- `Data` is not `ArrayAccess`. Data collections retain collection-style keyed access and enumeration.
+- Use `Hypervel\Support\Json` for general JSON normalization and encoding so Data inherits Hypervel's nesting and exception contract. Eloquent casts use the distinct `Hypervel\Database\Eloquent\Casts\Json` codec so application custom encoders/decoders remain authoritative.
+- Typed iterable properties recursively cast and transform their declared item type, including custom `IterableItemCast`, Data, enum, and date items. This behavior is enabled from the start; do not port Spatie's compatibility feature flag. Untyped arrays are not recursively guessed into arbitrary object types.
+- PHP serialization includes declared data properties and stable per-instance transformation state while excluding request/validator/operation objects. Use `laravel/serializable-closure`, already standard in Hypervel, for package-owned lazy and conditional-partial closures so queued data retains upstream behavior; unsupported captured values fail normally rather than being silently discarded.
+
+### Collections
+
+- Port the non-deprecated `DataCollection` API, paginator/cursor-paginator wrappers, `collect()`, collection annotations, and `DataCollectionOf`.
+- Keep `DataCollection`, `PaginatedDataCollection`, and `CursorPaginatedDataCollection` as distinct public types. They encode different item/container return contracts and paginator operations for PHPStan and callers; one union-backed class would replace those guarantees with runtime `instanceof` branches and methods that are invalid for some instances. Share concerns, item construction, transformation, and private response adapters so three familiar public names do not become three implementations. Spatie performance issue #434 concerns recursive item conversion, not the number of wrapper classes; the fixed engine and collection benchmarks address that actual cost.
+- One eager root `collect()` operation owns one `ConstructionState`, one Fill pass over all items, one Validator, and one extension/normalizer memo. Root `prepareData` remains per item; root `beforeValidation` and `afterValidation` receive and return the complete keyed collection payload once. `ValidationStrategy::OnlyRequests` checks the collection source object, not nested items: an array/Collection root does not begin request validation merely because an item is a Request, while `alwaysValidate()` is the explicit untrusted-collection path. Preserve `LazyCollection` laziness when validation and rule introspection are both disabled; either rule-producing mode materializes it once.
+- `DataCollectableFactory` is the single owner of safe item extraction, root source-shaped rebuilding, explicit/inferred `$into` targets, paginator cloning, and declared-property reconstruction for Data and non-Data typed iterables. `DataCreator` retains Fill, reconciliation, casting, and instantiation; delete its duplicate eager iterable rebuilder. Cache each Data class's resolved custom normalizer list in the existing operation memo under a class-keyed entry; do not add another cache object or threaded parameter.
+- Root `collect()` preserves input keys and the original ordinary collection/paginator shape where it can be rebuilt safely. It explicitly downgrades an Eloquent source to base `Hypervel\Support\Collection` for empty and non-empty Data results; an explicit Eloquent Data target does the same. Property casting is instead declared-shaped: arrays and `iterable` become keyed arrays, declared ordinary collection classes are rebuilt as declared, and unsupported custom `Traversable` containers fail with `CannotCreateDataCollectable`. A declared Eloquent property is valid only when its complete item type guarantees `Model`; otherwise metadata rejects the invalid Eloquent generic. Batch `loadMissing()` for metadata-declared `LoadRelation` paths before collected Eloquent models are normalized.
+- One metadata-owned finished-value predicate is shared by Fill, hook reconciliation, validation compilation, and casting. It accepts an assignable `BaseData`; an assignable package `DataCollection`, `PaginatedDataCollection`, or `CursorPaginatedDataCollection` whose declared item class is covariantly compatible; or an assignable eager native object container whose safely extracted items are already instances of one accepting declared Data-container arm's item class. Extract eager items once and try every accepting arm because PHPDoc may assign different item classes to different union containers. Arrays are not finished object containers, and `LazyCollection` is never scanned. Casting returns a finished value before property casts or iterable rebuilding. Fill and reconciliation route every accepted value through explicit `ConstructionState` finished-property/item writes; those writes always latch active enclosing collections, while ordinary writes never inspect value types. This keeps one source of truth and removes finished-value checks from the ordinary write path.
+- Put the pure singular metadata queries `getDataObjectType()` and `getDataCollectableType()` on `DataPropertyType`, matching its existing plural vocabulary. Keep the complete finished-value decision on `DataProperty`; arbitrary implementations of `BaseDataCollectable` are not treated as package containers merely because they implement the contract.
+- Paginator-shaped properties retain only the reconstruction data they require. `ConstructionState` stores an optional live `AbstractPaginator`/`AbstractCursorPaginator` source on the existing traversed structure node for the root operation, cloning only during rebuild. Outside a collection item it uses the template node; inside an item it uses that item's sparse override and never falls back to the template. The slot is compiler-inert and never changes validation uniformity. The compiler does not read paginator identity, so otherwise identical outer items remain eligible for one wildcard graph.
+- Initial Fill and hook reconciliation record or replace that slot for both Data and non-Data typed paginator properties, only from a Hypervel abstract paginator or a package wrapper containing one. An array, eager Enumerable/DataCollection, or LazyCollection may reshape page items only when the exact node already has a retained source; materialize the LazyCollection because the declared paginator target cannot remain lazy. Absence, `null`, and `Optional` retain ordinary property semantics. A genuinely present item-only container with no exact source, a contract-only paginator needing conversion, or another unsupported value fails during Fill/reconciliation through `CannotCreateDataCollectable`, when reconstruction is first known to be impossible. A raw array therefore cannot create a paginated wrapper, while a Hypervel paginator can. Contract-only paginators may feed non-paginator targets through their declared `items()` method and may pass unchanged only when the native declaration accepts them and all items are already the declared Data type. Rebuild-time absence uses a dedicated missing-retained-source error rather than reporting the supplied type as `null`.
+- Extract paginator values through the declared `items()` method, never through iteration. Rebuild a Hypervel paginator by cloning it and replacing only its collection, so the caller is not mutated and total, per-page, cursor, path, query, fragment, and other response metadata remain authoritative. Collection hooks may change the current page's item count but do not recalculate paginator metadata; the hook author owns any related metadata change.
+- Direct `DataCollection` construction normalizes all eager items in one package-internal root item operation, retains per-item named `from*` methods, shares its operation memo, and defers a LazyCollection. `offsetSet()` uses the same internal item normalization instead of the user-overridable static `from()` entry; a covariantly accepted subclass collection continues to coerce later assignments to its own readonly item class.
+- `getIterator()` and `offsetGet()` are side-effect-free reads. They never resolve or consume collection partials or mutate returned items. Explicit collection transformation owns collection partial consumption, while `all()` retains the documented shallow propagation when it deliberately returns raw nested values. This avoids partial definitions being consumed for only an iterated/accessed prefix and preserves Laravel-style collection reads.
+- Root `collect*` selection happens once against the normalized source-shaped container, while the requested `$into` is checked independently against the method return type. Invoke the selected match through its direct/container path; `DataMethodMatch` has no payload-replacement API. An exact Eloquent collection parameter simply does not match the normalized base `Hypervel\Support\Collection`; ordinary collection fallback then returns the requested result. Item construction does not redispatch the public collection entry point, but it retains ordinary per-item `from*` selection.
+- Do not port the deprecated static `Data::collection()` alias or its compatibility concern.
+- Do not port the deprecated `EnumerableMethods` forwarding surface; use `toCollection()` for map/filter/reduce operations while `DataCollection` itself retains typed items, count, iteration, keyed access, transformation, and response behavior.
+- Collection transformation reuses one operation context and one item metadata instance.
+- `Lazy` and all three Data collection classes expose separate Macroable registries as worker-lifetime boot configuration, matching Hypervel's other `Macroable` surfaces; document registration during provider boot and never use macros for request-specific state.
+
+### Controller injection
+
+The package-owned `Hypervel\Data\Contracts\BaseData` extends `Hypervel\Contracts\Container\SelfBuilding`. The shared base concern implements:
+
+```php
+public static function newInstance(Request $request): static
+{
+    return static::from($request);
+}
+```
+
+Hypervel's existing `SelfBuilding` path creates a fresh instance and resolves the current request without Spatie's provider-level `beforeResolving` rebinding. No framework-wide Data marker is added. Package-owned FormRequest casts use Foundation's existing generic `Castable`/`CastInputs` extension and validate targets against `Hypervel\Data\Contracts\BaseData`.
+
+```php
+protected function casts(): array
+{
+    return [
+        'address' => AsData::of(AddressData::class),
+        'members' => AsDataCollection::of(MemberData::class),
+    ];
+}
+```
+
+`AsDataCollection::of()` defaults to the package `DataCollection` and accepts the same explicit `$into` targets as `collect()`, including `'array'` and `Hypervel\Support\Collection::class`. This preserves the useful array/Collection FormRequest cases without retaining the misleading old `AsDataObjectArray` class, which returned `ArrayObject`.
+
+The wrapper is necessary rather than gratuitous syntax: Foundation's `Castable::castUsing(array): CastInputs|string` and Eloquent's `Castable::castUsing(array): CastsAttributes|CastsInboundAttributes|string` have incompatible return contracts, so `AddressData::class` cannot implement both meanings. Data keeps Laravel's natural bare-class syntax for Eloquent and uses explicit `AsData::of()`/`AsDataCollection::of()` only in FormRequest cast declarations.
+
+### Eloquent
+
+The canonical API is Laravel's castable-class syntax:
+
+```php
+protected function casts(): array
+{
+    return [
+        'profile' => ProfileData::class,
+        'members' => DataCollection::class . ':' . MemberData::class,
+    ];
+}
+```
+
+- `Data` and `Resource` implement Eloquent `Castable` through their shared transformable contract and return a package-owned `DataEloquentCast`; `Dto` is not persistable because it has no transformation contract.
+- `DataCollection` returns a package-owned `DataCollectionEloquentCast` and remains the value returned by collection casts. Keep upstream `encrypted` and `default` cast arguments.
+- Use Hypervel's Eloquent JSON codec so custom encoders/decoders apply. Persist the complete representation through a fresh transformation context rather than mutating instance partials with `include('*')`.
+- Abstract classes that self-discriminate through `PropertyMorphableData::morph()` persist their ordinary full representation. Other abstract-class values use `{type, data}` envelopes whose `type` is a required alias from the familiar boot-only `DataConfig::enforceMorphMap()` registry. Reads reject unknown aliases and require the result to be a concrete, transformable `BaseData` subtype of the declared abstract class before construction; payload-provided FQCN fallbacks are not accepted. Encrypt abstract collections as well as concrete ones.
+- Dirty comparison decodes both stored values and compares their arrays; encrypted casts return unequal while previous encryption keys are configured, matching the framework's rotation behavior.
+- Remove `Hypervel\Database\Eloquent\Casts\AsDataObject`; Database must not depend on an optional data package or a Support implementation.
+
+### HTTP resources and wrapping
+
+Do not duplicate JsonResource wrapping, response customization, paginator metadata, or response encoding.
+
+Add one independently useful HTTP extension point:
+
+```php
+namespace Hypervel\Http\Resources\Json;
+
+interface ProvidesResourceWrapper
+{
+    public function resourceWrapper(): ?string;
+}
+```
+
+`ResourceResponse::wrapper()` uses the `instanceof ProvidesResourceWrapper` check as the switch: when implemented, the returned value is authoritative, including `null` meaning deliberately unwrapped; otherwise it retains `JsonResource::$wrap`. Data's single and collection adapters redeclare `public static ?string $wrap = null` so the existing force-wrapping test cannot mistake inherited `'data'` for an active default. Package adapters keep the actual selection in per-instance state and never mutate the static during a request.
+
+`DataResource` delegates transformation, includes/excludes, JSON options, and `withResponse()` to the data object/context. Its JsonResource `with(Request): array` adapter calls the data object's familiar Spatie-style `with(): array` plus `additional()` state; do not change the data method's signature. Override `resolve()` in the Data-owned single and collection adapters to return the already-transformed array directly: Data transformation has removed `Optional` and never emits HTTP `MergeValue`/`MissingValue`, so calling `ConditionallyLoadsAttributes::filter()` would add a redundant recursive pass and reallocation. Keep the rest of Hypervel's `ResourceCollection`, `ResourceResponse`, `PaginatedResourceResponse`, and cursor pagination machinery. The adapter's underlying resource remains the Data object, so `ResourceResponse::calculateStatus()` naturally returns 200; no request-method guess changes it to 201.
+
+`Data` and `Resource` retain Spatie's `with(): array`, `additional()`, `wrap()`, `withoutWrapping()`, and request-query partial allowlists (`allowedRequestIncludes`, `allowedRequestExcludes`, `allowedRequestOnly`, `allowedRequestExcept`), and add Laravel resource hooks `withResponse(Request, JsonResponse): void` and `jsonOptions(): int`. Query-requested partials are intersected with allowlists evaluated for the current response; their results are never cached in metadata.
+
+Add regression tests proving unchanged behavior for ordinary JsonResource subclasses and forced wrapping, plus forced-interleaving tests showing two data responses can use different wrappers/additional data without leakage. A spy adapter subclass overrides `filter()` and proves Data adapter `resolve()` never invokes the generic sentinel filter; do not use a meaningless PHP array-identity assertion.
+
+### Inertia
+
+Add `hypervel/inertia` under Composer `suggest`, not `require`.
+
+- Port `Lazy::inertia()`, `Lazy::inertiaDeferred()`, `AutoInertiaLazy`, and `AutoInertiaDeferred` against Hypervel's `OptionalProp` and `DeferProp` APIs.
+- Preserve deferred group and rescue options supported by Hypervel.
+- Keep Inertia references behind the explicit Inertia factories/adapters so loading Data and running ordinary creation/transformation never resolves an Inertia class. Because Inertia is always installed in the monorepo, verify this ownership by source/dependency audit rather than a doctored-autoloader subprocess test.
+- Data remains `Arrayable`; Inertia-specific Lazy variants resolve to existing prop wrapper objects during transformation, which `PropsResolver` handles recursively. Do not implement `ProvidesInertiaProperties`, because `ResponseFactory::render()` intentionally checks `Arrayable` first.
+- Register no integration when Inertia is absent and impose no class-resolution work on ordinary transforms.
+- Test initial, partial, deferred, grouped, and concurrent request behavior with the Hypervel Inertia component.
+
+Livewire integration is not included because Hypervel has no Livewire component or analogous first-party contract. This is a platform mismatch, not a reduced DTO design.
+
+### Saloon
+
+No Saloon runtime change is needed. Hypervel Saloon accepts any DTO returned by the request/connector and separately attaches its response when the object implements `Hypervel\Saloon\Contracts\DataObjects\WithResponse`.
+
+Document and test:
+
+```php
+final class GitHubUserData extends Data implements WithResponse
+{
+    use \Hypervel\Saloon\Traits\Responses\HasResponse;
+}
+
+public function createDtoFromResponse(Response $response): GitHubUserData
+{
+    return GitHubUserData::from($response->json());
+}
+```
+
+Use Saloon's existing `Hypervel\Saloon\Traits\Responses\HasResponse`; no new trait or Saloon runtime change is needed. Do not couple `hypervel/data` to Saloon.
+
+### VarDumper
+
+Register one stateless Symfony caster for `TransformableData` in `DataServiceProvider::boot()`. Symfony applies an interface caster to every implementing `Data`, `Resource`, and data-collection class. Use `??=` to make provider boot idempotent and preserve an application caster registered earlier; an application may still replace the entry after provider boot.
+
+```php
+class DataVarDumperCaster
+{
+    public static function cast(
+        TransformableData $data,
+        array $properties,
+        Stub $stub,
+        bool $isNested,
+    ): array {
+        return $data instanceof BaseDataCollectable
+            ? ['items' => $data->all()]
+            : $data->all();
+    }
+}
+
+AbstractCloner::$defaultCasters[TransformableData::class]
+    ??= [DataVarDumperCaster::class, 'cast'];
+```
+
+This deliberately has no manager, config switch, container lookup, event, or cleanup subscriber. `all()` supplies the current logical view: output mapping is applied, `Optional` and excluded `Lazy` values are omitted, and construction/transformation internals remain hidden. `Dto` is not transformable and needs no caster; Symfony's ordinary public-property dump is the useful representation for it.
+
+### TypeScript ownership
+
+Do not port `spatie/typescript-transformer`, Laravel's adapter, filesystem watcher, or TypeScript attributes into `hypervel/data`. Those operate across enums, ordinary PHP classes, and multiple packages and therefore belong to a general TypeScript package.
+
+An external transformer can recognize `Hypervel\Data\Contracts\BaseData` and inspect the same PHP attributes/docblocks; it does not need a framework contract or Data-specific hook. Keep documented metadata useful to casts and tooling, but do not add TypeScript-only runtime contracts.
+
+## Runtime Architecture
+
+### Fixed creation sequence
+
+Each root construction owns the v5-shaped pair of operation objects. `ConstructionState` contains the mutable payload tree, structure tree (selected class and chosen wire keys), and current path. A collection keeps one first-item template plus sparse raw-key per-index overrides for class, mapping, and nested differences; reads use the deepest current-item override and then the template. Recording the first difference or finished value latches every enclosing collection non-uniform, so the same compact facts drive exact bottom-up construction and later wildcard eligibility. Property segments address template `children`; item segments remain distinct and never eagerly create per-index nodes. Its readonly `CreationContext` contains the validation mode, mapping/magic toggles, cast recipes, and factory hooks. Traversal position never leaks into reusable options, and neither object survives the root operation. The public static entry point resolves the worker-shared creator once; the same engine and state are then passed down the complete tree without more service-locator dispatch. The general path is fixed:
+
+1. When the root source list contains a Request and request validation applies, resolve authorization; `false` throws `AuthorizationException`, while an Auth `Response` delegates to `Response::authorize()` so its message/code/status are preserved.
+2. In create mode, select one user `from*` method and retain its `DataMethodMatch`, or continue with normalization. Invoke payload-only matches directly; use a first-class `Container::call()` only when the match requires dependency or attribute resolution. Never rematch or rebuild its argument map. Validation-only and rule-introspection modes force the existing named-method toggle off so their array/rule contracts remain coherent.
+3. Normalize the source to a keyed payload without eagerly serializing unrelated model state.
+4. Resolve a morph class when declared by the target's property-morph contract.
+5. Fill the complete mapped property/structure tree depth first before compiling any rules, running per-node `prepareData`, marking contextual constructor slots as input-independent, and recording chosen wire paths. Existing target instances, including subclasses selected through morphs, are finished subtrees: retain their identity and do not run nested Fill, inferred or explicit validation, casts, or creation hooks. Collection items and accepted finished object containers use the same rule before recursion. The metadata predicate selects an explicit atomic finished write, which latches every active enclosing collection concrete so no wildcard preserved path can restore a raw sibling that was never validated. The validation compiler records each finished mapped path for exact post-validation restoration and unknown-field allowance. Do not resolve contextual values yet.
+6. When pre-validation hooks exist, retain the assembled payload by copy-on-write, run the hook chain, and reconcile its final result before rule compilation. For each changed node, resolve every property's selected wire key again; clear only changed class, mapping, and child selections; apply fixed source normalization or a named factory only to genuinely new or changed values; and recursively rebuild only changed Data-bearing selections. A selected morph change rebuilds the complete new class graph. Unchanged sibling structure and user-code results remain intact, while custom normalizers and `prepareData` never rerun. Collection divergence remains conservatively latched to concrete compilation rather than paying for a second uniformity proof on this hook-only path. Compile/reuse the resulting rule graph and validate once when enabled. On success, restore only compiled `WithoutValidation`/finished paths from the copy-on-write pre-validation payload, restore surviving keys recursively to that payload's insertion order without reindexing, and replace state with the filtered result. When post-validation hooks exist, apply the same metadata-guided reconciliation to their final payload with validation disabled before absence resolution and casting. Removed values reselect their canonical absent wire key, so presence errors never retain a stale observed fallback.
+7. On a successful precognitive request with `Precognition-Validate-Only`, Foundation's registered after-validation hook aborts with 204 and unwinds the operation before absence resolution, casts, contextual resolution, or construction. Do not add a separate `isPrecognitive()` return branch: an ordinary full-form precognitive request must construct the promised `static` instance, after which the precognition dispatcher owns its 204 response. Validation-only APIs that do not promise an object disable creation through their context instead.
+8. Resolve true absence in one order: declared constructor default, then `Optional`, then `null` for a nullable type; otherwise retain absence for a clear missing-value error.
+9. Cast scalar leaves recursively using the selected class metadata; nested Data objects are not constructed during this pass.
+10. Instantiate objects bottom up through one shared primitive. For each node, run `beforeCreation` over final casted payload values, then resolve contextual parameters into their slots immediately before the constructor so contextual injection always wins; immediately after construction, run `afterCreation`. Ordinary nodes use direct construction, while a node with contextual parameters uses Container `buildWith()` so the target class remains on the contextual build stack. Public `build()`/`buildWith()` are raw-construction APIs and bypass the Data class's `SelfBuilding` factory; only Container resolution dispatches that factory. Existing target instances and direct-returning named factories finish before this primitive. If ordinary construction reaches a private or protected constructor, throw `CannotCreateData` before PHP's access error: report the reflected visibility and that no matching named factory returned an instance, then direct the caller to return the target object from a matching public static `from*` method or make the constructor public. This is a payload-dependent creation failure, not invalid metadata. Keep the guard in the shared primitive so any measured direct-array specialization inherits it; do not catch `Error`, analyze factory return paths, or duplicate constructor visibility as a metadata flag. Omit absent defaulted constructor arguments so PHP supplies their declared defaults, and never resolve contextual values for a graph rejected by validation.
+11. Return the root object.
+
+The engine has private/internal entry points for nested properties and collection items. A new nested node may select one compatible `from*` method, but a method's returned source is never matched again. Internal paths never call public `from()`/`factory()` or container `make()` for the data class.
+
+Root collection creation uses the same sequence over one keyed payload rather than starting one object operation per item. It batches model relation loading, fills every item into one state, applies collection-level validation hooks once, validates the complete graph once, casts/instantiates items through the shared bottom-up primitives, rebuilds the normalized source-shaped container, and selects any `collect*` method once against that exact container. Direct `DataCollection` construction enters the same item operation without collection-level magical dispatch. Declared paginator properties retain their source only in the optional structure-node slot described above; no paginator, request, or mutable container survives the root operation.
+
+`prepareData` receives the current node's normalized input-key array before child Fill. Preserve the normalized source list and resolve properties from a separate prepared payload. When that selected class enables `#[FailOnUnknownFields]`, record the pre-hook input at its observed root path by ordinary array copy-on-write for the one later root check; never deep-copy the graph or inspect keys introduced by `prepareData`. Direct Request entries use the tested body/JSON boundary, while other entries retain their complete normalized input. Model sources stay in property-name space and project only metadata-declared attributes and loaded/explicitly loadable relations. This preserves uniform hook behavior and the no-`Model::toArray()` contract. A named `from*` method, rather than model-wide serialization, is the class-owned escape hatch when construction genuinely needs undeclared model state.
+
+Treat a `FormRequest` as the `Request` it is: normalize `all()` and apply the Data class's validation/authorization lifecycle under the selected validation strategy. Do not add a privileged `FormRequestNormalizer` or silently reuse its validator, because that would make `Data::from($request)` depend on an unrelated request class's rules. A caller that deliberately wants the FormRequest result passes `$request->validated()` (or another explicit array/`Arrayable` projection) to `from()`; that input then follows the factory's selected non-request validation strategy.
+
+### Measured direct array specialization
+
+The fixed general engine is implemented and measured first. Add a specialized array branch only when retained same-machine benchmark results show a material CPU or allocation gap that justifies its permanent equivalence-test burden. If justified, eligibility is compiled per Data node: a general-path child does not force an otherwise eligible parent off its direct loop. A node is eligible when its input is an array and metadata says it has no validation, authorization, custom normalizer/cast, named factory, morph, contextual injection, relation loading, or per-operation hook. It then:
+
+1. Read each precompiled input key.
+2. Apply the shared default/`Optional`/nullable/required absence operation.
+3. Pass through already-valid values or call the fixed caster.
+4. Instantiate with named constructor arguments.
+
+It does not clone the full payload, construct a pipeline, resolve services per property, build validation paths, or allocate hook/context collections. This is not a second creator/resolver: both branches execute the same precompiled key-selection, absence, cast, and instantiation primitives, while the specialization omits whole stages whose feature bits are false. Keep the motivating measurement and targeted equivalence tests if the branch is added; if it is not measurably worthwhile, retain one lean fixed engine and remove its feature bit and planned branch tests.
+
+### Metadata
+
+Use the familiar names `DataClass`, `DataProperty`, `DataMethod`, `DataParameter`, `DataType`, `DataPropertyType`, and `DataAttributesCollection`. Keep them under `Support` and make metadata immutable after hydration; their existence does not make their entire shape a permanent public extension contract.
+
+`DataClassRepository` is an unbound worker-safe repository, so Hypervel auto-singletons it for the application/worker lifetime. Its only mutation is memoizing immutable metadata under verified `BaseData` class strings, a keyspace naturally bounded by classes declared in the process. It composes `ClassMetadataCache` where sufficient and owns only data-specific metadata such as constructor order, mapper results, type graphs, hook flags, rule templates, and attribute recipes.
+
+The repository also memoizes the pure `hasDynamicRuleGraph()` result under the same bounded class-string keyspace. Resolve it with cycle-safe depth-first traversal: a visited back edge returns false without caching that intermediate result; direct dynamic results cache true while unwinding; an exhausted top-level traversal caches false for every visited class. This preserves lazy nested metadata hydration and keeps operation hooks out of worker state.
+
+Metadata rules:
+
+- no closures, Request, Container, Validator, Model, or resolved service objects; cached `ReflectionClass`/`ReflectionParameter`/`ReflectionAttribute` references are permitted because they are immutable process metadata and are required to preserve Container contextual-attribute semantics without re-reflection;
+- package attributes that reduce completely to immutable strings, flags, mapper results, or operation codes are compiled and their instances discarded. Attributes containing object arguments, custom validation rules/references, or extension construction retain only their immutable `ReflectionAttribute` recipe and are materialized per root operation; never retain `ReflectionAttribute::getArguments()` results or an instantiated attribute/rule object in metadata;
+- feature bits skip entire subsystems on ordinary classes, including a `plainTransform` bit for objects whose declared values can be copied directly without mapping, partial, lazy, nested, or transformer work;
+- built-in cast/transform operation codes and mapper results are stored directly on each property; only application replacements retain extension recipes;
+- inferred string rules and declarative rule recipes may be cached, but instantiated rule objects and results from user lifecycle methods, closures, or container calls live only for the current root operation;
+- native reflection handles types/defaults/attributes; `phpstan/phpdoc-parser` handles collection generic annotations such as `@var FooData[]`;
+- each `DataParameter` compiles whether it is variadic, whether it carries attributes, its contextual recipe, and its public-`Reflector` single named class name. Non-variadic injectability and class-variadic emission derive from that one field plus the variadic flag. Reject a variadic `CreationContext` as an invalid factory declaration at metadata build; one operation has one context, and supporting a context-variadic mode would add ambiguous invocation machinery without a use case. `DataMethodMatch` records the selected argument map/list and container decision once; metadata matching performs no reflection or container lookup;
+- Resolve native and PHPDoc types with separate target and declaration scopes. Native `self`/`parent` use the member's declaring class, while a method return `static` uses the target Data class. PHPDoc imports, unqualified names, `self`, and `parent` use the class that declared that annotation; PHPDoc `static` and `$this` use the target Data class. `DataIterableAnnotation` retains the declaring class string so container, item, and key nodes resolve uniformly without parallel scope arguments.
+- `DataClassFactory` is the one annotation-source and precedence owner: `DataCollectionOf` first, then a constructor-bound property's same-name constructor `@param`, then the property's inline `@var`, then the nearest class-level `@property` while walking child to ancestors, then native-only typing. Parent annotations are retained when no nearer declaration replaces their complete list. `DataTypeFactory` receives the selected annotations and contains no reader fallback or second precedence path. For a native iterable union arm, `matchingAnnotation()` checks every exact container annotation before considering a base/interface match, so PHPDoc union order cannot let a broader annotation hide the arm's exact item type.
+- Resolve fully qualified and same-namespace PHPDoc types without source access. For an imported or group-aliased short name, `PhpDocTypeNameResolver` tokenizes the declaring source file at most once per worker and retains immutable import maps for every namespace in that file. Imports are checked before same-namespace qualification, with no `class_exists()` branch whose result could make immutable metadata depend on worker load order. The resolver is an unbound auto-singleton and owns this naturally bounded cache; routing it through `DataClassRepository` would invert the factory dependency. `DataCollectionOf` avoids source parsing entirely and is preferred for generated SDKs.
+- `DataCollectionOf` is the unambiguous attribute alternative to docblocks;
+- DNF/intersection/union graphs are compiled once and retain declaration information needed for precise errors. `Type::guaranteesType()` keeps the graph's quantifiers: named classes use `is_a`, every union branch must guarantee the target, and one intersection member is sufficient. Use it at metadata build to reject a selected Eloquent iterable whose item graph does not guarantee `Model`, rather than constructing an invalid Eloquent collection of non-Models;
+- nested data metadata stores class strings and resolves them through the repository on demand. It does not embed recursive `DataClass` object graphs, so self-referencing classes are finite;
+- `DataProperty::isConstructorParameter` records one data-slot ownership decision. A public property is constructor-bound when the effective constructor has a same-name non-contextual parameter or when the parameter promotes that public property. A matching non-promoted contextual parameter is a declaration conflict, not another binding form.
+- constructor-bound properties take default presence and iterable `@param` annotations from their constructor parameter; unbound properties take defaults and inline annotations from the property declaration. Metadata retains only default presence. Construction omits absent defaulted arguments so PHP creates object/enum defaults correctly and no shared default object survives metadata build.
+- constructor-bound properties are never assigned after construction, preserving constructor normalization and property-hook side effects. Only supplied, unbound public mutable properties are assigned afterward. `#[Computed]` and PHP 8.4 virtual properties are output-only and cannot be constructor-bound; an unbound non-computed readonly property is invalid because the engine cannot assign it.
+- ignore ordinary non-promoted private/protected helper properties and static properties. Reject a non-public promoted property, a non-contextual constructor parameter with no corresponding public data property, or a non-promoted contextual parameter whose name conflicts with a public property; non-promoted contextual parameters with distinct names remain valid constructor-only dependencies, and named factories are the explicit path for other alternate constructor shapes. Do not reject a non-public constructor while building metadata: a direct-returning named factory or an existing target instance can use the class without ordinary construction.
+- `DataClassFactory` validates mapping ownership with two local maps while walking the complete inherited public-property metadata once. An input property claims its PHP name and any distinct mapped path; a non-hidden output property claims its mapped name or PHP name. A second different owner throws `InvalidDataDeclaration`, while repeat ownership by the same property is ignored. Move the named-factory variadic-`CreationContext` declaration error onto the same named exception through its own static factory; do not add a registry or runtime collision check.
+
+No metadata/config cleanup hook replaces the old `DataObject::flushState()`: repository and config instances belong to the application container; metadata is immutable and the morph map is boot-only string configuration. Tests define config before provider boot and receive fresh container instances. Testing conditionally flushes macros on `Lazy`, `DataCollection`, `PaginatedDataCollection`, and `CursorPaginatedDataCollection` because each deliberately owns a Laravel-style boot macro registry.
+
+### Configuration
+
+The provider builds one typed, boot-stable `DataConfig` using typed config getters. Runtime code reads this object, not `config()` on each property.
+
+```php
+return [
+    'date_format' => DATE_ATOM,
+    'date_timezone' => null,
+    'validation_strategy' => ValidationStrategy::OnlyRequests->value,
+    'name_mapping_strategy' => [
+        'input' => null,
+        'output' => null,
+    ],
+    'casts' => [],
+    'transformers' => [],
+    'normalizers' => [],
+    'wrap' => null,
+    'max_transformation_depth' => null,
+];
+```
+
+Hypervel uses shallow config merge semantics. Keep nested defaults complete and retrieve required keys through typed getters. Do not add Spatie's feature compatibility array, configurable rule-inferrer list, built-in normalizer pipeline list, cache-store settings, VarDumper mode, ignore-invalid-partials switch, or silent max-depth switch. VarDumper integration is always registered because its stateless caster runs only for an explicit dump; a three-state mode would add configuration without changing normal runtime cost or safety.
+
+Configured mappers, cast/transformer overrides, and normalizers are class strings validated against their extension contracts at boot. The Data Objects documentation lists the fixed built-in date, enum, iterable, and Arrayable behavior rather than representing it as configurable defaults. Constructor arguments belong to attributes or per-factory recipes; config does not retain closures or prebuilt mutable service objects.
+
+The one `validation_strategy` setting configures `Data`, `Dto`, and `Resource` uniformly, matching Spatie's familiar configuration behavior. Its shipped `OnlyRequests` value is the safe controller-injection default; applications may deliberately change it globally, while the shared factory remains the per-call override.
+
+The provider constructs one typed `DataConfig` from configuration at worker boot. It stores scalar settings and extension recipes, not resolved extension objects. `DataConfig::enforceMorphMap()` is the one documented boot-only mutation retained for upstream-familiar abstract Eloquent aliases; it validates unique aliases and `BaseData` class strings, stores strings only, and must not run during request handling.
+
+## Current Capability Disposition
+
+This table is a design audit, not a backward-compatibility matrix.
+
+| Current capability/mechanism | Decision | Clean replacement |
+| --- | --- | --- |
+| Typed array construction | Keep | `Data::from($array)` fixed path. |
+| Direct construction | Keep | Native constructor. |
+| `make()` alias | Remove | `from()` only. |
+| Per-call `autoResolve` boolean | Remove | `from()` casts; constructor does not. |
+| Global enable/disable auto-casting | Remove | `from()` always applies declared casts; the native constructor does not. Validation strategy is independent. |
+| Required/default/null distinctions | Keep | Defaults win, then `Optional`, then nullable omission becomes `null`; other absence fails clearly. |
+| Nested DTO/enum/date casting | Keep and broaden | Metadata-driven casts and collections. |
+| Exact date target classes | Keep | Direct date cast rules. |
+| Owner-specific property keys | Keep capability | `MapName`/`MapInputName`/class mapper. |
+| Custom dependency resolution | Keep capability | `Cast`, `Castable`, named factories, and Hypervel contextual attributes. |
+| Custom serializers | Keep capability | `Transformer` and mapping attributes. |
+| Existing instances pass through | Keep | First cast check. |
+| Untyped/intersection/DNF values | Keep where PHP can prove validity | Compiled type graph; explicit cast for ambiguity. |
+| Implicit snake-case output | Remove | Opt-in `SnakeCaseMapper`. |
+| Serialized result cache | Remove | Always read live properties. |
+| `refresh()`/`update()` | Remove | Ordinary public assignment or construct a new object. |
+| Data-object `ArrayAccess` | Remove | Public properties and `toArray()`; collection access stays on collections. |
+| FormRequest one/collection casts | Keep | Package-owned `Http\Casts\AsData` and `AsDataCollection` through Foundation's generic cast extension. |
+| Database-owned `AsDataObject` | Remove | Data/DataCollection implement Eloquent `Castable`. |
+| Saloon DTO use/response attachment | Keep | Plain `Data` plus existing `WithResponse`. |
+| Process-static DTO/cache flush method | Remove | Container-owned repository/config; only the four independently useful Macroable registries use standard optional-package test cleanup. |
+
+## Package and Framework File Map
+
+### New `src/data` component
+
+Create the permission-style package skeleton:
+
+- `src/data/composer.json`
+- `src/data/LICENSE.md` retaining Spatie and Hypervel MIT notices
+- `src/data/README.md` in the required minimal order: header; `Documentation: https://hypervel.org/docs/data-objects`; a concise `Differences From Laravel` section containing only lasting public differences and their Hypervel alternatives, including metadata-time rejection of mapping collisions that Spatie compiles independently; then `Ported from: https://github.com/spatie/laravel-data`
+- `src/data/config/data.php`
+- `src/data/src/Data.php`, `Dto.php`, `Resource.php`, `Optional.php`, `Lazy.php`
+- collection and paginator classes at the package root, matching upstream public names
+- `src/data/src/Contracts/*` and `src/data/src/Concerns/*`
+- `src/data/src/Enums/*` and `src/data/src/Exceptions/*`
+- `src/data/src/Attributes/*` and `src/data/src/Attributes/Validation/*`
+- `src/data/src/Casts/*`, `Transformers/*`, `Normalizers/*`, and `Mappers/*`
+- `src/data/src/Support/*`, including immutable metadata, creation/transformation/validation subnamespaces, and `VarDumper/DataVarDumperCaster.php`
+- `src/data/src/Eloquent/*`, `Http/*`, and `Inertia/*` adapters
+- `src/data/src/Console/DataMakeCommand.php`
+- `src/data/src/DataServiceProvider.php`
+- package stubs for `make:data`
+
+Register provider discovery in the component composer file. Add the package to root `composer.json` autoload and replace metadata, then verify adjacent package-metadata/split conventions. Require only direct imports. The expected starting set is PHP 8.4, Hypervel Auth, Collections, Console, Container, Contracts, Database, Foundation, HTTP, Macroable, Pagination, Reflection, Support, and Validation, plus `laravel/serializable-closure`, `nesbot/carbon`, `phpstan/phpdoc-parser`, `symfony/console`, and `symfony/var-dumper`. `ClassMetadataCache` uses the `Hypervel\Support` namespace but is owned by `hypervel/reflection`, so Reflection remains its direct dependency. Foundation is required because package-owned FormRequest casts implement `Castable` and use `CastInputs`, and Precognition uses a concrete Foundation hook; an optional-package probe cannot guard an `implements` clause. VarDumper is a direct dependency because the package caster imports `AbstractCloner` and `Stub`. Do not require `composer-runtime-api` merely to probe for Foundation, `hypervel/filesystem` for an inherited `GeneratorCommand` implementation detail, `hypervel/routing` when response redirection imports only `Hypervel\Contracts\Routing\UrlGenerator`, or `hypervel/encryption` when encrypted casts use the Support-owned `Crypt` facade. Put only Inertia under `suggest` for lazy prop features. Do not suggest Saloon because interoperability requires no Saloon-specific package feature. Audit completed imports and remove unused requirements or add a missing direct owner package; do not rely on accidental transitives.
+
+### Framework-owned changes
+
+1. Validation: extract FormRequest's unknown-field algorithm into `Hypervel\Validation\UnknownFields` with the exact/additional/subtree contract above. FormRequest preserves its body/JSON boundary and existing exact/structured-field behavior, while intentionally fixing free-form declared arrays: an `array` rule without descendants accepts its contents. Repair the optimized wildcard walk's Laravel partial-segment matching without weakening missing-leaf `required` rules, and complete literal-asterisk placeholder encoding/decoding across rules and dependent references. Restore current Laravel's normalize-before-wildcard-merge invariant in the optimized parser so an earlier wildcard can overlap a raw exact string rule without a `TypeError`; retain Laravel's later exact assignment because Data class-rule replacement and ordinary Validator precedence depend on it. Reset `implicitAttributes` and `implicitAttributeMap` whenever `Validator::setRules()` replaces the graph, and build the reverse implicit-attribute map with first-write-wins semantics so its O(1) lookup preserves Laravel's first-declared wildcard identity. Add the immutable per-plan consumable-presence count and guarded exact-rule database batching described above without changing unsafe fallbacks, and expose one Validation-owned predicate shared by parser preparation and Data's conservative accumulator comparison for objects that reduce to strings. Add owning Validation coverage for matching/non-matching/absent partial patterns, the missing-leaf guard, literal dot/asterisk keys, escaped public error keys, the documented trailing-backslash fail-closed boundary, wildcard/exact declarations in both orders and input forms, stale implicit-state replacement, overlapping broad/narrow wildcard `Distinct`, valid dependent-field substitution, dependent-field substitution arity, exact presence batching, and fallback behavior; add FormRequest coverage for associative and list values plus a structured wildcard regression. Give `NotIn::__construct()` the same `array|Arrayable|UnitEnum|string` native type as adjacent `In`. Split raw email's explicit `rfc` arm from unsupported modes and throw `InvalidArgumentException` with a safe diagnostic for the latter; retain bare/default and custom-class behavior, add focused tests, and document the failure contract. While adding Data's `Can` attribute wrapper, remove the redundant promoted-property self-assignments and replace its non-imperative `Constructor.` docblock with the package convention; retain rule behavior and focused tests.
+2. Foundation: remove the `Support\DataObject` branch/import from `Http\Traits\HasCasts` and delete `AsDataObjectArray`/`AsDataObjectCollection`. Its generic `Castable` path remains unchanged; replacements live in Data.
+3. HTTP: add `Resources\Json\ProvidesResourceWrapper` and let `ResourceResponse::wrapper()` prefer that per-instance value. This is a general coroutine-safe resource extension; ordinary JsonResource static wrapping and force-wrapping remain unchanged.
+4. Database: delete `Eloquent\Casts\AsDataObject`; Eloquent data casting belongs to Data.
+5. Support: delete the superseded `DataObject`.
+6. Container: make contextual constructor results authoritative including `null`; add `Attributes\Concerns\ExtractsPropertyValue` and optional `data_get()` property paths to `RouteParameter` and `Authenticated`; widen `Authenticated::resolve()` to `mixed`; port execution-scoped `RequestAttribute`; and port PHP-8.5-usable `BindWhen` with declaration-order resolution and conditional-miss reevaluation. Make public `build()`/`buildWith()` raw constructor APIs as documented: move `SelfBuilding` dispatch into one protected resolution-only method used by `resolve()` and generated self-binding closures, while explicit user closure bindings continue to win and interface bindings continue through inner resolution. Declare Container's existing and new direct `hypervel/collections` dependency. Add owning-component tests for constructor/call null parity, null precedence over contextual bindings and defaults, empty-model and nullable-contract regressions, whole-object compatibility, supported property paths, missing/null/scalar behavior, `CurrentUser` inheritance, execution scoping, one combined interleaving, raw construction of `SelfBuilding` classes through `build()`/`buildWith()`, unbound/bound/singleton factory dispatch, explicit closure precedence, interface-to-`SelfBuilding` bindings, contextual build-stack visibility, and the guarded upstream `BindWhen` behavior. Document authoritative null and `BindWhen`'s boot-stable worker-lifetime condition contract in the canonical Container guide, package differences, and Laravel porting guide; document the constraint on the `BindWhen` attribute as well. The raw-build documentation already states the corrected contract.
+7. Testing: remove the old Support DataObject flush call and add alphabetic `flushDataState()` to the optional-package group. Through `callIfExists()`, flush `Lazy`, `DataCollection`, `PaginatedDataCollection`, and `CursorPaginatedDataCollection`; each Macroable class owns a separate static registry. Container teardown owns repository/config cleanup.
+8. Validation rules: add a missing Laravel rule to Validation only when the port ledger proves Hypervel lacks it. Data itself adds the listed attribute wrappers for rules Hypervel already supports.
+9. Repository maintenance: add `spatie/laravel-data` to `docs/upstream-sync/sync.yaml` before permission with `release: 4.23.0`, `sync_date: 2026-08-30`, and an operational note that the initial port also reviewed main through `ce296f22` plus the v5 draft at `ed630ee1`, so overlapping future release work is recognized rather than re-ported. Correct `docs/upstream-sync/README.md` to point Laravel ports at the `AGENTS.md` Porting Packages section instead of nonexistent `docs/ai/porting.md`, and add the separate TypeScript-transformer package to `docs/todo.md` as a real deferred gap.
+10. Saloon and Inertia: make no runtime framework edits. Adapt Data to their existing contracts and prop classes.
+11. Foundation VarDumper: make no runtime framework edit. Data registers its own interface caster through Symfony's existing default-caster extension point.
+12. Pagination: remove the unenforced `through()` `@method` tags from the paginator contracts. The contracts do not declare that method, and Data uses the real `items()` contract plus Hypervel abstract-paginator clone/`setCollection()` support instead. Concrete paginator behavior and the canonical Pagination documentation remain unchanged.
+
+### Test layout
+
+- Mirror source under `tests/Data/*`. Pure metadata/parser/value tests use `Hypervel\Tests\TestCase`; API, provider, container, validator, resource, Eloquent, Precognition, Inertia, and command tests use `Hypervel\Testbench\TestCase`.
+- Data/Eloquent casting is driver-neutral, so the planned cast suite uses Testbench's SQLite setup under `tests/Data/Eloquent`; do not create empty MySQL/MariaDB/Postgres suites. If implementation proves a real driver-specific contract, put only that coverage under `tests/Integration/Data/Database/{Postgres|MySql|MariaDb}` and wire the used directory into the database workflow.
+- Replace useful assertions from `tests/Support/DataObjectTest.php`; delete that file rather than retaining a second API suite.
+- Update existing Container, Foundation, Validation, Database, HTTP resource, Testing cleanup, Saloon, and docs tests at their owning integration points.
+- Add focused caster/provider coverage under `tests/Data/Support/VarDumper`; every test that mutates `AbstractCloner::$defaultCasters` restores the previous entry in `finally` rather than adding global test cleanup.
+- Add `types/Data/Data.php` as the dedicated max-level PHPStan fixture for `from()`, `optional()`, `collect()` target inference, DataCollection/paginator generics, and the distinct `Data`/`Dto`/`Resource` capability contracts.
+- `tests/Benchmarks/Data/benchmark.php` and `tests/Benchmarks/Data/README.md` for the retained benchmark harness.
+
+## Upstream Port Ledger
+
+Before implementation edits, generate a checked ledger from the pinned Spatie source and test trees (`find src tests -type f | sort`). Every entry receives one of these dispositions and a matching test reference:
+
+### Port API and behavior
+
+- `Data`, `Dto`, `Resource`, base contracts/concerns, `Optional`, and `WithData`.
+- Data collection, paginated collection, cursor-paginated collection, non-deprecated enumerable behavior.
+- Applicable non-validation attributes: `AutoClosureLazy`, `AutoInertiaDeferred`, `AutoInertiaLazy`, `AutoLazy`, `AutoWhenLoadedLazy`, `Computed`, `DataCollectionOf`, `Hidden`, `LoadRelation`, `MapInputName`, `MapName`, `MapOutputName`, `MergeValidationRules`, `PropertyForMorph`, `WithCast`, `WithCastAndTransformer`, `WithCastable`, `WithTransformer`, and `WithoutValidation`; also port the `GetsCast` interface and the remaining cast contracts. Hypervel contextual attributes replace the `From*` and `InjectsPropertyValue` family.
+- mapping attributes/mappers, cast/transform attributes/contracts, `IterableItemCast`, and date/enum/typed-iterable/arrayable support.
+- lazy values, computed/hidden, includes/excludes/only/except, append/wrap/resource behavior.
+- validation attributes, database constraint/reference helpers, messages/attributes/authorization/hooks, request injection, morphs, Precognition.
+- Eloquent casts/encryption and loaded-relation behavior.
+- Inertia lazy/deferred behavior.
+- applicable exceptions with Hypervel namespaces and actionable messages.
+- `make:data`, adapted to Hypervel's ordinary generator conventions: `App\Data`, no automatic class suffix, and application stub override support.
+
+### Preserve public concept, redesign implementation
+
+- `DataPipeline`, data pipes, general resolvers: replace with fixed engines and small internal operations.
+- `DataConfig`: typed boot-built settings and extension recipes, with only the documented boot-only morph map mutable.
+- normalizers: fixed built-in dispatch plus explicit custom normalizers.
+- rule inferrers: deterministic compiler using Hypervel Validation.
+- response construction: Hypervel JsonResource adapters and generic wrapper contract.
+- creation context/factory: focused fluent options and ordered hooks, with no replaceable pipeline and no reuse of an in-flight operation context.
+- metadata support classes: immutable recipes, feature bits, direct-path data, no live services.
+- VarDumper integration: replace Spatie's manager and two colliding registrations with one stateless interface caster that branches for data collections. Upstream assigns both callbacks to the same `TransformableData` key, so its collection callback overwrites its data callback; fix that defect rather than porting it.
+
+### Deliberately omit
+
+- Livewire contracts, synths, attributes, tests, and config.
+- TypeScript transformer integration and annotations.
+- deprecated `Data::collection()`/`WithDeprecatedCollectionMethod` and the deprecated `EnumerableMethods` forwarding surface.
+- `WireableData`, which exists for Livewire wire serialization.
+- v4 `prepareForPipeline()` and `factory(?CreationContext)`: class-owned reshaping moves to a typed named `from*` method, call-site reshaping uses `prepareData`, and every factory starts a fresh operation context.
+- generated/cache-store/remote metadata caches, cache commands, TTL, structure discovery, and reflection watchers. Worker memory is the cache boundary.
+- Spatie's `FromAuthenticatedUser*`, `FromContainer*`, `FromRouteParameter*`, and `InjectsPropertyValue` aliases; use Hypervel contextual constructor attributes, including the enhanced route/user property-path form, or a custom contextual attribute/named factory.
+- `SerializeTransformer` and `UnserializeCast`.
+- configurable pipes/rule inferrers/built-in normalizer ordering.
+- compatibility feature flags and permissive invalid-partial/depth behavior.
+- `withOptionalValues()`/`withoutOptionalValues()`; declared `Optional` unions always preserve absence instead of allowing an uninitialized property.
+- the v5 draft's strict/auto-null compatibility mode and override attributes; use `Optional` to preserve absence and `#[Present]` when a nullable key must be supplied explicitly.
+- Pest helpers/snapshots and Laravel package-tools/Testbench plumbing; translate tests to framework conventions.
+
+For every intentionally omitted upstream public method or feature, place the concise `REMOVED:` source/test notices required by the porting rules at the natural upstream insertion points, and explain only lasting developer-facing differences in the package README. These notices are maintenance markers, not compatibility code.
+
+The ledger is an implementation artifact kept with the working notes until all entries are represented in code/tests or an explicit omission above. Do not ship a stale port checklist in end-user documentation.
+
+## Implementation Order
+
+### 1. Establish baselines and ledger
+
+- Reconcile the clean feature branch with the then-current greenfield `0.4` branch before edits, then record the baseline and pinned upstream references in working notes.
+- Verify the pinned v4 main and v5 draft commits above, add the stable upstream-sync entry, fix the broken sync-guide reference, and add the TypeScript package todo before porting source.
+- Materialize the full upstream file/test ledger.
+- Run the existing focused Support DataObject, Foundation custom-casting, Database JSON cast, HTTP resource, Saloon, Validation, Container SelfBuilding, Precognition, and Inertia tests.
+- Create the retained benchmark harness before replacing the current class, run its current Support DataObject/manual-constructor baselines, and save environment plus raw results outside committed documentation.
+
+### 2. Extract shared validation behavior and add the package skeleton
+
+- Move unknown-field checking to Validation and keep focused FormRequest body/query/JSON integration behavior green before Data consumes it. Add regressions proving free-form `meta.foo` and scalar-list `tags.*` values are accepted under leaf `array` rules while structured `items.*.id` still rejects `items.0.unknown`.
+- Correct Container's contextual-null constructor behavior, raw `build()`/`buildWith()` handling of `SelfBuilding` classes, route/user extraction, and `RequestAttribute`; declare the Collections dependency; and keep the focused contextual, raw-construction, binding-precedence, scoping, and interleaving tests green before Data consumes them. Port `BindWhen` in the same Container parity slice with a conditionally loaded PHP 8.5 fixture and keep its focused declaration-order, reevaluation, lifetime, and fallback tests green on supported runtimes.
+- Add package composer/provider/config/README/license/root registration.
+- Bind `DataConfig` with a provider factory because it is built from configuration. Leave `DataClassRepository` and stateless engines unbound so Hypervel auto-singletons them naturally; construct operation contexts and factories fresh.
+- Add provider/config discovery, worker-lifetime morph-map, and typed-config tests.
+
+### 3. Build metadata and type system
+
+- Port/adapt attributes collection, class/property/method/parameter/type metadata.
+- Parse native types, constructor promotion/defaults, attributes, collection docblocks, unions, intersections, DNF types, enums, dates, iterable item types, virtual/computed fields, and named object/collection factories.
+- Compile constructor argument order, input/output mapper keys, hook bits, rule templates, cast/transform recipes, and `plainTransform`; compile per-node direct-creation eligibility only if the measured specialization is retained.
+- Test immutable metadata; inherited native `self`/`parent` and late-bound `static` declarations across properties, constructors, and named factories; parent/child/constructor/inline generic-annotation precedence with distinct import scopes; import aliases winning over an existing same-namespace class; multi-namespace per-file import caching; recursive class references; ignored helper/static properties; constructor-bound readonly/mutable/defaulted properties; required constructor parameters overriding property defaults; invalid unbound readonly, computed-bound, contextual-name-collision, non-public-promoted, and alternate-constructor declarations; valid non-public-constructor metadata; declaration-order method metadata; bounded repository/resolver keys; cached contextual/extension reflection recipes; fresh object-bearing attribute arguments per operation; and absence of container/request/resolved extension objects.
+
+### 4. Implement fixed construction
+
+- Implement normalized source adapters for arrays, JSON, `Arrayable`, plain objects, Model, Request/FormRequest, and custom normalizers.
+- Normalize plain objects from initialized public properties only; do not bypass visibility or invoke arbitrary serialization.
+- Implement named object/collection factory dispatch and non-recursive internal construction.
+- Implement default/`Optional`/nullable/required absence handling in the single documented precedence order.
+- Implement casts for built-ins, nested Data, data collections, dates, enums, iterables, unions, custom casts/castables, and morphs.
+- Mark contextual constructor slots during Fill, exclude promoted injected properties from payload validation, and resolve their values only at per-node instantiation. Pass non-promoted injected parameters only to the constructor and match normal per-parameter Container resolution without a cross-node value cache.
+- Preserve constructor-owned values for every constructor-bound property. Assign only supplied, unbound public mutable properties after construction while leaving computed/virtual properties to the class.
+- Benchmark the completed fixed general array path against the retained manual baseline. Add the per-node direct specialization with shared property primitives and focused equivalence tests only if the retained measurement justifies it.
+- Add source-specific query-count and allocation-focused tests where measurable.
+
+### 5. Implement validation
+
+- Implement deterministic rule compilation and mapped validation paths.
+- Port validation attributes in small rule groups with one-to-one tests.
+- Add the verified Hypervel-native validation attributes listed above; each delegates to the existing string rule or rule object.
+- Add the incremental uniform-wire-choice predicate, isolated dynamic accumulators with first-mismatch concrete recompilation, direct emitted/fully-structural path provenance, contributor-aware marker coverage, marker-first generated identity, exact-rule Validation batching, concrete dynamic/mixed-wire-shape rules, presence-only `mixed`/object retention, messages/attributes, authorization, class/factory validator hooks, validated-payload construction, exclusion rules, escaped pre-`prepareData` unknown-field input, error bags, stop-on-first-failure, and both Precognition success paths.
+- Add missing Laravel rules to Hypervel Validation only after verifying the upstream Laravel contract and writing owning-component tests.
+- Benchmark 1,000/5,000-item static nested validation and inspect Hypervel's compiled-plan/batched database paths.
+
+### 6. Implement transformation and collections
+
+- Implement direct transformation, context promotion, mapping, custom transformers, Optional omission, lazy/computed/hidden/appended values, partials, depth detection, JSON, and serialization.
+- Compile one immutable exact/prefix/subtree-aware `PartialTree` per partial mode and use `plainTransform` only when instance state and metadata prove the direct loop is equivalent.
+- Add nested instance-partial composition first at the two currently live `BaseData` edges and port the array-shaped, depth-three per-item part of upstream `PartialsTest.php:1068` in that slice.
+- Port typed collections/paginators and preserve keys/laziness. Implement one root collection Fill/Validator operation, shared per-operation normalizer/extension memo, normalized source-shaped `collect*` selection, declared-shaped property rebuilding, Eloquent relation batching/root downgrade, exact multi-arm finished-container handling, Data and non-Data paginator source retention, cast-owned ambiguous unknown-field subtrees, and the Fill-time failure boundaries described above. Route every eager typed iterable through `DataCollectableFactory` and remove the duplicate creator rebuilder. Replace the two unreachable non-`BaseData` public-transform scaffolds with the shared internal collection loop, then port the complete upstream partial graph covering root-, collection-, and item-owned selections.
+- Make collection iteration and keyed reads side-effect-free, route constructor and `offsetSet()` item conversion through the package-internal item operation, and remove Pagination's unenforced `through()` contract annotations.
+- Add the stateless VarDumper caster and direct provider registration after `all()` semantics are complete; do not add a manager or mode setting.
+- Add live-property regression tests proving no output cache.
+- Benchmark simple/nested/collection output and peak memory.
+
+### 7. Integrate framework surfaces and command
+
+- Add package-owned FormRequest casts, then remove Foundation's old DataObject branch and casts.
+- Add Data/collection Eloquent casts, property-morphable and enforced-alias abstract forms, custom-codec handling, and encrypted variants; delete Database's old cast.
+- Add the HTTP wrapper interface and Data resource adapters with existing response/pagination machinery; override adapter `resolve()` to bypass the generic conditional-resource filter.
+- Add SelfBuilding request injection and Precognition integration tests.
+- Add optional Inertia lazy/deferred adapters and tests.
+- Add Saloon integration tests/docs; make no Saloon runtime change.
+- Implement `Console\DataMakeCommand` using `Hypervel\Console\GeneratorCommand`, `#[AsCommand]`, a hardcoded `App\Data` default namespace, and the same application stub override convention as Hypervel's existing `make:*` commands. Do not auto-append `Data`; `make:data UserData` should behave like `make:request StoreUserRequest`.
+- Test default/nested/explicitly qualified class names, force/no-force, strict-types stub, application stub override, and disposable Testbench paths; there are no namespace/suffix command settings.
+- Add and run the dedicated `types/Data/Data.php` fixture before broader static analysis; fix public generic contracts rather than adding PHPStan ignores.
+
+### 8. Remove old design and rewrite documentation
+
+- Delete Support DataObject, Database AsDataObject, old tests, old cleanup, and every old import/comment/reference.
+- Update `src/docs/data-objects.md` section by section for the new API using targeted edits; do not replace the file wholesale or retain obsolete sections as migration guidance.
+- Update `src/docs/validation.md`, `eloquent-mutators.md`, `api-client.md`, `saloon.md`, and code examples. Update `src/docs/container.md`, `src/container/README.md`, and `src/docs/porting-from-laravel.md` for the new Container attributes and Hypervel's boot-stable `BindWhen` condition contract. Confirm the existing Data Objects entry in `src/docs/documentation.md` still resolves to the retained `data-objects` slug; do not add a duplicate navigation entry or invent separate search metadata.
+- Document construction and absence semantics, mapping, validation, collections, Eloquent, resources, Inertia, clean VarDumper output, performance, extension contracts, and worker-lifetime constraints. State that dumps show the current logical view, so excluded `Lazy` and `Optional` values do not appear.
+- In `Differences From Laravel`, record the fresh factory context, valid-state `Optional` rule, fixed nullable semantics/`#[Present]` alternative, safe `OnlyRequests` defaults for all SelfBuilding base classes, retained class `withValidator`, contextual constructor-only/always-wins behavior, property-extraction alternative, Hypervel wildcard/concrete rule modes, normalized-container `collect*` dispatch, and the distinction between raw-input `validate()` and a direct-returning named factory that owns `validateAndCreate()` validation. Explain that a `collect*` parameter declares the container of normalized Data objects it receives. Include every other lasting ledger divergence without repeating the canonical guide.
+- Add a concise `porting-from-laravel.md` entry for applications moving from `spatie/laravel-data`, linking to the canonical Data Objects documentation rather than duplicating it.
+- Report that `packages/hypervel/docs/plans/sdk-generator/2026-08-29-1238-sdk-generator.md` still proposes `DataKey`/`MissingValue`/the old `DataObject` enhancement. Amend that separate private plan to `MapName`/`Optional`/`Data::from` and remove obsolete framework work only after the owner explicitly authorizes editing it; retain the generator's strict `Wire` boundary.
+- Run broad `grep` searches across active source, tests, types, config, package metadata, and canonical docs. Include the SDK-generator plan only if the owner authorizes its amendment; otherwise report its stale references without editing it. Eliminate stale APIs while retaining required port-maintenance notices for deliberate public omissions. Do not rewrite immutable completed plans, `_archive`, or installed `vendor` copies to imitate the new code.
+
+### 9. Final audit
+
+- Reconcile every ledger item and ensure only the deliberate omissions remain.
+- Audit public names/signatures/order against the checked-out Spatie source/docs/tests and Laravel conventions.
+- Audit dependency direction and component composer requirements.
+- Audit all singleton/static properties for request state, closures, container values, and unbounded keys.
+- Profile the fixed general paths and any retained measured specialization; remove abstractions that add cost without enabling an adopted feature.
+- Run formatters, static analysis, focused suites, package-adjacent suites, then the repository suite according to AGENTS.md.
+- Review the final diff for dead compatibility code, duplicated serializers/validators/resources, stale comments/docs, and source unrelated to this package.
+
+## Test Plan
+
+### Creation and types
+
+- array, JSON string, `Arrayable`, plain object, stdClass, Model, Request, FormRequest, multiple payloads, custom normalizer;
+- constructor promotion, inherited properties, defaults (including `new` object defaults), nullable omission to `null`, explicit null, Optional-preserved omission, missing non-nullable required values, empty data, public readonly promoted and constructor-bound non-promoted properties, constructor normalization preserved without post-assignment, unbound mutable properties, invalid unbound readonly and computed/virtual-bound declarations, and PHP 8.4 virtual/backed property hooks;
+- scalar/builtin coercion rules, including case-insensitive `true`/`false` strings, enums, exact date classes/interfaces/subclasses/timezones/formats;
+- declared-class collection items pass through with identity, while an unrelated `BaseData` item is normalized into the declared item class rather than being preserved as a finished value;
+- nested Data, arrays, Collection, DataCollection, iterable annotations/attributes, paginator/cursor paginator, LazyCollection;
+- nullable/union/intersection/DNF/existing-instance handling and explicit ambiguity failures;
+- custom Cast/Castable, constructor arguments, Uncastable fallback, and morph discriminators restricted to declared concrete Data subtypes;
+- named object/collection factory declaration order; positional/named matching; exact-key rejection; zero-payload matches; dependency-first/interleaved parameters; union/intersection non-injectability; `CreationContext` identity and first/middle/trailing placement across named and positional invocation shapes; variadic-context declaration rejection; direct supplied-class payloads; omitted dependencies through first-class `Container::call()`; contextual build-stack bindings; non-variadic attribute callbacks; method bindings not intercepting factories; pure and prefixed variadics; skipped-default built-in variadics; class-name-key emission for attributed/injected prefixes; same-class prefix consumption without fabricated arguments; zero-payload class-variadic Container resolution; independent `$into` return matching; direct-object short circuit/authorization; private-constructor direct-return and existing-instance success; unmatched private-constructor and matched-normalizable-source `CannotCreateData` failures; protected visibility diagnostics; unchanged public construction; and recursive-public-entry regression;
+- when benchmarks justify the specialization, direct/general branch equivalence for mapping, defaults/nullable omission, casts, nested values, dates, enums, errors, current property state, and a general-path child beneath a direct-path parent.
+
+### Mapping and validation
+
+- shared `validation_strategy` and factory overrides for `Data`, `Dto`, and `Resource`: the shipped `OnlyRequests` value validates Request/controller input while non-Request array/model/JSON input takes the disabled-equivalent lean path, and deliberate global/per-call overrides affect all intended classes;
+- global/class/property input/output mapping precedence and mapped-key-wins behavior;
+- metadata-time rejection of duplicate effective input paths and output keys across direct, inherited, computed, contextual, class-mapped, configured-mapper, and explicit-property-mapped declarations; hidden properties excluded only from output ownership; same-property aliases and dot-prefix overlap accepted; integer/string key equivalence follows PHP array keys; exception messages name the target class plus both declaring properties;
+- nested mapped error keys for objects, uniform collection wildcards, and mixed mapped/property-name per-index fallbacks;
+- Validator partial-segment wildcards match, miss, and skip absent parents without exceptions while bare wildcards still emit missing nested leaves for `required`; literal-dot and literal-asterisk rule keys, wildcard-expanded literal-asterisk keys, and dependent-field references round-trip without leaking placeholders; Data validation paths round-trip canonical integer and negative item keys while retaining noncanonical numeric-looking strings, with the trailing-backslash fail-closed result pinned separately;
+- inferred type/presence rules, explicit attribute/rules behavior on defaulted properties, manual replacement/merge, every validation attribute, and custom rule objects;
+- top-level optional-null omission versus nested-list `null` token encoding; direct and externally resolved null comparison values across the variadic dependent family; bool/numeric comparison values under strict types; and a package-level `RequiredUnless` regression proving null and missing compared fields reach the Validator with Laravel semantics;
+- one root validator, validated payload use, excluded/prohibited fields absent from construction; mixed wildcard/exact rule order retains numeric and string-keyed source order through both `validate()` and `validateAndCreate()`, keeps excluded numeric gaps, and remains a JSON list when the source was a list; explicitly test both application-wide unvalidated-array-key settings, including filtered and retained unruled siblings, without Data overriding the Validator factory;
+- wildcard eligibility for empty/single/many uniform items; identical versus divergent dynamic output at the current node and recursively nested nodes; class rules; operation hooks without worker-cache pollution; cycle-safe static and dynamic metadata graphs; contextual/`WithoutValidation` graph exclusions; homogeneous and heterogeneous morphs; nested finished/direct-factory values in both orders; finished package and eager native object containers versus raw siblings in both orders; and mixed wire-key choices forcing and latching every enclosing collection concrete without per-item structure signatures; accumulator-owned equality across every output field, canonical preserved-path comparison, conservative rule object/callback comparison, and authoritative concrete recompilation after the first difference; ancestor replace/merge behavior through the full eight-cell product of uniform/divergent child output, exact-before-wildcard/wildcard-before-exact declaration order, and replace/merge mode; fanned conditional-presence rules suppress inferred `required`; public key order and list-key marker production; nested message/attribute declarations remain first-write-wins while ancestor rules retain their replace/merge policy;
+- fully structural empty markers for common concrete and partial-wildcard contributors after nested and ancestor replace/merge, including parent-introduced wildcard declarations, empty replacements, nested collections, marker-first order ahead of covered generated rules, and no marker for heterogeneous, missing, or empty rule ownership; nested dynamic collections prove later items with more children retain and validate every value while later items with fewer children do not receive spurious `required` failures; uniform, partial-wildcard, and exact compilation give nested `Distinct` the same Laravel-global scope across every wildcard level; mixed partial/exact contributors still emit that one global marker; broad-first Validation identity preserves global `Distinct`, valid dependent-field substitution, and substitution arity; nested finished-property, finished-item, and finished-container suppression plus mixed raw/finished `Distinct` rejection remain identical when outer items are reversed, including both literal and wildcard segments below the finished path and no narrower substitute marker; finished/direct-factory-first inputs cannot corrupt sparse structure, widen a wildcard preserved/unknown-field path, or restore a raw sibling; finished structural-path provenance unions across every accumulator; all-finished and empty-collection behavior; no getter execution, identity loss, validated projection, unknown-field widening, label drift, or Precognition side effect;
+- required/default/nullable/`Optional` presence-only retention for `mixed` and object declarations after `validated()`;
+- validation-only and rule-introspection modes bypass named factories while `validateAndCreate()` retains direct-object exits; Request authorization still runs for `validate($request)`, `getValidationRules()` remains array-only, and the documented APIs can intentionally disagree when a direct factory owns validation; rule introspection materializes Data-collection `LazyCollection` values and returns the same nested rules as equivalent arrays and validation;
+- `WithoutValidation` and existing/direct-factory-returned nested Data values skip their owned rules, restore from exact or uniform-wildcard raw paths after `validated()`, retain present null and object identity, handle a template item that omits a later supplied value, and distinguish literal-dot/literal-asterisk collection keys from structural wildcards without reopening arbitrary unvalidated input;
+- messages, attribute labels, per-setting method-over-attribute precedence plus URL-before-route redirect precedence, runtime-computed redirects, `#[ErrorBag]`, `#[RedirectTo]`, `#[RedirectToRoute]`, `#[StopOnFirstFailure]`, `#[FailOnUnknownFields]`, authorization denial, class/factory `withValidator`, and class `after()` callbacks;
+- pre- and post-validation payload reconciliation for added, removed, scalar-to-structured, structured-to-scalar, morph-reselected, and collection-item values; reselect mapped and fallback wire keys for every changed node property, including scalars and canonical absent paths; use fixed Model/source normalization and named factories only for final changed values; and prove `prepareData`, custom normalizers, and unchanged sibling factories do not rerun while collection divergence remains safely concrete;
+- route/auth/config/request-attribute/custom contextual injection on promoted and distinct-name non-promoted constructor parameters; metadata-time rejection of a non-promoted contextual parameter/public-property name collision so client payload cannot overwrite a server value; route/user whole-value and `data_get()` property-path extraction; authoritative contextual `null` parity across constructor and `call()` resolution plus precedence over primitive/class contextual bindings and declared defaults; nullable auth contracts with and without defaults; missing non-nullable route models failing instead of becoming empty models; contextual-value-wins behavior over payload and `beforeCreation` output; mapped contextual echoes accepted as known-but-ignored exact/subtree input under `#[FailOnUnknownFields]`; exclusion of injected fields from validation; no contextual resolution before failed validation or successful `Precognition-Validate-Only`; normal construction for full-form precognitive submits; fresh handler invocation per constructed node; no container lookup when attributes are absent; and no injection support on a non-promoted public data property;
+- unknown fields with nested/exploded rules; strict and non-strict classes at different graph depths; a strict parent's pre-hook key removal; opaque declared arrays/mixed/object subtrees; structured nested Data remaining strict; exact and uniform-collection wildcard `WithoutValidation`/contextual paths; wildcard subtree descendants and empty-array leaves; escaped literal-star auxiliaries; inert unsupported partial-star auxiliaries; finished values; literal-dot/asterisk rule keys; unchanged unescaped public error keys; the trailing-backslash fail-closed boundary; confirmation fields; direct Request query omission versus complete nested array input; JSON/body input; hook-added keys ignored consistently across Request/array sources; and Precognition's unfiltered rules;
+- Precognition successful/failed/authorization/filtering behavior, proof that successful `Precognition-Validate-Only` aborts before absence/casts/contextual resolution/construction, and proof that an ordinary precognitive submit constructs parameters before its dispatcher returns 204;
+- `Exists`/`Unique`/`Distinct` nested collections in eligible wildcard, dynamic-identical wildcard, and divergent forced-concrete modes; exact and wildcard database query counts; an isolated exact or one-item wildcard presence check retaining the ordinary path; two exact checks and a same-plan `exists|unique` pair entering batching; cache-hit and wildcard-expansion contributions recomputed on every `passes()`; safe facts reused by later mutation-aware consumers; different query shapes; callbacks, exclusions, nullable/missing/upload values, field references, stop-on-first-failure, custom validator/verifier fallbacks, repeated passes, and verifier restoration. Keep ordinary-versus-batched equivalence coverage explicit: a shared test-only `DatabasePresenceVerifier` subclass forces the ordinary arm, every intended batched arm supplies at least two checks, and an `after()` callback observes `PrecomputedPresenceVerifier` before restoration so one-query ordinary execution cannot make the test pass accidentally;
+- Validator wildcard/exact overlap in both declaration orders with string and array exact rules, preserving later exact replacement while eliminating the raw-string merge crash; `setRules()` wildcard-to-exact and nonempty-to-empty expansion regressions prove stale implicit state is cleared.
+
+### Transformation and collection behavior
+
+- input/output mapper independence, live mutations, Optional omission, null retention;
+- custom/date/enum/arrayable transformers and nested collection output;
+- Hidden, Computed, appended values, include/exclude/only/except, invalid paths;
+- nested instance include/exclude/only/except at depth two or greater; parent/instance tree union including parent pure-all plus instance `only`; array-shaped typed-item isolation matching the B1/B2 portion of upstream `PartialsTest.php:1068`; the same instance referenced twice with a temporary applying only at first reach and a permanent applying at both; collection-container ownership and the complete upstream graph once the internal collection loop exists;
+- lazy default/conditional/relation/closure values, no evaluation when excluded, one evaluation when included;
+- recursive `Lazy`/relationship graphs stop at the exact configured maximum depth; cyclic object graphs are documented as unsupported rather than guarded with a per-node identity set;
+- JSON errors/options and PHP serialization of supported state;
+- collection keys, items/toCollection/count/iteration/offset operations; side-effect-free early-break iteration and successive keyed reads; internal constructor/offset assignment normalization; covariant package-collection pass-through and subsequent item coercion; one eager root operation and one Validator; collection hooks over the complete payload; source-object `OnlyRequests` behavior; normalized source-shaped `collect*` matching/invocation, including an exact Eloquent parameter not dispatching for an Eloquent source and ordinary collection fallback returning the requested result; independent `$into` return matching; contract-only paginator fallback; no lazy enumeration; per-operation normalizer reuse; and LazyCollection laziness when neither validation nor rule introspection needs its graph, with deliberate one-time materialization for either rule-producing operation;
+- root and nested paginator metadata/links/cursors; Hypervel paginator clone-without-caller-mutation; declared paginated wrappers; raw Hypervel paginator conversion; scalar/date/enum typed paginator reconstruction; matching and mismatched package wrapper item classes; array-to-paginated failure at Fill; contract-only paginator finished/pass-through and conversion-failure boundaries; dedicated missing-retained-source failure; per-item paginator source isolation without template fallback or validation-uniformity loss; hook source replacement; eager/Lazy page-item reshaping; retained metadata when hooks change item count; and nullable/Optional/absent paginator properties;
+- ambiguous Data-object/container unions: per-arm PHPDoc item classes and annotation-order independence; finished base/Eloquent containers accepted through any compatible arm; custom attribute/configured/factory casts reached before ambiguity; strict unknown fields remain fail-closed without a cast and treat only cast-owned ambiguous shapes as opaque in create/validation-only modes; single-arm casts retain nested validation unless `WithoutValidation`; unrelated non-Data alternatives pass unchanged; raw Data-container sources fail with every candidate; and `Collection|array` is ambiguous when both arms carry Data item metadata;
+- declared property rebuilding: exact `array`/`iterable` return keyed arrays, ordinary/custom source subclasses rebuild as the declared collection class, valid `EloquentCollection<Model>` stays Eloquent, invalid Model/scalar/union/intersection/DNF item graphs are rejected by the structural guarantee check, and unsupported `Traversable` declarations fail with `CannotCreateDataCollectable`;
+
+### Framework integration
+
+- unbound controller `Data`, `Dto`, and `Resource` parameters resolve from the current request as fresh, request-validating SelfBuilding instances;
+- Container `make()` keeps unbound, bound, singleton, explicit-closure, and interface-bound `SelfBuilding` semantics, while public `build()`/`buildWith()` directly construct and contextual attributes still see the target build stack;
+- two interleaved requests cannot share construction state, injected users/routes, validators, factory hooks, wrappers, partials, additional fields, or lazy results;
+- `BindWhen` first-match, singleton/scoped lifetime, no-match, late-match reevaluation, `Bind` fallback, mixed declaration order, first-wildcard behavior, and worker-lifetime materialization, with closure-bearing fixtures loaded only on PHP 8.5+;
+- FormRequest direct/collection casts accept only package `BaseData` classes and reuse `from()`/`collect()` through Foundation's generic cast path;
+- Eloquent null/default, empty object/list, full representation without instance mutation, property-morphable payloads, enforced abstract envelopes, unknown alias/FQCN and invalid subtype rejection, dirty tracking, custom codec, encrypted concrete/abstract data and collections, previous encryption keys, invalid JSON, and serialization;
+- JsonResource legacy wrapper/force-wrap/additional/status behavior remains unchanged;
+- Data responses, wrapping, pagination, `with`, `additional`, JSON options, `withResponse`, default status 200, and a spy proving Data adapters bypass the generic conditional-resource filter;
+- Inertia initial/partial/deferred/group/rescue behavior;
+- Saloon request/connector DTO priority, `WithResponse`, generics/static-analysis inference, and no package coupling;
+- AfterEach cleanup flushes all four Macroable Data classes independently without loading an absent optional package.
+
+### VarDumper
+
+- `Data` and `Resource` dumps contain their mapped `all()` view without metadata, factories, contexts, partial trees, or other package internals;
+- `Optional` and excluded `Lazy` values are absent, while included values and live public-property changes are visible;
+- `DataCollection`, `PaginatedDataCollection`, and `CursorPaginatedDataCollection` use one `items` envelope;
+- provider boot registers the interface caster idempotently with `??=`, preserves a pre-existing custom caster, and does not disturb Foundation's unrelated default casters or ordinary object dumps;
+- tests capture the previous `TransformableData` registry entry and restore it in `finally`, including the absent-key case.
+
+### Command
+
+- `make:data` `App\Data` default, nested/explicit class name, no implicit suffix, force/no-force, strict-types stub, application stub override, and disposable Testbench output paths.
+
+### Performance harness
+
+Keep a developer-run harness patterned after `tests/Benchmarks/RateLimiter` with warmup, multiple samples, median/p95, operations per second, peak memory, PHP/OS/extensions/config/commit recorded, and raw JSON/CSV output ignored by Git.
+
+Scenarios:
+
+1. Native constructor/manual array mapper baseline.
+2. Cold and warm simple `Data::from(array)`.
+3. Deep and wide SDK-shaped graphs using the retained benchmark fixtures.
+4. `collect()` over 1,000 objects and lazy traversal.
+5. One 5,000-item nested validation graph.
+6. Direct and container-resolved named factory dispatch, including collection-sized runs.
+7. Mapped/custom-cast/morph/injection slow paths.
+8. Simple and nested `toArray()`, lazy/partial context promotion.
+9. Cold metadata construction and first use versus warm worker-lifetime operations, without treating ordinary startup CPU as a defect.
+10. Eloquent collection normalization with loaded and explicitly `LoadRelation` relations/query counts.
+
+Do not encode invented time thresholds. Compare ratios to native/manual baselines and before/after results on the same machine. Correctness tests assert architectural invariants that benchmarks cannot enforce reliably: no pipeline resolution, one Validator per root graph, no metadata filesystem/discovery path, no per-property container access on ordinary DTOs, no `Model::toArray()`, no eager LazyCollection materialization when neither validation nor rule introspection is selected, and no user-produced or mutable object retained in worker metadata.
+
+## Verification Commands
+
+Use the repository's discovered Composer scripts and PHPUnit configuration rather than assuming command names. The expected focused sequence is:
+
+```bash
+./vendor/bin/phpunit --no-progress tests/Data/<ChangedTest>.php
+./vendor/bin/phpunit --no-progress tests/Container/ContextualAttributeBindingTest.php
+./vendor/bin/phpunit --no-progress tests/Validation/UnknownFieldsTest.php
+./vendor/bin/phpunit --no-progress tests/Foundation/FoundationFormRequestTest.php
+./vendor/bin/phpunit --no-progress tests/Foundation/Http/CustomCastingTest.php
+./vendor/bin/phpunit --no-progress tests/Database/DatabaseEloquentJsonCastTest.php
+./vendor/bin/phpunit --no-progress tests/Http/JsonResourceTest.php
+./vendor/bin/phpunit --no-progress tests/Integration/Http/ResourceTest.php
+./vendor/bin/phpstan analyse -c phpstan.types.neon.dist
+php tests/Benchmarks/Data/benchmark.php
+composer fix
+```
+
+Before final signoff, run `composer fix` once as the repository's prescribed formatter/static-analysis/parallel-test/Testbench/dogfood aggregate, after the focused suites are green. Do not repeatedly spend the full-suite cost while iterating on isolated failures.
+
+## Completion Checklist
+
+- [ ] Public API is Spatie/Laravel-familiar and every divergence is documented as a Hypervel adaptation.
+- [ ] Fixed creation/transformation paths are structurally lean and benchmarked; any retained direct specialization has a recorded benefit and full equivalence coverage.
+- [ ] General construction is fixed, non-recursive through public APIs, and built from validated values.
+- [ ] Default/Optional/nullable/required absence semantics, mapped validation paths, uniform-shape wildcard graphs, mixed-shape concrete rules, and dynamic rules are correct.
+- [ ] Metadata is immutable and worker-scoped; config is stable after boot except its documented morph-map registration; all operation/request state is isolated.
+- [ ] Data, Dto, Resource, Optional, Lazy, collections, validation attributes, mapping, casting, resources, Eloquent, Precognition, and Inertia are complete.
+- [ ] VarDumper output presents the current logical Data/resource/collection view through one stateless, idempotently registered interface caster with no mode or manager.
+- [ ] Container, Foundation, HTTP, Database, Validation, and Testing changes respect ownership and have local tests; Inertia and Saloon need no runtime changes.
+- [ ] Old Support DataObject source/tests/docs/cleanup and Database cast are fully removed.
+- [ ] Metadata is analyzed once per used class, retained only in worker memory, bounded by declared Data classes, and free of discovery, filesystem, remote I/O, and request-derived state.
+- [ ] Upstream source/test ledger is fully reconciled, with only deliberate omissions recorded.
+- [ ] README/license attribution and Hypervel difference documentation are complete.
+- [ ] The owner has been told exactly which SDK-generator plan sections are superseded; if amendment is authorized, that plan references the final Data API and contains no obsolete proposed framework work.
+- [ ] Focused tests, static analysis, formatting, benchmark review, and the final repository suite pass.
+- [ ] Final grep/diff audit finds no stale APIs, compatibility switches, dead code, request-state globals, duplicated framework machinery, or unrelated churn.
