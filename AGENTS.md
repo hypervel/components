@@ -159,7 +159,7 @@ Do not add upstream links for inspiration or historical lineage. Omit them when 
 
 Build complete, long-term solutions, not MVPs or local workarounds. A broad change is correct when the root cause is in shared code, but every added mechanism must solve a real problem.
 
-- Require a supported, realistic path and meaningful harm before treating a concern as a defect. Rare failures count when they can actually occur in supported production use; merely conceivable states do not.
+- **Do not add behavior to guard against unsupported API use.** Before adding defensive code, show that normal supported use actually behaves incorrectly and causes meaningful harm. Behavior that is only possible or surprising when an API is used outside its contract is not a bug.
 - Prefer the simplest existing Laravel or Hypervel API, PHP feature, or database constraint. Do not duplicate framework behavior with package-owned machinery.
 - Do not add a new mechanism merely because it sounds robust, flexible, or potentially useful — for example, a registry, retry loop, configuration option, or extension point. It must solve a verified problem, meet a clear approved requirement, support a clearly likely need whose shape is understood, or remove greater complexity elsewhere.
 - Do not add machinery to preserve invariants across deliberate Laravel-style escape hatches such as `withoutEvents()`, quiet methods, raw builders, raw SQL, disabled middleware, or direct transport access unless the public contract explicitly promises that behavior.
