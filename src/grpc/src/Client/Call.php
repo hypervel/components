@@ -10,6 +10,8 @@ use Hypervel\Engine\Channel;
 use Hypervel\Grpc\Compression;
 use Hypervel\Grpc\Exceptions\ProtocolException;
 use Hypervel\Grpc\Exceptions\RpcException;
+use Hypervel\Grpc\GrpcOperationHandle;
+use Hypervel\Grpc\GrpcOperationResult;
 use Hypervel\Grpc\Metadata;
 use Hypervel\Grpc\Protocol\Deadline;
 use Hypervel\Grpc\Protocol\FrameEncoder;
@@ -29,6 +31,8 @@ abstract class Call
     private array|Closure $deserialize;
 
     private ?Throwable $failure = null;
+
+    private bool $finished = false;
 
     private int $attempts = 1;
 
@@ -84,6 +88,7 @@ abstract class Call
         private readonly ?RetryPolicy $retryPolicy = null,
         ?Closure $attemptFactory = null,
         ?RetryBackoff $retryBackoff = null,
+        private readonly ?GrpcOperationHandle $operationHandle = null,
     ) {
         MessageSerializer::validate($deserialize);
 
@@ -146,7 +151,7 @@ abstract class Call
                 continue;
             }
 
-            $this->finish();
+            $this->finish($status);
 
             return $metadata;
         }
@@ -176,7 +181,7 @@ abstract class Call
                 continue;
             }
 
-            $this->finish();
+            $this->finish($status);
 
             return $trailers;
         }
@@ -205,7 +210,7 @@ abstract class Call
                 continue;
             }
 
-            $this->finish();
+            $this->finish($status);
 
             return $status;
         }
@@ -242,13 +247,25 @@ abstract class Call
         try {
             if (! $this->state->isComplete()) {
                 $this->clearPendingPayload();
-                $this->state->failWithStatus(new Status(
+                $status = new Status(
                     StatusCode::Cancelled,
                     'The gRPC call was canceled.',
-                ));
+                );
+                $this->state->failWithStatus($status);
+                $this->finish($status);
+
+                return;
             }
 
-            $this->finish();
+            $status = $this->state->finalStatus();
+
+            if ($status === null) {
+                $this->finish(exception: $this->state->finalFailure());
+
+                return;
+            }
+
+            $this->finish($status);
         } finally {
             if ($acquired) {
                 $attemptSemaphore->pop(0.0);
@@ -394,7 +411,7 @@ abstract class Call
                 );
             } catch (RpcException $exception) {
                 $this->state->failWithStatus($exception->status());
-                $this->finish();
+                $this->finish($exception->status());
 
                 throw $this->rpcException($this->state, $exception->status());
             } catch (ProtocolException $exception) {
@@ -516,7 +533,7 @@ abstract class Call
                 continue;
             }
 
-            $this->finish();
+            $this->finish($status);
 
             if (! $status->isOk()) {
                 throw $this->rpcException($state, $status);
@@ -745,7 +762,7 @@ abstract class Call
             throw $throwable;
         }
 
-        $this->finish();
+        $this->finish($status);
 
         if (! $status->isOk()) {
             throw $this->rpcException($this->state, $status);
@@ -766,7 +783,7 @@ abstract class Call
         $this->failure ??= $failure;
         $this->clearPendingPayload();
         $this->state->fail($this->failure, abandon: ! $this->state->isComplete());
-        $this->finish();
+        $this->finish(exception: $this->failure);
     }
 
     /**
@@ -815,10 +832,22 @@ abstract class Call
     /**
      * Close call-owned synchronization once no transition remains possible.
      */
-    private function finish(): void
+    private function finish(?Status $status = null, ?Throwable $exception = null): void
     {
+        // Several terminal paths can observe the same logical result, but its
+        // synchronization and operation observer must be completed only once.
+        if ($this->finished) {
+            return;
+        }
+
+        $this->finished = true;
         $this->closeAttemptSemaphore();
         $this->closeWriteSemaphore();
+        $this->operationHandle?->finish(new GrpcOperationResult(
+            $status,
+            $exception,
+            $this->attempts,
+        ));
     }
 
     /**

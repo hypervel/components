@@ -5,10 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Grpc;
 
 use Google\Rpc\ErrorInfo;
+use Hypervel\Container\Container;
 use Hypervel\Grpc\Client\RetryPolicy;
+use Hypervel\Grpc\ClientGrpcOperation;
 use Hypervel\Grpc\Compression;
+use Hypervel\Grpc\Contracts\GrpcOperationObserver;
 use Hypervel\Grpc\Exceptions\ConnectionException;
 use Hypervel\Grpc\Exceptions\RpcException;
+use Hypervel\Grpc\GrpcOperation;
+use Hypervel\Grpc\GrpcOperationResult;
+use Hypervel\Grpc\GrpcOperationRunner;
 use Hypervel\Grpc\Health\V1\HealthCheckRequest;
 use Hypervel\Grpc\Health\V1\HealthCheckResponse\ServingStatus;
 use Hypervel\Grpc\Health\V1\HealthListRequest;
@@ -25,6 +31,8 @@ class GoServerTest extends GrpcIntegrationTestCase
 
     public function testAllFourCallShapesAndMetadataInteroperate(): void
     {
+        $observer = new RecordingClientGrpcOperationObserver;
+        Container::getInstance()->make(GrpcOperationRunner::class)->observe($observer);
         $client = $this->newTestClient(['timeout' => 2.0]);
         $unary = $client->unary(
             (new TestRequest)->setValue('hello'),
@@ -71,6 +79,23 @@ class GoServerTest extends GrpcIntegrationTestCase
         $this->assertNull($bidi->read());
         $this->assertSame(['x-test-peer' => ['grpc-go']], $bidi->metadata()->all());
         $this->assertSame(['x-test-trailer' => ['grpc-go']], $bidi->trailers()->all());
+
+        $this->assertSame(
+            ['Unary', 'ServerStream', 'ClientStream', 'BidiStream'],
+            array_map(
+                static fn (ClientGrpcOperation $operation): string => $operation->serviceMethod()->method,
+                $observer->started,
+            ),
+        );
+        $this->assertCount(4, $observer->finished);
+
+        foreach ($observer->finished as [$operation, $token, $result]) {
+            $this->assertContains($operation, $observer->started);
+            $this->assertIsInt($token);
+            $this->assertSame(StatusCode::Ok, $result->status?->code());
+            $this->assertNull($result->exception);
+            $this->assertSame(1, $result->attemptCount);
+        }
     }
 
     public function testIdentityAndGzipCompressionInteroperateInBothDirections(): void
@@ -285,5 +310,31 @@ class GoServerTest extends GrpcIntegrationTestCase
                 $response,
             );
         }
+    }
+}
+
+class RecordingClientGrpcOperationObserver implements GrpcOperationObserver
+{
+    /** @var list<ClientGrpcOperation> */
+    public array $started = [];
+
+    /** @var list<array{GrpcOperation, mixed, GrpcOperationResult}> */
+    public array $finished = [];
+
+    public function starting(GrpcOperation $operation): int
+    {
+        if ($operation instanceof ClientGrpcOperation) {
+            $this->started[] = $operation;
+        }
+
+        return count($this->started);
+    }
+
+    public function finished(
+        GrpcOperation $operation,
+        mixed $token,
+        GrpcOperationResult $result,
+    ): void {
+        $this->finished[] = [$operation, $token, $result];
     }
 }
