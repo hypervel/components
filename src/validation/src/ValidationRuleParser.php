@@ -121,15 +121,11 @@ class ValidationRuleParser
             $rule = InvokableValidationRule::make($rule);
         }
 
-        if (! is_object($rule)
-            || $rule instanceof RuleContract
-            || ($rule instanceof Exists && $rule->queryCallbacks())
-            || ($rule instanceof Unique && $rule->queryCallbacks())
-        ) {
-            return $rule;
+        if (static::ruleReducesToString($rule)) {
+            return (string) $rule;
         }
 
-        if ($rule instanceof CompilableRules) {
+        if ($rule instanceof CompilableRules && ! $rule instanceof RuleContract) {
             return $rule->compile(
                 $attribute,
                 $this->data[$attribute] ?? null,
@@ -138,7 +134,22 @@ class ValidationRuleParser
             )->rules[$attribute];
         }
 
-        return (string) $rule;
+        return $rule;
+    }
+
+    /**
+     * Determine if the parser reduces a rule object to its string form.
+     */
+    public static function ruleReducesToString(mixed $rule): bool
+    {
+        return is_object($rule)
+            && ! $rule instanceof Closure
+            && ! $rule instanceof InvokableRule
+            && ! $rule instanceof ValidationRule
+            && ! $rule instanceof RuleContract
+            && ! $rule instanceof CompilableRules
+            && ! (($rule instanceof Exists || $rule instanceof Unique)
+                && $rule->queryCallbacks() !== []);
     }
 
     /**
@@ -176,7 +187,10 @@ class ValidationRuleParser
         foreach ($keys as $key) {
             $this->implicitAttributes[$attribute][] = $key;
 
-            $results[$key] = array_merge($results[$key] ?? [], $explodedRules);
+            $results[$key] = array_merge(
+                isset($results[$key]) ? $this->explodeExplicitRule($results[$key], $key) : [],
+                $explodedRules,
+            );
         }
 
         return $results;
@@ -322,6 +336,22 @@ class ValidationRuleParser
 
             foreach ($data as $key => $value) {
                 $this->traverseWildcardSegments($segments, $index + 1, $value, $prefix . $key . '.', $results);
+            }
+
+            return;
+        }
+
+        if (str_contains($segment, '*')) {
+            if (! is_array($data)) {
+                return;
+            }
+
+            $pattern = '/^' . str_replace('\*', '[^\.]*', preg_quote($segment, '/')) . '\z/';
+
+            foreach ($data as $key => $value) {
+                if (preg_match($pattern, (string) $key) === 1) {
+                    $this->traverseWildcardSegments($segments, $index + 1, $value, $prefix . $key . '.', $results);
+                }
             }
 
             return;

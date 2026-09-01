@@ -900,13 +900,17 @@ trait ValidatesAttributes
         $validations = (new Collection($parameters))
             ->unique()
             ->map(fn ($validation) => match (true) {
+                $validation === 'rfc' => new RFCValidation,
                 $validation === 'strict' => new NoRFCWarningsValidation,
                 $validation === 'dns' => new DNSCheckValidation(static::$fakeDnsLookups ? new FakeDnsGetRecordWrapper : null),
                 $validation === 'spoof' => new SpoofCheckValidation,
                 $validation === 'filter' => new FilterEmailValidation,
                 $validation === 'filter_unicode' => FilterEmailValidation::unicode(),
                 is_string($validation) && class_exists($validation) => $this->container->make($validation),
-                default => new RFCValidation,
+                default => throw new InvalidArgumentException(sprintf(
+                    'Validation rule email parameter [%s] is not supported.',
+                    is_string($validation) ? $validation : get_debug_type($validation),
+                )),
             })
             ->values()
             ->all() ?: [new RFCValidation];

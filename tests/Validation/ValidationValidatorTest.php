@@ -4480,6 +4480,28 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
+    public function testFirstDeclaredOverlappingWildcardDefinesDistinctScope(): void
+    {
+        $validator = new Validator($this->getArrayTranslator(), [
+            'groups' => [
+                ['children' => [
+                    ['name' => 'shared'],
+                    ['name' => 'primary'],
+                ]],
+                ['children' => [
+                    ['name' => 'shared'],
+                    ['name' => 'secondary'],
+                ]],
+            ],
+        ], [
+            'groups.*.children.*.name' => ['distinct'],
+            'groups.0.children.*.name' => [],
+            'groups.1.children.*.name' => [],
+        ]);
+
+        $this->assertFalse($validator->passes());
+    }
+
     public function testValidateDistinctForTopLevelArrays()
     {
         $trans = $this->getArrayTranslator();
@@ -4957,6 +4979,50 @@ class ValidationValidatorTest extends TestCase
         $v->setContainer($container);
 
         $this->assertFalse($v->passes());
+    }
+
+    /**
+     * Test unsupported email validation modes fail clearly.
+     */
+    #[DataProvider('invalidEmailValidationModes')]
+    public function testValidateEmailRejectsUnsupportedModes(string $rule): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Validation rule email parameter [unsupported] is not supported.');
+
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['x' => 'example@example.com'],
+            ['x' => $rule],
+        );
+
+        $validator->passes();
+    }
+
+    /**
+     * Provide unsupported email validation modes.
+     */
+    public static function invalidEmailValidationModes(): iterable
+    {
+        yield ['email:unsupported'];
+        yield ['email:rfc,unsupported'];
+    }
+
+    /**
+     * Test non-string email validation modes retain an actionable diagnostic.
+     */
+    public function testValidateEmailRejectsNonStringModes(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Validation rule email parameter [stdClass] is not supported.');
+
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['x' => 'example@example.com'],
+            ['x' => [['email', new stdClass]]],
+        );
+
+        $validator->passes();
     }
 
     public function testValidateUrlWithProtocols()
@@ -7539,6 +7605,31 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->fails());
     }
 
+    public function testParsingArrayKeysWithAsterisk(): void
+    {
+        $translator = $this->getArrayTranslator();
+
+        $validator = new Validator(
+            $translator,
+            ['foo*bar' => 'valid'],
+            ['foo\*bar' => 'required|in:valid'],
+        );
+
+        $this->assertTrue($validator->passes());
+        $this->assertArrayHasKey('foo\*bar', $validator->getRulesWithoutPlaceholders());
+        $this->assertArrayHasKey('foo*bar', $validator->validated());
+
+        $validator = new Validator(
+            $translator,
+            ['items' => ['literal*' => ['value' => 'invalid']]],
+            ['items.*.value' => 'integer'],
+        );
+
+        $this->assertArrayHasKey('items.literal\*.value', $validator->getRulesWithoutPlaceholders());
+        $this->assertFalse($validator->passes());
+        $this->assertTrue($validator->errors()->has('items.literal*.value'));
+    }
+
     public function testParsingArrayKeysWithDotWhenTestingExistence()
     {
         $trans = $this->getArrayTranslator();
@@ -7641,6 +7732,34 @@ class ValidationValidatorTest extends TestCase
         ]);
         $this->assertTrue($v->fails());
         $this->assertSame('The name field is required when user.name / admin.name is not present.', $v->messages()->first());
+    }
+
+    public function testAsteriskPlaceholdersInParametersAreReplaced(): void
+    {
+        $translator = $this->getArrayTranslator();
+        $translator->addLines([
+            'validation.required_without' => 'The :attribute field is required when :values is not present.',
+        ], 'en');
+
+        $validator = new Validator(
+            $translator,
+            [
+                'name' => 'admin',
+                'user' => ['role*' => 'admin'],
+            ],
+            ['name' => 'same:user.role\*'],
+        );
+
+        $this->assertTrue($validator->passes());
+
+        $validator = new Validator(
+            $translator,
+            [],
+            ['name' => 'required_without:user.role\*'],
+        );
+
+        $this->assertTrue($validator->fails());
+        $this->assertSame('The name field is required when user.role* is not present.', $validator->messages()->first());
     }
 
     public function testCoveringEmptyKeys()
@@ -7859,6 +7978,45 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
         $this->assertTrue($v->messages()->has('foo.0.bar.0.name'));
         $this->assertTrue($v->messages()->has('foo.0.bar.1.name'));
+    }
+
+    public function testFirstDeclaredOverlappingWildcardDefinesDependentRuleKeys(): void
+    {
+        $validator = new Validator($this->getArrayTranslator(), [
+            'groups' => [
+                ['children' => [
+                    ['name' => 'reference', 'other' => 'reference'],
+                    ['name' => 'reference', 'other' => 'unused'],
+                ]],
+                ['children' => [
+                    ['name' => 'different', 'other' => 'different'],
+                ]],
+            ],
+        ], [
+            'groups.*.children.*.name' => ['same:groups.*.children.0.other'],
+            'groups.0.children.*.name' => [],
+        ]);
+
+        $this->assertTrue($validator->passes());
+    }
+
+    public function testFirstDeclaredOverlappingWildcardPreservesDependentRuleArity(): void
+    {
+        $validator = new Validator($this->getArrayTranslator(), [
+            'groups' => [
+                ['children' => [
+                    ['name' => 'first', 'other' => 'first'],
+                ]],
+                ['children' => [
+                    ['name' => 'second', 'other' => 'second'],
+                ]],
+            ],
+        ], [
+            'groups.*.children.*.name' => ['same:groups.*.children.*.other'],
+            'groups.0.children.*.name' => [],
+        ]);
+
+        $this->assertTrue($validator->passes());
     }
 
     public function testValidateImplicitEachWithAsterisksRequired()
@@ -8328,6 +8486,34 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['foo' => ['a', 'b', 'c']], ['foo.*' => 'string']);
         $v->setRules(['foo.*' => 'integer']);
         $this->assertFalse($v->passes());
+    }
+
+    public function testSetRulesClearsPreviousImplicitAttributeIdentity(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['foo' => ['duplicate', 'duplicate']],
+            ['foo.*' => 'distinct'],
+        );
+
+        $validator->setRules(['foo.0' => 'distinct']);
+
+        $this->assertTrue($validator->passes());
+    }
+
+    public function testSetDataClearsImplicitAttributesWhenWildcardExpansionBecomesEmpty(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['foo' => ['duplicate', 'duplicate']],
+            ['foo.*' => 'distinct'],
+        );
+
+        $validator->setData(['foo' => []]);
+        $validator->addRules(['foo.0' => 'distinct']);
+        $validator->setValue('foo', ['duplicate', 'duplicate']);
+
+        $this->assertTrue($validator->passes());
     }
 
     public function testInvalidMethod()

@@ -1947,6 +1947,8 @@ The example above will apply the `RFCValidation` and `DNSCheckValidation` valida
 
 </div>
 
+If you specify an unsupported validation style, Hypervel will throw an `InvalidArgumentException` instead of falling back to another style.
+
 For convenience, email validation rules may be built using the fluent rule builder:
 
 ```php
