@@ -365,7 +365,20 @@ class GrpcInstrumentationTest extends TestCase
     {
         $this->registerInstrumentation();
         $cancellation = new CanceledException;
-        $handle = $this->operations->start($this->serverOperation());
+        $debugScopesDisabled = $_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED'] ?? null;
+        $_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED'] = 'true';
+
+        try {
+            // Terminal cancellation deliberately abandons the activated scope under test.
+            $handle = $this->operations->start($this->serverOperation());
+        } finally {
+            if ($debugScopesDisabled === null) {
+                unset($_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED']);
+            } else {
+                $_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED'] = $debugScopesDisabled;
+            }
+        }
+
         $activeSpanId = Span::getCurrent()->getContext()->getSpanId();
 
         $handle->finish(new GrpcOperationResult(null, $cancellation, 0));

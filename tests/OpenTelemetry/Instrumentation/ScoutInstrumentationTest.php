@@ -224,13 +224,22 @@ class ScoutInstrumentationTest extends TestCase
         $this->registerInstrumentation();
         $cancellation = new CanceledException;
         $caught = null;
+        $debugScopesDisabled = $_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED'] ?? null;
+        $_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED'] = 'true';
 
         try {
+            // Terminal cancellation deliberately abandons the activated scope under test.
             $this->operations->run($this->operation('search'), function () use ($cancellation): never {
                 throw $cancellation;
             });
         } catch (Throwable $throwable) {
             $caught = $throwable;
+        } finally {
+            if ($debugScopesDisabled === null) {
+                unset($_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED']);
+            } else {
+                $_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED'] = $debugScopesDisabled;
+            }
         }
 
         $this->assertSame($cancellation, $caught);

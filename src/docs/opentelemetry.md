@@ -177,6 +177,8 @@ Each built-in instrumentation class may be set to `false`, `true`, or an option 
 
 Omitting a built-in metric does not disable it. Set its name to `false` to disable it individually, or set `metrics` to `false` to disable every metric in that instrumentation. Named entries override only the metrics they name; the others keep their shipped defaults.
 
+When Swoole cancels an operation coroutine, the package emits no completion span, metric, or event. Its coroutine-local telemetry state is released when that coroutine ends.
+
 The shipped defaults are:
 
 | Domain | Traces / logs | Metrics enabled by default |
