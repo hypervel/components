@@ -728,22 +728,55 @@ class ParallelTest extends TestCase
         $this->assertSame(['a' => 1, 'b' => null], $res);
     }
 
-    public function testThrowExceptionInParallel()
+    public function testThrowExceptionInParallel(): void
     {
+        $exceptionIgnoreArgs = ini_get('zend.exception_ignore_args');
+        ini_set('zend.exception_ignore_args', '0');
+
         try {
-            parallel([
-                static function () {
-                    throw new Exception;
-                },
-            ]);
-        } catch (ParallelExecutionException $exception) {
-            /** @var Throwable $exception */
-            $exception = $exception->getThrowables()[0];
-            $traces = $exception->getTrace();
+            try {
+                parallel([
+                    static function () {
+                        throw new Exception;
+                    },
+                ]);
+                $this->fail('Expected the parallel failure to be thrown.');
+            } catch (ParallelExecutionException $exception) {
+                /** @var Throwable $throwable */
+                $throwable = $exception->getThrowables()[0];
+                $traces = $throwable->getTrace();
+                ob_start();
+                var_dump($traces);
+                $content = (string) ob_get_clean();
+                $this->assertStringContainsString('object(Closure)', $content);
+                $this->assertStringNotContainsString('*RECURSION*', $content);
+            }
+        } finally {
+            ini_set('zend.exception_ignore_args', $exceptionIgnoreArgs);
+        }
+    }
+
+    public function testWaitWithoutThrowDoesNotRetainRecursiveThrowableTrace(): void
+    {
+        $exceptionIgnoreArgs = ini_get('zend.exception_ignore_args');
+        ini_set('zend.exception_ignore_args', '0');
+
+        try {
+            $parallel = new Parallel;
+            $parallel->add(static function (): never {
+                throw new Exception;
+            });
+
+            $parallel->wait(false);
+
+            $throwable = $parallel->getThrowables()[0];
             ob_start();
-            var_dump($traces);
-            $content = ob_get_clean();
+            var_dump($throwable->getTrace());
+            $content = (string) ob_get_clean();
+            $this->assertStringContainsString('object(Closure)', $content);
             $this->assertStringNotContainsString('*RECURSION*', $content);
+        } finally {
+            ini_set('zend.exception_ignore_args', $exceptionIgnoreArgs);
         }
     }
 

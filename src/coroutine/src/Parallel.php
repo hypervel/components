@@ -113,7 +113,8 @@ class Parallel
                     }
 
                     $results[$key] = null;
-                    $childCallable = function () use ($callback, $key, &$results, &$throwables): void {
+                    // Keep child exception traces from retaining this Parallel instance.
+                    $childCallable = static function () use ($callback, $key, &$results, &$throwables): void {
                         try {
                             $results[$key] = $callback();
                         } catch (CanceledException $exception) {
@@ -188,6 +189,10 @@ class Parallel
 
         $this->results = $results;
         $this->throwables = $throwables;
+
+        // Detach child exception traces from the published run aggregates.
+        $results = [];
+        $throwables = [];
 
         if ($throw && ($throwableCount = count($this->throwables)) > 0) {
             $message = 'Detecting ' . $throwableCount . ' throwable occurred during parallel execution:' . PHP_EOL . $this->formatThrowables($this->throwables);
