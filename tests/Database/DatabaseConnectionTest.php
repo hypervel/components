@@ -13,10 +13,12 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\DeadlockException;
 use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Database\Events\QueryFailed;
 use Hypervel\Database\Events\TransactionBeginning;
 use Hypervel\Database\Events\TransactionCommitted;
 use Hypervel\Database\Events\TransactionCommitting;
 use Hypervel\Database\Events\TransactionRolledBack;
+use Hypervel\Database\LostConnectionException;
 use Hypervel\Database\MariaDbConnection;
 use Hypervel\Database\MultipleColumnsSelectedException;
 use Hypervel\Database\MySqlConnection;
@@ -704,6 +706,9 @@ class DatabaseConnectionTest extends TestCase
         $pdo = $this->createStub(PDOStub::class);
         $connection = $this->getMockConnection(['tryAgainIfCausedByLostConnection'], $pdo);
         $connection->expects($this->never())->method('tryAgainIfCausedByLostConnection');
+        $connection->setEventDispatcher($events = m::mock(Dispatcher::class));
+        $events->shouldNotReceive('hasListeners')->with(QueryFailed::class);
+        $events->shouldNotReceive('dispatch')->with(m::type(QueryFailed::class));
 
         try {
             $method->invokeArgs($connection, ['select 1', [], fn () => throw $cancellation]);
@@ -714,6 +719,162 @@ class DatabaseConnectionTest extends TestCase
 
         $this->assertSame(0, $connection->getErrorCount());
         $this->assertSame([], $connection->getQueryLog());
+    }
+
+    public function testRunDispatchesQueryFailedWithTheFinalLogicalFailure(): void
+    {
+        $method = (new ReflectionClass(Connection::class))->getMethod('run');
+        $connection = new PdoConnection(
+            new PDOStub,
+            'analytics',
+            config: [
+                'name' => 'analytics',
+                'driver' => 'mysql',
+                Connection::READ_WRITE_TYPE_CONFIG_KEY => 'read',
+            ],
+        );
+        $connection->setEventDispatcher($events = m::mock(Dispatcher::class));
+        $event = null;
+        $events->shouldReceive('hasListeners')->once()->with(QueryFailed::class)->andReturnTrue();
+        $events->shouldReceive('dispatch')->once()->withArgs(
+            static function (QueryFailed $dispatched) use (&$event): bool {
+                $event = $dispatched;
+
+                return true;
+            },
+        );
+        $exception = null;
+
+        try {
+            $method->invokeArgs($connection, [
+                'select * from users where id = ?',
+                [1],
+                static fn (): never => throw new PDOException('Query failed.'),
+            ]);
+        } catch (QueryException $thrown) {
+            $exception = $thrown;
+        }
+
+        $this->assertInstanceOf(QueryException::class, $exception);
+        $this->assertInstanceOf(QueryFailed::class, $event);
+        $this->assertSame('select * from users where id = ?', $event->sql);
+        $this->assertSame([1], $event->bindings);
+        $this->assertGreaterThanOrEqual(0.0, $event->time);
+        $this->assertSame($connection, $event->connection);
+        $this->assertSame('analytics', $event->connectionName);
+        $this->assertSame('read', $event->readWriteType);
+        $this->assertSame($exception, $event->exception);
+    }
+
+    public function testRunDispatchesTheReconnectorThrowableAsTheFinalFailure(): void
+    {
+        $method = (new ReflectionClass(Connection::class))->getMethod('run');
+        $connection = $this->getMockConnection();
+        $reconnectorException = new RuntimeException('Unable to reconnect.');
+        $connection->setReconnector(static function (Connection $connection) use ($reconnectorException): never {
+            throw $reconnectorException;
+        });
+        $connection->setEventDispatcher($events = m::mock(Dispatcher::class));
+        $event = null;
+        $events->shouldReceive('hasListeners')->once()->with(QueryFailed::class)->andReturnTrue();
+        $events->shouldReceive('dispatch')->once()->withArgs(
+            static function (QueryFailed $dispatched) use (&$event): bool {
+                $event = $dispatched;
+
+                return true;
+            },
+        );
+        $exception = null;
+
+        try {
+            $method->invokeArgs($connection, [
+                'select 1',
+                [],
+                static fn (): never => throw new PDOException('server has gone away'),
+            ]);
+        } catch (RuntimeException $thrown) {
+            $exception = $thrown;
+        }
+
+        $this->assertSame($reconnectorException, $exception);
+        $this->assertInstanceOf(QueryFailed::class, $event);
+        $this->assertSame($reconnectorException, $event->exception);
+    }
+
+    public function testRunDispatchesLostConnectionExceptionWhenNoReconnectorExists(): void
+    {
+        $method = (new ReflectionClass(Connection::class))->getMethod('run');
+        $connection = $this->getMockConnection();
+        $connection->setEventDispatcher($events = m::mock(Dispatcher::class));
+        $event = null;
+        $events->shouldReceive('hasListeners')->once()->with(QueryFailed::class)->andReturnTrue();
+        $events->shouldReceive('dispatch')->once()->withArgs(
+            static function (QueryFailed $dispatched) use (&$event): bool {
+                $event = $dispatched;
+
+                return true;
+            },
+        );
+        $exception = null;
+
+        try {
+            $method->invokeArgs($connection, [
+                'select 1',
+                [],
+                static fn (): never => throw new PDOException('server has gone away'),
+            ]);
+        } catch (LostConnectionException $thrown) {
+            $exception = $thrown;
+        }
+
+        $this->assertInstanceOf(LostConnectionException::class, $exception);
+        $this->assertInstanceOf(QueryFailed::class, $event);
+        $this->assertSame($exception, $event->exception);
+    }
+
+    public function testRunEmitsOnlyQueryExecutedWhenLostConnectionRetrySucceeds(): void
+    {
+        $method = (new ReflectionClass(Connection::class))->getMethod('run');
+        $connection = $this->getMockConnection();
+        $connection->setReconnector(static function (Connection $connection): void {
+        });
+        $connection->setEventDispatcher($events = m::mock(Dispatcher::class));
+        $events->shouldReceive('hasListeners')->once()->with(QueryExecuted::class)->andReturnTrue();
+        $events->shouldReceive('dispatch')->once()->with(m::type(QueryExecuted::class));
+        $events->shouldNotReceive('dispatch')->with(m::type(QueryFailed::class));
+        $attempts = 0;
+
+        $result = $method->invokeArgs($connection, [
+            'select 1',
+            [],
+            static function () use (&$attempts): string {
+                if (++$attempts === 1) {
+                    throw new PDOException('server has gone away');
+                }
+
+                return 'retried';
+            },
+        ]);
+
+        $this->assertSame('retried', $result);
+        $this->assertSame(2, $attempts);
+    }
+
+    public function testRunSkipsQueryFailedDispatchWhenNoListenersAreRegistered(): void
+    {
+        $method = (new ReflectionClass(Connection::class))->getMethod('run');
+        $connection = $this->getMockConnection();
+        $connection->setEventDispatcher($events = m::mock(Dispatcher::class));
+        $events->shouldReceive('hasListeners')->once()->with(QueryFailed::class)->andReturnFalse();
+        $events->shouldNotReceive('dispatch');
+
+        $this->expectException(QueryException::class);
+
+        $method->invokeArgs($connection, [
+            'select 1',
+            [],
+            static fn (): never => throw new PDOException('Query failed.'),
+        ]);
     }
 
     public function testRunMethodNeverRetriesIfWithinTransaction()
