@@ -1266,8 +1266,8 @@ class Container implements ContainerContract
                     && ! is_a($concrete, Transient::class, true)
                 ) {
                     // Auto-singleton: unbound concrete classes are cached for Swoole performance.
-                    // In Swoole's long-running process model, services are stateless singletons
-                    // by design. Re-creating them on every resolution wastes CPU and memory.
+                    // Worker-safe services may retain service-owned initialized state; rebuilding
+                    // them on every resolution wastes CPU and memory.
                     //
                     // Explicit bind() overrides this — bound classes follow their binding type.
                     // SelfBuilding classes control their own construction, while Transient
