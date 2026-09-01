@@ -85,6 +85,12 @@ orchestral/testbench:
   sync_date: null
   notes: Composer package is `orchestra/testbench` (different from gh slug).
 
+spatie/laravel-data:
+  repo_url: https://github.com/spatie/laravel-data
+  release: 4.23.0
+  sync_date: 2026-08-30
+  notes: Initial port also reviewed main through ce296f22 and the v5 draft at ed630ee1.
+
 spatie/laravel-permission:
   repo_url: https://github.com/spatie/laravel-permission
   release: null
