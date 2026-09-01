@@ -352,6 +352,17 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      */
     protected function enqueueBatch(array $jobs, ?string $queue): mixed
     {
+        foreach ($jobs as $index => $job) {
+            $jobs[$index]['payload'] = $this->finalizePayloadForQueueing(
+                $queue,
+                $job['job'],
+                $job['payload'],
+                $job['delay'],
+            );
+        }
+
+        // Every payload must be final before any batch member begins its
+        // existing JobQueueing lifecycle or the database write.
         foreach ($jobs as $job) {
             $this->raiseJobQueueingEvent($queue, $job['job'], $job['payload'], $job['delay']);
         }
