@@ -22,7 +22,6 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\ProcessUtils;
 use Hypervel\Support\Traits\Macroable;
-use ReflectionObject;
 use RuntimeException;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Throwable;
@@ -203,13 +202,10 @@ class Schedule
         $this->events[] = $event = new CallbackEvent(
             $this->eventMutex,
             function () use ($job, $queue, $connection) {
-                // Class strings require per-firing construction; supplied objects are
-                // retained by this callback and need copying when PHP permits it.
-                if (is_string($job)) {
-                    $job = Container::getInstance()->makeTransient($job);
-                } elseif ((new ReflectionObject($job))->isCloneable()) {
-                    $job = clone $job;
-                }
+                // Ordinary make() would reuse an implicit auto-singleton across firings.
+                $job = is_string($job)
+                    ? Container::getInstance()->makeTransient($job)
+                    : $job;
 
                 if ($job instanceof ShouldQueue) {
                     $this->dispatchToQueue($job, $queue ?? $job->queue, $connection ?? $job->connection); /* @phpstan-ignore-line */
