@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\DatabaseEloquentMorphToTest;
 
+use Hypervel\Database\ClassMorphViolationException;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Builder;
@@ -317,6 +318,44 @@ class DatabaseEloquentMorphToTest extends TestCase
         $this->assertSame('original-id', $parent->getAttribute('foreign_key'));
         $this->assertSame('original-type', $parent->getAttribute('morph_type'));
         $this->assertFalse($parent->relationLoaded('relation'));
+    }
+
+    public function testAssociateMethodRejectsUnmappedModelsBeforeChangingTheParent(): void
+    {
+        $builder = m::mock(Builder::class);
+        $builder->shouldReceive('getModel')->andReturn(new MorphToAssociateRelatedStub);
+
+        $parent = (new MorphToAssociateParentStub)->forceFill([
+            'foreign_key' => 'original-id',
+            'morph_type' => 'original-type',
+        ]);
+        $originalRelation = new MorphToAssociateRelatedStub;
+        $parent->setRelation('relation', $originalRelation);
+        $associate = (new MorphToAssociateRelatedStub)->forceFill([
+            'custom_key' => 7,
+        ]);
+
+        $relation = Relation::noConstraints(fn () => new MorphTo(
+            $builder,
+            $parent,
+            'foreign_key',
+            'custom_key',
+            'morph_type',
+            'relation'
+        ));
+
+        Relation::requireMorphMap();
+
+        try {
+            $relation->associate($associate);
+            $this->fail('Expected a class morph violation exception.');
+        } catch (ClassMorphViolationException $exception) {
+            $this->assertSame(MorphToAssociateRelatedStub::class, $exception->model);
+        }
+
+        $this->assertSame('original-id', $parent->getAttribute('foreign_key'));
+        $this->assertSame('original-type', $parent->getAttribute('morph_type'));
+        $this->assertSame($originalRelation, $parent->getRelation('relation'));
     }
 
     public function testDissociateMethodDeletesUnsetsKeyAndTypeOnModel()

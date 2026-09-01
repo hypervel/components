@@ -237,19 +237,17 @@ class MorphTo extends BelongsTo
             throw new InvalidArgumentException('MorphTo relationships may only be associated with a model instance or null.');
         }
 
+        $foreignKeyValue = null;
+        $morphClass = null;
+
         if ($model instanceof Model) {
-            $foreignKey = $this->ownerKey ?? $model->getKeyName();
+            $foreignKeyValue = $model->{$this->ownerKey ?? $model->getKeyName()};
+            $morphClass = $model->getMorphClass();
         }
 
-        $this->parent->setAttribute(
-            $this->foreignKey,
-            $model instanceof Model ? $model->{$foreignKey} : null
-        );
+        $this->parent->setAttribute($this->foreignKey, $foreignKeyValue);
 
-        $this->parent->setAttribute(
-            $this->morphType,
-            $model instanceof Model ? $model->getMorphClass() : null
-        );
+        $this->parent->setAttribute($this->morphType, $morphClass);
 
         return $this->parent->setRelation($this->relationName, $model);
     }
