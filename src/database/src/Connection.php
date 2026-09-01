@@ -851,7 +851,11 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         try {
             $this->resetTransactionState();
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            if ($exception === null
+                || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)
+            ) {
+                $exception = $throwable;
+            }
         }
 
         if ($exception !== null) {

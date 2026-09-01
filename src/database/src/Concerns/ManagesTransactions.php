@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Database\DeadlockException;
 use LogicException;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -79,12 +80,16 @@ trait ManagesTransactions
                     $levelBeingCommitted,
                     $this->transactions
                 );
+            } catch (CanceledException $cancellation) {
+                throw $cancellation;
             } catch (Throwable $throwable) {
                 $exception = $throwable;
             }
 
             try {
                 $this->fireConnectionEvent('committed');
+            } catch (CanceledException $cancellation) {
+                throw $cancellation;
             } catch (Throwable $throwable) {
                 $exception ??= $throwable;
             }
@@ -127,6 +132,8 @@ trait ManagesTransactions
                     $this->getName() ?? '',
                     $this->transactions
                 );
+            } catch (CanceledException $cancellation) {
+                throw $cancellation;
             } catch (Throwable) {
                 // Preserve the transaction failure.
             }
@@ -141,6 +148,12 @@ trait ManagesTransactions
 
         try {
             $this->rollBack();
+        } catch (CanceledException $cancellation) {
+            if (! $e instanceof CanceledException) {
+                throw $cancellation;
+            }
+
+            $cleanedUp = false;
         } catch (Throwable) {
             $cleanedUp = false;
         }
@@ -180,6 +193,10 @@ trait ManagesTransactions
         } catch (Throwable $exception) {
             try {
                 $this->rollBack($previousLevel);
+            } catch (CanceledException $cancellation) {
+                if (! $exception instanceof CanceledException) {
+                    throw $cancellation;
+                }
             } catch (Throwable) {
                 // Preserve the transaction publication failure.
             }
@@ -249,12 +266,16 @@ trait ManagesTransactions
                 $levelBeingCommitted,
                 $this->transactions
             );
+        } catch (CanceledException $cancellation) {
+            throw $cancellation;
         } catch (Throwable $throwable) {
             $exception = $throwable;
         }
 
         try {
             $this->fireConnectionEvent('committed');
+        } catch (CanceledException $cancellation) {
+            throw $cancellation;
         } catch (Throwable $throwable) {
             $exception ??= $throwable;
         }
@@ -274,6 +295,8 @@ trait ManagesTransactions
         if ($this->causedByLostConnection($e)) {
             try {
                 $this->forgetLostConnection();
+            } catch (CanceledException $cancellation) {
+                throw $cancellation;
             } catch (Throwable) {
                 // Preserve the physical commit failure.
             }
@@ -285,6 +308,12 @@ trait ManagesTransactions
 
         try {
             $this->rollBack(0);
+        } catch (CanceledException $cancellation) {
+            if (! $e instanceof CanceledException) {
+                throw $cancellation;
+            }
+
+            $cleanedUp = false;
         } catch (Throwable) {
             $cleanedUp = false;
         }
@@ -333,12 +362,16 @@ trait ManagesTransactions
                 $this->getName() ?? '',
                 $this->transactions
             );
+        } catch (CanceledException $cancellation) {
+            throw $cancellation;
         } catch (Throwable $throwable) {
             $exception = $throwable;
         }
 
         try {
             $this->fireConnectionEvent('rollingBack');
+        } catch (CanceledException $cancellation) {
+            throw $cancellation;
         } catch (Throwable $throwable) {
             $exception ??= $throwable;
         }
@@ -358,6 +391,8 @@ trait ManagesTransactions
         if ($this->causedByLostConnection($e)) {
             try {
                 $this->forgetLostConnection();
+            } catch (CanceledException $cancellation) {
+                throw $cancellation;
             } catch (Throwable) {
                 // Preserve the physical rollback failure.
             }
