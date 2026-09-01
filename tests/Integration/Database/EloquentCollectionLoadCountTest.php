@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database\EloquentCollectionLoadCountTest;
 
 use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
@@ -79,6 +80,55 @@ class EloquentCollectionLoadCountTest extends DatabaseTestCase
         $this->assertCount(1, DB::getQueryLog());
         $this->assertSame('2', (string) $posts[0]->comments_count);
         $this->assertSame('0', (string) $posts[1]->comments_count);
+    }
+
+    public function testLoadCountSkipsHardDeletedModels(): void
+    {
+        $posts = Post::all();
+
+        DB::table('posts')->where('id', $posts[0]->getKey())->delete();
+
+        DB::enableQueryLog();
+
+        $posts->loadCount('comments');
+
+        $this->assertCount(1, DB::getQueryLog());
+        $this->assertFalse(array_key_exists('comments_count', $posts[0]->getAttributes()));
+        $this->assertSame('0', (string) $posts[1]->comments_count);
+    }
+
+    public function testLoadCountLeavesCollectionUnchangedWhenAllModelsAreHardDeleted(): void
+    {
+        $posts = Post::all();
+
+        DB::table('posts')->delete();
+
+        DB::enableQueryLog();
+
+        $result = $posts->loadCount('comments');
+
+        $this->assertCount(1, DB::getQueryLog());
+        $this->assertSame($posts, $result);
+        $this->assertFalse(array_key_exists('comments_count', $posts[0]->getAttributes()));
+        $this->assertFalse(array_key_exists('comments_count', $posts[1]->getAttributes()));
+    }
+
+    public function testLoadCountRejectsModelsMissingThePrimaryKeyWithoutQuerying(): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $post = Post::query()->select('some_default_value')->firstOrFail();
+
+        DB::enableQueryLog();
+
+        try {
+            new Collection([$post])->loadCount('comments');
+            $this->fail('Expected a missing attribute exception.');
+        } catch (MissingAttributeException $exception) {
+            $this->assertStringContainsString('The attribute [id]', $exception->getMessage());
+        }
+
+        $this->assertSame([], DB::getQueryLog());
     }
 
     public function testLoadCountWithArrayOfRelations()

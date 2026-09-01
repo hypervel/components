@@ -47,10 +47,23 @@ class Collection extends BaseCollection implements QueueableCollection
                 return $this->newInstance();
             }
 
-            return $this->whereIn($this->first()->getKeyName(), $key);
+            $keyName = $this->first()->getKeyName();
+
+            return $this
+                ->filter(fn ($model) => $model->getKey() !== null)
+                ->whereIn($keyName, Arr::whereNotNull($key));
         }
 
-        return Arr::first($this->items, fn ($model) => $model->getKey() == $key, $default);
+        if ($key === null) {
+            return value($default);
+        }
+
+        return Arr::first($this->items, function ($model) use ($key) {
+            $modelKey = $model->getKey();
+
+            // Numeric model keys intentionally retain their existing loose scalar compatibility.
+            return $modelKey !== null && $modelKey == $key;
+        }, $default);
     }
 
     /**
@@ -109,6 +122,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of aggregations over relationship's column onto the collection.
      *
      * @param  array<array-key, array|(callable(\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>|string  $relations
+     *
+     * @throws MissingAttributeException
      */
     public function loadAggregate(array|string $relations, string $column, ?string $function = null): static
     {
@@ -116,24 +131,49 @@ class Collection extends BaseCollection implements QueueableCollection
             return $this;
         }
 
-        $models = $this->first()->newModelQuery()
-            ->whereKey($this->modelKeys())
-            ->select($this->first()->getKeyName())
+        $modelKeys = [];
+
+        foreach ($this->items as $collectionKey => $item) {
+            $key = $item->getKey();
+
+            if ($key === null) {
+                throw new MissingAttributeException($item, $item->getKeyName());
+            }
+
+            $modelKeys[$collectionKey] = $key;
+        }
+
+        $model = $this->first();
+        $keyName = $model->getKeyName();
+
+        $models = $model->newModelQuery()
+            ->whereKey(array_values($modelKeys))
+            ->select($keyName)
             ->withAggregate($relations, $column, $function) // @phpstan-ignore method.notFound (withAggregate is on Eloquent\Builder; PHPStan loses type through chain)
             ->get()
-            ->keyBy($this->first()->getKeyName());
+            ->keyBy($keyName);
+
+        if ($models->isEmpty()) {
+            return $this;
+        }
 
         $attributes = Arr::except(
             array_keys($models->first()->getAttributes()),
-            $models->first()->getKeyName()
+            $keyName
         );
 
-        $this->each(function ($model) use ($models, $attributes) {
-            $extraAttributes = Arr::only($models->get($model->getKey())->getAttributes(), $attributes);
+        $this->each(function ($item, $collectionKey) use ($models, $attributes, $modelKeys) {
+            $aggregateModel = $models->get($modelKeys[$collectionKey]);
 
-            $model->forceFill($extraAttributes)
+            if ($aggregateModel === null) {
+                return;
+            }
+
+            $extraAttributes = Arr::only($aggregateModel->getAttributes(), $attributes);
+
+            $item->forceFill($extraAttributes)
                 ->syncOriginalAttributes($attributes)
-                ->mergeCasts($models->get($model->getKey())->getCasts());
+                ->mergeCasts($aggregateModel->getCasts());
         });
 
         return $this;
@@ -369,7 +409,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Get the array of primary keys.
      *
-     * @return array<int, array-key>
+     * @return array<array-key, null|array-key>
      */
     public function modelKeys(): array
     {
@@ -388,7 +428,11 @@ class Collection extends BaseCollection implements QueueableCollection
         $dictionary = $this->getDictionary();
 
         foreach ($items as $item) {
-            $dictionary[$this->getDictionaryKey($item->getKey())] = $item;
+            $key = $this->getDictionaryKey($item->getKey());
+
+            if ($key !== null) {
+                $dictionary[$key] = $item;
+            }
         }
 
         return $this->newInstance(array_values($dictionary));
@@ -435,6 +479,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * Reload a fresh model instance from the database for all the entities.
      *
      * @param array<array-key, string>|string $with
+     *
+     * @throws MissingAttributeException
      */
     public function fresh(array|string $with = []): static
     {
@@ -442,17 +488,45 @@ class Collection extends BaseCollection implements QueueableCollection
             return $this->newInstance();
         }
 
+        $modelKeys = [];
+
+        foreach ($this->items as $collectionKey => $item) {
+            if (! $item->exists) {
+                continue;
+            }
+
+            $key = $item->getKey();
+
+            if ($key === null) {
+                throw new MissingAttributeException($item, $item->getKeyName());
+            }
+
+            $modelKeys[$collectionKey] = $key;
+        }
+
+        if ($modelKeys === []) {
+            return $this->newInstance();
+        }
+
         $model = $this->first();
 
         $freshModels = $model->newQueryWithoutScopes()
             ->with(is_string($with) ? func_get_args() : $with)
-            ->whereIn($model->getKeyName(), $this->modelKeys())
+            ->whereIn($model->getKeyName(), array_values($modelKeys))
             ->get()
             ->getDictionary(); // @phpstan-ignore method.notFound (getDictionary is on Eloquent\Collection; PHPStan loses type through chain)
 
-        // @phpstan-ignore return.type (filter/map chain returns correct type at runtime)
-        return $this->filter(fn ($model) => $model->exists && isset($freshModels[$model->getKey()]))
-            ->map(fn ($model) => $freshModels[$model->getKey()]);
+        $freshItems = [];
+
+        foreach ($modelKeys as $collectionKey => $key) {
+            $dictionaryKey = $this->getDictionaryKey($key);
+
+            if (isset($freshModels[$dictionaryKey])) {
+                $freshItems[$collectionKey] = $freshModels[$dictionaryKey];
+            }
+        }
+
+        return $this->newInstance($freshItems);
     }
 
     /**
@@ -468,7 +542,9 @@ class Collection extends BaseCollection implements QueueableCollection
         $dictionary = $this->getDictionary($items);
 
         foreach ($this->items as $item) {
-            if (! isset($dictionary[$this->getDictionaryKey($item->getKey())])) {
+            $key = $this->getDictionaryKey($item->getKey());
+
+            if ($key === null || ! isset($dictionary[$key])) {
                 $diff->add($item);
             }
         }
@@ -493,7 +569,9 @@ class Collection extends BaseCollection implements QueueableCollection
         $dictionary = $this->getDictionary($items);
 
         foreach ($this->items as $item) {
-            if (isset($dictionary[$this->getDictionaryKey($item->getKey())])) {
+            $key = $this->getDictionaryKey($item->getKey());
+
+            if ($key !== null && isset($dictionary[$key])) {
                 $intersect->add($item);
             }
         }
@@ -517,7 +595,7 @@ class Collection extends BaseCollection implements QueueableCollection
     }
 
     /**
-     * Returns only the models from the collection with the specified keys.
+     * Return only the models from the collection with the specified keys.
      *
      * @param null|array<array-key, mixed> $keys
      */
@@ -528,13 +606,16 @@ class Collection extends BaseCollection implements QueueableCollection
             return $this->newInstance($this->items);
         }
 
-        $dictionary = Arr::only($this->getDictionary(), array_map($this->getDictionaryKey(...), (array) $keys));
+        $dictionary = Arr::only(
+            $this->getDictionary(),
+            Arr::whereNotNull(array_map($this->getDictionaryKey(...), (array) $keys))
+        );
 
         return $this->newInstance(array_values($dictionary));
     }
 
     /**
-     * Returns all models in the collection except the models with specified keys.
+     * Return all models in the collection except the models with specified keys.
      *
      * @param null|array<array-key, mixed> $keys
      */
@@ -545,7 +626,10 @@ class Collection extends BaseCollection implements QueueableCollection
             return $this->newInstance($this->items);
         }
 
-        $dictionary = Arr::except($this->getDictionary(), array_map($this->getDictionaryKey(...), (array) $keys));
+        $dictionary = Arr::except(
+            $this->getDictionary(),
+            Arr::whereNotNull(array_map($this->getDictionaryKey(...), (array) $keys))
+        );
 
         return $this->newInstance(array_values($dictionary));
     }
@@ -659,7 +743,11 @@ class Collection extends BaseCollection implements QueueableCollection
         $dictionary = [];
 
         foreach ($items as $value) {
-            $dictionary[$this->getDictionaryKey($value->getKey())] = $value;
+            $key = $this->getDictionaryKey($value->getKey());
+
+            if ($key !== null) {
+                $dictionary[$key] = $value;
+            }
         }
 
         return $dictionary;
@@ -763,13 +851,7 @@ class Collection extends BaseCollection implements QueueableCollection
     #[Override]
     protected function duplicateComparator(bool $strict): callable
     {
-        // unique() collapses keyless models into a single dictionary entry, so the
-        // comparator must agree with it or an unsaved model can misreport later keyed items.
-        return fn ($a, $b) => $a->is($b)
-            || ($a->getKey() === null
-                && $b->getKey() === null
-                && $a->getTable() === $b->getTable()
-                && $a->getConnectionName() === $b->getConnectionName());
+        return fn ($a, $b) => $a->is($b);
     }
 
     /**
@@ -899,6 +981,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Database\Eloquent\Builder<TModel>
      *
      * @throws LogicException
+     * @throws MissingAttributeException
      */
     public function toQuery(): Builder
     {
@@ -914,6 +997,18 @@ class Collection extends BaseCollection implements QueueableCollection
             throw new LogicException('Unable to create query for collection with mixed types.');
         }
 
-        return $model->newModelQuery()->whereKey($this->modelKeys());
+        $modelKeys = [];
+
+        foreach ($this->items as $item) {
+            $key = $item->getKey();
+
+            if ($key === null) {
+                throw new MissingAttributeException($item, $item->getKeyName());
+            }
+
+            $modelKeys[] = $key;
+        }
+
+        return $model->newModelQuery()->whereKey($modelKeys);
     }
 }
