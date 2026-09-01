@@ -197,10 +197,6 @@ class Server implements OnRequestInterface, BootstrapsForServer
                 }
             }
 
-            if (isset($request)) {
-                RequestContext::forget();
-            }
-
             if ($cancellation !== null) {
                 throw $cancellation;
             }

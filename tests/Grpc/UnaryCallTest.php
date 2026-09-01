@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Grpc;
 
-use Carbon\CarbonInterval;
 use Closure;
 use Google\Protobuf\Internal\Message;
 use Google\Protobuf\StringValue;
+use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Engine\Exceptions\HttpClientException;
 use Hypervel\Engine\Http\V2\Response;
@@ -25,14 +25,13 @@ use Hypervel\Grpc\GrpcOperationResult;
 use Hypervel\Grpc\Protocol\Deadline;
 use Hypervel\Grpc\Protocol\FrameEncoder;
 use Hypervel\Grpc\Protocol\ServiceMethod;
-use Hypervel\Grpc\Status;
 use Hypervel\Grpc\StatusCode;
-use Hypervel\Support\Sleep;
 use Hypervel\Tests\TestCase;
 use Random\Engine\Mt19937;
 use Random\Randomizer;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -152,6 +151,44 @@ class UnaryCallTest extends TestCase
 
         $this->assertSame(StatusCode::Cancelled, $call->status()->code());
         $this->assertSame(1, $abandonments);
+
+        try {
+            $call->wait();
+            $this->fail('Expected the canceled call to fail.');
+        } catch (RpcException $exception) {
+            $this->assertSame(StatusCode::Cancelled, $exception->status()->code());
+        }
+    }
+
+    public function testCancelMapsARetryableCompletedAttemptAcrossEveryObserver(): void
+    {
+        $deadline = Deadline::fromTimeout(null);
+        $state = $this->state($deadline);
+        $state->handle($this->trailersOnly(
+            status: StatusCode::Unavailable,
+            headers: [
+                'grpc-retry-pushback-ms' => '0',
+                'x-trailer' => 'trailing',
+            ],
+        ));
+        $attempts = 0;
+        $call = $this->call(
+            $state,
+            $deadline,
+            retryPolicy: new RetryPolicy(maxAttempts: 2),
+            attemptFactory: function () use (&$attempts, $deadline): StreamState {
+                ++$attempts;
+
+                return $this->state($deadline);
+            },
+        );
+
+        $call->cancel();
+
+        $this->assertNull($call->metadata()->first('x-trailer'));
+        $this->assertSame('trailing', $call->trailers()->first('x-trailer'));
+        $this->assertSame(StatusCode::Cancelled, $call->status()->code());
+        $this->assertSame(0, $attempts);
 
         try {
             $call->wait();
@@ -340,34 +377,21 @@ class UnaryCallTest extends TestCase
         $this->assertSame(2, $observer->results[0]->attemptCount);
     }
 
-    public function testCancellationBeforeRetryPublicationRestoresTheBackoffSequence(): void
+    public function testWaiterCancellationDuringRetryBackoffRestoresTheBackoffSequence(): void
     {
         $deadline = Deadline::fromTimeout(null);
         $first = $this->state($deadline);
         $first->handle($this->trailersOnly(status: StatusCode::Unavailable));
         $policy = new RetryPolicy(
             maxAttempts: 2,
-            initialBackoff: 1,
-            maxBackoff: 4,
-            backoffMultiplier: 2,
+            initialBackoff: 60,
+            maxBackoff: 60,
         );
         $backoff = new RetryBackoff($policy, new Randomizer(new Mt19937(1234)));
-        $cancellation = new CanceledException;
-        $sleepDurations = [];
+        $waiterCompleted = new Channel(1);
+        $cancellation = null;
+        $failure = null;
         $attempts = 0;
-
-        Sleep::fake();
-        Sleep::whenFakingSleep(static function (CarbonInterval $duration) use (
-            &$sleepDurations,
-            $cancellation,
-        ): void {
-            $sleepDurations[] = $duration->totalMicroseconds / 1_000_000;
-
-            if (count($sleepDurations) === 1) {
-                throw $cancellation;
-            }
-        });
-
         $call = $this->call(
             $first,
             $deadline,
@@ -382,18 +406,318 @@ class UnaryCallTest extends TestCase
             retryBackoff: $backoff,
         );
 
+        $waiter = EngineCoroutine::create(static function () use (
+            $call,
+            $waiterCompleted,
+            &$cancellation,
+            &$failure,
+        ): void {
+            try {
+                $call->status();
+            } catch (CanceledException $exception) {
+                $cancellation = $exception;
+            } catch (Throwable $throwable) {
+                $failure = $throwable;
+            } finally {
+                $waiterCompleted->push(true);
+            }
+        });
+
         try {
-            $call->status();
-            $this->fail('Expected cancellation to propagate.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+            $this->assertTrue(EngineCoroutine::cancelById($waiter->getId(), throwException: true));
+            $this->assertTrue($waiterCompleted->pop(1));
+            $this->assertInstanceOf(CanceledException::class, $cancellation);
+            $this->assertNull($failure);
+            $this->assertSame(0, $backoff->checkpoint());
+            $this->assertSame(0, $attempts);
+        } finally {
+            if (EngineCoroutine::exists($waiter->getId())) {
+                EngineCoroutine::cancelById($waiter->getId(), throwException: true);
+            }
+        }
+    }
+
+    public function testCanceledRetryDoesNotPreventALaterRetry(): void
+    {
+        $deadline = Deadline::fromTimeout(null);
+        $first = $this->state($deadline);
+        $first->handle($this->trailersOnly(
+            status: StatusCode::Unavailable,
+            headers: ['grpc-retry-pushback-ms' => '0'],
+        ));
+        $factoryStarted = new Channel(2);
+        $releaseFactory = new Channel(1);
+        $waiterCompleted = new Channel(1);
+        $cancellation = null;
+        $failure = null;
+        $attempts = 0;
+        $call = $this->call(
+            $first,
+            $deadline,
+            retryPolicy: new RetryPolicy(maxAttempts: 2),
+            attemptFactory: function () use (
+                $deadline,
+                $factoryStarted,
+                $releaseFactory,
+                &$attempts,
+            ): StreamState {
+                $factoryStarted->push(true);
+                $releaseFactory->pop();
+                ++$attempts;
+                $state = $this->state($deadline);
+                $this->respondSuccessfully($state, 'retried');
+
+                return $state;
+            },
+        );
+        $waiter = EngineCoroutine::create(static function () use (
+            $call,
+            $waiterCompleted,
+            &$cancellation,
+            &$failure,
+        ): void {
+            try {
+                $call->status();
+            } catch (CanceledException $exception) {
+                $cancellation = $exception;
+            } catch (Throwable $throwable) {
+                $failure = $throwable;
+            } finally {
+                $waiterCompleted->push(true);
+            }
+        });
+
+        try {
+            $this->assertTrue($factoryStarted->pop(1));
+            $this->assertTrue(EngineCoroutine::cancelById($waiter->getId(), throwException: true));
+            $this->assertTrue($waiterCompleted->pop(1));
+            $this->assertInstanceOf(CanceledException::class, $cancellation);
+            $this->assertNull($failure);
+            $this->assertSame(0, $attempts);
+
+            $this->assertTrue($releaseFactory->push(true));
+            $this->assertSame(StatusCode::Ok, $call->status()->code());
+            $this->assertTrue($factoryStarted->pop(1));
+            $this->assertSame(1, $attempts);
+        } finally {
+            $releaseFactory->push(true, 0.001);
+
+            if (EngineCoroutine::exists($waiter->getId())) {
+                EngineCoroutine::cancelById($waiter->getId(), throwException: true);
+            }
+        }
+    }
+
+    public function testCancelWakesARetryBackoffWithoutStartingAnotherAttempt(): void
+    {
+        $deadline = Deadline::fromTimeout(null);
+        $first = $this->state($deadline);
+        $first->handle($this->trailersOnly(status: StatusCode::Unavailable));
+        $attempts = 0;
+        $status = null;
+        $failure = null;
+        $waiterCompleted = new Channel(1);
+        $call = $this->call(
+            $first,
+            $deadline,
+            retryPolicy: new RetryPolicy(
+                maxAttempts: 2,
+                initialBackoff: 60,
+                maxBackoff: 60,
+            ),
+            attemptFactory: function () use (&$attempts, $deadline): StreamState {
+                ++$attempts;
+
+                return $this->state($deadline);
+            },
+        );
+        $waiter = EngineCoroutine::create(static function () use (
+            $call,
+            $waiterCompleted,
+            &$status,
+            &$failure,
+        ): void {
+            try {
+                $status = $call->status();
+            } catch (Throwable $throwable) {
+                $failure = $throwable;
+            } finally {
+                $waiterCompleted->push(true);
+            }
+        });
+
+        try {
+            $this->assertCancellationReturnsPromptly($call);
+            $this->assertTrue($waiterCompleted->pop(1));
+
+            $this->assertNull($failure);
+            $this->assertSame(StatusCode::Cancelled, $status?->code());
+            $this->assertSame(0, $attempts);
+            $this->assertFalse(EngineCoroutine::exists($waiter->getId()));
+        } finally {
+            if (EngineCoroutine::exists($waiter->getId())) {
+                EngineCoroutine::cancelById($waiter->getId(), throwException: true);
+            }
+        }
+    }
+
+    public function testCancelDuringAttemptCreationAbandonsTheUnpublishedAttempt(): void
+    {
+        $deadline = Deadline::fromTimeout(null);
+        $first = $this->state($deadline);
+        $first->handle($this->trailersOnly(
+            status: StatusCode::Unavailable,
+            headers: ['grpc-retry-pushback-ms' => '0'],
+        ));
+        $factoryStarted = new Channel(1);
+        $releaseFactory = new Channel(1);
+        $waiterCompleted = new Channel(1);
+        $replacement = null;
+        $status = null;
+        $failure = null;
+        $observer = new UnaryCallGrpcOperationObserverStub;
+        $operationHandle = new GrpcOperationHandle(
+            new UnaryCallGrpcOperationStub,
+            [[$observer, null]],
+        );
+        $call = $this->call(
+            $first,
+            $deadline,
+            retryPolicy: new RetryPolicy(maxAttempts: 2),
+            attemptFactory: function () use (
+                $deadline,
+                $factoryStarted,
+                $releaseFactory,
+                &$replacement,
+            ): StreamState {
+                $factoryStarted->push(true);
+                $releaseFactory->pop();
+                $replacement = $this->state($deadline);
+
+                return $replacement;
+            },
+            operationHandle: $operationHandle,
+        );
+        $waiter = EngineCoroutine::create(static function () use (
+            $call,
+            $waiterCompleted,
+            &$status,
+            &$failure,
+        ): void {
+            try {
+                $status = $call->status();
+            } catch (Throwable $throwable) {
+                $failure = $throwable;
+            } finally {
+                $waiterCompleted->push(true);
+            }
+        });
+
+        try {
+            $this->assertTrue($factoryStarted->pop(1));
+            $this->assertCancellationReturnsPromptly($call);
+            $this->assertTrue($releaseFactory->push(true));
+            $this->assertTrue($waiterCompleted->pop(1));
+        } finally {
+            $releaseFactory->push(true, 0.001);
+
+            if (EngineCoroutine::exists($waiter->getId())) {
+                EngineCoroutine::cancelById($waiter->getId(), throwException: true);
+            }
         }
 
-        $this->assertSame(StatusCode::Ok, $call->status()->code());
-        $this->assertSame(1, $attempts);
-        $this->assertCount(2, $sleepDurations);
-        $this->assertEqualsWithDelta(1.1696228108216047, $sleepDurations[0], 1e-6);
-        $this->assertEqualsWithDelta(0.933737924471334, $sleepDurations[1], 1e-6);
+        $this->assertNull($failure);
+        $this->assertSame(StatusCode::Cancelled, $status?->code());
+        $this->assertInstanceOf(StreamState::class, $replacement);
+        $this->assertTrue($replacement->isAbandoned());
+        $this->assertCount(1, $observer->results);
+        $this->assertSame(StatusCode::Cancelled, $observer->results[0]->status?->code());
+        $this->assertSame(1, $observer->results[0]->attemptCount);
+    }
+
+    public function testLogicalCancellationSuppressesAnOrdinaryFailureFromTheUnpublishedAttemptFactory(): void
+    {
+        $deadline = Deadline::fromTimeout(null);
+        $first = $this->state($deadline);
+        $first->handle($this->trailersOnly(
+            status: StatusCode::Unavailable,
+            headers: [
+                'grpc-retry-pushback-ms' => '0',
+                'x-trailer' => 'trailing',
+            ],
+        ));
+        $factoryStarted = new Channel(1);
+        $releaseFactory = new Channel(1);
+        $waiterCompleted = new Channel(1);
+        $factoryFailure = new RuntimeException('Attempt creation failed.');
+        $status = null;
+        $waiterFailure = null;
+        $observer = new UnaryCallGrpcOperationObserverStub;
+        $operationHandle = new GrpcOperationHandle(
+            new UnaryCallGrpcOperationStub,
+            [[$observer, null]],
+        );
+        $call = $this->call(
+            $first,
+            $deadline,
+            retryPolicy: new RetryPolicy(maxAttempts: 2),
+            // First-party factories do not currently throw after yielding; this pins the internal seam's cancellation invariant.
+            attemptFactory: static function () use (
+                $factoryStarted,
+                $releaseFactory,
+                $factoryFailure,
+            ): never {
+                $factoryStarted->push(true);
+                $releaseFactory->pop();
+
+                throw $factoryFailure;
+            },
+            operationHandle: $operationHandle,
+        );
+        $waiter = EngineCoroutine::create(static function () use (
+            $call,
+            $waiterCompleted,
+            &$status,
+            &$waiterFailure,
+        ): void {
+            try {
+                $status = $call->status();
+            } catch (Throwable $throwable) {
+                $waiterFailure = $throwable;
+            } finally {
+                $waiterCompleted->push(true);
+            }
+        });
+
+        try {
+            $this->assertTrue($factoryStarted->pop(1));
+            $this->assertCancellationReturnsPromptly($call);
+            $this->assertTrue($releaseFactory->push(true));
+            $this->assertTrue($waiterCompleted->pop(1));
+        } finally {
+            $releaseFactory->push(true, 0.001);
+
+            if (EngineCoroutine::exists($waiter->getId())) {
+                EngineCoroutine::cancelById($waiter->getId(), throwException: true);
+            }
+        }
+
+        $this->assertNull($waiterFailure);
+        $this->assertSame(StatusCode::Cancelled, $status?->code());
+        $this->assertNull($call->metadata()->first('x-trailer'));
+        $this->assertSame('trailing', $call->trailers()->first('x-trailer'));
+        $this->assertSame(StatusCode::Cancelled, $call->status()->code());
+
+        try {
+            $call->wait();
+            $this->fail('Expected the canceled call to fail.');
+        } catch (RpcException $exception) {
+            $this->assertSame(StatusCode::Cancelled, $exception->status()->code());
+        }
+
+        $this->assertCount(1, $observer->results);
+        $this->assertSame(StatusCode::Cancelled, $observer->results[0]->status?->code());
+        $this->assertSame(1, $observer->results[0]->attemptCount);
     }
 
     public function testConcurrentObserversCreateOnlyOneRetryAttempt(): void
@@ -490,22 +814,15 @@ class UnaryCallTest extends TestCase
         $first->handle($this->trailersOnly(status: StatusCode::Unavailable));
         $attempts = 0;
 
-        Sleep::fake();
-        Sleep::whenFakingSleep(static function (CarbonInterval $duration) use (&$now): void {
-            $now += (int) ceil($duration->totalMicroseconds) * 1_000;
-        });
-
         $call = $this->call(
             $first,
             $deadline,
             retryPolicy: new RetryPolicy(maxAttempts: 2),
-            attemptFactory: function () use (&$attempts, $deadline): StreamState {
+            attemptFactory: function () use (&$attempts, &$now, $deadline): StreamState {
                 ++$attempts;
+                $now = 1_010_000_000;
                 $state = $this->state($deadline);
-                $state->failWithStatus(new Status(
-                    StatusCode::DeadlineExceeded,
-                    'The gRPC deadline was exceeded.',
-                ));
+                $this->assertTrue($state->expireIfNeeded());
                 usleep(1_000);
 
                 return $state;
@@ -528,7 +845,6 @@ class UnaryCallTest extends TestCase
         $this->assertSame(StatusCode::DeadlineExceeded, $results['status']);
         $this->assertSame(StatusCode::DeadlineExceeded, $results['wait']);
         $this->assertSame(1, $attempts);
-        Sleep::assertSleptTimes(1);
     }
 
     public function testCommittedFailureIsNeverRetried(): void
@@ -702,6 +1018,30 @@ class UnaryCallTest extends TestCase
     private function serialized(string $value): string
     {
         return (new StringValue)->setValue($value)->serializeToString();
+    }
+
+    private function assertCancellationReturnsPromptly(UnaryCall $call): void
+    {
+        $completed = new Channel(1);
+        $failure = null;
+        $coroutine = EngineCoroutine::create(static function () use ($call, $completed, &$failure): void {
+            try {
+                $call->cancel();
+            } catch (Throwable $throwable) {
+                $failure = $throwable;
+            } finally {
+                $completed->push(true);
+            }
+        });
+
+        try {
+            $this->assertTrue($completed->pop(1));
+            $this->assertNull($failure);
+        } finally {
+            if (EngineCoroutine::exists($coroutine->getId())) {
+                EngineCoroutine::cancelById($coroutine->getId(), throwException: true);
+            }
+        }
     }
 }
 

@@ -7,6 +7,8 @@ namespace Hypervel\Database\Pool;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\ConnectionName;
 use Hypervel\Database\Connectors\ConnectionFactory;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 /**
  * Factory for creating and caching database connection pools.
@@ -128,12 +130,16 @@ class PoolFactory
     public function flushPoolsForConnection(string $name): void
     {
         $base = ConnectionName::parse($name)->base;
+        $pools = [];
 
-        foreach (array_keys($this->pools) as $poolName) {
+        foreach ($this->pools as $poolName => $pool) {
             if ($poolName === $base || str_starts_with($poolName, $base . '::')) {
-                $this->flushPool($poolName);
+                $pools[$poolName] = $pool;
+                unset($this->pools[$poolName]);
             }
         }
+
+        $this->closePools($pools);
     }
 
     /**
@@ -147,8 +153,35 @@ class PoolFactory
         $pools = $this->pools;
         $this->pools = [];
 
+        $this->closePools($pools);
+    }
+
+    /**
+     * Close a finite set of detached pools.
+     *
+     * @param array<string, DbPool> $pools
+     */
+    private function closePools(array $pools): void
+    {
+        $firstException = null;
+        $firstCancellation = null;
+
         foreach ($pools as $pool) {
-            $pool->close();
+            try {
+                $pool->close();
+            } catch (CanceledException $exception) {
+                $firstCancellation ??= $exception;
+            } catch (Throwable $exception) {
+                $firstException ??= $exception;
+            }
+        }
+
+        if ($firstCancellation !== null) {
+            throw $firstCancellation;
+        }
+
+        if ($firstException !== null) {
+            throw $firstException;
         }
     }
 }
