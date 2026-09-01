@@ -14,8 +14,10 @@ use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Console\Scheduling\SchedulingMutex;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
@@ -103,6 +105,31 @@ class ScheduleTest extends TestCase
         $scheduledJob = $schedule->job(JobToTestWithSchedule::class);
         self::assertSame(JobToTestWithSchedule::class, $scheduledJob->description);
         self::assertFalse($this->container->resolved(JobToTestWithSchedule::class));
+    }
+
+    public function testSynchronousJobResolvesToAFreshInstanceForEachFiring(): void
+    {
+        $dispatched = [];
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('dispatchNow')
+            ->twice()
+            ->andReturnUsing(function (ScheduleTestMutableJob $job) use (&$dispatched): void {
+                self::assertFalse($job->handled);
+
+                $dispatched[] = $job;
+                $job->handled = true;
+            });
+
+        $this->container->instance(Dispatcher::class, $dispatcher);
+        $this->container->instance('files', new Filesystem);
+
+        $event = (new Schedule)->job(ScheduleTestMutableJob::class);
+        $event->run($this->container);
+        $event->run($this->container);
+
+        self::assertCount(2, $dispatched);
+        self::assertNotSame($dispatched[0], $dispatched[1]);
+        self::assertFalse($this->container->make(ScheduleTestMutableJob::class)->handled);
     }
 
     public function testItCanFilterEventsByEnvironments(): void
@@ -482,6 +509,11 @@ class ScheduleTestUndescribedCommandStub extends Command
     public function handle(): void
     {
     }
+}
+
+class ScheduleTestMutableJob
+{
+    public bool $handled = false;
 }
 
 class JobToTestWithSchedule implements ShouldQueue
