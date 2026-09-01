@@ -399,13 +399,22 @@
         }
     },
     "scripts": {
-        "test": "phpunit",
-        "test:parallel": "paratest",
+        "test": [
+            "Composer\\Config::disableProcessTimeout",
+            "phpunit"
+        ],
+        "test:parallel": [
+            "Composer\\Config::disableProcessTimeout",
+            "paratest"
+        ],
         "test:profile": [
             "Composer\\Config::disableProcessTimeout",
             "@php src/testing/bin/hypervel-test-profile"
         ],
-        "test:testbench": "php src/testbench/bin/testbench package:test --parallel tests/Testbench",
+        "test:testbench": [
+            "Composer\\Config::disableProcessTimeout",
+            "php src/testbench/bin/testbench package:test --parallel tests/Testbench"
+        ],
         "test:dogfood": [
             "Composer\\Config::disableProcessTimeout",
             "composer --working-dir=dogfood/testbench-package install --prefer-dist -n -o",
