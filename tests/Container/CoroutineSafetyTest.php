@@ -10,6 +10,7 @@ use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Container\CircularDependencyException;
 use Hypervel\Contracts\Container\Transient;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine as SwooleCoroutine;
@@ -262,7 +263,8 @@ class CoroutineSafetyTest extends TestCase
         }
     }
 
-    public function testConcurrentSingletonWaitsForResolvingCallbacks(): void
+    #[DataProvider('explicitSingletonWaiterProvider')]
+    public function testConcurrentResolutionWaitsForExplicitSingletonCallbacks(bool $useTransientResolution): void
     {
         $container = new CoroutineInspectingContainer;
         $callbackEntered = new Channel(1);
@@ -286,10 +288,12 @@ class CoroutineSafetyTest extends TestCase
 
         $results = parallel([
             'owner' => fn () => $container->make('service'),
-            'waiter' => function () use ($callbackEntered, $container) {
+            'waiter' => function () use ($callbackEntered, $container, $useTransientResolution) {
                 $callbackEntered->pop();
 
-                return $container->make('service');
+                return $useTransientResolution
+                    ? $container->makeTransient('service')
+                    : $container->make('service');
             },
             'release' => function () use ($waiterEntered, $releaseCallback): bool {
                 $waiterObserved = $waiterEntered->pop(1);
@@ -303,6 +307,14 @@ class CoroutineSafetyTest extends TestCase
         $this->assertSame(1, $constructions);
         $this->assertSame($results['owner'], $results['waiter']);
         $this->assertSame('ready', $results['owner']->status);
+    }
+
+    public static function explicitSingletonWaiterProvider(): array
+    {
+        return [
+            'ordinary resolution' => [false],
+            'transient resolution' => [true],
+        ];
     }
 
     public function testConcurrentAutoSingletonConstructionConverges(): void
@@ -345,6 +357,59 @@ class CoroutineSafetyTest extends TestCase
         $this->assertTrue($results['release']);
         $this->assertSame(1, $constructions);
         $this->assertSame($results['owner'], $results['waiter']);
+    }
+
+    public function testConcurrentTransientResolutionDoesNotJoinImplicitSharedResolution(): void
+    {
+        $container = new Container;
+        $normalDependencyEntered = new Channel(1);
+        $transientDependencyEntered = new Channel(1);
+        $releaseDependency = new Channel(2);
+        $constructions = 0;
+        CoroutineCoordinatedService::$constructions = 0;
+
+        $container->bind(
+            CoroutineCoordinatedDependency::class,
+            function () use (
+                &$constructions,
+                $normalDependencyEntered,
+                $transientDependencyEntered,
+                $releaseDependency,
+            ): CoroutineCoordinatedDependency {
+                ++$constructions;
+
+                ($constructions === 1 ? $normalDependencyEntered : $transientDependencyEntered)->push(true);
+                $releaseDependency->pop();
+
+                return new CoroutineCoordinatedDependency;
+            },
+        );
+
+        try {
+            $results = parallel([
+                'normal' => fn () => $container->make(CoroutineCoordinatedService::class),
+                'transient' => function () use ($container, $normalDependencyEntered) {
+                    $normalDependencyEntered->pop();
+
+                    return $container->makeTransient(CoroutineCoordinatedService::class);
+                },
+                'release' => function () use ($transientDependencyEntered, $releaseDependency): bool {
+                    $transientConstructionEntered = $transientDependencyEntered->pop(1);
+                    $releaseDependency->push(true);
+                    $releaseDependency->push(true);
+
+                    return $transientConstructionEntered === true;
+                },
+            ]);
+            $serviceConstructions = CoroutineCoordinatedService::$constructions;
+        } finally {
+            CoroutineCoordinatedService::$constructions = 0;
+        }
+
+        $this->assertTrue($results['release']);
+        $this->assertSame(2, $serviceConstructions);
+        $this->assertNotSame($results['normal'], $results['transient']);
+        $this->assertSame($results['normal'], $container->make(CoroutineCoordinatedService::class));
     }
 
     public function testTransientBindingDoesNotAdoptAnInFlightDirectResolution(): void

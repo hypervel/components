@@ -77,6 +77,7 @@ Every audit must explicitly check for overengineering, Laravel-style ergonomics,
 
 Modifying code is an implicit assessment of it. Whenever you edit a method, move code, copy a file, or port from upstream, check what you touch for:
 
+- Lifetime classification for any container-buildable class you add, port, or whose mutable state you change — see Container.
 - Hardcoded values that should be derived (namespaces, defaults)
 - Defensive code that masks bugs
 - Conventions that diverge from how the framework actually does it
@@ -158,7 +159,7 @@ Do not add upstream links for inspiration or historical lineage. Omit them when 
 
 Build complete, long-term solutions, not MVPs or local workarounds. A broad change is correct when the root cause is in shared code, but every added mechanism must solve a real problem.
 
-- Require a supported, realistic path and meaningful harm before treating a concern as a defect. Rare failures count when they can actually occur in supported production use; merely conceivable states do not.
+- **Do not add behavior to guard against unsupported API use.** Before adding defensive code, show that normal supported use actually behaves incorrectly and causes meaningful harm. Behavior that is only possible or surprising when an API is used outside its contract is not a bug.
 - Prefer the simplest existing Laravel or Hypervel API, PHP feature, or database constraint. Do not duplicate framework behavior with package-owned machinery.
 - Do not add a new mechanism merely because it sounds robust, flexible, or potentially useful — for example, a registry, retry loop, configuration option, or extension point. It must solve a verified problem, meet a clear approved requirement, support a clearly likely need whose shape is understood, or remove greater complexity elsewhere.
 - Do not add machinery to preserve invariants across deliberate Laravel-style escape hatches such as `withoutEvents()`, quiet methods, raw builders, raw SQL, disabled middleware, or direct transport access unless the public contract explicitly promises that behavior.
@@ -221,7 +222,7 @@ Hypervel's container keeps Laravel's named API surface — `bind()`, `singleton(
 
 ### Resolution semantics vs Laravel
 
-The critical difference: **unbound concrete classes are auto-singletoned**. In Laravel, `make()` on a class with no binding builds a fresh instance every call. In Hypervel, the first resolution caches the instance (in `$autoSingletons`) for the worker lifetime — in Swoole's long-running process model services are stateless singletons by design, and re-creating them on every resolution wastes CPU and memory. Explicit bindings override this (bound classes follow their binding type), and `SelfBuilding` and `Transient` classes are excluded.
+The critical difference: **unbound concrete classes are auto-singletoned**. In Laravel, `make()` on a class with no binding builds a fresh instance every call. In Hypervel, the first resolution caches the instance (in `$autoSingletons`) for the worker lifetime. Worker-safe services can reuse initialized state, avoiding repeated construction cost and allocation. Explicit bindings override this (bound classes follow their binding type), and `SelfBuilding` and `Transient` classes are excluded.
 
 | Registration | Laravel | Hypervel |
 |---|---|---|
@@ -236,16 +237,23 @@ The critical difference: **unbound concrete classes are auto-singletoned**. In L
 
 Rules that follow from this:
 
-- **Classes that capture per-request data in their constructor or accumulate mutable state must not be auto-singletoned** — pick the correct lifetime: `scoped()` for one instance per coroutine/request, `bind()` for a fresh instance per resolution, `build()`/`buildWith()` for direct construction at the call site, `SelfBuilding` for class-controlled construction, or `Transient` when freshness is intrinsic to the whole class hierarchy. An existing class like that being auto-singletoned is a coroutine-safety bug — STOP and report it.
-- **Most classes are safe as auto-singletons:** services, middleware, listeners, factories, formatters — stateless or process-global by nature.
-- **Do not use `build()` as a drop-in freshness replacement for `make()`** when explicit bindings, test swaps, aliases, or resolving callbacks must be honored — it bypasses top-level binding lookups, aliases, and caches by design.
+- **Ownership of mutable state decides the lifetime.** Most services, middleware, listeners, factories, and formatters are safe to auto-singleton because they are stateless or hold only worker-owned state. State a service computes and keeps for reuse — caches, registries, resolved configuration, callbacks, or connections — is intended worker-lifetime state, so those classes remain auto-singletons. State owned by a caller, request, or operation must not be stored on a worker-shared object: keep invocation state in `CoroutineContext`, use `scoped()` for one instance per coroutine/request, `bind()` for a fresh bound instance, or `Transient` only when freshness is intrinsic to the whole hierarchy.
+- **A class that captures request state in its constructor and is neither scoped nor execution-scoped is a coroutine-safety bug** — STOP and report it. Contextual attributes such as `RouteParameter` and `CurrentUser` already make their containing class execution-scoped.
+- **Do not infer `Transient` from mutable properties, setters, or a no-argument constructor.** Remove incidental mutation instead of marking the class as `Transient`, and verify every subclass before marking a base class. For example, `Collection` holds caller-owned values and is `Transient`, while `Manager::$drivers` is a service-owned cache and remains auto-singletoned.
 
-### Choosing a binding type
+### Choosing a resolution strategy
 
-- Stateless and shared for the worker lifetime → `singleton()`.
-- Fresh mutable object per resolution → `bind()`, or `Transient` when that lifetime is intrinsic to the whole class hierarchy.
-- State isolated per coroutine / request → `scoped()`.
-- Concrete class with no separate abstract → don't bind it at all; auto-singletoning covers it unless the class implements `Transient` or `SelfBuilding`.
+- Unbound concrete service whose state is safe to share for the worker lifetime → do not bind it; auto-singletoning is the default.
+- Interface or canonical service key shared for the worker lifetime → `singleton()`.
+- Existing object intentionally shared for the worker lifetime → `instance()` during boot, or in tests for a swap.
+- Unbound class whose constructor uses an `ExecutionScopedAttribute` → do not bind it; the container scopes it automatically to the current execution.
+- One instance per coroutine / request → `scoped()`.
+- Fresh instance required by a specific binding → `bind()`.
+- Freshness intrinsic to the whole class hierarchy → `Transient`.
+- One resolution should ignore the implicit auto-singleton and constructor-derived execution scope while retaining aliases, bindings, extenders, and resolving callbacks → `makeTransient()`.
+- Class-controlled construction through `newInstance()` → `SelfBuilding`.
+- One contextual resolution with explicit constructor parameters → `make()` / `makeWith()` with parameters. Aliases, binding definitions, and resolving callbacks still apply, but cached lifetimes are bypassed.
+- Direct construction that intentionally bypasses top-level bindings and caches → `build()` / `buildWith()`. Do not use these when aliases, test swaps, or resolving callbacks must be honored.
 
 ### Binding patterns
 

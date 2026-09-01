@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Http;
 
 use ArrayObject;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Contracts\Support\Renderable;
@@ -16,7 +17,7 @@ use RuntimeException;
 use Stringable;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
-class Response extends SymfonyResponse
+class Response extends SymfonyResponse implements Transient
 {
     use Macroable {
         Macroable::__call as macroCall;
