@@ -22,6 +22,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\ProcessUtils;
 use Hypervel\Support\Traits\Macroable;
+use ReflectionObject;
 use RuntimeException;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Throwable;
@@ -204,9 +205,11 @@ class Schedule
             function () use ($job, $queue, $connection) {
                 $job = is_string($job) ? Container::getInstance()->make($job) : $job;
 
-                // Class strings may resolve to an auto-singleton, while supplied objects
-                // are retained by this callback. Each firing needs its own job instance.
-                $job = clone $job;
+                // Cloneable jobs get isolated dispatch state on each firing. Jobs that
+                // deliberately forbid cloning must retain their resolved identity.
+                if ((new ReflectionObject($job))->isCloneable()) {
+                    $job = clone $job;
+                }
 
                 if ($job instanceof ShouldQueue) {
                     $this->dispatchToQueue($job, $queue ?? $job->queue, $connection ?? $job->connection); /* @phpstan-ignore-line */

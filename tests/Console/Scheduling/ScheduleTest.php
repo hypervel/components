@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Console\Scheduling;
 
 use DateTimeImmutable;
+use Hypervel\Bus\Queueable;
 use Hypervel\Console\Command;
 use Hypervel\Console\Scheduling\CacheAware;
 use Hypervel\Console\Scheduling\CacheEventMutex;
@@ -130,6 +131,60 @@ class ScheduleTest extends TestCase
         self::assertCount(2, $dispatched);
         self::assertNotSame($dispatched[0], $dispatched[1]);
         self::assertFalse($this->container->make(ScheduleTestMutableJob::class)->handled);
+    }
+
+    public function testNonCloneableSynchronousJobIsDispatchedWithoutCloning(): void
+    {
+        $job = new ScheduleTestNonCloneableJob;
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('dispatchNow')
+            ->once()
+            ->andReturnUsing(static function (object $dispatched) use ($job): void {
+                self::assertSame($job, $dispatched);
+            });
+
+        $this->container->instance(Dispatcher::class, $dispatcher);
+        $this->container->instance('files', new Filesystem);
+
+        (new Schedule)->job($job)->run($this->container);
+    }
+
+    public function testCloneableQueuedJobIsClonedBeforeQueueStateIsApplied(): void
+    {
+        $job = new ScheduleTestQueuedJob;
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('dispatch')
+            ->once()
+            ->andReturnUsing(static function (object $dispatched) use ($job): void {
+                self::assertNotSame($job, $dispatched);
+                self::assertSame('connection-name', $dispatched->connection);
+                self::assertSame('queue-name', $dispatched->queue);
+                self::assertNull($job->connection);
+                self::assertNull($job->queue);
+            });
+
+        $this->container->instance(Dispatcher::class, $dispatcher);
+        $this->container->instance('files', new Filesystem);
+
+        (new Schedule)->job($job, 'queue-name', 'connection-name')->run($this->container);
+    }
+
+    public function testNonCloneableQueuedJobIsDispatchedWithoutCloning(): void
+    {
+        $job = new ScheduleTestNonCloneableQueuedJob;
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('dispatch')
+            ->once()
+            ->andReturnUsing(static function (object $dispatched) use ($job): void {
+                self::assertSame($job, $dispatched);
+                self::assertSame('connection-name', $dispatched->connection);
+                self::assertSame('queue-name', $dispatched->queue);
+            });
+
+        $this->container->instance(Dispatcher::class, $dispatcher);
+        $this->container->instance('files', new Filesystem);
+
+        (new Schedule)->job($job, 'queue-name', 'connection-name')->run($this->container);
     }
 
     public function testItCanFilterEventsByEnvironments(): void
@@ -514,6 +569,27 @@ class ScheduleTestUndescribedCommandStub extends Command
 class ScheduleTestMutableJob
 {
     public bool $handled = false;
+}
+
+class ScheduleTestNonCloneableJob
+{
+    private function __clone(): void
+    {
+    }
+}
+
+class ScheduleTestQueuedJob implements ShouldQueue
+{
+    use Queueable;
+}
+
+class ScheduleTestNonCloneableQueuedJob implements ShouldQueue
+{
+    use Queueable;
+
+    private function __clone(): void
+    {
+    }
 }
 
 class JobToTestWithSchedule implements ShouldQueue
