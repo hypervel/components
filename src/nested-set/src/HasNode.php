@@ -241,9 +241,9 @@ trait HasNode
      */
     protected function actionAppendOrPrependPrepared(self $parent, bool $prepend = false): bool
     {
-        $this->assertNodeInTree($parent)
+        $this->ensureNodeInTree($parent)
             ->assertNotDescendant($parent)
-            ->assertSameTree($parent)
+            ->ensureSameTree($parent)
             ->setParent($parent)
             ->dirtyBounds();
 
@@ -295,9 +295,9 @@ trait HasNode
     {
         $node->prepareForNestedSetMutation();
 
-        $this->assertNodeInTree($node)
+        $this->ensureNodeInTree($node)
             ->assertNotDescendant($node)
-            ->assertSameTree($node)
+            ->ensureSameTree($node)
             ->setParentFromSibling($node)
             ->dirtyBounds();
 
@@ -459,7 +459,7 @@ trait HasNode
      */
     public function nextSiblings(): QueryBuilder
     {
-        $this->assertParentageLoaded();
+        $this->ensureParentageLoaded();
 
         return $this->nextNodes()
             ->where(
@@ -474,7 +474,7 @@ trait HasNode
      */
     public function prevSiblings(): QueryBuilder
     {
-        $this->assertParentageLoaded();
+        $this->ensureParentageLoaded();
 
         return $this->prevNodes()
             ->where(
@@ -489,8 +489,8 @@ trait HasNode
      */
     public function nextNodes(): QueryBuilder
     {
-        $this->assertBoundsLoaded();
-        $this->assertScopeLoaded();
+        $this->ensureBoundsLoaded();
+        $this->ensureScopeLoaded();
 
         return $this->newScopedQuery()
             ->where(
@@ -505,8 +505,8 @@ trait HasNode
      */
     public function prevNodes(): QueryBuilder
     {
-        $this->assertBoundsLoaded();
-        $this->assertScopeLoaded();
+        $this->ensureBoundsLoaded();
+        $this->ensureScopeLoaded();
 
         return $this->newScopedQuery()
             ->where(
@@ -1165,7 +1165,7 @@ trait HasNode
             return 2;
         }
 
-        $this->assertBoundsLoaded();
+        $this->ensureBoundsLoaded();
 
         return $this->getRgt() - $this->getLft() + 1;
     }
@@ -1610,6 +1610,7 @@ trait HasNode
         $this->assertNotDescendant($node);
     }
 
+    // Keep NodeTrait::assertNotDescendant() so upstream subclasses remain compatible.
     /**
      * Assert that a node is not this node's descendant.
      */
@@ -1623,9 +1624,9 @@ trait HasNode
     }
 
     /**
-     * Assert that a node has persisted tree bounds.
+     * Ensure that a node has persisted tree bounds.
      */
-    protected function assertNodeInTree(self $node): static
+    protected function ensureNodeInTree(self $node): static
     {
         if (($node->getLft() ?? 0) < 1 || ($node->getRgt() ?? 0) < 1) {
             throw new LogicException('Node must be part of a tree.');
@@ -1635,9 +1636,9 @@ trait HasNode
     }
 
     /**
-     * Assert that this node has loaded bounds.
+     * Ensure that this node has loaded bounds.
      */
-    protected function assertBoundsLoaded(): void
+    protected function ensureBoundsLoaded(): void
     {
         if ($this->getLft() === null || $this->getRgt() === null) {
             throw new LogicException(sprintf(
@@ -1648,9 +1649,9 @@ trait HasNode
     }
 
     /**
-     * Assert that this node has loaded parentage.
+     * Ensure that this node has loaded parentage.
      */
-    protected function assertParentageLoaded(): void
+    protected function ensureParentageLoaded(): void
     {
         if (! array_key_exists($this->getParentIdName(), $this->attributes)) {
             throw new LogicException(sprintf(
@@ -1661,9 +1662,9 @@ trait HasNode
     }
 
     /**
-     * Assert that this node has loaded scope attributes.
+     * Ensure that this node has loaded scope attributes.
      */
-    protected function assertScopeLoaded(): void
+    protected function ensureScopeLoaded(): void
     {
         foreach ($this->getScopeAttributes() as $attribute) {
             if (! array_key_exists($attribute, $this->attributes)) {
@@ -1677,9 +1678,9 @@ trait HasNode
     }
 
     /**
-     * Assert that a node belongs to the same nested set tree.
+     * Ensure that a node belongs to the same nested set tree.
      */
-    protected function assertSameTree(self $node): static
+    protected function ensureSameTree(self $node): static
     {
         if (! $this->isSameTree($node)) {
             throw new LogicException('Nodes must be in the same tree.');

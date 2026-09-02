@@ -389,7 +389,7 @@ class Builder implements BuilderContract
         }
 
         if ($query instanceof self) {
-            $this->assertNoTimeoutOnEmbeddedQuery($query);
+            $this->ensureNoTimeoutOnEmbeddedQuery($query);
 
             $query = $this->prependDatabaseNameIfCrossDatabaseQuery($query);
 
@@ -1744,7 +1744,7 @@ class Builder implements BuilderContract
             $query = $callback instanceof self ? $callback : $callback->toBase();
         }
 
-        $this->assertNoTimeoutOnEmbeddedQuery($query);
+        $this->ensureNoTimeoutOnEmbeddedQuery($query);
 
         $this->wheres[] = compact(
             'type',
@@ -1825,7 +1825,7 @@ class Builder implements BuilderContract
      */
     public function addWhereExistsQuery(self $query, string $boolean = 'and', bool $not = false): static
     {
-        $this->assertNoTimeoutOnEmbeddedQuery($query);
+        $this->ensureNoTimeoutOnEmbeddedQuery($query);
 
         $type = $not ? 'NotExists' : 'Exists';
 
@@ -2728,7 +2728,7 @@ class Builder implements BuilderContract
             $query = $query->toBase();
         }
 
-        $this->assertNoTimeoutOnEmbeddedQuery($query);
+        $this->ensureNoTimeoutOnEmbeddedQuery($query);
 
         $this->unions[] = compact('query', 'all');
 
@@ -4206,7 +4206,7 @@ class Builder implements BuilderContract
      *
      * @throws InvalidArgumentException
      */
-    protected function assertNoTimeoutOnEmbeddedQuery(self $query): void
+    protected function ensureNoTimeoutOnEmbeddedQuery(self $query): void
     {
         if ($query->timeout !== null) {
             throw new InvalidArgumentException(

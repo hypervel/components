@@ -68,19 +68,15 @@ class EventsTest extends TestCase
         $this->assertSame(1, $event->exitCode);
     }
 
-    public function testBeforeHandleCarriesCommandAndOptionalInput(): void
+    public function testBeforeHandleCarriesCommandAndInput(): void
     {
         $command = m::mock(Command::class);
         $input = new ArrayInput([]);
 
-        $event = new BeforeHandle($command);
+        $event = new BeforeHandle($command, $input);
 
         $this->assertSame($command, $event->command);
-        $this->assertNull($event->input);
-
-        $eventWithInput = new BeforeHandle($command, $input);
-
-        $this->assertSame($input, $eventWithInput->input);
+        $this->assertSame($input, $event->input);
     }
 
     public function testAfterHandleCarriesCommand()
@@ -92,22 +88,17 @@ class EventsTest extends TestCase
         $this->assertSame($command, $event->command);
     }
 
-    public function testAfterExecuteCarriesCommandAndOptionalExecutionData(): void
+    public function testAfterExecuteCarriesExecutionData(): void
     {
         $command = m::mock(Command::class);
-
-        $event = new AfterExecute($command);
-        $this->assertSame($command, $event->command);
-        $this->assertNull($event->throwable);
-        $this->assertNull($event->input);
-        $this->assertNull($event->exitCode);
-
         $throwable = new RuntimeException('Execute failed');
         $input = new ArrayInput([]);
-        $eventWithThrowable = new AfterExecute($command, $throwable, $input, 1);
-        $this->assertSame($throwable, $eventWithThrowable->throwable);
-        $this->assertSame($input, $eventWithThrowable->input);
-        $this->assertSame(1, $eventWithThrowable->exitCode);
+        $event = new AfterExecute($command, $throwable, $input, 1);
+
+        $this->assertSame($command, $event->command);
+        $this->assertSame($throwable, $event->throwable);
+        $this->assertSame($input, $event->input);
+        $this->assertSame(1, $event->exitCode);
     }
 
     public function testScheduledTaskStartingCarriesTask()

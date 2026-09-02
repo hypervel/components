@@ -82,7 +82,7 @@ abstract class ObjectPool implements ObjectPoolContract
      */
     public function release(object $object): void
     {
-        $id = $this->assertBorrowed($object);
+        $id = $this->ensureBorrowed($object);
         unset($this->borrowed[$id]);
 
         if ($this->closed) {
@@ -103,7 +103,7 @@ abstract class ObjectPool implements ObjectPoolContract
      */
     public function discard(object $object): void
     {
-        $id = $this->assertBorrowed($object);
+        $id = $this->ensureBorrowed($object);
         unset($this->borrowed[$id]);
 
         $this->destroyObject($object);
@@ -269,9 +269,9 @@ abstract class ObjectPool implements ObjectPoolContract
     abstract protected function createObject(): object;
 
     /**
-     * Assert an object is currently checked out from this pool.
+     * Ensure an object is currently checked out from this pool.
      */
-    protected function assertBorrowed(object $object): int
+    protected function ensureBorrowed(object $object): int
     {
         $id = spl_object_id($object);
 

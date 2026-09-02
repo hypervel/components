@@ -48,12 +48,8 @@ class CommandWatcher extends Watcher
      *
      * @return array{arguments: array<string, mixed>, options: array<string, mixed>}
      */
-    private function redactInput(Command $command, ?InputInterface $input): array
+    private function redactInput(Command $command, InputInterface $input): array
     {
-        if ($input === null) {
-            return ['arguments' => [], 'options' => []];
-        }
-
         $arguments = array_map(
             static fn (mixed $value): mixed => $value === null ? null : Telescope::REDACTED_VALUE,
             $input->getArguments(),

@@ -25,6 +25,7 @@ use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Symfony\Component\Console\Input\ArrayInput;
 
 #[WithConfig('telescope.watchers', [
     QueryWatcher::class => [
@@ -219,7 +220,7 @@ class TelescopeTest extends FeatureTestCase
         Telescope::stopRecording();
 
         $this->app->make(EventDispatcher::class)
-            ->dispatch(new BeforeHandle(new RecordingStateCommand('telescope:test-command')));
+            ->dispatch(new BeforeHandle(new RecordingStateCommand('telescope:test-command'), new ArrayInput([])));
 
         $this->assertTrue(Telescope::isRecording());
     }
@@ -230,7 +231,7 @@ class TelescopeTest extends FeatureTestCase
         Telescope::stopRecording();
 
         $this->app->make(EventDispatcher::class)
-            ->dispatch(new BeforeHandle(new RecordingStateCommand($command)));
+            ->dispatch(new BeforeHandle(new RecordingStateCommand($command), new ArrayInput([])));
 
         $this->assertFalse(Telescope::isRecording());
     }
@@ -249,7 +250,7 @@ class TelescopeTest extends FeatureTestCase
         Telescope::stopRecording();
 
         $this->app->make(EventDispatcher::class)
-            ->dispatch(new BeforeHandle(new RecordingStateCommand('custom:ignored')));
+            ->dispatch(new BeforeHandle(new RecordingStateCommand('custom:ignored'), new ArrayInput([])));
 
         $this->assertFalse(Telescope::isRecording());
     }
@@ -269,7 +270,7 @@ class TelescopeTest extends FeatureTestCase
 
         Telescope::stopRecording();
         $this->app->make(EventDispatcher::class)
-            ->dispatch(new BeforeHandle(new RecordingStateCommand('custom:command')));
+            ->dispatch(new BeforeHandle(new RecordingStateCommand('custom:command'), new ArrayInput([])));
 
         $this->assertTrue(Telescope::isRecording());
     }
@@ -279,7 +280,7 @@ class TelescopeTest extends FeatureTestCase
         Telescope::stopRecording();
 
         $this->app->make(EventDispatcher::class)
-            ->dispatch(new BeforeHandle(new RecordingStateCommand('schedule:run')));
+            ->dispatch(new BeforeHandle(new RecordingStateCommand('schedule:run'), new ArrayInput([])));
 
         $this->assertFalse(Telescope::isRecording());
 
