@@ -13,6 +13,7 @@ use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\Telescope\Contracts\EntriesRepository;
@@ -120,6 +121,26 @@ class TelescopeTest extends FeatureTestCase
         Telescope::recordLog(IncomingEntry::make(['message' => 'second']));
 
         $this->assertSame('second', Telescope::getEntriesQueue()[1]->content['message']);
+    }
+
+    public function testForkedRecordingChildOwnsItsQueueAndDeferredStore(): void
+    {
+        $storedBatches = [];
+        $store = $this->fakeRecordingStore($storedBatches);
+
+        Telescope::recordLog(IncomingEntry::make(['message' => 'parent']));
+
+        $coroutineId = Coroutine::fork(function (): void {
+            Telescope::recordLog(IncomingEntry::make(['message' => 'child']));
+        });
+
+        Coroutine::join([$coroutineId]);
+        Telescope::store($store);
+
+        $this->assertSame(['child'], array_column($storedBatches[0], 'message'));
+        $this->assertSame(['parent'], array_column($storedBatches[1], 'message'));
+        $this->assertNotNull($storedBatches[0][0]['batch_id']);
+        $this->assertSame($storedBatches[0][0]['batch_id'], $storedBatches[1][0]['batch_id']);
     }
 
     public function testRunAfterStoreCallback()
