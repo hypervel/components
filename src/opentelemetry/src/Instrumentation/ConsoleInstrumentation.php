@@ -187,13 +187,12 @@ class ConsoleInstrumentation extends AbstractInstrumentation
         }
 
         $finishedAt = $this->clock->now();
-        $failed = $event->throwable !== null || ($event->exitCode !== null && $event->exitCode !== 0);
+        $failed = $event->throwable !== null || $event->exitCode !== 0;
         $result = $failed ? 'failure' : 'success';
-        $attributes = $state->attributes + ['result' => $result];
-
-        if ($event->exitCode !== null) {
-            $attributes[self::EXIT_CODE_ATTRIBUTE] = $event->exitCode;
-        }
+        $attributes = $state->attributes + [
+            'result' => $result,
+            self::EXIT_CODE_ATTRIBUTE => $event->exitCode,
+        ];
 
         if ($event->throwable !== null) {
             $attributes[ErrorAttributes::ERROR_TYPE] = $event->throwable::class;
@@ -202,10 +201,7 @@ class ConsoleInstrumentation extends AbstractInstrumentation
         try {
             if ($state->span?->isRecording()) {
                 $state->span->setAttribute('result', $result);
-
-                if ($event->exitCode !== null) {
-                    $state->span->setAttribute(self::EXIT_CODE_ATTRIBUTE, $event->exitCode);
-                }
+                $state->span->setAttribute(self::EXIT_CODE_ATTRIBUTE, $event->exitCode);
 
                 if ($event->throwable !== null) {
                     $state->span->recordException($event->throwable);

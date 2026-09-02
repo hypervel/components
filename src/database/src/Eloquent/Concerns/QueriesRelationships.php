@@ -872,7 +872,7 @@ trait QueriesRelationships
                 )
             );
 
-            $this->assertNoTimeoutOnRelationshipConstraint($query);
+            $this->ensureNoTimeoutOnRelationshipConstraint($query);
 
             if (is_null($this->query->columns)) {
                 $this->query->select([$this->query->from . '.*']);
@@ -969,7 +969,7 @@ trait QueriesRelationships
         $hasQuery->mergeConstraintsFrom($relation->getQuery());
         $query = $hasQuery->toBase();
 
-        $this->assertNoTimeoutOnRelationshipConstraint($query);
+        $this->ensureNoTimeoutOnRelationshipConstraint($query);
 
         return $this->canUseExistsForExistenceCheck($operator, $count)
             ? $this->addWhereExistsQuery($query, $boolean, $operator === '<' && $count === 1)
@@ -1039,7 +1039,7 @@ trait QueriesRelationships
      *
      * @throws InvalidArgumentException
      */
-    protected function assertNoTimeoutOnRelationshipConstraint(QueryBuilder $query): void
+    protected function ensureNoTimeoutOnRelationshipConstraint(QueryBuilder $query): void
     {
         if ($query->timeout !== null) {
             throw new InvalidArgumentException(

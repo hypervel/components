@@ -645,7 +645,7 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
      */
     public function setLocale(string $locale): void
     {
-        $this->assertValidLocale($locale);
+        $this->ensureValidLocale($locale);
 
         CoroutineContext::set(self::LOCALE_CONTEXT_KEY, $locale);
     }
@@ -660,7 +660,7 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
      */
     public function setBaseLocale(string $locale): void
     {
-        $this->assertValidLocale($locale);
+        $this->ensureValidLocale($locale);
 
         $this->locale = $locale;
     }
@@ -670,7 +670,7 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
      *
      * @throws InvalidArgumentException
      */
-    protected function assertValidLocale(string $locale): void
+    protected function ensureValidLocale(string $locale): void
     {
         // Mirrors the trust-boundary check in FileLoader::load(); keep both predicates identical.
         if (Str::contains($locale, ['/', '\\']) || $locale === '.' || $locale === '..') {
@@ -695,7 +695,7 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
      */
     public function setFallback(string $fallback): void
     {
-        $this->assertValidLocale($fallback);
+        $this->ensureValidLocale($fallback);
 
         $this->fallback = $fallback;
     }

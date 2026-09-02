@@ -13,4 +13,6 @@ A contextual attribute's resolved value is authoritative, including `null`. Unli
 
 `#[BindWhen]` conditions must depend only on boot-stable state. The first matching condition becomes a normal worker-lifetime binding; unmatched conditions remain eligible for reevaluation on later resolutions.
 
+Hypervel does not expose Laravel's protected per-parameter override helpers. Container subclasses that customize parameter override resolution should override `resolveRecipeParameters()`, which receives the current coroutine's resolution state and resolves the complete parameter list in one pass.
+
 Ported from: https://github.com/laravel/framework/tree/13.x/src/Illuminate/Container

@@ -13,14 +13,13 @@ use Symfony\Component\Console\Input\InputInterface;
  * Fires after all Symfony/run() setup is complete but before business logic executes.
  * Unlike CommandStarting, this event fires within the command's execution boundary.
  * Commands may disable coroutine execution, so listeners must check before using
- * coroutine-only APIs. Framework dispatches always include the input; it remains
- * nullable only for compatibility with existing manual event construction.
+ * coroutine-only APIs.
  */
 class BeforeHandle
 {
     public function __construct(
         public readonly Command $command,
-        public readonly ?InputInterface $input = null,
+        public readonly InputInterface $input,
     ) {
     }
 }

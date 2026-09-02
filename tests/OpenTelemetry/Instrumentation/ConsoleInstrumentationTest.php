@@ -40,6 +40,8 @@ use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use OpenTelemetry\SemConv\Attributes\ExceptionAttributes;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Symfony\Component\Console\Input\ArrayInput;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -132,12 +134,12 @@ class ConsoleInstrumentationTest extends TestCase
 
         try {
             $this->clock->timestamp = 1_000_000_000;
-            $this->events->dispatch(new BeforeHandle($command));
+            $input = $this->startCommand($command);
             $commandSpan = Span::getCurrent()->getContext();
             $this->assertNotSame($ambient->getContext()->getSpanId(), $commandSpan->getSpanId());
 
             $this->clock->timestamp = 4_000_000_000;
-            $this->events->dispatch(new AfterExecute($command, exitCode: 0));
+            $this->finishCommand($command, $input);
             $this->assertSame($ambient->getContext()->getSpanId(), Span::getCurrent()->getContext()->getSpanId());
         } finally {
             $ambientScope->detach();
@@ -170,16 +172,16 @@ class ConsoleInstrumentationTest extends TestCase
 
         foreach (['reports:secret', 'cache:clear', ''] as $name) {
             $command = new ConsoleInstrumentationCommand($name === '' ? null : $name);
-            $this->events->dispatch(new BeforeHandle($command));
-            $this->events->dispatch(new AfterExecute($command, exitCode: 0));
+            $input = $this->startCommand($command);
+            $this->finishCommand($command, $input);
         }
 
         $this->assertSame(0, $this->clock->calls);
         $this->assertFalse(Span::getCurrent()->getContext()->isValid());
 
         $allowed = new ConsoleInstrumentationCommand('reports:daily');
-        $this->events->dispatch(new BeforeHandle($allowed));
-        $this->events->dispatch(new AfterExecute($allowed, exitCode: 0));
+        $input = $this->startCommand($allowed);
+        $this->finishCommand($allowed, $input);
 
         $this->assertSame(2, $this->clock->calls);
         $this->assertCount(1, $this->spanExporter->getSpans());
@@ -190,8 +192,8 @@ class ConsoleInstrumentationTest extends TestCase
         $this->instrumentation()->register($this->options());
         $command = new ConsoleInstrumentationCommand('reports:daily');
 
-        $this->events->dispatch(new BeforeHandle($command));
-        $this->events->dispatch(new AfterExecute($command, exitCode: 7));
+        $input = $this->startCommand($command);
+        $this->finishCommand($command, $input, exitCode: 7);
 
         $span = $this->exportedSpan('reports:daily');
         $this->assertSame(StatusCode::STATUS_ERROR, $span->getStatus()->getCode());
@@ -212,8 +214,8 @@ class ConsoleInstrumentationTest extends TestCase
         $command = new ConsoleInstrumentationCommand('reports:daily');
         $exception = new RuntimeException('Command failed.');
 
-        $this->events->dispatch(new BeforeHandle($command));
-        $this->events->dispatch(new AfterExecute($command, $exception, exitCode: 1));
+        $input = $this->startCommand($command);
+        $this->finishCommand($command, $input, $exception, 1);
 
         $span = $this->exportedSpan('reports:daily');
         $this->assertSame(StatusCode::STATUS_ERROR, $span->getStatus()->getCode());
@@ -238,9 +240,9 @@ class ConsoleInstrumentationTest extends TestCase
         $this->instrumentation()->register($this->options());
         $command = new ConsoleInstrumentationCommand('reports:daily');
 
-        $this->events->dispatch(new BeforeHandle($command));
+        $input = $this->startCommand($command);
         $active = Span::getCurrent()->getContext();
-        $this->events->dispatch(new AfterExecute($command, new CanceledException, exitCode: 1));
+        $this->finishCommand($command, $input, new CanceledException, 1);
 
         $this->assertTrue($active->isValid());
         $this->assertSame($active->getSpanId(), Span::getCurrent()->getContext()->getSpanId());
@@ -255,17 +257,17 @@ class ConsoleInstrumentationTest extends TestCase
         $outer = new ConsoleInstrumentationCommand('outer');
         $inner = new ConsoleInstrumentationCommand('inner');
 
-        $this->events->dispatch(new BeforeHandle($outer));
+        $outerInput = $this->startCommand($outer);
         $outerSpan = Span::getCurrent()->getContext();
-        $this->events->dispatch(new BeforeHandle($inner));
+        $innerInput = $this->startCommand($inner);
         $innerSpan = Span::getCurrent()->getContext();
 
-        $this->events->dispatch(new AfterExecute($outer, exitCode: 0));
+        $this->finishCommand($outer, $outerInput);
         $this->assertSame($innerSpan->getSpanId(), Span::getCurrent()->getContext()->getSpanId());
 
-        $this->events->dispatch(new AfterExecute($inner, exitCode: 0));
+        $this->finishCommand($inner, $innerInput);
         $this->assertSame($outerSpan->getSpanId(), Span::getCurrent()->getContext()->getSpanId());
-        $this->events->dispatch(new AfterExecute($outer, exitCode: 0));
+        $this->finishCommand($outer, $outerInput);
         $this->assertFalse(Span::getCurrent()->getContext()->isValid());
         $this->assertCount(2, $this->spanExporter->getSpans());
     }
@@ -277,19 +279,19 @@ class ConsoleInstrumentationTest extends TestCase
 
         $spanIds = parallel([
             function () use ($command): string {
-                $this->events->dispatch(new BeforeHandle($command));
+                $input = $this->startCommand($command);
                 $spanId = Span::getCurrent()->getContext()->getSpanId();
                 usleep(10_000);
-                $this->events->dispatch(new AfterExecute($command, exitCode: 0));
+                $this->finishCommand($command, $input);
                 $this->assertFalse(Span::getCurrent()->getContext()->isValid());
 
                 return $spanId;
             },
             function () use ($command): string {
-                $this->events->dispatch(new BeforeHandle($command));
+                $input = $this->startCommand($command);
                 $spanId = Span::getCurrent()->getContext()->getSpanId();
                 usleep(5_000);
-                $this->events->dispatch(new AfterExecute($command, exitCode: 0));
+                $this->finishCommand($command, $input);
                 $this->assertFalse(Span::getCurrent()->getContext()->isValid());
 
                 return $spanId;
@@ -306,9 +308,9 @@ class ConsoleInstrumentationTest extends TestCase
         $command = new ConsoleInstrumentationCommand('reports:daily');
 
         $this->clock->timestamp = 1_000_000_000;
-        $this->events->dispatch(new BeforeHandle($command));
+        $input = $this->startCommand($command);
         $this->clock->timestamp = 2_000_000_000;
-        $this->events->dispatch(new AfterExecute($command, exitCode: 0));
+        $this->finishCommand($command, $input);
 
         $this->assertSame([], $this->spanExporter->getSpans());
         $this->metricReader->collect();
@@ -320,8 +322,8 @@ class ConsoleInstrumentationTest extends TestCase
         $this->instrumentation()->register($this->options(duration: false));
         $command = new ConsoleInstrumentationCommand('reports:daily');
 
-        $this->events->dispatch(new BeforeHandle($command));
-        $this->events->dispatch(new AfterExecute($command, exitCode: 0));
+        $input = $this->startCommand($command);
+        $this->finishCommand($command, $input);
 
         $this->assertCount(1, $this->spanExporter->getSpans());
         $this->metricReader->collect();
@@ -338,8 +340,8 @@ class ConsoleInstrumentationTest extends TestCase
         $this->instrumentation()->register($this->options(duration: false));
         $command = new ConsoleInstrumentationCommand('reports:daily');
 
-        $this->events->dispatch(new BeforeHandle($command));
-        $this->events->dispatch(new AfterExecute($command, exitCode: 0));
+        $input = $this->startCommand($command);
+        $this->finishCommand($command, $input);
 
         $this->assertCount(1, $sampler->samples);
         $this->assertSame(
@@ -347,6 +349,29 @@ class ConsoleInstrumentationTest extends TestCase
             $sampler->samples[0]['attributes']['hypervel.console.command'],
         );
         $this->assertSame([], $this->spanExporter->getSpans());
+    }
+
+    /**
+     * Dispatch a command-start event with its input.
+     */
+    private function startCommand(Command $command): ArrayInput
+    {
+        $input = new ArrayInput([]);
+        $this->events->dispatch(new BeforeHandle($command, $input));
+
+        return $input;
+    }
+
+    /**
+     * Dispatch a command-completion event with its input.
+     */
+    private function finishCommand(
+        Command $command,
+        ArrayInput $input,
+        ?Throwable $throwable = null,
+        int $exitCode = 0,
+    ): void {
+        $this->events->dispatch(new AfterExecute($command, $throwable, $input, $exitCode));
     }
 
     /**
