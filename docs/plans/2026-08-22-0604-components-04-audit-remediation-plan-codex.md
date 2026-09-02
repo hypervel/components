@@ -46,15 +46,6 @@ Each row is an implementation requirement. Test names are descriptive; use the r
 | ID | Proposed implementation | Required tests |
 |---:|---|---|
 | 82 | Apply incrementEach's strict string-column and numeric-amount validation to decrementEach before constructing raw SQL. | Malicious SQL fragment and nonnumeric amount rejected before query; non-string/associative shape failures; valid ints, floats, and numeric strings update correctly. |
-| 83 | Add one package-internal MIME buffer helper with a lazily initialized worker-static finfo and use it from Image and InterventionDriver. finfo::buffer is stateless and non-yielding, so no DI service, coroutine state, lock, reset method, or AfterEachTestSubscriber registration is needed; retaining the handle for the worker lifetime is the intended ownership. | Both call sites report identical MIME across repeated processing; invalid data behavior; ordinary image tests remain independent without a reset seam. |
-| 84 | For HEIC/HEIF, if the selected driver cannot decode dimensions, throw ImageException with the driver exception as previous. Never fall back to the known-inaccurate native reader. | Driver success; driver failure with previous exception; native reader is not called for HEIC; ordinary image fallback unchanged. |
-| 85 | Replace dimension and effect clamps with consistent InvalidArgumentException validation matching the declared ranges. Invalid dimensions are caller input errors, not image-decoding failures. | Zero/negative width and height for cover/contain/crop/resize/scale; blur/sharpen below 0 and above 100; exact valid boundaries. |
-| 86 | Detect unsupported driver names before delegating. Let exceptions from registered custom creators propagate unchanged and validate that the creator returned a Driver with a descriptive result-type error. | Unknown driver message; custom creator InvalidArgumentException preserved; wrong return type; valid extension. |
-| 87 | Document that decode/transform/encode are synchronous CPU work that block the worker event loop, and direct heavy conversions to task workers or queued jobs. Do not invent unsupported numeric thresholds. | Documentation review against image driver behavior and worker/task terminology. |
-| 89 | Amend pagination README so current_page_url is documented for both simple and length-aware paginator JSON. | Documentation review plus existing serialization snapshots for both paginator types. |
-| 90 | Remove CursorPaginator's duplicate hasMore property and retain the abstract declaration. | Reflection confirms one declaration; cursor pagination behavior unchanged. |
-| 91 | Pass this paginator's pageName to resolveCurrentPage when direct construction receives a null page. | Custom p resolves p rather than page; default page; explicit page bypasses resolver. |
-| 92 | Remove pagination's hard runtime requirements on database and http. Keep them in require-dev and add Composer suggests only if the optional model/resource transformations need explanation. | Standalone pagination Composer install/autoload; metadata has no cycle; model/pivot/resource instanceof paths still work when optional packages are installed. |
 
 ### Vonage notifications and Horizon
 
@@ -67,8 +58,7 @@ Each row is an implementation requirement. Test names are descriptive; use the r
 Use package-sized commits that remain reviewable and bisectable. The following order avoids building fixes on obsolete primitives:
 
 1. Mail, notifications, and data representation: 21, 23, 26, 30-32, 34-35, 82.
-2. Image and pagination: 83-87, 89-92.
-3. Vonage notification channel port followed by Horizon wiring: 160.
+2. Vonage notification channel port followed by Horizon wiring: 160.
 
 Do not combine unrelated packages merely because their findings have the same severity.
 
