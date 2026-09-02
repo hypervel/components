@@ -26,13 +26,13 @@ class UnknownFields
             ? $validator->getRulesWithoutPlaceholders()
             : array_replace($unfilteredRules, $validator->getRulesWithoutPlaceholders());
 
-        [$knownFields, $knownSubtrees, $wildcardFields, $wildcardSubtrees] = static::resolveKnownFields(
+        [$knownFields, $knownSubtrees, $wildcardFields, $wildcardSubtrees] = self::resolveKnownFields(
             $rules,
             $additionalFields,
             $allowedSubtrees,
         );
 
-        static::validateInput(
+        self::validateInput(
             $validator,
             $input,
             $knownFields,
@@ -66,7 +66,7 @@ class UnknownFields
         foreach ($input as $key => $value) {
             $key = (string) $key;
             $comparisonKey = $comparisonPrefix
-                . str_replace(['.', '*'], ['\\.', '\\*'], $key);
+                . str_replace(['.', '*'], ['\.', '\*'], $key);
             $displayKey = $displayPrefix . $key;
             $currentInputSegments = $inputSegments;
 
@@ -75,7 +75,7 @@ class UnknownFields
             }
 
             if (is_array($value) && $value !== []) {
-                static::validateInput(
+                self::validateInput(
                     $validator,
                     $value,
                     $knownFields,
@@ -90,7 +90,7 @@ class UnknownFields
                 continue;
             }
 
-            if (static::isKnownField(
+            if (self::isKnownField(
                 $comparisonKey,
                 $currentInputSegments,
                 $knownFields,
@@ -127,15 +127,15 @@ class UnknownFields
         array $additionalFields,
         array $allowedSubtrees,
     ): array {
-        [$knownFields, $wildcardFields] = static::resolveAuxiliaryPaths($additionalFields);
-        [$opaqueSubtrees, $wildcardSubtrees] = static::resolveAuxiliaryPaths($allowedSubtrees);
+        [$knownFields, $wildcardFields] = self::resolveAuxiliaryPaths($additionalFields);
+        [$opaqueSubtrees, $wildcardSubtrees] = self::resolveAuxiliaryPaths($allowedSubtrees);
         $fieldsWithDescendants = [];
 
         foreach (array_keys($rules) as $attribute) {
             $attribute = (string) $attribute;
             $knownFields[$attribute] = true;
 
-            foreach (static::parentPaths($attribute) as $parent) {
+            foreach (self::parentPaths($attribute) as $parent) {
                 $fieldsWithDescendants[$parent] = true;
             }
         }
@@ -171,7 +171,7 @@ class UnknownFields
         $wildcardPaths = [];
 
         foreach ($paths as $path) {
-            $segments = static::parseAuxiliaryPath($path);
+            $segments = self::parseAuxiliaryPath($path);
 
             if ($segments === null) {
                 continue;
@@ -208,25 +208,24 @@ class UnknownFields
             return true;
         }
 
-        foreach (static::parentPaths($inputKey) as $parent) {
+        foreach (self::parentPaths($inputKey) as $parent) {
             if (isset($allowedSubtrees[$parent])) {
                 return true;
             }
         }
 
-        if ($wildcardFields === [] && $wildcardSubtrees === []) {
+        if (($wildcardFields === [] && $wildcardSubtrees === []) || $inputSegments === null) {
             return false;
         }
 
-        /** @var list<string> $inputSegments */
         foreach ($wildcardFields as $pattern) {
-            if (static::matchesPathPattern($pattern, $inputSegments)) {
+            if (self::matchesPathPattern($pattern, $inputSegments)) {
                 return true;
             }
         }
 
         foreach ($wildcardSubtrees as $pattern) {
-            if (static::matchesPathPattern($pattern, $inputSegments, allowsDescendants: true)) {
+            if (self::matchesPathPattern($pattern, $inputSegments, allowsDescendants: true)) {
                 return true;
             }
         }

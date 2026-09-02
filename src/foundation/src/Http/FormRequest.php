@@ -221,9 +221,9 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
         if ($this->isPrecognitive()) {
             $this->unfilteredValidationRules = $validator->getRulesWithoutPlaceholders();
 
-            $validator->setRules(
+            $validator->retainRules(array_keys(
                 $this->filterPrecognitiveRules($this->unfilteredValidationRules)
-            );
+            ));
         }
 
         return $validator;

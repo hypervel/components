@@ -87,6 +87,7 @@ use Hypervel\Foundation\Exceptions\Renderer\Renderer;
 use Hypervel\Foundation\Http\HtmlDumper;
 use Hypervel\Foundation\Listeners\ReloadDotenvAndConfig;
 use Hypervel\Foundation\MaintenanceModeManager;
+use Hypervel\Foundation\Precognition;
 use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Http\Request;
 use Hypervel\Log\Events\MessageLogged;
@@ -277,10 +278,10 @@ class FoundationServiceProvider extends ServiceProvider
         Request::macro('validate', function (array $rules, ...$params) {
             return tap(validator($this->all(), $rules, ...$params), function ($validator) {
                 if ($this->isPrecognitive()) {
-                    $validator->after(\Hypervel\Foundation\Precognition::afterValidationHook($this))
-                        ->setRules(
+                    $validator->after(Precognition::afterValidationHook($this))
+                        ->retainRules(array_keys(
                             $this->filterPrecognitiveRules($validator->getRulesWithoutPlaceholders())
-                        );
+                        ));
                 }
             })->validate();
         });

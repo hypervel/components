@@ -8501,6 +8501,40 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($validator->passes());
     }
 
+    public function testRetainRulesPreservesImplicitAttributeIdentity(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['foo' => ['duplicate', 'duplicate']],
+            ['foo.*' => 'distinct', 'bar' => 'required'],
+        );
+
+        $validator->retainRules(['foo.0', 'missing']);
+
+        $this->assertSame(['foo.0'], array_keys($validator->getRulesWithoutPlaceholders()));
+        $this->assertFalse($validator->passes());
+        $this->assertSame(['foo.0' => ['Distinct' => []]], $validator->failed());
+    }
+
+    public function testSetDataRebuildsOriginalRulesAfterRetention(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['foo' => [1, 2]],
+            ['foo.*' => 'integer'],
+        );
+
+        $validator->retainRules(['foo.0']);
+        $validator->setData(['foo' => ['first', 'second']]);
+
+        $this->assertSame(['foo.0', 'foo.1'], array_keys($validator->getRulesWithoutPlaceholders()));
+        $this->assertFalse($validator->passes());
+        $this->assertSame([
+            'foo.0' => ['Integer' => []],
+            'foo.1' => ['Integer' => []],
+        ], $validator->failed());
+    }
+
     public function testSetDataClearsImplicitAttributesWhenWildcardExpansionBecomesEmpty(): void
     {
         $validator = new Validator(

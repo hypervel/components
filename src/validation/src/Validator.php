@@ -1672,6 +1672,27 @@ class Validator implements ValidatorContract
     }
 
     /**
+     * Retain the selected rules from the graph prepared for the current data.
+     *
+     * Retention applies only to the current prepared graph. Calling setData()
+     * rebuilds the complete original rule graph.
+     *
+     * @param list<string> $attributes
+     */
+    public function retainRules(array $attributes): static
+    {
+        $retained = [];
+
+        foreach ($attributes as $attribute) {
+            $retained[static::encodeAttributeWithPlaceholder($attribute)] = true;
+        }
+
+        $this->rules = array_intersect_key($this->rules, $retained);
+
+        return $this;
+    }
+
+    /**
      * Append new validation rules to the validator.
      */
     public function appendRules(array $rules): static
