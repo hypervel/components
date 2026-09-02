@@ -312,7 +312,7 @@
         "intervention/image": "^4.2",
         "league/flysystem-google-cloud-storage": "^3.0",
         "meilisearch/meilisearch-php": "^1.16",
-        "mockery/mockery": "1.6.x-dev",
+        "mockery/mockery": "^1.6.15",
         "opis/json-schema": "^2.6.0",
         "pda/pheanstalk": "^8.0.2",
         "phpstan/phpstan": "^2.2.11",
