@@ -244,34 +244,51 @@ Update `tests/Validation/ValidationCompiledExecutionTest.php` to run non-finite 
 
 AWS does not support per-message `DelaySeconds` on FIFO queues. `SqsQueue::getQueueableOptions()` omits the option when the queue name ends in `.fifo`, so `later()` and delayed bulk/batch dispatch silently send immediately. Laravel currently has the same bug. Worker retries are unaffected because `SqsJob::release()` changes message visibility instead of calling `later()`.
 
+SQS bulk dispatch also extracts delay with `$job->delay ?? null` instead of the inherited attribute-aware `getJobDelay()`. A job using the documented `#[Delay]` attribute therefore loses its delay on a standard SQS queue, and the same blind extraction would let a FIFO job evade validation. Hypervel's Database, Redis, and base queue bulk paths already use `getJobDelay()`; `DatabaseQueue::prepareBatchJobs()` is the direct structural analogue with the same job/delay/payload shape. Unlike the shared FIFO-delay defect, this attribute-loss defect is Hypervel-only: current Laravel SQS resolves the attribute correctly by inlining `getAttributeValue()`. Hypervel's helper has those same semantics, so the attribute repair needs no upstream report.
+
 #### Change
 
 In `src/queue/src/SqsQueue.php`:
 
 - add one protected resolver for the effective queue name (`null` and `''` use the configured default) and use it anywhere this class currently repeats that rule;
-- add a protected validator used by `later()`, `prepareBatchMessages()`, and `getQueueableOptions()`;
+- add one protected validator used by `later()` and `getQueueableOptions()`;
+- add a lightweight batch preflight at the start of `bulk()`, immediately after the empty-jobs guard and before transaction lookup, partitioning, payload creation, or SQS I/O;
+- have the batch preflight resolve the effective queue once and return immediately for standard queues; for FIFO queues, walk the original jobs, resolve each delay through inherited `getJobDelay()`, and invoke the same validator;
+- replace `$job->delay ?? null` in `prepareBatchMessages()` with `getJobDelay()` so payload metadata and standard-queue transport options honor `#[Delay]`;
 - resolve the effective queue name inside the validator before testing the `.fifo` suffix;
 - reject only when the effective queue is FIFO and `secondsUntil()` produces a positive remaining delay; permit non-FIFO queues and null, zero, negative, or elapsed delays;
 - state only the transport constraint in the exception: SQS FIFO queues do not support per-message delays. Do not mention an outbox API that this repository does not provide.
 
-Call the validator at the start of `later()` before payload creation or `enqueueUsing()`. In `prepareBatchMessages()`, validate each job's extracted delay before payload creation. In `bulk()`, prepare both the immediate and after-commit groups before sending either group or registering rollback/post-commit callbacks. This prevents a delayed FIFO job in the after-commit group from throwing only after the immediate group has already reached SQS. Keep the call in `getQueueableOptions()` as the lowest transport backstop for direct callers.
+Call the validator at the start of `later()` before payload creation or `enqueueUsing()`. Keep the call in public `getQueueableOptions()` because that method owns the SQS `DelaySeconds` decision; the transport rule must remain colocated with the option it governs even though eager callers also validate for failure timing. Preserve `bulk()`'s existing partition, per-group payload preparation, send, and transaction-callback order after the new preflight.
 
-This eager placement makes after-commit jobs fail at dispatch time, not after the database transaction has committed. Standard queues do not compute a second delay. Positive FIFO calls fail before SDK I/O; zero-delay FIFO and all current FIFO grouping/deduplication behavior remain unchanged.
+This eager placement makes every positive delayed FIFO job in a mixed batch fail before any payload is built, SDK call is made, or transaction callback is registered. It avoids preparing and retaining deferred payloads during the immediate send, whose entry construction already duplicates message bodies and can also retain overflow payload copies. Hoisting both groups would therefore increase peak payload memory and waste deferred serialization when the immediate SQS send fails.
+
+The validation cost is deliberately bounded:
+
+- standard queues resolve the effective name and suffix once, then skip the per-job preflight with no added `secondsUntil()` call; each job still changes from a bare delay-property read to the cached metadata-aware `getJobDelay()` lookup during existing payload preparation so `#[Delay]` works;
+- null-delay FIFO jobs do not call `secondsUntil()`;
+- positive FIFO delays call it once in the preflight and then fail;
+- explicitly non-positive or elapsed FIFO delays add one computation in the preflight and one at the transport boundary, in addition to the existing payload-metadata computation;
+- a permitted FIFO batch resolves each job's delay once during preflight and again during payload preparation. `ClassMetadataCache` retains reflection, default-property, and instantiated attribute metadata by class for the worker lifetime, so after the first job of a class each resolution uses cached metadata plus property and attribute-value access.
+
+Do not add descriptor arrays, validation flags, normalized-delay plumbing, or payload rebuilding to remove those two local computations from the unusual non-positive FIFO-delay path. Do not re-read delay after payload hooks. `createPayloadUsing` receives the live job through the payload array and can deliberately mutate it, but the scheduling delay and payload `delay` field have already been captured. Honoring that escape-hatch mutation would make the serialized command disagree with the scheduling metadata unless the operation were rebuilt, which is unsupported machinery rather than a transport fix.
 
 The effective-name resolver is the single place to incorporate queue-name forwarding if Laravel's later `Queue::forward()` API is ported. Do not port forwarding as part of this fix.
 
 #### Tests
 
-Update `tests/Queue/QueueSqsQueueTest.php`:
+`tests/Queue/QueueSqsQueueTest.php` currently has no bulk-delay coverage. Add the first standard and FIFO bulk-delay cases while updating the existing direct-delay tests:
 
 - replace the three tests that currently assert a positive FIFO delay is silently omitted with exact `LogicException` expectations and no SQS call;
 - cover string jobs, object jobs, pending dispatch, and delayed bulk/batch jobs;
-- cover default/empty queue resolution so all eager and backstop sites classify the same effective FIFO queue;
+- prove a standard SQS bulk job's `#[Delay]` attribute reaches both payload metadata and `DelaySeconds`, while the same attribute is rejected on FIFO before payload creation;
+- cover default/empty queue resolution so all eager-validation and transport-option sites classify the same effective FIFO queue;
 - prove zero, negative, and past delays remain immediate on FIFO queues;
-- prove positive delay options remain unchanged on standard queues;
+- prove positive delay options remain unchanged on standard queues and that their batch preflight adds no second `secondsUntil()` computation;
 - prove an after-commit bulk job throws before rollback/post-commit callback registration;
 - prove a mixed immediate/after-commit batch with a positive delayed FIFO job performs no SQS call and registers no transaction callbacks;
-- call `getQueueableOptions()` directly to pin the transport backstop.
+- call `getQueueableOptions()` directly to pin enforcement at the public transport-option boundary;
+- do not add a payload-hook mutation test or a differently configured fresh-owner test; the former is an intentional scheduling snapshot, while a queue pool constructs every owner from the same frozen configuration.
 
 Update user-facing documentation:
 
@@ -373,7 +390,8 @@ Work one file at a time. Before each item, re-read the relevant source, its call
 - Every direct TTL-bearing `StackStoreProxy` write applies its layer cap.
 - Null `uniqueVia()` uses the default store while an unnamed real repository remains unnamed.
 - Malformed, non-finite, and exponent-policy-rejected numeric sizes fail consistently in delegated and compiled validation without swallowing other errors.
-- Positive FIFO per-message delays fail before payload creation, any partial batch publication, or after-commit callback registration; zero/past FIFO and standard-queue delays remain unchanged.
+- Every positive FIFO per-message delay is rejected by preflight before payload creation, transport I/O, or transaction callback registration; zero/past FIFO and standard-queue delays remain unchanged.
+- SQS bulk honors `#[Delay]` in standard-queue payload metadata and `DelaySeconds`, while rejecting the same attribute on FIFO before payload creation.
 - Rate-limit behavior is unchanged and its documentation is accurate.
 - Brick Math bounded parsing remains clearly tracked without an incompatible dependency change or workaround.
 - Focused tests, `composer fix`, self-review, and final code review are green.
