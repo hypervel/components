@@ -8,15 +8,28 @@ use Attribute;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\ContextualAttribute;
+use Hypervel\Data\Attributes\AutoLazy;
 use Hypervel\Data\Attributes\Computed;
+use Hypervel\Data\Attributes\DataCollectionOf;
 use Hypervel\Data\Attributes\Hidden;
+use Hypervel\Data\Attributes\LoadRelation;
 use Hypervel\Data\Attributes\MapInputName;
 use Hypervel\Data\Attributes\MapName;
 use Hypervel\Data\Attributes\MapOutputName;
 use Hypervel\Data\Attributes\MergeValidationRules;
+use Hypervel\Data\Attributes\WithCast;
+use Hypervel\Data\Casts\Cast;
+use Hypervel\Data\Contracts\PropertyMorphableData;
+use Hypervel\Data\Data;
+use Hypervel\Data\DataCollection;
 use Hypervel\Data\Exceptions\InvalidDataDeclaration;
+use Hypervel\Data\Lazy;
 use Hypervel\Data\Mappers\SnakeCaseMapper;
+use Hypervel\Data\Normalizers\Normalized\Normalized;
+use Hypervel\Data\Normalizers\Normalizer;
 use Hypervel\Data\Support\Annotations\DataIterableAnnotationReader;
+use Hypervel\Data\Support\Creation\ConstructionState;
+use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\DataConfig;
 use Hypervel\Data\Support\DataProperty;
 use Hypervel\Data\Support\Factories\DataClassFactory;
@@ -26,17 +39,19 @@ use Hypervel\Data\Support\Factories\DataPropertyFactory;
 use Hypervel\Data\Support\Factories\DataTypeFactory;
 use Hypervel\Data\Support\NameMapperResolver;
 use Hypervel\Data\Support\Types\PhpDocTypeNameResolver;
+use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Http\Attributes\ErrorBag;
 use Hypervel\Foundation\Http\Attributes\FailOnUnknownFields;
 use Hypervel\Foundation\Http\Attributes\RedirectTo;
 use Hypervel\Foundation\Http\Attributes\RedirectToRoute;
 use Hypervel\Foundation\Http\Attributes\StopOnFirstFailure;
-use Hypervel\Tests\TestCase;
 use Hypervel\Tests\Data\Fixtures\DataClassAnnotations\ChildScope\ChildAnnotations;
 use Hypervel\Tests\Data\Fixtures\DataClassAnnotations\Items\ChildClassItem;
 use Hypervel\Tests\Data\Fixtures\DataClassAnnotations\Items\ConstructorItem;
 use Hypervel\Tests\Data\Fixtures\DataClassAnnotations\Items\InlineItem;
 use Hypervel\Tests\Data\Fixtures\DataClassAnnotations\Items\ParentClassItem;
+use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use RuntimeException;
@@ -121,6 +136,49 @@ class DataClassTest extends TestCase
     }
 
     /**
+     * Test direct array creation requires a fixed array-safe class shape.
+     */
+    public function testDirectArrayCreationEligibilityUsesCompiledClassAndPropertyFacts(): void
+    {
+        $this->assertTrue(
+            $this->factory()->build(new ReflectionClass(DirectArrayCreationDataFixture::class))->directArrayCreation,
+        );
+
+        foreach ([
+            AbstractDirectArrayCreationDataFixture::class,
+            MorphableDirectArrayCreationDataFixture::class,
+            ClassNormalizerDirectArrayCreationDataFixture::class,
+            PromotedContextualDataFixture::class,
+            AutoLazyDirectArrayCreationDataFixture::class,
+            LoadRelationDirectArrayCreationDataFixture::class,
+            AttributeCastDirectArrayCreationDataFixture::class,
+            DataCollectableDirectArrayCreationDataFixture::class,
+            TypedIterableDirectArrayCreationDataFixture::class,
+        ] as $class) {
+            $this->assertFalse(
+                $this->factory()->build(new ReflectionClass($class))->directArrayCreation,
+                $class,
+            );
+        }
+    }
+
+    /**
+     * Test configured creation extensions disable the direct array path.
+     */
+    public function testDirectArrayCreationEligibilityUsesBootConfiguration(): void
+    {
+        $configuredCast = $this->factory([
+            'casts' => ['string' => DirectArrayCreationCast::class],
+        ])->build(new ReflectionClass(DirectArrayCreationDataFixture::class));
+        $configuredNormalizer = $this->factory([
+            'normalizers' => [DirectArrayCreationNormalizer::class],
+        ])->build(new ReflectionClass(DirectArrayCreationDataFixture::class));
+
+        $this->assertFalse($configuredCast->directArrayCreation);
+        $this->assertFalse($configuredNormalizer->directArrayCreation);
+    }
+
+    /**
      * Test invalid constructor/property ownership declarations.
      *
      * @param class-string $class
@@ -199,6 +257,47 @@ class DataClassTest extends TestCase
         $this->assertTrue($class->constructor?->isPrivate());
         $this->assertTrue($class->properties['name']->isConstructorParameter);
         $this->assertArrayHasKey('fromString', $class->methods);
+    }
+
+    /**
+     * Test Eloquent collection properties accept guaranteed model items.
+     */
+    public function testEloquentCollectionPropertiesAcceptModelItems(): void
+    {
+        $class = $this->factory()->build(new ReflectionClass(EloquentModelCollectionDataFixture::class));
+
+        $this->assertSame(
+            EloquentCollection::class,
+            $class->properties['models']->type->getIterableTypes()[0]->name,
+        );
+    }
+
+    /**
+     * Test invalid Eloquent collection item declarations.
+     *
+     * @param class-string $class
+     */
+    #[DataProvider('invalidEloquentCollectionProvider')]
+    public function testEloquentCollectionPropertiesRejectItemsThatDoNotGuaranteeModels(string $class): void
+    {
+        $this->expectException(InvalidDataDeclaration::class);
+        $this->expectExceptionMessage('must guarantee');
+        $this->expectExceptionMessage(Model::class);
+
+        $this->factory()->build(new ReflectionClass($class));
+    }
+
+    /**
+     * Provide invalid Eloquent collection item declarations.
+     */
+    public static function invalidEloquentCollectionProvider(): array
+    {
+        return [
+            'scalar' => [EloquentScalarCollectionDataFixture::class],
+            'union' => [EloquentUnionCollectionDataFixture::class],
+            'intersection' => [EloquentIntersectionCollectionDataFixture::class],
+            'dnf' => [EloquentDnfCollectionDataFixture::class],
+        ];
     }
 
     /**
@@ -301,6 +400,110 @@ class ConstructorBindingDataFixture
         $this->readonlyName = $readonlyName;
         $this->requiredWithPropertyDefault = $requiredWithPropertyDefault;
         $this->normalizedName = strtoupper($normalizedName);
+    }
+}
+
+class DirectArrayCreationDataFixture extends Data
+{
+    /**
+     * Create a new direct-array fixture.
+     */
+    public function __construct(public string $value = 'default')
+    {
+    }
+}
+
+abstract class AbstractDirectArrayCreationDataFixture extends DirectArrayCreationDataFixture
+{
+}
+
+class MorphableDirectArrayCreationDataFixture extends DirectArrayCreationDataFixture implements PropertyMorphableData
+{
+    /**
+     * Resolve the concrete fixture class.
+     */
+    public static function morph(array $properties): ?string
+    {
+        return static::class;
+    }
+}
+
+class ClassNormalizerDirectArrayCreationDataFixture extends DirectArrayCreationDataFixture
+{
+    /**
+     * Get the class-owned normalizers.
+     */
+    public static function normalizers(): array
+    {
+        return [DirectArrayCreationNormalizer::class];
+    }
+}
+
+class AutoLazyDirectArrayCreationDataFixture extends Data
+{
+    /**
+     * Create a new automatic-lazy fixture.
+     */
+    public function __construct(
+        #[AutoLazy]
+        public string|Lazy $value,
+    ) {
+    }
+}
+
+class LoadRelationDirectArrayCreationDataFixture extends DirectArrayCreationDataFixture
+{
+    #[LoadRelation]
+    public string $relation;
+}
+
+class AttributeCastDirectArrayCreationDataFixture extends DirectArrayCreationDataFixture
+{
+    #[WithCast(DirectArrayCreationCast::class)]
+    public string $castValue;
+}
+
+class DataCollectableDirectArrayCreationDataFixture extends Data
+{
+    /**
+     * Create a new data-collectable fixture.
+     */
+    public function __construct(
+        #[DataCollectionOf(DirectArrayCreationDataFixture::class)]
+        public DataCollection $items,
+    ) {
+    }
+}
+
+class TypedIterableDirectArrayCreationDataFixture extends Data
+{
+    /** @var list<string> */
+    public array $items;
+}
+
+class DirectArrayCreationCast implements Cast
+{
+    /**
+     * Cast the fixture value.
+     */
+    public function cast(
+        DataProperty $property,
+        mixed $value,
+        ConstructionState $state,
+        CreationContext $context,
+    ): mixed {
+        return $value;
+    }
+}
+
+class DirectArrayCreationNormalizer implements Normalizer
+{
+    /**
+     * Normalize the fixture value.
+     */
+    public function normalize(mixed $value): array|Normalized|null
+    {
+        return null;
     }
 }
 
@@ -431,6 +634,48 @@ class PrivateConstructorDataFixture
     {
         return new static($name);
     }
+}
+
+class DataClassEloquentModel extends Model implements DataClassEloquentMarker
+{
+}
+
+interface DataClassEloquentMarker
+{
+}
+
+interface DataClassEloquentOtherMarker
+{
+}
+
+class EloquentModelCollectionDataFixture
+{
+    /** @var EloquentCollection<int, DataClassEloquentMarker&DataClassEloquentModel> */
+    public EloquentCollection $models;
+}
+
+class EloquentScalarCollectionDataFixture
+{
+    /** @var EloquentCollection<int, string> */
+    public EloquentCollection $models;
+}
+
+class EloquentUnionCollectionDataFixture
+{
+    /** @var EloquentCollection<int, DataClassEloquentModel|string> */
+    public EloquentCollection $models;
+}
+
+class EloquentIntersectionCollectionDataFixture
+{
+    /** @var EloquentCollection<int, DataClassEloquentMarker&DataClassEloquentOtherMarker> */
+    public EloquentCollection $models;
+}
+
+class EloquentDnfCollectionDataFixture
+{
+    /** @var EloquentCollection<int, (DataClassEloquentMarker&DataClassEloquentModel)|string> */
+    public EloquentCollection $models;
 }
 
 #[Attribute(Attribute::TARGET_PARAMETER)]

@@ -63,7 +63,7 @@ class PhpDocTypeNameResolver
     /**
      * Parse class imports from a PHP source file.
      *
-     * @return array<string, class-string>
+     * @return array<string, array<string, class-string>>
      */
     protected function parseImports(string $file): array
     {
@@ -288,5 +288,4 @@ class PhpDocTypeNameResolver
             'void',
         ], true);
     }
-
 }

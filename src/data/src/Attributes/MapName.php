@@ -20,8 +20,7 @@ class MapName
     public function __construct(
         string|int|NameMapper $input,
         string|int|NameMapper|null $output = null,
-    )
-    {
+    ) {
         $this->input = $input;
         $this->output = $output ?? $input;
     }

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Data\Exceptions;
 
-use Hypervel\Data\Support\DataProperty;
 use Hypervel\Data\Support\DataParameter;
+use Hypervel\Data\Support\DataProperty;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Collection;
 use LogicException;
 
 class InvalidDataDeclaration extends LogicException
@@ -138,6 +140,24 @@ class InvalidDataDeclaration extends LogicException
             "Data class [{$class}] has properties [{$firstProperty->className}::\${$firstProperty->name}] and "
             . "[{$secondProperty->className}::\${$secondProperty->name}] that both resolve to output key [{$key}]. "
             . 'Give each property a unique output key.'
+        );
+    }
+
+    /**
+     * Create an exception for an Eloquent collection with non-model items.
+     *
+     * @param class-string $class
+     * @param class-string $collection
+     */
+    public static function invalidEloquentCollectionItemType(
+        string $class,
+        string $collection,
+        DataProperty $property,
+    ): self {
+        return new self(
+            "Data class [{$class}] property [{$property->className}::\${$property->name}] declares Eloquent "
+            . "collection [{$collection}], whose item type must guarantee [" . Model::class . ']. '
+            . 'Declare only Eloquent model item types or use [' . Collection::class . '] for non-model values.'
         );
     }
 }

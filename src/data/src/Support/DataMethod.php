@@ -168,5 +168,4 @@ class DataMethod
     {
         return $this->returnType?->acceptsType($type) ?? false;
     }
-
 }

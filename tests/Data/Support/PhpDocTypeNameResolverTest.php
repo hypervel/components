@@ -41,10 +41,14 @@ class PhpDocTypeNameResolverTest extends TestCase
         $resolver = new PhpDocTypeNameResolver;
         $class = new ReflectionClass(PhpDocTypeContext::class);
 
+        $this->assertStringContainsString(
+            'use Hypervel\Tests\Data\Fixtures\Types\{GroupedType as GroupAlias};',
+            file_get_contents(__DIR__ . '/../Fixtures/PhpDocTypeContext.php'),
+        );
         $this->assertTrue(class_exists(SameNamespaceImportedType::class));
         $this->assertSame(ImportedType::class, $resolver->resolve('ImportedType', $class));
         $this->assertSame(GroupedType::class, $resolver->resolve('GroupAlias', $class));
-        $this->assertSame(GroupedType::class . '\\Nested', $resolver->resolve('GroupAlias\\Nested', $class));
+        $this->assertSame(GroupedType::class . '\Nested', $resolver->resolve('GroupAlias\Nested', $class));
         $this->assertCount(1, $this->imports($resolver));
     }
 

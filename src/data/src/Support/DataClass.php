@@ -6,7 +6,6 @@ namespace Hypervel\Data\Support;
 
 use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\Support\Annotations\DataIterableAnnotation;
-use ReflectionClass;
 use ReflectionMethod;
 
 /**
@@ -24,7 +23,6 @@ final readonly class DataClass
      * @param array<string, true> $lifecycleMethods
      * @param array<string, non-empty-list<DataIterableAnnotation>> $dataIterablePropertyAnnotations
      * @param array<array-key, string> $outputMappedProperties
-     * @param ReflectionClass<BaseData> $reflection
      */
     public function __construct(
         public readonly string $name,
@@ -51,10 +49,10 @@ final readonly class DataClass
         public readonly ?string $redirect,
         public readonly ?string $redirectRoute,
         public readonly bool $plainTransform,
+        public readonly bool $directArrayCreation,
         public readonly DataAttributesCollection $attributes,
         public readonly array $dataIterablePropertyAnnotations,
         public readonly array $outputMappedProperties,
-        public readonly ReflectionClass $reflection,
     ) {
     }
 

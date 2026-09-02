@@ -10,8 +10,10 @@ use Hypervel\Data\Casts\Cast;
 use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\DataCollection;
 use Hypervel\Data\Transformers\Transformer;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Enumerable;
 use Hypervel\Support\LazyCollection;
+use Hypervel\Support\StrCache;
 use ReflectionAttribute;
 use ReflectionProperty;
 
@@ -24,6 +26,7 @@ class DataProperty
      * @param null|ReflectionAttribute<object> $autoLazy
      * @param null|ReflectionAttribute<object> $cast
      * @param null|ReflectionAttribute<object> $transformer
+     * @param null|non-empty-list<array-key> $inputMappedPath
      * @param list<class-string<Cast>> $configuredCasts
      * @param list<class-string<Transformer>> $configuredTransformers
      */
@@ -45,12 +48,27 @@ class DataProperty
         public readonly ?ReflectionAttribute $cast,
         public readonly ?ReflectionAttribute $transformer,
         public readonly string|int|null $inputMappedName,
+        public readonly ?array $inputMappedPath,
         public readonly string|int|null $outputMappedName,
         public readonly array $configuredCasts,
         public readonly array $configuredTransformers,
         public readonly DataAttributesCollection $attributes,
         public readonly ReflectionProperty $reflection,
     ) {
+    }
+
+    /**
+     * Get the compiled input path for a selected wire key.
+     *
+     * The returned list is shared immutable worker metadata and must not be mutated in place.
+     *
+     * @return non-empty-list<array-key>
+     */
+    public function inputPath(string|int $wireKey): array
+    {
+        return $this->inputMappedPath !== null && $wireKey === $this->inputMappedName
+            ? $this->inputMappedPath
+            : [$wireKey];
     }
 
     /**
@@ -96,5 +114,24 @@ class DataProperty
         }
 
         return true;
+    }
+
+    /**
+     * Resolve the Eloquent relation selected by this property.
+     */
+    public function resolveModelRelation(Model $model): ?string
+    {
+        if (! $this->loadRelation) {
+            return null;
+        }
+
+        $name = $model::$snakeAttributes ? StrCache::snake($this->name) : $this->name;
+        $camelName = StrCache::camel($name);
+
+        return match (true) {
+            $model->isRelation($name) => $name,
+            $model->isRelation($camelName) => $camelName,
+            default => null,
+        };
     }
 }

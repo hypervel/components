@@ -74,7 +74,7 @@ class DataAttributesCollectionTest extends TestCase
             new ReflectionClass(DataAttributesUnknownAttributeFixture::class),
         );
 
-        $this->assertFalse($attributes->has('Hypervel\\Tests\\Data\\Support\\MissingAttribute'));
+        $this->assertFalse($attributes->has('Hypervel\Tests\Data\Support\MissingAttribute'));
     }
 
     /**

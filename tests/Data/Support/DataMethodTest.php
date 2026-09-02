@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Data\Support;
 
 use Attribute;
-use Hypervel\Container\Container;
 use Hypervel\Container\Attributes\Config;
+use Hypervel\Container\Container;
 use Hypervel\Data\Enums\CustomCreationMethodType;
 use Hypervel\Data\Exceptions\InvalidDataDeclaration;
 use Hypervel\Data\Support\Creation\CreationContext;
@@ -321,7 +321,7 @@ class DataMethodTest extends TestCase
     {
         $this->expectException(InvalidDataDeclaration::class);
         $this->expectExceptionMessage(
-            'Data factory [Hypervel\\Tests\\Data\\Support\\DataMethodInvalidFixture::fromContexts] '
+            'Data factory [Hypervel\Tests\Data\Support\DataMethodInvalidFixture::fromContexts] '
             . 'cannot declare variadic CreationContext parameter [$contexts]. '
             . 'Declare a single CreationContext parameter instead.',
         );

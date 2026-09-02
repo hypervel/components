@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Data\Fixtures\First {
     use Hypervel\Tests\Data\Fixtures\Types\ImportedType as SharedAlias;
 
+    /**
+     * @property SharedAlias $value
+     */
     class MultiNamespaceFirst
     {
     }
@@ -13,6 +16,9 @@ namespace Hypervel\Tests\Data\Fixtures\First {
 namespace Hypervel\Tests\Data\Fixtures\Second {
     use Hypervel\Tests\Data\Fixtures\Types\GroupedType as SharedAlias;
 
+    /**
+     * @property SharedAlias $value
+     */
     class MultiNamespaceSecond
     {
     }

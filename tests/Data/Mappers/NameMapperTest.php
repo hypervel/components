@@ -17,6 +17,15 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 class NameMapperTest extends TestCase
 {
+    #[DataProvider('caseMapperProvider')]
+    public function testCaseMappersTransformStringsAndPreserveIntegerKeys(
+        NameMapper $mapper,
+        string $expected,
+    ): void {
+        $this->assertSame($expected, $mapper->map('first name'));
+        $this->assertSame(10, $mapper->map(10));
+    }
+
     /**
      * Provide case mapper examples.
      *
@@ -30,15 +39,6 @@ class NameMapperTest extends TestCase
         yield 'snake' => [new SnakeCaseMapper, 'first_name'];
         yield 'studly' => [new StudlyCaseMapper, 'FirstName'];
         yield 'upper' => [new UpperCaseMapper, 'FIRST NAME'];
-    }
-
-    #[DataProvider('caseMapperProvider')]
-    public function testCaseMappersTransformStringsAndPreserveIntegerKeys(
-        NameMapper $mapper,
-        string $expected,
-    ): void {
-        $this->assertSame($expected, $mapper->map('first name'));
-        $this->assertSame(10, $mapper->map(10));
     }
 
     public function testProvidedNameMapperReturnsItsConfiguredName(): void

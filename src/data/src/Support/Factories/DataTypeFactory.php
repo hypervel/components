@@ -61,7 +61,7 @@ class DataTypeFactory
     /**
      * Build a data property type.
      *
-     * @param ReflectionClass<object>|class-string $class
+     * @param class-string|ReflectionClass<object> $class
      * @param list<DataIterableAnnotation> $iterableAnnotations
      */
     public function buildProperty(
@@ -98,7 +98,7 @@ class DataTypeFactory
     /**
      * Build a parameter or return data type.
      *
-     * @param ReflectionClass<object>|class-string $class
+     * @param class-string|ReflectionClass<object> $class
      */
     public function build(
         ?ReflectionType $reflectionType,
@@ -123,7 +123,7 @@ class DataTypeFactory
     /**
      * Build a data type from a declared type name.
      *
-     * @param ReflectionClass<object>|class-string $class
+     * @param class-string|ReflectionClass<object> $class
      */
     public function buildFromString(
         string $type,
@@ -290,7 +290,7 @@ class DataTypeFactory
             );
         }
 
-        if ($type instanceof GenericTypeNode && $type->type instanceof IdentifierTypeNode) {
+        if ($type instanceof GenericTypeNode) {
             $name = $type->type->name;
             $genericTypes = $type->genericTypes;
 
@@ -597,7 +597,7 @@ class DataTypeFactory
     /**
      * Get the reflected class context.
      *
-     * @param ReflectionClass<object>|class-string $class
+     * @param class-string|ReflectionClass<object> $class
      * @return ReflectionClass<object>
      */
     protected function reflectionClass(ReflectionClass|string $class): ReflectionClass

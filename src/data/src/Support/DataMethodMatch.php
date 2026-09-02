@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Data\Support;
 
-use LogicException;
-
 final readonly class DataMethodMatch
 {
     /**
@@ -17,25 +15,5 @@ final readonly class DataMethodMatch
         public array $arguments,
         public bool $requiresContainerCall,
     ) {
-    }
-
-    /**
-     * Replace one matched payload without rebuilding the argument map.
-     */
-    public function replacePayload(mixed $payload, mixed $replacement): self
-    {
-        $arguments = $this->arguments;
-
-        foreach ($arguments as $key => $argument) {
-            if ($argument !== $payload) {
-                continue;
-            }
-
-            $arguments[$key] = $replacement;
-
-            return new self($arguments, $this->requiresContainerCall);
-        }
-
-        throw new LogicException('The matched payload is missing from the invocation arguments.');
     }
 }

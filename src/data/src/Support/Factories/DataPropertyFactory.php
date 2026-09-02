@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Data\Support\Factories;
 
 use Hypervel\Data\Attributes\AutoLazy;
+use Hypervel\Data\Attributes\AutoWhenLoadedLazy;
 use Hypervel\Data\Attributes\Computed;
 use Hypervel\Data\Attributes\GetsCast;
 use Hypervel\Data\Attributes\Hidden;
@@ -13,6 +14,7 @@ use Hypervel\Data\Attributes\PropertyForMorph;
 use Hypervel\Data\Attributes\WithCastAndTransformer;
 use Hypervel\Data\Attributes\WithoutValidation;
 use Hypervel\Data\Attributes\WithTransformer;
+use Hypervel\Data\Exceptions\InvalidDataDeclaration;
 use Hypervel\Data\Mappers\NameMapper;
 use Hypervel\Data\Optional;
 use Hypervel\Data\Support\Annotations\DataIterableAnnotation;
@@ -21,6 +23,8 @@ use Hypervel\Data\Support\DataParameter;
 use Hypervel\Data\Support\DataProperty;
 use Hypervel\Data\Support\DataPropertyType;
 use Hypervel\Data\Support\NameMapperResolver;
+use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Database\Eloquent\Model;
 use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionProperty;
@@ -93,12 +97,13 @@ class DataPropertyFactory
         $isVirtual = $reflectionProperty->isVirtual();
         $computed = $attributes->has(Computed::class) || $isVirtual;
 
-        return new DataProperty(
+        $property = new DataProperty(
             name: $reflectionProperty->name,
             className: $reflectionProperty->class,
             type: $type,
             validate: ! $computed
                 && $constructorParameter?->contextualAttribute === null
+                && ! $attributes->has(AutoWhenLoadedLazy::class)
                 && ! $attributes->has(WithoutValidation::class),
             computed: $computed,
             hidden: $attributes->has(Hidden::class),
@@ -114,12 +119,28 @@ class DataPropertyFactory
             transformer: $attributes->first(WithTransformer::class)
                 ?? $attributes->first(WithCastAndTransformer::class),
             inputMappedName: $inputMappedName,
+            inputMappedPath: $inputMappedName === null
+                ? null
+                : (is_int($inputMappedName) ? [$inputMappedName] : explode('.', $inputMappedName)),
             outputMappedName: $outputMappedName,
             configuredCasts: $this->applicableExtensions($type, $this->config->casts),
             configuredTransformers: $this->applicableExtensions($type, $this->config->transformers),
             attributes: $attributes,
             reflection: $reflectionProperty,
         );
+
+        foreach ($type->getIterableTypes() as $iterableType) {
+            if (is_a($iterableType->name, EloquentCollection::class, true)
+                && ! $iterableType->iterableItemType->guaranteesType(Model::class)) {
+                throw InvalidDataDeclaration::invalidEloquentCollectionItemType(
+                    $reflectionClass->getName(),
+                    $iterableType->name,
+                    $property,
+                );
+            }
+        }
+
+        return $property;
     }
 
     /**

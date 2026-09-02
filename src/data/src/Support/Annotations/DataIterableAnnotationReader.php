@@ -139,8 +139,7 @@ class DataIterableAnnotationReader
         TypeNode $type,
         string $declaringClass,
         ?string $property = null,
-    ): array
-    {
+    ): array {
         if ($type instanceof NullableTypeNode) {
             return $this->extract($type->type, $declaringClass, $property);
         }
@@ -165,7 +164,7 @@ class DataIterableAnnotationReader
             )];
         }
 
-        if (! $type instanceof GenericTypeNode || ! $type->type instanceof IdentifierTypeNode) {
+        if (! $type instanceof GenericTypeNode) {
             return [];
         }
 

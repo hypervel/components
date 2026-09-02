@@ -90,7 +90,7 @@ class DataIterablePropertyFixture
     /** @var list<FooData> */
     public array $list;
 
-    /** @var Collection<FooData>|null */
+    /** @var null|Collection<FooData> */
     public ?object $nullable;
 
     /** @var array<FooData>|Collection<BarData> */

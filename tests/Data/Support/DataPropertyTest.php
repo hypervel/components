@@ -15,8 +15,8 @@ use Hypervel\Data\Attributes\MapName;
 use Hypervel\Data\Attributes\MapOutputName;
 use Hypervel\Data\Attributes\PropertyForMorph;
 use Hypervel\Data\Attributes\WithCast;
-use Hypervel\Data\Attributes\WithTransformer;
 use Hypervel\Data\Attributes\WithoutValidation;
+use Hypervel\Data\Attributes\WithTransformer;
 use Hypervel\Data\Casts\Cast;
 use Hypervel\Data\Mappers\KebabCaseMapper;
 use Hypervel\Data\Mappers\SnakeCaseMapper;
@@ -33,6 +33,7 @@ use Hypervel\Data\Support\NameMapperResolver;
 use Hypervel\Data\Support\Transformation\TransformationContext;
 use Hypervel\Data\Support\Types\PhpDocTypeNameResolver;
 use Hypervel\Data\Transformers\Transformer;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Tests\TestCase;
 use ReflectionAttribute;
 use ReflectionClass;
@@ -60,6 +61,9 @@ class DataPropertyTest extends TestCase
         $this->assertFalse($property->validate);
         $this->assertTrue($property->hidden);
         $this->assertSame('wire.name', $property->inputMappedName);
+        $this->assertSame(['wire', 'name'], $property->inputMappedPath);
+        $this->assertSame(['wire', 'name'], $property->inputPath('wire.name'));
+        $this->assertSame(['displayName'], $property->inputPath('displayName'));
         $this->assertSame('display', $property->outputMappedName);
         $this->assertSame([PropertyFallbackCast::class], $property->configuredCasts);
         $this->assertSame([PropertyFallbackTransformer::class], $property->configuredTransformers);
@@ -150,9 +154,38 @@ class DataPropertyTest extends TestCase
         $numeric = $this->buildProperty($factory, $class, 'numeric', $config, $mapperResolver);
 
         $this->assertSame('created_at', $mapped->inputMappedName);
+        $this->assertSame(['created_at'], $mapped->inputMappedPath);
         $this->assertSame('created_at', $mapped->outputMappedName);
         $this->assertSame(0, $numeric->inputMappedName);
+        $this->assertSame([0], $numeric->inputMappedPath);
         $this->assertSame('numeric', $numeric->outputMappedName);
+    }
+
+    /**
+     * Test model relation resolution follows the normalized property name.
+     */
+    public function testResolvesOnlyMarkedEloquentRelations(): void
+    {
+        [$factory, $config, $mapperResolver] = $this->factory();
+        $class = new ReflectionClass(DataPropertyFixture::class);
+        $model = new PropertyRelationModel;
+        $relation = $this->buildProperty($factory, $class, 'relation', $config, $mapperResolver);
+        $camelRelation = $this->buildProperty(
+            $factory,
+            $class,
+            'loadedProfile',
+            $config,
+            $mapperResolver,
+        );
+        $unmarked = $this->buildProperty($factory, $class, 'createdAt', $config, $mapperResolver);
+
+        $this->assertSame('relation', $relation->resolveModelRelation($model));
+        $this->assertSame('loadedProfile', $camelRelation->resolveModelRelation($model));
+        $this->assertNull($unmarked->resolveModelRelation($model));
+
+        $model->relations = [];
+
+        $this->assertNull($relation->resolveModelRelation($model));
     }
 
     /**
@@ -249,6 +282,9 @@ class DataPropertyFixture
     #[LoadRelation]
     public PropertyRelation $relation;
 
+    #[LoadRelation]
+    public PropertyRelation $loadedProfile;
+
     #[PropertyForMorph]
     public string $type;
 
@@ -269,6 +305,20 @@ class DataPropertyFixture
 
 class PropertyRelation
 {
+}
+
+class PropertyRelationModel extends Model
+{
+    /** @var list<string> */
+    public array $relations = ['relation', 'loadedProfile'];
+
+    /**
+     * Determine if a fixture relation exists.
+     */
+    public function isRelation(string $key): bool
+    {
+        return in_array($key, $this->relations, true);
+    }
 }
 
 class PropertyCast implements Cast

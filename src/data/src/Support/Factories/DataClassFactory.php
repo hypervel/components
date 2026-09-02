@@ -58,7 +58,7 @@ class DataClassFactory
     /**
      * Build immutable metadata for a data class.
      *
-     * @param ReflectionClass<BaseData> $reflectionClass
+     * @param ReflectionClass<object> $reflectionClass
      */
     public function build(ReflectionClass $reflectionClass): DataClass
     {
@@ -103,6 +103,8 @@ class DataClassFactory
         $errorBag = $attributes->first(ErrorBag::class)?->newInstance();
         $redirect = $attributes->first(RedirectTo::class)?->newInstance();
         $redirectRoute = $attributes->first(RedirectToRoute::class)?->newInstance();
+        $lifecycleMethods = $this->resolveLifecycleMethods($reflectionClass);
+        $propertyMorphable = $reflectionClass->implementsInterface(PropertyMorphableData::class);
 
         return new DataClass(
             name: $name,
@@ -113,7 +115,7 @@ class DataClassFactory
             isReadonly: $reflectionClass->isReadOnly(),
             isAbstract: $reflectionClass->isAbstract(),
             isFinal: $reflectionClass->isFinal(),
-            propertyMorphable: $reflectionClass->implementsInterface(PropertyMorphableData::class),
+            propertyMorphable: $propertyMorphable,
             appendable: $reflectionClass->implementsInterface(AppendableData::class),
             includeable: $reflectionClass->implementsInterface(IncludeableData::class),
             responsable: $reflectionClass->implementsInterface(ResponsableData::class),
@@ -121,25 +123,31 @@ class DataClassFactory
             validateable: $reflectionClass->implementsInterface(ValidateableData::class),
             wrappable: $reflectionClass->implementsInterface(WrappableData::class),
             emptyData: $reflectionClass->implementsInterface(EmptyData::class),
-            lifecycleMethods: $this->resolveLifecycleMethods($reflectionClass),
+            lifecycleMethods: $lifecycleMethods,
             mergeValidationRules: $attributes->has(MergeValidationRules::class),
-            failOnUnknownFields: $failOnUnknownFields?->value ?? false,
+            failOnUnknownFields: $failOnUnknownFields->value ?? false,
             stopOnFirstFailure: $attributes->has(StopOnFirstFailure::class),
             errorBag: $errorBag?->name,
             redirect: $redirect?->url,
             redirectRoute: $redirectRoute?->route,
             plainTransform: $this->isPlainTransform($properties),
+            directArrayCreation: $this->supportsDirectArrayCreation(
+                $reflectionClass,
+                $constructorParameters,
+                $properties,
+                $lifecycleMethods,
+                $propertyMorphable,
+            ),
             attributes: $attributes,
             dataIterablePropertyAnnotations: $iterableAnnotations,
             outputMappedProperties: $this->validateMappings($name, $properties),
-            reflection: $reflectionClass,
         );
     }
 
     /**
      * Build constructor parameter metadata keyed by parameter name.
      *
-     * @param ReflectionClass<BaseData> $reflectionClass
+     * @param ReflectionClass<object> $reflectionClass
      * @return array<string, DataParameter>
      */
     protected function resolveConstructorParameters(
@@ -162,7 +170,7 @@ class DataClassFactory
     /**
      * Get public, non-static data properties keyed by name.
      *
-     * @param ReflectionClass<BaseData> $reflectionClass
+     * @param ReflectionClass<object> $reflectionClass
      * @return array<string, ReflectionProperty>
      */
     protected function resolveReflectionProperties(ReflectionClass $reflectionClass): array
@@ -207,7 +215,7 @@ class DataClassFactory
      * Build data properties and their selected iterable annotations.
      *
      * @param class-string<BaseData> $class
-     * @param ReflectionClass<BaseData> $reflectionClass
+     * @param ReflectionClass<object> $reflectionClass
      * @param array<string, ReflectionProperty> $reflectionProperties
      * @param array<string, DataParameter> $constructorParameters
      * @param null|ReflectionAttribute<AutoLazy> $classAutoLazy
@@ -286,7 +294,7 @@ class DataClassFactory
     /**
      * Resolve nearest class-level iterable annotations across inheritance.
      *
-     * @param ReflectionClass<BaseData> $reflectionClass
+     * @param ReflectionClass<object> $reflectionClass
      * @return array<string, non-empty-list<DataIterableAnnotation>>
      */
     protected function resolveClassAnnotations(ReflectionClass $reflectionClass): array
@@ -314,7 +322,7 @@ class DataClassFactory
     /**
      * Build named creation method metadata in declaration order.
      *
-     * @param ReflectionClass<BaseData> $reflectionClass
+     * @param ReflectionClass<object> $reflectionClass
      * @return array<string, DataMethod>
      */
     protected function resolveMethods(ReflectionClass $reflectionClass): array
@@ -343,7 +351,7 @@ class DataClassFactory
     /**
      * Compile user-owned creation lifecycle method presence.
      *
-     * @param ReflectionClass<BaseData> $reflectionClass
+     * @param ReflectionClass<object> $reflectionClass
      * @return array<string, true>
      */
     protected function resolveLifecycleMethods(ReflectionClass $reflectionClass): array
@@ -433,6 +441,48 @@ class DataClassFactory
         }
 
         return $outputMappedProperties;
+    }
+
+    /**
+     * Determine if exact array values can bypass general construction.
+     *
+     * @param ReflectionClass<object> $reflectionClass
+     * @param array<string, DataParameter> $constructorParameters
+     * @param array<string, DataProperty> $properties
+     * @param array<string, true> $lifecycleMethods
+     */
+    protected function supportsDirectArrayCreation(
+        ReflectionClass $reflectionClass,
+        array $constructorParameters,
+        array $properties,
+        array $lifecycleMethods,
+        bool $propertyMorphable,
+    ): bool {
+        if ($reflectionClass->isAbstract()
+            || $propertyMorphable
+            || isset($lifecycleMethods['normalizers'])
+            || $this->config->normalizers !== []) {
+            return false;
+        }
+
+        foreach ($constructorParameters as $parameter) {
+            if ($parameter->contextualAttribute !== null) {
+                return false;
+            }
+        }
+
+        foreach ($properties as $property) {
+            if ($property->autoLazy !== null
+                || $property->loadRelation
+                || $property->cast !== null
+                || $property->configuredCasts !== []
+                || $property->type->getDataCollectableTypes() !== []
+                || $property->type->getIterableTypes() !== []) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

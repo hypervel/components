@@ -18,7 +18,7 @@ use Hypervel\Data\Support\Types\PhpDocTypeNameResolver;
 use Hypervel\Data\Support\Types\UnionType;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Support\Collection;
-use Hypervel\Tests\Data\Fixtures\Types\{ImportedData as GroupedImportedData};
+use Hypervel\Tests\Data\Fixtures\Types\ImportedData as GroupedImportedData;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionClass;
@@ -307,7 +307,7 @@ class DataTypeFactoryFixture
     #[DataCollectionOf(DataTypeFactoryItemData::class)]
     public array $attributed;
 
-    /** @var array<string|DataTypeFactoryItemData> */
+    /** @var array<DataTypeFactoryItemData|string> */
     public array $unionItems;
 
     public DataTypeFactoryItemData $data;
@@ -318,7 +318,7 @@ class DataTypeFactoryFixture
     /** @var Collection<int, DataTypeFactorySecondItemData>|EloquentCollection<int, DataTypeFactoryFirstItemData> */
     public EloquentCollection|Collection $annotationBaseFirst;
 
-    /** @var EloquentCollection<int, DataTypeFactoryFirstItemData>|Collection<int, DataTypeFactorySecondItemData> */
+    /** @var Collection<int, DataTypeFactorySecondItemData>|EloquentCollection<int, DataTypeFactoryFirstItemData> */
     public EloquentCollection|Collection $annotationExactFirst;
 
     public float $float;

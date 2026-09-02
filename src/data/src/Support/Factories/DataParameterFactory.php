@@ -30,6 +30,7 @@ class DataParameterFactory
         ReflectionParameter $reflectionParameter,
         ReflectionClass $reflectionClass,
     ): DataParameter {
+        // REMOVED: Data-specific From* aliases; every Hypervel contextual attribute works directly.
         return new DataParameter(
             name: $reflectionParameter->name,
             position: $reflectionParameter->getPosition(),

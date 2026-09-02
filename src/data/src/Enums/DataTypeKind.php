@@ -81,6 +81,26 @@ enum DataTypeKind: string
     }
 
     /**
+     * Determine if this kind requires an offset paginator source.
+     */
+    public function isPaginator(): bool
+    {
+        return $this === self::Paginator
+            || $this === self::DataPaginator
+            || $this === self::DataPaginatedCollection;
+    }
+
+    /**
+     * Determine if this kind requires a cursor paginator source.
+     */
+    public function isCursorPaginator(): bool
+    {
+        return $this === self::CursorPaginator
+            || $this === self::DataCursorPaginator
+            || $this === self::DataCursorPaginatedCollection;
+    }
+
+    /**
      * Get the equivalent kind containing data objects.
      */
     public function getDataRelatedEquivalent(): self
