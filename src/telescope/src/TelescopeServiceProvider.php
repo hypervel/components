@@ -44,7 +44,6 @@ class TelescopeServiceProvider extends ServiceProvider
         Coroutine::afterCreated(function () {
             $keys = [
                 Telescope::SHOULD_RECORD_CONTEXT_KEY => false,
-                Telescope::IS_RECORDING_CONTEXT_KEY => false,
                 Telescope::BATCH_ID_CONTEXT_KEY => null,
             ];
             foreach ($keys as $key => $default) {

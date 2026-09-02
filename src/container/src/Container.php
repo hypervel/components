@@ -37,25 +37,9 @@ class Container implements ContainerContract
     use ReflectsClosures;
 
     /**
-     * Context key for the coroutine-local build stack.
+     * Context key for coroutine-local resolution state.
      */
-    protected const string BUILD_STACK_CONTEXT_KEY = '__container.build_stack';
-
-    /**
-     * Context key for the coroutine-local resolution depth counter.
-     */
-    public const string DEPTH_CONTEXT_KEY = '__container.depth';
-
-    /**
-     * Context key for the coroutine-local resolving stack.
-     *
-     * Tracks abstracts currently being resolved, used exclusively for circular
-     * dependency detection. Separate from BUILD_STACK_CONTEXT_KEY (which is
-     * also used by call() for contextual binding lookup) to avoid false
-     * positives when call() pushes a class name that is then re-resolved
-     * inside the method body.
-     */
-    protected const string RESOLVING_STACK_CONTEXT_KEY = '__container.resolving_stack';
+    protected const string RESOLUTION_STATE_CONTEXT_KEY = '__container.resolution_state';
 
     /**
      * Maximum resolution depth before assuming a circular dependency.
@@ -65,11 +49,6 @@ class Container implements ContainerContract
      * the direct in_array check insufficient.
      */
     protected const int MAX_RESOLUTION_DEPTH = 500;
-
-    /**
-     * Context key for the coroutine-local parameter override stack.
-     */
-    protected const string PARAMETER_OVERRIDES_CONTEXT_KEY = '__container.parameter_overrides';
 
     /**
      * Context key prefix for coroutine-local scoped instances.
@@ -983,16 +962,19 @@ class Container implements ContainerContract
                 return $callback();
             }
 
-            // First-class callables ($obj->method(...)) are Closure instances
-            // but not anonymous — they need the build stack for contextual
-            // bindings. Anonymous closures never have a class context.
-            $pushedToBuildStack = false;
+            // Anonymous closures do not contribute their scope class to contextual bindings,
+            // even when declared in a method or rebound. First-class callables do, matching Laravel.
+            if ($reflection->isAnonymous()) {
+                return BoundMethod::call($this, $callback, $parameters, null, $reflection);
+            }
 
-            if (! $reflection->isAnonymous()
-                && ($className = $reflection->getClosureScopeClass()?->name)
-                && ! in_array($className, $this->getBuildStack(), true)
+            $pushedToBuildStack = false;
+            $resolutionState = $this->getOrCreateResolutionState();
+
+            if (($className = $reflection->getClosureScopeClass()?->name)
+                && ! in_array($className, $resolutionState->buildStack, true)
             ) {
-                $this->pushBuildStack($className);
+                $resolutionState->buildStack[] = $className;
                 $pushedToBuildStack = true;
             }
 
@@ -1000,17 +982,18 @@ class Container implements ContainerContract
                 return BoundMethod::call($this, $callback, $parameters, null, $reflection);
             } finally {
                 if ($pushedToBuildStack) {
-                    $this->popBuildStack();
+                    array_pop($resolutionState->buildStack);
                 }
             }
         }
 
         // Non-closure path: shape-based class extraction, no reflection.
         $pushedToBuildStack = false;
+        $resolutionState = $this->getOrCreateResolutionState();
 
         if (($className = $this->getClassForCallable($callback))
-            && ! in_array($className, $this->getBuildStack(), true)) {
-            $this->pushBuildStack($className);
+            && ! in_array($className, $resolutionState->buildStack, true)) {
+            $resolutionState->buildStack[] = $className;
 
             $pushedToBuildStack = true;
         }
@@ -1019,7 +1002,7 @@ class Container implements ContainerContract
             return BoundMethod::call($this, $callback, $parameters, $defaultMethod);
         } finally {
             if ($pushedToBuildStack) {
-                $this->popBuildStack();
+                array_pop($resolutionState->buildStack);
             }
         }
     }
@@ -1226,7 +1209,8 @@ class Container implements ContainerContract
 
         // Depth guard — safety net for indirect cycles (e.g., through interfaces)
         // where the abstract names differ from the concretes in the resolving stack.
-        $depth = CoroutineContext::get(self::DEPTH_CONTEXT_KEY, 0);
+        $resolutionState = $this->getOrCreateResolutionState();
+        $depth = $resolutionState->depth;
 
         if ($depth >= static::MAX_RESOLUTION_DEPTH) {
             throw new CircularDependencyException(
@@ -1244,19 +1228,19 @@ class Container implements ContainerContract
         $pushedToResolvingStack = false;
 
         if (! $needsContextualBuild) {
-            if (in_array($abstract, $this->getResolvingStack(), true)) {
+            if (in_array($abstract, $resolutionState->resolvingStack, true)) {
                 $e = new CircularDependencyException;
                 $e->addDefinitionName($abstract);
 
                 throw $e;
             }
 
-            $this->pushResolvingStack($abstract);
+            $resolutionState->resolvingStack[] = $abstract;
             $pushedToResolvingStack = true;
         }
 
-        $this->pushParameterOverrides($parameters);
-        CoroutineContext::set(self::DEPTH_CONTEXT_KEY, $depth + 1);
+        $resolutionState->parameterOverrides[] = $parameters;
+        $resolutionState->depth = $depth + 1;
         $sharedResolution = null;
         $publishedCache = null;
         $publishedValue = null;
@@ -1389,11 +1373,11 @@ class Container implements ContainerContract
             throw $e;
         } finally {
             if ($pushedToResolvingStack) {
-                $this->popResolvingStack();
+                array_pop($resolutionState->resolvingStack);
             }
 
-            $this->popParameterOverrides();
-            CoroutineContext::set(self::DEPTH_CONTEXT_KEY, $depth);
+            array_pop($resolutionState->parameterOverrides);
+            $resolutionState->depth = $depth;
         }
     }
 
@@ -1590,116 +1574,40 @@ class Container implements ContainerContract
     }
 
     /**
-     * Get the current build stack from coroutine-local context.
+     * Get the resolution state for the current coroutine.
+     */
+    protected function getResolutionState(): ?ContainerResolutionState
+    {
+        $resolutionState = CoroutineContext::get(self::RESOLUTION_STATE_CONTEXT_KEY);
+
+        return $resolutionState instanceof ContainerResolutionState ? $resolutionState : null;
+    }
+
+    /**
+     * Get or create the mutable resolution state for the current coroutine.
+     */
+    protected function getOrCreateResolutionState(): ContainerResolutionState
+    {
+        if (($resolutionState = $this->getResolutionState()) !== null) {
+            return $resolutionState;
+        }
+
+        $resolutionState = new ContainerResolutionState;
+        CoroutineContext::set(self::RESOLUTION_STATE_CONTEXT_KEY, $resolutionState);
+
+        return $resolutionState;
+    }
+
+    /**
+     * Get the current build stack without creating resolution state.
      *
-     * @return string[]
+     * @return list<string>
      */
-    protected function getBuildStack(): array
+    protected function currentBuildStack(): array
     {
-        return CoroutineContext::get(self::BUILD_STACK_CONTEXT_KEY, []);
-    }
+        $resolutionState = $this->getResolutionState();
 
-    /**
-     * Set the build stack in coroutine-local context.
-     *
-     * @param string[] $stack
-     */
-    protected function setBuildStack(array $stack): void
-    {
-        CoroutineContext::set(self::BUILD_STACK_CONTEXT_KEY, $stack);
-    }
-
-    /**
-     * Push an abstract onto the coroutine-local build stack.
-     */
-    protected function pushBuildStack(string $abstract): void
-    {
-        $stack = $this->getBuildStack();
-        $stack[] = $abstract;
-        $this->setBuildStack($stack);
-    }
-
-    /**
-     * Pop the last entry from the coroutine-local build stack.
-     */
-    protected function popBuildStack(): void
-    {
-        $stack = $this->getBuildStack();
-        array_pop($stack);
-        $this->setBuildStack($stack);
-    }
-
-    /**
-     * Get the resolving stack from coroutine-local context.
-     *
-     * Used exclusively for circular dependency detection. Separate from the
-     * build stack so that call()'s contextual-binding pushes don't trigger
-     * false positives.
-     *
-     * @return string[]
-     */
-    protected function getResolvingStack(): array
-    {
-        return CoroutineContext::get(self::RESOLVING_STACK_CONTEXT_KEY, []);
-    }
-
-    /**
-     * Push an abstract onto the coroutine-local resolving stack.
-     */
-    protected function pushResolvingStack(string $abstract): void
-    {
-        $stack = $this->getResolvingStack();
-        $stack[] = $abstract;
-        CoroutineContext::set(self::RESOLVING_STACK_CONTEXT_KEY, $stack);
-    }
-
-    /**
-     * Pop the last entry from the coroutine-local resolving stack.
-     */
-    protected function popResolvingStack(): void
-    {
-        $stack = $this->getResolvingStack();
-        array_pop($stack);
-        CoroutineContext::set(self::RESOLVING_STACK_CONTEXT_KEY, $stack);
-    }
-
-    /**
-     * Get the parameter override stack from coroutine-local context.
-     *
-     * @return array[]
-     */
-    protected function getParameterOverrideStack(): array
-    {
-        return CoroutineContext::get(self::PARAMETER_OVERRIDES_CONTEXT_KEY, []);
-    }
-
-    /**
-     * Push parameter overrides onto the coroutine-local stack.
-     */
-    protected function pushParameterOverrides(array $parameters): void
-    {
-        $stack = $this->getParameterOverrideStack();
-        $stack[] = $parameters;
-        CoroutineContext::set(self::PARAMETER_OVERRIDES_CONTEXT_KEY, $stack);
-    }
-
-    /**
-     * Pop the last parameter overrides from the coroutine-local stack.
-     */
-    protected function popParameterOverrides(): void
-    {
-        $stack = $this->getParameterOverrideStack();
-        array_pop($stack);
-        CoroutineContext::set(self::PARAMETER_OVERRIDES_CONTEXT_KEY, $stack);
-    }
-
-    /**
-     * Get the last parameter override from the coroutine-local stack.
-     */
-    protected function getLastParameterOverride(): array
-    {
-        $stack = $this->getParameterOverrideStack();
-        return end($stack) ?: [];
+        return $resolutionState === null ? [] : $resolutionState->buildStack;
     }
 
     /**
@@ -1707,7 +1615,11 @@ class Container implements ContainerContract
      */
     protected function findInContextualBindings(string $abstract): mixed
     {
-        $buildStack = $this->getBuildStack();
+        if ($this->contextual === []) {
+            return null;
+        }
+
+        $buildStack = $this->currentBuildStack();
 
         return $this->contextual[end($buildStack)][$abstract] ?? null;
     }
@@ -1817,12 +1729,13 @@ class Container implements ContainerContract
      */
     public function buildWith(Closure|string $concrete, array $parameters = []): mixed
     {
-        $this->pushParameterOverrides($parameters);
+        $resolutionState = $this->getOrCreateResolutionState();
+        $resolutionState->parameterOverrides[] = $parameters;
 
         try {
             return $this->build($concrete);
         } finally {
-            $this->popParameterOverrides();
+            array_pop($resolutionState->parameterOverrides);
         }
     }
 
@@ -1839,16 +1752,18 @@ class Container implements ContainerContract
      */
     public function build(Closure|string $concrete): mixed
     {
+        $resolutionState = $this->getOrCreateResolutionState();
+
         // If the concrete type is actually a Closure, we will just execute it and
         // hand back the results of the functions, which allows functions to be
         // used as resolvers for more fine-tuned resolution of these objects.
         if ($concrete instanceof Closure) {
-            $this->pushBuildStack(spl_object_hash($concrete));
+            $resolutionState->buildStack[] = spl_object_hash($concrete);
 
             try {
-                return $concrete($this, $this->getLastParameterOverride());
+                return $concrete($this, end($resolutionState->parameterOverrides) ?: []);
             } finally {
-                $this->popBuildStack();
+                array_pop($resolutionState->buildStack);
             }
         }
 
@@ -1866,11 +1781,11 @@ class Container implements ContainerContract
         }
 
         if (is_a($concrete, SelfBuilding::class, true)
-            && ! in_array($concrete, $this->getBuildStack(), true)) {
-            return $this->buildSelfBuildingInstance($concrete, $recipe);
+            && ! in_array($concrete, $resolutionState->buildStack, true)) {
+            return $this->buildSelfBuildingInstance($concrete, $recipe, $resolutionState);
         }
 
-        $this->pushBuildStack($concrete);
+        $resolutionState->buildStack[] = $concrete;
 
         try {
             // If there are no constructors, that means there are no dependencies then
@@ -1892,9 +1807,9 @@ class Container implements ContainerContract
             // Once we have all the constructor's parameters we can create each of the
             // dependency instances and then use them to make a new instance of this
             // class, injecting the created dependencies in.
-            $instances = $this->resolveRecipeParameters($recipe);
+            $instances = $this->resolveRecipeParameters($recipe, $resolutionState);
         } finally {
-            $this->popBuildStack();
+            array_pop($resolutionState->buildStack);
         }
 
         $instance = new $concrete(...$instances);
@@ -1916,18 +1831,21 @@ class Container implements ContainerContract
      *
      * @throws BindingResolutionException
      */
-    protected function buildSelfBuildingInstance(string $concrete, BuildRecipe $recipe): mixed
-    {
+    protected function buildSelfBuildingInstance(
+        string $concrete,
+        BuildRecipe $recipe,
+        ContainerResolutionState $resolutionState,
+    ): mixed {
         if (! method_exists($concrete, 'newInstance')) {
             throw new BindingResolutionException("No newInstance method exists for [{$concrete}].");
         }
 
-        $this->pushBuildStack($concrete);
+        $resolutionState->buildStack[] = $concrete;
 
         try {
             $instance = $this->call([$concrete, 'newInstance']); // @phpstan-ignore argument.type
         } finally {
-            $this->popBuildStack();
+            array_pop($resolutionState->buildStack);
         }
 
         if ($recipe->classAttributes !== []) {
@@ -1945,16 +1863,19 @@ class Container implements ContainerContract
      *
      * @throws BindingResolutionException
      */
-    protected function resolveRecipeParameters(BuildRecipe $recipe): array
-    {
+    protected function resolveRecipeParameters(
+        BuildRecipe $recipe,
+        ContainerResolutionState $resolutionState,
+    ): array {
         $results = [];
+        $parameterOverrides = end($resolutionState->parameterOverrides) ?: [];
 
         foreach ($recipe->parameters as $paramRecipe) {
             // If the dependency has an override for this particular build we will use
             // that instead as the value. Otherwise, we will continue with this run
             // of resolutions and let the cached recipe metadata determine the result.
-            if ($this->hasParameterOverride($paramRecipe)) {
-                $results[] = $this->getParameterOverride($paramRecipe);
+            if (array_key_exists($paramRecipe->name, $parameterOverrides)) {
+                $results[] = $parameterOverrides[$paramRecipe->name];
 
                 continue;
             }
@@ -1991,24 +1912,8 @@ class Container implements ContainerContract
         return $results;
     }
 
-    /**
-     * Determine if the given dependency has a parameter override.
-     */
-    protected function hasParameterOverride(ParameterRecipe $param): bool
-    {
-        return array_key_exists(
-            $param->name,
-            $this->getLastParameterOverride()
-        );
-    }
-
-    /**
-     * Get a parameter override for a dependency.
-     */
-    protected function getParameterOverride(ParameterRecipe $param): mixed
-    {
-        return $this->getLastParameterOverride()[$param->name];
-    }
+    // REMOVED: Override resolveRecipeParameters() instead of Laravel's per-parameter
+    // override helpers, which repeat coroutine-state reads for every dependency.
 
     /**
      * Resolve a non-class hinted primitive dependency.
@@ -2113,7 +2018,7 @@ class Container implements ContainerContract
      */
     protected function notInstantiable(string $concrete): never
     {
-        $buildStack = $this->getBuildStack();
+        $buildStack = $this->currentBuildStack();
 
         if (! empty($buildStack)) {
             $previous = implode(', ', $buildStack);
@@ -2328,7 +2233,7 @@ class Container implements ContainerContract
      */
     public function currentlyResolving(): ?string
     {
-        $buildStack = $this->getBuildStack();
+        $buildStack = $this->currentBuildStack();
 
         return end($buildStack) ?: null;
     }

@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Container;
 
 use Hypervel\Container\Container;
+use Hypervel\Container\ContainerResolutionState;
 use Hypervel\Container\SharedResolution;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Container\CircularDependencyException;
 use Hypervel\Contracts\Container\Transient;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
@@ -22,6 +24,64 @@ use function Hypervel\Coroutine\parallel;
 
 class CoroutineSafetyTest extends TestCase
 {
+    public function testResolutionStateIsReplicatedWhenContextIsForked(): void
+    {
+        $container = new CoroutineResolutionStateInspectionContainer;
+        $parent = $container->resolutionState();
+        $parent->depth = 2;
+        $parent->buildStack = ['parent-build'];
+        $parent->resolvingStack = ['parent-resolution'];
+        $parent->parameterOverrides = [['value' => 'parent']];
+        $result = new Channel(1);
+
+        $childId = Coroutine::fork(static function () use ($container, $result): void {
+            $child = $container->resolutionState();
+            $before = [
+                'depth' => $child->depth,
+                'build' => $child->buildStack,
+                'resolving' => $child->resolvingStack,
+                'overrides' => $child->parameterOverrides,
+            ];
+
+            ++$child->depth;
+            $child->buildStack[] = 'child-build';
+            $child->resolvingStack[] = 'child-resolution';
+            $child->parameterOverrides[] = ['value' => 'child'];
+
+            $result->push([
+                'id' => spl_object_id($child),
+                'before' => $before,
+                'after' => [
+                    'depth' => $child->depth,
+                    'build' => $child->buildStack,
+                    'resolving' => $child->resolvingStack,
+                    'overrides' => $child->parameterOverrides,
+                ],
+            ]);
+        });
+
+        $child = $result->pop(1.0);
+        Coroutine::join([$childId], 1.0);
+
+        $this->assertNotSame(spl_object_id($parent), $child['id']);
+        $this->assertSame([
+            'depth' => 2,
+            'build' => ['parent-build'],
+            'resolving' => ['parent-resolution'],
+            'overrides' => [['value' => 'parent']],
+        ], $child['before']);
+        $this->assertSame([
+            'depth' => 3,
+            'build' => ['parent-build', 'child-build'],
+            'resolving' => ['parent-resolution', 'child-resolution'],
+            'overrides' => [['value' => 'parent'], ['value' => 'child']],
+        ], $child['after']);
+        $this->assertSame(2, $parent->depth);
+        $this->assertSame(['parent-build'], $parent->buildStack);
+        $this->assertSame(['parent-resolution'], $parent->resolvingStack);
+        $this->assertSame([['value' => 'parent']], $parent->parameterOverrides);
+    }
+
     public function testScopedInstancesAreIsolatedPerCoroutine(): void
     {
         $container = new Container;
@@ -710,6 +770,14 @@ class CoroutineSafetyTest extends TestCase
         }
 
         $this->assertInstanceOf(stdClass::class, $ownerFinished->pop(1));
+    }
+}
+
+class CoroutineResolutionStateInspectionContainer extends Container
+{
+    public function resolutionState(): ContainerResolutionState
+    {
+        return $this->getOrCreateResolutionState();
     }
 }
 

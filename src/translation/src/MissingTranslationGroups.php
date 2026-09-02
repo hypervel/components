@@ -48,7 +48,7 @@ final class MissingTranslationGroups implements ReplicableContext
     }
 
     /**
-     * Create an independent copy with the same state.
+     * Copy the missing translation groups into an independent snapshot.
      */
     public function replicate(): static
     {

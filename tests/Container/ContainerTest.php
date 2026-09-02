@@ -933,6 +933,30 @@ class ContainerTest extends TestCase
         $this->assertEquals(ContainerCurrentResolvingConcrete::class, $resolved->currentlyResolving);
     }
 
+    public function testCurrentlyResolvingDoesNotCreateResolutionStateWhenIdle(): void
+    {
+        $container = new ContainerStateInspectionStub;
+
+        $this->assertFalse($container->hasResolutionState());
+        $this->assertNull($container->currentlyResolving());
+        $this->assertFalse($container->hasResolutionState());
+    }
+
+    public function testCachedSingletonDoesNotCreateResolutionStateWhenContextualBindingsExist(): void
+    {
+        $container = new ContainerStateInspectionStub;
+        $instance = new stdClass;
+
+        $container->when(ContainerCurrentResolvingConcrete::class)
+            ->needs('$currentlyResolving')
+            ->give('resolved');
+        $container->instance('cached', $instance);
+
+        $this->assertFalse($container->hasResolutionState());
+        $this->assertSame($instance, $container->make('cached'));
+        $this->assertFalse($container->hasResolutionState());
+    }
+
     public function testGetAliasRecursive()
     {
         $container = new Container;
@@ -1703,7 +1727,7 @@ class ContainerTest extends TestCase
     public function testDepthLimitFailureDoesNotMutateResolutionState(): void
     {
         $container = new ContainerStateInspectionStub;
-        CoroutineContext::set(Container::DEPTH_CONTEXT_KEY, $container->resolutionLimit());
+        $container->setResolutionDepth($container->resolutionLimit());
 
         try {
             $container->make(ContainerConcreteStub::class);
@@ -1712,11 +1736,11 @@ class ContainerTest extends TestCase
             $this->assertStringContainsString('Maximum resolution depth', $exception->getMessage());
         }
 
-        $this->assertSame($container->resolutionLimit(), CoroutineContext::get(Container::DEPTH_CONTEXT_KEY));
+        $this->assertSame($container->resolutionLimit(), $container->resolutionDepth());
         $this->assertSame([], $container->resolvingStack());
         $this->assertSame([], $container->parameterOverrideStack());
 
-        CoroutineContext::set(Container::DEPTH_CONTEXT_KEY, 0);
+        $container->setResolutionDepth(0);
 
         $this->assertInstanceOf(ContainerConcreteStub::class, $container->make(ContainerConcreteStub::class));
     }
@@ -2564,6 +2588,11 @@ class ContainerVariadicDependencyConsumer
 
 class ContainerStateInspectionStub extends Container
 {
+    public function hasResolutionState(): bool
+    {
+        return CoroutineContext::has(self::RESOLUTION_STATE_CONTEXT_KEY);
+    }
+
     public function resolutionLimit(): int
     {
         return parent::MAX_RESOLUTION_DEPTH;
@@ -2571,11 +2600,21 @@ class ContainerStateInspectionStub extends Container
 
     public function resolvingStack(): array
     {
-        return $this->getResolvingStack();
+        return $this->getOrCreateResolutionState()->resolvingStack;
     }
 
     public function parameterOverrideStack(): array
     {
-        return $this->getParameterOverrideStack();
+        return $this->getOrCreateResolutionState()->parameterOverrides;
+    }
+
+    public function resolutionDepth(): int
+    {
+        return $this->getOrCreateResolutionState()->depth;
+    }
+
+    public function setResolutionDepth(int $depth): void
+    {
+        $this->getOrCreateResolutionState()->depth = $depth;
     }
 }
