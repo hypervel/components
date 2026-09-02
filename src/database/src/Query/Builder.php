@@ -3888,6 +3888,13 @@ class Builder implements BuilderContract
     public function decrementEach(array $columns, array $extra = []): int
     {
         foreach ($columns as $column => $amount) {
+            if (! is_numeric($amount)) {
+                throw new InvalidArgumentException("Non-numeric value passed as decrement amount for column: '{$column}'.");
+            }
+            if (! is_string($column)) {
+                throw new InvalidArgumentException('Non-associative array passed to decrementEach method.');
+            }
+
             $columns[$column] = $this->raw("{$this->grammar->wrap($column)} - {$amount}");
         }
 
