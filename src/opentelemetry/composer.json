@@ -32,6 +32,7 @@
     },
     "require": {
         "php": "^8.4",
+        "ext-filter": "*",
         "ext-mbstring": "*",
         "ext-swoole": "^6.2.2",
         "guzzlehttp/guzzle": "^7.15.1",

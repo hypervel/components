@@ -28,6 +28,7 @@ class PackageMetadataTest extends TestCase
         );
 
         foreach ([
+            'ext-filter',
             'ext-swoole',
             'psr/log',
             'hypervel/collections',

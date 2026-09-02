@@ -26,6 +26,7 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use TypeError;
 
 class ImageManagerTest extends TestCase
 {
@@ -78,6 +79,37 @@ class ImageManagerTest extends TestCase
         $this->expectExceptionObject(new InvalidArgumentException('Image driver [nonexistent] is not supported.'));
 
         $manager->driver('nonexistent');
+    }
+
+    public function testCustomDriverExceptionPropagatesUnchanged(): void
+    {
+        $creatorException = new InvalidArgumentException('Unable to create the custom image driver.');
+        $manager = new ImageManager($this->makeApp([]));
+        $manager->extend('custom', static function () use ($creatorException): never {
+            throw $creatorException;
+        });
+
+        try {
+            $manager->driver('custom');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame($creatorException, $exception);
+
+            return;
+        }
+
+        $this->fail('InvalidArgumentException was not thrown.');
+    }
+
+    public function testCustomDriverMustReturnADriver(): void
+    {
+        $manager = new ImageManager($this->makeApp([]));
+        $manager->extend('custom', static fn (): object => new class {
+        });
+
+        $this->expectException(TypeError::class);
+        $this->expectExceptionMessage('must be of type Hypervel\Contracts\Image\Driver');
+
+        $manager->driver('custom');
     }
 
     public function testFromBytesReturnsImageWithContents(): void

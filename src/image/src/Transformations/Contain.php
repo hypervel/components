@@ -9,6 +9,8 @@ use Hypervel\Contracts\Image\Transformation;
 class Contain implements Transformation
 {
     /**
+     * Create a new contain transformation.
+     *
      * @param positive-int $width
      * @param positive-int $height
      */
