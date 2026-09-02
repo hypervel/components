@@ -1498,7 +1498,8 @@ class Str
             return substr_replace($string, $replace, $offset, $length);
         }
 
-        $replaceSubstring = function ($string, $replace, $offset, $length) {
+        // $replace stays untyped: typing it would reject numeric and Stringable array values accepted by weak-mode scalar calls.
+        $replaceSubstring = function (string $string, $replace, int $offset, ?int $length): string {
             if ($length === null) {
                 $length = static::length($string);
             }
