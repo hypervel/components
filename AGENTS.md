@@ -132,6 +132,7 @@ The Working rules and the Avoid overengineering rules apply to all work in this 
 - **Treat past owner decisions as context, not constraints** — Previous owner approvals and completed plans explain history but do not determine the best design today. Never retain or reject a design merely because it was previously approved; decide from current requirements, code, and evidence.
 - **Revert failed attempts immediately** — when a fix doesn't work, revert it before trying another approach. Don't leave experimental code in place.
 - **Check dependency versions before adding them** — Before adding a package dependency to the root `composer.json`, check Packagist for the latest compatible stable version. The root `composer.lock` is intentionally untracked; run `composer update` after adding or merging dependency changes, do not treat an outdated local lock as a repository defect, and never commit it.
+- **Declare only real dependencies** — Declare packages used directly by the code or needed for a supported installation. Do not add dependencies merely to complete the list. Add a polyfill only when neither the minimum PHP version nor an existing requirement provides the feature.
 - **Keep Composer metadata functional** — Declare an `ext-*` requirement only when the extension is not guaranteed by Hypervel's minimum PHP version. Add a `suggest` entry only when installing that package enables a concrete, documented feature; conditional interoperability, class-string references, tests, or metadata completeness do not qualify.
 
 ### Documentation
