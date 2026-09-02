@@ -1,6 +1,6 @@
 # Existing-Package Correctness Remediation Plan
 
-Status: Implementation, repository checks, and code review complete; ready to commit and open a pull request
+Status: Complete; pull request open with all follow-up corrections
 
 ## Objective
 
@@ -174,7 +174,7 @@ Extend `tests/Notifications/NotificationBroadcastChannelTest.php` to cover:
 
 - anonymous notification without an explicit or notification-defined channel throws the exact `LogicException`;
 - explicit anonymous `broadcast` route works;
-- `receivesBroadcastNotificationsOn()` still wins;
+- `receivesBroadcastNotificationsOn()` derives its expected channel from the event's own notification instance, proving exact forwarding as well as precedence;
 - an ordinary keyed notifiable retains the class-and-key fallback.
 
 Keep the existing `AnonymousNotifiable::getKey()` null assertion in `NotificationRoutesNotificationsTest`. Do not add a queued-broadcast integration test: serialization leaves the anonymous routes unchanged, so queueing changes only when this exact method executes and would otherwise retest unrelated queue/broadcast infrastructure.
@@ -246,6 +246,7 @@ Port the current Laravel default-branch implementation while preserving Hypervel
 
 - Delegate scalar-subject/array-offset-or-length combinations to native `substr_replace()` so PHP retains its native error behavior.
 - Use a local multibyte replacement closure whose suffix is `mb_substr(mb_substr($string, $offset), $length)`.
+- Type the closure's `$string`, `$offset`, `$length`, and return natively. Invalid inner values already fail inside strict `mb_substr()`, so these types move the same failure to the owning closure. Leave `$replace` untyped: typing it would reject numeric and `Stringable` array elements accepted by weak-mode scalar calls, creating a new scalar/array mismatch.
 - Normalize replacement, offset, and length arrays with `array_values()` so they are consumed positionally.
 - Preserve every original subject key in the result.
 - Use Laravel's defaults for missing positional replacement (`''`), offset (`0`), and length (`null`).
