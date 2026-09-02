@@ -6,8 +6,12 @@ namespace Hypervel\Data;
 
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Data\Console\DataMakeCommand;
+use Hypervel\Data\Contracts\TransformableData;
 use Hypervel\Data\Support\DataConfig;
+use Hypervel\Data\Support\VarDumper\DataVarDumperCaster;
 use Hypervel\Support\ServiceProvider;
+use Symfony\Component\VarDumper\Cloner\AbstractCloner;
 
 class DataServiceProvider extends ServiceProvider
 {
@@ -27,6 +31,9 @@ class DataServiceProvider extends ServiceProvider
                 $container->make(Repository::class),
             ),
         );
+
+        // REMOVED: Livewire/Wireable integration has no Hypervel equivalent.
+        // REMOVED: TypeScript integration belongs to a general reflection transformer package.
     }
 
     /**
@@ -34,9 +41,16 @@ class DataServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Build the typed configuration once during worker boot.
         $this->app->make(DataConfig::class);
 
+        AbstractCloner::$defaultCasters[TransformableData::class]
+            ??= [DataVarDumperCaster::class, 'cast'];
+
         if ($this->app->runningInConsole()) {
+            // REMOVED: data:cache-structures; worker memory is the metadata cache boundary.
+            $this->commands([DataMakeCommand::class]);
+
             $this->publishes([
                 dirname(__DIR__) . '/config/data.php' => config_path('data.php'),
             ], 'data-config');

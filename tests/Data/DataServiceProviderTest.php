@@ -11,6 +11,9 @@ use Hypervel\Testbench\TestCase;
 
 class DataServiceProviderTest extends TestCase
 {
+    // REMOVED: Structure-cache command tests; worker memory is the metadata cache boundary.
+    // REMOVED: Livewire/Wireable and TypeScript integration tests; Hypervel has no matching Data integration.
+
     protected function getPackageProviders(Application $app): array
     {
         return [DataServiceProvider::class];
