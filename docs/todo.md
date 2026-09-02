@@ -46,9 +46,9 @@
 
 - Revisit the rate limiter's portable fixed-window Lua script once native bounded increment-with-expiry support is mature across the supported Redis-compatible ecosystem. Redis 8.8's `INCREX` can atomically reject increments above an upper bound and set expiry only for a new window, but Redis 8.6 and Valkey 9 do not provide it, [Valkey #3253](https://github.com/valkey-io/valkey/pull/3253) is still an open related proposal rather than equivalent `INCREX` support, and phpredis 6.3 exposes no typed `INCREX` method (while `rawCommand()` bypasses key prefixing and has different Redis Cluster routing semantics). Re-benchmark and switch only when Redis and Valkey expose equivalent semantics and phpredis has prefix-aware, cluster-aware client support; keep the corresponding focused `@TODO` beside the Lua script until then.
 
-## Horizon
+## Notifications
 
-- Port Laravel's first-party `laravel/vonage-notification-channel` as `hypervel/vonage-notification-channel`, then wire Horizon long-wait SMS notifications through the current `vonage` channel and `VonageMessage`. Keep `Horizon::routeSmsNotificationsTo(...)`, add the package prerequisite and functional mail/Slack/SMS coverage, and do not port deprecated Nexmo aliases or fallbacks.
+- Design a provider-agnostic first-party SMS notification API before adding an SMS provider. Keep Horizon's existing `Horizon::routeSmsNotificationsTo(...)`, but have Horizon target the generic channel and message contract rather than a vendor class; provider packages should adapt that contract to Vonage or other services. Decide routing, provider selection, message construction, per-message client overrides, and failure reporting, then implement the first adapter and update the notification and Horizon documentation, stubs, and Boost references. Keep mutable third-party SDK clients isolated per send—Vonage's client caches resources that mutate request and response state around yielding HTTP calls—while reusing only immutable configuration and the coroutine-safe transport. Add standalone package, provider, direct-construction, routing, failure, Horizon mail/Slack/SMS, and deterministic concurrent-send coverage. Do not add obsolete Nexmo names or compatibility aliases.
 
 ## Sentinel
 
