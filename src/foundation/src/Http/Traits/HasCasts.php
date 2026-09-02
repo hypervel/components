@@ -12,10 +12,8 @@ use Hypervel\Database\Eloquent\InvalidCastException;
 use Hypervel\Foundation\Http\Contracts\Castable;
 use Hypervel\Foundation\Http\Contracts\CastInputs;
 use Hypervel\Support\Collection;
-use Hypervel\Support\DataObject;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Json;
-use RuntimeException;
 use UnitEnum;
 
 trait HasCasts
@@ -159,11 +157,6 @@ trait HasCasts
             return $this->getEnumCastableInputValue($key, $value);
         }
 
-        // Handle DataObject casts
-        if ($this->isDataObjectCastable($key)) {
-            return $this->getDataObjectCastableInputValue($key, $value);
-        }
-
         // Handle custom class casts
         if ($this->isClassCastable($key)) {
             return $this->getClassCastableInputValue($key, $value, $validate);
@@ -211,31 +204,6 @@ trait HasCasts
         }
 
         return $this->getEnumCaseFromValue($castType, $value);
-    }
-
-    /**
-     * Cast the given input to a DataObject.
-     */
-    public function getDataObjectCastableInputValue(string $key, mixed $value): mixed
-    {
-        if (is_null($value)) {
-            return null;
-        }
-
-        $castType = $this->getCasts()[$key];
-
-        if (! is_array($value)) {
-            throw new InvalidCastException($this, $key, $castType);
-        }
-
-        // Check if the class has make static method (provided by DataObject)
-        if (! method_exists($castType, 'make')) {
-            throw new RuntimeException(
-                "Class {$castType} must implement static make(array \$data) method"
-            );
-        }
-
-        return $castType::make($value);
     }
 
     /**
@@ -326,26 +294,6 @@ trait HasCasts
         }
 
         return enum_exists($castType);
-    }
-
-    /**
-     * Determine if the given key is cast using a DataObject.
-     */
-    public function isDataObjectCastable(string $key): bool
-    {
-        $casts = $this->getCasts();
-
-        if (! array_key_exists($key, $casts)) {
-            return false;
-        }
-
-        $castType = $casts[$key];
-
-        if (in_array($castType, static::$primitiveCastTypes)) {
-            return false;
-        }
-
-        return is_subclass_of($castType, DataObject::class);
     }
 
     /**
