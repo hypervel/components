@@ -24,6 +24,8 @@
 - [Other API Differences](#other-api-differences)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
     - [Scout](#scout)
+    - [JSON Schema](#json-schema)
+    - [Data Objects](#data-objects)
     - [Rate Limiting](#rate-limiting)
     - [Pagination](#pagination)
     - [Dates](#dates)
@@ -496,6 +498,13 @@ Hypervel compiles integer and float values passed to Scout's Algolia `where`, `w
 ### JSON Schema
 
 When porting schemas that place sibling assertions beside a local `$ref` or use nullable composition, make overlapping assertions identical. Hypervel rejects conflicts instead of silently replacing referenced constraints. See the [JSON Schema documentation](/docs/{{version}}/json-schema#reconstructing-schemas).
+
+<a name="data-objects"></a>
+### Data Objects
+
+When porting `spatie/laravel-data`, replace its namespace with `Hypervel\Data` and review the [Data Objects documentation](/docs/{{version}}/data-objects). Hypervel retains the familiar `Data`, `Dto`, `Resource`, `Optional`, mapping, casting, validation, lazy-value, collection, resource, and Eloquent APIs while adapting their internals to long-lived workers.
+
+Model attributes containing `null` remain explicit values, including for non-nullable properties with defaults. When several payloads are supplied to `from()`, the first payload containing a property's input key wins, including when its value is `null`.
 
 <a name="rate-limiting"></a>
 ### Rate Limiting

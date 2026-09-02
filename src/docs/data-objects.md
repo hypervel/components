@@ -1,53 +1,69 @@
 # Data Objects
 
 - [Introduction](#introduction)
+- [Choosing a Base Class](#choosing-a-base-class)
 - [Creating Data Objects](#creating-data-objects)
     - [Creating Instances](#creating-instances)
+    - [Associating a Data Class](#associating-a-data-class)
+    - [Defaults, Null, and Optional Values](#defaults-null-and-optional-values)
+    - [Named Factories](#named-factories)
     - [Property Name Conversion](#property-name-conversion)
 - [Type Conversion](#type-conversion)
     - [Date and Time Values](#date-and-time-values)
     - [Nested Data Objects](#nested-data-objects)
     - [Backed Enums](#backed-enums)
-- [Array Access](#array-access)
-- [Serialization](#serialization)
-    - [Converting to Arrays](#converting-to-arrays)
-    - [JSON Serialization](#json-serialization)
-    - [Custom Serializers](#custom-serializers)
-- [Updating Data Objects](#updating-data-objects)
-- [Customizing Data Objects](#customizing-data-objects)
-    - [Custom Property Conversion](#custom-property-conversion)
-    - [Custom Dependency Resolution](#custom-dependency-resolution)
-    - [Auto-Casting](#auto-casting)
-    - [Flushing State](#flushing-state)
+- [Casts and Transformers](#casts-and-transformers)
+- [Validation](#validation)
+    - [Validation Attributes](#validation-attributes)
+    - [Manual Rules and Hooks](#manual-rules-and-hooks)
+    - [Creation Factories](#creation-factories)
+- [Transformation](#transformation)
+    - [Lazy Properties](#lazy-properties)
+    - [Partial Trees](#partial-trees)
+    - [Hidden, Computed, and Appended Values](#hidden-computed-and-appended-values)
+- [Collections](#collections)
+- [HTTP Resources](#http-resources)
 - [Form Request Casting](#form-request-casting)
 - [Eloquent Casting](#eloquent-casting)
-- [Validation and Exceptions](#validation-and-exceptions)
+- [Contextual Constructor Values](#contextual-constructor-values)
+- [Inertia](#inertia)
+- [Saloon](#saloon)
+- [Generating Data Classes](#generating-data-classes)
+- [Worker Lifetime](#worker-lifetime)
 
 <a name="introduction"></a>
 ## Introduction
 
-Hypervel data objects provide a small, typed wrapper around array data. They are useful when you want to pass structured data through your application without repeatedly reading from untyped arrays.
+Hypervel Data turns untyped input into typed PHP objects and can validate, transform, collect, return, and persist those objects. Its public API follows the familiar `spatie/laravel-data` vocabulary while its metadata and execution paths are designed for Hypervel's long-lived workers.
 
-Data objects support constructor-promoted properties, automatic scalar casting, conversion between `snake_case` array keys and `camelCase` property names, nested object resolution, array access for reads, and array / JSON serialization.
+Metadata is analyzed once for each used data class and retained for the worker lifetime. Request values, validation state, partial selections, lazy evaluation, and factory hooks stay within the current operation or object instance.
 
-> [!NOTE]
-> Data objects are not fully immutable by default. Array access is read-only, but public properties may still be assigned unless you declare them as `readonly`.
+<a name="choosing-a-base-class"></a>
+## Choosing a Base Class
+
+The package provides three base classes that share one construction engine:
+
+- `Data` supports construction, validation, transformation, HTTP responses, collections, and Eloquent casting.
+- `Dto` supports construction and validation without transformation or response behavior. Use it for commands, service boundaries, and domain input.
+- `Resource` supports construction, transformation, HTTP responses, collections, and Eloquent casting without the public validation helpers.
+
+Choose the smallest capability set that matches the object's role. Nested or collected `Dto` values remain objects when a surrounding `Data` object is transformed because `Dto` deliberately has no transformation contract.
 
 <a name="creating-data-objects"></a>
 ## Creating Data Objects
 
-To create a data object, extend the `Hypervel\Support\DataObject` class and define the values your object accepts on its constructor:
+Extend one of the base classes and define the object's public properties:
 
 ```php
 <?php
 
 declare(strict_types=1);
 
-namespace App\DataObjects;
+namespace App\Data;
 
-use Hypervel\Support\DataObject;
+use Hypervel\Data\Data;
 
-class UserData extends DataObject
+class UserData extends Data
 {
     public function __construct(
         public string $name,
@@ -59,18 +75,18 @@ class UserData extends DataObject
 }
 ```
 
-If you want the object itself to be immutable, use `readonly` properties:
+Constructor-promoted `readonly` properties are supported. Public properties that are not constructor-bound may also be populated after construction, but an unbound `readonly` property is invalid because it cannot be assigned safely.
 
 ```php
 <?php
 
 declare(strict_types=1);
 
-namespace App\DataObjects;
+namespace App\Data;
 
-use Hypervel\Support\DataObject;
+use Hypervel\Data\Dto;
 
-class UserData extends DataObject
+class UserCommand extends Dto
 {
     public function __construct(
         public readonly string $name,
@@ -84,15 +100,9 @@ class UserData extends DataObject
 <a name="creating-instances"></a>
 ### Creating Instances
 
-You may create data object instances using the `make` method. The `from` method is also available as an alias:
+Create an object with `from`:
 
 ```php
-$user = UserData::make([
-    'name' => 'Taylor Otwell',
-    'age' => '39',
-    'email' => 'taylor@example.com',
-]);
-
 $user = UserData::from([
     'name' => 'Taylor Otwell',
     'age' => '39',
@@ -100,114 +110,181 @@ $user = UserData::from([
 ]);
 ```
 
-When auto-casting is enabled, scalar constructor arguments are cast to the declared type:
+`from` accepts arrays, JSON strings, `Arrayable` objects, initialized public properties from ordinary objects, Eloquent models, and requests. Existing instances of the requested data type pass through unchanged.
+
+You may pass multiple payloads. For each property, the first payload containing its input key wins, including when that value is `null`:
 
 ```php
-$user->age;
-
-// 39
+$user = UserData::from($routeValues, $requestValues, $defaults);
 ```
 
-Missing values use their constructor defaults. Passing `null` explicitly is distinct from omitting a nullable value.
+Use `optional` when the whole object may be absent. It returns `null` when no payload is supplied or every supplied payload is `null`:
+
+```php
+$user = UserData::optional($payload);
+```
+
+<a name="associating-a-data-class"></a>
+### Associating a Data Class
+
+A model, request, or other source object may use the `WithData` trait to expose its associated data object:
+
+```php
+use App\Data\UserData;
+use Hypervel\Data\WithData;
+use Hypervel\Database\Eloquent\Model;
+
+class User extends Model
+{
+    /** @use WithData<UserData> */
+    use WithData;
+
+    protected string $dataClass = UserData::class;
+}
+
+$data = $user->getData();
+```
+
+You may instead return the class from a `dataClass()` method. The `$dataClass` property takes precedence when both are declared.
+
+When a FormRequest uses `WithData`, `getData()` runs the associated data class's authorization and validation rules. It does not reuse the FormRequest's rules. Pass `$request->validated()` directly to `UserData::from()` when you want to construct from the FormRequest's validated result instead.
+
+<a name="defaults-null-and-optional-values"></a>
+### Defaults, Null, and Optional Values
+
+Missing properties resolve in this order: a declared constructor default, an `Optional` union, then `null` for a nullable type. Any other missing property fails validation or construction.
+
+```php
+use Hypervel\Data\Optional;
+
+class PatchUserData extends Data
+{
+    public function __construct(
+        public string|Optional $name,
+        public ?string $phone,
+        public string $locale = 'en',
+    ) {
+    }
+}
+```
+
+For this object, an omitted `name` becomes `Optional::create()`, an omitted `phone` becomes `null`, and an omitted `locale` uses `en`. Explicit `null` is a supplied value and is accepted only when the declared type allows it. Use `#[Present]` when a nullable input key must still be supplied.
+
+<a name="named-factories"></a>
+### Named Factories
+
+Public static methods beginning with `from` may provide source-specific construction. Type the parameters so Hypervel can choose the first compatible method in declaration order:
+
+```php
+use Hypervel\Database\Eloquent\Model;
+
+class UserData extends Data
+{
+    public function __construct(
+        public int $id,
+        public string $name,
+    ) {
+    }
+
+    public static function fromModel(Model $user): self
+    {
+        return new self($user->getKey(), $user->getAttribute('name'));
+    }
+}
+```
+
+Named methods may receive container-resolved dependencies and a `CreationContext`. A method that returns the target object owns that node completely; inferred validation, casts, and creation hooks do not run again for it. Methods returning another normalizable value continue through the ordinary engine without being matched a second time.
+
+Public static `collect*` methods provide the same escape hatch for a complete normalized collection. Their parameter receives the container of already-created data objects, not the raw source values.
 
 <a name="property-name-conversion"></a>
 ### Property Name Conversion
 
-Data objects convert between `snake_case` array keys and `camelCase` properties:
+Input and output names are unchanged by default. Use mapping attributes when the wire format differs from the PHP property name:
 
 ```php
 <?php
 
 declare(strict_types=1);
 
-namespace App\DataObjects;
+namespace App\Data;
 
-use Hypervel\Support\DataObject;
+use Hypervel\Data\Attributes\MapInputName;
+use Hypervel\Data\Attributes\MapOutputName;
+use Hypervel\Data\Data;
 
-class ProductData extends DataObject
+class ProductData extends Data
 {
     public function __construct(
+        #[MapInputName('product_name'), MapOutputName('product')]
         public string $productName,
+        #[MapInputName('unit_price')]
         public float $unitPrice,
-        public bool $isAvailable,
     ) {
     }
 }
 ```
 
-The `product_name`, `unit_price`, and `is_available` array keys are mapped to the constructor properties:
+The `product_name` and `unit_price` array keys are mapped to the constructor properties:
 
 ```php
-$product = ProductData::make([
+$product = ProductData::from([
     'product_name' => 'Desk',
     'unit_price' => '199.99',
-    'is_available' => 1,
 ]);
 
 $product->productName;
 
 // Desk
-
-$product['unit_price'];
-
-// 199.99
 ```
+
+`MapName` applies the same name in both directions. `MapInputName` and `MapOutputName` keep the directions independent. Class-level mappers such as `SnakeCaseMapper`, `CamelCaseMapper`, and `KebabCaseMapper` provide a convention for every property, while a property attribute overrides the class mapper.
+
+Mapped input paths may use dot notation. When both the mapped input path and PHP property name are present, the mapped input wins. Hypervel rejects two properties that claim the same effective input path or output key when metadata is built instead of silently overwriting a value.
 
 <a name="type-conversion"></a>
 ## Type Conversion
 
-Data objects automatically cast values for constructor parameters typed as `string`, `int`, `float`, `bool`, or `array`:
+`from` casts supported scalar values, backed enums, dates, nested data objects, and typed iterables to their declared PHP types. Existing values that already satisfy the type retain their identity.
 
 ```php
-<?php
-
-declare(strict_types=1);
-
-namespace App\DataObjects;
-
-use Hypervel\Support\DataObject;
-
-class TypeConversionData extends DataObject
+class ProductData extends Data
 {
     public function __construct(
-        public string $stringValue,
-        public int $integerValue,
-        public float $floatValue,
-        public bool $booleanValue,
-        public array $arrayValue,
+        public int $stock,
+        public float $price,
+        public bool $active,
     ) {
     }
 }
-```
 
-```php
-$data = TypeConversionData::make([
-    'string_value' => 123,
-    'integer_value' => '42',
-    'float_value' => '3.14',
-    'boolean_value' => 1,
-    'array_value' => 'single item',
+$product = ProductData::from([
+    'stock' => '42',
+    'price' => '19.95',
+    'active' => 'true',
 ]);
 ```
+
+Ambiguous unions of data classes or typed data containers are not guessed. Use a cast, morph discriminator, or typed named factory to select the intended type.
 
 <a name="date-and-time-values"></a>
 ### Date and Time Values
 
-When the second argument passed to `make` is `true`, data objects will resolve supported object dependencies. The built-in date resolver supports `DateTimeInterface`, `Carbon\CarbonInterface`, native `DateTime` and `DateTimeImmutable`, `Hypervel\Support\Carbon` and `Hypervel\Support\CarbonImmutable`, and Carbon's base mutable and immutable classes.
+Date interfaces use Hypervel's configured Date factory. A property that declares a concrete date class receives that exact class. Input is parsed with `data.date_format`, which accepts one format or an ordered list of formats. The `data.date_timezone` setting converts parsed and transformed dates to a target timezone. For a property with a different source timezone, set `timeZone` on `DateTimeInterfaceCast`; its `setTimeZone` argument overrides the target timezone for that property.
 
-Interface-typed properties use Hypervel's configured date factory and therefore receive an exact `Hypervel\Support\CarbonImmutable` instance by default. A concrete property type always receives that exact concrete class, regardless of the configured factory. This allows a data object to request mutable or immutable behavior explicitly while keeping interfaces application-configurable:
+Dates are transformed using the configured output format unless a property transformer overrides it:
 
 ```php
 <?php
 
 declare(strict_types=1);
 
-namespace App\DataObjects;
+namespace App\Data;
 
 use DateTimeInterface;
-use Hypervel\Support\DataObject;
+use Hypervel\Data\Data;
 
-class EventData extends DataObject
+class EventData extends Data
 {
     public function __construct(
         public string $title,
@@ -218,20 +295,22 @@ class EventData extends DataObject
 ```
 
 ```php
-$event = EventData::make([
+$event = EventData::from([
     'title' => 'Conference',
-    'starts_at' => '2026-04-30 09:00:00',
-], autoResolve: true);
+    'startsAt' => '2026-04-30 09:00:00',
+]);
 ```
 
-By default, database-style date strings are parsed using the `Y-m-d H:i:s` format. You may customize the format by defining a static `$dateFormat` property on your data object:
+For one property, select a different parser with `WithCast`:
 
 ```php
-class EventData extends DataObject
-{
-    protected static string $dateFormat = 'Y-m-d H:i:s.u';
+use Hypervel\Data\Attributes\WithCast;
+use Hypervel\Data\Casts\DateTimeInterfaceCast;
 
+class EventData extends Data
+{
     public function __construct(
+        #[WithCast(DateTimeInterfaceCast::class, format: 'Y-m-d')]
         public DateTimeInterface $startsAt,
     ) {
     }
@@ -241,18 +320,18 @@ class EventData extends DataObject
 <a name="nested-data-objects"></a>
 ### Nested Data Objects
 
-Nested data objects are resolved when `autoResolve` is enabled:
+Nested data objects are created recursively:
 
 ```php
 <?php
 
 declare(strict_types=1);
 
-namespace App\DataObjects;
+namespace App\Data;
 
-use Hypervel\Support\DataObject;
+use Hypervel\Data\Data;
 
-class AddressData extends DataObject
+class AddressData extends Data
 {
     public function __construct(
         public string $street,
@@ -262,39 +341,55 @@ class AddressData extends DataObject
     }
 }
 
-class UserData extends DataObject
+class UserData extends Data
 {
     public function __construct(
         public string $name,
-        public AddressData|array|null $address,
+        public ?AddressData $address,
     ) {
     }
 }
 ```
 
 ```php
-$user = UserData::make([
+$user = UserData::from([
     'name' => 'Taylor Otwell',
     'address' => [
         'street' => '123 Main Street',
         'city' => 'Chicago',
-        'postal_code' => '60601',
+        'postalCode' => '60601',
     ],
-], autoResolve: true);
+]);
 
 $user->address->street;
 
 // 123 Main Street
 ```
 
-Nested resolution works recursively for nested data object properties. If you use a union type for an auto-resolved dependency, the union should include a data object or date / time type.
+Nested construction works through the complete graph. Existing `AddressData` instances pass through unchanged.
 
-You may also pass an existing nested data object instance. Auto-resolution preserves that instance instead of rebuilding it.
+For a typed collection, use `DataCollectionOf` or a supported PHPDoc item annotation:
+
+```php
+use Hypervel\Data\Attributes\DataCollectionOf;
+use Hypervel\Data\DataCollection;
+
+class TeamData extends Data
+{
+    public function __construct(
+        #[DataCollectionOf(UserData::class)]
+        public DataCollection $members,
+    ) {
+    }
+}
+```
+
+The same typed item conversion works for arrays, ordinary collections, lazy collections, and supported paginator types. `DataCollectionOf` is preferred for generated classes because it is explicit and requires no PHPDoc parsing.
 
 <a name="backed-enums"></a>
 ### Backed Enums
 
-Backed enums are resolved automatically when `autoResolve` is enabled:
+Backed enums are resolved from their backing values:
 
 ```php
 <?php
@@ -315,12 +410,12 @@ enum OrderStatus: string
 
 declare(strict_types=1);
 
-namespace App\DataObjects;
+namespace App\Data;
 
 use App\Enums\OrderStatus;
-use Hypervel\Support\DataObject;
+use Hypervel\Data\Data;
 
-class OrderData extends DataObject
+class OrderData extends Data
 {
     public function __construct(
         public string $number,
@@ -331,294 +426,247 @@ class OrderData extends DataObject
 ```
 
 ```php
-$order = OrderData::make([
+$order = OrderData::from([
     'number' => 'ORD-1000',
     'status' => 'paid',
-], autoResolve: true);
+]);
 
 $order->status === OrderStatus::Paid;
 
 // true
 ```
 
-<a name="array-access"></a>
-## Array Access
+<a name="casts-and-transformers"></a>
+## Casts and Transformers
 
-Data objects implement PHP's `ArrayAccess` interface. Array access uses the serialized array keys, so `camelCase` properties are read using their `snake_case` key:
-
-```php
-$product = ProductData::make([
-    'product_name' => 'Desk',
-    'unit_price' => '199.99',
-    'is_available' => true,
-]);
-
-$product['product_name'];
-
-// Desk
-```
-
-Array access is read-only:
+Casts convert input into PHP values. Transformers convert PHP values into output. Attach them to a property with `WithCast`, `WithTransformer`, or `WithCastAndTransformer`:
 
 ```php
-$product['product_name'] = 'Chair';
+use Hypervel\Data\Attributes\WithCastAndTransformer;
 
-// LogicException
-
-unset($product['product_name']);
-
-// LogicException
-```
-
-<a name="serialization"></a>
-## Serialization
-
-<a name="converting-to-arrays"></a>
-### Converting to Arrays
-
-The `toArray` method converts a data object to an array using the configured data keys:
-
-```php
-$user = UserData::make([
-    'name' => 'Taylor Otwell',
-    'address' => [
-        'street' => '123 Main Street',
-        'city' => 'Chicago',
-        'postal_code' => '60601',
-    ],
-], autoResolve: true);
-
-$user->toArray();
-
-// [
-//     'name' => 'Taylor Otwell',
-//     'address' => [
-//         'street' => '123 Main Street',
-//         'city' => 'Chicago',
-//         'postal_code' => '60601',
-//     ],
-// ]
-```
-
-Nested data objects are recursively converted to arrays. Objects with a `toArray` method are also converted using that method.
-
-<a name="json-serialization"></a>
-### JSON Serialization
-
-Data objects implement `JsonSerializable`, so they may be encoded directly:
-
-```php
-return response()->json($user);
-```
-
-<a name="custom-serializers"></a>
-### Custom Serializers
-
-You may customize how object values are serialized by overriding the `getSerializers` method. Serializer keys are class names, and serializers are applied to object values during `toArray` and JSON serialization:
-
-```php
-<?php
-
-declare(strict_types=1);
-
-namespace App\DataObjects;
-
-use Hypervel\Support\DataObject;
-
-class Money
+class InvoiceData extends Data
 {
     public function __construct(
-        public int $amount,
-        public string $currency,
-    ) {
-    }
-}
-
-class ProductPriceData extends DataObject
-{
-    public function __construct(
-        public string $name,
-        public Money $price,
-    ) {
-    }
-
-    protected static function getSerializers(): array
-    {
-        return array_merge(parent::getSerializers(), [
-            Money::class => fn (Money $money) => [
-                'amount' => $money->amount,
-                'currency' => $money->currency,
-            ],
-        ]);
-    }
-}
-```
-
-All `DateTimeInterface` and Carbon instances created by the built-in resolver are serialized as ISO 8601 strings.
-
-<a name="updating-data-objects"></a>
-## Updating Data Objects
-
-The `update` method updates properties using serialized array keys and clears the cached array representation:
-
-```php
-$product = ProductData::make([
-    'product_name' => 'Desk',
-    'unit_price' => '199.99',
-    'is_available' => true,
-]);
-
-$product->toArray();
-
-$product->update([
-    'product_name' => 'Chair',
-]);
-
-$product->productName;
-
-// Chair
-```
-
-If you assign to a public property directly after calling `toArray`, call `refresh` before serializing the object again:
-
-```php
-$product->productName = 'Table';
-
-$product->refresh();
-```
-
-<a name="customizing-data-objects"></a>
-## Customizing Data Objects
-
-<a name="custom-property-conversion"></a>
-### Custom Property Conversion
-
-You may customize how data object property names are converted to and from array keys by overriding the `convertPropertyToDataKey` and `convertDataKeyToProperty` methods:
-
-```php
-<?php
-
-declare(strict_types=1);
-
-namespace App\DataObjects;
-
-use Hypervel\Support\DataObject;
-use Hypervel\Support\Str;
-
-class ExternalUserData extends DataObject
-{
-    public function __construct(
-        public string $first_name,
-        public string $last_name,
-    ) {
-    }
-
-    public static function convertPropertyToDataKey(string $input): string
-    {
-        return Str::camel($input);
-    }
-
-    public static function convertDataKeyToProperty(string $input): string
-    {
-        return Str::snake($input);
-    }
-}
-```
-
-```php
-$user = ExternalUserData::make([
-    'firstName' => 'Taylor',
-    'lastName' => 'Otwell',
-]);
-```
-
-<a name="custom-dependency-resolution"></a>
-### Custom Dependency Resolution
-
-You may customize how object dependencies are resolved when `autoResolve` is enabled by overriding the `getCustomizedDependencies` method:
-
-```php
-<?php
-
-declare(strict_types=1);
-
-namespace App\DataObjects;
-
-use Hypervel\Support\DataObject;
-
-class Money
-{
-    public function __construct(
-        public int $amount,
-        public string $currency,
-    ) {
-    }
-}
-
-class OrderData extends DataObject
-{
-    public function __construct(
-        public string $number,
+        #[WithCastAndTransformer(MoneyCast::class)]
         public Money $total,
     ) {
     }
+}
+```
 
-    protected static function getCustomizedDependencies(): array
-    {
-        return array_merge(parent::getCustomizedDependencies(), [
-            Money::class => fn (array|Money $value) => $value instanceof Money
-                ? $value
-                : new Money($value['amount'], $value['currency']),
-        ]);
+A cast implements `Hypervel\Data\Casts\Cast`; a transformer implements `Hypervel\Data\Transformers\Transformer`. Return `Uncastable::create()` from a cast when the next applicable candidate should be tried. Returning `null` means the cast produced a real null value.
+
+Use `Castable` when a value class owns its input conversion, `IterableItemCast` when a cast also applies to typed iterable items, or `factory()->withCast()` for one operation. Application-wide replacement casts and transformers belong in `config/data.php`; built-in date, enum, iterable, and `Arrayable` handling does not need to be configured.
+
+Custom normalizers adapt whole source objects before properties are selected. Declare class-owned normalizers with `normalizers()` or add them to one factory with `withNormalizers()`. Prefer a typed named factory when only one source type needs special handling.
+
+<a name="validation"></a>
+## Validation
+
+`Data`, `Dto`, and `Resource` validate request input during construction by default. Arrays, models, JSON, and other non-request sources skip validation under the shipped `OnlyRequests` strategy, so trusted internal construction keeps the lean path. `Data` and `Dto` also expose `validateAndCreate` to validate any array-like payload explicitly:
+
+```php
+$user = UserData::validateAndCreate($payload);
+```
+
+Use `validate` when only the validated payload is needed, or `getValidationRules` to inspect the compiled rules:
+
+```php
+$validated = UserData::validate($payload);
+$rules = UserData::getValidationRules($payload);
+```
+
+Hypervel infers presence, nullable, scalar, enum, date, nested data, and typed collection rules from PHP declarations. One Validator handles the complete nested graph. Uniform collections use wildcard rules and Hypervel's compiled validation plans; dynamic shapes use exact indexed rules.
+
+Construction uses the Validator's validated and exclusion-filtered payload. Properties marked `WithoutValidation` and finished nested data values preserve only their declared paths; unrelated unvalidated input is not merged back.
+
+<a name="validation-attributes"></a>
+### Validation Attributes
+
+Validation attributes mirror Hypervel's validation rules:
+
+```php
+use Hypervel\Data\Attributes\Validation\Email;
+use Hypervel\Data\Attributes\Validation\Max;
+use Hypervel\Data\Attributes\Validation\Required;
+
+class UserData extends Data
+{
+    public function __construct(
+        #[Required, Max(100)]
+        public string $name,
+        #[Required, Email]
+        public string $email,
+    ) {
     }
 }
 ```
 
-```php
-$order = OrderData::make([
-    'number' => 'ORD-1000',
-    'total' => [
-        'amount' => 2999,
-        'currency' => 'USD',
-    ],
-], autoResolve: true);
-```
+Database-aware `Exists` and `Unique` attributes support the familiar fluent constraints. References to another field or an external value use the package's typed validation reference objects rather than interpolated strings.
 
-Always merge with `parent::getCustomizedDependencies()` so the built-in date and time resolvers remain available.
+<a name="manual-rules-and-hooks"></a>
+### Manual Rules and Hooks
 
-<a name="auto-casting"></a>
-### Auto-Casting
-
-Auto-casting is enabled by default. You may disable it if you want constructor values to be passed through without scalar type conversion:
+Define `rules`, `messages`, and `attributes` on the data class for rules that cannot be inferred:
 
 ```php
-DataObject::disableAutoCasting();
+use Hypervel\Data\Support\Validation\ValidationContext;
+use Hypervel\Validation\Validator;
 
-DataObject::isAutoCasting();
-
-// false
-
-DataObject::enableAutoCasting();
+public static function rules(ValidationContext $context): array
+{
+    return [
+        'email' => ['required', 'email:rfc'],
+    ];
+}
 ```
 
-> [!WARNING]
-> Auto-casting is controlled by a static flag that persists for the worker lifetime. Configure it during application boot or in tests, not per request.
+A class rule replaces inferred rules for that property. Add `#[MergeValidationRules]` to merge instead. Property keys use PHP property names; Hypervel translates them to the input paths selected for the current payload.
 
-<a name="flushing-state"></a>
-### Flushing State
+Use `withValidator(Validator $validator)` and `after(): array` like a FormRequest. Authorization, messages, translated attribute names, error bags, redirects, stop-on-first-failure, Precognition, and `#[FailOnUnknownFields]` use the corresponding Hypervel request-validation behavior. A declared class method overrides the matching Foundation attribute when both are present.
 
-The `flushState` method clears data object caches and resets auto-casting and the date format to their defaults:
+<a name="creation-factories"></a>
+### Creation Factories
+
+`factory()` returns a fresh fluent factory for one operation:
 
 ```php
-DataObject::flushState();
+$user = UserData::factory()
+    ->alwaysValidate()
+    ->prepareData(fn (array $data): array => [
+        ...$data,
+        'source' => 'import',
+    ])
+    ->withValidator(fn (Validator $validator) => $validator->after($check))
+    ->from($payload);
 ```
 
-This method is useful in tests or when changing data object configuration during bootstrapping.
+Factories may change the validation strategy, enable or disable name mapping and named factories, ignore selected named methods, add casts or normalizers, and register the ordered `prepareData`, `beforeValidation`, `beforeRules`, `afterRules`, `withValidator`, `afterValidation`, `beforeCreation`, and `afterCreation` hooks.
+
+For creation, `prepareData`, `beforeCreation`, and `afterCreation` run even when validation is skipped. `beforeValidation`, `beforeRules`, and `afterRules` run only when the operation validates or returns rules; `withValidator` and `afterValidation` run only when validation executes. Call `alwaysValidate()` when these validation hooks must apply to an array, model, JSON value, or another non-request source.
+
+Each call to `factory()` starts a new operation. Do not store or reuse a factory across requests. Hooks receive the current operation's values and are never cached in worker metadata.
+
+<a name="transformation"></a>
+## Transformation
+
+`Data` and `Resource` transform their current property values. There is no serialized result cache, so later public-property assignments are visible immediately:
+
+```php
+$product = ProductData::from($payload);
+$product->productName = 'Table';
+
+$array = $product->toArray();
+$json = $product->toJson();
+```
+
+`toArray()` recursively transforms nested transformable data, typed iterable items, dates, enums, and `Arrayable` values. `all()` returns visible values without transforming nested values. `transform()` accepts a `TransformationContext` or `TransformationContextFactory` for advanced one-operation control.
+
+`Dto` has no transformation API. Use public properties directly, or choose `Data` or `Resource` when output mapping, `Optional` omission, lazy values, or built-in transformation is required.
+
+<a name="lazy-properties"></a>
+### Lazy Properties
+
+A `Lazy` property is omitted until it is included:
+
+```php
+use Hypervel\Data\Lazy;
+
+class UserData extends Data
+{
+    public function __construct(
+        public string $name,
+        public Lazy|ProfileData $profile,
+    ) {
+    }
+}
+
+$user = new UserData(
+    'Taylor Otwell',
+    Lazy::create(fn () => ProfileData::from($profile)),
+);
+
+return $user->include('profile')->toArray();
+```
+
+`Lazy::when` and `Lazy::whenLoaded` add conditional and relation-aware values. `Lazy::closure` returns the closure itself for consumers that understand callback values. Add `#[AutoLazy]`, `#[AutoClosureLazy]`, or `#[AutoWhenLoadedLazy]` to let `from()` wrap supplied values automatically.
+
+Automatic lazy values defer their nested construction work when validation does not require it. A custom `AutoLazy::build()` implementation receives the original raw source aligned with the property that won. Values changed by validation hooks receive the hook's final payload instead. A named factory returning another normalizable value makes that return the aligned source. `AutoWhenLoadedLazy` requires a Model source; a hook-selected morph with no Model fails clearly rather than retaining stale source state.
+
+<a name="partial-trees"></a>
+### Partial Trees
+
+Use `include`, `exclude`, `only`, and `except` to select nested output paths:
+
+```php
+return $user
+    ->include('profile.avatar')
+    ->only('name', 'profile.*')
+    ->except('profile.internalNotes')
+    ->toArray();
+```
+
+The ordinary methods apply to the next transformation. Their `Permanently` variants apply to every transformation of that object, and the `When` variants accept a boolean or closure condition. A terminal `*` selects the complete subtree. Invalid partial paths fail instead of being silently ignored.
+
+Selections owned by nested objects and collection items are composed with selections from their parent. Temporary selections are consumed only when that object is actually reached; collection reads and iteration do not consume them.
+
+<a name="hidden-computed-and-appended-values"></a>
+### Hidden, Computed, and Appended Values
+
+`#[Hidden]` omits a declared property from ordinary output. `#[Computed]` marks an output-only property whose value is set by the class; caller input for it is rejected. PHP 8.4 virtual properties are treated as output-only in the same way.
+
+Return response-only values from `with()` or add them to one object with `additional()`:
+
+```php
+public function with(): array
+{
+    return ['links' => ['self' => route('users.show', $this->id)]];
+}
+
+return $user->additional(['meta' => ['version' => 1]]);
+```
+
+These values participate in HTTP resource responses, not Eloquent persistence. Dumps show the current logical `all()` view, so hidden, excluded lazy, and `Optional` values do not expose package internals.
+
+<a name="collections"></a>
+## Collections
+
+Use `collect()` to create several objects while preserving supported source shapes and keys:
+
+```php
+$users = UserData::collect($rows);
+$users = UserData::collect($rows, DataCollection::class);
+$users = UserData::collect($rows, Collection::class);
+$users = UserData::collect($rows, 'array');
+```
+
+The `$into` argument accepts `null`, `'array'`, or a class-string. Narrow values read from configuration to `class-string` before passing them. With `null`, arrays remain arrays, ordinary collections remain collections, lazy collections remain lazy when validation does not require materialization, and Hypervel paginators are cloned with their metadata intact. Eloquent sources become base support collections because data objects are not Eloquent models.
+
+`DataCollection`, `PaginatedDataCollection`, and `CursorPaginatedDataCollection` provide typed items, keyed access, transformation, and response behavior. Use `toCollection()` for map, filter, reduce, and other collection operations. Paginator wrappers are not Eloquent-castable because their metadata cannot be reconstructed from a JSON item array; persist their items through `DataCollection`.
+
+When a source remains lazy, every traversal creates its items again and `count()` is also a traversal. If the items are needed more than once, materialize them once with `$collection->toCollection()->collect()` and reuse that eager collection.
+
+All eager items in one root `collect()` call share one construction operation and, when selected, one Validator. Eloquent collections batch explicitly requested `#[LoadRelation]` paths before item construction.
+
+<a name="http-resources"></a>
+## HTTP Resources
+
+Return `Data`, `Resource`, or their collection wrappers directly from a controller:
+
+```php
+return UserData::from($user);
+
+return UserData::collect($users, DataCollection::class);
+```
+
+Responses use Hypervel's JSON resource and paginator machinery, including native links and metadata. Use `wrap()` or `withoutWrapping()` on one object or collection. The global `data.wrap` setting supplies the package default without mutating `JsonResource::$wrap` during a request.
+
+Override static `jsonOptions()` or `withResponse(Request $request, JsonResponse $response)` for Laravel-style response customization. Query-string `include`, `exclude`, `only`, and `except` selections are disabled unless the data class allows them through `allowedRequestIncludes()`, `allowedRequestExcludes()`, `allowedRequestOnly()`, or `allowedRequestExcept()`.
 
 <a name="form-request-casting"></a>
 ## Form Request Casting
 
-Form requests may cast validated input into data objects. To cast a single nested array, use the data object class name as the cast target:
+Use the package-owned casts to convert FormRequest input after validation:
 
 ```php
 <?php
@@ -627,7 +675,10 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
-use App\DataObjects\AddressData;
+use App\Data\AddressData;
+use App\Data\ContactData;
+use Hypervel\Data\Http\Casts\AsData;
+use Hypervel\Data\Http\Casts\AsDataCollection;
 use Hypervel\Foundation\Http\FormRequest;
 
 class StoreUserRequest extends FormRequest
@@ -635,36 +686,20 @@ class StoreUserRequest extends FormRequest
     protected function casts(): array
     {
         return [
-            'address' => AddressData::class,
+            'address' => AsData::of(AddressData::class),
+            'contacts' => AsDataCollection::of(ContactData::class),
         ];
     }
 }
 ```
 
-To cast an array of data objects, use `AsDataObjectArray`. The cast returns an `ArrayObject` containing data object instances:
+`AsDataCollection::of()` returns a `DataCollection` by default and accepts the same explicit targets as `collect()`, including `'array'` and `Hypervel\Support\Collection::class`:
 
 ```php
-use App\DataObjects\ContactData;
-use Hypervel\Foundation\Http\Casts\AsDataObjectArray;
-
 protected function casts(): array
 {
     return [
-        'contacts' => AsDataObjectArray::of(ContactData::class),
-    ];
-}
-```
-
-To cast into a collection, use `AsDataObjectCollection`:
-
-```php
-use App\DataObjects\ProductData;
-use Hypervel\Foundation\Http\Casts\AsDataObjectCollection;
-
-protected function casts(): array
-{
-    return [
-        'products' => AsDataObjectCollection::of(ProductData::class),
+        'contacts' => AsDataCollection::of(ContactData::class, 'array'),
     ];
 }
 ```
@@ -674,7 +709,7 @@ For more information on request input casting, see the [validation documentation
 <a name="eloquent-casting"></a>
 ## Eloquent Casting
 
-The `AsDataObject` cast converts JSON columns into data object instances:
+`Data`, `Resource`, and `DataCollection` implement Eloquent's `Castable` contract. Use the data class directly in a model's cast declaration:
 
 ```php
 <?php
@@ -683,8 +718,9 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use App\DataObjects\UserProfileData;
-use Hypervel\Database\Eloquent\Casts\AsDataObject;
+use App\Data\MemberData;
+use App\Data\UserProfileData;
+use Hypervel\Data\DataCollection;
 use Hypervel\Database\Eloquent\Model;
 
 class User extends Model
@@ -692,45 +728,128 @@ class User extends Model
     protected function casts(): array
     {
         return [
-            'profile' => AsDataObject::castUsing(UserProfileData::class),
+            'profile' => UserProfileData::class,
+            'members' => DataCollection::class . ':' . MemberData::class,
         ];
     }
 }
 ```
 
-When an Eloquent model retrieves the value, the cast decodes the JSON value and creates the data object with `autoResolve` enabled. When the model is saved, the data object is encoded back to JSON.
+Eloquent stores a complete constructable view using PHP property names. Hidden declared values are included; computed, virtual, appended, and response-only values are omitted. Instance partials are ignored without being consumed. Output transformers still run, so a one-way transformer needs a matching input cast or `WithCastAndTransformer` for a round trip.
+
+Conditional and relation lazy values must already be included when the model is saved. Persistence never loads a relation. Closure and Inertia lazy values cannot be stored because they do not resolve to constructable data.
+
+Both casts support `encrypted` and `default` arguments. Abstract data classes use an enforced alias map unless they select a concrete subtype through `PropertyMorphableData::morph()`:
 
 ```php
-$user = User::create([
-    'profile' => [
-        'first_name' => 'Taylor',
-        'last_name' => 'Otwell',
-    ],
-]);
+use Hypervel\Data\Support\DataConfig;
 
-$user->profile->firstName;
-
-// Taylor
+public function boot(DataConfig $data): void
+{
+    $data->enforceMorphMap([
+        'card' => CardPaymentData::class,
+        'bank' => BankPaymentData::class,
+    ]);
+}
 ```
+
+Morph maps are boot-time configuration. Unknown aliases and payload-provided class names are rejected.
 
 For more information on Eloquent casts, see the [Eloquent mutators and casts documentation](/docs/{{version}}/eloquent-mutators#data-object-casting).
 
-<a name="validation-and-exceptions"></a>
-## Validation and Exceptions
+<a name="contextual-constructor-values"></a>
+## Contextual Constructor Values
 
-Data objects do not replace request validation. Validate external input before creating a data object, then use the data object to work with typed values in the rest of your application.
-
-If a required constructor argument is missing and no default value is available, Hypervel will throw a `RuntimeException`:
+Hypervel contextual attributes may supply constructor values from framework services without Data-specific injection aliases:
 
 ```php
-try {
-    $user = UserData::make([
-        'age' => 39,
-        'email' => 'taylor@example.com',
-    ]);
-} catch (RuntimeException $e) {
-    $e->getMessage();
+use Hypervel\Container\Attributes\CurrentUser;
+use Hypervel\Container\Attributes\RouteParameter;
 
-    // Missing required property `name` in `App\DataObjects\UserData`
+class UpdatePostData extends Data
+{
+    public function __construct(
+        public string $title,
+        #[CurrentUser(property: 'id')]
+        public int $userId,
+        #[RouteParameter('post', 'id')]
+        public int $postId,
+    ) {
+    }
 }
 ```
+
+Contextual values are resolved only after validation succeeds and always win over caller input and creation hooks, including when the resolved value is `null`. Promoted contextual properties are known but discarded from strict input validation. A distinct-name, non-promoted contextual parameter is constructor-only. Use a named factory or creation hook without the contextual attribute when payload input should win.
+
+`CurrentUser` and `RouteParameter` accept an optional `property` path and use `data_get()` semantics. Accessors and Eloquent relations may run while traversing that path. `RequestAttribute` selects an exact request-attributes key; `Config`, `Context`, `Give`, and custom contextual attributes work through the same constructor boundary.
+
+<a name="inertia"></a>
+## Inertia
+
+When `hypervel/inertia` is installed, Data lazy values can produce Inertia props:
+
+```php
+public function __construct(
+    public Lazy|ProfileData $profile,
+    public Lazy|ActivityData $activity,
+) {
+}
+
+$data = new DashboardData(
+    Lazy::inertia(fn () => ProfileData::from($profile)),
+    Lazy::inertiaDeferred(fn () => ActivityData::from($activity), group: 'activity'),
+);
+```
+
+`#[AutoInertiaLazy]` and `#[AutoInertiaDeferred]` provide automatic variants. Existing `DeferProp` instances retain their complete merge, caching, grouping, and rescue state. Ordinary Data creation and transformation do not resolve Inertia classes when the integration is unused.
+
+<a name="saloon"></a>
+## Saloon
+
+Hypervel Saloon may return a Data object directly from `createDtoFromResponse`:
+
+```php
+use Hypervel\Data\Data;
+use Hypervel\Saloon\Contracts\DataObjects\WithResponse;
+use Hypervel\Saloon\Traits\Responses\HasResponse;
+
+final class GitHubUserData extends Data implements WithResponse
+{
+    use HasResponse;
+
+    public function __construct(
+        public int $id,
+        public string $login,
+    ) {
+    }
+}
+
+public function createDtoFromResponse(Response $response): GitHubUserData
+{
+    return GitHubUserData::from($response->json());
+}
+```
+
+Saloon attaches its response through the existing `WithResponse` contract. `hypervel/data` has no Saloon dependency.
+
+<a name="generating-data-classes"></a>
+## Generating Data Classes
+
+Generate a class with the `make:data` command:
+
+```shell
+php bin/hypervel.php make:data UserData
+```
+
+The class is placed under your application's `Data` namespace, normally `App\Data`. The command does not append a suffix, so supply the complete class name you want. Like Hypervel's other generators, it honors an application stub override and supports `--force`.
+
+<a name="worker-lifetime"></a>
+## Worker Lifetime
+
+Data metadata and typed configuration are retained for the worker lifetime. Metadata contains immutable class recipes, not requests, validators, models, resolved extensions, or factory hooks. There is no discovery or generated metadata cache command.
+
+Register `Lazy`, `DataCollection`, `PaginatedDataCollection`, and `CursorPaginatedDataCollection` macros during provider boot. Each class owns a worker-lifetime macro registry; do not register request-specific callbacks or values. Configure morph aliases during boot for the same reason.
+
+VarDumper displays the current logical `all()` view for transformable data and an `items` envelope for data collections. It hides construction metadata, partial trees, and operation state without adding runtime work outside an explicit dump.
+
+Data objects do not implement `ArrayAccess`. Read public properties or call `toArray()`. Data collections retain keyed access and enumeration.
