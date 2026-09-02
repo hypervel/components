@@ -25,6 +25,7 @@ class PackageMetadataTest extends TestCase
 
         foreach ([
             'brick/math',
+            'ext-filter',
             'ext-pdo',
             'ext-swoole',
             'nesbot/carbon',

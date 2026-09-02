@@ -30,6 +30,7 @@ class PackageMetadataTest extends TestCase
         );
 
         foreach ([
+            'ext-filter',
             'guzzlehttp/guzzle',
             'hypervel/collections',
             'hypervel/conditionable',
