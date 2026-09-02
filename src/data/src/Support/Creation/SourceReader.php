@@ -4,62 +4,87 @@ declare(strict_types=1);
 
 namespace Hypervel\Data\Support\Creation;
 
+use ArrayAccess;
 use Hypervel\Data\Normalizers\Normalized\Normalized;
 use Hypervel\Data\Normalizers\Normalized\UnknownProperty;
 use Hypervel\Data\Support\DataProperty;
-
-use function data_get;
 
 class SourceReader
 {
     /**
      * Read one property from a normalized source.
+     *
+     * @param non-empty-list<array-key> $path
      */
     public static function read(
         array|Normalized $source,
-        string|int $key,
+        array $path,
         DataProperty $property,
     ): mixed {
         if ($source instanceof Normalized) {
-            $segments = explode('.', (string) $key);
-            $value = $source->getProperty(array_shift($segments), $property);
+            $value = $source->getProperty((string) $path[0], $property);
 
-            if ($value instanceof UnknownProperty || $segments === []) {
+            if ($value instanceof UnknownProperty || count($path) === 1) {
                 return $value;
             }
 
-            return data_get($value, implode('.', $segments), UnknownProperty::create());
+            return self::readPath($value, $path, 1);
         }
 
-        if (is_int($key)) {
-            return array_key_exists($key, $source)
-                ? $source[$key]
+        if (count($path) === 1) {
+            return array_key_exists($path[0], $source)
+                ? $source[$path[0]]
                 : UnknownProperty::create();
         }
 
-        return data_get($source, $key, UnknownProperty::create());
+        return self::readPath($source, $path, 0);
     }
 
     /**
-     * Read the first source that contains a property.
+     * Traverse literal path segments through arrays and accessible objects.
      *
-     * @param array<int, array|Normalized> $sources
+     * @param non-empty-list<array-key> $path
      */
-    public static function readFromMany(
-        array $sources,
-        string|int $key,
-        DataProperty $property,
-    ): mixed {
-        foreach ($sources as $source) {
-            $value = self::read($source, $key, $property);
+    protected static function readPath(mixed $value, array $path, int $offset): mixed
+    {
+        $count = count($path);
 
-            if ($value instanceof UnknownProperty) {
+        for ($index = $offset; $index < $count; ++$index) {
+            $segment = $path[$index];
+
+            if (is_array($value) && array_key_exists($segment, $value)) {
+                $value = $value[$segment];
+
                 continue;
             }
 
-            return $value;
+            if ($value instanceof ArrayAccess && $value->offsetExists($segment)) {
+                $value = $value[$segment];
+
+                continue;
+            }
+
+            if (is_object($value)) {
+                $name = (string) $segment;
+
+                if (isset($value->{$name})) {
+                    $value = $value->{$name};
+
+                    continue;
+                }
+
+                $properties = get_object_vars($value);
+
+                if (array_key_exists($name, $properties)) {
+                    $value = $properties[$name];
+
+                    continue;
+                }
+            }
+
+            return UnknownProperty::create();
         }
 
-        return UnknownProperty::create();
+        return $value;
     }
 }

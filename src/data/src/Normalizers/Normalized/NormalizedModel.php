@@ -40,14 +40,10 @@ class NormalizedModel implements Normalized
     {
         $camelName = StrCache::camel($name);
 
-        if ($dataProperty->loadRelation) {
-            $relation = $this->model->isRelation($name)
-                ? $name
-                : ($this->model->isRelation($camelName) ? $camelName : null);
-
-            if ($relation !== null) {
-                $this->model->loadMissing($relation);
-            }
+        if (($relation = $dataProperty->resolveModelRelation($this->model)) !== null
+            && ! $this->model->relationLoaded($relation)
+        ) {
+            $this->model->loadMissing($relation);
         }
 
         if ($this->model->relationLoaded($name)) {

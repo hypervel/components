@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Data\Casts;
 
+use Carbon\Carbon;
+use Carbon\CarbonImmutable;
+use DateTime;
 use DateTimeImmutable;
 use DateTimeInterface;
 use Hypervel\Config\Repository;
@@ -21,6 +24,8 @@ use Hypervel\Data\Support\Factories\DataPropertyFactory;
 use Hypervel\Data\Support\Factories\DataTypeFactory;
 use Hypervel\Data\Support\NameMapperResolver;
 use Hypervel\Data\Support\Types\PhpDocTypeNameResolver;
+use Hypervel\Support\Carbon as HypervelCarbon;
+use Hypervel\Support\CarbonImmutable as HypervelCarbonImmutable;
 use Hypervel\Tests\TestCase;
 use ReflectionClass;
 
@@ -34,12 +39,23 @@ class DateTimeInterfaceCastTest extends TestCase
         [$state, $context] = $this->operation(['Y-m-d', 'Y-m-d H:i:s.uP']);
         $cast = new DateTimeInterfaceCast;
 
-        $immutable = $cast->cast($this->property('immutable'), '2026-08-30', $state, $context);
-        $custom = $cast->cast($this->property('custom'), '2026-08-30', $state, $context);
+        $types = [
+            'mutable' => DateTime::class,
+            'immutable' => DateTimeImmutable::class,
+            'carbon' => Carbon::class,
+            'carbonImmutable' => CarbonImmutable::class,
+            'hypervelCarbon' => HypervelCarbon::class,
+            'hypervelCarbonImmutable' => HypervelCarbonImmutable::class,
+            'custom' => CustomDateTime::class,
+            'customImmutable' => CustomDateTimeImmutable::class,
+        ];
 
-        $this->assertInstanceOf(DateTimeImmutable::class, $immutable);
-        $this->assertSame('2026-08-30', $immutable->format('Y-m-d'));
-        $this->assertInstanceOf(CustomDateTimeImmutable::class, $custom);
+        foreach ($types as $property => $type) {
+            $date = $cast->cast($this->property($property), '2026-08-30', $state, $context);
+
+            $this->assertSame($type, $date::class);
+            $this->assertSame('2026-08-30', $date->format('Y-m-d'));
+        }
     }
 
     /**
@@ -56,7 +72,7 @@ class DateTimeInterfaceCastTest extends TestCase
             $context,
         );
 
-        $this->assertInstanceOf(DateTimeInterface::class, $date);
+        $this->assertSame(HypervelCarbonImmutable::class, $date::class);
         $this->assertSame('2026-08-30', $date->format('Y-m-d'));
     }
 
@@ -81,6 +97,35 @@ class DateTimeInterfaceCastTest extends TestCase
         );
 
         $this->assertSame('2026-08-30 08:00:00.123456-04:00', $date->format('Y-m-d H:i:s.uP'));
+    }
+
+    /**
+     * Test timezone conversion preserves exact concrete date targets.
+     */
+    public function testTimezoneConversionPreservesExactConcreteTypes(): void
+    {
+        [$state, $context] = $this->operation(['Y-m-d H:i:s']);
+        $types = [
+            'mutable' => DateTime::class,
+            'immutable' => DateTimeImmutable::class,
+            'carbon' => Carbon::class,
+            'carbonImmutable' => CarbonImmutable::class,
+            'hypervelCarbon' => HypervelCarbon::class,
+            'hypervelCarbonImmutable' => HypervelCarbonImmutable::class,
+            'custom' => CustomDateTime::class,
+            'customImmutable' => CustomDateTimeImmutable::class,
+        ];
+
+        foreach ($types as $property => $type) {
+            $date = (new DateTimeInterfaceCast(
+                format: 'Y-m-d H:i:s',
+                setTimeZone: 'America/New_York',
+                timeZone: 'UTC',
+            ))->cast($this->property($property), '2026-08-30 12:00:00', $state, $context);
+
+            $this->assertSame($type, $date::class);
+            $this->assertSame('2026-08-30 08:00:00-04:00', $date->format('Y-m-d H:i:sP'));
+        }
     }
 
     /**
@@ -114,6 +159,24 @@ class DateTimeInterfaceCastTest extends TestCase
         (new DateTimeInterfaceCast)->cast(
             $this->property('immutable'),
             'not-a-date',
+            $state,
+            $context,
+        );
+    }
+
+    /**
+     * Test abstract date targets fail through the ordinary cast exception.
+     */
+    public function testThrowsForAbstractDateTarget(): void
+    {
+        [$state, $context] = $this->operation(['Y-m-d']);
+
+        $this->expectException(CannotCastDate::class);
+        $this->expectExceptionMessage(AbstractDateTimeImmutable::class);
+
+        (new DateTimeInterfaceCast)->cast(
+            $this->property('abstract'),
+            '2026-08-30',
             $state,
             $context,
         );
@@ -162,11 +225,25 @@ class DateTimeInterfaceCastTest extends TestCase
 
 class DateCastDataFixture
 {
+    public DateTime $mutable;
+
     public DateTimeImmutable $immutable;
 
     public DateTimeInterface $interface;
 
-    public CustomDateTimeImmutable $custom;
+    public Carbon $carbon;
+
+    public CarbonImmutable $carbonImmutable;
+
+    public HypervelCarbon $hypervelCarbon;
+
+    public HypervelCarbonImmutable $hypervelCarbonImmutable;
+
+    public CustomDateTime $custom;
+
+    public CustomDateTimeImmutable $customImmutable;
+
+    public AbstractDateTimeImmutable $abstract;
 
     /** @var list<DateTimeImmutable> */
     public array $dates;
@@ -175,6 +252,14 @@ class DateCastDataFixture
 }
 
 class CustomDateTimeImmutable extends DateTimeImmutable
+{
+}
+
+class CustomDateTime extends DateTime
+{
+}
+
+abstract class AbstractDateTimeImmutable extends DateTimeImmutable
 {
 }
 

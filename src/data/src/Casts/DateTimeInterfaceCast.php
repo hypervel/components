@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Data\Casts;
 
+use DateTime;
+use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
 use Hypervel\Data\Exceptions\CannotCastDate;
 use Hypervel\Data\Support\Creation\ConstructionState;
 use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\DataProperty;
-use Hypervel\Support\ClassMetadataCache;
 use Hypervel\Support\Facades\Date;
 use Throwable;
 
@@ -19,11 +20,11 @@ class DateTimeInterfaceCast implements Cast, IterableItemCast
     /**
      * Create a date cast.
      *
-     * @param null|string|non-empty-list<string> $format
+     * @param null|non-empty-list<string>|string $format
      * @param null|class-string<DateTimeInterface> $type
      */
     public function __construct(
-        protected readonly null|string|array $format = null,
+        protected readonly string|array|null $format = null,
         protected readonly ?string $type = null,
         protected readonly ?string $setTimeZone = null,
         protected readonly ?string $timeZone = null,
@@ -122,13 +123,14 @@ class DateTimeInterfaceCast implements Cast, IterableItemCast
         string $format,
         string $value,
         ?DateTimeZone $timeZone,
-    ): ?DateTimeInterface {
-        $reflection = ClassMetadataCache::reflectClass($type);
-        $datetime = $reflection->isInstantiable()
+    ): DateTime|DateTimeImmutable|null {
+        $datetime = is_a($type, DateTime::class, true) || is_a($type, DateTimeImmutable::class, true)
             ? $type::createFromFormat($format, $value, $timeZone)
             : Date::createFromFormat($format, $value, $timeZone);
 
-        if (! $datetime instanceof DateTimeInterface || ! $datetime instanceof $type) {
+        if ((! $datetime instanceof DateTime && ! $datetime instanceof DateTimeImmutable)
+            || ! $datetime instanceof $type
+        ) {
             return null;
         }
 

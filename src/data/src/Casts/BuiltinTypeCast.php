@@ -13,7 +13,7 @@ class BuiltinTypeCast implements Cast, IterableItemCast
     /**
      * Create a built-in type cast.
      *
-     * @param 'bool'|'int'|'float'|'array'|'string' $type
+     * @param 'array'|'bool'|'float'|'int'|'string' $type
      */
     public function __construct(
         protected string $type,

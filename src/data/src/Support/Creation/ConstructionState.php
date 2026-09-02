@@ -12,25 +12,26 @@ use Hypervel\Pagination\AbstractPaginator;
 final class ConstructionState
 {
     /** @var array<array-key, mixed> */
-    protected array $payload = [];
+    private array $payload = [];
 
     /** @var null|array<array-key, mixed> */
-    protected ?array $unknownInput = null;
+    private ?array $unknownInput = null;
 
     /**
      * @var array{
      *     class: null|class-string<BaseData>,
      *     mappings: array<string, array-key>,
      *     children: array<string, array>,
-     *     paginatorSource?: AbstractPaginator|AbstractCursorPaginator,
+     *     autoLazy?: array<string, array{source: mixed, replay?: AutoLazyReplayMode}>,
+     *     paginatorSource?: AbstractCursorPaginator|AbstractPaginator,
      *     uniform?: false,
      *     items?: array<array-key, array>
      * }
      */
-    protected array $structure;
+    private array $structure;
 
-    /** @var list<array{payloadPath: non-empty-list<array-key>, structureKey: ?string, itemKey: array-key|null}> */
-    protected array $path = [];
+    /** @var list<array{payloadPath: non-empty-list<array-key>, structureKey: ?string, itemKey: null|array-key}> */
+    private array $path = [];
 
     /**
      * Create construction state for one root operation.
@@ -56,11 +57,13 @@ final class ConstructionState
 
     /**
      * Enter a nested data property.
+     *
+     * @param non-empty-list<array-key> $payloadPath
      */
-    public function enterProperty(string $property, string|int|null $mappedKey = null): void
+    public function enterProperty(string $property, array $payloadPath): void
     {
         $this->path[] = [
-            'payloadPath' => self::segments($mappedKey ?? $property),
+            'payloadPath' => $payloadPath,
             'structureKey' => $property,
             'itemKey' => null,
         ];
@@ -112,11 +115,13 @@ final class ConstructionState
 
     /**
      * Write a mapped property value beneath the current path.
+     *
+     * @param non-empty-list<array-key> $path
      */
-    public function writePropertyValue(string|int $key, mixed $value): void
+    public function writePropertyValue(array $path, mixed $value): void
     {
         $this->writeAtPath(
-            [...$this->path(), ...self::segments($key)],
+            [...$this->path(), ...$path],
             $value,
             false,
         );
@@ -124,11 +129,13 @@ final class ConstructionState
 
     /**
      * Write a finished mapped property value beneath the current path.
+     *
+     * @param non-empty-list<array-key> $path
      */
-    public function writeFinishedPropertyValue(string|int $key, mixed $value): void
+    public function writeFinishedPropertyValue(array $path, mixed $value): void
     {
         $this->writeAtPath(
-            [...$this->path(), ...self::segments($key)],
+            [...$this->path(), ...$path],
             $value,
             true,
         );
@@ -152,20 +159,24 @@ final class ConstructionState
 
     /**
      * Determine if a value exists beneath the current path.
+     *
+     * @param non-empty-list<array-key> $path
      */
-    public function hasValue(string|int $key): bool
+    public function hasValue(array $path): bool
     {
-        $slot = $this->valueAtPath(self::segments($key));
+        $slot = $this->valueAtPath($path);
 
         return ! $slot instanceof UnknownProperty;
     }
 
     /**
      * Get a value beneath the current path.
+     *
+     * @param non-empty-list<array-key> $path
      */
-    public function getValue(string|int $key): mixed
+    public function getValue(array $path): mixed
     {
-        $value = $this->valueAtPath(self::segments($key));
+        $value = $this->valueAtPath($path);
 
         return $value instanceof UnknownProperty ? null : $value;
     }
@@ -318,7 +329,7 @@ final class ConstructionState
         $node['class'] = null;
         $node['mappings'] = [];
         $node['children'] = [];
-        unset($node['paginatorSource']);
+        unset($node['autoLazy'], $node['paginatorSource']);
 
         if ($this->pathContainsItem()) {
             $this->markEnclosingCollectionsNonUniform();
@@ -408,6 +419,45 @@ final class ConstructionState
     }
 
     /**
+     * Record one automatic lazy property recipe.
+     */
+    public function recordAutoLazy(
+        string $property,
+        mixed $source,
+        ?AutoLazyReplayMode $replay = null,
+    ): void {
+        if ($this->pathContainsItem()) {
+            $node = &$this->ensureOverrideNodeAtCurrentPath();
+        } else {
+            $node = &$this->ensureStructureNodeAtCurrentPath();
+        }
+
+        $node['autoLazy'][$property] = ['source' => $source];
+
+        if ($replay !== null) {
+            $node['autoLazy'][$property]['replay'] = $replay;
+        }
+    }
+
+    /**
+     * Get one automatic lazy property recipe.
+     *
+     * @return array{source: mixed, replay?: AutoLazyReplayMode}|UnknownProperty
+     */
+    public function autoLazy(string $property): array|UnknownProperty
+    {
+        $node = $this->pathContainsItem()
+            ? $this->overrideNodeAtCurrentPath()
+            : $this->structureNodeAtCurrentPath();
+
+        if ($node !== null && array_key_exists($property, $node['autoLazy'] ?? [])) {
+            return $node['autoLazy'][$property];
+        }
+
+        return UnknownProperty::create();
+    }
+
+    /**
      * Record the paginator source for the current node.
      */
     public function recordPaginatorSource(AbstractPaginator|AbstractCursorPaginator $source): void
@@ -485,9 +535,44 @@ final class ConstructionState
     }
 
     /**
+     * Create a detached baseline for one automatic lazy property.
+     */
+    public function snapshotForProperty(string $property): self
+    {
+        $snapshot = clone $this;
+        /** @var array<array-key, mixed> $payload */
+        $payload = $this->payloadAtCurrentPath();
+        $snapshot->payload = self::payloadSkeleton($this->path(), $payload);
+        $snapshot->unknownInput = null;
+
+        $templatePath = [];
+        $exactPath = [];
+
+        foreach ($this->path as $segment) {
+            if ($segment['structureKey'] !== null) {
+                $step = ['children', $segment['structureKey']];
+                $templatePath[] = $step;
+                $exactPath[] = $step;
+            } elseif ($segment['itemKey'] !== null) {
+                $exactPath[] = ['items', $segment['itemKey']];
+            }
+        }
+
+        $paths = [$templatePath];
+
+        if ($exactPath !== $templatePath) {
+            $paths[] = $exactPath;
+        }
+
+        $snapshot->structure = $this->pruneStructureNode($this->structure, $paths, $property);
+
+        return $snapshot;
+    }
+
+    /**
      * Get the payload at the current traversal path.
      */
-    protected function payloadAtCurrentPath(): mixed
+    private function payloadAtCurrentPath(): mixed
     {
         $slot = $this->payload;
 
@@ -509,7 +594,7 @@ final class ConstructionState
      * @param array<array-key, mixed> $source
      * @return array<array-key, mixed>
      */
-    protected function mergeUnknownInput(array $target, array $source): array
+    private function mergeUnknownInput(array $target, array $source): array
     {
         foreach ($source as $key => $value) {
             if (! array_key_exists($key, $target)) {
@@ -535,7 +620,7 @@ final class ConstructionState
      *
      * @param non-empty-list<array-key> $path
      */
-    protected function valueAtPath(array $path): mixed
+    private function valueAtPath(array $path): mixed
     {
         $slot = $this->payloadAtCurrentPath();
 
@@ -555,7 +640,7 @@ final class ConstructionState
      *
      * @param non-empty-list<array-key> $path
      */
-    protected function writeAtPath(array $path, mixed $value, bool $finished): void
+    private function writeAtPath(array $path, mixed $value, bool $finished): void
     {
         $slot = &$this->payload;
         $lastKey = array_pop($path);
@@ -576,19 +661,77 @@ final class ConstructionState
     }
 
     /**
-     * Split one mapped key into its payload path.
+     * Build a root-shaped payload skeleton ending in one complete node payload.
      *
-     * @return non-empty-list<array-key>
+     * @param list<array-key> $path
+     * @return array<array-key, mixed>
      */
-    protected static function segments(string|int $key): array
+    private static function payloadSkeleton(array $path, array $payload): array
     {
-        return is_int($key) ? [$key] : explode('.', $key);
+        if ($path === []) {
+            return $payload;
+        }
+
+        foreach (array_reverse($path) as $key) {
+            $payload = [$key => $payload];
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Retain only the template and exact structure spines for one property.
+     *
+     * @param list<list<array{0: 'children'|'items', 1: array-key}>> $paths
+     */
+    private function pruneStructureNode(array $node, array $paths, string $property): array
+    {
+        $pruned = self::newStructureNode($node['class']);
+
+        if (isset($node['uniform'])) {
+            $pruned['uniform'] = false;
+        }
+
+        $branches = [];
+
+        foreach ($paths as $path) {
+            if ($path === []) {
+                if (array_key_exists($property, $node['mappings'])) {
+                    $pruned['mappings'][$property] = $node['mappings'][$property];
+                }
+
+                if (array_key_exists($property, $node['children'])) {
+                    $pruned['children'][$property] = $node['children'][$property];
+                }
+
+                continue;
+            }
+
+            [$collection, $key] = $path[0];
+            $branches[$collection][$key][] = array_slice($path, 1);
+        }
+
+        foreach ($branches as $collection => $children) {
+            foreach ($children as $key => $childPaths) {
+                if (! array_key_exists($key, $node[$collection] ?? [])) {
+                    continue;
+                }
+
+                $pruned[$collection][$key] = $this->pruneStructureNode(
+                    $node[$collection][$key],
+                    $childPaths,
+                    $property,
+                );
+            }
+        }
+
+        return $pruned;
     }
 
     /**
      * Get the structure node at the current traversal path.
      */
-    protected function structureNodeAtCurrentPath(): ?array
+    private function structureNodeAtCurrentPath(): ?array
     {
         $node = $this->structure;
 
@@ -612,7 +755,7 @@ final class ConstructionState
     /**
      * Get the sparse item override at the current traversal path.
      */
-    protected function overrideNodeAtCurrentPath(): ?array
+    private function overrideNodeAtCurrentPath(): ?array
     {
         if (! $this->pathContainsItem()) {
             return null;
@@ -646,7 +789,7 @@ final class ConstructionState
     /**
      * Get or create the structure node at the current traversal path.
      */
-    protected function &ensureStructureNodeAtCurrentPath(): array
+    private function &ensureStructureNodeAtCurrentPath(): array
     {
         $node = &$this->structure;
 
@@ -670,7 +813,7 @@ final class ConstructionState
     /**
      * Get or create the sparse item override at the current traversal path.
      */
-    protected function &ensureOverrideNodeAtCurrentPath(): array
+    private function &ensureOverrideNodeAtCurrentPath(): array
     {
         $node = &$this->structure;
 
@@ -694,7 +837,7 @@ final class ConstructionState
     /**
      * Mark every collection surrounding the current value as non-uniform.
      */
-    protected function markEnclosingCollectionsNonUniform(): void
+    private function markEnclosingCollectionsNonUniform(): void
     {
         $this->ensureStructureNodeAtCurrentPath();
         $node = &$this->structure;
@@ -714,7 +857,7 @@ final class ConstructionState
     /**
      * Determine if the current traversal path contains a collection item.
      */
-    protected function pathContainsItem(): bool
+    private function pathContainsItem(): bool
     {
         foreach ($this->path as $segment) {
             if ($segment['itemKey'] !== null) {
@@ -733,12 +876,13 @@ final class ConstructionState
      *     class: null|class-string<BaseData>,
      *     mappings: array<string, array-key>,
      *     children: array<string, array>,
-     *     paginatorSource?: AbstractPaginator|AbstractCursorPaginator,
+     *     autoLazy?: array<string, array{source: mixed, replay?: AutoLazyReplayMode}>,
+     *     paginatorSource?: AbstractCursorPaginator|AbstractPaginator,
      *     uniform?: false,
      *     items?: array<array-key, array>
      * }
      */
-    protected static function newStructureNode(?string $class = null): array
+    private static function newStructureNode(?string $class = null): array
     {
         return [
             'class' => $class,

@@ -17,7 +17,7 @@ class CannotCastEnum extends Exception
     public static function create(string $type, mixed $value, DataProperty $property): self
     {
         return new self(
-            "Could not cast value [" . self::describe($value) . "] for property "
+            'Could not cast value [' . self::describe($value) . '] for property '
             . "[{$property->className}::\${$property->name}] to enum [{$type}]."
         );
     }

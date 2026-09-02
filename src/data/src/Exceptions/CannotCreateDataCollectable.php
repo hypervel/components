@@ -17,4 +17,15 @@ class CannotCreateDataCollectable extends Exception
     ): self {
         return new self("Cannot create data collectable of type `{$into}` from `{$from}`");
     }
+
+    /**
+     * Create an exception for missing paginator reconstruction metadata.
+     */
+    public static function missingPaginatorSource(string $into): self
+    {
+        return new self(
+            "Cannot create data collectable of type `{$into}` without a retained paginator source. "
+            . 'Supply a Hypervel paginator so its pagination metadata can be preserved.'
+        );
+    }
 }

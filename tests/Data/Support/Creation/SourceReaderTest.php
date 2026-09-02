@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Data\Support\Creation;
 
 use Hypervel\Data\Normalizers\Normalized\Normalized;
 use Hypervel\Data\Normalizers\Normalized\UnknownProperty;
-use Hypervel\Data\Optional;
 use Hypervel\Data\Support\Creation\SourceReader;
 use Hypervel\Data\Support\DataProperty;
 use Hypervel\Tests\TestCase;
@@ -20,9 +19,9 @@ class SourceReaderTest extends TestCase
     {
         $property = $this->property();
 
-        $this->assertSame('Hello', SourceReader::read(['title' => 'Hello'], 'title', $property));
-        $this->assertNull(SourceReader::read(['title' => null], 'title', $property));
-        $this->assertSame(UnknownProperty::create(), SourceReader::read([], 'title', $property));
+        $this->assertSame('Hello', SourceReader::read(['title' => 'Hello'], ['title'], $property));
+        $this->assertNull(SourceReader::read(['title' => null], ['title'], $property));
+        $this->assertSame(UnknownProperty::create(), SourceReader::read([], ['title'], $property));
     }
 
     /**
@@ -42,13 +41,69 @@ class SourceReaderTest extends TestCase
 
         $this->assertSame('Taylor', SourceReader::read(
             ['people' => [['name' => 'Taylor']]],
-            'people.0.name',
+            ['people', '0', 'name'],
             $property,
         ));
-        $this->assertNull(SourceReader::read($normalized, 'profile.contact.email', $property));
+        $this->assertNull(SourceReader::read($normalized, ['profile', 'contact', 'email'], $property));
         $this->assertSame(
             UnknownProperty::create(),
-            SourceReader::read($normalized, 'profile.contact.phone', $property),
+            SourceReader::read($normalized, ['profile', 'contact', 'phone'], $property),
+        );
+    }
+
+    /**
+     * Test mapped path segments are read literally.
+     */
+    public function testReadsSpecialPathSegmentsAsLiteralKeys(): void
+    {
+        $property = $this->property();
+        $source = [
+            'values' => [
+                '*' => 'asterisk',
+                '{first}' => 'first',
+                '{last}' => 'last',
+            ],
+        ];
+
+        $this->assertSame('asterisk', SourceReader::read($source, ['values', '*'], $property));
+        $this->assertSame('first', SourceReader::read($source, ['values', '{first}'], $property));
+        $this->assertSame('last', SourceReader::read($source, ['values', '{last}'], $property));
+    }
+
+    /**
+     * Test nested object reads preserve public and magic null boundaries.
+     */
+    public function testReadsAccessibleObjectPropertiesWithoutExposingOtherState(): void
+    {
+        $property = $this->property();
+        $object = new class {
+            public ?string $publicNull = null;
+
+            public string $uninitialized;
+
+            protected ?string $protectedNull = null;
+
+            public function __isset(string $name): bool
+            {
+                return $name === 'magicNull';
+            }
+
+            public function __get(string $name): mixed
+            {
+                return null;
+            }
+        };
+        $source = ['object' => $object];
+
+        $this->assertNull(SourceReader::read($source, ['object', 'publicNull'], $property));
+        $this->assertNull(SourceReader::read($source, ['object', 'magicNull'], $property));
+        $this->assertSame(
+            UnknownProperty::create(),
+            SourceReader::read($source, ['object', 'protectedNull'], $property),
+        );
+        $this->assertSame(
+            UnknownProperty::create(),
+            SourceReader::read($source, ['object', 'uninitialized'], $property),
         );
     }
 
@@ -58,7 +113,7 @@ class SourceReaderTest extends TestCase
     public function testReadsNormalizedSources(): void
     {
         $property = $this->property();
-        $normalized = new class ($property) implements Normalized {
+        $normalized = new class($property) implements Normalized {
             public function __construct(
                 private readonly DataProperty $expectedProperty,
             ) {
@@ -74,38 +129,8 @@ class SourceReaderTest extends TestCase
             }
         };
 
-        $this->assertSame('Hello', SourceReader::read($normalized, 'title', $property));
-        $this->assertSame(UnknownProperty::create(), SourceReader::read($normalized, 'missing', $property));
-    }
-
-    /**
-     * Test the first source containing a key owns its value.
-     */
-    public function testFirstPresentSourceWinsIncludingNullAndOptional(): void
-    {
-        $property = $this->property();
-        $optional = Optional::create();
-
-        $this->assertSame('First', SourceReader::readFromMany(
-            [[], ['title' => 'First'], ['title' => 'Second']],
-            'title',
-            $property,
-        ));
-        $this->assertNull(SourceReader::readFromMany(
-            [['title' => null], ['title' => 'Second']],
-            'title',
-            $property,
-        ));
-        $this->assertSame($optional, SourceReader::readFromMany(
-            [['title' => $optional], ['title' => 'Second']],
-            'title',
-            $property,
-        ));
-        $this->assertSame(UnknownProperty::create(), SourceReader::readFromMany(
-            [[], []],
-            'title',
-            $property,
-        ));
+        $this->assertSame('Hello', SourceReader::read($normalized, ['title'], $property));
+        $this->assertSame(UnknownProperty::create(), SourceReader::read($normalized, ['missing'], $property));
     }
 
     /**

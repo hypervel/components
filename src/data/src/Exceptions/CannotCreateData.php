@@ -84,6 +84,17 @@ class CannotCreateData extends Exception
     }
 
     /**
+     * Create an exception for an automatic relation lazy without a model source.
+     */
+    public static function autoWhenLoadedRequiresModel(DataProperty $property): self
+    {
+        return new self(
+            "Could not create property [{$property->className}::\${$property->name}] with "
+            . 'AutoWhenLoadedLazy because no Eloquent model source was supplied.'
+        );
+    }
+
+    /**
      * Create an exception for an ambiguous data-object union.
      *
      * @param list<class-string> $candidates

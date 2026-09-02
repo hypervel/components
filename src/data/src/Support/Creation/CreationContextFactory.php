@@ -6,6 +6,7 @@ namespace Hypervel\Data\Support\Creation;
 
 use Closure;
 use Hypervel\Contracts\Pagination\CursorPaginator as CursorPaginatorContract;
+use Hypervel\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginatorContract;
 use Hypervel\Contracts\Pagination\Paginator as PaginatorContract;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Data\Casts\Cast;
@@ -16,11 +17,16 @@ use Hypervel\Data\Normalizers\Normalizer;
 use Hypervel\Data\PaginatedDataCollection;
 use Hypervel\Data\Support\DataConfig;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Pagination\AbstractCursorPaginator;
 use Hypervel\Pagination\AbstractPaginator;
+use Hypervel\Pagination\CursorPaginator;
+use Hypervel\Pagination\LengthAwarePaginator;
+use Hypervel\Pagination\Paginator;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Enumerable;
 use Hypervel\Support\LazyCollection;
+use Traversable;
 
 /**
  * @template TData of BaseData
@@ -39,7 +45,7 @@ class CreationContextFactory
     /** @var array<string, Cast|class-string<Cast>> */
     protected array $casts = [];
 
-    /** @var list<Normalizer|class-string<Normalizer>> */
+    /** @var list<class-string<Normalizer>|Normalizer> */
     protected array $normalizers = [];
 
     /** @var list<Closure> */
@@ -81,6 +87,8 @@ class CreationContextFactory
 
     /**
      * Set the validation strategy.
+     *
+     * @return $this
      */
     public function validationStrategy(ValidationStrategy $validationStrategy): self
     {
@@ -107,6 +115,8 @@ class CreationContextFactory
 
     /**
      * Validate every source.
+     *
+     * @return $this
      */
     public function alwaysValidate(): self
     {
@@ -132,6 +142,8 @@ class CreationContextFactory
 
         return $this;
     }
+
+    // REMOVED: withOptionalValues()/withoutOptionalValues(); Optional declarations always preserve absence.
 
     /**
      * Disable or enable named creation methods.
@@ -190,7 +202,7 @@ class CreationContextFactory
     /**
      * Add custom source normalizers.
      *
-     * @param Normalizer|class-string<Normalizer> ...$normalizers
+     * @param class-string<Normalizer>|Normalizer ...$normalizers
      */
     public function withNormalizers(Normalizer|string ...$normalizers): self
     {
@@ -351,17 +363,94 @@ class CreationContextFactory
     /**
      * Collect data objects.
      *
+     * Contract-typed sources retain every possible rebuildable runtime shape.
+     *
      * @template TCollectKey of array-key
      * @template TCollectValue
+     * @template TDataCollectionValue of BaseData
+     * @template TModelValue of Model
      *
-     * @param AbstractCursorPaginator|AbstractPaginator|array<TCollectKey, TCollectValue>|Collection<TCollectKey, TCollectValue>|CursorPaginatorContract|DataCollection<TCollectKey, TCollectValue>|EloquentCollection<TCollectKey, TCollectValue>|Enumerable|LazyCollection<TCollectKey, TCollectValue>|PaginatorContract $items
-     *
-     * @return ($into is 'array' ? array<TCollectKey, TData> : ($into is class-string<EloquentCollection> ? Collection<TCollectKey, TData> : ($into is class-string<Collection> ? Collection<TCollectKey, TData> : ($into is class-string<LazyCollection> ? LazyCollection<TCollectKey, TData> : ($into is class-string<DataCollection> ? DataCollection<TCollectKey, TData> : ($into is class-string<PaginatedDataCollection> ? PaginatedDataCollection<TCollectKey, TData> : ($into is class-string<CursorPaginatedDataCollection> ? CursorPaginatedDataCollection<TCollectKey, TData> : ($items is EloquentCollection ? Collection<TCollectKey, TData> : ($items is Collection ? Collection<TCollectKey, TData> : ($items is LazyCollection ? LazyCollection<TCollectKey, TData> : ($items is Enumerable ? Enumerable<TCollectKey, TData> : ($items is array ? array<TCollectKey, TData> : ($items is AbstractPaginator ? AbstractPaginator : ($items is PaginatorContract ? PaginatorContract : ($items is AbstractCursorPaginator ? AbstractCursorPaginator : ($items is CursorPaginatorContract ? CursorPaginatorContract : ($items is DataCollection ? DataCollection<TCollectKey, TData> : DataCollection<TCollectKey, TData>)))))))))))))))))
+     * @param AbstractCursorPaginator<TCollectKey, TCollectValue>|AbstractPaginator<TCollectKey, TCollectValue>|array<TCollectKey, TCollectValue>|Collection<TCollectKey, TCollectValue>|CursorPaginatedDataCollection<TCollectKey, TDataCollectionValue>|CursorPaginatorContract<TCollectKey, TCollectValue>|DataCollection<TCollectKey, TDataCollectionValue>|EloquentCollection<TCollectKey, TModelValue>|Enumerable<TCollectKey, TCollectValue>|LazyCollection<TCollectKey, TCollectValue>|LengthAwarePaginatorContract<TCollectKey, TCollectValue>|PaginatedDataCollection<TCollectKey, TDataCollectionValue>|PaginatorContract<TCollectKey, TCollectValue>|Traversable<TCollectKey, TCollectValue> $items
+     * @param null|'array'|class-string $into
+     * @return (
+     *     $into is null
+     *     ? ($items is array
+     *         ? array<TCollectKey, TData>
+     *         : ($items is PaginatedDataCollection<*, *>|CursorPaginatedDataCollection<*, *>|DataCollection<*, *>
+     *             ? ($items is PaginatedDataCollection<*, *>
+     *                 ? PaginatedDataCollection<TCollectKey, TData>
+     *                 : ($items is CursorPaginatedDataCollection<*, *>
+     *                     ? CursorPaginatedDataCollection<TCollectKey, TData>
+     *                     : DataCollection<TCollectKey, TData>))
+     *             : ($items is AbstractPaginator<*, *>
+     *                 ? ($items is LengthAwarePaginator<*, *>
+     *                     ? LengthAwarePaginator<TCollectKey, TData>
+     *                     : ($items is Paginator<*, *>
+     *                         ? Paginator<TCollectKey, TData>
+     *                         : AbstractPaginator<TCollectKey, TData>))
+     *                 : ($items is AbstractCursorPaginator<*, *>
+     *                     ? ($items is CursorPaginator<*, *>
+     *                         ? CursorPaginator<TCollectKey, TData>
+     *                         : AbstractCursorPaginator<TCollectKey, TData>)
+     *                     : ($items is Enumerable<*, *>
+     *                         ? ($items is EloquentCollection<*, *>
+     *                             ? Collection<TCollectKey, TData>
+     *                             : ($items is LazyCollection<*, *>
+     *                                 ? LazyCollection<TCollectKey, TData>
+     *                                 : ($items is Collection<*, *>
+     *                                     ? Collection<TCollectKey, TData>
+     *                                     : never)))
+     *                         : never)))))
+     *     : ($into is 'array'
+     *         ? array<TCollectKey, TData>
+     *         : ($into is 'Hypervel\Support\Enumerable'|'Hypervel\Database\Eloquent\Collection'|'Hypervel\Support\Collection'
+     *             ? Collection<TCollectKey, TData>
+     *             : ($into is 'Hypervel\Support\LazyCollection'
+     *                 ? LazyCollection<TCollectKey, TData>
+     *                 : ($into is 'Hypervel\Data\PaginatedDataCollection'|'Hypervel\Data\CursorPaginatedDataCollection'|'Hypervel\Data\DataCollection'
+     *                     ? ($into is 'Hypervel\Data\PaginatedDataCollection'
+     *                         ? PaginatedDataCollection<TCollectKey, TData>
+     *                         : ($into is 'Hypervel\Data\CursorPaginatedDataCollection'
+     *                             ? CursorPaginatedDataCollection<TCollectKey, TData>
+     *                             : DataCollection<TCollectKey, TData>))
+     *                     : ($into is 'Hypervel\Pagination\LengthAwarePaginator'|'Hypervel\Pagination\Paginator'|'Hypervel\Pagination\CursorPaginator'|'Hypervel\Pagination\AbstractPaginator'|'Hypervel\Pagination\AbstractCursorPaginator'
+     *                         ? ($into is 'Hypervel\Pagination\LengthAwarePaginator'
+     *                             ? LengthAwarePaginator<TCollectKey, TData>
+     *                             : ($into is 'Hypervel\Pagination\Paginator'
+     *                                 ? Paginator<TCollectKey, TData>
+     *                                 : ($into is 'Hypervel\Pagination\CursorPaginator'
+     *                                     ? CursorPaginator<TCollectKey, TData>
+     *                                     : ($into is 'Hypervel\Pagination\AbstractPaginator'
+     *                                         ? AbstractPaginator<TCollectKey, TData>
+     *                                         : AbstractCursorPaginator<TCollectKey, TData>))))
+     *                         : ($into is 'Hypervel\Contracts\Pagination\LengthAwarePaginator'|'Hypervel\Contracts\Pagination\Paginator'|'Hypervel\Contracts\Pagination\CursorPaginator'
+     *                             ? ($into is 'Hypervel\Contracts\Pagination\LengthAwarePaginator'
+     *                                 ? LengthAwarePaginatorContract<TCollectKey, TData>
+     *                                 : ($into is 'Hypervel\Contracts\Pagination\Paginator'
+     *                                     ? PaginatorContract<TCollectKey, TData>
+     *                                     : CursorPaginatorContract<TCollectKey, TData>))
+     *                             : array<TCollectKey, TData>|CursorPaginatedDataCollection<TCollectKey, TData>|DataCollection<TCollectKey, TData>|PaginatedDataCollection<TCollectKey, TData>|Enumerable<TCollectKey, TData>|AbstractCursorPaginator<TCollectKey, TData>|AbstractPaginator<TCollectKey, TData>|CursorPaginatorContract<TCollectKey, TData>|LengthAwarePaginatorContract<TCollectKey, TData>|PaginatorContract<TCollectKey, TData>)))))))
+     * )
      */
     public function collect(
         mixed $items,
         ?string $into = null,
     ): array|DataCollection|PaginatedDataCollection|CursorPaginatedDataCollection|Enumerable|AbstractPaginator|PaginatorContract|AbstractCursorPaginator|CursorPaginatorContract|LazyCollection|Collection {
         return $this->creator->collect($this->dataClass, $this->get(), $items, $into);
+    }
+
+    /**
+     * Create typed items without whole-collection factory dispatch.
+     *
+     * @internal
+     *
+     * @template TCollectKey of array-key
+     *
+     * @param null|array<TCollectKey, mixed>|DataCollection<TCollectKey, BaseData>|Enumerable<TCollectKey, mixed> $items
+     * @return Enumerable<TCollectKey, TData>
+     */
+    public function collectItems(mixed $items): Enumerable
+    {
+        return $this->creator->collectItems($this->dataClass, $this->get(), $items);
     }
 }

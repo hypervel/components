@@ -22,7 +22,7 @@ final readonly class CreationContext
      * @param class-string<TData> $dataClass
      * @param list<string> $ignoredMagicalMethods
      * @param array<string, Cast|class-string<Cast>> $casts
-     * @param list<Normalizer|class-string<Normalizer>> $normalizers
+     * @param list<class-string<Normalizer>|Normalizer> $normalizers
      * @param list<Closure> $prepareDataHooks
      * @param list<Closure> $beforeValidationHooks
      * @param list<Closure> $beforeRulesHooks

@@ -6,7 +6,13 @@ namespace Hypervel\Data\Support\Creation;
 
 use BackedEnum;
 use DateTimeInterface;
+use Hypervel\Container\Container as ConcreteContainer;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Pagination\CursorPaginator as CursorPaginatorContract;
+use Hypervel\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginatorContract;
+use Hypervel\Contracts\Pagination\Paginator as PaginatorContract;
+use Hypervel\Data\Attributes\AutoLazy;
+use Hypervel\Data\Attributes\AutoWhenLoadedLazy;
 use Hypervel\Data\Attributes\GetsCast;
 use Hypervel\Data\Casts\BuiltinTypeCast;
 use Hypervel\Data\Casts\Cast;
@@ -16,14 +22,20 @@ use Hypervel\Data\Casts\EnumCast;
 use Hypervel\Data\Casts\IterableItemCast;
 use Hypervel\Data\Casts\Uncastable;
 use Hypervel\Data\Contracts\BaseData;
+use Hypervel\Data\Contracts\PropertyMorphableData;
+use Hypervel\Data\CursorPaginatedDataCollection;
+use Hypervel\Data\DataCollection;
 use Hypervel\Data\Enums\CustomCreationMethodType;
 use Hypervel\Data\Exceptions\CannotCreateAbstractClass;
 use Hypervel\Data\Exceptions\CannotCreateData;
+use Hypervel\Data\Exceptions\CannotCreateDataCollectable;
 use Hypervel\Data\Exceptions\CannotSetComputedValue;
+use Hypervel\Data\Lazy;
 use Hypervel\Data\Normalizers\Normalized\Normalized;
 use Hypervel\Data\Normalizers\Normalized\UnknownProperty;
 use Hypervel\Data\Normalizers\Normalizer;
 use Hypervel\Data\Optional;
+use Hypervel\Data\PaginatedDataCollection;
 use Hypervel\Data\Support\DataClass;
 use Hypervel\Data\Support\DataClassRepository;
 use Hypervel\Data\Support\DataConfig;
@@ -33,12 +45,20 @@ use Hypervel\Data\Support\DataProperty;
 use Hypervel\Data\Support\Types\NamedType;
 use Hypervel\Data\Support\Types\Type;
 use Hypervel\Data\Support\Validation\DataValidator;
+use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
+use Hypervel\Pagination\AbstractCursorPaginator;
+use Hypervel\Pagination\AbstractPaginator;
+use Hypervel\Pagination\Paginator;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Enumerable;
 use Hypervel\Support\LazyCollection;
+use Traversable;
 
 use function data_set;
 
+/** @phpstan-type OperationMemo array<string, object|list<Normalizer>> */
 class DataCreator
 {
     /**
@@ -67,9 +87,9 @@ class DataCreator
         CreationContext $context,
         mixed ...$payloads,
     ): BaseData {
+        /** @var BaseData $data */
         $data = $this->execute($class, $context, $payloads);
 
-        /** @var BaseData $data */
         return $data;
     }
 
@@ -85,9 +105,9 @@ class DataCreator
         CreationContext $context,
         array $payloads,
     ): array {
+        /** @var array<array-key, mixed> $validated */
         $validated = $this->execute($class, $context, $payloads);
 
-        /** @var array<array-key, mixed> $validated */
         return $validated;
     }
 
@@ -103,10 +123,438 @@ class DataCreator
         CreationContext $context,
         array $payloads,
     ): array {
+        /** @var array<string, list<array|object|string>> $rules */
         $rules = $this->execute($class, $context, $payloads);
 
-        /** @var array<string, list<array|object|string>> $rules */
         return $rules;
+    }
+
+    /**
+     * Resolve one deferred automatic lazy property.
+     *
+     * @internal
+     */
+    public function resolveAutoLazyProperty(
+        string $propertyName,
+        mixed $value,
+        ConstructionState $state,
+        ?AutoLazyReplayMode $replay,
+    ): mixed {
+        $class = $state->nodeClass() ?? $state->context->dataClass;
+        $property = $this->dataClasses->get($class)->properties[$propertyName];
+        $extensions = [];
+
+        if ($replay !== null && ! $property->isFinishedValue($value)) {
+            $wireKey = $state->originalKey($propertyName);
+            $this->fillResolvedProperty(
+                $property,
+                $property->inputPath($wireKey),
+                $value,
+                $state,
+                $extensions,
+                false,
+                false,
+                $replay === AutoLazyReplayMode::Hook,
+            );
+        }
+
+        return $this->castProperty($property, $value, $state, $extensions);
+    }
+
+    /**
+     * Collect data objects through one root operation.
+     *
+     * @template TKey of array-key
+     * @template TValue
+     * @template TCollectValue of BaseData
+     * @template TModelValue of Model
+     * @template TData of BaseData
+     *
+     * @param class-string<TData> $class
+     * @param AbstractCursorPaginator<TKey, TValue>|AbstractPaginator<TKey, TValue>|array<TKey, TValue>|Collection<TKey, TValue>|CursorPaginatedDataCollection<TKey, TCollectValue>|CursorPaginatorContract<TKey, TValue>|DataCollection<TKey, TCollectValue>|EloquentCollection<TKey, TModelValue>|Enumerable<TKey, TValue>|LazyCollection<TKey, TValue>|LengthAwarePaginatorContract<TKey, TValue>|PaginatedDataCollection<TKey, TCollectValue>|PaginatorContract<TKey, TValue>|Traversable<TKey, TValue> $items
+     * @param null|'array'|class-string $into
+     * @return AbstractCursorPaginator<TKey, TData>|AbstractPaginator<TKey, TData>|array<TKey, TData>|CursorPaginatedDataCollection<TKey, TData>|CursorPaginatorContract<TKey, TData>|DataCollection<TKey, TData>|Enumerable<TKey, TData>|LengthAwarePaginatorContract<TKey, TData>|PaginatedDataCollection<TKey, TData>|PaginatorContract<TKey, TData>
+     */
+    public function collect(
+        string $class,
+        CreationContext $context,
+        mixed $items,
+        ?string $into = null,
+    ): array|DataCollection|PaginatedDataCollection|CursorPaginatedDataCollection|Enumerable|AbstractPaginator|PaginatorContract|AbstractCursorPaginator|CursorPaginatorContract|LazyCollection|Collection {
+        $shouldValidate = $this->validator->shouldValidate($context, [$items]);
+
+        if ($items instanceof LazyCollection && ! $shouldValidate) {
+            return $this->collectLazy($class, $context, $items, $into);
+        }
+
+        $values = $this->dataCollectables->items($items);
+
+        if ($values === null) {
+            throw CannotCreateDataCollectable::create(
+                get_debug_type($items),
+                $into ?? 'inferred collection',
+            );
+        }
+
+        return $this->collectEager(
+            $class,
+            $context,
+            $items,
+            $values,
+            $into,
+            $shouldValidate,
+        );
+    }
+
+    /**
+     * Create typed items through one internal collection operation.
+     *
+     * @internal
+     *
+     * @template TKey of array-key
+     * @template TData of BaseData
+     *
+     * @param class-string<TData> $class
+     * @param null|array<TKey, mixed>|DataCollection<TKey, BaseData>|Enumerable<TKey, mixed> $items
+     * @return Enumerable<TKey, TData>
+     */
+    public function collectItems(
+        string $class,
+        CreationContext $context,
+        mixed $items,
+    ): Enumerable {
+        if ($items === null) {
+            return new Collection;
+        }
+
+        $shouldValidate = $this->validator->shouldValidate($context, [$items]);
+
+        if ($items instanceof LazyCollection && ! $shouldValidate) {
+            return $this->deferCollectionItems($class, $context, $items);
+        }
+
+        $values = $this->dataCollectables->items($items);
+
+        if ($values === null) {
+            throw CannotCreateDataCollectable::create(
+                get_debug_type($items),
+                DataCollection::class,
+            );
+        }
+
+        return new Collection($this->createEagerCollectionItems(
+            $class,
+            $context,
+            $items,
+            $values,
+            $shouldValidate,
+        ));
+    }
+
+    /**
+     * Collect a deferred source without enumerating it.
+     *
+     * @template TKey of array-key
+     * @template TData of BaseData
+     *
+     * @param class-string<TData> $class
+     * @param LazyCollection<TKey, mixed> $source
+     * @return AbstractCursorPaginator<TKey, TData>|AbstractPaginator<TKey, TData>|array<TKey, TData>|CursorPaginatedDataCollection<TKey, TData>|CursorPaginatorContract<TKey, TData>|DataCollection<TKey, TData>|Enumerable<TKey, TData>|LengthAwarePaginatorContract<TKey, TData>|PaginatedDataCollection<TKey, TData>|PaginatorContract<TKey, TData>
+     */
+    protected function collectLazy(
+        string $class,
+        CreationContext $context,
+        LazyCollection $source,
+        ?string $into,
+    ): array|DataCollection|PaginatedDataCollection|CursorPaginatedDataCollection|Enumerable|AbstractPaginator|PaginatorContract|AbstractCursorPaginator|CursorPaginatorContract|LazyCollection|Collection {
+        $items = $this->deferCollectionItems($class, $context, $source);
+        $methodSource = $this->dataCollectables->forMethodSource($class, $source, $items);
+        $dataClass = $this->dataClasses->get($class);
+        $match = $methodSource === null
+            ? null
+            : $this->matchNamedCollectionFactory($dataClass, $context, $methodSource, $into);
+
+        return $match !== null
+            ? $this->invokeNamedFactory($dataClass, ...$match)
+            : $this->dataCollectables->forTarget($class, $source, $items, $into);
+    }
+
+    /**
+     * Create a deferred item collection with one shared operation memo.
+     *
+     * @template TKey of array-key
+     * @template TData of BaseData
+     *
+     * @param class-string<TData> $class
+     * @param LazyCollection<TKey, mixed> $source
+     * @return LazyCollection<TKey, TData>
+     */
+    protected function deferCollectionItems(
+        string $class,
+        CreationContext $context,
+        LazyCollection $source,
+    ): LazyCollection {
+        $extensions = [];
+
+        // Deferred traversal remains part of this root operation, so its resolved extensions stay shared.
+        return $source->map(
+            function (mixed $item) use ($class, $context, &$extensions): BaseData {
+                return $this->createUnvalidatedNode(
+                    $class,
+                    $context,
+                    $item,
+                    $extensions,
+                );
+            },
+        );
+    }
+
+    /**
+     * Create one nested node without restarting root validation or authorization.
+     *
+     * @template TData of BaseData
+     *
+     * @param class-string<TData> $class
+     * @param OperationMemo $extensions
+     * @return TData
+     */
+    protected function createUnvalidatedNode(
+        string $class,
+        CreationContext $context,
+        mixed $item,
+        array &$extensions,
+    ): BaseData {
+        if ($item instanceof $class) {
+            return $item;
+        }
+
+        $state = ConstructionState::create($context, $class);
+        $direct = $this->fillNode(
+            $class,
+            [$item],
+            $state,
+            $extensions,
+            false,
+            false,
+        );
+
+        // Named factories, morph selection, instantiation, and after-creation hooks all enforce this class.
+        /** @var TData $data */
+        $data = $direct ?? $this->castAndInstantiateNode($state, $extensions);
+
+        return $data;
+    }
+
+    /**
+     * Collect an eager source through one Fill and validation graph.
+     *
+     * @template TKey of array-key
+     * @template TData of BaseData
+     *
+     * @param class-string<TData> $class
+     * @param array<TKey, mixed> $values
+     * @return AbstractCursorPaginator<TKey, TData>|AbstractPaginator<TKey, TData>|array<TKey, TData>|CursorPaginatedDataCollection<TKey, TData>|CursorPaginatorContract<TKey, TData>|DataCollection<TKey, TData>|Enumerable<TKey, TData>|LengthAwarePaginatorContract<TKey, TData>|PaginatedDataCollection<TKey, TData>|PaginatorContract<TKey, TData>
+     */
+    protected function collectEager(
+        string $class,
+        CreationContext $context,
+        mixed $source,
+        array $values,
+        ?string $into,
+        bool $shouldValidate,
+    ): array|DataCollection|PaginatedDataCollection|CursorPaginatedDataCollection|Enumerable|AbstractPaginator|PaginatorContract|AbstractCursorPaginator|CursorPaginatorContract|LazyCollection|Collection {
+        $items = $this->createEagerCollectionItems(
+            $class,
+            $context,
+            $source,
+            $values,
+            $shouldValidate,
+        );
+        $methodSource = $this->dataCollectables->forMethodSource($class, $source, $items);
+        $dataClass = $this->dataClasses->get($class);
+        $match = $methodSource === null
+            ? null
+            : $this->matchNamedCollectionFactory($dataClass, $context, $methodSource, $into);
+
+        return $match !== null
+            ? $this->invokeNamedFactory($dataClass, ...$match)
+            : $this->dataCollectables->forTarget($class, $source, $items, $into);
+    }
+
+    /**
+     * Create every eager item through one Fill and validation graph.
+     *
+     * @template TKey of array-key
+     * @template TData of BaseData
+     *
+     * @param class-string<TData> $class
+     * @param array<TKey, mixed> $values
+     * @return array<TKey, TData>
+     */
+    protected function createEagerCollectionItems(
+        string $class,
+        CreationContext $context,
+        mixed $source,
+        array $values,
+        bool $shouldValidate,
+    ): array {
+        $request = $shouldValidate
+            ? $this->validator->authorize($class, [$source])
+            : null;
+        $state = ConstructionState::create($context, $class);
+        $extensions = [];
+
+        if ($source instanceof EloquentCollection) {
+            $this->loadMissingRelations($class, $source);
+        }
+
+        $this->fillCollectionItems(
+            $class,
+            $values,
+            $state,
+            $extensions,
+            $shouldValidate,
+        );
+
+        if ($shouldValidate && $context->beforeValidationHooks !== []) {
+            $this->applyPayloadHooks(
+                $class,
+                $context->beforeValidationHooks,
+                $state,
+                $extensions,
+                true,
+                true,
+                collection: true,
+            );
+        }
+
+        if ($shouldValidate) {
+            $compiled = $this->validator->compileCollection($state, $class);
+            $this->validator->validate($state, $compiled, $request, $class);
+        }
+
+        if ($shouldValidate && $context->afterValidationHooks !== []) {
+            $this->applyPayloadHooks(
+                $class,
+                $context->afterValidationHooks,
+                $state,
+                $extensions,
+                false,
+                false,
+                collection: true,
+            );
+        }
+
+        // Fill and construction preserve source keys and enforce the requested class at every object exit.
+        /** @var array<TKey, TData> $items */
+        $items = $this->castCollectionItems($class, $state, $extensions);
+
+        return $items;
+    }
+
+    /**
+     * Batch relations explicitly selected by data properties.
+     *
+     * @param class-string<BaseData> $class
+     */
+    protected function loadMissingRelations(string $class, EloquentCollection $models): void
+    {
+        if ($models->isEmpty()) {
+            return;
+        }
+
+        $model = $models->first();
+        $relations = [];
+
+        foreach ($this->dataClasses->get($class)->properties as $property) {
+            if (! $property->loadRelation) {
+                continue;
+            }
+
+            if (($relation = $property->resolveModelRelation($model)) !== null) {
+                $relations[] = $relation;
+            }
+        }
+
+        if ($relations !== []) {
+            $models->loadMissing($relations);
+        }
+    }
+
+    /**
+     * Fill every eager root collection item into one construction state.
+     *
+     * @param class-string<BaseData> $class
+     * @param array<array-key, mixed> $values
+     * @param OperationMemo $extensions
+     */
+    protected function fillCollectionItems(
+        string $class,
+        array $values,
+        ConstructionState $state,
+        array &$extensions,
+        bool $shouldValidate,
+    ): void {
+        foreach ($values as $key => $item) {
+            if ($item instanceof $class) {
+                $state->writeFinishedItemValue($key, $item);
+
+                continue;
+            }
+
+            $state->writeItemValue($key, []);
+            $state->enterItem($key);
+
+            try {
+                $direct = $this->fillNode(
+                    $class,
+                    [$item],
+                    $state,
+                    $extensions,
+                    $shouldValidate,
+                    $shouldValidate,
+                );
+            } finally {
+                $state->leave();
+            }
+
+            if ($direct !== null) {
+                $state->writeFinishedItemValue($key, $direct);
+            }
+        }
+    }
+
+    /**
+     * Cast and instantiate every eager root collection item.
+     *
+     * @param class-string<BaseData> $class
+     * @param OperationMemo $extensions
+     * @return array<array-key, BaseData>
+     */
+    protected function castCollectionItems(
+        string $class,
+        ConstructionState $state,
+        array &$extensions,
+    ): array {
+        $items = [];
+
+        foreach ($state->payload() as $key => $item) {
+            if ($item instanceof $class) {
+                $items[$key] = $item;
+
+                continue;
+            }
+
+            $state->enterItem($key);
+
+            try {
+                $items[$key] = $this->castAndInstantiateNode($state, $extensions);
+            } finally {
+                $state->leave();
+            }
+        }
+
+        return $items;
     }
 
     /**
@@ -114,7 +562,7 @@ class DataCreator
      *
      * @param class-string<BaseData> $class
      * @param array<array-key, mixed> $payloads
-     * @return BaseData|array<array-key, mixed>
+     * @return array<array-key, mixed>|BaseData
      */
     protected function execute(
         string $class,
@@ -194,7 +642,7 @@ class DataCreator
      *
      * @param class-string<BaseData> $class
      * @param array<array-key, mixed> $payloads
-     * @param array<string, object> $extensions
+     * @param OperationMemo $extensions
      */
     protected function fillNode(
         string $class,
@@ -217,11 +665,24 @@ class DataCreator
             $payloads = [$result];
         }
 
+        $direct = $this->tryCreateDirectArrayNode(
+            $dataClass,
+            $payloads,
+            $state,
+            $shouldValidate,
+            $compilesRules,
+        );
+
+        if ($direct !== null) {
+            return $direct;
+        }
+
         $normalizers = $this->resolveNormalizers($dataClass, $state->context, $extensions);
+        $payloads = $payloads === [] ? [[]] : $payloads;
         $sources = [];
         $unknownInputSources = [];
 
-        foreach ($payloads === [] ? [[]] : $payloads as $payload) {
+        foreach ($payloads as $payload) {
             $source = SourceResolver::resolve($class, $payload, $normalizers);
             $sources[] = $source;
             $unknownInputSources[] = $payload instanceof Request
@@ -261,6 +722,8 @@ class DataCreator
         $this->fillResolvedProperties(
             $dataClass,
             $resolvedProperties,
+            $sources,
+            $payloads,
             $state,
             $extensions,
             $shouldValidate,
@@ -272,10 +735,97 @@ class DataCreator
     }
 
     /**
+     * Create one exact array node without entering the general Fill path.
+     *
+     * A miss remains in the current invocation so a named factory is never matched twice.
+     *
+     * @param array<array-key, mixed> $payloads
+     */
+    protected function tryCreateDirectArrayNode(
+        DataClass $dataClass,
+        array $payloads,
+        ConstructionState $state,
+        bool $shouldValidate,
+        bool $compilesRules,
+    ): ?BaseData {
+        $context = $state->context;
+
+        if ($context->mode !== CreationMode::Create
+            || $shouldValidate
+            || $compilesRules
+            || ! $dataClass->directArrayCreation
+            || count($payloads) !== 1
+            || $context->normalizers !== []
+            || $context->casts !== []
+            || $context->prepareDataHooks !== []
+            || $context->beforeCreationHooks !== []
+            || $context->afterCreationHooks !== []) {
+            return null;
+        }
+
+        $payload = $payloads[array_key_first($payloads)];
+
+        if (! is_array($payload)) {
+            return null;
+        }
+
+        $properties = [];
+
+        foreach ($dataClass->properties as $property) {
+            $mappedKey = $this->propertyInputKey($property, $context);
+            $match = $this->matchPropertySource($payload, $property, $mappedKey);
+            $value = $match === null ? UnknownProperty::create() : $match[1];
+
+            if ($value instanceof UnknownProperty) {
+                // Computed values are assigned by the class and never enter construction input.
+                if ($property->computed) {
+                    continue;
+                }
+
+                if ($property->hasDefaultValue) {
+                    continue;
+                }
+
+                if ($property->type->isOptional) {
+                    $properties[$property->name] = Optional::create();
+
+                    continue;
+                }
+
+                if ($property->type->isNullable) {
+                    $properties[$property->name] = null;
+
+                    continue;
+                }
+
+                return null;
+            }
+
+            if ($property->computed) {
+                return null;
+            }
+
+            if ($value === null || $value instanceof Optional) {
+                $properties[$property->name] = $value;
+
+                continue;
+            }
+
+            if (! $property->type->acceptsValue($value)) {
+                return null;
+            }
+
+            $properties[$property->name] = $value;
+        }
+
+        return $this->instantiator->instantiate($dataClass, $properties);
+    }
+
+    /**
      * Fill one node introduced or changed by a validation payload hook.
      *
      * @param class-string<BaseData> $class
-     * @param array<string, object> $extensions
+     * @param OperationMemo $extensions
      */
     protected function fillHookNode(
         string $class,
@@ -309,6 +859,8 @@ class DataCreator
         $this->fillResolvedProperties(
             $dataClass,
             $resolvedProperties,
+            [$source],
+            [$payload],
             $state,
             $extensions,
             $shouldValidate,
@@ -323,11 +875,15 @@ class DataCreator
      * Write one resolved data node and recursively fill its declared children.
      *
      * @param array<string, array{array-key, mixed}> $resolvedProperties
-     * @param array<string, object> $extensions
+     * @param list<array|Normalized> $sources
+     * @param list<mixed> $payloads
+     * @param OperationMemo $extensions
      */
     protected function fillResolvedProperties(
         DataClass $dataClass,
         array $resolvedProperties,
+        array $sources,
+        array $payloads,
         ConstructionState $state,
         array &$extensions,
         bool $shouldValidate,
@@ -344,7 +900,33 @@ class DataCreator
                 continue;
             }
 
+            $inputPath = $property->inputPath($wireKey);
+            $autoLazySource = null;
+
+            if ($property->autoLazy !== null) {
+                $autoLazySource = $this->resolveAutoLazySource(
+                    $property,
+                    $sources,
+                    $payloads,
+                    $state->context,
+                );
+                $state->recordAutoLazy($property->name, $autoLazySource);
+            }
+
             if ($value instanceof UnknownProperty) {
+                if ($property->autoLazy !== null
+                    && $this->requiresAutoLazyReplay($property)
+                    && ($property->hasDefaultValue || $this->isAutoWhenLoaded($property))
+                ) {
+                    $state->recordAutoLazy(
+                        $property->name,
+                        $autoLazySource,
+                        $fromValidationHook
+                            ? AutoLazyReplayMode::Hook
+                            : AutoLazyReplayMode::Normal,
+                    );
+                }
+
                 continue;
             }
 
@@ -352,117 +934,183 @@ class DataCreator
                 throw CannotSetComputedValue::create($property);
             }
 
-            $dataIterable = $this->dataIterableType($property);
-
             if ($property->isFinishedValue($value)) {
-                $state->writeFinishedPropertyValue($wireKey, $value);
+                $state->writeFinishedPropertyValue($inputPath, $value);
 
                 continue;
             }
 
-            if ($dataIterable !== null && $value instanceof LazyCollection) {
-                if (! $compilesRules) {
-                    $state->writePropertyValue($wireKey, $value);
-
-                    continue;
-                }
-
-                $value = $value->all();
-            }
-
-            $iterableValues = $dataIterable === null ? null : $this->iterableValues($value);
-
-            if ($dataIterable !== null && $iterableValues !== null) {
-                /** @var class-string<BaseData> $itemDataClass */
-                $itemDataClass = $dataIterable->dataClass;
-                $state->writePropertyValue($wireKey, []);
-                $state->enterProperty($property->name, $wireKey);
-
-                try {
-                    foreach ($iterableValues as $key => $item) {
-                        if ($item instanceof $itemDataClass) {
-                            $state->writeFinishedItemValue($key, $item);
-
-                            continue;
-                        }
-
-                        $state->writeItemValue($key, []);
-                        $state->enterItem($key);
-
-                        try {
-                            $direct = $fromValidationHook
-                                ? $this->fillHookNode(
-                                    $itemDataClass,
-                                    $item,
-                                    $state,
-                                    $extensions,
-                                    $shouldValidate,
-                                    $compilesRules,
-                                )
-                                : $this->fillNode(
-                                    $itemDataClass,
-                                    [$item],
-                                    $state,
-                                    $extensions,
-                                    $shouldValidate,
-                                    $compilesRules,
-                                );
-                        } finally {
-                            $state->leave();
-                        }
-
-                        if ($direct !== null) {
-                            $state->writeFinishedItemValue($key, $direct);
-                        }
-                    }
-                } finally {
-                    $state->leave();
-                }
-
-                continue;
-            }
-
-            $nestedDataClass = $this->nestedDataClass($property);
-
-            if ($nestedDataClass !== null
+            if ($property->autoLazy !== null
+                && (! $compilesRules || ! $property->validate)
+                && $this->requiresAutoLazyReplay($property)
                 && $value !== null
                 && ! $value instanceof Optional
-                && ! $property->type->acceptsValue($value)
+                && ! $value instanceof Lazy
             ) {
-                $state->writePropertyValue($wireKey, []);
-                $state->enterProperty($property->name, $wireKey);
-
-                try {
-                    $direct = $fromValidationHook
-                        ? $this->fillHookNode(
-                            $nestedDataClass,
-                            $value,
-                            $state,
-                            $extensions,
-                            $shouldValidate,
-                            $compilesRules,
-                        )
-                        : $this->fillNode(
-                            $nestedDataClass,
-                            [$value],
-                            $state,
-                            $extensions,
-                            $shouldValidate,
-                            $compilesRules,
-                        );
-                } finally {
-                    $state->leave();
-                }
-
-                if ($direct !== null) {
-                    $state->writeFinishedPropertyValue($wireKey, $direct);
-                }
+                $state->recordAutoLazy(
+                    $property->name,
+                    $autoLazySource,
+                    $fromValidationHook
+                        ? AutoLazyReplayMode::Hook
+                        : AutoLazyReplayMode::Normal,
+                );
+                $state->writePropertyValue($inputPath, $value);
 
                 continue;
             }
 
-            $state->writePropertyValue($wireKey, $value);
+            $this->fillResolvedProperty(
+                $property,
+                $inputPath,
+                $value,
+                $state,
+                $extensions,
+                $shouldValidate,
+                $compilesRules,
+                $fromValidationHook,
+            );
         }
+    }
+
+    /**
+     * Write one resolved property and recursively fill its declared children.
+     *
+     * @param OperationMemo $extensions
+     * @param non-empty-list<array-key> $inputPath
+     */
+    protected function fillResolvedProperty(
+        DataProperty $property,
+        array $inputPath,
+        mixed $value,
+        ConstructionState $state,
+        array &$extensions,
+        bool $shouldValidate,
+        bool $compilesRules,
+        bool $fromValidationHook,
+    ): void {
+        $dataIterable = $this->dataIterableType($property);
+        $typedIterable = $dataIterable === null
+            ? $this->typedIterableType($property)
+            : null;
+
+        if ($dataIterable !== null || $typedIterable !== null) {
+            $this->retainPaginatorSource(
+                $property,
+                $dataIterable ?? $typedIterable,
+                $value,
+                $inputPath,
+                $state,
+            );
+        }
+
+        if ($dataIterable !== null && $value instanceof LazyCollection) {
+            if (! $compilesRules) {
+                $state->writePropertyValue($inputPath, $value);
+
+                return;
+            }
+
+            $value = $value->all();
+        }
+
+        if ($dataIterable !== null && $value instanceof EloquentCollection) {
+            /** @var class-string<BaseData> $itemDataClass */
+            $itemDataClass = $dataIterable->dataClass;
+            $this->loadMissingRelations($itemDataClass, $value);
+        }
+
+        $iterableValues = $dataIterable === null ? null : $this->iterableValues($value);
+
+        if ($dataIterable !== null && $iterableValues !== null) {
+            /** @var class-string<BaseData> $itemDataClass */
+            $itemDataClass = $dataIterable->dataClass;
+            $state->writePropertyValue($inputPath, []);
+            $state->enterProperty($property->name, $inputPath);
+
+            try {
+                foreach ($iterableValues as $key => $item) {
+                    if ($item instanceof $itemDataClass) {
+                        $state->writeFinishedItemValue($key, $item);
+
+                        continue;
+                    }
+
+                    $state->writeItemValue($key, []);
+                    $state->enterItem($key);
+
+                    try {
+                        $direct = $fromValidationHook
+                            ? $this->fillHookNode(
+                                $itemDataClass,
+                                $item,
+                                $state,
+                                $extensions,
+                                $shouldValidate,
+                                $compilesRules,
+                            )
+                            : $this->fillNode(
+                                $itemDataClass,
+                                [$item],
+                                $state,
+                                $extensions,
+                                $shouldValidate,
+                                $compilesRules,
+                            );
+                    } finally {
+                        $state->leave();
+                    }
+
+                    if ($direct !== null) {
+                        $state->writeFinishedItemValue($key, $direct);
+                    }
+                }
+            } finally {
+                $state->leave();
+            }
+
+            return;
+        }
+
+        $nestedDataClass = $this->nestedDataClass($property);
+
+        if ($nestedDataClass !== null
+            && $value !== null
+            && ! $value instanceof Optional
+            && ! $property->type->acceptsValue($value)
+        ) {
+            $state->writePropertyValue($inputPath, []);
+            $state->enterProperty($property->name, $inputPath);
+
+            try {
+                $direct = $fromValidationHook
+                    ? $this->fillHookNode(
+                        $nestedDataClass,
+                        $value,
+                        $state,
+                        $extensions,
+                        $shouldValidate,
+                        $compilesRules,
+                    )
+                    : $this->fillNode(
+                        $nestedDataClass,
+                        [$value],
+                        $state,
+                        $extensions,
+                        $shouldValidate,
+                        $compilesRules,
+                    );
+            } finally {
+                $state->leave();
+            }
+
+            if ($direct !== null) {
+                $state->writeFinishedPropertyValue($inputPath, $direct);
+            }
+
+            return;
+        }
+
+        $state->writePropertyValue($inputPath, $value);
     }
 
     /**
@@ -470,7 +1118,7 @@ class DataCreator
      *
      * @param class-string<BaseData> $class
      * @param list<callable> $hooks
-     * @param array<string, object> $extensions
+     * @param OperationMemo $extensions
      */
     protected function applyPayloadHooks(
         string $class,
@@ -480,6 +1128,7 @@ class DataCreator
         bool $shouldValidate,
         bool $compilesRules,
         bool $reconcile = true,
+        bool $collection = false,
     ): void {
         $previousPayload = $state->payload();
         $payload = $previousPayload;
@@ -495,15 +1144,110 @@ class DataCreator
         $state->replacePayload($payload);
 
         if ($reconcile) {
-            $this->reconcileNode(
-                $class,
-                $previousPayload,
-                $payload,
-                $state,
-                $extensions,
-                $shouldValidate,
-                $compilesRules,
-            );
+            if ($collection) {
+                $this->reconcileCollection(
+                    $class,
+                    $previousPayload,
+                    $payload,
+                    $state,
+                    $extensions,
+                    $shouldValidate,
+                    $compilesRules,
+                );
+            } else {
+                $this->reconcileNode(
+                    $class,
+                    $previousPayload,
+                    $payload,
+                    $state,
+                    $extensions,
+                    $shouldValidate,
+                    $compilesRules,
+                );
+            }
+        }
+    }
+
+    /**
+     * Reconcile changed eager root collection items.
+     *
+     * @param class-string<BaseData> $class
+     * @param array<array-key, mixed> $previousPayload
+     * @param array<array-key, mixed> $payload
+     * @param OperationMemo $extensions
+     */
+    protected function reconcileCollection(
+        string $class,
+        array $previousPayload,
+        array $payload,
+        ConstructionState $state,
+        array &$extensions,
+        bool $shouldValidate,
+        bool $compilesRules,
+    ): void {
+        foreach ($payload as $key => $item) {
+            $previousItem = $previousPayload[$key] ?? UnknownProperty::create();
+
+            if ($item === $previousItem) {
+                continue;
+            }
+
+            if ($item instanceof $class) {
+                $state->enterItem($key);
+
+                try {
+                    $state->resetNodeStructure();
+                } finally {
+                    $state->leave();
+                }
+
+                $state->writeFinishedItemValue($key, $item);
+
+                continue;
+            }
+
+            if (is_array($previousItem) && is_array($item)) {
+                $state->enterItem($key);
+
+                try {
+                    if ($state->nodeClass() !== null) {
+                        $this->reconcileNode(
+                            $class,
+                            $previousItem,
+                            $item,
+                            $state,
+                            $extensions,
+                            $shouldValidate,
+                            $compilesRules,
+                        );
+
+                        continue;
+                    }
+                } finally {
+                    $state->leave();
+                }
+            }
+
+            $state->writeItemValue($key, []);
+            $state->enterItem($key);
+
+            try {
+                $state->resetNodeStructure();
+                $direct = $this->fillHookNode(
+                    $class,
+                    $item,
+                    $state,
+                    $extensions,
+                    $shouldValidate,
+                    $compilesRules,
+                );
+            } finally {
+                $state->leave();
+            }
+
+            if ($direct !== null) {
+                $state->writeFinishedItemValue($key, $direct);
+            }
         }
     }
 
@@ -513,7 +1257,7 @@ class DataCreator
      * @param class-string<BaseData> $declaredClass
      * @param array<array-key, mixed> $previousPayload
      * @param array<array-key, mixed> $payload
-     * @param array<string, object> $extensions
+     * @param OperationMemo $extensions
      */
     protected function reconcileNode(
         string $declaredClass,
@@ -543,6 +1287,8 @@ class DataCreator
             $this->fillResolvedProperties(
                 $dataClass,
                 $resolvedProperties,
+                [$payload],
+                [$payload],
                 $state,
                 $extensions,
                 $shouldValidate,
@@ -561,7 +1307,11 @@ class DataCreator
 
         foreach ($dataClass->properties as $property) {
             $previousWireKey = $state->originalKey($property->name);
-            $previousValue = SourceReader::read($previousPayload, $previousWireKey, $property);
+            $previousValue = SourceReader::read(
+                $previousPayload,
+                $property->inputPath($previousWireKey),
+                $property,
+            );
             [$wireKey, $value] = $resolvedProperties[$property->name];
 
             if ($wireKey !== $previousWireKey) {
@@ -581,6 +1331,7 @@ class DataCreator
                 $previousValue,
                 $value,
                 $wireKey,
+                $payload,
                 $state,
                 $extensions,
                 $shouldValidate,
@@ -592,19 +1343,69 @@ class DataCreator
     /**
      * Reconcile one changed property selection.
      *
-     * @param array<string, object> $extensions
+     * @param OperationMemo $extensions
      */
     protected function reconcileProperty(
         DataProperty $property,
         mixed $previousValue,
         mixed $value,
         string|int $wireKey,
+        array $payload,
         ConstructionState $state,
         array &$extensions,
         bool $shouldValidate,
         bool $compilesRules,
     ): void {
+        $inputPath = $property->inputPath($wireKey);
+        $autoLazySource = null;
+
+        if ($property->autoLazy !== null) {
+            $autoLazySource = $this->resolveAutoLazySource(
+                $property,
+                [$payload],
+                [$payload],
+                $state->context,
+            );
+            $state->recordAutoLazy($property->name, $autoLazySource);
+        }
+
         $dataIterable = $this->dataIterableType($property);
+        $typedIterable = $dataIterable === null
+            ? $this->typedIterableType($property)
+            : null;
+
+        if ($property->autoLazy !== null
+            && (! $compilesRules || ! $property->validate)
+            && $this->requiresAutoLazyReplay($property)
+            && (
+                ($value instanceof UnknownProperty
+                    && ($property->hasDefaultValue || $this->isAutoWhenLoaded($property)))
+                || ($value !== null
+                    && ! $value instanceof UnknownProperty
+                    && ! $value instanceof Optional
+                    && ! $value instanceof Lazy
+                    && ! $property->isFinishedValue($value))
+            )
+        ) {
+            $state->clearChildStructure($property->name);
+            $state->recordAutoLazy(
+                $property->name,
+                $autoLazySource,
+                AutoLazyReplayMode::Hook,
+            );
+
+            return;
+        }
+
+        if ($dataIterable !== null || $typedIterable !== null) {
+            $this->retainPaginatorSource(
+                $property,
+                $dataIterable ?? $typedIterable,
+                $value,
+                $inputPath,
+                $state,
+            );
+        }
 
         if ($dataIterable !== null) {
             $this->reconcileDataIterable(
@@ -612,7 +1413,7 @@ class DataCreator
                 $dataIterable,
                 $previousValue,
                 $value,
-                $wireKey,
+                $inputPath,
                 $state,
                 $extensions,
                 $shouldValidate,
@@ -636,14 +1437,14 @@ class DataCreator
             $state->clearChildStructure($property->name);
 
             if ($value instanceof BaseData) {
-                $state->writeFinishedPropertyValue($wireKey, $value);
+                $state->writeFinishedPropertyValue($inputPath, $value);
             }
 
             return;
         }
 
         if (is_array($previousValue) && is_array($value)) {
-            $state->enterProperty($property->name, $wireKey);
+            $state->enterProperty($property->name, $inputPath);
 
             try {
                 if ($state->nodeClass() !== null) {
@@ -665,8 +1466,8 @@ class DataCreator
         }
 
         $state->clearChildStructure($property->name);
-        $state->writePropertyValue($wireKey, []);
-        $state->enterProperty($property->name, $wireKey);
+        $state->writePropertyValue($inputPath, []);
+        $state->enterProperty($property->name, $inputPath);
 
         try {
             $state->resetNodeStructure();
@@ -683,21 +1484,22 @@ class DataCreator
         }
 
         if ($direct !== null) {
-            $state->writeFinishedPropertyValue($wireKey, $direct);
+            $state->writeFinishedPropertyValue($inputPath, $direct);
         }
     }
 
     /**
      * Reconcile one changed typed data iterable.
      *
-     * @param array<string, object> $extensions
+     * @param OperationMemo $extensions
+     * @param non-empty-list<array-key> $inputPath
      */
     protected function reconcileDataIterable(
         DataProperty $property,
         NamedType $type,
         mixed $previousValue,
         mixed $value,
-        string|int $wireKey,
+        array $inputPath,
         ConstructionState $state,
         array &$extensions,
         bool $shouldValidate,
@@ -705,7 +1507,7 @@ class DataCreator
     ): void {
         if ($property->isFinishedValue($value)) {
             $state->clearChildStructure($property->name);
-            $state->writeFinishedPropertyValue($wireKey, $value);
+            $state->writeFinishedPropertyValue($inputPath, $value);
 
             return;
         }
@@ -718,7 +1520,7 @@ class DataCreator
             }
 
             $value = $value->all();
-            $state->writePropertyValue($wireKey, $value);
+            $state->writePropertyValue($inputPath, $value);
         }
 
         $values = $this->iterableValues($value);
@@ -732,7 +1534,7 @@ class DataCreator
         $previousValues = $this->iterableValues($previousValue) ?? [];
         /** @var class-string<BaseData> $itemDataClass */
         $itemDataClass = $type->dataClass;
-        $state->enterProperty($property->name, $wireKey);
+        $state->enterProperty($property->name, $inputPath);
 
         try {
             foreach ($values as $key => $item) {
@@ -807,7 +1609,7 @@ class DataCreator
     /**
      * Cast and instantiate the node at the current construction path.
      *
-     * @param array<string, object> $extensions
+     * @param OperationMemo $extensions
      */
     protected function castAndInstantiateNode(
         ConstructionState $state,
@@ -824,8 +1626,33 @@ class DataCreator
             }
 
             $wireKey = $state->originalKey($property->name);
+            $inputPath = $property->inputPath($wireKey);
 
-            if (! $state->hasValue($wireKey)) {
+            if (! $state->hasValue($inputPath)) {
+                if ($property->autoLazy !== null && $property->hasDefaultValue) {
+                    $value = $this->propertyDefaultValue($dataClass, $property);
+                    $state->writePropertyValue($inputPath, $value);
+                    $properties[$property->name] = $this->buildAutoLazy(
+                        $property,
+                        $value,
+                        $state,
+                        $extensions,
+                    );
+
+                    continue;
+                }
+
+                if ($property->autoLazy !== null && $this->isAutoWhenLoaded($property)) {
+                    $properties[$property->name] = $this->buildAutoLazy(
+                        $property,
+                        UnknownProperty::create(),
+                        $state,
+                        $extensions,
+                    );
+
+                    continue;
+                }
+
                 if ($property->hasDefaultValue) {
                     continue;
                 }
@@ -839,12 +1666,10 @@ class DataCreator
                 continue;
             }
 
-            $properties[$property->name] = $this->castProperty(
-                $property,
-                $state->getValue($wireKey),
-                $state,
-                $extensions,
-            );
+            $value = $state->getValue($inputPath);
+            $properties[$property->name] = $property->autoLazy === null
+                ? $this->castProperty($property, $value, $state, $extensions)
+                : $this->buildAutoLazy($property, $value, $state, $extensions);
         }
 
         foreach ($state->context->beforeCreationHooks as $hook) {
@@ -865,9 +1690,54 @@ class DataCreator
     }
 
     /**
+     * Build one automatic lazy property around the ordinary cast path.
+     *
+     * @param OperationMemo $extensions
+     */
+    protected function buildAutoLazy(
+        DataProperty $property,
+        mixed $value,
+        ConstructionState $state,
+        array &$extensions,
+    ): mixed {
+        if ($value === null || $value instanceof Optional || $value instanceof Lazy) {
+            return $value;
+        }
+
+        /** @var array{source: mixed, replay?: AutoLazyReplayMode} $recipe */
+        $recipe = $state->autoLazy($property->name);
+        $snapshot = $state->snapshotForProperty($property->name);
+        $propertyName = $property->name;
+        $replay = $recipe['replay'] ?? null;
+        $castValue = static function (mixed $resolvedValue) use (
+            $propertyName,
+            $replay,
+            $snapshot,
+        ): mixed {
+            $state = clone $snapshot;
+            /** @var self $creator */
+            $creator = ConcreteContainer::getInstance()->make(self::class);
+
+            return $creator->resolveAutoLazyProperty(
+                $propertyName,
+                $resolvedValue,
+                $state,
+                $replay,
+            );
+        };
+
+        return $this->resolveAutoLazy($property, $extensions)->build(
+            $castValue,
+            $recipe['source'],
+            $property,
+            $value,
+        );
+    }
+
+    /**
      * Cast one supplied property value.
      *
-     * @param array<string, object> $extensions
+     * @param OperationMemo $extensions
      */
     protected function castProperty(
         DataProperty $property,
@@ -909,11 +1779,13 @@ class DataCreator
             return $this->castTypedIterable($property, $iterable, $value, $state, $extensions, $casts);
         }
 
+        // The exact-array exit relies on accepted values passing before the fallback conversions below.
         if ($property->type->acceptsValue($value)) {
             return $value;
         }
 
-        $state->enterProperty($property->name, $state->originalKey($property->name));
+        $wireKey = $state->originalKey($property->name);
+        $state->enterProperty($property->name, $property->inputPath($wireKey));
 
         try {
             if ($state->nodeClass() !== null) {
@@ -943,6 +1815,7 @@ class DataCreator
             }
 
             $key = 'castable:' . $type->name;
+            /** @var CastableCast $cast */
             $cast = $extensions[$key] ??= new CastableCast($type->name);
             $casted = $cast->cast($property, $value, $state, $state->context);
 
@@ -955,6 +1828,7 @@ class DataCreator
 
         if ($dateType !== null) {
             $key = 'date:' . $dateType;
+            /** @var DateTimeInterfaceCast $cast */
             $cast = $extensions[$key] ??= new DateTimeInterfaceCast(type: $dateType);
 
             return $cast->cast(
@@ -969,6 +1843,7 @@ class DataCreator
 
         if ($enumType !== null) {
             $key = 'enum:' . $enumType;
+            /** @var EnumCast $cast */
             $cast = $extensions[$key] ??= new EnumCast($enumType);
 
             return $cast->cast(
@@ -983,6 +1858,7 @@ class DataCreator
 
         if ($builtin !== null) {
             $key = 'builtin:' . $builtin;
+            /** @var BuiltinTypeCast $cast */
             $cast = $extensions[$key] ??= new BuiltinTypeCast($builtin);
 
             return $cast->cast(
@@ -999,7 +1875,7 @@ class DataCreator
     /**
      * Cast every item in one declared data iterable.
      *
-     * @param array<string, object> $extensions
+     * @param OperationMemo $extensions
      */
     protected function castDataIterable(
         DataProperty $property,
@@ -1008,13 +1884,22 @@ class DataCreator
         ConstructionState $state,
         array &$extensions,
     ): mixed {
+        /** @var class-string<BaseData> $dataClass */
         $dataClass = $type->dataClass;
 
-        if ($value instanceof LazyCollection) {
+        if ($value instanceof LazyCollection
+            && ! $type->kind->isPaginator()
+            && ! $type->kind->isCursorPaginator()
+        ) {
             return $value->map(
-                fn (mixed $item): BaseData => $item instanceof $dataClass
-                    ? $item
-                    : $this->create($dataClass, $state->context, $item),
+                function (mixed $item) use ($dataClass, $state, &$extensions): BaseData {
+                    return $this->createUnvalidatedNode(
+                        $dataClass,
+                        $state->context,
+                        $item,
+                        $extensions,
+                    );
+                },
             );
         }
 
@@ -1025,7 +1910,8 @@ class DataCreator
         }
 
         $items = [];
-        $state->enterProperty($property->name, $state->originalKey($property->name));
+        $wireKey = $state->originalKey($property->name);
+        $state->enterProperty($property->name, $property->inputPath($wireKey));
 
         try {
             foreach ($values as $key => $item) {
@@ -1039,28 +1925,32 @@ class DataCreator
 
                 try {
                     $items[$key] = $state->nodeClass() === null
-                        ? $this->create($dataClass, $state->context, $item)
+                        ? $this->createUnvalidatedNode(
+                            $dataClass,
+                            $state->context,
+                            $item,
+                            $extensions,
+                        )
                         : $this->castAndInstantiateNode($state, $extensions);
                 } finally {
                     $state->leave();
                 }
             }
+
+            return $this->dataCollectables->forProperty(
+                $type,
+                $items,
+                $state,
+            );
         } finally {
             $state->leave();
         }
-
-        return $this->dataCollectables->forProperty(
-            $type,
-            $dataClass,
-            $items,
-            $state,
-        );
     }
 
     /**
      * Cast every item in one declared non-data iterable.
      *
-     * @param array<string, object> $extensions
+     * @param OperationMemo $extensions
      * @param list<Cast> $casts
      */
     protected function castTypedIterable(
@@ -1071,7 +1961,10 @@ class DataCreator
         array &$extensions,
         array $casts,
     ): mixed {
-        if ($value instanceof LazyCollection) {
+        if ($value instanceof LazyCollection
+            && ! $type->kind->isPaginator()
+            && ! $type->kind->isCursorPaginator()
+        ) {
             return $value->map(function (mixed $item) use ($property, $type, $state, &$extensions, $casts): mixed {
                 return $this->castIterableItem(
                     $property,
@@ -1091,25 +1984,31 @@ class DataCreator
         }
 
         $items = [];
+        $wireKey = $state->originalKey($property->name);
+        $state->enterProperty($property->name, $property->inputPath($wireKey));
 
-        foreach ($values as $key => $item) {
-            $items[$key] = $this->castIterableItem(
-                $property,
-                $type->iterableItemType,
-                $item,
-                $state,
-                $extensions,
-                $casts,
-            );
+        try {
+            foreach ($values as $key => $item) {
+                $items[$key] = $this->castIterableItem(
+                    $property,
+                    $type->iterableItemType,
+                    $item,
+                    $state,
+                    $extensions,
+                    $casts,
+                );
+            }
+
+            return $this->dataCollectables->forProperty($type, $items, $state);
+        } finally {
+            $state->leave();
         }
-
-        return $this->rebuildIterable($type, $items);
     }
 
     /**
      * Cast one declared iterable item.
      *
-     * @param array<string, object> $extensions
+     * @param OperationMemo $extensions
      * @param list<Cast> $casts
      */
     protected function castIterableItem(
@@ -1146,6 +2045,7 @@ class DataCreator
             }
 
             $key = 'iterable-castable:' . $namedType->name;
+            /** @var CastableCast $cast */
             $cast = $extensions[$key] ??= new CastableCast($namedType->name);
             $casted = $cast->cast($property, $value, $state, $state->context);
 
@@ -1158,6 +2058,7 @@ class DataCreator
 
         if ($dateType !== null) {
             $key = 'date:' . $dateType;
+            /** @var DateTimeInterfaceCast $cast */
             $cast = $extensions[$key] ??= new DateTimeInterfaceCast(type: $dateType);
 
             return $cast->castIterableItem(
@@ -1172,6 +2073,7 @@ class DataCreator
 
         if ($enumType !== null) {
             $key = 'enum:' . $enumType;
+            /** @var EnumCast $cast */
             $cast = $extensions[$key] ??= new EnumCast($enumType);
 
             return $cast->castIterableItem(
@@ -1186,6 +2088,7 @@ class DataCreator
 
         if ($builtin !== null) {
             $key = 'builtin:' . $builtin;
+            /** @var BuiltinTypeCast $cast */
             $cast = $extensions[$key] ??= new BuiltinTypeCast($builtin);
 
             return $cast->castIterableItem(
@@ -1200,29 +2103,29 @@ class DataCreator
     }
 
     /**
-     * Rebuild an eager iterable in its declared container.
+     * Resolve one automatic lazy attribute for the current root operation.
      *
-     * @param array<array-key, mixed> $items
+     * @param OperationMemo $extensions
      */
-    protected function rebuildIterable(NamedType $type, array $items): mixed
+    protected function resolveAutoLazy(DataProperty $property, array &$extensions): AutoLazy
     {
-        $iterableClass = $type->iterableClass;
+        $attribute = $property->autoLazy;
+        $key = 'auto-lazy:' . spl_object_id($attribute);
 
-        if ($iterableClass !== null && is_a($iterableClass, Collection::class, true)) {
-            return new $iterableClass($items);
+        if (! isset($extensions[$key])) {
+            $extensions[$key] = $attribute->newInstance();
         }
 
-        if ($iterableClass !== null && is_a($iterableClass, LazyCollection::class, true)) {
-            return new $iterableClass($items);
-        }
+        /** @var AutoLazy $autoLazy */
+        $autoLazy = $extensions[$key];
 
-        return $items;
+        return $autoLazy;
     }
 
     /**
      * Get the ordered custom casts applicable to a property.
      *
-     * @param array<string, object> $extensions
+     * @param OperationMemo $extensions
      * @return list<Cast>
      */
     protected function propertyCasts(
@@ -1261,7 +2164,7 @@ class DataCreator
      * Resolve one cast once for the current root operation.
      *
      * @param Cast|class-string<Cast> $cast
-     * @param array<string, object> $extensions
+     * @param OperationMemo $extensions
      */
     protected function resolveCast(Cast|string $cast, array &$extensions): Cast
     {
@@ -1278,7 +2181,7 @@ class DataCreator
     /**
      * Resolve the custom normalizers for one data class.
      *
-     * @param array<string, object> $extensions
+     * @param OperationMemo $extensions
      * @return list<Normalizer>
      */
     protected function resolveNormalizers(
@@ -1286,10 +2189,20 @@ class DataCreator
         CreationContext $context,
         array &$extensions,
     ): array {
+        $key = 'normalizers:' . $dataClass->name;
+
+        if (isset($extensions[$key])) {
+            /** @var list<Normalizer> $normalizers */
+            $normalizers = $extensions[$key];
+
+            return $normalizers;
+        }
+
         $normalizers = [];
 
         if ($dataClass->hasLifecycleMethod('normalizers')) {
             $class = $dataClass->name;
+            /** @var list<class-string<Normalizer>|Normalizer> $normalizers */
             $normalizers = $this->container->call($class::normalizers(...));
         }
 
@@ -1300,13 +2213,20 @@ class DataCreator
                 continue;
             }
 
-            $key = 'normalizer:' . $normalizer;
+            $normalizerKey = 'normalizer:' . $normalizer;
 
-            /** @var Normalizer */
-            $normalizers[$index] = $extensions[$key] ??= $this->container->make($normalizer);
+            if (! isset($extensions[$normalizerKey])) {
+                /** @var Normalizer $resolvedNormalizer */
+                $resolvedNormalizer = $this->container->make($normalizer);
+                $extensions[$normalizerKey] = $resolvedNormalizer;
+            }
+
+            /** @var Normalizer $resolvedNormalizer */
+            $resolvedNormalizer = $extensions[$normalizerKey];
+            $normalizers[$index] = $resolvedNormalizer;
         }
 
-        return array_values($normalizers);
+        return $extensions[$key] = array_values($normalizers);
     }
 
     /**
@@ -1340,29 +2260,89 @@ class DataCreator
         DataProperty $property,
         CreationContext $context,
     ): array {
-        $mappedKey = $context->mapPropertyNames
-            ? ($property->inputMappedName ?? $property->name)
-            : $property->name;
+        $mappedKey = $this->propertyInputKey($property, $context);
 
         foreach ($sources as $source) {
-            $value = SourceReader::read($source, $mappedKey, $property);
+            $match = $this->matchPropertySource($source, $property, $mappedKey);
 
-            if (! $value instanceof UnknownProperty) {
-                return [$mappedKey, $value];
-            }
-
-            if ($mappedKey === $property->name) {
-                continue;
-            }
-
-            $value = SourceReader::read($source, $property->name, $property);
-
-            if (! $value instanceof UnknownProperty) {
-                return [$property->name, $value];
+            if ($match !== null) {
+                return $match;
             }
         }
 
         return [$mappedKey, UnknownProperty::create()];
+    }
+
+    /**
+     * Resolve the raw source aligned with one automatic lazy property.
+     *
+     * @param list<array|Normalized> $sources
+     * @param list<mixed> $payloads
+     */
+    protected function resolveAutoLazySource(
+        DataProperty $property,
+        array $sources,
+        array $payloads,
+        CreationContext $context,
+    ): mixed {
+        if ($this->isAutoWhenLoaded($property)) {
+            foreach ($payloads as $payload) {
+                if ($payload instanceof Model) {
+                    return $payload;
+                }
+            }
+
+            throw CannotCreateData::autoWhenLoadedRequiresModel($property);
+        }
+
+        $mappedKey = $this->propertyInputKey($property, $context);
+
+        foreach ($sources as $index => $source) {
+            if ($this->matchPropertySource($source, $property, $mappedKey) !== null) {
+                return $payloads[$index];
+            }
+        }
+
+        return $payloads[0] ?? [];
+    }
+
+    /**
+     * Match one property against one normalized source.
+     *
+     * @return null|array{array-key, mixed}
+     */
+    protected function matchPropertySource(
+        array|Normalized $source,
+        DataProperty $property,
+        string|int $mappedKey,
+    ): ?array {
+        $value = SourceReader::read($source, $property->inputPath($mappedKey), $property);
+
+        if (! $value instanceof UnknownProperty) {
+            return [$mappedKey, $value];
+        }
+
+        if ($mappedKey === $property->name) {
+            return null;
+        }
+
+        $value = SourceReader::read($source, $property->inputPath($property->name), $property);
+
+        return $value instanceof UnknownProperty
+            ? null
+            : [$property->name, $value];
+    }
+
+    /**
+     * Get the effective input key for one property.
+     */
+    protected function propertyInputKey(
+        DataProperty $property,
+        CreationContext $context,
+    ): string|int {
+        return $context->mapPropertyNames
+            ? ($property->inputMappedName ?? $property->name)
+            : $property->name;
     }
 
     /**
@@ -1474,6 +2454,37 @@ class DataCreator
     }
 
     /**
+     * Find the first compatible named collection factory.
+     */
+    protected function matchNamedCollectionFactory(
+        DataClass $dataClass,
+        CreationContext $context,
+        mixed $items,
+        ?string $into,
+    ): ?array {
+        if ($context->disableMagicalCreation) {
+            return null;
+        }
+
+        foreach ($dataClass->methods as $method) {
+            if ($method->customCreationMethodType !== CustomCreationMethodType::Collection
+                || in_array($method->name, $context->ignoredMagicalMethods, true)
+                || ($into !== null && ! $method->returns($into))
+            ) {
+                continue;
+            }
+
+            $match = $method->matchPayloads($context, $items);
+
+            if ($match !== null) {
+                return [$method, $match];
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Invoke one matched named factory without method-binding interception.
      */
     protected function invokeNamedFactory(
@@ -1531,6 +2542,7 @@ class DataCreator
             $properties[$property->name] = $value;
         }
 
+        /** @var class-string<BaseData&PropertyMorphableData> $class */
         $class = $dataClass->name;
         $resolvedClass = $class::morph($properties);
 
@@ -1538,9 +2550,7 @@ class DataCreator
             throw CannotCreateAbstractClass::morphClassWasNotResolved($class);
         }
 
-        if (! is_a($resolvedClass, $class, true)
-            || ! is_a($resolvedClass, BaseData::class, true)
-        ) {
+        if (! is_a($resolvedClass, $class, true)) {
             throw CannotCreateAbstractClass::invalidMorphClass($class, $resolvedClass);
         }
 
@@ -1601,6 +2611,57 @@ class DataCreator
         $types = $property->type->getDataObjectTypes();
 
         return count($types) === 1 ? $types[0]->dataClass : null;
+    }
+
+    /**
+     * Determine if an automatic lazy property needs deferred Fill replay.
+     */
+    protected function requiresAutoLazyReplay(DataProperty $property): bool
+    {
+        if ($this->nestedDataClass($property) !== null
+            || $this->dataIterableType($property) !== null
+        ) {
+            return true;
+        }
+
+        $type = $this->typedIterableType($property);
+
+        return $type !== null
+            && ($type->kind->isPaginator() || $type->kind->isCursorPaginator());
+    }
+
+    /**
+     * Determine if a property uses model relation automatic lazy loading.
+     */
+    protected function isAutoWhenLoaded(DataProperty $property): bool
+    {
+        return $property->autoLazy !== null
+            && is_a($property->autoLazy->getName(), AutoWhenLoadedLazy::class, true);
+    }
+
+    /**
+     * Retain source metadata for one declared paginator property.
+     *
+     * @param non-empty-list<array-key> $inputPath
+     */
+    protected function retainPaginatorSource(
+        DataProperty $property,
+        NamedType $type,
+        mixed $value,
+        array $inputPath,
+        ConstructionState $state,
+    ): void {
+        if (! $type->kind->isPaginator() && ! $type->kind->isCursorPaginator()) {
+            return;
+        }
+
+        $state->enterProperty($property->name, $inputPath);
+
+        try {
+            $this->dataCollectables->retainPaginatorSource($type, $value, $state);
+        } finally {
+            $state->leave();
+        }
     }
 
     /**
