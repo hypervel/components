@@ -669,7 +669,7 @@ class Arr
         }
 
         if (count($array) === 1) {
-            return array_last($array);
+            return (string) array_last($array);
         }
 
         $finalItem = array_pop($array);

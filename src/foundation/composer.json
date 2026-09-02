@@ -25,6 +25,7 @@
     "require": {
         "php": "^8.4",
         "composer-runtime-api": "^2.2",
+        "ext-filter": "*",
         "ext-posix": "*",
         "guzzlehttp/guzzle": "^7.15.1",
         "laravel/serializable-closure": "^2.0.10",

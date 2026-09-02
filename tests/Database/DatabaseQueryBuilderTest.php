@@ -3432,7 +3432,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals([0 => 'bar', 1 => 'foo'], $builder->getBindings());
     }
 
-    public function testIncrementManyArgumentValidation1()
+    public function testIncrementManyArgumentValidation1(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Non-numeric value passed as increment amount for column: \'col\'.');
@@ -3440,12 +3440,28 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder->from('users')->incrementEach(['col' => 'a']);
     }
 
-    public function testIncrementManyArgumentValidation2()
+    public function testIncrementManyArgumentValidation2(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Non-associative array passed to incrementEach method.');
         $builder = $this->getBuilder();
         $builder->from('users')->incrementEach([11 => 11]);
+    }
+
+    public function testDecrementManyArgumentValidation1(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Non-numeric value passed as decrement amount for column: \'col\'.');
+        $builder = $this->getBuilder();
+        $builder->from('users')->decrementEach(['col' => '1; DROP TABLE users']);
+    }
+
+    public function testDecrementManyArgumentValidation2(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Non-associative array passed to decrementEach method.');
+        $builder = $this->getBuilder();
+        $builder->from('users')->decrementEach([11 => 11]);
     }
 
     public function testWhereNotWithArrayConditions()

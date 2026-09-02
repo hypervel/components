@@ -1939,6 +1939,9 @@ return Blade::render(
 );
 ```
 
+> [!WARNING]
+> Keep inline Blade templates stable and pass changing values as view data or slots. Hypervel caches and stores each distinct template string separately for reuse, so continually generating unique Blade source grows worker memory and stored view artifacts.
+
 <a name="rendering-blade-fragments"></a>
 ## Rendering Blade Fragments
 

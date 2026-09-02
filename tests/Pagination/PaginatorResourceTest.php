@@ -46,6 +46,14 @@ class PaginatorResourceTest extends TestCase
         $resource = $paginator->toResourceCollection();
 
         $this->assertInstanceOf(JsonResource::class, $resource);
+
+        $keyedPaginator = new PaginatorResourceTestPaginator([
+            'model-key' => new PaginatorResourceTestModel,
+        ], 1, 1, 1);
+
+        $keyedResource = $keyedPaginator->toResourceCollection();
+
+        $this->assertInstanceOf(JsonResource::class, $keyedResource);
     }
 }
 

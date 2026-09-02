@@ -9,6 +9,8 @@ use Hypervel\Contracts\Image\Transformation;
 class Crop implements Transformation
 {
     /**
+     * Create a new crop transformation.
+     *
      * @param positive-int $width
      * @param positive-int $height
      */

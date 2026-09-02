@@ -24,6 +24,7 @@
     ],
     "require": {
         "php": "^8.4",
+        "ext-filter": "*",
         "ext-tokenizer": "*",
         "hypervel/collections": "^0.4",
         "hypervel/conditionable": "^0.4",
