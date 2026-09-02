@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation and repository verification are complete. After final review sign-off, the branch is ready for the owner to commit using the whole-file groups in the order below.
+Implementation, repository verification, and the six planned commits are complete. The only remaining branch work is this follow-up plan correction.
 
 ## Outcome
 
@@ -89,7 +89,7 @@ protected function ensureValidDimensions(?int $width, ?int $height): void;
 protected function ensureValueIsBetween(string $name, int $value, int $minimum, int $maximum): void;
 ```
 
-The helpers throw `ImageException` and return no adjusted value. Width and height failures use `Image width must be greater than zero.` and `Image height must be greater than zero.`. Range failures use `Image {$name} must be between {$minimum} and {$maximum}.`, with the names `blur amount`, `sharpen amount`, and `quality`. In `resize()` and `scale()`, keep the existing both-null check before dimension validation so calls with no dimensions retain their current specific message. `optimize()` continues to delegate to `quality()`, so it receives the same validation without another guard. Use `positive-int` for positive dimension PHPDocs, add `@throws ImageException` to all eight newly or already throwing public transformation methods (`cover`, `contain`, `crop`, `resize`, `scale`, `blur`, `sharpen`, and `quality`) and to the direct `process()` and `dimensions()` throwers, document the 1–100 quality range on both `quality()` and `optimize()`, and add `int<0, 100>` constructor PHPDocs to Blur and Sharpen. Every transformation constructor keeps a Laravel-style title docblock; DTO constructors remain passive typed values.
+Protected visibility is deliberate: it lets subclasses impose a maximum-dimension policy at the shared boundary and keeps the pair consistent with Laravel's validation-helper convention for open classes. The helpers throw `ImageException` and return no adjusted value. Width and height failures use `Image width must be greater than zero.` and `Image height must be greater than zero.`. Range failures use `Image {$name} must be between {$minimum} and {$maximum}.`, with the names `blur amount`, `sharpen amount`, and `quality`. In `resize()` and `scale()`, keep the existing both-null check before dimension validation so calls with no dimensions retain their current specific message. `optimize()` continues to delegate to `quality()`, so it receives the same validation without another guard. Use `positive-int` for positive dimension PHPDocs, add `@throws ImageException` to all eight newly or already throwing public transformation methods (`cover`, `contain`, `crop`, `resize`, `scale`, `blur`, `sharpen`, and `quality`) and to the direct `process()` and `dimensions()` throwers, document the 1–100 quality range on both `quality()` and `optimize()`, and add `int<0, 100>` constructor PHPDocs to Blur and Sharpen. Every transformation constructor keeps a Laravel-style title docblock; DTO constructors remain passive typed values.
 
 Update the existing tests rather than adding parallel test files:
 
@@ -240,7 +240,7 @@ No package README or `src/docs/porting-from-laravel.md` change is warranted: the
 
 ## Verification
 
-Run changed test files immediately after their edits:
+Run changed test files immediately after their edits, and run affected existing contract suites after their manifest changes:
 
 ```bash
 ./vendor/bin/phpunit --no-progress tests/Image/ImageTest.php
@@ -249,8 +249,13 @@ Run changed test files immediately after their edits:
 ./vendor/bin/phpunit --no-progress tests/Pagination/LengthAwarePaginatorTest.php
 ./vendor/bin/phpunit --no-progress tests/Pagination/CursorPaginatorTest.php
 ./vendor/bin/phpunit --no-progress tests/Pagination/PackageMetadataTest.php
+./vendor/bin/phpunit --no-progress tests/Console/PackageMetadataTest.php
+./vendor/bin/phpunit --no-progress tests/Database/PackageMetadataTest.php
+./vendor/bin/phpunit --no-progress tests/Redis/PackageMetadataTest.php
+./vendor/bin/phpunit --no-progress tests/Saloon/PackageMetadataTest.php
+./vendor/bin/phpunit --no-progress tests/Scout/PackageMetadataTest.php
+./vendor/bin/phpunit --no-progress tests/Server/PackageMetadataTest.php
 ./vendor/bin/phpunit --no-progress tests/Testing/PackageMetadataTest.php
-./vendor/bin/phpunit --no-progress tests/*/PackageMetadataTest.php
 composer test:testbench
 ```
 
