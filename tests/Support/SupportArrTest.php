@@ -495,6 +495,17 @@ class SupportArrTest extends TestCase
 
         $this->assertSame('a', Arr::join(['a'], ', ', ' and '));
 
+        $this->assertSame('1', Arr::join([1], ', ', ' and '));
+
+        $this->assertSame('1.5', Arr::join([1.5], ', ', ' and '));
+
+        $this->assertSame('value', Arr::join([new class {
+            public function __toString(): string
+            {
+                return 'value';
+            }
+        }], ', ', ' and '));
+
         $this->assertSame('', Arr::join([], ', ', ' and '));
     }
 

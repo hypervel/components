@@ -46,6 +46,14 @@ class CursorResourceTest extends TestCase
         $resource = $paginator->toResourceCollection();
 
         $this->assertInstanceOf(JsonResource::class, $resource);
+
+        $keyedPaginator = new CursorResourceTestPaginator([
+            'model-key' => new CursorResourceTestModel,
+        ], 1);
+
+        $keyedResource = $keyedPaginator->toResourceCollection();
+
+        $this->assertInstanceOf(JsonResource::class, $keyedResource);
     }
 }
 

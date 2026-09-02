@@ -34,14 +34,14 @@ class QueryBuilderTest extends DatabaseTestCase
         ]);
     }
 
-    public function testIncrement()
+    public function testIncrement(): void
     {
         Schema::create('accounting', function (Blueprint $table) {
             $table->increments('id');
             $table->float('wallet_1');
             $table->float('wallet_2');
             $table->integer('user_id');
-            $table->string('name', 20);
+            $table->string('name');
         });
 
         DB::table('accounting')->insert([
@@ -143,6 +143,33 @@ class QueryBuilderTest extends DatabaseTestCase
 
         $this->assertEquals(1.5, $rows[0]->wallet_1);
         $this->assertEquals(1.5, $rows[1]->wallet_1);
+
+        // Decrement accepts integer, float, and numeric-string amounts.
+        $affectedRowsCount = DB::table('accounting')->decrementEach([
+            'wallet_1' => 1,
+            'wallet_2' => 0.5,
+            'user_id' => '1',
+        ]);
+
+        $this->assertEquals(2, $affectedRowsCount);
+
+        $rows = DB::table('accounting')->get();
+
+        $this->assertEquals([
+            'id' => 1,
+            'wallet_1' => 0.5,
+            'wallet_2' => 167,
+            'user_id' => 0,
+            'name' => 'Taylor',
+        ], (array) $rows[0]);
+
+        $this->assertEquals([
+            'id' => 2,
+            'wallet_1' => 0.5,
+            'wallet_2' => 267,
+            'user_id' => 1,
+            'name' => 'foo',
+        ], (array) $rows[1]);
 
         Schema::drop('accounting');
     }

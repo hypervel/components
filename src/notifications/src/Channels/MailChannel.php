@@ -155,7 +155,7 @@ class MailChannel
 
         if ($message->metadata) {
             foreach ($message->metadata as $key => $value) {
-                $mailMessage->getHeaders()->add(new MetadataHeader($key, $value));
+                $mailMessage->getHeaders()->add(new MetadataHeader($key, (string) $value));
             }
         }
 

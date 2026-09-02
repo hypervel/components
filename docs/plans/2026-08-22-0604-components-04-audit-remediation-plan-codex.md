@@ -1,6 +1,6 @@
 # Hypervel Components 0.4 Audit Remediation Plan
 
-Status: Signed off by `claude-fixes` on 2026-08-22; ready for implementation
+Status: Findings #21, #23, #26, #30–32, #34–35, and #82 are implemented in a separate slice; #160 (Vonage channel port plus Horizon wiring) is the only remaining work
 
 ## Objective
 
@@ -28,25 +28,6 @@ Resolve every genuine issue retained in this master plan against the current 0.4
 
 Each row is an implementation requirement. Test names are descriptive; use the repository's established test file for that component or create the narrowly corresponding file.
 
-### Mail, notifications, collections, and support
-
-| ID | Proposed implementation | Required tests |
-|---:|---|---|
-| 21 | Widen Mailable metadata values and storage shapes to int\|string\|null, matching Envelope. Cast consistently only where a downstream header API requires a string. | Integer and string metadata through send, render, and assertion helpers; null/absent metadata; strict-types regression. |
-| 23 | In hasEnvelopeAttachment, call attachments only when the mailable defines it; otherwise use an empty list. | Envelope-only mailable, mailable that also defines attachments, attachment match/no-match, and no method fatal. |
-| 26 | Keep AnonymousNotifiable::getKey returning null for Laravel fake/assertion parity, but make BroadcastNotificationCreated throw a descriptive exception when no explicit broadcast route exists instead of constructing a trailing-dot private channel. | Anonymous broadcast without route fails loudly; explicit broadcast route works; normal model notifiable fallback unchanged; getKey remains null. |
-| 30 | Add symfony/polyfill-php86 as a direct collections dependency because SortDirection is used by that split package. | Package metadata assertion and a standalone collections install/autoload smoke test without database. |
-| 31 | Cast the single-item Arr::join result to string, matching the multi-item path and native return type. | One integer, float, stringable object, string, and multi-item list. |
-| 32 | Use first() when guessing a resource collection class instead of reading items[0]. | keyBy, filtered/gapped keys, ordinary list, empty collection failure, and paginator/resource conversion. |
-| 34 | Port current Laravel's array-capable multibyte Str::substrReplace implementation, including array offset/length/replacement behavior and key preservation. Correct the scalar negative-length calculation as part of the port: the current Str::substrReplace('Hello', 'X', 2, -1) produces HeXello instead of HeXo. | Scalar parity including the explicit negative-length example; arrays with scalar and array replacements; offset/length arrays; associative keys; negative offsets and lengths; multibyte strings; mismatched replacement lengths. |
-| 35 | For built-in UUID/ULID codecs, identify binary values by the unambiguous 16-byte storage length and validate textual 36/26-byte forms separately. Leave the generic public BinaryCodec heuristic available to custom codecs. Runtime sampling confirmed that roughly one in sixteen thousand random v4-shaped UUID payloads can be valid UTF-8 and NUL-free, so this is ordinary data loss at scale rather than a purely theoretical collision. | Deterministic valid-UTF-8, NUL-free 16-byte UUID/ULID payloads round-trip through casts and database bindings; a fixed previously misclassified v4 payload; textual forms; invalid lengths; custom codec behavior unchanged. |
-
-### Database, image, and pagination
-
-| ID | Proposed implementation | Required tests |
-|---:|---|---|
-| 82 | Apply incrementEach's strict string-column and numeric-amount validation to decrementEach before constructing raw SQL. | Malicious SQL fragment and nonnumeric amount rejected before query; non-string/associative shape failures; valid ints, floats, and numeric strings update correctly. |
-
 ### Vonage notifications and Horizon
 
 | ID | Proposed implementation | Required tests |
@@ -55,10 +36,9 @@ Each row is an implementation requirement. Test names are descriptive; use the r
 
 ## Commit and dependency structure
 
-Use package-sized commits that remain reviewable and bisectable. The following order avoids building fixes on obsolete primitives:
+Use package-sized commits that remain reviewable and bisectable:
 
-1. Mail, notifications, and data representation: 21, 23, 26, 30-32, 34-35, 82.
-2. Vonage notification channel port followed by Horizon wiring: 160.
+1. Vonage notification channel port followed by Horizon wiring: 160.
 
 Do not combine unrelated packages merely because their findings have the same severity.
 
