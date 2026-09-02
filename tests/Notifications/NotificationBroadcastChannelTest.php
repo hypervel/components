@@ -70,12 +70,15 @@ class NotificationBroadcastChannelTest extends TestCase
 
     public function testNotificationUsesNotifiableBroadcastChannel(): void
     {
+        $notification = new Notification;
+        $notification->id = '1';
+
         $event = new BroadcastNotificationCreated(
             new NotificationBroadcastChannelTestNotifiableWithChannel,
-            new Notification,
+            $notification,
         );
 
-        $this->assertEquals([new PrivateChannel('notifiable-channel')], $event->broadcastOn());
+        $this->assertEquals([new PrivateChannel('notifiable-channel.1')], $event->broadcastOn());
     }
 
     public function testNotificationUsesNotifiableClassAndKeyByDefault(): void
@@ -228,6 +231,6 @@ class NotificationBroadcastChannelTestNotifiableWithChannel
 {
     public function receivesBroadcastNotificationsOn(Notification $notification): string
     {
-        return 'notifiable-channel';
+        return 'notifiable-channel.' . $notification->id;
     }
 }
