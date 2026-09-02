@@ -26,6 +26,7 @@ use OpenTelemetry\Context\ExecutionContextAwareInterface;
 use OpenTelemetry\SDK\Trace\SpanExporter\InMemoryExporter;
 use OpenTelemetry\SDK\Trace\SpanProcessor\SimpleSpanProcessor;
 use OpenTelemetry\SDK\Trace\TracerProvider;
+use Symfony\Component\Console\Input\ArrayInput;
 
 class ConsoleInstrumentationNonCoroutineTest extends TestCase
 {
@@ -81,10 +82,11 @@ class ConsoleInstrumentationNonCoroutineTest extends TestCase
             'metrics' => false,
         ]);
         $command = new ConsoleInstrumentationNonCoroutineCommand('package:discover');
+        $input = new ArrayInput([]);
 
-        $this->events->dispatch(new BeforeHandle($command));
+        $this->events->dispatch(new BeforeHandle($command, $input));
         $this->assertTrue(Span::getCurrent()->getContext()->isValid());
-        $this->events->dispatch(new AfterExecute($command, exitCode: 0));
+        $this->events->dispatch(new AfterExecute($command, null, $input, 0));
 
         $this->assertFalse(Span::getCurrent()->getContext()->isValid());
         $this->assertCount(1, $this->spanExporter->getSpans());

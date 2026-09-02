@@ -193,7 +193,7 @@ class FlushLifecycleTest extends TestCase
             $input = new ArrayInput([]);
 
             $feature->beforeHandle(new BeforeHandle($command, $input));
-            $feature->afterExecute(new AfterExecute($command, input: $input, exitCode: 0));
+            $feature->afterExecute(new AfterExecute($command, null, $input, 0));
         });
     }
 

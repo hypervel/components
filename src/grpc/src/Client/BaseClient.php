@@ -130,7 +130,7 @@ abstract class BaseClient
      */
     public function __construct(private readonly string $target, array $options = [])
     {
-        $this->assertKnownOptions($options, self::OPTION_KEYS, 'client');
+        $this->ensureKnownOptions($options, self::OPTION_KEYS, 'client');
 
         $connectionCount = $this->positiveIntegerOption($options, 'connections', 1);
         $this->connectTimeout = $this->positiveSecondsOption($options, 'connect_timeout', 3.0);
@@ -715,7 +715,7 @@ abstract class BaseClient
      */
     private function normalizeCallOptions(array $options, bool $retryable): array
     {
-        $this->assertKnownOptions($options, self::CALL_OPTION_KEYS, 'call');
+        $this->ensureKnownOptions($options, self::CALL_OPTION_KEYS, 'call');
 
         if (! $retryable && array_key_exists('retry', $options)) {
             throw new InvalidArgumentException(
@@ -763,7 +763,7 @@ abstract class BaseClient
             throw new InvalidArgumentException('The gRPC TLS option must be an array.');
         }
 
-        $this->assertKnownOptions($rawTls, self::TLS_OPTION_KEYS, 'TLS');
+        $this->ensureKnownOptions($rawTls, self::TLS_OPTION_KEYS, 'TLS');
         $suppliedKeys = array_keys($rawTls);
 
         foreach ($suppliedKeys as $key) {
@@ -909,7 +909,7 @@ abstract class BaseClient
      * @param array<array-key, mixed> $options
      * @param list<string> $allowedKeys
      */
-    private function assertKnownOptions(array $options, array $allowedKeys, string $scope): void
+    private function ensureKnownOptions(array $options, array $allowedKeys, string $scope): void
     {
         foreach (array_keys($options) as $key) {
             if (! is_string($key) || ! in_array($key, $allowedKeys, true)) {
