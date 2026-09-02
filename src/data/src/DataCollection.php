@@ -6,21 +6,24 @@ namespace Hypervel\Data;
 
 use ArrayAccess;
 use Countable;
+use Hypervel\Contracts\Container\Transient;
+use Hypervel\Contracts\Database\Eloquent\Castable as EloquentCastable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
 use Hypervel\Contracts\Database\Eloquent\CastsInboundAttributes;
 use Hypervel\Data\Concerns\BaseDataCollectable as BaseDataCollectableConcern;
 use Hypervel\Data\Concerns\IncludeableData as IncludeableDataConcern;
+use Hypervel\Data\Concerns\ResponsableData as ResponsableDataConcern;
 use Hypervel\Data\Concerns\TransformableData as TransformableDataConcern;
 use Hypervel\Data\Concerns\WrappableData as WrappableDataConcern;
 use Hypervel\Data\Contracts\BaseData as BaseDataContract;
 use Hypervel\Data\Contracts\BaseDataCollectable as BaseDataCollectableContract;
 use Hypervel\Data\Contracts\IncludeableData as IncludeableDataContract;
+use Hypervel\Data\Contracts\ResponsableData as ResponsableDataContract;
 use Hypervel\Data\Contracts\TransformableData as TransformableDataContract;
 use Hypervel\Data\Contracts\WrappableData as WrappableDataContract;
 use Hypervel\Data\Eloquent\DataCollectionEloquentCast;
 use Hypervel\Data\Exceptions\CannotCastData;
 use Hypervel\Data\Exceptions\InvalidDataCollectionOperation;
-use Hypervel\Support\Collection;
 use Hypervel\Support\Enumerable;
 use Hypervel\Support\Traits\Macroable;
 
@@ -31,11 +34,13 @@ use Hypervel\Support\Traits\Macroable;
  * @implements ArrayAccess<TKey, TValue>
  * @implements BaseDataCollectableContract<TKey, TValue>
  */
-class DataCollection implements BaseDataCollectableContract, TransformableDataContract, IncludeableDataContract, WrappableDataContract, Countable, ArrayAccess
+class DataCollection implements BaseDataCollectableContract, TransformableDataContract, IncludeableDataContract, ResponsableDataContract, WrappableDataContract, EloquentCastable, Countable, ArrayAccess, Transient
 {
     /** @use BaseDataCollectableConcern<TKey, TValue> */
     use BaseDataCollectableConcern;
+
     use IncludeableDataConcern;
+    use ResponsableDataConcern;
     use TransformableDataConcern;
     use WrappableDataConcern;
     use Macroable;
@@ -47,26 +52,17 @@ class DataCollection implements BaseDataCollectableContract, TransformableDataCo
      * Create a typed data collection.
      *
      * @param class-string<TValue> $dataClass
-     * @param array<TKey, mixed>|Enumerable<TKey, mixed>|DataCollection<TKey, BaseDataContract>|null $items
+     * @param null|array<TKey, mixed>|DataCollection<TKey, BaseDataContract>|Enumerable<TKey, mixed> $items
      */
     public function __construct(
         public readonly string $dataClass,
         Enumerable|array|DataCollection|null $items,
     ) {
-        if (is_array($items) || $items === null) {
-            $items = new Collection($items);
-        }
-
         if ($items instanceof DataCollection) {
             $items = $items->toCollection();
         }
 
-        $factory = $this->dataClass::factory();
-        $this->items = $items->map(
-            fn (mixed $item): BaseDataContract => $item instanceof $this->dataClass
-                ? $item
-                : $factory->from($item),
-        );
+        $this->items = $this->dataClass::factory()->collectItems($items);
     }
 
     /**
@@ -95,8 +91,6 @@ class DataCollection implements BaseDataCollectableContract, TransformableDataCo
 
     /**
      * @param TKey $offset
-     *
-     * @return bool
      */
     public function offsetExists(mixed $offset): bool
     {
@@ -118,23 +112,12 @@ class DataCollection implements BaseDataCollectableContract, TransformableDataCo
             throw InvalidDataCollectionOperation::create();
         }
 
-        $data = $this->items->offsetGet($offset);
-        $partialDefinitions = $this->getPartialsDefinition();
-
-        if ($data instanceof IncludeableDataContract && ! $partialDefinitions->isEmpty()) {
-            $data->getPartialsDefinition()->addResolved(
-                $partialDefinitions->resolve($this, consumeTemporary: true),
-            );
-        }
-
-        return $data;
+        return $this->items->offsetGet($offset);
     }
 
     /**
-     * @param TKey|null $offset
+     * @param null|TKey $offset
      * @param TValue $value
-     *
-     * @return void
      */
     public function offsetSet(mixed $offset, mixed $value): void
     {
@@ -144,15 +127,13 @@ class DataCollection implements BaseDataCollectableContract, TransformableDataCo
 
         $value = $value instanceof $this->dataClass
             ? $value
-            : $this->dataClass::from($value);
+            : $this->dataClass::factory()->from($value);
 
         $this->items->offsetSet($offset, $value);
     }
 
     /**
      * @param TKey $offset
-     *
-     * @return void
      */
     public function offsetUnset(mixed $offset): void
     {

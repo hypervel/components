@@ -6,7 +6,6 @@ namespace Hypervel\Data\Concerns;
 
 use Generator;
 use Hypervel\Data\Contracts\BaseData;
-use Hypervel\Data\Contracts\IncludeableData;
 use Hypervel\Data\Support\Partials\PartialsDefinition;
 
 /**
@@ -32,16 +31,7 @@ trait BaseDataCollectable
      */
     public function getIterator(): Generator
     {
-        $partialDefinitions = $this->getPartialsDefinition();
-        $partials = $partialDefinitions->isEmpty()
-            ? null
-            : $partialDefinitions->resolve($this, consumeTemporary: true);
-
         foreach ($this->itemsForIteration() as $key => $item) {
-            if ($partials !== null && $item instanceof IncludeableData) {
-                $item->getPartialsDefinition()->addResolved($partials);
-            }
-
             yield $key => $item;
         }
     }
