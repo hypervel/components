@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Data\Support\Transformation;
 
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Data\Data;
 use Hypervel\Data\DataServiceProvider;
 use Hypervel\Data\Support\Partials\PartialDefinition;
 use Hypervel\Data\Support\Transformation\TransformationContextFactory;
+use Hypervel\Data\Support\Wrapping\WrapExecutionType;
 use Hypervel\Testbench\TestCase;
 use stdClass;
 
@@ -77,5 +79,39 @@ class TransformationContextFactoryTest extends TestCase
         $this->assertNotSame($first, $second);
         $this->assertSame(1, $first->get(new stdClass)->maxDepth);
         $this->assertNull($second->get(new stdClass)->maxDepth);
+    }
+
+    public function testPersistenceFactoryDerivesACompleteConstructableView(): void
+    {
+        $data = (new PersistenceContextData('Taylor', 'secret'))->only('name');
+
+        $context = TransformationContextFactory::forPersistence()
+            ->withoutValueTransformation()
+            ->withPropertyNameMapping()
+            ->withWrapping()
+            ->only('name')
+            ->maxDepth(5)
+            ->get($data);
+
+        $this->assertTrue($context->transformValues);
+        $this->assertFalse($context->mapPropertyNames);
+        $this->assertTrue($context->constructable);
+        $this->assertTrue($context->include?->all);
+        $this->assertNull($context->exclude);
+        $this->assertNull($context->only);
+        $this->assertNull($context->except);
+        $this->assertSame(WrapExecutionType::Disabled, $context->wrapExecutionType);
+        $this->assertNull($context->maxDepth);
+        $this->assertFalse($data->getPartialsDefinition()->isEmpty());
+        $this->assertSame(['name' => 'Taylor'], $data->toArray());
+    }
+}
+
+class PersistenceContextData extends Data
+{
+    public function __construct(
+        public string $name,
+        public string $secret,
+    ) {
     }
 }

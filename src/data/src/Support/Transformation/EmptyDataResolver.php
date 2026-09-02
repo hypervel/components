@@ -34,8 +34,7 @@ class EmptyDataResolver
         string $class,
         array $extra = [],
         mixed $defaultReturnValue = null,
-    ): array
-    {
+    ): array {
         $dataClass = $this->dataClasses->get($class);
 
         $payload = [];
@@ -79,8 +78,7 @@ class EmptyDataResolver
     protected function getValueForProperty(
         DataProperty $property,
         mixed $defaultReturnValue = null,
-    ): mixed
-    {
+    ): mixed {
         $propertyType = $property->type;
 
         if ($propertyType->isMixed) {

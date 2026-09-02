@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Data\Support\Transformation;
 use Hypervel\Data\Support\Partials\PartialDefinition;
 use Hypervel\Data\Support\Transformation\PartialTree;
 use Hypervel\Data\Support\Transformation\TransformationContext;
+use Hypervel\Data\Support\Wrapping\WrapExecutionType;
 use Hypervel\Tests\TestCase;
 
 class TransformationContextTest extends TestCase
@@ -62,5 +63,23 @@ class TransformationContextTest extends TestCase
         $this->assertSame([], $child->partialDefinitions);
         $this->assertSame(3, $child->depth);
         $this->assertSame(5, $child->maxDepth);
+    }
+
+    public function testConstructableViewSurvivesEveryContextCopy(): void
+    {
+        $context = new TransformationContext(constructable: true);
+
+        $merged = $context->withMergedPartials([
+            'include' => [new PartialDefinition('nested')],
+            'exclude' => [],
+            'only' => [],
+            'except' => [],
+        ]);
+        $wrapped = $merged->withWrapExecutionType(WrapExecutionType::Enabled);
+        $child = $wrapped->child('nested');
+
+        $this->assertTrue($merged->constructable);
+        $this->assertTrue($wrapped->constructable);
+        $this->assertTrue($child->constructable);
     }
 }

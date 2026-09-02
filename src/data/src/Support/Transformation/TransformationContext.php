@@ -13,12 +13,13 @@ final readonly class TransformationContext
     /**
      * Create an immutable transformation context.
      *
-     * @param array{include: list<PartialDefinition>, exclude: list<PartialDefinition>, only: list<PartialDefinition>, except: list<PartialDefinition>} $partialDefinitions
-     * @param array<string, Transformer|class-string<Transformer>> $transformers
+     * @param array{include: list<PartialDefinition>, exclude: list<PartialDefinition>, only: list<PartialDefinition>, except: list<PartialDefinition>}|array{} $partialDefinitions
+     * @param array<string, class-string<Transformer>|Transformer> $transformers
      */
     public function __construct(
         public bool $transformValues = true,
         public bool $mapPropertyNames = true,
+        public bool $constructable = false,
         public ?PartialTree $include = null,
         public ?PartialTree $exclude = null,
         public ?PartialTree $only = null,
@@ -65,6 +66,7 @@ final readonly class TransformationContext
         return new self(
             transformValues: $this->transformValues,
             mapPropertyNames: $this->mapPropertyNames,
+            constructable: $this->constructable,
             include: self::mergeTree($this->include, $partialDefinitions['include']),
             exclude: self::mergeTree($this->exclude, $partialDefinitions['exclude']),
             only: self::mergeTree($this->only, $partialDefinitions['only']),
@@ -85,6 +87,7 @@ final readonly class TransformationContext
         return new self(
             transformValues: $this->transformValues,
             mapPropertyNames: $this->mapPropertyNames,
+            constructable: $this->constructable,
             include: $this->include,
             exclude: $this->exclude,
             only: $this->only,
@@ -128,11 +131,11 @@ final readonly class TransformationContext
     public function child(
         string $property,
         ?WrapExecutionType $wrapExecutionType = null,
-    ): self
-    {
+    ): self {
         return new self(
             transformValues: $this->transformValues,
             mapPropertyNames: $this->mapPropertyNames,
+            constructable: $this->constructable,
             include: $this->include?->child($property),
             exclude: $this->exclude?->child($property),
             only: $this->only?->child($property),

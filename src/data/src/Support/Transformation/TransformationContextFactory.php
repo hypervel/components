@@ -22,12 +22,16 @@ class TransformationContextFactory implements Transient
 
     protected bool $mapPropertyNames = true;
 
+    protected bool $constructable = false;
+
     protected WrapExecutionType $wrapExecutionType = WrapExecutionType::Disabled;
 
-    /** @var array<string, Transformer|class-string<Transformer>> */
+    /** @var array<string, class-string<Transformer>|Transformer> */
     protected array $transformers = [];
 
     protected ?int $maxDepth;
+
+    protected readonly ?int $configuredMaxDepth;
 
     protected PartialsDefinition $partialDefinitions;
 
@@ -36,7 +40,8 @@ class TransformationContextFactory implements Transient
      */
     public function __construct(DataConfig $config)
     {
-        $this->maxDepth = $config->maxTransformationDepth;
+        $this->configuredMaxDepth = $config->maxTransformationDepth;
+        $this->maxDepth = $this->configuredMaxDepth;
         $this->partialDefinitions = new PartialsDefinition;
     }
 
@@ -49,10 +54,32 @@ class TransformationContextFactory implements Transient
     }
 
     /**
+     * Create a fresh constructable persistence context factory.
+     */
+    public static function forPersistence(): static
+    {
+        $factory = static::create();
+        $factory->constructable = true;
+
+        return $factory;
+    }
+
+    /**
      * Build the context for one root transformation.
      */
     public function get(object $data): TransformationContext
     {
+        if ($this->constructable) {
+            return new TransformationContext(
+                transformValues: true,
+                mapPropertyNames: false,
+                constructable: true,
+                include: PartialTree::compile(['*']),
+                wrapExecutionType: WrapExecutionType::Disabled,
+                maxDepth: $this->configuredMaxDepth,
+            );
+        }
+
         $partials = $this->partialDefinitions->resolve($data);
 
         if ($data instanceof IncludeableData) {
@@ -153,7 +180,7 @@ class TransformationContextFactory implements Transient
     /**
      * Add a transformer for one declared or runtime type.
      *
-     * @param Transformer|class-string<Transformer> $transformer
+     * @param class-string<Transformer>|Transformer $transformer
      */
     public function withTransformer(string $transformable, Transformer|string $transformer): static
     {

@@ -57,9 +57,12 @@ abstract class Lazy
     /**
      * Create an Inertia deferred prop.
      */
-    public static function inertiaDeferred(mixed $value, ?string $group = null): InertiaDeferred
-    {
-        return new InertiaDeferred($value, $group);
+    public static function inertiaDeferred(
+        mixed $value,
+        ?string $group = null,
+        bool $rescue = false,
+    ): InertiaDeferred {
+        return new InertiaDeferred($value, $group, $rescue);
     }
 
     /**
@@ -112,11 +115,19 @@ abstract class Lazy
     }
 
     /**
+     * Determine if resolving this lazy value produces data.
+     */
+    public function resolvesToData(): bool
+    {
+        return true;
+    }
+
+    /**
      * Forward property access to the resolved value.
      */
     public function __get(string $name): mixed
     {
-        return $this->resolve()->$name;
+        return $this->resolve()->{$name};
     }
 
     /**

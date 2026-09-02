@@ -11,7 +11,9 @@ use Hypervel\Data\Support\Lazy\ConditionalLazy;
 use Hypervel\Data\Support\Lazy\DefaultLazy;
 use Hypervel\Data\Support\Lazy\RelationalLazy;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Tests\TestCase;
+use Hypervel\Inertia\DeferProp;
+use Hypervel\Inertia\OptionalProp;
+use Hypervel\Testbench\TestCase;
 
 class LazyTest extends TestCase
 {
@@ -24,6 +26,7 @@ class LazyTest extends TestCase
         $this->assertFalse($lazy->isDefaultIncluded());
         $this->assertSame($lazy, $lazy->defaultIncluded());
         $this->assertTrue($lazy->isDefaultIncluded());
+        $this->assertTrue($lazy->resolvesToData());
     }
 
     public function testItCreatesConditionalLazyValues(): void
@@ -49,21 +52,57 @@ class LazyTest extends TestCase
         $resolved = $lazy->resolve();
 
         $this->assertInstanceOf(ClosureLazy::class, $lazy);
+        $this->assertFalse($lazy->resolvesToData());
         $this->assertInstanceOf(Closure::class, $resolved);
         $this->assertSame(0, $calls);
         $this->assertSame('value', $resolved());
         $this->assertSame(1, $calls);
     }
 
+    public function testItCreatesInertiaLazyAndDeferredProperties(): void
+    {
+        $lazy = Lazy::inertia(static fn (): string => 'lazy');
+        $deferred = Lazy::inertiaDeferred('deferred', 'analytics', true);
+
+        $this->assertTrue($lazy->shouldBeIncluded());
+        $this->assertFalse($lazy->resolvesToData());
+        $this->assertInstanceOf(OptionalProp::class, $lazy->resolve());
+        $this->assertSame('lazy', ($lazy->resolve())());
+
+        $prop = $deferred->resolve();
+
+        $this->assertTrue($deferred->shouldBeIncluded());
+        $this->assertFalse($deferred->resolvesToData());
+        $this->assertSame('analytics', $prop->group());
+        $this->assertTrue($prop->shouldRescue());
+        $this->assertSame('deferred', $prop());
+    }
+
+    public function testItPreservesExistingInertiaDeferredProperties(): void
+    {
+        $prop = (new DeferProp(static fn (): string => 'value', 'original', true))
+            ->merge()
+            ->once(as: 'users');
+
+        $resolved = Lazy::inertiaDeferred($prop, 'ignored')->resolve();
+
+        $this->assertSame($prop, $resolved);
+        $this->assertSame('original', $resolved->group());
+        $this->assertTrue($resolved->shouldRescue());
+        $this->assertTrue($resolved->shouldMerge());
+        $this->assertTrue($resolved->shouldResolveOnce());
+        $this->assertSame('users', $resolved->getKey());
+    }
+
     public function testItIncludesRelationshipValuesOnlyWhenTheRelationIsLoaded(): void
     {
-        $model = new LazyTestModel();
+        $model = new LazyTestModel;
         $lazy = Lazy::whenLoaded('related', $model, fn () => $model->related);
 
         $this->assertInstanceOf(RelationalLazy::class, $lazy);
         $this->assertFalse($lazy->shouldBeIncluded());
 
-        $related = new LazyTestModel();
+        $related = new LazyTestModel;
         $model->setRelation('related', $related);
 
         $this->assertTrue($lazy->shouldBeIncluded());
@@ -72,7 +111,7 @@ class LazyTest extends TestCase
 
     public function testItReturnsNullForALoadedNullRelationship(): void
     {
-        $model = new LazyTestModel();
+        $model = new LazyTestModel;
         $model->setRelation('related', null);
 
         $lazy = Lazy::whenLoaded('related', $model, fn () => 'unreachable');
@@ -116,6 +155,25 @@ class LazyTest extends TestCase
         $this->assertTrue($restored->shouldBeIncluded());
         $this->assertTrue($restored->isDefaultIncluded());
         $this->assertSame('value', $restored->resolve());
+    }
+
+    public function testSerializableInertiaLazyValuesRetainTheirBehavior(): void
+    {
+        $lazyValue = fn () => 'lazy';
+        $deferredValue = fn () => 'deferred';
+        $lazy = Lazy::inertia($lazyValue)->defaultIncluded();
+        $deferred = Lazy::inertiaDeferred($deferredValue, 'analytics', true)->defaultIncluded();
+
+        $restoredLazy = unserialize(serialize($lazy));
+        $restoredDeferred = unserialize(serialize($deferred));
+        $deferredProp = $restoredDeferred->resolve();
+
+        $this->assertTrue($restoredLazy->isDefaultIncluded());
+        $this->assertSame('lazy', ($restoredLazy->resolve())());
+        $this->assertTrue($restoredDeferred->isDefaultIncluded());
+        $this->assertSame('analytics', $deferredProp->group());
+        $this->assertTrue($deferredProp->shouldRescue());
+        $this->assertSame('deferred', $deferredProp());
     }
 }
 

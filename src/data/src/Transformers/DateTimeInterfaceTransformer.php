@@ -27,11 +27,13 @@ class DateTimeInterfaceTransformer implements Transformer
     ) {
         if ($format === null || $setTimeZone === null) {
             $config = Container::getInstance()->make(DataConfig::class);
+
+            $format ??= $config->dateFormats[0];
+            $setTimeZone ??= $config->dateTimezone;
         }
 
-        $this->format = $format ?? $config->dateFormats[0];
-        $timeZone = $setTimeZone ?? $config->dateTimezone;
-        $this->timeZone = $timeZone === null ? null : new DateTimeZone($timeZone);
+        $this->format = $format;
+        $this->timeZone = $setTimeZone === null ? null : new DateTimeZone($setTimeZone);
     }
 
     /**

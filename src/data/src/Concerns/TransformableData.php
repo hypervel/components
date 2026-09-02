@@ -5,9 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Data\Concerns;
 
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
-use Hypervel\Contracts\Database\Eloquent\CastsInboundAttributes;
-use Hypervel\Data\Eloquent\DataEloquentCast;
 use Hypervel\Data\Support\Transformation\DataTransformer;
 use Hypervel\Data\Support\Transformation\TransformationContext;
 use Hypervel\Data\Support\Transformation\TransformationContextFactory;
@@ -21,7 +18,7 @@ trait TransformableData
      * @return array<array-key, mixed>
      */
     public function transform(
-        null|TransformationContextFactory|TransformationContext $transformationContext = null,
+        TransformationContextFactory|TransformationContext|null $transformationContext = null,
     ): array {
         $transformationContext = match (true) {
             $transformationContext instanceof TransformationContext => $transformationContext,
@@ -70,13 +67,5 @@ trait TransformableData
     public function jsonSerialize(): array
     {
         return $this->transform();
-    }
-
-    /**
-     * Get the Eloquent caster for the data object.
-     */
-    public static function castUsing(array $arguments): CastsAttributes|CastsInboundAttributes|string
-    {
-        return new DataEloquentCast(static::class, $arguments);
     }
 }

@@ -24,4 +24,12 @@ class ClosureLazy extends ConditionalLazy
     {
         return $this->value;
     }
+
+    /**
+     * Determine if resolving this lazy value produces data.
+     */
+    public function resolvesToData(): bool
+    {
+        return false;
+    }
 }

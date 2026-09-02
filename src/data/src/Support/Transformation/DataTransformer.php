@@ -18,10 +18,13 @@ use Hypervel\Data\Contracts\BaseDataCollectable;
 use Hypervel\Data\Contracts\IncludeableData;
 use Hypervel\Data\Contracts\TransformableData;
 use Hypervel\Data\Contracts\WrappableData;
+use Hypervel\Data\CursorPaginatedDataCollection;
 use Hypervel\Data\DataCollection;
+use Hypervel\Data\Exceptions\CannotTransformData;
 use Hypervel\Data\Exceptions\MaxTransformationDepthReached;
 use Hypervel\Data\Lazy;
 use Hypervel\Data\Optional;
+use Hypervel\Data\PaginatedDataCollection;
 use Hypervel\Data\Support\DataClass;
 use Hypervel\Data\Support\DataClassRepository;
 use Hypervel\Data\Support\DataConfig;
@@ -30,6 +33,7 @@ use Hypervel\Data\Support\Lazy\DefaultLazy;
 use Hypervel\Data\Support\Types\Type;
 use Hypervel\Data\Support\Wrapping\WrapExecutionType;
 use Hypervel\Data\Transformers\Transformer;
+use Hypervel\Support\Collection;
 
 class DataTransformer
 {
@@ -63,6 +67,27 @@ class DataTransformer
     }
 
     /**
+     * Transform the root payload for Hypervel's resource response pipeline.
+     */
+    public function transformForResourceResponse(
+        (BaseData&TransformableData)|(BaseDataCollectable&TransformableData) $data,
+        TransformationContext $context,
+        ?Collection $rootItems = null,
+    ): array {
+        $extensions = [];
+
+        return $data instanceof BaseDataCollectable
+            ? $this->transformCollectable(
+                $data,
+                $context,
+                $extensions,
+                includePaginationData: false,
+                rootItems: $rootItems,
+            )
+            : $this->transformData($data, $context, $extensions, includeAdditionalData: false);
+    }
+
+    /**
      * Transform a nested data object within the current root operation.
      *
      * @param array<string, object> $extensions
@@ -71,6 +96,7 @@ class DataTransformer
         BaseData&TransformableData $data,
         TransformationContext $context,
         array &$extensions,
+        bool $includeAdditionalData = true,
     ): array {
         if ($context->maxDepth !== null && $context->depth >= $context->maxDepth) {
             throw MaxTransformationDepthReached::create($context->maxDepth);
@@ -79,22 +105,25 @@ class DataTransformer
         $dataClass = $this->dataClasses->get($data::class);
         $values = get_object_vars($data);
 
-        if ($dataClass->plainTransform
+        // The plain path includes computed output, which cannot reconstruct the object.
+        if (! $context->constructable
+            && $dataClass->plainTransform
             && ! $context->hasPartials()
             && $context->transformers === []
         ) {
             return $this->finalizeTransformation(
                 $data,
-                $dataClass,
                 $context,
                 $this->transformPlain($data, $dataClass, $values),
+                $includeAdditionalData,
             );
         }
 
         $transformed = [];
 
         foreach ($dataClass->properties as $property) {
-            if ($property->hidden
+            if (($property->hidden && ! $context->constructable)
+                || ($context->constructable && $property->computed)
                 || $context->except?->selects($property->name)
                 || ($context->only !== null
                     && $context->only->children !== []
@@ -137,7 +166,12 @@ class DataTransformer
             $transformed[$name] = $value;
         }
 
-        return $this->finalizeTransformation($data, $dataClass, $context, $transformed);
+        return $this->finalizeTransformation(
+            $data,
+            $context,
+            $transformed,
+            $includeAdditionalData,
+        );
     }
 
     /**
@@ -149,6 +183,8 @@ class DataTransformer
         BaseDataCollectable&TransformableData $data,
         TransformationContext $context,
         array &$extensions,
+        bool $includePaginationData = true,
+        ?Collection $rootItems = null,
     ): array {
         if ($context->maxDepth !== null && $context->depth >= $context->maxDepth) {
             throw MaxTransformationDepthReached::create($context->maxDepth);
@@ -156,7 +192,7 @@ class DataTransformer
 
         $transformed = [];
 
-        foreach ($this->collectableItems($data) as $key => $item) {
+        foreach ($rootItems ?? $this->collectableItems($data) as $key => $item) {
             if (! $context->transformValues) {
                 if ($context->hasPartials() && $item instanceof IncludeableData) {
                     $item->getPartialsDefinition()->addResolved($context->partialDefinitions);
@@ -170,16 +206,70 @@ class DataTransformer
             $itemContext = $context->withWrapExecutionType(
                 $this->resolveWrapExecutionType($item, $context),
             );
-            $transformed[$key] = $this->transformData(
+            $transformed[$key] = $this->transformNested(
                 $item,
-                $this->mergeInstancePartials($item, $itemContext),
+                $itemContext,
                 $extensions,
             );
+        }
+
+        if ($includePaginationData
+            && ($data instanceof PaginatedDataCollection
+                || $data instanceof CursorPaginatedDataCollection)
+            && $context->transformValues
+        ) {
+            return $this->transformPaginatorCollectable($data, $transformed);
         }
 
         return $data instanceof WrappableData && $context->wrapExecutionType->shouldExecute()
             ? $data->getWrap()->wrap($transformed, $this->config->wrap)
             : $transformed;
+    }
+
+    /**
+     * Transform a reached data value within the current root operation.
+     *
+     * @param array<string, object> $extensions
+     * @return array<array-key, mixed>|BaseData|BaseDataCollectable
+     */
+    protected function transformNested(
+        BaseData|BaseDataCollectable $value,
+        TransformationContext $context,
+        array &$extensions,
+    ): array|BaseData|BaseDataCollectable {
+        if (! $value instanceof TransformableData) {
+            return $value;
+        }
+
+        $context = $this->mergeInstancePartials($value, $context);
+
+        return $value instanceof BaseDataCollectable
+            ? $this->transformCollectable($value, $context, $extensions)
+            : $this->transformData($value, $context, $extensions);
+    }
+
+    /**
+     * Transform a paginator while retaining its native metadata.
+     *
+     * @param array<array-key, mixed> $items
+     * @return array<string, mixed>
+     */
+    protected function transformPaginatorCollectable(
+        PaginatedDataCollection|CursorPaginatedDataCollection $data,
+        array $items,
+    ): array {
+        $paginator = (clone $data->items())->setCollection(new Collection($items));
+        $transformed = $paginator->toArray();
+        $wrapKey = $data->getWrap()->getKey($this->config->wrap) ?? 'data';
+
+        if ($wrapKey === 'data') {
+            return $transformed;
+        }
+
+        $items = $transformed['data'];
+        unset($transformed['data']);
+
+        return [$wrapKey => $items, ...$transformed];
     }
 
     /**
@@ -199,20 +289,21 @@ class DataTransformer
      */
     protected function finalizeTransformation(
         BaseData $data,
-        DataClass $dataClass,
         TransformationContext $context,
         array $transformed,
+        bool $includeAdditionalData,
     ): array {
-        if ($dataClass->wrappable && $context->wrapExecutionType->shouldExecute()) {
-            /** @var WrappableData $data */
+        if ($data instanceof WrappableData && $context->wrapExecutionType->shouldExecute()) {
             $transformed = $data->getWrap()->wrap($transformed, $this->config->wrap);
         }
 
-        if (! $dataClass->appendable) {
+        if (! $includeAdditionalData
+            || $context->constructable
+            || ! $data instanceof AppendableData
+        ) {
             return $transformed;
         }
 
-        /** @var AppendableData $data */
         $additional = $data->getAdditionalData();
 
         return $additional === []
@@ -249,6 +340,16 @@ class DataTransformer
         DataProperty $property,
         TransformationContext $context,
     ): bool {
+        if ($context->constructable) {
+            if (! $lazy->resolvesToData()
+                || (! $lazy instanceof DefaultLazy && $lazy->shouldBeIncluded() !== true)
+            ) {
+                throw CannotTransformData::nonConstructableLazy($property);
+            }
+
+            return true;
+        }
+
         if (! $lazy instanceof DefaultLazy) {
             return $lazy->shouldBeIncluded() === true;
         }
@@ -296,17 +397,9 @@ class DataTransformer
                 $this->resolveWrapExecutionType($value, $context),
             );
 
-            if ($value instanceof BaseData) {
-                return $this->transformData(
-                    $value,
-                    $this->mergeInstancePartials($value, $nestedContext),
-                    $extensions,
-                );
-            }
-
-            return $this->transformCollectable(
+            return $this->transformNested(
                 $value,
-                $this->mergeInstancePartials($value, $nestedContext),
+                $nestedContext,
                 $extensions,
             );
         }
@@ -371,7 +464,7 @@ class DataTransformer
         BaseData|BaseDataCollectable $value,
         TransformationContext $context,
     ): TransformationContext {
-        if (! $value instanceof IncludeableData) {
+        if ($context->constructable || ! $value instanceof IncludeableData) {
             return $context;
         }
 
@@ -458,7 +551,7 @@ class DataTransformer
     /**
      * Resolve one transformer once for the current root operation.
      *
-     * @param Transformer|class-string<Transformer> $transformer
+     * @param class-string<Transformer>|Transformer $transformer
      * @param array<string, object> $extensions
      */
     protected function resolveTransformer(
@@ -541,17 +634,9 @@ class DataTransformer
                 $this->resolveWrapExecutionType($value, $context),
             );
 
-            if ($value instanceof BaseData) {
-                return $this->transformData(
-                    $value,
-                    $this->mergeInstancePartials($value, $context),
-                    $extensions,
-                );
-            }
-
-            return $this->transformCollectable(
+            return $this->transformNested(
                 $value,
-                $this->mergeInstancePartials($value, $context),
+                $context,
                 $extensions,
             );
         }
@@ -644,8 +729,7 @@ class DataTransformer
         array $value,
         ?PartialTree $only,
         ?PartialTree $except,
-    ): array
-    {
+    ): array {
         if ($except?->all) {
             $value = [];
         } elseif ($except !== null) {
