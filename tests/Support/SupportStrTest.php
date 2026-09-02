@@ -19,6 +19,7 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Uid\Ulid;
 use Symfony\Component\Uid\Uuid;
+use TypeError;
 use ValueError;
 
 class SupportStrTest extends TestCase
@@ -1539,12 +1540,72 @@ class SupportStrTest extends TestCase
         $this->assertSame('12:00', Str::substrReplace('1200', ':', 2, 0));
         $this->assertSame('The Hypervel Framework', Str::substrReplace('The Framework', 'Hypervel ', 4, 0));
         $this->assertSame('Hypervel – The PHP Framework for High-Performance Apps', Str::substrReplace('Hypervel Framework', '– The PHP Framework for High-Performance Apps', 9));
+        $this->assertSame('1567', Str::substrReplace('1234', '567', -3, 3));
+        $this->assertSame('125674', Str::substrReplace('1234', '567', 2, -1));
+        $this->assertSame('125674', Str::substrReplace('1234', '567', -2, -1));
+        $this->assertSame('HeXo', Str::substrReplace('Hello', 'X', 2, -1));
     }
 
     public function testSubstrReplaceWithMultibyte(): void
     {
         $this->assertSame('kengä', Str::substrReplace('kenkä', 'ng', -3, 2));
         $this->assertSame('kenga', Str::substrReplace('kenka', 'ng', -3, 2));
+    }
+
+    public function testSubstrReplaceWithArrays(): void
+    {
+        $this->assertSame(
+            ['INV-****', 'INV-****'],
+            Str::substrReplace(['INV-1234', 'INV-5678'], ['****', '****'], [4, 4], [4, 4])
+        );
+
+        $this->assertSame(
+            ['first' => 'aXc', 'second' => 'Yef', 'third' => ''],
+            Str::substrReplace(
+                ['first' => 'abc', 'second' => 'def', 'third' => 'ghi'],
+                ['X', 'Y'],
+                [1],
+                [1, 1]
+            )
+        );
+
+        $this->assertSame('kengä', Str::substrReplace('kenkä', ['ng'], -3, 2));
+        $this->assertSame('ac', Str::substrReplace('abc', [], 1, 1));
+        $this->assertSame(
+            ['kengä', 'БXДЖ'],
+            Str::substrReplace(['kenkä', 'БГДЖ'], ['ng', 'X'], [-3, 1], [2, 1])
+        );
+        $this->assertSame(
+            ['kXnkä', 'БXДЖ'],
+            Str::substrReplace(['kenkä', 'БГДЖ'], 'X', 1, 1)
+        );
+        $this->assertSame(
+            ['keX', 'БГX'],
+            Str::substrReplace(['kenkä', 'БГДЖ'], 'X', 2)
+        );
+        $this->assertSame(
+            ['first' => 'aXc', 'second' => 'deY'],
+            Str::substrReplace(
+                ['first' => 'abc', 'second' => 'def'],
+                ['second' => 'X', 'first' => 'Y'],
+                [10 => 1, 20 => 2],
+                [30 => 1, 40 => 1]
+            )
+        );
+    }
+
+    public function testSubstrReplaceWithArrayOffsetRequiresArraySubject(): void
+    {
+        $this->expectException(TypeError::class);
+
+        Str::substrReplace('abc', 'X', [1], 1);
+    }
+
+    public function testSubstrReplaceWithArrayLengthRequiresArraySubject(): void
+    {
+        $this->expectException(TypeError::class);
+
+        Str::substrReplace('abc', 'X', 1, [1]);
     }
 
     public function testTake(): void
