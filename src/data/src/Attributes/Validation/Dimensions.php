@@ -58,7 +58,7 @@ class Dimensions extends ObjectValidationAttribute
         $width = $this->normalizePossibleExternalReferenceParameter($this->width);
         $height = $this->normalizePossibleExternalReferenceParameter($this->height);
 
-        $rule = new BaseDimensions();
+        $rule = new BaseDimensions;
 
         if ($minWidth !== null) {
             $rule->minWidth($minWidth);

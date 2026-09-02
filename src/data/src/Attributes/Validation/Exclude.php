@@ -39,6 +39,6 @@ class Exclude extends ObjectValidationAttribute
      */
     public static function create(string ...$parameters): static
     {
-        return new static();
+        return new static;
     }
 }

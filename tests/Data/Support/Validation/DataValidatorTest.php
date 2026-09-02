@@ -13,11 +13,11 @@ use Hypervel\Data\Attributes\DataCollectionOf;
 use Hypervel\Data\Attributes\MapInputName;
 use Hypervel\Data\Attributes\MergeValidationRules;
 use Hypervel\Data\Attributes\PropertyForMorph;
-use Hypervel\Data\Attributes\WithoutValidation;
+use Hypervel\Data\Attributes\Validation\Distinct;
 use Hypervel\Data\Attributes\Validation\Required;
 use Hypervel\Data\Attributes\Validation\RequiredUnless;
-use Hypervel\Data\Attributes\Validation\Distinct;
 use Hypervel\Data\Attributes\Validation\StringType;
+use Hypervel\Data\Attributes\WithoutValidation;
 use Hypervel\Data\Contracts\PropertyMorphableData;
 use Hypervel\Data\Data;
 use Hypervel\Data\DataCollection;
@@ -40,8 +40,8 @@ use Hypervel\Http\Request;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Validation\ValidationException;
 use Hypervel\Validation\Factory as ValidationFactory;
+use Hypervel\Validation\ValidationException;
 use Hypervel\Validation\Validator;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
@@ -1808,6 +1808,32 @@ class DataValidatorTest extends TestCase
             $this->assertArrayNotHasKey('email', $exception->errors());
         }
     }
+
+    /**
+     * Test Precognition retains wildcard identity for selected Data rules.
+     */
+    public function testPrecognitionRetainsWildcardIdentityForSelectedDataRules(): void
+    {
+        $request = Request::create('/', 'POST', [
+            'items' => [
+                ['item_code' => 'duplicate'],
+                ['item_code' => 'duplicate'],
+            ],
+        ]);
+        $request->attributes->set('precognitive', true);
+        $request->headers->set('Precognition-Validate-Only', 'items.1.item_code');
+
+        try {
+            PrecognitiveDistinctDataFixture::from($request);
+            $this->fail('Expected the selected duplicate field to fail validation.');
+        } catch (ValidationException $exception) {
+            $this->assertSame([
+                'items.1.item_code' => [
+                    'The items.1.item_code field has a duplicate value.',
+                ],
+            ], $exception->errors());
+        }
+    }
 }
 
 class ValidatedDataFixture extends Data
@@ -3116,6 +3142,30 @@ class PrecognitiveAfterCallbackDataFixture extends Data
         return [static function (Validator $validator): void {
             $validator->errors()->add('value', 'Rejected by the after callback.');
         }];
+    }
+}
+
+class PrecognitiveDistinctItemDataFixture extends Data
+{
+    public function __construct(
+        #[MapInputName('item_code')]
+        #[Distinct]
+        public string $itemCode,
+    ) {
+    }
+}
+
+class PrecognitiveDistinctDataFixture extends Data
+{
+    /**
+     * Create a Precognition wildcard identity fixture.
+     *
+     * @param array<array-key, PrecognitiveDistinctItemDataFixture> $items
+     */
+    public function __construct(
+        #[DataCollectionOf(PrecognitiveDistinctItemDataFixture::class)]
+        public array $items,
+    ) {
     }
 }
 

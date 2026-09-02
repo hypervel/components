@@ -11,7 +11,7 @@ use Hypervel\Support\Arr;
 #[Attribute(Attribute::TARGET_PROPERTY | Attribute::TARGET_PARAMETER)]
 class ArrayType extends StringValidationAttribute
 {
-    /** @var list<string|ExternalReference> */
+    /** @var list<ExternalReference|string> */
     protected array $keys;
 
     /**

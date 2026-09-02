@@ -131,7 +131,9 @@ class DataValidator
 
         if ($request?->isPrecognitive()) {
             $unfilteredRules = $validator->getRulesWithoutPlaceholders();
-            $validator->setRules($request->filterPrecognitiveRules($unfilteredRules));
+            $validator->retainRules(array_keys(
+                $request->filterPrecognitiveRules($unfilteredRules)
+            ));
         }
 
         $this->configureValidator($validator, $state, $dataClass);
@@ -153,6 +155,7 @@ class DataValidator
         }
 
         if ($request?->isPrecognitive()) {
+            // Unknown-field errors must exist before Precognition decides whether validation succeeded.
             $validator->after(Precognition::afterValidationHook($request));
         }
 

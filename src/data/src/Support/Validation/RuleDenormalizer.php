@@ -20,7 +20,7 @@ class RuleDenormalizer
     /**
      * Convert one declaration into Validator rules.
      *
-     * @return list<InvokableRuleContract|RuleContract|object|string>
+     * @return list<InvokableRuleContract|object|RuleContract|string>
      */
     public function execute(mixed $rule, ValidationPath $path): array
     {

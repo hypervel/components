@@ -100,8 +100,8 @@ class ValidationPathTest extends TestCase
             ['profile', 'names', 'first.item', 'label'],
             $path->segments(),
         );
-        $this->assertSame('profile.names.first\\.item.label', $path->get());
-        $this->assertTrue($path->equals('profile.names.first\\.item.label'));
+        $this->assertSame('profile.names.first\.item.label', $path->get());
+        $this->assertTrue($path->equals('profile.names.first\.item.label'));
     }
 
     /**
@@ -109,11 +109,11 @@ class ValidationPathTest extends TestCase
      */
     public function testCreatesPathsWithEscapedLiteralDots(): void
     {
-        $path = ValidationPath::create('items.first\\.item.name');
-        $wildcards = ValidationPath::create('items.*.literal\\*.name');
+        $path = ValidationPath::create('items.first\.item.name');
+        $wildcards = ValidationPath::create('items.*.literal\*.name');
 
         $this->assertSame(['items', 'first.item', 'name'], $path->segments());
-        $this->assertSame('items.first\\.item.name', $path->get());
+        $this->assertSame('items.first\.item.name', $path->get());
         $this->assertSame(['items', null, 'literal*', 'name'], $wildcards->rawSegments());
     }
 
@@ -164,7 +164,7 @@ class ValidationPathTest extends TestCase
     {
         $path = new ValidationPath(['a\\', 'b']);
 
-        $this->assertSame('a\\.b', $path->get());
+        $this->assertSame('a\.b', $path->get());
         $this->assertSame(
             ['a.b'],
             ValidationPath::create($path->get())->rawSegments(),

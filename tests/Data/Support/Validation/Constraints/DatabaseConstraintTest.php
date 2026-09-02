@@ -33,34 +33,6 @@ class DatabaseConstraintTest extends TestCase
     }
 
     /**
-     * Test callback and set constraints register native query callbacks.
-     */
-    #[DataProvider('databaseRuleObjects')]
-    public function testAppliesCallbackConstraints(Exists|Unique $rule): void
-    {
-        (new WhereConstraint(static fn (): null => null))->apply($rule);
-        (new WhereInConstraint('status', ['active', 'pending']))->apply($rule);
-        (new WhereNotInConstraint('role', ['admin', 'owner']))->apply($rule);
-
-        $this->assertCount(3, $rule->queryCallbacks());
-    }
-
-    /**
-     * Test constraints resolve external references at application time.
-     */
-    public function testResolvesExternalReferences(): void
-    {
-        $rule = new Exists('users', 'id');
-
-        (new WhereConstraint(
-            new DatabaseConstraintExternalReference('status'),
-            new DatabaseConstraintExternalReference('active'),
-        ))->apply($rule);
-
-        $this->assertSame('exists:users,id,status,"active"', (string) $rule);
-    }
-
-    /**
      * Provide native database rules and their serialized scalar constraints.
      */
     public static function databaseRules(): iterable
@@ -77,12 +49,40 @@ class DatabaseConstraintTest extends TestCase
     }
 
     /**
+     * Test callback and set constraints register native query callbacks.
+     */
+    #[DataProvider('databaseRuleObjects')]
+    public function testAppliesCallbackConstraints(Exists|Unique $rule): void
+    {
+        (new WhereConstraint(static fn (): null => null))->apply($rule);
+        (new WhereInConstraint('status', ['active', 'pending']))->apply($rule);
+        (new WhereNotInConstraint('role', ['admin', 'owner']))->apply($rule);
+
+        $this->assertCount(3, $rule->queryCallbacks());
+    }
+
+    /**
      * Provide native database rule objects.
      */
     public static function databaseRuleObjects(): iterable
     {
         yield [new Exists('users', 'id')];
         yield [new Unique('users', 'email')];
+    }
+
+    /**
+     * Test constraints resolve external references at application time.
+     */
+    public function testResolvesExternalReferences(): void
+    {
+        $rule = new Exists('users', 'id');
+
+        (new WhereConstraint(
+            new DatabaseConstraintExternalReference('status'),
+            new DatabaseConstraintExternalReference('active'),
+        ))->apply($rule);
+
+        $this->assertSame('exists:users,id,status,"active"', (string) $rule);
     }
 }
 

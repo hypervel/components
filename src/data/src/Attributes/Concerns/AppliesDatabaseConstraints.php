@@ -15,7 +15,7 @@ trait AppliesDatabaseConstraints
     /**
      * Apply database constraints to a validation rule.
      *
-     * @param Closure|DatabaseConstraint|array<int, DatabaseConstraint|Closure> $constraints
+     * @param array<int, Closure|DatabaseConstraint>|Closure|DatabaseConstraint $constraints
      */
     protected function applyDatabaseConstraints(Exists|Unique $rule, Closure|DatabaseConstraint|array $constraints): void
     {

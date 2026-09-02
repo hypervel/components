@@ -147,6 +147,7 @@ class DataValidationCompiler
             }
 
             $wireKey = $this->wireKey($property, $state, $observed);
+            $inputPath = $property->inputPath($wireKey);
             $propertyPath = $path->property($wireKey);
             $structuralPropertyPath = $structuralPath->property($wireKey);
 
@@ -162,8 +163,8 @@ class DataValidationCompiler
                 continue;
             }
 
-            $hasValue = $observed && $state->hasValue($wireKey);
-            $value = $hasValue ? $state->getValue($wireKey) : null;
+            $hasValue = $observed && $state->hasValue($inputPath);
+            $value = $hasValue ? $state->getValue($inputPath) : null;
 
             if (! $property->validate) {
                 $accumulator->preservedPaths[] = $propertyPath;
@@ -225,7 +226,7 @@ class DataValidationCompiler
             }
 
             if ($nestedDataClass !== null && is_array($value)) {
-                $state->enterProperty($property->name, $wireKey);
+                $state->enterProperty($property->name, $inputPath);
 
                 try {
                     $this->compileNode(
@@ -299,7 +300,8 @@ class DataValidationCompiler
         array &$lifecycleDeclarations,
         bool $compileUnknownFields,
     ): void {
-        $state->enterProperty($property->name, $state->originalKey($property->name));
+        $wireKey = $state->originalKey($property->name);
+        $state->enterProperty($property->name, $property->inputPath($wireKey));
 
         try {
             $this->compileDataIterableValues(
@@ -550,8 +552,7 @@ class DataValidationCompiler
         DataProperty $property,
         bool $expectsArray,
         bool $hasPresenceRule = false,
-    ): array
-    {
+    ): array {
         $rules = match (true) {
             $property->type->isOptional => ['sometimes'],
             $property->type->isNullable => ['nullable'],
@@ -827,7 +828,7 @@ class DataValidationCompiler
     /**
      * Recursively translate class-rule segments through Data metadata.
      *
-     * @param list<array-key|null> $segments
+     * @param list<null|array-key> $segments
      * @return list<TranslatedValidationPath>
      */
     protected function translateRuleSegments(
@@ -866,10 +867,11 @@ class DataValidationCompiler
         }
 
         $wireKey = $this->wireKey($property, $state, $observed);
+        $inputPath = $property->inputPath($wireKey);
         $path = $path->property($wireKey);
         $structuralPath = $structuralPath->property($wireKey);
-        $hasValue = $observed && $state->hasValue($wireKey);
-        $value = $hasValue ? $state->getValue($wireKey) : null;
+        $hasValue = $observed && $state->hasValue($inputPath);
+        $value = $hasValue ? $state->getValue($inputPath) : null;
 
         if ($this->isFinishedDataValue($property, $value)) {
             return [];
@@ -885,7 +887,7 @@ class DataValidationCompiler
         $nestedDataClass = $this->nestedDataClass($property);
 
         if ($nestedDataClass !== null) {
-            $state->enterProperty($property->name, $wireKey);
+            $state->enterProperty($property->name, $inputPath);
 
             try {
                 return $this->translateRuleSegments(
@@ -915,7 +917,7 @@ class DataValidationCompiler
         $itemDataClass = $dataIterable->dataClass;
         $itemSegment = $segments[$offset + 1];
         $values = $hasValue && is_array($value) ? $value : [];
-        $state->enterProperty($property->name, $wireKey);
+        $state->enterProperty($property->name, $inputPath);
 
         try {
             if ($itemSegment !== null) {
@@ -1020,7 +1022,7 @@ class DataValidationCompiler
     /**
      * Append rule segments that no longer describe Data properties.
      *
-     * @param list<array-key|null> $segments
+     * @param list<null|array-key> $segments
      */
     protected function appendUnmappedSegments(
         ValidationPath $path,

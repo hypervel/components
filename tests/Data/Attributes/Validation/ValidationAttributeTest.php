@@ -56,13 +56,13 @@ use Hypervel\Data\Attributes\Validation\Filled;
 use Hypervel\Data\Attributes\Validation\GreaterThan;
 use Hypervel\Data\Attributes\Validation\GreaterThanOrEqualTo;
 use Hypervel\Data\Attributes\Validation\HexColor;
-use Hypervel\Data\Attributes\Validation\IP;
-use Hypervel\Data\Attributes\Validation\IPv4;
-use Hypervel\Data\Attributes\Validation\IPv6;
 use Hypervel\Data\Attributes\Validation\Image;
 use Hypervel\Data\Attributes\Validation\InArray;
 use Hypervel\Data\Attributes\Validation\InArrayKeys;
 use Hypervel\Data\Attributes\Validation\IntegerType;
+use Hypervel\Data\Attributes\Validation\IP;
+use Hypervel\Data\Attributes\Validation\IPv4;
+use Hypervel\Data\Attributes\Validation\IPv6;
 use Hypervel\Data\Attributes\Validation\Json;
 use Hypervel\Data\Attributes\Validation\LessThan;
 use Hypervel\Data\Attributes\Validation\LessThanOrEqualTo;
@@ -71,8 +71,8 @@ use Hypervel\Data\Attributes\Validation\Lowercase;
 use Hypervel\Data\Attributes\Validation\MacAddress;
 use Hypervel\Data\Attributes\Validation\Max;
 use Hypervel\Data\Attributes\Validation\MaxDigits;
-use Hypervel\Data\Attributes\Validation\MimeTypes;
 use Hypervel\Data\Attributes\Validation\Mimes;
+use Hypervel\Data\Attributes\Validation\MimeTypes;
 use Hypervel\Data\Attributes\Validation\Min;
 use Hypervel\Data\Attributes\Validation\MinDigits;
 use Hypervel\Data\Attributes\Validation\Missing;
@@ -124,14 +124,14 @@ use Hypervel\Data\Support\Validation\RuleDenormalizer;
 use Hypervel\Data\Support\Validation\ValidationPath;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
-use Hypervel\Validation\ValidationRuleParser;
+use Hypervel\Validation\Rules\AnyOf as AnyOfRule;
+use Hypervel\Validation\Rules\Can as CanRule;
 use Hypervel\Validation\Rules\Dimensions as DimensionsRule;
 use Hypervel\Validation\Rules\Enum as EnumRule;
 use Hypervel\Validation\Rules\ExcludeIf as ExcludeIfRule;
-use Hypervel\Validation\Rules\AnyOf as AnyOfRule;
-use Hypervel\Validation\Rules\Can as CanRule;
 use Hypervel\Validation\Rules\ProhibitedIf as ProhibitedIfRule;
 use Hypervel\Validation\Rules\RequiredIf as RequiredIfRule;
+use Hypervel\Validation\ValidationRuleParser;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use ReflectionProperty;
@@ -152,7 +152,7 @@ class ValidationAttributeTest extends TestCase
     #[DataProvider('normalizedValues')]
     public function testNormalizesValues(mixed $input, string $output): void
     {
-        $attribute = new class ([$input]) extends StringValidationAttribute {
+        $attribute = new class([$input]) extends StringValidationAttribute {
             /**
              * Create a test validation attribute.
              *
@@ -167,7 +167,7 @@ class ValidationAttributeTest extends TestCase
              */
             public static function create(string ...$parameters): static
             {
-                return new static($parameters);
+                return new self($parameters);
             }
 
             /**
@@ -247,6 +247,173 @@ class ValidationAttributeTest extends TestCase
             [$expected],
             (new RuleDenormalizer)->execute($createdAttribute, ValidationPath::create()),
         );
+    }
+
+    /**
+     * Provide simple string validation attributes.
+     */
+    public static function stringRules(): iterable
+    {
+        yield [new Accepted, 'accepted'];
+        yield [new AcceptedIf('status', true), 'accepted_if:status,true'];
+        yield [new ActiveUrl, 'active_url'];
+        yield [new After('tomorrow'), 'after:tomorrow'];
+        yield [new AfterOrEqual('tomorrow'), 'after_or_equal:tomorrow'];
+        yield [new Alpha, 'alpha'];
+        yield [new AlphaDash, 'alpha_dash'];
+        yield [new AlphaNumeric, 'alpha_num'];
+        yield [new ArrayType(['name', 'email']), 'array:name,email'];
+        yield [new Ascii, 'ascii'];
+        yield [new Bail, 'bail'];
+        yield [new Base64, 'base64'];
+        yield [new Before('tomorrow'), 'before:tomorrow'];
+        yield [new BeforeOrEqual('tomorrow'), 'before_or_equal:tomorrow'];
+        yield [new Between(1, 10), 'between:1,10'];
+        yield [new BooleanType, 'boolean'];
+        yield [new Confirmed, 'confirmed'];
+        yield [new Contains(['admin', [42]], new ValidationAttributeExternalReference('member')), 'contains:admin,42,member'];
+        yield [new CurrentPassword, 'current_password'];
+        yield [new CurrentPassword('api'), 'current_password:api'];
+        yield [new CurrentPassword(ValidationAttributeBackedEnum::Foo), 'current_password:foo'];
+        yield [new CurrentPassword(new ValidationAttributeExternalReference), 'current_password:admin'];
+        yield [CurrentPassword::create('api'), 'current_password:api'];
+        yield [new Date, 'date'];
+        yield [new DateEquals('tomorrow'), 'date_equals:tomorrow'];
+        yield [new DateFormat('Y-m-d'), 'date_format:Y-m-d'];
+        yield [new DateFormat(['Y-m-d', 'Y-m-d H:i:s']), 'date_format:Y-m-d,Y-m-d H:i:s'];
+        yield [new DateFormat('Y-m-d', 'Y-m-d H:i:s'), 'date_format:Y-m-d,Y-m-d H:i:s'];
+        yield [new Decimal('2', '4'), 'decimal:2,4'];
+        yield [new Declined, 'declined'];
+        yield [new DeclinedIf('status', false), 'declined_if:status,false'];
+        yield [new Different('password'), 'different:password'];
+        yield [new Digits(4), 'digits:4'];
+        yield [new DigitsBetween(2, 6), 'digits_between:2,6'];
+        yield [new Distinct, 'distinct'];
+        yield [new Distinct(Distinct::Strict), 'distinct:strict'];
+        yield [new Distinct(Distinct::IgnoreCase), 'distinct:ignore_case'];
+        yield [new Distinct(new ValidationAttributeExternalReference(Distinct::Strict)), 'distinct:strict'];
+        yield [new Distinct(new ValidationAttributeExternalReference(null)), 'distinct'];
+        yield [
+            new DoesntContain(['admin', [42]], new ValidationAttributeExternalReference('member')),
+            'doesnt_contain:admin,42,member',
+        ];
+        yield [
+            new DoesntEndWith(['.php', ['.exe']], new ValidationAttributeExternalReference('.bat')),
+            'doesnt_end_with:.php,.exe,.bat',
+        ];
+        yield [
+            new DoesntStartWith(['admin', ['root']], new ValidationAttributeExternalReference('system')),
+            'doesnt_start_with:admin,root,system',
+        ];
+        yield [new Email, 'email:rfc'];
+        yield [
+            new Email(Email::DnsCheckValidation, Email::FilterUnicodeEmailValidation),
+            'email:dns,filter_unicode',
+        ];
+        yield [new Email(RFCValidation::class), 'email:' . RFCValidation::class];
+        yield [new Email(new ValidationAttributeExternalReference(Email::SpoofCheckValidation)), 'email:spoof'];
+        yield [new Encoding('UTF-8'), 'encoding:UTF-8'];
+        yield [
+            new EndsWith(['.json', ['.yaml']], new ValidationAttributeExternalReference('.yml')),
+            'ends_with:.json,.yaml,.yml',
+        ];
+        yield [new ExcludeIf('status', false), 'exclude_if:status,false'];
+        yield [new ExcludeUnless('status', 'published'), 'exclude_unless:status,published'];
+        yield [new ExcludeWith('archived_at'), 'exclude_with:archived_at'];
+        yield [new ExcludeWithout('published_at'), 'exclude_without:published_at'];
+        yield [new Extensions(['jpg', ['png']], new ValidationAttributeExternalReference('webp')), 'extensions:jpg,png,webp'];
+        yield [new File, 'file'];
+        yield [new Filled, 'filled'];
+        yield [new GreaterThan('other'), 'gt:other'];
+        yield [new GreaterThan(10), 'gt:10'];
+        yield [new GreaterThan('99999999999999999999'), 'gt:99999999999999999999'];
+        yield [new GreaterThanOrEqualTo('other'), 'gte:other'];
+        yield [new GreaterThanOrEqualTo('10'), 'gte:10'];
+        yield [new HexColor, 'hex_color'];
+        yield [new IP, 'ip'];
+        yield [new IPv4, 'ipv4'];
+        yield [new IPv6, 'ipv6'];
+        yield [new Image, 'image'];
+        yield [new InArray('roles.*'), 'in_array:roles.*'];
+        yield [new InArrayKeys(['name', [42]], new ValidationAttributeExternalReference('email')), 'in_array_keys:name,42,email'];
+        yield [new IntegerType, 'integer'];
+        yield [new Json, 'json'];
+        yield [new LessThan('other'), 'lt:other'];
+        yield [new LessThan('10.50'), 'lt:10.50'];
+        yield [new LessThanOrEqualTo('other'), 'lte:other'];
+        yield [new LessThanOrEqualTo(10), 'lte:10'];
+        yield [new ListType, 'list'];
+        yield [new Lowercase, 'lowercase'];
+        yield [new MacAddress, 'mac_address'];
+        yield [new Max('99999999999999999999'), 'max:99999999999999999999'];
+        yield [new MaxDigits(10), 'max_digits:10'];
+        yield [
+            new MimeTypes(['image/jpeg', ['image/png']], new ValidationAttributeExternalReference('image/webp')),
+            'mimetypes:image/jpeg,image/png,image/webp',
+        ];
+        yield [new Mimes(['jpg', ['png']], new ValidationAttributeExternalReference('webp')), 'mimes:jpg,png,webp'];
+        yield [new Min(1.5), 'min:1.5'];
+        yield [new MinDigits(2), 'min_digits:2'];
+        yield [new Missing, 'missing'];
+        yield [new MissingIf('status', true, null), 'missing_if:status,true,null'];
+        yield [new MissingUnless('status', 1, 2.5), 'missing_unless:status,1,2.5'];
+        yield [new MissingWith(['email', ['phone']]), 'missing_with:email,phone'];
+        yield [new MissingWithAll(['email', ['phone']]), 'missing_with_all:email,phone'];
+        yield [new MultipleOf('0.000000000000000001'), 'multiple_of:0.000000000000000001'];
+        yield [new NotRegex('/foo/'), 'not_regex:/foo/'];
+        yield [new Nullable, 'nullable'];
+        yield [new Numeric, 'numeric'];
+        yield [new Present, 'present'];
+        yield [new PresentIf('status', true, null), 'present_if:status,true,null'];
+        yield [new PresentUnless('status', 1, 2.5), 'present_unless:status,1,2.5'];
+        yield [new PresentWith(['email', ['phone']]), 'present_with:email,phone'];
+        yield [new PresentWithAll(['email', ['phone']]), 'present_with_all:email,phone'];
+        yield [
+            new ProhibitedIf('status', ['draft', ['pending']], new ValidationAttributeExternalReference('published')),
+            'prohibited_if:status,draft,pending,published',
+        ];
+        yield [new ProhibitedIf('enabled', true), 'prohibited_if:enabled,true'];
+        yield [new ProhibitedIfAccepted('terms'), 'prohibited_if_accepted:terms'];
+        yield [new ProhibitedIfDeclined('terms'), 'prohibited_if_declined:terms'];
+        yield [
+            new ProhibitedUnless('status', ['draft', ['pending']], new ValidationAttributeExternalReference('published')),
+            'prohibited_unless:status,draft,pending,published',
+        ];
+        yield [new ProhibitedUnless('count', 1, 2.5), 'prohibited_unless:count,1,2.5'];
+        yield [new Prohibits(['email', ['phone']]), 'prohibits:email,phone'];
+        yield [new Regex('/foo/'), 'regex:/foo/'];
+        yield [
+            new RequiredArrayKeys(['name', ['email']], new ValidationAttributeExternalReference('role')),
+            'required_array_keys:name,email,role',
+        ];
+        yield [
+            new RequiredIf('status', ['draft', ['pending']], new ValidationAttributeExternalReference('published')),
+            'required_if:status,draft,pending,published',
+        ];
+        yield [new RequiredIf('enabled', true), 'required_if:enabled,true'];
+        yield [new RequiredIfAccepted('terms'), 'required_if_accepted:terms'];
+        yield [new RequiredIfDeclined('terms'), 'required_if_declined:terms'];
+        yield [
+            new RequiredIf('status', 'draft', new ValidationAttributeExternalReference(null)),
+            'required_if:status,draft,null',
+        ];
+        yield [new RequiredUnless('status', null), 'required_unless:status,null'];
+        yield [new RequiredWith(['email', ['phone']]), 'required_with:email,phone'];
+        yield [new RequiredWithAll(['email', ['phone']]), 'required_with_all:email,phone'];
+        yield [new RequiredWithout(['email', ['phone']]), 'required_without:email,phone'];
+        yield [new RequiredWithoutAll(['email', ['phone']]), 'required_without_all:email,phone'];
+        yield [new Same('password'), 'same:password'];
+        yield [new Size('99999999999999999999'), 'size:99999999999999999999'];
+        yield [new Sometimes, 'sometimes'];
+        yield [
+            new StartsWith(['admin', ['root']], new ValidationAttributeExternalReference('system')),
+            'starts_with:admin,root,system',
+        ];
+        yield [new Timezone, 'timezone'];
+        yield [new Ulid, 'ulid'];
+        yield [new Uppercase, 'uppercase'];
+        yield [new Url(['http', ['https']], new ValidationAttributeExternalReference('ftp')), 'url:http,https,ftp'];
+        yield [new Uuid, 'uuid'];
     }
 
     /**
@@ -464,16 +631,6 @@ class ValidationAttributeTest extends TestCase
     }
 
     /**
-     * Test enum rejects unsupported resolved declarations.
-     */
-    public function testRejectsInvalidEnumDeclaration(): void
-    {
-        $this->expectException(CannotBuildValidationRule::class);
-
-        (new Enum(new ValidationAttributeExternalReference(42)))->getRule(ValidationPath::create());
-    }
-
-    /**
      * Provide unsupported email modes.
      */
     public static function invalidEmailModes(): iterable
@@ -483,170 +640,13 @@ class ValidationAttributeTest extends TestCase
     }
 
     /**
-     * Provide simple string validation attributes.
+     * Test enum rejects unsupported resolved declarations.
      */
-    public static function stringRules(): iterable
+    public function testRejectsInvalidEnumDeclaration(): void
     {
-        yield [new Accepted, 'accepted'];
-        yield [new AcceptedIf('status', true), 'accepted_if:status,true'];
-        yield [new ActiveUrl, 'active_url'];
-        yield [new After('tomorrow'), 'after:tomorrow'];
-        yield [new AfterOrEqual('tomorrow'), 'after_or_equal:tomorrow'];
-        yield [new Alpha, 'alpha'];
-        yield [new AlphaDash, 'alpha_dash'];
-        yield [new AlphaNumeric, 'alpha_num'];
-        yield [new ArrayType(['name', 'email']), 'array:name,email'];
-        yield [new Ascii, 'ascii'];
-        yield [new Bail, 'bail'];
-        yield [new Base64, 'base64'];
-        yield [new Before('tomorrow'), 'before:tomorrow'];
-        yield [new BeforeOrEqual('tomorrow'), 'before_or_equal:tomorrow'];
-        yield [new Between(1, 10), 'between:1,10'];
-        yield [new BooleanType, 'boolean'];
-        yield [new Confirmed, 'confirmed'];
-        yield [new Contains(['admin', [42]], new ValidationAttributeExternalReference('member')), 'contains:admin,42,member'];
-        yield [new CurrentPassword, 'current_password'];
-        yield [new CurrentPassword('api'), 'current_password:api'];
-        yield [new CurrentPassword(ValidationAttributeBackedEnum::Foo), 'current_password:foo'];
-        yield [new CurrentPassword(new ValidationAttributeExternalReference), 'current_password:admin'];
-        yield [CurrentPassword::create('api'), 'current_password:api'];
-        yield [new Date, 'date'];
-        yield [new DateEquals('tomorrow'), 'date_equals:tomorrow'];
-        yield [new DateFormat('Y-m-d'), 'date_format:Y-m-d'];
-        yield [new DateFormat(['Y-m-d', 'Y-m-d H:i:s']), 'date_format:Y-m-d,Y-m-d H:i:s'];
-        yield [new DateFormat('Y-m-d', 'Y-m-d H:i:s'), 'date_format:Y-m-d,Y-m-d H:i:s'];
-        yield [new Decimal('2', '4'), 'decimal:2,4'];
-        yield [new Declined, 'declined'];
-        yield [new DeclinedIf('status', false), 'declined_if:status,false'];
-        yield [new Different('password'), 'different:password'];
-        yield [new Digits(4), 'digits:4'];
-        yield [new DigitsBetween(2, 6), 'digits_between:2,6'];
-        yield [new Distinct, 'distinct'];
-        yield [new Distinct(Distinct::Strict), 'distinct:strict'];
-        yield [new Distinct(Distinct::IgnoreCase), 'distinct:ignore_case'];
-        yield [new Distinct(new ValidationAttributeExternalReference(Distinct::Strict)), 'distinct:strict'];
-        yield [new Distinct(new ValidationAttributeExternalReference(null)), 'distinct'];
-        yield [
-            new DoesntContain(['admin', [42]], new ValidationAttributeExternalReference('member')),
-            'doesnt_contain:admin,42,member',
-        ];
-        yield [
-            new DoesntEndWith(['.php', ['.exe']], new ValidationAttributeExternalReference('.bat')),
-            'doesnt_end_with:.php,.exe,.bat',
-        ];
-        yield [
-            new DoesntStartWith(['admin', ['root']], new ValidationAttributeExternalReference('system')),
-            'doesnt_start_with:admin,root,system',
-        ];
-        yield [new Email, 'email:rfc'];
-        yield [
-            new Email(Email::DnsCheckValidation, Email::FilterUnicodeEmailValidation),
-            'email:dns,filter_unicode',
-        ];
-        yield [new Email(RFCValidation::class), 'email:' . RFCValidation::class];
-        yield [new Email(new ValidationAttributeExternalReference(Email::SpoofCheckValidation)), 'email:spoof'];
-        yield [new Encoding('UTF-8'), 'encoding:UTF-8'];
-        yield [
-            new EndsWith(['.json', ['.yaml']], new ValidationAttributeExternalReference('.yml')),
-            'ends_with:.json,.yaml,.yml',
-        ];
-        yield [new ExcludeIf('status', false), 'exclude_if:status,false'];
-        yield [new ExcludeUnless('status', 'published'), 'exclude_unless:status,published'];
-        yield [new ExcludeWith('archived_at'), 'exclude_with:archived_at'];
-        yield [new ExcludeWithout('published_at'), 'exclude_without:published_at'];
-        yield [new Extensions(['jpg', ['png']], new ValidationAttributeExternalReference('webp')), 'extensions:jpg,png,webp'];
-        yield [new File, 'file'];
-        yield [new Filled, 'filled'];
-        yield [new GreaterThan('other'), 'gt:other'];
-        yield [new GreaterThan(10), 'gt:10'];
-        yield [new GreaterThan('99999999999999999999'), 'gt:99999999999999999999'];
-        yield [new GreaterThanOrEqualTo('other'), 'gte:other'];
-        yield [new GreaterThanOrEqualTo('10'), 'gte:10'];
-        yield [new HexColor, 'hex_color'];
-        yield [new IP, 'ip'];
-        yield [new IPv4, 'ipv4'];
-        yield [new IPv6, 'ipv6'];
-        yield [new Image, 'image'];
-        yield [new InArray('roles.*'), 'in_array:roles.*'];
-        yield [new InArrayKeys(['name', [42]], new ValidationAttributeExternalReference('email')), 'in_array_keys:name,42,email'];
-        yield [new IntegerType, 'integer'];
-        yield [new Json, 'json'];
-        yield [new LessThan('other'), 'lt:other'];
-        yield [new LessThan('10.50'), 'lt:10.50'];
-        yield [new LessThanOrEqualTo('other'), 'lte:other'];
-        yield [new LessThanOrEqualTo(10), 'lte:10'];
-        yield [new ListType, 'list'];
-        yield [new Lowercase, 'lowercase'];
-        yield [new MacAddress, 'mac_address'];
-        yield [new Max('99999999999999999999'), 'max:99999999999999999999'];
-        yield [new MaxDigits(10), 'max_digits:10'];
-        yield [
-            new MimeTypes(['image/jpeg', ['image/png']], new ValidationAttributeExternalReference('image/webp')),
-            'mimetypes:image/jpeg,image/png,image/webp',
-        ];
-        yield [new Mimes(['jpg', ['png']], new ValidationAttributeExternalReference('webp')), 'mimes:jpg,png,webp'];
-        yield [new Min(1.5), 'min:1.5'];
-        yield [new MinDigits(2), 'min_digits:2'];
-        yield [new Missing, 'missing'];
-        yield [new MissingIf('status', true, null), 'missing_if:status,true,null'];
-        yield [new MissingUnless('status', 1, 2.5), 'missing_unless:status,1,2.5'];
-        yield [new MissingWith(['email', ['phone']]), 'missing_with:email,phone'];
-        yield [new MissingWithAll(['email', ['phone']]), 'missing_with_all:email,phone'];
-        yield [new MultipleOf('0.000000000000000001'), 'multiple_of:0.000000000000000001'];
-        yield [new NotRegex('/foo/'), 'not_regex:/foo/'];
-        yield [new Nullable, 'nullable'];
-        yield [new Numeric, 'numeric'];
-        yield [new Present, 'present'];
-        yield [new PresentIf('status', true, null), 'present_if:status,true,null'];
-        yield [new PresentUnless('status', 1, 2.5), 'present_unless:status,1,2.5'];
-        yield [new PresentWith(['email', ['phone']]), 'present_with:email,phone'];
-        yield [new PresentWithAll(['email', ['phone']]), 'present_with_all:email,phone'];
-        yield [
-            new ProhibitedIf('status', ['draft', ['pending']], new ValidationAttributeExternalReference('published')),
-            'prohibited_if:status,draft,pending,published',
-        ];
-        yield [new ProhibitedIf('enabled', true), 'prohibited_if:enabled,true'];
-        yield [new ProhibitedIfAccepted('terms'), 'prohibited_if_accepted:terms'];
-        yield [new ProhibitedIfDeclined('terms'), 'prohibited_if_declined:terms'];
-        yield [
-            new ProhibitedUnless('status', ['draft', ['pending']], new ValidationAttributeExternalReference('published')),
-            'prohibited_unless:status,draft,pending,published',
-        ];
-        yield [new ProhibitedUnless('count', 1, 2.5), 'prohibited_unless:count,1,2.5'];
-        yield [new Prohibits(['email', ['phone']]), 'prohibits:email,phone'];
-        yield [new Regex('/foo/'), 'regex:/foo/'];
-        yield [
-            new RequiredArrayKeys(['name', ['email']], new ValidationAttributeExternalReference('role')),
-            'required_array_keys:name,email,role',
-        ];
-        yield [
-            new RequiredIf('status', ['draft', ['pending']], new ValidationAttributeExternalReference('published')),
-            'required_if:status,draft,pending,published',
-        ];
-        yield [new RequiredIf('enabled', true), 'required_if:enabled,true'];
-        yield [new RequiredIfAccepted('terms'), 'required_if_accepted:terms'];
-        yield [new RequiredIfDeclined('terms'), 'required_if_declined:terms'];
-        yield [
-            new RequiredIf('status', 'draft', new ValidationAttributeExternalReference(null)),
-            'required_if:status,draft,null',
-        ];
-        yield [new RequiredUnless('status', null), 'required_unless:status,null'];
-        yield [new RequiredWith(['email', ['phone']]), 'required_with:email,phone'];
-        yield [new RequiredWithAll(['email', ['phone']]), 'required_with_all:email,phone'];
-        yield [new RequiredWithout(['email', ['phone']]), 'required_without:email,phone'];
-        yield [new RequiredWithoutAll(['email', ['phone']]), 'required_without_all:email,phone'];
-        yield [new Same('password'), 'same:password'];
-        yield [new Size('99999999999999999999'), 'size:99999999999999999999'];
-        yield [new Sometimes, 'sometimes'];
-        yield [
-            new StartsWith(['admin', ['root']], new ValidationAttributeExternalReference('system')),
-            'starts_with:admin,root,system',
-        ];
-        yield [new Timezone, 'timezone'];
-        yield [new Ulid, 'ulid'];
-        yield [new Uppercase, 'uppercase'];
-        yield [new Url(['http', ['https']], new ValidationAttributeExternalReference('ftp')), 'url:http,https,ftp'];
-        yield [new Uuid, 'uuid'];
+        $this->expectException(CannotBuildValidationRule::class);
+
+        (new Enum(new ValidationAttributeExternalReference(42)))->getRule(ValidationPath::create());
     }
 }
 

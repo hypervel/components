@@ -11,7 +11,7 @@ class ValidationPath implements Stringable
     /**
      * Create a validation path.
      *
-     * @param list<array-key|null> $path
+     * @param list<null|array-key> $path
      */
     public function __construct(
         protected readonly array $path = [],
@@ -92,7 +92,7 @@ class ValidationPath implements Stringable
     /**
      * Get the path segments.
      *
-     * @return list<array-key|'*'>
+     * @return list<'*'|array-key>
      */
     public function segments(): array
     {
@@ -105,7 +105,7 @@ class ValidationPath implements Stringable
     /**
      * Get structural segments with wildcards represented by null.
      *
-     * @return list<array-key|null>
+     * @return list<null|array-key>
      */
     public function rawSegments(): array
     {
@@ -121,7 +121,7 @@ class ValidationPath implements Stringable
             fn (string|int|null $segment): string => match (true) {
                 $segment === null => '*',
                 is_int($segment) => (string) $segment,
-                default => str_replace(['.', '*'], ['\\.', '\\*'], $segment),
+                default => str_replace(['.', '*'], ['\.', '\*'], $segment),
             },
             $this->path,
         ));
@@ -156,7 +156,7 @@ class ValidationPath implements Stringable
     /**
      * Recursively expand wildcard segments against a payload.
      *
-     * @param list<array-key|null> $remainingSegments
+     * @param list<null|array-key> $remainingSegments
      * @param list<array-key> $resolvedSegments
      * @return list<self>
      */
@@ -164,8 +164,7 @@ class ValidationPath implements Stringable
         array $remainingSegments,
         mixed $payload,
         array $resolvedSegments = [],
-    ): array
-    {
+    ): array {
         if ($remainingSegments === []) {
             return [new self($resolvedSegments)];
         }
@@ -202,11 +201,11 @@ class ValidationPath implements Stringable
     /**
      * Parse Validator dot notation into structural segments.
      *
-     * @return list<array-key|null>
+     * @return list<null|array-key>
      */
     protected static function parseDotPath(string $path): array
     {
-        $segments = preg_split('/(?<!\\\\)\./', $path);
+        $segments = preg_split('/(?<!\\\)\./', $path);
 
         return array_map(
             static function (string $segment): string|int|null {
@@ -214,7 +213,7 @@ class ValidationPath implements Stringable
                     return null;
                 }
 
-                $segment = str_replace(['\\.', '\\*'], ['.', '*'], $segment);
+                $segment = str_replace(['\.', '\*'], ['.', '*'], $segment);
                 $integer = filter_var($segment, FILTER_VALIDATE_INT);
 
                 return $integer !== false && (string) $integer === $segment

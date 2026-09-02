@@ -52,7 +52,7 @@ final readonly class CompiledValidation
     /**
      * Restore one exact or wildcard path from the source payload.
      *
-     * @param list<array-key|null> $segments
+     * @param list<null|array-key> $segments
      */
     private function restoreValueAtPath(
         mixed &$target,

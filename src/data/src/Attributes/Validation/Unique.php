@@ -21,7 +21,7 @@ class Unique extends ObjectValidationAttribute
     /**
      * Create a new unique validation attribute.
      *
-     * @param Closure|DatabaseConstraint|array<int, DatabaseConstraint|Closure>|null $where
+     * @param null|array<int, Closure|DatabaseConstraint>|Closure|DatabaseConstraint $where
      */
     public function __construct(
         protected string|ExternalReference|null $table = null,

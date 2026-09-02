@@ -22,7 +22,7 @@ class MissingIf extends StringValidationAttribute
      */
     public function __construct(
         string|FieldReference $field,
-        null|array|bool|int|float|string|BackedEnum|ExternalReference ...$values,
+        array|bool|int|float|string|BackedEnum|ExternalReference|null ...$values,
     ) {
         $this->field = $this->parseFieldReference($field);
         $this->values = Arr::flatten($values);
