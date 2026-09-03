@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
+use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Support\Fluent;
 use Hypervel\Tests\TestCase;
 use Hypervel\Validation\Rule;
@@ -566,6 +567,38 @@ class ValidationRuleParserTest extends TestCase
         $this->assertSame([$exists, $unique], $results->rules['email']);
     }
 
+    public function testIdentifiesRulesReducedToStringsByTheParser(): void
+    {
+        $callbackExists = Rule::exists('users', 'email')->where(
+            static fn ($query) => $query,
+        );
+        $contractRule = new class implements RuleContract {
+            public function passes(string $attribute, mixed $value): bool
+            {
+                return true;
+            }
+
+            public function message(): string
+            {
+                return 'Invalid value.';
+            }
+        };
+
+        $this->assertTrue(ValidationRuleParser::ruleReducesToString(
+            Rule::exists('users', 'email'),
+        ));
+        $this->assertTrue(ValidationRuleParser::ruleReducesToString(Rule::date()));
+        $this->assertFalse(ValidationRuleParser::ruleReducesToString($callbackExists));
+        $this->assertFalse(ValidationRuleParser::ruleReducesToString(
+            Rule::forEach(static fn (): array => []),
+        ));
+        $this->assertFalse(ValidationRuleParser::ruleReducesToString(
+            static function (): void {
+            },
+        ));
+        $this->assertFalse(ValidationRuleParser::ruleReducesToString($contractRule));
+    }
+
     public function testExplodeEvaluatesConditionalFluentRuleOnce(): void
     {
         $calls = 0;
@@ -608,6 +641,54 @@ class ValidationRuleParserTest extends TestCase
             'items.*.name' => ['items.0.name', 'items.1.name'],
             'items.*.price' => ['items.0.price', 'items.1.price'],
         ], $results->implicitAttributes);
+    }
+
+    #[DataProvider('overlappingWildcardAndExactRuleProvider')]
+    public function testExplodePreservesOverlappingWildcardAndExactRulePrecedence(
+        array $rules,
+        array $expectedRules,
+    ): void {
+        $results = (new ValidationRuleParser([
+            'items' => [
+                ['code' => 'A'],
+                ['code' => 'B'],
+            ],
+        ]))->explode($rules);
+
+        $this->assertSame($expectedRules, $results->rules);
+        $this->assertSame([
+            'items.*.code' => ['items.0.code', 'items.1.code'],
+        ], $results->implicitAttributes);
+    }
+
+    public static function overlappingWildcardAndExactRuleProvider(): array
+    {
+        return [
+            'wildcard then exact string' => [
+                ['items.*.code' => 'string', 'items.0.code' => 'min:1'],
+                ['items.0.code' => ['min:1'], 'items.1.code' => ['string']],
+            ],
+            'wildcard then exact array' => [
+                ['items.*.code' => 'string', 'items.0.code' => ['min:1']],
+                ['items.0.code' => ['min:1'], 'items.1.code' => ['string']],
+            ],
+            'exact string then wildcard' => [
+                ['items.0.code' => 'min:1', 'items.*.code' => 'string'],
+                ['items.0.code' => ['min:1', 'string'], 'items.1.code' => ['string']],
+            ],
+            'exact array then wildcard' => [
+                ['items.0.code' => ['min:1'], 'items.*.code' => 'string'],
+                ['items.0.code' => ['min:1', 'string'], 'items.1.code' => ['string']],
+            ],
+            'empty marker then exact string' => [
+                ['items.*.code' => [], 'items.0.code' => 'min:1'],
+                ['items.0.code' => ['min:1'], 'items.1.code' => []],
+            ],
+            'exact string then empty marker' => [
+                ['items.0.code' => 'min:1', 'items.*.code' => []],
+                ['items.0.code' => ['min:1'], 'items.1.code' => []],
+            ],
+        ];
     }
 
     public function testExplodeExpandsDeeplyNestedWildcardStringRules(): void

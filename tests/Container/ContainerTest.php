@@ -18,9 +18,30 @@ use Hypervel\Contracts\Container\ExecutionScopedAttribute;
 use Hypervel\Contracts\Container\SelfBuilding;
 use Hypervel\Contracts\Container\Transient;
 use Hypervel\Foundation\Application;
+use Hypervel\Tests\Container\Fixtures\BindBeforeBindWhenInterface;
+use Hypervel\Tests\Container\Fixtures\BindBeforeConcrete;
+use Hypervel\Tests\Container\Fixtures\BindFallbackConcrete;
+use Hypervel\Tests\Container\Fixtures\BindWhenAndBindInterface;
+use Hypervel\Tests\Container\Fixtures\BindWhenCondition;
+use Hypervel\Tests\Container\Fixtures\BindWhenConditionalConcrete;
+use Hypervel\Tests\Container\Fixtures\BindWhenConditionalInterface;
+use Hypervel\Tests\Container\Fixtures\BindWhenFallbackInterface;
+use Hypervel\Tests\Container\Fixtures\BindWhenInterface;
+use Hypervel\Tests\Container\Fixtures\BindWhenMaterializedConcrete;
+use Hypervel\Tests\Container\Fixtures\BindWhenMaterializedInterface;
+use Hypervel\Tests\Container\Fixtures\BindWhenNoMatchInterface;
+use Hypervel\Tests\Container\Fixtures\BindWhenScopedInterface;
+use Hypervel\Tests\Container\Fixtures\BindWhenSingletonConcrete;
+use Hypervel\Tests\Container\Fixtures\BindWhenSingletonInterface;
+use Hypervel\Tests\Container\Fixtures\BindWhenState;
+use Hypervel\Tests\Container\Fixtures\BindWhenTrueConcrete;
+use Hypervel\Tests\Container\Fixtures\BindWhenWinsConcrete;
+use Hypervel\Tests\Container\Fixtures\FirstWildcardConcrete;
+use Hypervel\Tests\Container\Fixtures\MultipleWildcardBindInterface;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use LogicException;
+use PHPUnit\Framework\Attributes\RequiresPhp;
 use Psr\Container\ContainerExceptionInterface;
 use ReflectionClass;
 use ReflectionProperty;
@@ -32,6 +53,15 @@ use function Hypervel\Coroutine\parallel;
 
 class ContainerTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        if (version_compare(PHP_VERSION, '8.5.0', '>=')) {
+            require_once __DIR__ . '/Fixtures/ContainerBindWhenFixtures.php';
+        }
+    }
+
     public function testContainerSingleton()
     {
         $container = Container::setInstance(new Container);
@@ -933,6 +963,19 @@ class ContainerTest extends TestCase
         $this->assertEquals(ContainerCurrentResolvingConcrete::class, $resolved->currentlyResolving);
     }
 
+    public function testContextualNullTakesPrecedenceOverPrimitiveBindingAndDefault(): void
+    {
+        $container = new Container;
+        $container->when(ContainerContextualNullFallbacks::class)
+            ->needs('$bound')
+            ->give('bound value');
+
+        $resolved = $container->make(ContainerContextualNullFallbacks::class);
+
+        $this->assertNull($resolved->bound);
+        $this->assertNull($resolved->default);
+    }
+
     public function testCurrentlyResolvingDoesNotCreateResolutionStateWhenIdle(): void
     {
         $container = new ContainerStateInspectionStub;
@@ -1368,6 +1411,137 @@ class ContainerTest extends TestCase
 
         $second = $container->make(MultiEnvInterface::class);
         $this->assertInstanceOf(DevConcrete::class, $second);
+    }
+
+    #[RequiresPhp('>= 8.5.0')]
+    public function testBindWhenBindsFirstConditionThatPasses(): void
+    {
+        $container = new Container;
+
+        $this->assertInstanceOf(BindWhenTrueConcrete::class, $container->make(BindWhenInterface::class));
+    }
+
+    #[RequiresPhp('>= 8.5.0')]
+    public function testBindWhenSingletonAttribute(): void
+    {
+        $container = new Container;
+
+        $first = $container->make(BindWhenSingletonInterface::class);
+        $second = $container->make(BindWhenSingletonInterface::class);
+
+        $this->assertInstanceOf(BindWhenSingletonConcrete::class, $first);
+        $this->assertSame($first, $second);
+    }
+
+    #[RequiresPhp('>= 8.5.0')]
+    public function testBindWhenScopedAttribute(): void
+    {
+        $container = new Container;
+
+        $first = $container->make(BindWhenScopedInterface::class);
+
+        $this->assertSame($first, $container->make(BindWhenScopedInterface::class));
+
+        $container->forgetScopedInstances();
+
+        $this->assertNotSame($first, $container->make(BindWhenScopedInterface::class));
+    }
+
+    #[RequiresPhp('>= 8.5.0')]
+    public function testBindWhenThrowsWhenNoConditionPasses(): void
+    {
+        $this->expectException(BindingResolutionException::class);
+
+        (new Container)->make(BindWhenNoMatchInterface::class);
+    }
+
+    #[RequiresPhp('>= 8.5.0')]
+    public function testBindWhenIsReevaluatedAfterAnInitialMiss(): void
+    {
+        $container = new Container;
+
+        try {
+            $container->make(BindWhenConditionalInterface::class);
+
+            $this->fail('Expected binding resolution to fail when the BindWhen condition does not match.');
+        } catch (BindingResolutionException) {
+            // Continue after the expected first resolution failure.
+        }
+
+        $container->instance(BindWhenCondition::class, new BindWhenCondition);
+
+        $this->assertInstanceOf(
+            BindWhenConditionalConcrete::class,
+            $container->make(BindWhenConditionalInterface::class),
+        );
+    }
+
+    #[RequiresPhp('>= 8.5.0')]
+    public function testBindWhenTakesPrecedenceOverBind(): void
+    {
+        $container = new Container;
+        $container->resolveEnvironmentUsing(fn (): bool => true);
+
+        $this->assertInstanceOf(
+            BindWhenWinsConcrete::class,
+            $container->make(BindWhenAndBindInterface::class),
+        );
+    }
+
+    #[RequiresPhp('>= 8.5.0')]
+    public function testBindWhenFallsThroughToBind(): void
+    {
+        $container = new Container;
+        $container->resolveEnvironmentUsing(fn (): bool => true);
+
+        $this->assertInstanceOf(
+            BindFallbackConcrete::class,
+            $container->make(BindWhenFallbackInterface::class),
+        );
+    }
+
+    #[RequiresPhp('>= 8.5.0')]
+    public function testBindAndBindWhenResolveInDeclarationOrder(): void
+    {
+        $container = new Container;
+        $container->resolveEnvironmentUsing(fn (array $environments): bool => in_array('foobar', $environments, true));
+
+        $this->assertInstanceOf(
+            BindBeforeConcrete::class,
+            $container->make(BindBeforeBindWhenInterface::class),
+        );
+    }
+
+    #[RequiresPhp('>= 8.5.0')]
+    public function testFirstWildcardBindWinsDuringAttributeResolution(): void
+    {
+        $container = new Container;
+        $container->resolveEnvironmentUsing(fn (): bool => false);
+
+        $this->assertInstanceOf(
+            FirstWildcardConcrete::class,
+            $container->make(MultipleWildcardBindInterface::class),
+        );
+    }
+
+    #[RequiresPhp('>= 8.5.0')]
+    public function testMatchingBindWhenConditionMaterializesWorkerLifetimeBinding(): void
+    {
+        $container = new Container;
+        $state = new BindWhenState(true);
+        $container->instance(BindWhenState::class, $state);
+
+        $this->assertInstanceOf(
+            BindWhenMaterializedConcrete::class,
+            $container->make(BindWhenMaterializedInterface::class),
+        );
+
+        $state->enabled = false;
+
+        $this->assertInstanceOf(
+            BindWhenMaterializedConcrete::class,
+            $container->make(BindWhenMaterializedInterface::class),
+        );
     }
 
     public function testNoMatchingEnvironmentAndNoWildcardThrowsBindingResolutionException(): void
@@ -2061,6 +2235,71 @@ class ContainerTest extends TestCase
 
         unset($_SERVER['__selfBuilding.counter']);
     }
+
+    public function testSelfBuildingClassCanBeExplicitlyBound(): void
+    {
+        $container = new Container;
+
+        $container->bind(SelfBuildingBuildStub::class);
+
+        $first = $container->make(SelfBuildingBuildStub::class);
+        $second = $container->make(SelfBuildingBuildStub::class);
+
+        $this->assertSame('factory', $first->value);
+        $this->assertSame('factory', $second->value);
+        $this->assertNotSame($first, $second);
+    }
+
+    public function testExplicitClosureBindingTakesPrecedenceOverSelfBuildingFactory(): void
+    {
+        $container = new Container;
+
+        $container->bind(
+            SelfBuildingBuildStub::class,
+            fn () => new SelfBuildingBuildStub('closure')
+        );
+
+        $this->assertSame('closure', $container->make(SelfBuildingBuildStub::class)->value);
+    }
+
+    public function testInterfaceBindingDispatchesSelfBuildingFactory(): void
+    {
+        $container = new Container;
+
+        $container->bind(SelfBuildingContractStub::class, SelfBuildingBuildStub::class);
+
+        $this->assertSame('factory', $container->make(SelfBuildingContractStub::class)->value);
+    }
+
+    public function testBuildDirectlyConstructsSelfBuildingClass(): void
+    {
+        $container = new Container;
+
+        $instance = $container->build(SelfBuildingBuildStub::class);
+
+        $this->assertSame('constructor', $instance->value);
+    }
+
+    public function testBuildWithDirectlyConstructsSelfBuildingClassWithOverrides(): void
+    {
+        $container = new Container;
+
+        $instance = $container->buildWith(SelfBuildingBuildStub::class, ['value' => 'override']);
+
+        $this->assertSame('override', $instance->value);
+    }
+
+    public function testBuildWithKeepsSelfBuildingClassOnContextualBuildStack(): void
+    {
+        $container = new Container;
+        $container->when(SelfBuildingContextualBuildStub::class)
+            ->needs('$value')
+            ->give('contextual');
+
+        $instance = $container->buildWith(SelfBuildingContextualBuildStub::class);
+
+        $this->assertSame('contextual', $instance->value);
+    }
 }
 
 class CircularAStub
@@ -2191,22 +2430,39 @@ class ContainerContextualBindingCallTarget
 }
 
 #[Attribute(Attribute::TARGET_PARAMETER)]
-class ContainerCurrentResolvingAttribute implements ContextualAttribute
+class ContainerCurrentResolvingAttribute
 {
-    public function resolve()
-    {
-    }
 }
 
 class ContainerCurrentResolvingConcrete
 {
-    public $currentlyResolving;
+    public string $currentlyResolving;
 
     public function __construct(
         #[ContainerCurrentResolvingAttribute]
         string $currentlyResolving
     ) {
         $this->currentlyResolving = $currentlyResolving;
+    }
+}
+
+#[Attribute(Attribute::TARGET_PARAMETER)]
+class ContainerNullContextualAttribute implements ContextualAttribute
+{
+    public static function resolve(): mixed
+    {
+        return null;
+    }
+}
+
+class ContainerContextualNullFallbacks
+{
+    public function __construct(
+        #[ContainerNullContextualAttribute]
+        public ?string $bound,
+        #[ContainerNullContextualAttribute]
+        public ?string $default = 'default value',
+    ) {
     }
 }
 
@@ -2524,6 +2780,10 @@ class TransientChildStub extends TransientStub
 {
 }
 
+interface SelfBuildingContractStub
+{
+}
+
 class SelfBuildingCounterStub implements SelfBuilding
 {
     public function __construct(
@@ -2534,6 +2794,32 @@ class SelfBuildingCounterStub implements SelfBuilding
     public static function newInstance(): self
     {
         return new self($_SERVER['__selfBuilding.counter']);
+    }
+}
+
+class SelfBuildingBuildStub implements SelfBuilding, SelfBuildingContractStub
+{
+    public function __construct(
+        public readonly string $value = 'constructor',
+    ) {
+    }
+
+    public static function newInstance(): self
+    {
+        return new self('factory');
+    }
+}
+
+class SelfBuildingContextualBuildStub implements SelfBuilding
+{
+    public function __construct(
+        public readonly string $value,
+    ) {
+    }
+
+    public static function newInstance(): self
+    {
+        return new self('factory');
     }
 }
 

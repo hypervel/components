@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Validation;
 
 /**
- * Query wildcard database-presence candidates in groups.
+ * Query database-presence candidates in groups.
  *
  * The validator owns rule interpretation and ordered candidate selection. This
  * class turns each complete query shape into database-proven execution-local

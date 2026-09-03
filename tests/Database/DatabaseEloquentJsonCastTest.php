@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Database;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Database\Eloquent\Casts\AsArrayObject;
 use Hypervel\Database\Eloquent\Casts\AsCollection;
-use Hypervel\Database\Eloquent\Casts\AsDataObject;
 use Hypervel\Database\Eloquent\Casts\AsEncryptedArrayObject;
 use Hypervel\Database\Eloquent\Casts\AsEncryptedCollection;
 use Hypervel\Database\Eloquent\Casts\AsEnumArrayObject;
@@ -16,7 +15,6 @@ use Hypervel\Database\Eloquent\Casts\AsFluent;
 use Hypervel\Database\Eloquent\Casts\Json;
 use Hypervel\Database\Eloquent\JsonEncodingException;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Support\DataObject;
 use Hypervel\Support\Facades\Crypt;
 use Hypervel\Support\Fluent;
 use Hypervel\Testbench\TestCase;
@@ -82,7 +80,6 @@ class DatabaseEloquentJsonCastTest extends TestCase
             'enum_array_object' => [AsEnumArrayObject::castUsing([JsonCastStatus::class]), [JsonCastStatus::Ready]],
             'enum_collection' => [AsEnumCollection::castUsing([JsonCastStatus::class]), [JsonCastStatus::Ready]],
             'fluent' => [AsFluent::castUsing([]), new Fluent(['value' => true])],
-            'data_object' => [new AsDataObject(JsonCastData::class), new JsonCastData('value')],
         ];
 
         try {
@@ -111,7 +108,6 @@ class DatabaseEloquentJsonCastTest extends TestCase
 
         $this->assertNull(AsEncryptedArrayObject::castUsing([])->get($model, 'value', null, ['value' => $encryptedNull]));
         $this->assertNull(AsEncryptedCollection::castUsing([])->get($model, 'value', null, ['value' => $encryptedNull]));
-        $this->assertNull((new AsDataObject(JsonCastData::class))->get($model, 'value', 'null', ['value' => 'null']));
         $this->assertNull(AsFluent::castUsing([])->get($model, 'value', 'null', ['value' => 'null']));
     }
 
@@ -124,25 +120,6 @@ class DatabaseEloquentJsonCastTest extends TestCase
 
             $this->assertInstanceOf(Fluent::class, $fluent);
             $this->assertSame('Taylor', $fluent->name);
-        } finally {
-            Json::flushState();
-        }
-    }
-
-    public function testDataObjectCastAcceptsEmptyMapsAndUsesTheCustomCodec(): void
-    {
-        $caster = new AsDataObject(JsonCastData::class);
-        $model = new JsonCastModel;
-
-        $this->assertInstanceOf(JsonCastData::class, $caster->get($model, 'value', '{}', ['value' => '{}']));
-        $this->assertInstanceOf(JsonCastData::class, $caster->get($model, 'value', '[]', ['value' => '[]']));
-
-        try {
-            Json::decodeUsing(static fn (): array => ['name' => 'decoded']);
-            Json::encodeUsing(static fn (): string => 'encoded');
-
-            $this->assertSame('decoded', $caster->get($model, 'value', 'ignored', ['value' => 'ignored'])->name);
-            $this->assertSame(['value' => 'encoded'], $caster->set($model, 'value', new JsonCastData('value'), []));
         } finally {
             Json::flushState();
         }
@@ -194,13 +171,6 @@ class JsonCastModel extends Model
     protected array $casts = [
         'payload' => 'array',
     ];
-}
-
-class JsonCastData extends DataObject
-{
-    public function __construct(public readonly string $name = 'default')
-    {
-    }
 }
 
 enum JsonCastStatus: string

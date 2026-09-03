@@ -98,8 +98,8 @@ class Validator implements ValidatorContract
     /**
      * Reverse lookup from concrete expanded attribute to its wildcard pattern.
      *
-     * Built lazily by getImplicitAttributeMap(). Invalidated when
-     * addRules() or sometimes() modify $implicitAttributes.
+     * Built lazily by getImplicitAttributeMap(). Invalidated whenever
+     * the implicit attribute graph changes.
      *
      * @var null|array<string, string>
      */
@@ -121,6 +121,11 @@ class Validator implements ValidatorContract
      * @var array<string, AttributePlan>
      */
     protected array $compiledPlans = [];
+
+    /**
+     * Database-presence checks that can consume precomputed lookups during the current pass.
+     */
+    private int $databasePresenceCheckCount = 0;
 
     /**
      * Parsed presence-rule tables for the current passes() invocation.
@@ -410,12 +415,16 @@ class Validator implements ValidatorContract
     }
 
     /**
-     * Replace each field parameter dot placeholder with dot.
+     * Replace each field parameter key placeholder.
      */
     protected function replaceDotPlaceholderInParameters(array $parameters): array
     {
         return array_map(function ($field) {
-            return str_replace('__dot__' . static::$placeholderHash, '.', $field);
+            return str_replace(
+                ['__dot__' . static::$placeholderHash, '__asterisk__' . static::$placeholderHash],
+                ['.', '*'],
+                $field,
+            );
         }, $parameters);
     }
 
@@ -460,6 +469,7 @@ class Validator implements ValidatorContract
             if ($activeVerifier !== null
                 && $activeVerifier::class === DatabasePresenceVerifier::class
                 && ! $this->stopOnFirstFailure
+                && $this->databasePresenceCheckCount >= 2
             ) {
                 $this->maybeBatchDatabaseChecks(
                     $activeVerifier,
@@ -509,6 +519,7 @@ class Validator implements ValidatorContract
     {
         $plans = [];
         $isBaseValidator = static::class === self::class;
+        $this->databasePresenceCheckCount = 0;
 
         foreach ($this->rules as $attribute => $rules) {
             $attribute = (string) $attribute;
@@ -517,23 +528,20 @@ class Validator implements ValidatorContract
                 $rules = [$rules];
             }
 
-            if ($isBaseValidator) {
-                $cached = RulePlanCache::get($rules);
-                if ($cached !== null) {
-                    $plans[$attribute] = $cached;
-                    continue;
+            $plan = $isBaseValidator ? RulePlanCache::get($rules) : null;
+
+            if ($plan === null) {
+                $plan = $isBaseValidator
+                    ? RuleCompiler::compile($rules, $this->defaultNumericRules)
+                    : RuleCompiler::compileAllDelegated($rules);
+
+                if ($isBaseValidator) {
+                    RulePlanCache::put($rules, $plan);
                 }
             }
 
-            $plan = $isBaseValidator
-                ? RuleCompiler::compile($rules, $this->defaultNumericRules)
-                : RuleCompiler::compileAllDelegated($rules);
-
-            if ($isBaseValidator) {
-                RulePlanCache::put($rules, $plan);
-            }
-
             $plans[$attribute] = $plan;
+            $this->databasePresenceCheckCount += $plan->databasePresenceCheckCount;
         }
 
         return $plans;
@@ -709,7 +717,7 @@ class Validator implements ValidatorContract
     }
 
     /**
-     * Batch safe wildcard database-presence candidates by query shape.
+     * Batch safe database-presence candidates by query shape.
      *
      * @param array<string, true> $preExcludedAttributes
      * @param array<string, true> $unresolvedExclusionAttributes
@@ -719,25 +727,10 @@ class Validator implements ValidatorContract
         array $preExcludedAttributes,
         array $unresolvedExclusionAttributes,
     ): void {
-        if ($this->implicitAttributes === []) {
-            return;
-        }
-
-        $wildcardAttributes = array_merge(...array_values($this->implicitAttributes));
-        if ($wildcardAttributes === []) {
-            return;
-        }
-
-        $wildcardAttributeSet = array_flip($wildcardAttributes);
-
         $groups = [];
 
         foreach ($this->compiledPlans as $attribute => $plan) {
             $attribute = (string) $attribute;
-
-            if (! isset($wildcardAttributeSet[$attribute])) {
-                continue;
-            }
 
             $firstPresenceIndex = null;
 
@@ -1226,7 +1219,7 @@ class Validator implements ValidatorContract
 
             foreach ($this->implicitAttributes as $pattern => $concreteAttributes) {
                 foreach ($concreteAttributes as $concrete) {
-                    $this->implicitAttributeMap[$concrete] = $pattern;
+                    $this->implicitAttributeMap[$concrete] ??= $pattern;
                 }
             }
         }
@@ -1235,7 +1228,7 @@ class Validator implements ValidatorContract
     }
 
     /**
-     * Replace each field parameter which has an escaped dot with the dot placeholder.
+     * Replace each escaped field parameter separator with its placeholder.
      */
     protected function replaceDotInParameters(array $parameters): array
     {
@@ -1670,8 +1663,31 @@ class Validator implements ValidatorContract
         $this->initialRules = $rules;
 
         $this->rules = [];
+        $this->implicitAttributes = [];
+        $this->implicitAttributeMap = null;
 
         $this->addRules($rules);
+
+        return $this;
+    }
+
+    /**
+     * Retain the selected rules from the graph prepared for the current data.
+     *
+     * Retention applies only to the current prepared graph. Calling setData()
+     * rebuilds the complete original rule graph.
+     *
+     * @param list<string> $attributes
+     */
+    public function retainRules(array $attributes): static
+    {
+        $retained = [];
+
+        foreach ($attributes as $attribute) {
+            $retained[static::encodeAttributeWithPlaceholder($attribute)] = true;
+        }
+
+        $this->rules = array_intersect_key($this->rules, $retained);
 
         return $this;
     }
@@ -2044,7 +2060,11 @@ class Validator implements ValidatorContract
      */
     protected static function encodeAttributeWithPlaceholder(string $attribute): string
     {
-        return str_replace('\.', '__dot__' . static::$placeholderHash, $attribute);
+        return str_replace(
+            ['\.', '\*'],
+            ['__dot__' . static::$placeholderHash, '__asterisk__' . static::$placeholderHash],
+            $attribute,
+        );
     }
 
     /**
@@ -2052,7 +2072,11 @@ class Validator implements ValidatorContract
      */
     protected static function decodeAttributeWithPlaceholder(string $attribute): string
     {
-        return str_replace('__dot__' . static::$placeholderHash, '\.', $attribute);
+        return str_replace(
+            ['__dot__' . static::$placeholderHash, '__asterisk__' . static::$placeholderHash],
+            ['\.', '\*'],
+            $attribute,
+        );
     }
 
     /**

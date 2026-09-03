@@ -8,6 +8,10 @@ use Carbon\CarbonInterface;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Pool\ConnectionInterface;
+use Hypervel\Data\CursorPaginatedDataCollection;
+use Hypervel\Data\DataCollection;
+use Hypervel\Data\Lazy;
+use Hypervel\Data\PaginatedDataCollection;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Eloquent\Factories\Factory as EloquentFactory;
 use Hypervel\Database\PdoConnection;
@@ -303,6 +307,41 @@ class AfterEachTestSubscriberTest extends TestCase
             $this->assertNull($physicalSessionStates->getValue());
         } finally {
             PdoConnection::flushState();
+        }
+    }
+
+    public function testDataCleanupFlushesEveryMacroableRegistry(): void
+    {
+        $classes = [
+            CursorPaginatedDataCollection::class,
+            DataCollection::class,
+            Lazy::class,
+            PaginatedDataCollection::class,
+        ];
+        $macro = 'dataCleanupProbe';
+
+        foreach ($classes as $class) {
+            $class::macro($macro, static fn (): string => 'macro');
+            $this->assertTrue($class::hasMacro($macro));
+        }
+
+        $subscriber = new class extends AfterEachTestSubscriber {
+            public function flushDataStateForTest(): void
+            {
+                $this->flushDataState();
+            }
+        };
+
+        try {
+            $subscriber->flushDataStateForTest();
+
+            foreach ($classes as $class) {
+                $this->assertFalse($class::hasMacro($macro));
+            }
+        } finally {
+            foreach ($classes as $class) {
+                $class::flushMacros();
+            }
         }
     }
 

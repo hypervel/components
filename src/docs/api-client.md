@@ -95,11 +95,11 @@ API clients are regular classes, so their dependencies may be injected through t
 
 declare(strict_types=1);
 
-namespace App\DataObjects;
+namespace App\Data;
 
-use Hypervel\Support\DataObject;
+use Hypervel\Data\Dto;
 
-class GitHubConfig extends DataObject
+class GitHubConfig extends Dto
 {
     public function __construct(
         public readonly string $baseUrl,
@@ -118,7 +118,7 @@ declare(strict_types=1);
 
 namespace App\ApiClients;
 
-use App\DataObjects\GitHubConfig;
+use App\Data\GitHubConfig;
 use Hypervel\ApiClient\ApiClient;
 use Hypervel\ApiClient\PendingRequest;
 
@@ -171,10 +171,10 @@ If your client requires configuration that cannot be resolved automatically, you
 
 ```php
 use App\ApiClients\GitHubClient;
-use App\DataObjects\GitHubConfig;
+use App\Data\GitHubConfig;
 
 $this->app->singleton(GitHubClient::class, function () {
-    return new GitHubClient(GitHubConfig::make(
+    return new GitHubClient(GitHubConfig::from(
         config()->array('services.github')
     ));
 });

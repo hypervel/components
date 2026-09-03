@@ -6,7 +6,7 @@ This guide governs how Hypervel stays current with upstream packages (Laravel fr
 
 When the user asks to run an upstream sync, sync session, upstream review, or similar. This guide **overrides** the `/hypervel-pr` skill's default first-time porting flow — follow the sync workflow below instead.
 
-For the mechanics of porting code (namespace changes, container conversion, service provider migration, listener conversion, type modernization, test porting), `docs/ai/porting.md` is authoritative. Re-read it before writing any code. This guide only covers the *surrounding* workflow — discovery, classification, commit structure, PR structure, state tracking.
+For the mechanics of porting code (namespace changes, container conversion, service provider migration, listener conversion, type modernization, test porting), the `Porting Packages` section of `AGENTS.md` is authoritative. Re-read it before writing any code. This guide only covers the *surrounding* workflow — discovery, classification, commit structure, PR structure, state tracking.
 
 ## Files in this directory
 
@@ -20,7 +20,7 @@ Deliberate, lasting differences from Laravel belong in the affected package READ
 - **Releases are walked one at a time, oldest to newest.** Never merge multiple releases' PRs into one flat list. Finish release N before opening release N+1.
 - **Never auto-decide a PR is skippable.** Propose classification, explain reasoning, wait for user approval. The user decides scope; you propose.
 - **One commit per upstream PR.** Separation is cheap; bad reverts are expensive.
-- **Stop-and-ask rules from `porting.md` apply in full** — source bugs, coroutine/container divergence, unusual dependencies, anything surprising.
+- **Stop-and-ask rules from `AGENTS.md` apply in full** — source bugs, coroutine/container divergence, unusual dependencies, anything surprising.
 
 ## Session workflow
 
@@ -72,7 +72,7 @@ Propose a classification and reasoning:
 
 Wait for user approval on every classification. Never silently skip.
 
-If porting: follow `docs/ai/porting.md` for the mechanics. Commit with:
+If porting: follow the `Porting Packages` section of `AGENTS.md` for the mechanics. Commit with:
 
 ```
 Port <repo-slug>#<pr-number>: <original PR title>

@@ -6,6 +6,8 @@ namespace Hypervel\Validation;
 
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Validation\Enums\CheckType;
+use Hypervel\Validation\Rules\Exists;
+use Hypervel\Validation\Rules\Unique;
 
 /**
  * Compile pipe-string or array rules into an AttributePlan.
@@ -157,7 +159,8 @@ final class RuleCompiler
             return;
         }
 
-        $plan->checks[] = new DelegatedCheck(
+        self::appendDelegatedCheck(
+            $plan,
             ruleName: $ruleName,
             parameters: $parameters,
             originalRule: $rule,
@@ -197,11 +200,44 @@ final class RuleCompiler
             $plan->sometimes = true;
         }
 
-        $plan->checks[] = new DelegatedCheck(
+        self::appendDelegatedCheck(
+            $plan,
             ruleName: $ruleName,
             parameters: $parameters,
             originalRule: $rule,
         );
+    }
+
+    /**
+     * Append a parsed delegated check to the plan.
+     */
+    private static function appendDelegatedCheck(
+        AttributePlan $plan,
+        string $ruleName,
+        array $parameters,
+        mixed $originalRule,
+    ): void {
+        $check = new DelegatedCheck($ruleName, $parameters, $originalRule);
+        $plan->checks[] = $check;
+
+        if (self::canConsumePrecomputedPresenceLookup($check)) {
+            ++$plan->databasePresenceCheckCount;
+        }
+    }
+
+    /**
+     * Determine if a check can consume a precomputed database-presence lookup.
+     */
+    private static function canConsumePrecomputedPresenceLookup(DelegatedCheck $check): bool
+    {
+        if (! $check->parametersAreScalar
+            || ($check->ruleName !== 'Exists' && $check->ruleName !== 'Unique')
+        ) {
+            return false;
+        }
+
+        return ! (($check->originalRule instanceof Exists || $check->originalRule instanceof Unique)
+            && $check->originalRule->queryCallbacks() !== []);
     }
 
     /**

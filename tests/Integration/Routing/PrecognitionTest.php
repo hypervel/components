@@ -616,6 +616,27 @@ class PrecognitionTest extends RoutingTestCase
         ]);
     }
 
+    public function testItRetainsWildcardIdentityWhenValidatingSpecificInputs(): void
+    {
+        Route::post('test-route', [PrecognitionTestController::class, 'methodWhereDistinctUsersAreValidated'])
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [
+            'users' => [
+                ['email' => 'duplicate@example.com', 'email_confirmation' => 'duplicate@example.com'],
+                ['email' => 'duplicate@example.com', 'email_confirmation' => 'duplicate@example.com'],
+            ],
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'users.1.email,users.1.email_confirmation',
+        ]);
+
+        $response->assertUnprocessable();
+        $response->assertJsonPath('errors', [
+            'users.1.email' => ['The users.1.email field has a duplicate value.'],
+        ]);
+    }
+
     public function testItAppendsAnAdditionalVaryHeaderInsteadOfReplacingAnyExistingVaryHeaders()
     {
         Route::get('test-route', function () {
@@ -1339,6 +1360,20 @@ class PrecognitionTestController
                 'users' => ['required', 'array'],
                 'users.*.name' => ['required', 'string'],
                 'users.*.email' => ['required', 'email'],
+            ]);
+
+            fail();
+        });
+
+        fail();
+    }
+
+    public function methodWhereDistinctUsersAreValidated(Request $request)
+    {
+        precognitive(function () use ($request) {
+            $this->validate($request, [
+                'users.*.email' => ['required', 'email', 'distinct'],
+                'users.*.email_confirmation' => ['required', 'same:users.*.email'],
             ]);
 
             fail();

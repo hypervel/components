@@ -638,8 +638,13 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * Set the paginator's underlying collection.
      *
-     * @param Collection<TKey, TValue> $collection
+     * @template TSetKey of array-key
+     * @template TSetValue
+     *
+     * @param Collection<TSetKey, TSetValue> $collection
      * @return $this
+     *
+     * @phpstan-this-out static<TSetKey, TSetValue>
      */
     public function setCollection(Collection $collection): static
     {

@@ -803,16 +803,16 @@ protected array $casts = [
 ];
 ```
 
-Inputs may also be cast to `Hypervel\Support\DataObject` classes:
+Inputs may also be cast to classes extending `Hypervel\Data\Data`, `Dto`, or `Resource` using the package's explicit FormRequest casts:
 
 ```php
 <?php
 
-namespace App\DataObjects;
+namespace App\Data;
 
-use Hypervel\Support\DataObject;
+use Hypervel\Data\Data;
 
-class PostMetadata extends DataObject
+class PostMetadata extends Data
 {
     public function __construct(
         public readonly string $author,
@@ -824,32 +824,32 @@ class PostMetadata extends DataObject
 ```
 
 ```php
-use App\DataObjects\PostMetadata;
+use App\Data\PostMetadata;
+use Hypervel\Data\Http\Casts\AsData;
 
 protected array $casts = [
-    'metadata' => PostMetadata::class,
+    'metadata' => AsData::of(PostMetadata::class),
 ];
 ```
 
-Hypervel also provides cast helpers for arrays and collections of enums or data objects:
+Hypervel also provides cast helpers for collections of data objects and arrays or collections of enums:
 
 ```php
-use App\DataObjects\Contact;
+use App\Data\ContactData;
 use App\Enums\PostStatus;
-use Hypervel\Foundation\Http\Casts\AsDataObjectArray;
-use Hypervel\Foundation\Http\Casts\AsDataObjectCollection;
+use Hypervel\Data\Http\Casts\AsDataCollection;
 use Hypervel\Foundation\Http\Casts\AsEnumArrayObject;
 use Hypervel\Foundation\Http\Casts\AsEnumCollection;
 
 protected array $casts = [
     'status_history' => AsEnumArrayObject::of(PostStatus::class),
     'statuses' => AsEnumCollection::of(PostStatus::class),
-    'contact_list' => AsDataObjectArray::of(Contact::class),
-    'contacts' => AsDataObjectCollection::of(Contact::class),
+    'contact_list' => AsDataCollection::of(ContactData::class, 'array'),
+    'contacts' => AsDataCollection::of(ContactData::class),
 ];
 ```
 
-The `AsEnumArrayObject` and `AsDataObjectArray` helpers return an `ArrayObject`. The `AsEnumCollection` and `AsDataObjectCollection` helpers return a `Hypervel\Support\Collection`.
+`AsEnumArrayObject` returns an `ArrayObject`, while `AsEnumCollection` returns a `Hypervel\Support\Collection`. `AsDataCollection` returns a `Hypervel\Data\DataCollection` by default and accepts the same explicit targets as `Data::collect()`, including `'array'` and `Hypervel\Support\Collection::class`.
 
 For more complex casting logic, you may create a custom cast class that implements the `CastInputs` interface:
 
@@ -1946,6 +1946,8 @@ The example above will apply the `RFCValidation` and `DNSCheckValidation` valida
 - `filter_unicode`: `FilterEmailValidation::unicode()` - Ensure the email address is valid according to PHP's `filter_var` function, allowing some Unicode characters.
 
 </div>
+
+If you specify an unsupported validation style, Hypervel will throw an `InvalidArgumentException` instead of falling back to another style.
 
 For convenience, email validation rules may be built using the fluent rule builder:
 

@@ -269,7 +269,6 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Support\Collection::flushState();
         \Hypervel\Support\Composer::flushState();
         \Hypervel\Support\ConfigurationUrlParser::flushState();
-        \Hypervel\Support\DataObject::flushState();
         \Hypervel\Support\DateFactory::flushState();
         \Hypervel\Support\DotenvManager::flushState();
         \Hypervel\Support\EncodedHtmlString::flushState();
@@ -312,6 +311,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\WebSocketServer\Collector\FdCollector::flushState();
         \Hypervel\WebSocketServer\Context::flushState();
 
+        $this->flushDataState();
         $this->flushFortifyState();
         $this->flushHorizonState();
         $this->flushImageState();
@@ -328,6 +328,17 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         $this->flushTelescopeState();
         $this->flushTestbenchState();
         $this->flushWayfinderState();
+    }
+
+    /**
+     * Flush Data state.
+     */
+    protected function flushDataState(): void
+    {
+        $this->callIfExists(\Hypervel\Data\CursorPaginatedDataCollection::class, 'flushMacros');
+        $this->callIfExists(\Hypervel\Data\DataCollection::class, 'flushMacros');
+        $this->callIfExists(\Hypervel\Data\Lazy::class, 'flushMacros');
+        $this->callIfExists(\Hypervel\Data\PaginatedDataCollection::class, 'flushMacros');
     }
 
     /**
