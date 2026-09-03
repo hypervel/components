@@ -90,7 +90,7 @@ class CreationContextFactory
      *
      * @return $this
      */
-    public function validationStrategy(ValidationStrategy $validationStrategy): self
+    public function validationStrategy(ValidationStrategy $validationStrategy): static
     {
         $this->validationStrategy = $validationStrategy;
 
@@ -100,7 +100,7 @@ class CreationContextFactory
     /**
      * Disable validation.
      */
-    public function withoutValidation(): self
+    public function withoutValidation(): static
     {
         return $this->validationStrategy(ValidationStrategy::Disabled);
     }
@@ -108,7 +108,7 @@ class CreationContextFactory
     /**
      * Validate only Request sources.
      */
-    public function onlyValidateRequests(): self
+    public function onlyValidateRequests(): static
     {
         return $this->validationStrategy(ValidationStrategy::OnlyRequests);
     }
@@ -118,7 +118,7 @@ class CreationContextFactory
      *
      * @return $this
      */
-    public function alwaysValidate(): self
+    public function alwaysValidate(): static
     {
         return $this->validationStrategy(ValidationStrategy::Always);
     }
@@ -126,7 +126,7 @@ class CreationContextFactory
     /**
      * Enable or disable property-name mapping.
      */
-    public function withPropertyNameMapping(bool $withPropertyNameMapping = true): self
+    public function withPropertyNameMapping(bool $withPropertyNameMapping = true): static
     {
         $this->mapPropertyNames = $withPropertyNameMapping;
 
@@ -136,7 +136,7 @@ class CreationContextFactory
     /**
      * Disable or enable property-name mapping.
      */
-    public function withoutPropertyNameMapping(bool $withoutPropertyNameMapping = true): self
+    public function withoutPropertyNameMapping(bool $withoutPropertyNameMapping = true): static
     {
         $this->mapPropertyNames = ! $withoutPropertyNameMapping;
 
@@ -148,7 +148,7 @@ class CreationContextFactory
     /**
      * Disable or enable named creation methods.
      */
-    public function withoutMagicalCreation(bool $withoutMagicalCreation = true): self
+    public function withoutMagicalCreation(bool $withoutMagicalCreation = true): static
     {
         $this->disableMagicalCreation = $withoutMagicalCreation;
 
@@ -158,7 +158,7 @@ class CreationContextFactory
     /**
      * Enable or disable named creation methods.
      */
-    public function withMagicalCreation(bool $withMagicalCreation = true): self
+    public function withMagicalCreation(bool $withMagicalCreation = true): static
     {
         $this->disableMagicalCreation = ! $withMagicalCreation;
 
@@ -168,7 +168,7 @@ class CreationContextFactory
     /**
      * Ignore named creation methods for this operation.
      */
-    public function ignoreMagicalMethod(string ...$methods): self
+    public function ignoreMagicalMethod(string ...$methods): static
     {
         array_push($this->ignoredMagicalMethods, ...$methods);
 
@@ -180,7 +180,7 @@ class CreationContextFactory
      *
      * @param Cast|class-string<Cast> $cast
      */
-    public function withCast(string $castable, Cast|string $cast): self
+    public function withCast(string $castable, Cast|string $cast): static
     {
         $this->casts[$castable] = $cast;
 
@@ -192,7 +192,7 @@ class CreationContextFactory
      *
      * @param array<string, Cast|class-string<Cast>> $casts
      */
-    public function withCastCollection(array $casts): self
+    public function withCastCollection(array $casts): static
     {
         $this->casts = array_replace($this->casts, $casts);
 
@@ -204,7 +204,7 @@ class CreationContextFactory
      *
      * @param class-string<Normalizer>|Normalizer ...$normalizers
      */
-    public function withNormalizers(Normalizer|string ...$normalizers): self
+    public function withNormalizers(Normalizer|string ...$normalizers): static
     {
         array_push($this->normalizers, ...$normalizers);
 
@@ -214,7 +214,7 @@ class CreationContextFactory
     /**
      * Add a prepare-data hook.
      */
-    public function prepareData(Closure $hook): self
+    public function prepareData(Closure $hook): static
     {
         $this->prepareDataHooks[] = $hook;
 
@@ -224,7 +224,7 @@ class CreationContextFactory
     /**
      * Add a before-validation hook.
      */
-    public function beforeValidation(Closure $hook): self
+    public function beforeValidation(Closure $hook): static
     {
         $this->beforeValidationHooks[] = $hook;
 
@@ -234,7 +234,7 @@ class CreationContextFactory
     /**
      * Add a before-rules hook.
      */
-    public function beforeRules(Closure $hook): self
+    public function beforeRules(Closure $hook): static
     {
         $this->beforeRulesHooks[] = $hook;
 
@@ -244,7 +244,7 @@ class CreationContextFactory
     /**
      * Add an after-rules hook.
      */
-    public function afterRules(Closure $hook): self
+    public function afterRules(Closure $hook): static
     {
         $this->afterRulesHooks[] = $hook;
 
@@ -254,7 +254,7 @@ class CreationContextFactory
     /**
      * Add a validator customization hook.
      */
-    public function withValidator(Closure $hook): self
+    public function withValidator(Closure $hook): static
     {
         $this->withValidatorHooks[] = $hook;
 
@@ -264,7 +264,7 @@ class CreationContextFactory
     /**
      * Add an after-validation hook.
      */
-    public function afterValidation(Closure $hook): self
+    public function afterValidation(Closure $hook): static
     {
         $this->afterValidationHooks[] = $hook;
 
@@ -274,7 +274,7 @@ class CreationContextFactory
     /**
      * Add a before-creation hook.
      */
-    public function beforeCreation(Closure $hook): self
+    public function beforeCreation(Closure $hook): static
     {
         $this->beforeCreationHooks[] = $hook;
 
@@ -284,7 +284,7 @@ class CreationContextFactory
     /**
      * Add an after-creation hook.
      */
-    public function afterCreation(Closure $hook): self
+    public function afterCreation(Closure $hook): static
     {
         $this->afterCreationHooks[] = $hook;
 
