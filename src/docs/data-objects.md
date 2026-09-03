@@ -30,6 +30,7 @@
 - [Saloon](#saloon)
 - [Generating Data Classes](#generating-data-classes)
 - [Worker Lifetime](#worker-lifetime)
+- [Credits](#credits)
 
 <a name="introduction"></a>
 ## Introduction
@@ -194,6 +195,8 @@ class UserData extends Data
 ```
 
 Named methods may receive container-resolved dependencies and a `CreationContext`. A method that returns the target object owns that node completely; inferred validation, casts, and creation hooks do not run again for it. Methods returning another normalizable value continue through the ordinary engine without being matched a second time.
+
+Ordinary construction maps one input value to each public property, so it does not infer how a property should expand into a variadic constructor. Use a named factory that returns the target object for that constructor shape.
 
 Public static `collect*` methods provide the same escape hatch for a complete normalized collection. Their parameter receives the container of already-created data objects, not the raw source values.
 
@@ -853,3 +856,8 @@ Register `Lazy`, `DataCollection`, `PaginatedDataCollection`, and `CursorPaginat
 VarDumper displays the current logical `all()` view for transformable data and an `items` envelope for data collections. It hides construction metadata, partial trees, and operation state without adding runtime work outside an explicit dump.
 
 Data objects do not implement `ArrayAccess`. Read public properties or call `toArray()`. Data collections retain keyed access and enumeration.
+
+<a name="credits"></a>
+## Credits
+
+Hypervel Data began as a port of [Spatie Laravel Data](https://github.com/spatie/laravel-data) and has been adapted for Hypervel's framework architecture and coroutine runtime.
