@@ -66,6 +66,8 @@ class DataCollection implements BaseDataCollectableContract, TransformableDataCo
     }
 
     /**
+     * Get all data items.
+     *
      * @return array<TKey, TValue>
      */
     public function items(): array
@@ -74,6 +76,8 @@ class DataCollection implements BaseDataCollectableContract, TransformableDataCo
     }
 
     /**
+     * Get the underlying item collection.
+     *
      * @return Enumerable<TKey, TValue>
      */
     public function toCollection(): Enumerable
@@ -90,6 +94,8 @@ class DataCollection implements BaseDataCollectableContract, TransformableDataCo
     }
 
     /**
+     * Determine if an item exists at the given offset.
+     *
      * @param TKey $offset
      */
     public function offsetExists(mixed $offset): bool
@@ -102,6 +108,8 @@ class DataCollection implements BaseDataCollectableContract, TransformableDataCo
     }
 
     /**
+     * Get an item at the given offset.
+     *
      * @param TKey $offset
      *
      * @return TValue
@@ -116,6 +124,8 @@ class DataCollection implements BaseDataCollectableContract, TransformableDataCo
     }
 
     /**
+     * Set the item at the given offset.
+     *
      * @param null|TKey $offset
      * @param TValue $value
      */
@@ -133,6 +143,8 @@ class DataCollection implements BaseDataCollectableContract, TransformableDataCo
     }
 
     /**
+     * Unset the item at the given offset.
+     *
      * @param TKey $offset
      */
     public function offsetUnset(mixed $offset): void

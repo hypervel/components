@@ -13,6 +13,9 @@ use Hypervel\Validation\Rules\Password as BasePassword;
 #[Attribute(Attribute::TARGET_PROPERTY | Attribute::TARGET_PARAMETER)]
 class Password extends ObjectValidationAttribute
 {
+    /**
+     * Create a password validation attribute.
+     */
     public function __construct(
         protected int|ExternalReference $min = 12,
         protected bool|ExternalReference $letters = false,

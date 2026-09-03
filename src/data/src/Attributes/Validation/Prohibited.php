@@ -11,6 +11,9 @@ use Hypervel\Validation\Rules\ProhibitedIf;
 #[Attribute(Attribute::TARGET_PROPERTY | Attribute::TARGET_PARAMETER)]
 class Prohibited extends ObjectValidationAttribute
 {
+    /**
+     * Create a prohibited validation attribute.
+     */
     public function __construct(protected ?ProhibitedIf $rule = null)
     {
     }
