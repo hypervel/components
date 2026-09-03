@@ -85,8 +85,6 @@ class RateLimited
      */
     protected function handleJob(mixed $job, callable $next, array $limits, Limiter $limiter): mixed
     {
-        // Laravel preflights every policy before recording hits. Atomic stores
-        // consume in order, so an earlier accepted decision is never rolled back.
         foreach ($limits as $limit) {
             $result = $limiter->consume($limit, $this->limiterName);
 

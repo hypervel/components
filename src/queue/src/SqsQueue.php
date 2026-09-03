@@ -20,6 +20,7 @@ use Hypervel\Queue\Jobs\SqsJob;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use LogicException;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -196,7 +197,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
             $job,
             $this->createPayload(
                 $job,
-                $queue === null || $queue === '' ? $this->default : $queue,
+                $this->resolveQueueName($queue),
                 $data
             ),
             $queue,
@@ -245,11 +246,15 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
      */
     public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed
     {
+        $queueName = $this->resolveQueueName($queue);
+
+        $this->ensureDelayIsSupported($delay, $queueName);
+
         return $this->enqueueUsing(
             $job,
             $this->createPayload(
                 $job,
-                $queue === null || $queue === '' ? $this->default : $queue,
+                $queueName,
                 $data,
                 $delay
             ),
@@ -280,6 +285,8 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
         if ($jobs === []) {
             return null;
         }
+
+        $this->ensureBulkDelaysAreSupported($jobs, $queue);
 
         $transactions = null;
 
@@ -329,6 +336,22 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     }
 
     /**
+     * Ensure the jobs do not request unsupported FIFO delays.
+     */
+    protected function ensureBulkDelaysAreSupported(array $jobs, ?string $queue): void
+    {
+        $queue = $this->resolveQueueName($queue);
+
+        if (! str_ends_with($queue, '.fifo')) {
+            return;
+        }
+
+        foreach ($jobs as $job) {
+            $this->ensureDelayIsSupported($this->getJobDelay($job), $queue);
+        }
+    }
+
+    /**
      * Create the payload for each of the given jobs.
      *
      * Payloads are created at dispatch time, even for jobs deferred until after the transaction commits.
@@ -337,16 +360,18 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
      */
     protected function prepareBatchMessages(array $jobs, mixed $data, ?string $queue): array
     {
+        $queueName = $this->resolveQueueName($queue);
+
         return Collection::make($jobs)
-            ->map(function ($job) use ($data, $queue) {
-                $delay = is_object($job) ? ($job->delay ?? null) : null;
+            ->map(function ($job) use ($data, $queueName) {
+                $delay = $this->getJobDelay($job);
 
                 return [
                     'job' => $job,
                     'delay' => $delay,
                     'payload' => $this->createPayload(
                         $job,
-                        $queue === null || $queue === '' ? $this->default : $queue,
+                        $queueName,
                         $data,
                         $delay,
                     ),
@@ -720,10 +745,12 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     public function getQueueableOptions(object|string $job, ?string $queue, string $payload, DateInterval|DateTimeInterface|int|null $delay = null): array
     {
         // Make sure we have a queue name to properly determine if it's a FIFO queue...
-        $queue = $queue === null || $queue === '' ? $this->default : $queue;
+        $queue = $this->resolveQueueName($queue);
+
+        $this->ensureDelayIsSupported($delay, $queue);
 
         $isObject = is_object($job);
-        $isFifo = str_ends_with((string) $queue, '.fifo');
+        $isFifo = str_ends_with($queue, '.fifo');
 
         $options = [];
 
@@ -771,11 +798,32 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     }
 
     /**
+     * Ensure the queue supports the requested per-message delay.
+     */
+    protected function ensureDelayIsSupported(DateInterval|DateTimeInterface|int|null $delay, string $queue): void
+    {
+        if ($delay !== null
+            && str_ends_with($queue, '.fifo')
+            && $this->secondsUntil($delay) > 0
+        ) {
+            throw new LogicException('SQS FIFO queues do not support per-message delays.');
+        }
+    }
+
+    /**
+     * Resolve the effective queue name.
+     */
+    protected function resolveQueueName(?string $queue): string
+    {
+        return $queue === null || $queue === '' ? $this->default : $queue;
+    }
+
+    /**
      * Get the queue or return the default.
      */
     public function getQueue(?string $queue): string
     {
-        $queue = $queue === null || $queue === '' ? $this->default : $queue;
+        $queue = $this->resolveQueueName($queue);
 
         return filter_var($queue, FILTER_VALIDATE_URL) === false
             ? $this->suffixQueue($queue, $this->suffix)
