@@ -13,6 +13,7 @@ use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
@@ -67,38 +68,32 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertSame('0', $queue->getQueue('0'));
     }
 
-    public function testLockForPoppingUsesOneConnectionAndConfiguredVersion(): void
-    {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
-        $resolver->shouldReceive('connection')->once()->with(null)->andReturn($connection);
-        $connection->shouldReceive('getDriverName')->once()->andReturn('mysql');
-        $connection->shouldReceive('getConfig')->once()->with('version')->andReturn('8.0.1');
-        $connection->shouldNotReceive('getServerVersion');
-
-        $queue = new TestDatabaseQueue(
-            resolver: $resolver,
-            connection: null,
-            table: 'table',
-            default: 'default',
-            currentTime: 1732502704,
-        );
-
-        $this->assertSame('FOR UPDATE SKIP LOCKED', $queue->lockForPopping());
-    }
-
     #[DataProvider('databaseLockProvider')]
-    public function testLockForPoppingUsesDriverOwnedServerVersion(
+    public function testLockForPoppingUsesConnectionEngineAndVersion(
         string $driver,
-        string $version,
+        ?string $configuredVersion,
+        ?string $serverVersion,
+        ?bool $isMaria,
         bool|string $expected,
     ): void {
         $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = $isMaria === null
+            ? m::mock(ConnectionInterface::class)
+            : m::mock(MySqlConnection::class);
+
         $resolver->shouldReceive('connection')->once()->with(null)->andReturn($connection);
         $connection->shouldReceive('getDriverName')->once()->andReturn($driver);
-        $connection->shouldReceive('getConfig')->once()->with('version')->andReturnNull();
-        $connection->shouldReceive('getServerVersion')->once()->andReturn($version);
+        $connection->shouldReceive('getConfig')->once()->with('version')->andReturn($configuredVersion);
+
+        if ($configuredVersion === null) {
+            $connection->shouldReceive('getServerVersion')->once()->andReturn($serverVersion);
+        } else {
+            $connection->shouldNotReceive('getServerVersion');
+        }
+
+        if ($isMaria !== null) {
+            $connection->shouldReceive('isMaria')->once()->andReturn($isMaria);
+        }
 
         $queue = new TestDatabaseQueue(
             resolver: $resolver,
@@ -114,12 +109,19 @@ class QueueDatabaseQueueUnitTest extends TestCase
     public static function databaseLockProvider(): array
     {
         return [
-            'mysql' => ['mysql', '8.0.1', 'FOR UPDATE SKIP LOCKED'],
-            'old mysql' => ['mysql', '5.7.44', true],
-            'mariadb' => ['mysql', '5.5.5-10.6.1-MariaDB', 'FOR UPDATE SKIP LOCKED'],
-            'postgres' => ['pgsql', '9.5', 'FOR UPDATE SKIP LOCKED'],
-            'vitess' => ['mysql', '19.0.0-vitess', 'FOR UPDATE SKIP LOCKED'],
-            'planetscale' => ['mysql', '19.0.0-PlanetScale', 'FOR UPDATE SKIP LOCKED'],
+            'mysql before 8.0.1' => ['mysql', null, '8.0.0', false, true],
+            'mysql at 8.0.1' => ['mysql', null, '8.0.1', false, 'FOR UPDATE SKIP LOCKED'],
+            'mariadb through mysql before 10.6' => ['mysql', null, '10.5.99', true, true],
+            'mariadb through mysql at 10.6' => ['mysql', null, '10.6.0', true, 'FOR UPDATE SKIP LOCKED'],
+            'explicit mariadb before 10.6' => ['mariadb', null, '10.5.99', null, true],
+            'explicit mariadb at 10.6' => ['mariadb', null, '10.6.0', null, 'FOR UPDATE SKIP LOCKED'],
+            'configured mysql version' => ['mysql', '8.0.1', null, false, 'FOR UPDATE SKIP LOCKED'],
+            'configured mariadb version through mysql' => ['mysql', '10.5.99', null, true, true],
+            'configured mariadb marker' => ['mysql', '5.5.5-10.6.1-MariaDB', null, null, 'FOR UPDATE SKIP LOCKED'],
+            'raw mariadb marker' => ['mysql', null, '5.5.5-10.5.99-MariaDB', null, true],
+            'postgres' => ['pgsql', null, '9.5', null, 'FOR UPDATE SKIP LOCKED'],
+            'vitess' => ['mysql', null, '19.0.0-vitess', false, 'FOR UPDATE SKIP LOCKED'],
+            'planetscale' => ['mysql', null, '19.0.0-PlanetScale', false, 'FOR UPDATE SKIP LOCKED'],
         ];
     }
 

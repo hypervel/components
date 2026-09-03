@@ -12,6 +12,7 @@ use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Queue\Jobs\DatabaseJob;
 use Hypervel\Queue\Jobs\DatabaseJobRecord;
@@ -478,6 +479,8 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
         if (Str::of($databaseVersion)->contains('MariaDB')) {
             $databaseEngine = 'mariadb';
             $databaseVersion = Str::before(Str::after($databaseVersion, '5.5.5-'), '-');
+        } elseif ($connection instanceof MySqlConnection && $connection->isMaria()) {
+            $databaseEngine = 'mariadb';
         } elseif (Str::of($databaseVersion)->contains(['vitess', 'PlanetScale'])) {
             $databaseEngine = 'vitess';
             $databaseVersion = Str::before($databaseVersion, '-');
