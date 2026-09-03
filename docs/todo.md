@@ -28,6 +28,10 @@
 - Audit unmatched PHPStan inline ignores and global patterns with `reportUnmatchedIgnoredErrors` enabled — currently 196 unmatched inline ignores across 99 files plus 5 unmatched global patterns. Remove only suppressions that no longer match after tracing the underlying code; do not replace correct source with runtime branches or wider types merely to keep static analysis green. Decide as part of the work whether `phpstan.neon.dist` should then set `reportUnmatchedIgnoredErrors: true` permanently, since leaving it `false` lets the suppressions rot again.
 - Add PHPStan Eloquent extensions that preserve `Eloquent\Builder<TModel>` for non-passthrough methods forwarded to `Query\Builder`, and expose model named scopes on Eloquent builders and relations. The query-builder mixin currently gives fluent calls the wrong builder type, while named scopes are treated as nonexistent methods; these gaps force scopes to split mutation from return and leave `HasDatabaseNotifications` with `method.notFound` suppressions. This will be the repository's first PHPStan extension, so use Larastan as prior art and wire the extensions into `phpstan.neon.dist` without maintaining duplicate query-method or scope lists in `@method` annotations.
 
+## Testing
+
+- Replace PHPUnit 13's deprecated `expectExceptionMessage()` calls across the test suite. Use `expectExceptionMessageIs()` for complete messages and `expectExceptionMessageIsOrContains()` for fragments, auditing each assertion's intent and running its owning test file as it is changed.
+
 ## HTTP Server
 
 - Remove trailer-stream one-chunk lookahead once the minimum supported Swoole release includes [swoole-src#6124](https://github.com/swoole/swoole-src/pull/6124). Current releases send an empty `END_STREAM` DATA frame before trailer HEADERS when `end()` receives no body after `write()`, so `ResponseBridge` retains the final chunk for `end($chunk)` and delays delivery by one chunk. Once fixed, raise the `ext-swoole` constraint, write every chunk immediately, emit trailers, call bare `end()`, invert the deterministic bridge ordering tests, and add real gRPC incremental-delivery coverage.
@@ -41,6 +45,10 @@
 
 - Publish reproducible Hypervel 0.4 benchmarks on a dedicated documentation page before linking them from the introduction. Record the framework, PHP, Swoole, and dependency versions; use the same hardware and load-generation conditions for every runtime; publish the benchmark applications and configuration; and include the raw results, collection date, and limitations. Do not reuse the Hypervel 0.3 results as current data. Once the page is published, add it to `src/docs/documentation.md` and link to it from the introduction.
 - When the Hypervel 0.4 documentation is published, replace the versioned GitHub source links in both the `hypervel/components` and `hypervel/hypervel` READMEs with the corresponding hypervel.org documentation URLs. The documentation's `{{version}}` cross-links only resolve on the published site, so readers who follow the current links land on pages whose internal navigation is broken.
+
+## Data
+
+- Reconcile `hypervel/data` with the final `spatie/laravel-data` v5 release before Hypervel 0.4 is released. Compare the released source, tests, and documentation, and adopt worthwhile API, behavior, coverage, and documentation changes without replacing Hypervel's fixed creation engine, coroutine-safe state model, first-party framework integrations, or measured performance improvements with Laravel-specific machinery.
 
 ## TypeScript
 
