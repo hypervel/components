@@ -1,10 +1,10 @@
 # Runtime Correctness Remediation Plan
 
-Status: Approved for implementation
+Status: Complete
 
 ## Objective
 
-Fix verified correctness failures across Database Queue, cache wrappers, unique-job payload metadata, numeric validation, and SQS FIFO dispatch. Also remove an inaccurate `RateLimited` comment while documenting its existing zero-delay difference from Laravel.
+Fix verified correctness failures across Database Queue, cache wrappers, unique-job payload metadata, numeric validation, and SQS FIFO dispatch. Complete optional framework-event gating across cache, prepared statements, queues, database and pool lifecycle, framework commands and integrations, and server lifecycle without changing listener-present behavior. Compile registered event wildcards once, and remove an inaccurate `RateLimited` comment while documenting its existing zero-delay difference from Laravel.
 
 The work combines Hypervel-specific fixes with current Laravel validation fixes. Preserve Laravel APIs unless their current behavior is broken: SQS FIFO positive delays deliberately fail instead of being silently discarded. Do not add cache-coordination affinity, queue-object capability memoization, configurable rate-limit padding, local numeric parsers, or broad public capability APIs.
 
@@ -16,6 +16,9 @@ The work combines Hypervel-specific fixes with current Laravel validation fixes.
 - Laravel's memo driver has the same `flexible()` refresh-marker tautology: its opening `many()` call memoizes the marker, so the acquired-lock `get()` recheck reads the captured marker from the same memo. Report that memo-only defect upstream with a focused test and fix after the Hypervel implementation is verified and the project owner approves the external submission. Do not send Hypervel's stack, failover, raw-sentinel, or wrapper-composition machinery upstream; Laravel does not have those drivers or contracts.
 - Laravel commit [`1da2839a08`](https://github.com/laravel/framework/commit/1da2839a08) memoizes `DatabaseQueue::getLockForPopping()` on the queue object. That design is unsafe in Hypervel: queue objects live for the worker lifetime while pooled physical connections, backend versions, and configuration can change. This plan fixes detection without copying that memo.
 - Installed `ramsey/uuid` 4.9.3 restricts `brick/math` to `<=0.18`. Brick Math 0.20's bounded parsing API and parser hardening therefore cannot be adopted truthfully in the current dependency graph. `docs/todo.md` records the complete follow-up; no Composer alias or local parser will hide the constraint.
+- Hypervel commit `6c2f5debd` replaced Laravel-shaped `event(object)` cache dispatch with `event(string, Closure)` to defer event-object construction. It successfully removed eager event objects, including batch event argument maps, but every call site still allocates a factory closure and tagged caches allocate a second wrapper closure before the listener check.
+- Passive observers deliberately receive only events dispatched for another reason. They do not count toward `hasListeners()`; this contract is documented under [Passive Observers](../../src/docs/events.md#passive-observers) and pinned by OpenTelemetry's event-instrumentation tests. Guarding currently eager lifecycle events makes their behavior match that existing contract.
+- The events documentation already names queue lifecycle among the framework event families protected by listener guards. Queue producers are guarded, but several queue consumer/worker events are not; completing the queue pass makes the documented behavior accurate.
 
 ## Implementation
 
@@ -100,7 +103,8 @@ Keep it separate from `RawReadable`. `StackStore` correctly does not implement o
 
 Implement the interface on `Repository`, `MemoizedStore`, `FailoverStore`, and `StackStore`:
 
-- `Repository::getAuthoritativeRaw()` is public and marked `@internal` because wrappers call it on another repository. It applies `itemKey()`, preserves `getRaw()`'s retrieval/hit/miss/failure events, passes cancellation through, runs incomplete-class handling at the same ownership boundary, and preserves `NullSentinel::VALUE`. When its store lacks the authoritative interface, it performs the normal raw read.
+- `Repository::getAuthoritativeRaw()` is public and marked `@internal` because wrappers call it on another repository. It applies `itemKey()`, preserves `getRaw()`'s retrieval/hit/miss/failure events, passes cancellation through, delegates incomplete-class handling to whichever repository owns the plain store read exactly as `getRaw()` does, and preserves `NullSentinel::VALUE`. When its store lacks the authoritative interface, it performs the normal raw read.
+- Keep `getRaw()`'s normal path direct rather than routing both methods through a boolean mode helper. The authoritative path is rare, while measurement shows the shared helper would add about 16 nanoseconds to every ordinary raw read; duplicating this small control flow avoids that hot-path regression.
 - `MemoizedStore` delegates directly to its inner repository's authoritative method. It bypasses only the coroutine-local memo and retains the inner repository's normal events and error handling.
 - `FailoverStore` tries resolved repositories in the configured order. It calls the authoritative interface when available, then `RawReadable`, then contract `get()`. It does not pin the backend selected for the lock to the later read; failover has no operation-affinity guarantee, and adding one would require unjustified cross-operation machinery.
 - `StackStore` resolves the bottom proxy's wrapped store. It recursively calls the authoritative interface when available, otherwise `RawReadable::getRaw()` or ordinary `get()`. After that recursion it casts the returned outer stack record and reads `['value'] ?? null`. Missing, scalar, and malformed records are misses; a valid null sentinel survives.
@@ -153,7 +157,131 @@ Extend the existing cache tests rather than creating a new test hierarchy:
 - `tests/Cache/CacheStackStoreTagsTest.php`: add the new authoritative method to the existing enumeration of read operations rejected by stack any-mode tags.
 - `tests/Integration/Cache/Redis/MemoizedStoreTest.php`: exercise public `flexible()` through the real Redis-backed memo driver. Prime a stale memoized marker, update the backing marker as another caller would, invoke the deferred refresh, and prove the callback is skipped. Wrapper-composition details remain in focused unit tests rather than being duplicated here.
 
-### 3. Apply stack layer TTLs to direct `putMany()` calls
+### 3. Complete optional cache and prepared-statement event gating, then compile event wildcards once
+
+#### Cache event construction
+
+All 83 cache event sites currently create a factory closure before `Repository::event()` checks `hasListeners()`. `TaggedCache::event()` wraps that factory in another closure before delegating. This leaves avoidable allocation on every ordinary cache operation even when no listener exists.
+
+Restore the protected Laravel-shaped dispatch seam in `Repository` and `TaggedCache`:
+
+```php
+protected function event(object $event): void
+{
+    $this->events?->dispatch($event);
+}
+```
+
+`TaggedCache::event()` applies `setTags()` to the object before delegating, matching current Laravel and Hypervel before `6c2f5debd`. Guard every framework-owned event construction directly with the exact event class:
+
+```php
+if ($this->events?->hasListeners(WritingKey::class)) {
+    $this->event(new WritingKey(/* ... */));
+}
+```
+
+This performs one listener lookup, constructs no closure or event when absent, retains tagged decoration through normal polymorphic dispatch, and restores Laravel protected API compatibility. Do not add a factory helper, variadic event arguments, checked-listener token, listener-result memo, or a second listener check inside `event()`.
+
+Keep success/failure dispatch branches in the structural form `if ($result) { if (hasListeners(...)) { ... } } elseif (hasListeners(...)) { ... }`. This makes success own the success-listener decision and prevents a later edit from dispatching failure events for a successful operation merely because no success listener exists.
+
+For event loops, guard immediately before construction and skip the complete loop when no class it can emit has listeners:
+
+- Batch terminal/failure loops emit one loop-invariant class, so resolve that class before the loop and use one outer guard. If a listener is removed or added during an earlier dispatch, each later `dispatch()` resolves the current listener set; constructing the remaining objects after removal is the only possible extra work and is bounded to that batch.
+- `manyRaw()` can alternate `CacheHit` and `CacheMissed`. Use one outer OR guard to skip the loop when neither class is listened to, then keep an exact per-class guard inside. The outer decision is safe because no coroutine yield occurs between the all-false check and returning the normalized result. The inner checks allow a listener for one outcome to register a listener for the other outcome during an earlier dispatch.
+- Do not hoist a listener decision across cache/Redis I/O or a preceding event dispatch.
+
+Add concise source commentary only at the mixed `manyRaw()` loop, where the outer/inner distinction is not obvious. The direct guards and restored protected methods otherwise explain themselves.
+
+#### Prepared-statement event construction
+
+Apply the same lowest-boundary correction to the one remaining event-factory seam in the framework. `PdoConnection::prepared()` currently allocates a closure for every prepared statement before `Connection::event()` checks for `StatementPrepared` listeners, and its protected helper differs from Laravel's object-shaped API.
+
+- restore `Connection::event(object $event): void` as a direct nullable dispatch;
+- guard `new StatementPrepared(...)` in `PdoConnection::prepared()` with `hasListeners(StatementPrepared::class)`;
+- do not change query or transaction event handling, which already guards object construction directly.
+
+This removes all remaining closure-form event dispatch in framework source and avoids allocation on every prepared query when the optional event has no listener.
+
+#### Registered wildcard compilation
+
+`Dispatcher::hasWildcardListeners()`, `getWildcardListeners()`, and `getWildcardObservers()` currently call `Str::is()` for every registered pattern and runtime event. Each call repeats `preg_quote()`, wildcard translation, and regex-string construction. Measurements with five wildcard listeners put that repeated work at roughly 2.4 microseconds per scan; reusing registered regexes reduces it by about 72 percent.
+
+Add one `Dispatcher` map from registered wildcard pattern to compiled case-sensitive regex. Populate it eagerly from both protected wildcard setup methods and remove it through the existing joint wildcard `forget()` path. The key set is exactly the union of the boot-owned listener and observer wildcard registries, so arbitrary runtime event names never grow worker state. Do not add queried-event result caches, lazy fallback entries, an LRU, an invalidation version, configuration, or a public Support API; `EventsDispatcherTest::testRuntimeEventNamesDoNotGrowDispatcherState()` must remain green.
+
+The compiler is the case-sensitive wildcard translation from `Str::is()` verbatim: `preg_quote()` with `#`, replace escaped `\*` with `.*`, and anchor with `#^...\z#su`. All three replaced calls currently use `Str::is()`'s default case-sensitive mode. Preserve a direct `$pattern === '*'` fast path so catch-all observers avoid regex work and keep exact matching semantics for arbitrary byte strings.
+
+#### Tests
+
+Keep the existing listener-present payload/order coverage for all 19 cache event classes. Add focused behavioral tests for the base repository, namespaced tags, stack/any-mode tags, Redis any tags, and Redis all tags using small test subclasses that count protected `event()` entry:
+
+- without listeners, representative read, write, batch, and administrative operations never enter `event()`;
+- with a matching listener, each implementation family enters and dispatches normally.
+
+Do not mirror all 83 mechanical sites or inspect source text. Existing detailed event tests catch a guard/event-class mismatch; the new tests prove the absent-listener fast path and protect the restored dispatch seam.
+
+Extend `tests/Events/EventsDispatcherTest.php` behaviorally for literal dots, a `#` delimiter, multiline names, start and end anchoring, case sensitivity, and bare `*`. Do not reflect the compiled regex or assert timing thresholds. Its existing runtime-name test automatically includes the new array property and proves arbitrary queried names do not grow it.
+
+Extend `tests/Database/DatabasePdoConnectionTest.php` so a prepared statement with no `StatementPrepared` listener does not enter the protected `event()` seam, while its existing listener-present test still verifies the event payload and dispatch.
+
+### 4. Guard the remaining optional framework lifecycle events
+
+#### Problem
+
+Several framework-owned event objects are still constructed and dispatched when no active listener exists. An empty dispatch pays object construction, event parsing, a coroutine deferral-state lookup, and both listener and observer resolution. An exact `hasListeners()` guard performs one listener lookup and stops, so it is cheaper even for small event DTOs and materially cheaper on per-job, per-query-adjacent, pool, and server callback paths.
+
+The inconsistency also contradicts Hypervel's documented passive-observer contract: observers see events dispatched because an active listener or targeted wildcard exists, but must not make optional events exist. The canonical contract remains in [Passive Observers](../../src/docs/events.md#passive-observers); do not duplicate it in other documentation.
+
+#### Guarding rules
+
+At every owned construction site, check `hasListeners(ExactEvent::class)` immediately before constructing and dispatching the event. Keep the guard at the lowest boundary that owns construction, preserve payloads/order/error propagation, and do not add a lazy-dispatch helper or closure factory.
+
+- Exact listeners, targeted wildcards, and interface listeners continue to cause dispatch. Passive `observe()` registrations and bare `listen('*')` do not.
+- Do not guard an event implementing `ShouldBroadcast`; broadcasting is itself a dispatch side effect and is not counted by `hasListeners()`. Audit every converted class for that interface before editing.
+- Do not guard job/command-bus dispatch, broadcast delivery, webhook delivery, or a lifecycle event whose targeted listener is the subsystem's required control flow.
+- Preserve existing configuration checks. For pool-release events, both the configured-event predicate and the listener guard must be true before constructing the event.
+- Do not hoist listener decisions across I/O, coroutine suspension, or preceding dispatches.
+
+Apply direct guards to these optional event families:
+
+- Queue: `SyncQueue`, `Worker`, `QueueManager`, queue monitor/retry commands, and `Jobs\Job::fail()`. Existing producer, idle, loop, pop, debounce, and failover guards remain intact; perform a final exact-class pass across `src/queue` because several guards sit more than one line above dispatch.
+- Database and pool: connection establishment/reconnect, configured pool release, schema dump/prune, database monitoring, migration load/refresh/run events, model pruning, and mass pruning. Keep `Migrator::fireMigrationEvent(MigrationEventContract)` object-shaped; guard only its owned construction sites. `PruneCommand` reports the aggregate total without temporary listener registration.
+- Foundation, Console, and Testbench: health diagnosis, maintenance mode, vendor/stub publishing, email verification, Artisan startup, schedule pause/resume, and Testbench serve lifecycle events.
+- Optional integrations: Telescope's `MessageLogged`, Horizon's user-facing deploy/out-of-memory events, and Inertia SSR failure. Horizon events consumed by its required `EventMap` workflow remain direct. Inertia constructs `SsrRenderFailed` when listened for or when `throw_on_error` needs the object for `SsrException`, but dispatches it only when listened for.
+- Server lifecycle: server pre-fork/start, core bootstrap callbacks, and server-process before/after/pipe callbacks.
+
+Two construction sites need local handling rather than a mechanically wrapped statement:
+
+- `StubPublishCommand` uses the mutable `PublishingStubs` event as the source of stubs after listener mutation. When no listener exists, iterate the original stubs directly.
+- `TaskCallback` uses mutable `OnTask::$result`. Construct it only for an active listener and call `finish()` only for the non-null result that listener supplies. Passive observers cannot supply task results; that is consistent with their documented non-influencing role. A no-listener path must still emit guarded `TaskTerminated` when that separate event has a listener.
+
+`PruneCommand` needs a structural correction before its guards are complete. It currently registers a temporary `ModelsPruned` listener on the worker-shared dispatcher and then calls `forget(ModelsPruned::class)`. Every successful command therefore removes all application listeners and observers for that event; an exception before `forget()` also leaks the command closure, and concurrent programmatic calls can receive each other's progress. Remove both registry mutations. Use `pruneAll()`'s existing cumulative total to print one final count per model, while retaining the zero-result message. Guard `ModelPruningStarting` and `ModelPruningFinished` in the command and guard `ModelsPruned` in `Prunable` and `MassPrunable` at their different existing construction sites. Active application listeners retain the same cumulative event payloads; only intermediate console counter updates disappear, while the final line carries the same last value.
+
+Do not add an optional progress callback to `pruneAll()`. It would change both Laravel trait signatures and can break narrower overrides in subclasses of prunable models for a cosmetic progress update. Individual-listener removal still permits cross-coroutine delivery, a scoped-listener facility would add a public contract and coroutine-local registry semantics for one command, and moving chunking into the command would duplicate the traits' deletion, soft-delete, reporting, and event behavior. No Laravel-difference or porting-guide entry is warranted: command inputs, deletion behavior, status, event payloads, and `pruneAll()` remain unchanged.
+
+#### Explicit direct-dispatch cases
+
+Leave these unchanged:
+
+- bus jobs, queued listeners, Horizon controller jobs, Scout/Telescope jobs, broadcasts, and webhooks;
+- broadcastable framework events;
+- Horizon `RedisQueue`, `MasterSupervisorLooped`, `SupervisorLooped`, and `LongWaitDetected`, whose targeted `EventMap` listeners are required internal behavior;
+- string-named application bootstrap, view, and Eloquent events, where no event object is constructed;
+- public APIs receiving an event object already built by the caller.
+
+#### Tests and audit
+
+Update existing listener-present tests before adding no-listener cases. Every affected dispatcher mock must explicitly return true from `hasListeners()` for the class under test, and every expected dispatch must use `once()` or `times()` so a missing guard expectation cannot make the test pass without dispatching.
+
+Add focused no-listener and listener-present coverage by implementation family rather than mirroring every site:
+
+- queue worker success/failure/timeout/release/signal/stop, `SyncQueue`, queue manager/commands, and job failure;
+- database manager/pool, commands, migrator, and pruning;
+- Foundation, Console, Testbench, Telescope, Horizon, and the Inertia listener/throw matrix;
+- server bootstrap/core/process callbacks, including no-listener `OnTask` making no `finish()` call.
+
+Grep affected tests for bare `shouldReceive('dispatch')` expectations and make listener-present cardinality explicit. Do not add a source-text architecture test: it would need a fragile operational-dispatch exception list, miss assigned or static constructions, and couple the suite to formatting. Finish with exact-class source audits for the converted packages and prove every converted event class is non-broadcastable.
+
+### 5. Apply stack layer TTLs to direct `putMany()` calls
 
 #### Problem and change
 
@@ -163,17 +291,17 @@ Update `src/cache/src/StackStoreProxy.php` so `putMany()` uses the same effectiv
 
 ```php
 if (is_null($this->ttl) || $seconds < $this->ttl) {
-    return $this->call(__FUNCTION__, func_get_args());
+    return $this->store->putMany($values, $seconds);
 }
 
 return $this->store->putMany($values, $this->ttl);
 ```
 
-Do not change increment/decrement: those store methods have no TTL argument. Do not rewrite `StackStore::putMany()` into a batching path; that would change rollback and layer-record behavior for no proven benefit.
+Remove the proxy's generic `call()` helper and delegate its contract methods directly. Every accepted method is guaranteed by `Store`, so the dynamic guard is unreachable and replaces native errors with a worse message. Do not change increment/decrement: those store methods have no TTL argument. Do not rewrite `StackStore::putMany()` into a batching path; that would change rollback and layer-record behavior for no proven benefit.
 
 Add focused coverage in `tests/Cache/CacheStackStoreTest.php` for no cap, shorter/equal/longer requested TTLs, return propagation, and the existing stack-level path.
 
-### 4. Preserve nullable unique cache-store selection
+### 6. Preserve nullable unique cache-store selection
 
 #### Problem
 
@@ -193,7 +321,7 @@ Do not use `?->getName() ?? config(...)`, because that collapses a real unnamed 
 
 Extend `tests/Bus/UniqueJobPayloadContextTest.php` through the actual registration/payload path for jobs with no method, a null return, a named repository, and an unnamed repository. Assert the emitted `laravel_unique_job_cache_store` value and that each resolver is called once.
 
-### 5. Port numeric validation exception handling
+### 7. Port numeric validation exception handling
 
 #### Problem
 
@@ -238,7 +366,7 @@ Port the current upstream cases into `tests/Validation/ValidationValidatorTest.p
 
 Update `tests/Validation/ValidationCompiledExecutionTest.php` to run non-finite values, malformed numeric strings, range rules, field-comparison rules, and exponent-policy rejection through both `Validator` and `DelegatedValidationValidator`. Replace the old exception expectation with false validation and retain the warning guard. Keep `testNumericSizeChecksEnforceExponentPolicyExactlyOnce()` as the regression for callback count.
 
-### 6. Reject positive per-message delays on SQS FIFO queues
+### 8. Reject positive per-message delays on SQS FIFO queues
 
 #### Problem
 
@@ -255,7 +383,7 @@ In `src/queue/src/SqsQueue.php`:
 - add a lightweight batch preflight at the start of `bulk()`, immediately after the empty-jobs guard and before transaction lookup, partitioning, payload creation, or SQS I/O;
 - have the batch preflight resolve the effective queue once and return immediately for standard queues; for FIFO queues, walk the original jobs, resolve each delay through inherited `getJobDelay()`, and invoke the same validator;
 - replace `$job->delay ?? null` in `prepareBatchMessages()` with `getJobDelay()` so payload metadata and standard-queue transport options honor `#[Delay]`;
-- resolve the effective queue name inside the validator before testing the `.fifo` suffix;
+- resolve the effective queue name once at each eager call boundary and pass that string to the validator before testing the `.fifo` suffix;
 - reject only when the effective queue is FIFO and `secondsUntil()` produces a positive remaining delay; permit non-FIFO queues and null, zero, negative, or elapsed delays;
 - state only the transport constraint in the exception: SQS FIFO queues do not support per-message delays. Do not mention an outbox API that this repository does not provide.
 
@@ -296,7 +424,7 @@ Update user-facing documentation:
 - `src/queue/README.md`: add a concise `Differences From Laravel` bullet because Laravel silently ignores the delay;
 - `src/docs/porting-from-laravel.md`: tell porters to remove positive per-message delays from FIFO dispatch or choose a queue transport that supports them.
 
-### 7. Keep `RateLimited` behavior and remove false commentary
+### 9. Keep `RateLimited` behavior and remove false commentary
 
 The default `$result->retryAfter() + 3` delay matches current Laravel and is not a defect. Do not add a padding option. Hypervel already uses `??`, so `releaseAfter(0)` intentionally requests immediate retry; Laravel's `?:` ignores zero.
 
@@ -304,7 +432,7 @@ In `src/queue/src/Middleware/RateLimited.php`, remove or correct the comment cla
 
 Add one concise bullet to `src/queue/README.md` documenting that Hypervel honors `releaseAfter(0)`. Do not add it to the porting guide: this narrow edge does not require general porting action.
 
-### 8. Record the bounded Brick Math follow-up
+### 10. Record the bounded Brick Math follow-up
 
 Keep the new `docs/todo.md` Validation entry as the single tracked requirement:
 
@@ -321,8 +449,13 @@ Keep the Framework-wide backend-capability entry's Database Queue example. It ex
 
 - `src/contracts/src/Cache/AuthoritativeRawReadable.php` — new internal recursive capability.
 - `src/contracts/src/Cache/RawReadable.php` — document store and repository fallback semantics.
+- `src/contracts/src/Cache/Repository.php` — document the existing array-key/default form used by contract-only failover repositories.
 - `src/cache/src/Repository.php` — authoritative raw read and flexible marker recheck.
+- `src/cache/src/TaggedCache.php` — restore object-shaped tagged event decoration.
 - `src/cache/src/AnyModeTaggedCache.php` — preserve the closed any-mode read surface.
+- `src/cache/src/StackTaggedCache.php` — guard stack-owned event construction.
+- `src/cache/src/Redis/AnyTaggedCache.php` — guard Redis any-mode event construction.
+- `src/cache/src/Redis/AllTaggedCache.php` — guard Redis all-mode event construction.
 - `src/cache/src/MemoizedStore.php` — bypass memo for authoritative reads.
 - `src/cache/src/FailoverStore.php` — recursive/fallback reads through the existing failover loop.
 - `src/cache/src/StackStore.php` — recursive bottom-only, no-backfill read; remove dead getter.
@@ -333,25 +466,43 @@ Keep the Framework-wide backend-capability entry's Database Queue example. It ex
 - `src/bus/src/UniqueJobPayloadContext.php` — nullable unique-store handling.
 - `src/validation/src/Concerns/ValidatesAttributes.php` — port current upstream exception handling.
 - `src/validation/src/PlanExecutor.php` — match compiled execution to delegated validation.
+- `src/events/src/Dispatcher.php` — compile bounded registered wildcard patterns once.
+- `src/database/src/Connection.php` — restore object-shaped protected event dispatch.
+- `src/database/src/PdoConnection.php` — guard prepared-statement event construction at its call site.
+- `src/queue/src/{SyncQueue.php,Worker.php,QueueManager.php,Console/MonitorCommand.php,Console/RetryCommand.php,Jobs/Job.php}` — guard optional queue lifecycle events.
+- `src/database/src/{DatabaseManager.php,Pool/PooledConnection.php,Console/DumpCommand.php,Console/PruneCommand.php,Console/MonitorCommand.php,Console/Migrations/FreshCommand.php,Console/Migrations/MigrateCommand.php,Console/Migrations/RefreshCommand.php,Migrations/Migrator.php,Eloquent/Prunable.php,Eloquent/MassPrunable.php}` and `src/pool/src/Connection.php` — guard database, migration, pruning, and pool lifecycle events.
+- `src/foundation/src/{Http/HealthCheckController.php,Console/DownCommand.php,Console/UpCommand.php,Console/VendorPublishCommand.php,Console/StubPublishCommand.php,Auth/EmailVerificationRequest.php}`, `src/console/src/{Application.php,Commands/SchedulePauseCommand.php,Commands/ScheduleResumeCommand.php}`, and `src/testbench/src/Foundation/Console/ServeCommand.php` — guard optional framework and command events.
+- `src/telescope/src/Telescope.php`, `src/horizon/src/{ProvisioningPlan.php,Listeners/MonitorMasterSupervisorMemory.php,Listeners/MonitorSupervisorMemory.php}`, and `src/inertia/src/Ssr/HttpGateway.php` — guard optional integration events while retaining required local behavior.
+- `src/server/src/Server.php`, `src/core/src/Bootstrap/{PipeMessageCallback.php,WorkerExitCallback.php,ConnectCallback.php,PacketCallback.php,WorkerStartCallback.php,StartCallback.php,WorkerErrorCallback.php,CloseCallback.php,ManagerStopCallback.php,ReceiveCallback.php,FinishCallback.php,ManagerStartCallback.php,WorkerStopCallback.php,ShutdownCallback.php,TaskCallback.php}`, and `src/server-process/src/AbstractProcess.php` — guard server lifecycle events at their owning callbacks.
 
 ### Tests
 
 - `tests/Queue/QueueDatabaseQueueUnitTest.php`
 - `tests/Queue/QueueSqsQueueTest.php`
 - `tests/Cache/CacheRepositoryTest.php`
+- `tests/Cache/CacheEventsTest.php`
 - `tests/Cache/CacheMemoizedStoreTest.php`
 - `tests/Cache/CacheFailoverStoreTest.php`
 - `tests/Cache/CacheStackStoreTest.php`
 - `tests/Cache/CacheStackStoreTagsTest.php`
 - `tests/Cache/Redis/AnyTaggedCacheTest.php`
+- `tests/Cache/Redis/AllTaggedCacheTest.php`
+- `tests/Integration/Cache/FailoverStoreTest.php`
 - `tests/Integration/Cache/Redis/MemoizedStoreTest.php`
+- `tests/Events/EventsDispatcherTest.php`
+- `tests/Database/DatabasePdoConnectionTest.php`
 - `tests/Bus/UniqueJobPayloadContextTest.php`
 - `tests/Validation/ValidationValidatorTest.php`
 - `tests/Validation/ValidationCompiledExecutionTest.php`
+- existing queue event tests: `tests/Queue/{QueueSyncQueueTest.php,QueueWorkerTest.php,QueuePauseResumeTest.php,MonitorCommandTest.php,RetryCommandTest.php,QueueJobTest.php,PooledJobWorkerTest.php,QueueBackgroundQueueTest.php,QueueBeanstalkdJobTest.php,QueueDeferredQueueTest.php}`
+- existing database/pool event tests: `tests/Database/{DatabaseManagerTest.php,DatabaseMigrationFreshCommandTest.php,DatabaseMigrationMigrateCommandTest.php,DatabaseMigrationRefreshCommandTest.php,DatabaseMonitorCommandTest.php,DatabaseMigratorIntegrationTest.php,PruneCommandTest.php}`, `tests/Integration/Database/{EloquentPrunableTest.php,EloquentMassPrunableTest.php,MigratorEventsTest.php,PooledConnectionTest.php}`, and `tests/Pool/ConnectionTest.php`
+- existing framework/integration event tests: `tests/Foundation/{Http/HealthCheckControllerTest.php,Auth/EmailVerificationRequestTest.php,Console/VendorPublishCommandTest.php,Console/RouteListCommandTest.php}`, `tests/Integration/Foundation/{MaintenanceModeTest.php,Console/StubPublishCommandTest.php}`, `tests/Console/{ConsoleApplicationDeferredCallbacksTest.php,ConsoleApplicationResolveTest.php,Scheduling/SchedulePauseCommandTest.php,Scheduling/ScheduleResumeCommandTest.php}`, `tests/Testbench/Foundation/Console/ServeCommandTest.php`, `tests/Telescope/Telescope/TelescopeTest.php`, `tests/Integration/Horizon/Feature/{ProvisioningPlanTest.php,MonitorMasterSupervisorMemoryTest.php,MonitorSupervisorMemoryTest.php}`, and `tests/Inertia/HttpGatewayTest.php`
+- server event tests: `tests/Server/{ServerTest.php,ServerNativeTest.php}`, `tests/Core/Bootstrap/{LifecycleCallbackTest.php,TaskCallbackTest.php,WorkerExitCallbackTest.php,WorkerStartCallbackTest.php}`, and `tests/ServerProcess/{AbstractProcessTest.php,ListenMethodTest.php}`
 
 ### Documentation
 
 - `src/docs/cache.md`
+- `src/docs/events.md`
 - `src/docs/queues.md`
 - `src/queue/README.md`
 - `src/docs/porting-from-laravel.md`
@@ -371,21 +522,27 @@ Work one file at a time. Before each item, re-read the relevant source, its call
    - `tests/Cache/CacheStackStoreTagsTest.php`
    - `tests/Cache/Redis/AnyTaggedCacheTest.php`
    - `tests/Integration/Cache/Redis/MemoizedStoreTest.php`
-3. Update cache documentation.
-4. Fix unique-job metadata and run `tests/Bus/UniqueJobPayloadContextTest.php`.
-5. Port delegated validation, run `tests/Validation/ValidationValidatorTest.php`, then update compiled execution and run `tests/Validation/ValidationCompiledExecutionTest.php`. Run both together after parity is complete.
-6. Fix SQS and run `tests/Queue/QueueSqsQueueTest.php`.
-7. Correct `RateLimited` commentary and queue documentation; run `tests/Queue/RateLimitedTest.php` and `tests/Integration/Queue/RateLimitedTest.php` only if source behavior changes while editing. No behavior change is planned.
-8. Review the TODO and documentation changes for one source of truth and no stale claims.
-9. Run focused PHPStan only if a new type needs confirmation during implementation.
-10. Run `composer fix` once at the completed-slice checkpoint. It runs formatting, both static-analysis configurations, the parallel suite, Testbench, and dogfood tests.
-11. Perform a full self-review after green checks: trace all changed callers/callees, wrapper recursion, sentinel handling, event and cancellation paths, failover behavior, lock ownership, queue after-commit timing, validation parity, public API effects, and adjacent code touched. Remove stale code/comments and check for added backend calls, hot-path work, worker-lifetime state, overengineering, or weak tests.
-12. Request code review and address findings with focused tests. Repeat `composer fix` only if the review changes warrant another full check.
+3. Restore object-shaped cache event dispatch and guard one source file at a time. Update and immediately run each owning event test file before proceeding to the next family: `tests/Cache/CacheEventsTest.php`, `tests/Cache/CacheStackStoreTagsTest.php`, `tests/Cache/Redis/AnyTaggedCacheTest.php`, and `tests/Cache/Redis/AllTaggedCacheTest.php`.
+4. Guard prepared-statement events, update `tests/Database/DatabasePdoConnectionTest.php`, and run that file immediately. Compile registered event wildcard patterns, update `tests/Events/EventsDispatcherTest.php`, and run that file immediately.
+5. Complete event guards one family at a time: queue; database/pool; Foundation/Console/Testbench/integrations; server/core/server-process. Update each family's existing listener-present tests with explicit `hasListeners()` behavior and dispatch cardinality, add focused no-listener coverage, and run every changed test file immediately. Finish with exact-class audits for queue completeness and `ShouldBroadcast` exclusions.
+6. Update cache documentation.
+7. Fix unique-job metadata and run `tests/Bus/UniqueJobPayloadContextTest.php`.
+8. Port delegated validation, run `tests/Validation/ValidationValidatorTest.php`, then update compiled execution and run `tests/Validation/ValidationCompiledExecutionTest.php`. Run both together after parity is complete.
+9. Fix SQS and run `tests/Queue/QueueSqsQueueTest.php`.
+10. Correct `RateLimited` commentary and queue documentation; run `tests/Queue/RateLimitedTest.php` and `tests/Integration/Queue/RateLimitedTest.php` only if source behavior changes while editing. No behavior change is planned.
+11. Review the TODO and documentation changes for one source of truth and no stale claims.
+12. Run focused PHPStan only if a new type needs confirmation during implementation.
+13. Run `composer fix` once at the completed-slice checkpoint. It runs formatting, both static-analysis configurations, the parallel suite, Testbench, and dogfood tests.
+14. Perform a full self-review after green checks: trace all changed callers/callees, wrapper recursion, sentinel handling, event and cancellation paths, failover behavior, lock ownership, queue after-commit timing, validation parity, public API effects, and adjacent code touched. Remove stale code/comments and check for added backend calls, hot-path work, worker-lifetime state, overengineering, or weak tests.
+15. Request code review and address findings with focused tests. Repeat `composer fix` only if the review changes warrant another full check.
 
 ## Completion criteria
 
 - MariaDB before 10.6 never receives `SKIP LOCKED`, including through the `mysql` driver and numeric version overrides.
 - Flexible refreshes bypass memoized and stack-local markers only inside the acquired lock, recursively through supported wrapper compositions, without upper-layer writes or extra backing reads.
+- Every framework-owned cache and prepared-statement event is constructed only when its exact class has a listener, tagged cache events retain their tags, and the protected event seams match Laravel.
+- Remaining optional queue, database/pool, framework/integration, and server lifecycle event objects are constructed only for exact, targeted-wildcard, or interface listeners. Passive observers do not cause dispatch, broadcast and operational dispatches remain direct, listener-present behavior is unchanged, `model:prune` preserves application listeners without shared temporary registration, and no-listener `OnTask` never calls `finish()`.
+- Registered listener/observer wildcard patterns compile once, arbitrary runtime names add no dispatcher state, and matching behavior remains unchanged.
 - Contract-only custom repositories work in failover raw reads with their unavoidable sentinel-lossy behavior documented and tested.
 - Every direct TTL-bearing `StackStoreProxy` write applies its layer cap.
 - Null `uniqueVia()` uses the default store while an unnamed real repository remains unnamed.
