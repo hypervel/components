@@ -17,7 +17,6 @@ class DataIterableAnnotation
         public readonly string $containerType,
         public readonly TypeNode $itemType,
         public readonly string $declaringClass,
-        public readonly ?TypeNode $keyType = null,
         public readonly ?string $property = null,
     ) {
     }

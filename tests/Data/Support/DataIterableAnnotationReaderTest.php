@@ -26,12 +26,12 @@ class DataIterableAnnotationReaderTest extends TestCase
         $nullable = $reader->getForProperty(new ReflectionProperty(DataIterablePropertyFixture::class, 'nullable'));
         $union = $reader->getForProperty(new ReflectionProperty(DataIterablePropertyFixture::class, 'union'));
 
-        $this->assertAnnotation($array[0], 'array', 'FooData', 'array-key');
-        $this->assertAnnotation($generic[0], 'array', 'FooData', 'int');
-        $this->assertAnnotation($list[0], 'array', 'FooData', 'int');
-        $this->assertAnnotation($nullable[0], 'Collection', 'FooData', 'array-key');
-        $this->assertAnnotation($union[0], 'array', 'FooData', 'array-key');
-        $this->assertAnnotation($union[1], 'Collection', 'BarData', 'array-key');
+        $this->assertAnnotation($array[0], 'array', 'FooData');
+        $this->assertAnnotation($generic[0], 'array', 'FooData');
+        $this->assertAnnotation($list[0], 'array', 'FooData');
+        $this->assertAnnotation($nullable[0], 'Collection', 'FooData');
+        $this->assertAnnotation($union[0], 'array', 'FooData');
+        $this->assertAnnotation($union[1], 'Collection', 'BarData');
         $this->assertSame(
             [DataIterablePropertyFixture::class],
             array_values(array_unique(array_map(
@@ -56,12 +56,12 @@ class DataIterableAnnotationReaderTest extends TestCase
         $this->assertSame(['items'], array_keys($class));
         $this->assertSame('items', $class['items'][0]->property);
         $this->assertSame(DataIterableClassFixture::class, $class['items'][0]->declaringClass);
-        $this->assertAnnotation($class['items'][0], 'array', 'FooData', 'string');
+        $this->assertAnnotation($class['items'][0], 'array', 'FooData');
 
         $this->assertSame(['values'], array_keys($method));
         $this->assertSame('values', $method['values'][0]->property);
         $this->assertSame(DataIterableClassFixture::class, $method['values'][0]->declaringClass);
-        $this->assertAnnotation($method['values'][0], 'Collection', 'FooData', 'int');
+        $this->assertAnnotation($method['values'][0], 'Collection', 'FooData');
     }
 
     /**
@@ -71,11 +71,9 @@ class DataIterableAnnotationReaderTest extends TestCase
         DataIterableAnnotation $annotation,
         string $container,
         string $item,
-        string $key,
     ): void {
         $this->assertSame($container, $annotation->containerType);
         $this->assertSame($item, (string) $annotation->itemType);
-        $this->assertSame($key, (string) $annotation->keyType);
     }
 }
 

@@ -7,7 +7,6 @@ namespace Hypervel\Data\Support\Annotations;
 use PHPStan\PhpDocParser\Ast\PhpDoc\PhpDocNode;
 use PHPStan\PhpDocParser\Ast\Type\ArrayTypeNode;
 use PHPStan\PhpDocParser\Ast\Type\GenericTypeNode;
-use PHPStan\PhpDocParser\Ast\Type\IdentifierTypeNode;
 use PHPStan\PhpDocParser\Ast\Type\NullableTypeNode;
 use PHPStan\PhpDocParser\Ast\Type\TypeNode;
 use PHPStan\PhpDocParser\Ast\Type\UnionTypeNode;
@@ -159,7 +158,6 @@ class DataIterableAnnotationReader
                 containerType: 'array',
                 itemType: $type->type,
                 declaringClass: $declaringClass,
-                keyType: new IdentifierTypeNode('array-key'),
                 property: $property,
             )];
         }
@@ -180,7 +178,6 @@ class DataIterableAnnotationReader
                 containerType: 'array',
                 itemType: $genericTypes[0],
                 declaringClass: $declaringClass,
-                keyType: new IdentifierTypeNode('int'),
                 property: $property,
             )];
         }
@@ -189,9 +186,6 @@ class DataIterableAnnotationReader
             containerType: $container,
             itemType: $genericTypes[1] ?? $genericTypes[0],
             declaringClass: $declaringClass,
-            keyType: isset($genericTypes[1])
-                ? $genericTypes[0]
-                : new IdentifierTypeNode('array-key'),
             property: $property,
         )];
     }
