@@ -35,20 +35,20 @@
 <a name="introduction"></a>
 ## Introduction
 
-Hypervel Data turns untyped input into typed PHP objects and can validate, transform, collect, return, and persist those objects. Its public API follows the familiar `spatie/laravel-data` vocabulary while its metadata and execution paths are designed for Hypervel's long-lived workers.
+Hypervel Data provides an expressive way to turn arrays, requests, Eloquent models, and other input into typed PHP objects. These objects may validate incoming data, transform values for output, be collected, returned from routes and controllers, and stored with Eloquent.
 
-Metadata is analyzed once for each used data class and retained for the worker lifetime. Request values, validation state, partial selections, lazy evaluation, and factory hooks stay within the current operation or object instance.
+If you have used Spatie Laravel Data, the package's classes and methods should feel familiar. Hypervel Data provides this familiar API while remaining suitable for Hypervel's long-running workers.
 
 <a name="choosing-a-base-class"></a>
 ## Choosing a Base Class
 
-The package provides three base classes that share one construction engine:
+The package provides three base classes:
 
-- `Data` supports construction, validation, transformation, HTTP responses, collections, and Eloquent casting.
-- `Dto` supports construction and validation without transformation or response behavior. Use it for commands, service boundaries, and domain input.
-- `Resource` supports construction, transformation, HTTP responses, collections, and Eloquent casting without the public validation helpers.
+- `Data` supports creation, validation, transformation, HTTP responses, collections, and Eloquent casting.
+- `Dto` supports creation and validation without transformation or response behavior. It is a good choice for commands, service boundaries, and domain input.
+- `Resource` supports creation, transformation, HTTP responses, collections, and Eloquent casting without the public validation methods.
 
-Choose the smallest capability set that matches the object's role. Nested or collected `Dto` values remain objects when a surrounding `Data` object is transformed because `Dto` deliberately has no transformation contract.
+Choose the base class that provides the behavior your object needs. Since `Dto` does not transform values, nested or collected DTOs remain objects when a surrounding `Data` object is transformed. Use `Data` or `Resource` when nested values should also be transformed.
 
 <a name="creating-data-objects"></a>
 ## Creating Data Objects
@@ -76,7 +76,7 @@ class UserData extends Data
 }
 ```
 
-Constructor-promoted `readonly` properties are supported. Public properties that are not constructor-bound may also be populated after construction, but an unbound `readonly` property is invalid because it cannot be assigned safely.
+Constructor-promoted `readonly` properties are supported. Public properties that are not declared by the constructor are assigned after construction and therefore cannot be `readonly`, unless the class sets the value itself as a `#[Computed]` property.
 
 ```php
 <?php
@@ -194,11 +194,11 @@ class UserData extends Data
 }
 ```
 
-Named methods may receive container-resolved dependencies and a `CreationContext`. A method that returns the target object owns that node completely; inferred validation, casts, and creation hooks do not run again for it. Methods returning another normalizable value continue through the ordinary engine without being matched a second time.
+Named methods may receive dependencies from the service container as well as a `CreationContext`. When a named method returns the requested data object, Hypervel uses it directly without validating, casting, or running creation hooks for it again. If the method returns another supported input value, Hypervel creates the object from that value without calling another named factory.
 
-Ordinary construction maps one input value to each public property, so it does not infer how a property should expand into a variadic constructor. Use a named factory that returns the target object for that constructor shape.
+During ordinary creation, Hypervel maps each input value to a public property. It cannot determine how one property should be divided among variadic constructor arguments. A private or protected constructor is also unavailable to ordinary creation. In either case, use a named factory that returns the finished object.
 
-Public static `collect*` methods provide the same escape hatch for a complete normalized collection. Their parameter receives the container of already-created data objects, not the raw source values.
+You may also define public static methods beginning with `collect` to customize collection creation. These methods receive the source's own array, collection, or paginator shape after its values have been converted to data objects, rather than the original source values. An Eloquent collection source is provided as a base `Hypervel\Support\Collection`. When you request an explicit collection target, the method's declared return type must also match that target.
 
 <a name="property-name-conversion"></a>
 ### Property Name Conversion
@@ -243,12 +243,12 @@ $product->productName;
 
 `MapName` applies the same name in both directions. `MapInputName` and `MapOutputName` keep the directions independent. Class-level mappers such as `SnakeCaseMapper`, `CamelCaseMapper`, and `KebabCaseMapper` provide a convention for every property, while a property attribute overrides the class mapper.
 
-Mapped input paths may use dot notation. When both the mapped input path and PHP property name are present, the mapped input wins. Hypervel rejects two properties that claim the same effective input path or output key when metadata is built instead of silently overwriting a value.
+Mapped input paths may use dot notation. When both the mapped input path and PHP property name are present, the mapped input wins. Hypervel rejects a data class when two properties use the same input path or output key instead of silently overwriting a value.
 
 <a name="type-conversion"></a>
 ## Type Conversion
 
-`from` casts supported scalar values, backed enums, dates, nested data objects, and typed iterables to their declared PHP types. Existing values that already satisfy the type retain their identity.
+`from` casts supported scalar values, backed enums, dates, nested data objects, and typed iterables to their declared PHP types. Values that already have the declared type are kept as-is.
 
 ```php
 class ProductData extends Data
@@ -273,7 +273,9 @@ Ambiguous unions of data classes or typed data containers are not guessed. Use a
 <a name="date-and-time-values"></a>
 ### Date and Time Values
 
-Date interfaces use Hypervel's configured Date factory. A property that declares a concrete date class receives that exact class. Input is parsed with `data.date_format`, which accepts one format or an ordered list of formats. The `data.date_timezone` setting converts parsed and transformed dates to a target timezone. For a property with a different source timezone, set `timeZone` on `DateTimeInterfaceCast`; its `setTimeZone` argument overrides the target timezone for that property.
+Date interfaces use Hypervel's configured Date factory. If a property declares a concrete date class, Hypervel creates an instance of that exact class.
+
+Input is parsed using the `data.date_format` configuration option, which accepts one format or an ordered list of formats. The `data.date_timezone` option converts parsed and transformed dates to the configured timezone. To use a different source timezone for one property, pass `timeZone` to `DateTimeInterfaceCast`. Its `setTimeZone` argument may be used to override the configured target timezone for that property.
 
 Dates are transformed using the configured output format unless a property transformer overrides it:
 
@@ -369,7 +371,7 @@ $user->address->street;
 // 123 Main Street
 ```
 
-Nested construction works through the complete graph. Existing `AddressData` instances pass through unchanged.
+This works at any nesting depth. Existing `AddressData` instances pass through unchanged.
 
 For a typed collection, use `DataCollectionOf` or a supported PHPDoc item annotation:
 
@@ -387,7 +389,7 @@ class TeamData extends Data
 }
 ```
 
-The same typed item conversion works for arrays, ordinary collections, lazy collections, and supported paginator types. `DataCollectionOf` is preferred for generated classes because it is explicit and requires no PHPDoc parsing.
+The same typed item conversion works for arrays, ordinary collections, lazy collections, and supported paginator types. `DataCollectionOf` is preferred for generated classes because it declares the item type explicitly.
 
 <a name="backed-enums"></a>
 ### Backed Enums
@@ -459,29 +461,31 @@ class InvoiceData extends Data
 
 A cast implements `Hypervel\Data\Casts\Cast`; a transformer implements `Hypervel\Data\Transformers\Transformer`. Return `Uncastable::create()` from a cast when the next applicable candidate should be tried. Returning `null` means the cast produced a real null value.
 
-Use `Castable` when a value class owns its input conversion, `IterableItemCast` when a cast also applies to typed iterable items, or `factory()->withCast()` for one operation. Application-wide replacement casts and transformers belong in `config/data.php`; built-in date, enum, iterable, and `Arrayable` handling does not need to be configured.
+Use `Castable` when a value class owns its input conversion, `IterableItemCast` when a cast also applies to typed iterable items, or `factory()->withCast()` for a single creation. Application-wide replacement casts and transformers belong in `config/data.php`; built-in date, enum, iterable, and `Arrayable` handling does not need to be configured.
 
-Custom normalizers adapt whole source objects before properties are selected. Declare class-owned normalizers with `normalizers()` or add them to one factory with `withNormalizers()`. Prefer a typed named factory when only one source type needs special handling.
+Custom normalizers convert a source value into input before Hypervel reads its properties. Declare normalizers for a data class with `normalizers()` or add them to a factory with `withNormalizers()`. Prefer a typed named factory when only one source type needs special handling.
+
+During a single creation or transformation, Hypervel may reuse the same cast, transformer, or normalizer instance for every matching value. Do not store per-value state on the extension object itself.
 
 <a name="validation"></a>
 ## Validation
 
-`Data`, `Dto`, and `Resource` validate request input during construction by default. Arrays, models, JSON, and other non-request sources skip validation under the shipped `OnlyRequests` strategy, so trusted internal construction keeps the lean path. `Data` and `Dto` also expose `validateAndCreate` to validate any array-like payload explicitly:
+By default, `Data`, `Dto`, and `Resource` validate input when they are created from a request. Arrays, models, JSON, and other sources are not validated under the default `OnlyRequests` strategy. `Data` and `Dto` also provide a `validateAndCreate` method for explicitly validating an array-like payload:
 
 ```php
 $user = UserData::validateAndCreate($payload);
 ```
 
-Use `validate` when only the validated payload is needed, or `getValidationRules` to inspect the compiled rules:
+Use `validate` when you only need the validated payload, or `getValidationRules` to inspect the generated rules:
 
 ```php
 $validated = UserData::validate($payload);
 $rules = UserData::getValidationRules($payload);
 ```
 
-Hypervel infers presence, nullable, scalar, enum, date, nested data, and typed collection rules from PHP declarations. One Validator handles the complete nested graph. Uniform collections use wildcard rules and Hypervel's compiled validation plans; dynamic shapes use exact indexed rules.
+Hypervel infers presence, nullable, scalar, enum, date, nested data, and typed collection rules from your PHP declarations. These rules cover the entire nested object, including items within typed collections. Uniform collections use wildcard rules, while collections with different item shapes or rules use exact indexed rules.
 
-Construction uses the Validator's validated and exclusion-filtered payload. Properties marked `WithoutValidation` and finished nested data values preserve only their declared paths; unrelated unvalidated input is not merged back.
+After validation, Hypervel creates the object from the validated values. Properties marked with `#[WithoutValidation]` are preserved, as are existing nested data objects. Other input is discarded. By default, this includes unvalidated keys nested inside an array; calling `Validator::includeUnvalidatedArrayKeys()` during your application's boot retains those nested keys.
 
 <a name="validation-attributes"></a>
 ### Validation Attributes
@@ -531,7 +535,7 @@ Use `withValidator(Validator $validator)` and `after(): array` like a FormReques
 <a name="creation-factories"></a>
 ### Creation Factories
 
-`factory()` returns a fresh fluent factory for one operation:
+The `factory` method returns a fluent factory for a single creation:
 
 ```php
 $user = UserData::factory()
@@ -544,11 +548,20 @@ $user = UserData::factory()
     ->from($payload);
 ```
 
-Factories may change the validation strategy, enable or disable name mapping and named factories, ignore selected named methods, add casts or normalizers, and register the ordered `prepareData`, `beforeValidation`, `beforeRules`, `afterRules`, `withValidator`, `afterValidation`, `beforeCreation`, and `afterCreation` hooks.
+Factories may change the validation strategy, enable or disable name mapping and named factories, ignore selected named methods, and add casts or normalizers. They also provide the following hooks, which run in this order:
 
-For creation, `prepareData`, `beforeCreation`, and `afterCreation` run even when validation is skipped. `beforeValidation`, `beforeRules`, and `afterRules` run only when the operation validates or returns rules; `withValidator` and `afterValidation` run only when validation executes. Call `alwaysValidate()` when these validation hooks must apply to an array, model, JSON value, or another non-request source.
+1. `prepareData`
+2. `beforeValidation`
+3. `beforeRules`
+4. `afterRules`
+5. `withValidator`
+6. `afterValidation`
+7. `beforeCreation`
+8. `afterCreation`
 
-Each call to `factory()` starts a new operation. Do not store or reuse a factory across requests. Hooks receive the current operation's values and are never cached in worker metadata.
+The `prepareData`, `beforeCreation`, and `afterCreation` hooks run even when validation is skipped. The other hooks run while generating rules or validating, as appropriate. Call `alwaysValidate()` when validation hooks should also apply to an array, model, JSON value, or another non-request source.
+
+Each call to `factory()` returns a new factory. Configure and use the factory where it is created instead of storing one and reusing it across requests.
 
 <a name="transformation"></a>
 ## Transformation
@@ -563,7 +576,7 @@ $array = $product->toArray();
 $json = $product->toJson();
 ```
 
-`toArray()` recursively transforms nested transformable data, typed iterable items, dates, enums, and `Arrayable` values. `all()` returns visible values without transforming nested values. `transform()` accepts a `TransformationContext` or `TransformationContextFactory` for advanced one-operation control.
+`toArray()` recursively transforms nested transformable data, typed iterable items, dates, enums, and `Arrayable` values. The `all()` method returns visible property values without transforming nested values. For more control over a single transformation, pass a `TransformationContext` or `TransformationContextFactory` to `transform()`.
 
 `Dto` has no transformation API. Use public properties directly, or choose `Data` or `Resource` when output mapping, `Optional` omission, lazy values, or built-in transformation is required.
 
@@ -594,7 +607,9 @@ return $user->include('profile')->toArray();
 
 `Lazy::when` and `Lazy::whenLoaded` add conditional and relation-aware values. `Lazy::closure` returns the closure itself for consumers that understand callback values. Add `#[AutoLazy]`, `#[AutoClosureLazy]`, or `#[AutoWhenLoadedLazy]` to let `from()` wrap supplied values automatically.
 
-Automatic lazy values defer their nested construction work when validation does not require it. A custom `AutoLazy::build()` implementation receives the original raw source aligned with the property that won. Values changed by validation hooks receive the hook's final payload instead. A named factory returning another normalizable value makes that return the aligned source. `AutoWhenLoadedLazy` requires a Model source; a hook-selected morph with no Model fails clearly rather than retaining stale source state.
+Automatic lazy values postpone creating their nested values until they are included, unless validation needs them first.
+
+When you create a custom `AutoLazy` attribute, its `build()` method receives the original source that supplied the property. If a validation hook changes the property, the method receives the payload returned by that hook instead. When a named factory returns another value for Hypervel to process, that value becomes the source. `AutoWhenLoadedLazy` requires an Eloquent model and throws an exception when no model source is available.
 
 <a name="partial-trees"></a>
 ### Partial Trees
@@ -629,7 +644,7 @@ public function with(): array
 return $user->additional(['meta' => ['version' => 1]]);
 ```
 
-These values participate in HTTP resource responses, not Eloquent persistence. Dumps show the current logical `all()` view, so hidden, excluded lazy, and `Optional` values do not expose package internals.
+These values are included in HTTP resource responses but are not stored by Eloquent. When a data object is dumped, it displays the same values as `all()`, so hidden, excluded lazy, and `Optional` values are omitted.
 
 <a name="collections"></a>
 ## Collections
@@ -638,18 +653,22 @@ Use `collect()` to create several objects while preserving supported source shap
 
 ```php
 $users = UserData::collect($rows);
-$users = UserData::collect($rows, DataCollection::class);
-$users = UserData::collect($rows, Collection::class);
-$users = UserData::collect($rows, 'array');
+$dataCollection = UserData::collect($rows, DataCollection::class);
+$collection = UserData::collect($rows, Collection::class);
+$array = UserData::collect($rows, 'array');
 ```
 
-The `$into` argument accepts `null`, `'array'`, or a class-string. Narrow values read from configuration to `class-string` before passing them. With `null`, arrays remain arrays, ordinary collections remain collections, lazy collections remain lazy when validation does not require materialization, and Hypervel paginators are cloned with their metadata intact. Eloquent sources become base support collections because data objects are not Eloquent models.
+The `$into` argument accepts `null`, `'array'`, or a class name. When the target comes from configuration, narrow it to a `class-string` before passing it so static analysis can infer the return type. When `$into` is `null`, arrays remain arrays, ordinary collections remain collections, and lazy collections remain lazy unless validation needs to read their values. Hypervel paginators are cloned with their pagination details intact. Eloquent collections become base support collections because data objects are not Eloquent models.
 
-`DataCollection`, `PaginatedDataCollection`, and `CursorPaginatedDataCollection` provide typed items, keyed access, transformation, and response behavior. Use `toCollection()` for map, filter, reduce, and other collection operations. Paginator wrappers are not Eloquent-castable because their metadata cannot be reconstructed from a JSON item array; persist their items through `DataCollection`.
+`DataCollection`, `PaginatedDataCollection`, and `CursorPaginatedDataCollection` provide typed items, transformation, and response behavior. `DataCollection` also provides keyed access when its underlying collection supports it. Use `toCollection()` for map, filter, reduce, and other collection operations. Paginated data collections cannot be stored directly by Eloquent because their pagination details cannot be recreated from a JSON array. Store their items through a `DataCollection` instead.
 
-When a source remains lazy, every traversal creates its items again and `count()` is also a traversal. If the items are needed more than once, materialize them once with `$collection->toCollection()->collect()` and reuse that eager collection.
+When a source remains lazy, every traversal creates its items again, and calling `count()` also traverses the source. If you need the items more than once, collect them into an eager collection and reuse it:
 
-All eager items in one root `collect()` call share one construction operation and, when selected, one Validator. Eloquent collections batch explicitly requested `#[LoadRelation]` paths before item construction.
+```php
+$eagerUsers = $dataCollection->toCollection()->collect();
+```
+
+When validation is enabled, Hypervel validates the complete collection at once so collection rules and hooks can work with the entire payload. When collecting Eloquent models, Hypervel loads any relations requested with `#[LoadRelation]` before creating the data objects.
 
 <a name="http-resources"></a>
 ## HTTP Resources
@@ -662,7 +681,7 @@ return UserData::from($user);
 return UserData::collect($users, DataCollection::class);
 ```
 
-Responses use Hypervel's JSON resource and paginator machinery, including native links and metadata. Use `wrap()` or `withoutWrapping()` on one object or collection. The global `data.wrap` setting supplies the package default without mutating `JsonResource::$wrap` during a request.
+Responses use Hypervel's JSON resources and paginator support, including their links and pagination details. Use `wrap()` or `withoutWrapping()` on an object or collection. You may also define the default wrapper using the `data.wrap` configuration option.
 
 Override static `jsonOptions()` or `withResponse(Request $request, JsonResponse $response)` for Laravel-style response customization. Query-string `include`, `exclude`, `only`, and `except` selections are disabled unless the data class allows them through `allowedRequestIncludes()`, `allowedRequestExcludes()`, `allowedRequestOnly()`, or `allowedRequestExcept()`.
 
@@ -738,9 +757,9 @@ class User extends Model
 }
 ```
 
-Eloquent stores a complete constructable view using PHP property names. Hidden declared values are included; computed, virtual, appended, and response-only values are omitted. Instance partials are ignored without being consumed. Output transformers still run, so a one-way transformer needs a matching input cast or `WithCastAndTransformer` for a round trip.
+Eloquent stores all values needed to recreate the data object using its PHP property names. Hidden properties are stored, while computed, virtual, appended, and response-only values are omitted. Partial selections do not change the stored value and are not consumed. Output transformers still run, so a one-way transformer needs a matching input cast or `WithCastAndTransformer` to recreate the original value.
 
-Conditional and relation lazy values must already be included when the model is saved. Persistence never loads a relation. Closure and Inertia lazy values cannot be stored because they do not resolve to constructable data.
+Conditional and relation lazy values must already be included when the model is saved, and saving never loads a relation. Closure and Inertia lazy values cannot be stored because they do not resolve to ordinary data values.
 
 Both casts support `encrypted` and `default` arguments. Abstract data classes use an enforced alias map unless they select a concrete subtype through `PropertyMorphableData::morph()`:
 
@@ -782,9 +801,9 @@ class UpdatePostData extends Data
 }
 ```
 
-Contextual values are resolved only after validation succeeds and always win over caller input and creation hooks, including when the resolved value is `null`. Promoted contextual properties are known but discarded from strict input validation. A distinct-name, non-promoted contextual parameter is constructor-only. Use a named factory or creation hook without the contextual attribute when payload input should win.
+Contextual values are resolved only after validation succeeds. They always take precedence over input and creation hooks, including when the resolved value is `null`. Input supplied for a promoted contextual property is allowed by strict unknown-field validation but is ignored. A non-promoted contextual parameter with its own name is passed only to the constructor. Use a named factory or creation hook without the contextual attribute when input should take precedence.
 
-`CurrentUser` and `RouteParameter` accept an optional `property` path and use `data_get()` semantics. Accessors and Eloquent relations may run while traversing that path. `RequestAttribute` selects an exact request-attributes key; `Config`, `Context`, `Give`, and custom contextual attributes work through the same constructor boundary.
+`CurrentUser` and `RouteParameter` accept an optional `property` path and use `data_get()` semantics. Accessors and Eloquent relations may run while traversing that path. `RequestAttribute` selects an exact request attribute key. The `Config`, `Context`, and `Give` attributes are also supported, as are custom contextual attributes.
 
 <a name="inertia"></a>
 ## Inertia
@@ -804,7 +823,7 @@ $data = new DashboardData(
 );
 ```
 
-`#[AutoInertiaLazy]` and `#[AutoInertiaDeferred]` provide automatic variants. Existing `DeferProp` instances retain their complete merge, caching, grouping, and rescue state. Ordinary Data creation and transformation do not resolve Inertia classes when the integration is unused.
+`#[AutoInertiaLazy]` and `#[AutoInertiaDeferred]` provide automatic variants. Existing `DeferProp` instances retain their merge, caching, grouping, and rescue settings.
 
 <a name="saloon"></a>
 ## Saloon
@@ -833,7 +852,7 @@ public function createDtoFromResponse(Response $response): GitHubUserData
 }
 ```
 
-Saloon attaches its response through the existing `WithResponse` contract. `hypervel/data` has no Saloon dependency.
+Saloon attaches the response to the data object through its existing `WithResponse` contract.
 
 <a name="generating-data-classes"></a>
 ## Generating Data Classes
@@ -849,13 +868,13 @@ The class is placed under your application's `Data` namespace, normally `App\Dat
 <a name="worker-lifetime"></a>
 ## Worker Lifetime
 
-Data metadata and typed configuration are retained for the worker lifetime. Metadata contains immutable class recipes, not requests, validators, models, resolved extensions, or factory hooks. There is no discovery or generated metadata cache command.
+Hypervel analyzes each data class when it is first used and keeps that description for the worker lifetime. The cached description never contains request data or values from a data object. There is no metadata cache command to run when deploying your application.
 
-Register `Lazy`, `DataCollection`, `PaginatedDataCollection`, and `CursorPaginatedDataCollection` macros during provider boot. Each class owns a worker-lifetime macro registry; do not register request-specific callbacks or values. Configure morph aliases during boot for the same reason.
+Register `Lazy`, `DataCollection`, `PaginatedDataCollection`, and `CursorPaginatedDataCollection` macros during provider boot. These macros remain registered for the worker lifetime, so they must not contain request-specific callbacks or values. Configure morph aliases during boot for the same reason.
 
-VarDumper displays the current logical `all()` view for transformable data and an `items` envelope for data collections. It hides construction metadata, partial trees, and operation state without adding runtime work outside an explicit dump.
+When dumped, a transformable data object displays the same values as `all()`. Data collections display their values under an `items` key. Internal package state is not included.
 
-Data objects do not implement `ArrayAccess`. Read public properties or call `toArray()`. Data collections retain keyed access and enumeration.
+Data objects do not implement `ArrayAccess`. Read public properties or call `toArray()`. Data collections support enumeration and provide keyed access when their underlying collection supports it.
 
 <a name="credits"></a>
 ## Credits

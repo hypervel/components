@@ -502,7 +502,9 @@ When porting schemas that place sibling assertions beside a local `$ref` or use 
 <a name="data-objects"></a>
 ### Data Objects
 
-When porting `spatie/laravel-data`, replace its namespace with `Hypervel\Data` and review the [Data Objects documentation](/docs/{{version}}/data-objects). Hypervel retains the familiar `Data`, `Dto`, `Resource`, `Optional`, mapping, casting, validation, lazy-value, collection, resource, and Eloquent APIs while adapting their internals to long-lived workers.
+When porting `spatie/laravel-data`, replace its namespace with `Hypervel\Data` and review the [Data Objects documentation](/docs/{{version}}/data-objects). The familiar `Data`, `Dto`, `Resource`, `Optional`, mapping, casting, validation, lazy-value, collection, resource, and Eloquent APIs are all available.
+
+Replace Spatie's `From*` attributes with Hypervel contextual constructor attributes and its `withOptionalValues()` and `withoutOptionalValues()` factory switches with declared `Optional` unions. `SerializeTransformer` and `UnserializeCast` are not included; use native PHP serialization or explicit custom casts and transformers. Livewire and TypeScript integrations are also not included.
 
 Model attributes containing `null` remain explicit values, including for non-nullable properties with defaults. When several payloads are supplied to `from()`, the first payload containing a property's input key wins, including when its value is `null`.
 

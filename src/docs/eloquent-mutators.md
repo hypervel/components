@@ -364,9 +364,9 @@ protected function casts(): array
 }
 ```
 
-Both casts use Hypervel's configured Eloquent JSON codec and support `encrypted` and `default` arguments. They store a complete constructable view: PHP property names are used, hidden declared properties are retained, computed and appended output is omitted, and object partials are ignored without being consumed. Conditional and relation lazy values must already be included when saved; persistence never loads a relation. Closure and Inertia lazy values cannot be persisted.
+Both casts use Hypervel's configured Eloquent JSON codec and support the `encrypted` and `default` arguments. When storing an object, the casts use PHP property names and include hidden properties. Computed and appended values are omitted, while partial selections are ignored without being consumed. Conditional and relation lazy values must already be included when the model is saved, and saving never loads a relation. Closure and Inertia lazy values cannot be stored.
 
-`Dto` is not Eloquent-castable because it deliberately has no transformation contract. Paginated Data wrappers are also not castable because a JSON item array cannot reconstruct paginator metadata; persist their items through `DataCollection`.
+`Dto` cannot be cast by Eloquent because it does not transform values. Paginated data collections also cannot be cast because their pagination details cannot be recreated from a JSON array. Store their items through a `DataCollection` instead.
 
 For the complete mapping, lazy-value, abstract morph, and encrypted-cast behavior, see the [Data Objects documentation](/docs/{{version}}/data-objects#eloquent-casting).
 
