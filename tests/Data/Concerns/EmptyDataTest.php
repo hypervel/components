@@ -71,7 +71,7 @@ class EmptyDataTest extends TestCase
     public function testRejectsAmbiguousPropertyTypeWithoutOverride(): void
     {
         $this->expectException(DataPropertyCanOnlyHaveOneType::class);
-        $this->expectExceptionMessage(AmbiguousEmptyData::class . '::$value');
+        $this->expectExceptionMessageIsOrContains(AmbiguousEmptyData::class . '::$value');
 
         AmbiguousEmptyData::empty();
     }

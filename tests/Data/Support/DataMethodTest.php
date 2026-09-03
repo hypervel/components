@@ -320,7 +320,7 @@ class DataMethodTest extends TestCase
     public function testVariadicCreationContextIsRejectedDuringMetadataBuild(): void
     {
         $this->expectException(InvalidDataDeclaration::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Data factory [Hypervel\Tests\Data\Support\DataMethodInvalidFixture::fromContexts] '
             . 'cannot declare variadic CreationContext parameter [$contexts]. '
             . 'Declare a single CreationContext parameter instead.',

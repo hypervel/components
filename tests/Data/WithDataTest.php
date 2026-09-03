@@ -54,7 +54,7 @@ class WithDataTest extends TestCase
     public function testMissingDataClassDeclarationFailsClearly(): void
     {
         $this->expectException(CannotFindDataClass::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Class [' . WithDataMissingSource::class . '] must declare a [$dataClass] property or a [dataClass()] method to use [getData()].',
         );
 
@@ -64,7 +64,7 @@ class WithDataTest extends TestCase
     public function testInvalidDataClassDeclarationFailsClearly(): void
     {
         $this->expectException(CannotFindDataClass::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Class [' . WithDataInvalidSource::class . '] declared data class [array], which must implement [Hypervel\Data\Contracts\BaseData].',
         );
 

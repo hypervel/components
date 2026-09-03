@@ -77,7 +77,7 @@ class EnumCastTest extends TestCase
         [$state, $context] = $this->operation();
 
         $this->expectException(CannotCastEnum::class);
-        $this->expectExceptionMessage('EnumCastDataFixture::$status');
+        $this->expectExceptionMessageIsOrContains('EnumCastDataFixture::$status');
 
         (new EnumCast)->cast($this->property('status'), 'invalid', $state, $context);
     }

@@ -320,7 +320,7 @@ class ContextualAttributeBindingTest extends TestCase
         $container->instance('log', $manager);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Named loggers are only supported by Monolog drivers.');
+        $this->expectExceptionMessageIs('Named loggers are only supported by Monolog drivers.');
 
         $container->make(CustomNamedLogTest::class);
     }
@@ -389,7 +389,7 @@ class ContextualAttributeBindingTest extends TestCase
         $container->singleton('request', fn () => $request);
 
         $this->expectException(BindingResolutionException::class);
-        $this->expectExceptionMessage('Cannot extract property path [id] from scalar [int] resolved by [Hypervel\Container\Attributes\RouteParameter].');
+        $this->expectExceptionMessageIs('Cannot extract property path [id] from scalar [int] resolved by [Hypervel\Container\Attributes\RouteParameter].');
 
         $container->make(ScalarRouteParameterPropertyTest::class);
     }

@@ -89,7 +89,7 @@ class ExistsTest extends TestCase
     public function testRejectsInvalidResolvedParameter(Exists $attribute, string $message): void
     {
         $this->expectException(CannotBuildValidationRule::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         $attribute->getRule(ValidationPath::create());
     }
@@ -121,7 +121,7 @@ class ExistsTest extends TestCase
     public function testRejectsInvalidDatabaseConstraint(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Each where item must be a DatabaseConstraint or Closure');
+        $this->expectExceptionMessageIs('Each where item must be a DatabaseConstraint or Closure');
 
         (new Exists('users', where: ['invalid']))->getRule(ValidationPath::create());
     }

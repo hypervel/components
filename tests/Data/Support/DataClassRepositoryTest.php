@@ -97,7 +97,7 @@ class DataClassRepositoryTest extends TestCase
     public function testInvalidClassesAreRejected(): void
     {
         $this->expectException(CannotFindDataClass::class);
-        $this->expectExceptionMessage('must implement');
+        $this->expectExceptionMessageIsOrContains('must implement');
 
         $this->repository()->get(RepositoryInvalidFixture::class);
     }

@@ -528,7 +528,7 @@ class DataValidatorTest extends TestCase
             : [['name' => 'raw'], $finished];
 
         $this->expectException(CannotBuildValidationRule::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'Cannot build the distinct rule for [groups.*.children.*.name]',
         );
 
@@ -550,7 +550,7 @@ class DataValidatorTest extends TestCase
             : [['child' => ['name' => 'duplicate']], ['child' => $finished]];
 
         $this->expectException(CannotBuildValidationRule::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'Cannot build the distinct rule for [items.*.child.name]',
         );
 
@@ -572,7 +572,7 @@ class DataValidatorTest extends TestCase
             : [['children' => [['name' => 'duplicate']]], ['children' => $finished]];
 
         $this->expectException(CannotBuildValidationRule::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'Cannot build the distinct rule for [items.*.children.*.name]',
         );
 

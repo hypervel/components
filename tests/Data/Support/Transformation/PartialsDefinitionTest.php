@@ -198,7 +198,7 @@ class PartialsDefinitionTest extends TestCase
     public function testRejectsUnknownPartialTypes(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unknown partial type [unknown].');
+        $this->expectExceptionMessageIs('Unknown partial type [unknown].');
 
         (new PartialsDefinition)->add('unknown', 'field');
     }

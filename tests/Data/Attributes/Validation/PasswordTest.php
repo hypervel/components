@@ -117,7 +117,7 @@ class PasswordTest extends TestCase
     public function testRejectsInvalidResolvedParameter(PasswordAttribute $attribute, string $message): void
     {
         $this->expectException(CannotBuildValidationRule::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         $attribute->getRule(ValidationPath::create());
     }
@@ -167,7 +167,7 @@ class PasswordTest extends TestCase
     public function testCannotCreateFromStringParameters(): void
     {
         $this->expectException(CannotBuildValidationRule::class);
-        $this->expectExceptionMessage('Cannot create a password rule from string parameters.');
+        $this->expectExceptionMessageIs('Cannot create a password rule from string parameters.');
 
         PasswordAttribute::create();
     }

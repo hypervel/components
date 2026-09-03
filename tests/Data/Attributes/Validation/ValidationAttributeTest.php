@@ -434,7 +434,7 @@ class ValidationAttributeTest extends TestCase
     public function testCannotCreateAnyOfFromStringParameters(): void
     {
         $this->expectException(CannotBuildValidationRule::class);
-        $this->expectExceptionMessage('Cannot create an any-of rule from string parameters.');
+        $this->expectExceptionMessageIs('Cannot create an any-of rule from string parameters.');
 
         AnyOf::create();
     }
@@ -457,7 +457,7 @@ class ValidationAttributeTest extends TestCase
     public function testCannotCreateCanFromStringParameters(): void
     {
         $this->expectException(CannotBuildValidationRule::class);
-        $this->expectExceptionMessage('Cannot create a can rule from string parameters.');
+        $this->expectExceptionMessageIs('Cannot create a can rule from string parameters.');
 
         Can::create();
     }
@@ -603,7 +603,7 @@ class ValidationAttributeTest extends TestCase
     public function testRejectsEmptyDimensionsAttribute(): void
     {
         $this->expectException(CannotBuildValidationRule::class);
-        $this->expectExceptionMessage('You must specify one of width, height, minWidth, minHeight, maxWidth, maxHeight, ratio or a dimensions rule.');
+        $this->expectExceptionMessageIs('You must specify one of width, height, minWidth, minHeight, maxWidth, maxHeight, ratio or a dimensions rule.');
 
         new Dimensions;
     }
@@ -614,7 +614,7 @@ class ValidationAttributeTest extends TestCase
     public function testRejectsInvalidDistinctMode(): void
     {
         $this->expectException(CannotBuildValidationRule::class);
-        $this->expectExceptionMessage('Distinct mode should be ignore_case or strict.');
+        $this->expectExceptionMessageIs('Distinct mode should be ignore_case or strict.');
 
         (new Distinct(new ValidationAttributeExternalReference('invalid')))->parameters();
     }

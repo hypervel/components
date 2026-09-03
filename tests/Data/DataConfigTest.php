@@ -71,7 +71,7 @@ class DataConfigTest extends TestCase
     public function testInvalidScalarConfigurationFailsFast(array $overrides, string $message): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         $this->makeConfig($overrides);
     }
@@ -120,7 +120,7 @@ class DataConfigTest extends TestCase
     public function testInvalidExtensionsFailFast(array $overrides, string $key, string $contract): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             "Configuration [{$key}] extension [" . stdClass::class . "] must implement [{$contract}].",
         );
 
@@ -195,7 +195,7 @@ class DataConfigTest extends TestCase
         $config->enforceMorphMap(['example' => ConfigMorphData::class]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIs(
             'Data morph class [' . ConfigMorphData::class . '] is already mapped to alias [example].',
         );
 
@@ -206,7 +206,7 @@ class DataConfigTest extends TestCase
     public function testInvalidMorphMapsFailFast(array $map, string $message): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIs($message);
 
         $this->makeConfig()->enforceMorphMap($map);
     }
