@@ -68,10 +68,9 @@ class StackTaggedCache extends AnyModeTaggedCache
             return $this->forgetPlainKey($key);
         }
 
-        $this->event(
-            WritingKey::class,
-            fn (): WritingKey => new WritingKey($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
-        );
+        if ($this->events?->hasListeners(WritingKey::class)) {
+            $this->event(new WritingKey($this->getName(), $key, NullSentinel::unwrap($value), $seconds));
+        }
 
         try {
             $result = $this->store->putRecordTagged($this->tags->getNames(), $key, [
@@ -81,30 +80,25 @@ class StackTaggedCache extends AnyModeTaggedCache
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            $this->event(
-                KeyWriteFailed::class,
-                fn (): KeyWriteFailed => new KeyWriteFailed(
+            if ($this->events?->hasListeners(KeyWriteFailed::class)) {
+                $this->event(new KeyWriteFailed(
                     $this->getName(),
                     $key,
                     NullSentinel::unwrap($value),
                     $seconds,
                     exception: $exception,
-                )
-            );
+                ));
+            }
 
             throw $exception;
         }
 
         if ($result) {
-            $this->event(
-                KeyWritten::class,
-                fn (): KeyWritten => new KeyWritten($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
-            );
-        } else {
-            $this->event(
-                KeyWriteFailed::class,
-                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
-            );
+            if ($this->events?->hasListeners(KeyWritten::class)) {
+                $this->event(new KeyWritten($this->getName(), $key, NullSentinel::unwrap($value), $seconds));
+            }
+        } elseif ($this->events?->hasListeners(KeyWriteFailed::class)) {
+            $this->event(new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value), $seconds));
         }
 
         return $result;
@@ -131,40 +125,37 @@ class StackTaggedCache extends AnyModeTaggedCache
     {
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
-        $this->event(WritingKey::class, fn (): WritingKey => new WritingKey(
-            $this->getName(),
-            $key,
-            NullSentinel::unwrap($value)
-        ));
+        if ($this->events?->hasListeners(WritingKey::class)) {
+            $this->event(new WritingKey(
+                $this->getName(),
+                $key,
+                NullSentinel::unwrap($value)
+            ));
+        }
 
         try {
             $result = $this->store->putRecordTagged($this->tags->getNames(), $key, ['value' => $value]);
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            $this->event(
-                KeyWriteFailed::class,
-                fn (): KeyWriteFailed => new KeyWriteFailed(
+            if ($this->events?->hasListeners(KeyWriteFailed::class)) {
+                $this->event(new KeyWriteFailed(
                     $this->getName(),
                     $key,
                     NullSentinel::unwrap($value),
                     exception: $exception,
-                )
-            );
+                ));
+            }
 
             throw $exception;
         }
 
         if ($result) {
-            $this->event(
-                KeyWritten::class,
-                fn (): KeyWritten => new KeyWritten($this->getName(), $key, NullSentinel::unwrap($value))
-            );
-        } else {
-            $this->event(
-                KeyWriteFailed::class,
-                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value))
-            );
+            if ($this->events?->hasListeners(KeyWritten::class)) {
+                $this->event(new KeyWritten($this->getName(), $key, NullSentinel::unwrap($value)));
+            }
+        } elseif ($this->events?->hasListeners(KeyWriteFailed::class)) {
+            $this->event(new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value)));
         }
 
         return $result;

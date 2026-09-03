@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use BadMethodCallException;
+use Closure;
 use Hypervel\Cache\Events\CacheFailedOver;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Cache\AuthoritativeRawReadable;
 use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\Lock as LockContract;
 use Hypervel\Contracts\Cache\LockProvider;
@@ -20,7 +22,7 @@ use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
-class FailoverStore extends TaggableStore implements CanFlushLocks, LockProvider, RawReadable
+class FailoverStore extends TaggableStore implements AuthoritativeRawReadable, CanFlushLocks, LockProvider, RawReadable
 {
     /**
      * Context key prefix for the caches which failed on the last action.
@@ -66,11 +68,34 @@ class FailoverStore extends TaggableStore implements CanFlushLocks, LockProvider
         return NullSentinel::unwrap($this->getRaw($key));
     }
 
+    /**
+     * Retrieve an item from the cache without unwrapping sentinels.
+     */
     public function getRaw(UnitEnum|string $key): mixed
     {
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
-        return $this->attemptOnAllStores('getRaw', [$key]);
+        return $this->attemptOnAllStores(
+            static fn (RepositoryContract $repository): mixed => $repository instanceof RawReadable
+                ? $repository->getRaw($key)
+                : $repository->get($key)
+        );
+    }
+
+    /**
+     * Retrieve an item without serving it from a non-authoritative read layer.
+     */
+    public function getAuthoritativeRaw(UnitEnum|string $key): mixed
+    {
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
+
+        return $this->attemptOnAllStores(
+            static fn (RepositoryContract $repository): mixed => match (true) {
+                $repository instanceof AuthoritativeRawReadable => $repository->getAuthoritativeRaw($key),
+                $repository instanceof RawReadable => $repository->getRaw($key),
+                default => $repository->get($key),
+            }
+        );
     }
 
     /**
@@ -86,9 +111,16 @@ class FailoverStore extends TaggableStore implements CanFlushLocks, LockProvider
         );
     }
 
+    /**
+     * Retrieve multiple items from the cache without unwrapping sentinels.
+     */
     public function manyRaw(array $keys): array
     {
-        return $this->attemptOnAllStores('manyRaw', [$keys]);
+        return $this->attemptOnAllStores(
+            static fn (RepositoryContract $repository): array => $repository instanceof RawReadable
+                ? $repository->manyRaw($keys)
+                : $repository->get($keys)
+        );
     }
 
     /**
@@ -306,11 +338,14 @@ class FailoverStore extends TaggableStore implements CanFlushLocks, LockProvider
     }
 
     /**
-     * Attempt the given method until a store call does not throw.
+     * Attempt the given operation until a store call does not throw.
+     *
+     * @param (Closure(RepositoryContract): mixed)|string $method
+     * @param array<int, mixed> $arguments arguments passed only to a named repository method
      *
      * @throws Throwable
      */
-    protected function attemptOnAllStores(string $method, array $arguments): mixed
+    protected function attemptOnAllStores(Closure|string $method, array $arguments = []): mixed
     {
         $contextKey = self::FAILING_CACHES_CONTEXT_PREFIX . spl_object_id($this);
 
@@ -321,7 +356,11 @@ class FailoverStore extends TaggableStore implements CanFlushLocks, LockProvider
         try {
             foreach ($this->stores as $position => $store) {
                 try {
-                    return $this->store($store)->{$method}(...$arguments);
+                    $repository = $this->store($store);
+
+                    return $method instanceof Closure
+                        ? $method($repository)
+                        : $repository->{$method}(...$arguments);
                 } catch (CanceledException $exception) {
                     throw $exception;
                 } catch (Throwable $exception) {

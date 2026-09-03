@@ -15,6 +15,9 @@ interface Repository extends CacheInterface
     /**
      * Retrieve an item from the cache by key.
      *
+     * When an array is given, return a key-value map. Numeric entries are
+     * requested keys, while string-keyed entries use their values as defaults.
+     *
      * @template TCacheValue
      *
      * @param (Closure(): TCacheValue)|TCacheValue $default
