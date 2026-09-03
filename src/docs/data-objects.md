@@ -119,6 +119,8 @@ You may pass multiple payloads. For each property, the first payload containing 
 $user = UserData::from($routeValues, $requestValues, $defaults);
 ```
 
+Payloads may also be passed as PHP named arguments. Hypervel preserves their names while selecting a named factory. When no factory matches, the payload values are processed in call order, so the same first-payload-wins precedence applies.
+
 Use `optional` when the whole object may be absent. It returns `null` when no payload is supplied or every supplied payload is `null`:
 
 ```php
@@ -170,6 +172,38 @@ class PatchUserData extends Data
 ```
 
 For this object, an omitted `name` becomes `Optional::create()`, an omitted `phone` becomes `null`, and an omitted `locale` uses `en`. Explicit `null` is a supplied value and is accepted only when the declared type allows it. Use `#[Present]` when a nullable input key must still be supplied.
+
+<a name="empty-representations"></a>
+### Empty Representations
+
+The `Data` and `Resource` classes can produce an empty output shape without creating an object. Constructor defaults are retained, arrays and collections become empty arrays, nested data objects produce their own empty shape, and scalar values become `null`:
+
+```php
+class UserData extends Data
+{
+    public function __construct(
+        public string $name,
+        public array $roles,
+        public bool $active = true,
+    ) {
+    }
+}
+
+UserData::empty();
+
+// ['name' => null, 'roles' => [], 'active' => true]
+```
+
+You may pass replacement values as the first argument, change the value used for otherwise empty properties with `replaceNullValuesWith`, or filter the result using `only` and `except`:
+
+Replacement values are keyed by PHP property name and apply only to properties without a declared default. The `only` and `except` lists use the mapped output names in the empty representation.
+
+```php
+UserData::empty(
+    ['name' => 'Unknown'],
+    except: ['active'],
+);
+```
 
 <a name="named-factories"></a>
 ### Named Factories
@@ -268,7 +302,7 @@ $product = ProductData::from([
 ]);
 ```
 
-Ambiguous unions of data classes or typed data containers are not guessed. Use a cast, morph discriminator, or typed named factory to select the intended type.
+Ambiguous unions of data classes or typed data containers are not guessed. Supply an existing compatible value, define an explicit cast, or return the complete data object from a typed named factory.
 
 <a name="date-and-time-values"></a>
 ### Date and Time Values
