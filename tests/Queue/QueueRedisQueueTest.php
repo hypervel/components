@@ -9,7 +9,9 @@ use DateTimeInterface;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Redis\Factory as Redis;
+use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Queue\Attributes\Delay;
+use Hypervel\Queue\Events\JobPayloadFinalizing;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Queue\Events\JobQueueingFailed;
@@ -103,7 +105,7 @@ class QueueRedisQueueTest extends TestCase
 
         $id = $queue->push('foo', ['data']);
         $this->assertSame('foo', $id);
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
     }
 
     public function testPushProperlyPushesJobOntoRedisWithCustomPayloadHook(): void
@@ -127,7 +129,7 @@ class QueueRedisQueueTest extends TestCase
 
         $id = $queue->push('foo', ['data']);
         $this->assertSame('foo', $id);
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
 
         Queue::createPayloadUsing(null);
     }
@@ -149,15 +151,92 @@ class QueueRedisQueueTest extends TestCase
         $redis->shouldReceive('connection')->twice()->andReturn($redisProxy);
 
         $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->with(JobPayloadFinalizing::class)->andReturn(false)->once();
         $events->shouldReceive('hasListeners')->with(JobQueueing::class)->andReturn(false)->once();
         $events->shouldReceive('hasListeners')->with(JobQueued::class)->andReturn(false)->once();
         $events->shouldNotReceive('dispatch');
 
-        $container->shouldReceive('bound')->with('events')->andReturn(true)->twice();
-        $container->shouldReceive('make')->with('events')->andReturn($events)->twice();
+        $container->shouldReceive('bound')->with('events')->andReturn(true)->times(3);
+        $container->shouldReceive('make')->with('events')->andReturn($events)->times(3);
 
         $id = $queue->push('foo', ['data']);
         $this->assertSame('foo', $id);
+    }
+
+    public function testFinalPayloadListenerMutatesTheBrokerAndTerminalPayload(): void
+    {
+        $now = CarbonImmutable::now();
+        CarbonImmutable::setTestNow($now);
+        $uuid = $this->mockUuid();
+        $queue = $this->getMockBuilder(RedisQueue::class)
+            ->onlyMethods(['getRandomId'])
+            ->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])
+            ->getMock();
+        $queue->expects($this->once())->method('getRandomId')->willReturn('job-id');
+        $dispatcher = new EventDispatcher($container = new Container);
+        $container->instance('events', $dispatcher);
+        $queue->setContainer($container);
+        $queue->setConnectionName('redis');
+        $events = [];
+
+        $dispatcher->listen(JobPayloadFinalizing::class, static function (JobPayloadFinalizing $event) use (&$events): void {
+            $events[] = $event;
+            $payload = $event->payload();
+            $payload['telemetry'] = 'final';
+            $event->payload = json_encode($payload, JSON_THROW_ON_ERROR);
+        });
+        $dispatcher->listen(JobQueueing::class, static function (JobQueueing $event) use (&$events): void {
+            $events[] = $event;
+        });
+        $dispatcher->listen(JobQueued::class, static function (JobQueued $event) use (&$events): void {
+            $events[] = $event;
+        });
+
+        $redisProxy = m::mock(RedisProxy::class);
+        $redisProxy->shouldReceive('isCluster')->once()->andReturnFalse();
+        $redisProxy->shouldReceive('eval')->once()->withArgs(
+            static fn (string $script, int $keys, string $queueKey, string $notifyKey, string $payload): bool => json_decode($payload, true)['telemetry'] === 'final',
+        );
+        $redis->shouldReceive('connection')->twice()->andReturn($redisProxy);
+
+        $this->assertSame('job-id', $queue->push('foo', ['data']));
+        $this->assertSame([
+            JobPayloadFinalizing::class,
+            JobQueueing::class,
+            JobQueued::class,
+        ], array_map(static fn (object $event): string => $event::class, $events));
+        $this->assertSame('final', $events[1]->payload()['telemetry']);
+        $this->assertSame('final', $events[2]->payload()['telemetry']);
+        $this->assertSame((string) $uuid, $events[2]->payload()['uuid']);
+    }
+
+    public function testFinalPayloadListenerFailureStopsBeforeQueueingAndBrokerAccess(): void
+    {
+        $exception = new RuntimeException('Unable to finalize payload.');
+        $queue = $this->getMockBuilder(RedisQueue::class)
+            ->onlyMethods(['getRandomId'])
+            ->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])
+            ->getMock();
+        $queue->expects($this->once())->method('getRandomId')->willReturn('job-id');
+        $dispatcher = new EventDispatcher($container = new Container);
+        $container->instance('events', $dispatcher);
+        $queue->setContainer($container);
+        $queue->setConnectionName('redis');
+
+        $dispatcher->listen(JobPayloadFinalizing::class, static function () use ($exception): never {
+            throw $exception;
+        });
+        $dispatcher->listen(JobQueueing::class, function (): void {
+            $this->fail('JobQueueing must not be dispatched after finalization fails.');
+        });
+        $dispatcher->listen(JobQueueingFailed::class, function (): void {
+            $this->fail('JobQueueingFailed must not be invented for a finalizer failure.');
+        });
+        $redis->shouldNotReceive('connection');
+
+        $this->expectExceptionObject($exception);
+
+        $queue->push('foo', ['data']);
     }
 
     public function testPushRaisesFailedEventWhenRedisThrows(): void
@@ -178,6 +257,7 @@ class QueueRedisQueueTest extends TestCase
         $redis->shouldReceive('connection')->twice()->andReturn($redisProxy);
 
         $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->with(JobPayloadFinalizing::class)->andReturnFalse()->once();
         $events->shouldReceive('hasListeners')->with(JobQueueing::class)->andReturnTrue()->once();
         $events->shouldReceive('hasListeners')->with(JobQueueingFailed::class)->andReturnTrue()->once();
         $events->shouldReceive('dispatch')
@@ -204,8 +284,8 @@ class QueueRedisQueueTest extends TestCase
             ->ordered()
             ->once();
 
-        $container->shouldReceive('bound')->with('events')->andReturnTrue()->twice();
-        $container->shouldReceive('make')->with('events')->andReturn($events)->twice();
+        $container->shouldReceive('bound')->with('events')->andReturnTrue()->times(3);
+        $container->shouldReceive('make')->with('events')->andReturn($events)->times(3);
 
         $this->expectExceptionObject($exception);
 
@@ -237,7 +317,7 @@ class QueueRedisQueueTest extends TestCase
 
         $id = $queue->push('foo', ['data']);
         $this->assertSame('foo', $id);
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
 
         Queue::createPayloadUsing(null);
     }
@@ -266,7 +346,7 @@ class QueueRedisQueueTest extends TestCase
 
         $id = $queue->later(1, 'foo', ['data']);
         $this->assertSame('foo', $id);
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
     }
 
     public function testDelayedPushWithDateTimeProperlyPushesJobOntoRedis(): void
@@ -293,7 +373,7 @@ class QueueRedisQueueTest extends TestCase
         $redis->shouldReceive('connection')->twice()->andReturn($redisProxy);
 
         $queue->later($date, 'foo', ['data']);
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
     }
 
     public function testDelayedPushWithIntervalNeverRunsBeforeRequestedLifetime(): void
@@ -320,7 +400,7 @@ class QueueRedisQueueTest extends TestCase
         $redis->shouldReceive('connection')->twice()->andReturn($redisProxy);
 
         $queue->later($delay, 'foo', ['data']);
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
     }
 
     public function testGetQueueRemainsUnchangedForNonCluster(): void
@@ -423,7 +503,7 @@ class QueueRedisQueueTest extends TestCase
         $redis->shouldReceive('connection')->twice()->andReturn($redisProxy);
 
         $this->assertSame('foo', $queue->push('foo', ['data']));
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
     }
 
     public function testPushPassesLogicalQueueToPayloadCallbacksOnCluster(): void
@@ -489,7 +569,7 @@ class QueueRedisQueueTest extends TestCase
         $redis->shouldReceive('connection')->twice()->andReturn($redisProxy);
 
         $this->assertSame('foo', $queue->later(1, 'foo', ['data']));
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
     }
 
     public function testSizeUsesClusterSafeRedisKeys(): void

@@ -33,6 +33,7 @@
     "require": {
         "php": "^8.4",
         "ext-dom": "*",
+        "ext-filter": "*",
         "ext-mbstring": "*",
         "ext-simplexml": "*",
         "guzzlehttp/guzzle": "^7.15.1",

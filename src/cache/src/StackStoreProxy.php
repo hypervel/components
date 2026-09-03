@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Hypervel\Contracts\Cache\Store;
-use RuntimeException;
 
 class StackStoreProxy implements Store
 {
@@ -31,18 +30,18 @@ class StackStoreProxy implements Store
 
     public function get(string $key): mixed
     {
-        return $this->call(__FUNCTION__, func_get_args());
+        return $this->store->get($key);
     }
 
     public function many(array $keys): array
     {
-        return $this->call(__FUNCTION__, func_get_args());
+        return $this->store->many($keys);
     }
 
     public function put(string $key, mixed $value, int $seconds): bool
     {
         if (is_null($this->ttl) || $seconds < $this->ttl) {
-            return $this->call(__FUNCTION__, func_get_args());
+            return $this->store->put($key, $value, $seconds);
         }
 
         return $this->store->put($key, $value, $this->ttl);
@@ -50,23 +49,27 @@ class StackStoreProxy implements Store
 
     public function putMany(array $values, int $seconds): bool
     {
-        return $this->call(__FUNCTION__, func_get_args());
+        if (is_null($this->ttl) || $seconds < $this->ttl) {
+            return $this->store->putMany($values, $seconds);
+        }
+
+        return $this->store->putMany($values, $this->ttl);
     }
 
     public function increment(string $key, int $value = 1): bool|int
     {
-        return $this->call(__FUNCTION__, func_get_args());
+        return $this->store->increment($key, $value);
     }
 
     public function decrement(string $key, int $value = 1): bool|int
     {
-        return $this->call(__FUNCTION__, func_get_args());
+        return $this->store->decrement($key, $value);
     }
 
     public function forever(string $key, mixed $value): bool
     {
         if (is_null($this->ttl)) {
-            return $this->call(__FUNCTION__, func_get_args());
+            return $this->store->forever($key, $value);
         }
 
         return $this->store->put($key, $value, $this->ttl);
@@ -86,25 +89,16 @@ class StackStoreProxy implements Store
 
     public function forget(string $key): bool
     {
-        return $this->call(__FUNCTION__, func_get_args());
+        return $this->store->forget($key);
     }
 
     public function flush(): bool
     {
-        return $this->call(__FUNCTION__, func_get_args());
+        return $this->store->flush();
     }
 
     public function getPrefix(): string
     {
-        return $this->call(__FUNCTION__, func_get_args());
-    }
-
-    protected function call(string $name, array $arguments): mixed
-    {
-        if (! method_exists($this->store, $name)) {
-            throw new RuntimeException('Method not exist.');
-        }
-
-        return $this->store->{$name}(...$arguments);
+        return $this->store->getPrefix();
     }
 }

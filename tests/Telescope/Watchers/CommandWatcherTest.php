@@ -95,25 +95,22 @@ class CommandWatcherTest extends FeatureTestCase
         }
     }
 
-    public function testCommandWatcherFailsClosedForMissingAndUnknownInput(): void
+    public function testCommandWatcherRedactsUnknownInput(): void
     {
         $command = new SensitiveInputCommand;
         $watcher = $this->app->make(CommandWatcher::class);
-
-        $watcher->recordCommand(new AfterExecute($command));
 
         $input = m::mock(InputInterface::class);
         $input->shouldReceive('getArguments')->once()->andReturn([]);
         $input->shouldReceive('getOptions')->once()->andReturn(['unknown' => 'unknown-secret']);
 
-        $watcher->recordCommand(new AfterExecute($command, input: $input));
+        $watcher->recordCommand(new AfterExecute($command, null, $input, 0));
 
         $entries = Telescope::getEntriesQueue();
 
-        $this->assertCount(2, $entries);
+        $this->assertCount(1, $entries);
         $this->assertSame([], $entries[0]->content['arguments']);
-        $this->assertSame([], $entries[0]->content['options']);
-        $this->assertSame(Telescope::REDACTED_VALUE, $entries[1]->content['options']['unknown']);
+        $this->assertSame(Telescope::REDACTED_VALUE, $entries[0]->content['options']['unknown']);
     }
 
     public function testNestedCommandsStoreOnceAfterTheOuterCommandEntryIsRecorded(): void

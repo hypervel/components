@@ -8,6 +8,7 @@ use Hypervel\Http\Request;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\RequestTerminated;
+use Hypervel\HttpServer\Events\ResponseSent;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
@@ -38,6 +39,22 @@ class EventTest extends TestCase
         $response = new Response('OK');
 
         $event = new RequestHandled(
+            request: $request,
+            response: $response,
+            server: 'http'
+        );
+
+        $this->assertSame($request, $event->request);
+        $this->assertSame($response, $event->response);
+        $this->assertNull($event->exception);
+    }
+
+    public function testResponseSentEvent(): void
+    {
+        $request = Request::create('/test');
+        $response = new Response('OK');
+
+        $event = new ResponseSent(
             request: $request,
             response: $response,
             server: 'http'

@@ -20,7 +20,7 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\Contracts\Translation\Loader getLoader()
  * @method static string getLocale()
  * @method static \Hypervel\Translation\MessageSelector getSelector()
- * @method static \Hypervel\Translation\Translator handleMissingKeysUsing(callable|null $callback)
+ * @method static \Hypervel\Translation\Translator handleMissingKeysUsing(null|callable $callback)
  * @method static bool has(string $key, string|null $locale = null, bool $fallback = true)
  * @method static bool hasForLocale(string $key, string|null $locale = null)
  * @method static bool hasMacro(string $name)

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
@@ -274,9 +273,6 @@ class RequestWatcher extends Watcher
     {
         $result = [];
         foreach (CoroutineContext::getContainer() as $key => $value) {
-            if ($key === Container::DEPTH_CONTEXT_KEY) {
-                continue;
-            }
             if (is_object($value)) {
                 $value = 'object(' . get_class($value) . ')';
             } elseif (is_array($value)) {

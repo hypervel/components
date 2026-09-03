@@ -5,16 +5,19 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Countable;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Support\MessageBag as MessageBagContract;
 use Stringable;
 
 /**
  * @mixin MessageBagContract
  */
-class ViewErrorBag implements Countable, Stringable
+class ViewErrorBag implements Countable, Stringable, Transient
 {
     /**
      * The array of the view error bags.
+     *
+     * @var array<string, MessageBagContract>
      */
     protected array $bags = [];
 
@@ -29,13 +32,15 @@ class ViewErrorBag implements Countable, Stringable
     /**
      * Get a MessageBag instance from the bags.
      */
-    public function getBag(string $key)
+    public function getBag(string $key): MessageBagContract
     {
         return Arr::get($this->bags, $key) ?: new MessageBag;
     }
 
     /**
      * Get all the bags.
+     *
+     * @return array<string, MessageBagContract>
      */
     public function getBags(): array
     {
@@ -78,22 +83,16 @@ class ViewErrorBag implements Countable, Stringable
 
     /**
      * Dynamically access a view error bag.
-     *
-     * @param string $key
-     * @return MessageBagContract
      */
-    public function __get($key)
+    public function __get(string $key): MessageBagContract
     {
         return $this->getBag($key);
     }
 
     /**
      * Dynamically set a view error bag.
-     *
-     * @param string $key
-     * @param MessageBagContract $value
      */
-    public function __set($key, $value)
+    public function __set(string $key, MessageBagContract $value): void
     {
         $this->put($key, $value);
     }

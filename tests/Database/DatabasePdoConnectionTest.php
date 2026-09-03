@@ -356,6 +356,37 @@ class DatabasePdoConnectionTest extends TestCase
         $this->assertSame([], $connection->select('select 1', useReadPdo: false));
     }
 
+    public function testStatementPreparedDoesNotEnterEventSeamWithoutListeners(): void
+    {
+        $pdo = $this->getMockBuilder(PDOStub::class)->onlyMethods(['prepare'])->getMock();
+        $statement = $this->getMockBuilder(PDOStatement::class)
+            ->onlyMethods(['setFetchMode', 'execute', 'fetchAll'])
+            ->getMock();
+        $pdo->expects($this->once())->method('prepare')->with('select 1')->willReturn($statement);
+        $statement->expects($this->once())->method('setFetchMode')->with(PDO::FETCH_OBJ);
+        $statement->expects($this->once())->method('execute')->willReturn(true);
+        $statement->expects($this->once())->method('fetchAll')->willReturn([]);
+
+        $connection = new class($pdo, 'test_db', '', ['name' => 'test', 'driver' => 'mysql']) extends PdoConnection {
+            public int $eventCalls = 0;
+
+            protected function event(object $event): void
+            {
+                ++$this->eventCalls;
+
+                parent::event($event);
+            }
+        };
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(StatementPrepared::class)->andReturnFalse();
+        $events->shouldReceive('hasListeners')->once()->with(QueryExecuted::class)->andReturnFalse();
+        $events->shouldNotReceive('dispatch');
+        $connection->setEventDispatcher($events);
+
+        $this->assertSame([], $connection->select('select 1', useReadPdo: false));
+        $this->assertSame(0, $connection->eventCalls);
+    }
+
     public function testEscapingAndServerIntrospectionUseSynchronizedPdoHandOuts(): void
     {
         $configurator = new StatementPathSessionConfigurator;

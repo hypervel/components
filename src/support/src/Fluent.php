@@ -7,6 +7,7 @@ namespace Hypervel\Support;
 use ArrayAccess;
 use ArrayIterator;
 use Closure;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Support\Traits\Conditionable;
@@ -24,7 +25,7 @@ use Traversable;
  * @implements \Hypervel\Contracts\Support\Arrayable<TKey, TValue>
  * @implements ArrayAccess<TKey, TValue>
  */
-class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, JsonSerializable
+class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, JsonSerializable, Transient
 {
     use Conditionable, InteractsWithData, Macroable {
         __call as macroCall;

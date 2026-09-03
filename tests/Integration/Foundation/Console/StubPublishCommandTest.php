@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Foundation\Console;
 
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Console\StubPublishCommand;
@@ -51,6 +52,27 @@ class StubPublishCommandTest extends TestCase
             $this->filesystem->get($this->source),
             $this->filesystem->get($this->stubsPath . '/class.stub')
         );
+    }
+
+    public function testPassiveObserverDoesNotCausePublishingStubsEventToDispatch(): void
+    {
+        $observedEvents = [];
+        $events = $this->app->make(Dispatcher::class);
+        $events->forget(PublishingStubs::class);
+        $events->observe(
+            PublishingStubs::class,
+            static function (PublishingStubs $event) use (&$observedEvents): void {
+                $observedEvents[] = $event;
+            }
+        );
+
+        $this->artisan('stub:publish')->assertSuccessful();
+
+        $this->assertSame(
+            $this->filesystem->get($this->source),
+            $this->filesystem->get($this->stubsPath . '/class.stub')
+        );
+        $this->assertSame([], $observedEvents);
     }
 
     public function testItDoesNotOverwriteExistingStubsWithoutForce(): void

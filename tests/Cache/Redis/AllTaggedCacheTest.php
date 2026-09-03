@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache\Redis;
 
 use Hypervel\Cache\Events\CacheFlushed;
+use Hypervel\Cache\Events\CacheFlushFailed;
 use Hypervel\Cache\Events\CacheFlushing;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
@@ -17,6 +18,7 @@ use Hypervel\Cache\Events\WritingManyKeys;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\Redis\AllTaggedCache;
 use Hypervel\Cache\Redis\AllTagSet;
+use Hypervel\Cache\Redis\Operations\AllTag\Flush;
 use Hypervel\Cache\Redis\Operations\AllTag\Forever;
 use Hypervel\Cache\Redis\Operations\AllTag\Put;
 use Hypervel\Cache\Redis\Operations\AllTag\PutMany;
@@ -1058,6 +1060,49 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $this->assertFalse($invoked);
     }
 
+    public function testAllTaggedCacheSkipsEventDispatchSeamWithoutListenersAndEntersItWithListeners(): void
+    {
+        $put = m::mock(Put::class);
+        $put->shouldReceive('execute')->twice()->andReturnTrue();
+        $operations = m::mock(AllTagOperations::class);
+        $operations->shouldReceive('put')->twice()->andReturn($put);
+        $store = m::mock(RedisStore::class);
+        $store->shouldReceive('allTagOps')->twice()->andReturn($operations);
+        $tags = m::mock(AllTagSet::class);
+        $tags->shouldReceive('getNamespace')->andReturn('namespace');
+        $tags->shouldReceive('tagIds')->andReturn([]);
+        $tags->shouldReceive('getNames')->andReturn(['users']);
+
+        $cache = new class($store, $tags) extends AllTaggedCache {
+            public int $eventCalls = 0;
+
+            protected function event(object $event): void
+            {
+                ++$this->eventCalls;
+
+                parent::event($event);
+            }
+        };
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturnFalse();
+        $events->shouldNotReceive('dispatch');
+        $cache->setEventDispatcher($events);
+
+        $this->assertTrue($cache->put('first', 'value', 60));
+        $this->assertSame(0, $cache->eventCalls);
+
+        $captured = [];
+        $cache->setEventDispatcher($this->capturingDispatcher($captured));
+
+        $this->assertTrue($cache->put('second', 'value', 60));
+        $this->assertSame(2, $cache->eventCalls);
+        $this->assertSame([WritingKey::class, KeyWritten::class], array_map(get_class(...), $captured));
+
+        foreach ($captured as $event) {
+            $this->assertSame(['users'], $event->tags);
+        }
+    }
+
     public function testPutDispatchesTheRepositoryWriteEventsWithStoreNameAndTags(): void
     {
         $connection = $this->mockConnection();
@@ -1172,6 +1217,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $this->assertSame([WritingKey::class, KeyWriteFailed::class], array_map(get_class(...), $captured));
         $this->assertSame(['users'], $captured[1]->tags);
+        $this->assertSame($exception, $captured[1]->exception);
     }
 
     public function testPutDoesNotDispatchFailureEventWhenTheOperationIsCanceled(): void
@@ -1219,6 +1265,8 @@ class AllTaggedCacheTest extends RedisCacheTestCase
             array_map(get_class(...), $captured),
         );
         $this->assertSame(['name', 'age'], array_map(static fn (KeyWriteFailed $event): string => $event->key, array_slice($captured, 1)));
+        $this->assertSame($exception, $captured[1]->exception);
+        $this->assertSame($exception, $captured[2]->exception);
     }
 
     public function testPutManyDoesNotDispatchFailureEventsWhenTheOperationIsCanceled(): void
@@ -1277,6 +1325,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $this->assertSame([WritingKey::class, KeyWriteFailed::class], array_map(get_class(...), $captured));
         $this->assertNull($captured[1]->seconds);
+        $this->assertSame($exception, $captured[1]->exception);
     }
 
     public function testForeverDoesNotDispatchFailureEventWhenTheOperationIsCanceled(): void
@@ -1372,6 +1421,49 @@ class AllTaggedCacheTest extends RedisCacheTestCase
             $this->assertSame('redis', $event->storeName);
             $this->assertSame(['users'], $event->tags);
         }
+    }
+
+    public function testFlushDispatchesFailureEventWithExactOperationException(): void
+    {
+        $exception = new RuntimeException('flush failed');
+        $flush = m::mock(Flush::class);
+        $flush->shouldReceive('execute')->once()->andThrow($exception);
+
+        $operations = m::mock(AllTagOperations::class);
+        $operations->shouldReceive('flush')->once()->andReturn($flush);
+        $captured = [];
+        $tagged = $this->taggedCacheWithOperations($operations, $captured);
+
+        try {
+            $tagged->flush();
+            $this->fail('Expected the tagged cache flush exception to be rethrown.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertSame([CacheFlushing::class, CacheFlushFailed::class], array_map(get_class(...), $captured));
+        $this->assertSame($exception, $captured[1]->exception);
+    }
+
+    public function testFlushDoesNotDispatchFailureEventWhenTheOperationIsCanceled(): void
+    {
+        $cancellation = new CanceledException;
+        $flush = m::mock(Flush::class);
+        $flush->shouldReceive('execute')->once()->andThrow($cancellation);
+
+        $operations = m::mock(AllTagOperations::class);
+        $operations->shouldReceive('flush')->once()->andReturn($flush);
+        $captured = [];
+        $tagged = $this->taggedCacheWithOperations($operations, $captured);
+
+        try {
+            $tagged->flush();
+            $this->fail('Expected the tagged cache flush cancellation to be rethrown.');
+        } catch (CanceledException $caught) {
+            $this->assertSame($cancellation, $caught);
+        }
+
+        $this->assertSame([CacheFlushing::class], array_map(get_class(...), $captured));
     }
 
     /**

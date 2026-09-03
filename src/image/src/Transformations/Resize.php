@@ -9,6 +9,8 @@ use Hypervel\Contracts\Image\Transformation;
 class Resize implements Transformation
 {
     /**
+     * Create a new resize transformation.
+     *
      * @param null|positive-int $width
      * @param null|positive-int $height
      */

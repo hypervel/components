@@ -257,6 +257,8 @@ class Coroutine
 
     /**
      * Report an exception through the exception handler.
+     *
+     * @throws CanceledException When the failure or reporting path is canceled
      */
     protected static function printLog(Throwable $throwable): void
     {
@@ -288,7 +290,7 @@ class Coroutine
     }
 
     /**
-     * Report an exception at a terminal coroutine boundary.
+     * Report an exception without allowing cancellation to escape a terminal coroutine boundary.
      */
     protected static function reportUncaught(Throwable $throwable): void
     {

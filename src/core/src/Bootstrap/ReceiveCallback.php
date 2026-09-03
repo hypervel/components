@@ -19,6 +19,8 @@ class ReceiveCallback
      */
     public function onReceive(Server $server, int $fd, int $reactorId, string $data): void
     {
-        $this->dispatcher->dispatch(new OnReceive($server, $fd, $reactorId, $data));
+        if ($this->dispatcher->hasListeners(OnReceive::class)) {
+            $this->dispatcher->dispatch(new OnReceive($server, $fd, $reactorId, $data));
+        }
     }
 }

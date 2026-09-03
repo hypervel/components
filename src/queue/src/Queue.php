@@ -26,6 +26,7 @@ use Hypervel\Queue\Attributes\MaxExceptions;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
 use Hypervel\Queue\Attributes\Timeout;
 use Hypervel\Queue\Attributes\Tries;
+use Hypervel\Queue\Events\JobPayloadFinalizing;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Queue\Events\JobQueueingFailed;
@@ -408,6 +409,7 @@ abstract class Queue
      */
     protected function enqueueNow(object|string $job, string $payload, ?string $queue, DateInterval|DateTimeInterface|int|null $delay, callable $callback): mixed
     {
+        $payload = $this->finalizePayloadForQueueing($queue, $job, $payload, $delay);
         $this->raiseJobQueueingEvent($queue, $job, $payload, $delay);
 
         try {
@@ -423,6 +425,41 @@ abstract class Queue
         $this->raiseJobQueuedEvent($queue, $jobId, $job, $payload, $delay);
 
         return $jobId;
+    }
+
+    /**
+     * Finalize an encoded payload immediately before queueing.
+     *
+     * @param Closure|object|string $job
+     */
+    protected function finalizePayloadForQueueing(
+        ?string $queue,
+        object|string $job,
+        string $payload,
+        DateInterval|DateTimeInterface|int|null $delay,
+    ): string {
+        if (! $this->container->bound('events')) {
+            return $payload;
+        }
+
+        /** @var EventDispatcher $events */
+        $events = $this->container->make('events');
+
+        if (! $events->hasListeners(JobPayloadFinalizing::class)) {
+            return $payload;
+        }
+
+        $delay = $delay !== null ? $this->secondsUntil($delay) : null;
+        $event = new JobPayloadFinalizing(
+            $this->connectionName,
+            $queue,
+            $job,
+            $payload,
+            $delay,
+        );
+        $events->dispatch($event);
+
+        return $event->payload;
     }
 
     /**

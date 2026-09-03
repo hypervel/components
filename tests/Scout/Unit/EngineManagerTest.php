@@ -7,7 +7,11 @@ namespace Hypervel\Tests\Scout\Unit;
 use Algolia\AlgoliaSearch\Api\SearchClient as AlgoliaSearchClient;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Scout\Builder;
+use Hypervel\Scout\Contracts\EngineOperationObserver;
 use Hypervel\Scout\EngineManager;
+use Hypervel\Scout\EngineOperationRunner;
 use Hypervel\Scout\Engines\AlgoliaEngine;
 use Hypervel\Scout\Engines\CollectionEngine;
 use Hypervel\Scout\Engines\DatabaseEngine;
@@ -28,7 +32,7 @@ class EngineManagerTest extends TestCase
     {
         $container = $this->createMockContainer(['driver' => 'null']);
 
-        $manager = new EngineManager($container);
+        $manager = $this->createManager($container);
         $engine = $manager->engine('null');
 
         $this->assertInstanceOf(NullEngine::class, $engine);
@@ -38,7 +42,7 @@ class EngineManagerTest extends TestCase
     {
         $container = $this->createMockContainer(['driver' => 'collection']);
 
-        $manager = new EngineManager($container);
+        $manager = $this->createManager($container);
         $engine = $manager->engine('collection');
 
         $this->assertInstanceOf(CollectionEngine::class, $engine);
@@ -57,7 +61,7 @@ class EngineManagerTest extends TestCase
             ->with(AlgoliaSearchClient::class)
             ->andReturn($algoliaClient);
 
-        $manager = new EngineManager($container);
+        $manager = $this->createManager($container);
         $engine = $manager->engine('algolia');
 
         $this->assertInstanceOf(AlgoliaEngine::class, $engine);
@@ -76,7 +80,7 @@ class EngineManagerTest extends TestCase
             ->with(AlgoliaSearchClient::class)
             ->andReturn($algoliaClient);
 
-        $manager = new EngineManager($container);
+        $manager = $this->createManager($container);
         $engine = $manager->engine('algolia');
 
         $this->assertInstanceOf(AlgoliaEngine::class, $engine);
@@ -96,7 +100,7 @@ class EngineManagerTest extends TestCase
             ->with(AlgoliaSearchClient::class)
             ->andReturn($algoliaClient);
 
-        $manager = new EngineManager($container);
+        $manager = $this->createManager($container);
         $engine = $manager->engine('algolia');
 
         $this->assertInstanceOf(AlgoliaEngine::class, $engine);
@@ -115,7 +119,7 @@ class EngineManagerTest extends TestCase
             ->with(MeilisearchClient::class)
             ->andReturn($meilisearchClient);
 
-        $manager = new EngineManager($container);
+        $manager = $this->createManager($container);
         $engine = $manager->engine('meilisearch');
 
         $this->assertInstanceOf(MeilisearchEngine::class, $engine);
@@ -133,7 +137,7 @@ class EngineManagerTest extends TestCase
             ->with(MeilisearchClient::class)
             ->andReturn($meilisearchClient);
 
-        $manager = new EngineManager($container);
+        $manager = $this->createManager($container);
         $engine = $manager->engine('meilisearch');
 
         $this->assertInstanceOf(MeilisearchEngine::class, $engine);
@@ -143,7 +147,7 @@ class EngineManagerTest extends TestCase
     {
         $container = $this->createMockContainer(['driver' => 'database']);
 
-        $manager = new EngineManager($container);
+        $manager = $this->createManager($container);
         $engine = $manager->engine('database');
 
         $this->assertInstanceOf(DatabaseEngine::class, $engine);
@@ -161,7 +165,7 @@ class EngineManagerTest extends TestCase
             ->with(TypesenseClient::class)
             ->andReturn($typesenseClient);
 
-        $manager = new EngineManager($container);
+        $manager = $this->createManager($container);
         $engine = $manager->engine('typesense');
 
         $this->assertInstanceOf(TypesenseEngine::class, $engine);
@@ -171,7 +175,7 @@ class EngineManagerTest extends TestCase
     {
         $container = $this->createMockContainer(['driver' => 'collection']);
 
-        $manager = new EngineManager($container);
+        $manager = $this->createManager($container);
         $engine = $manager->engine(); // No name specified
 
         $this->assertInstanceOf(CollectionEngine::class, $engine);
@@ -181,7 +185,7 @@ class EngineManagerTest extends TestCase
     {
         $container = $this->createMockContainer(['driver' => null]);
 
-        $manager = new EngineManager($container);
+        $manager = $this->createManager($container);
         $engine = $manager->engine();
 
         $this->assertInstanceOf(NullEngine::class, $engine);
@@ -191,7 +195,7 @@ class EngineManagerTest extends TestCase
     {
         $container = $this->createMockContainer(['driver' => 'collection']);
 
-        $manager = new EngineManager($container);
+        $manager = $this->createManager($container);
 
         $engine1 = $manager->engine('collection');
         $engine2 = $manager->engine('collection');
@@ -203,7 +207,7 @@ class EngineManagerTest extends TestCase
     {
         $container = $this->createMockContainer(['driver' => 'collection']);
 
-        $manager = new EngineManager($container);
+        $manager = $this->createManager($container);
 
         $engine1 = $manager->engine('collection');
         $manager->forgetEngines();
@@ -216,7 +220,7 @@ class EngineManagerTest extends TestCase
     {
         $container = $this->createMockContainer(['driver' => 'collection']);
 
-        $manager = new EngineManager($container);
+        $manager = $this->createManager($container);
 
         $collection1 = $manager->engine('collection');
         $null1 = $manager->engine('null');
@@ -235,8 +239,12 @@ class EngineManagerTest extends TestCase
         $container = $this->createMockContainer(['driver' => 'custom']);
 
         $customEngine = m::mock(Engine::class);
+        $customEngine->shouldReceive('setOperationRunner')
+            ->once()
+            ->with(m::type(EngineOperationRunner::class), 'custom')
+            ->andReturnSelf();
 
-        $manager = new EngineManager($container);
+        $manager = $this->createManager($container);
         $manager->extend('custom', function ($container) use ($customEngine) {
             return $customEngine;
         });
@@ -252,8 +260,12 @@ class EngineManagerTest extends TestCase
 
         $receivedContainer = null;
         $customEngine = m::mock(Engine::class);
+        $customEngine->shouldReceive('setOperationRunner')
+            ->once()
+            ->with(m::type(EngineOperationRunner::class), 'custom')
+            ->andReturnSelf();
 
-        $manager = new EngineManager($container);
+        $manager = $this->createManager($container);
         $manager->extend('custom', function ($passedContainer) use (&$receivedContainer, $customEngine) {
             $receivedContainer = $passedContainer;
             return $customEngine;
@@ -269,8 +281,12 @@ class EngineManagerTest extends TestCase
         $container = $this->createMockContainer(['driver' => 'collection']);
 
         $customEngine = m::mock(Engine::class);
+        $customEngine->shouldReceive('setOperationRunner')
+            ->once()
+            ->with(m::type(EngineOperationRunner::class), 'collection')
+            ->andReturnSelf();
 
-        $manager = new EngineManager($container);
+        $manager = $this->createManager($container);
         $manager->extend('collection', function () use ($customEngine) {
             return $customEngine;
         });
@@ -284,7 +300,7 @@ class EngineManagerTest extends TestCase
     {
         $container = $this->createMockContainer(['driver' => 'unsupported']);
 
-        $manager = new EngineManager($container);
+        $manager = $this->createManager($container);
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Driver [unsupported] is not supported.');
@@ -296,7 +312,7 @@ class EngineManagerTest extends TestCase
     {
         $container = $this->createMockContainer(['driver' => 'meilisearch']);
 
-        $manager = new EngineManager($container);
+        $manager = $this->createManager($container);
 
         $this->assertSame('meilisearch', $manager->getDefaultDriver());
     }
@@ -305,7 +321,7 @@ class EngineManagerTest extends TestCase
     {
         $container = $this->createMockContainer([]);
 
-        $manager = new EngineManager($container);
+        $manager = $this->createManager($container);
 
         $this->assertSame('null', $manager->getDefaultDriver());
     }
@@ -314,7 +330,7 @@ class EngineManagerTest extends TestCase
     {
         $container = $this->createMockContainer(['driver' => null]);
 
-        $manager = new EngineManager($container);
+        $manager = $this->createManager($container);
 
         $this->assertSame('null', $manager->getDefaultDriver());
     }
@@ -323,13 +339,33 @@ class EngineManagerTest extends TestCase
     {
         $container = $this->createMockContainer(['driver' => 'collection']);
 
-        $manager1 = new EngineManager($container);
+        $manager1 = $this->createManager($container);
         $engine1 = $manager1->engine('collection');
 
-        $manager2 = new EngineManager($container);
+        $manager2 = $this->createManager($container);
         $engine2 = $manager2->engine('collection');
 
         $this->assertNotSame($engine1, $engine2);
+    }
+
+    public function testDefaultNullEngineDoesNotNotifyOperationObservers(): void
+    {
+        $container = $this->createMockContainer([]);
+        $runner = new EngineOperationRunner;
+        $observer = m::mock(EngineOperationObserver::class);
+        $observer->shouldNotReceive('starting');
+        $observer->shouldNotReceive('finished');
+        $runner->observe($observer);
+        $manager = new EngineManager($container, $runner);
+
+        $result = $manager->engine()->runSearch(new Builder(m::mock(Model::class), 'query'));
+
+        $this->assertSame([], $result);
+    }
+
+    protected function createManager(Container $container): EngineManager
+    {
+        return new EngineManager($container, new EngineOperationRunner);
     }
 
     protected function createMockContainer(array $config): m\MockInterface&Container

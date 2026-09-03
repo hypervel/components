@@ -25,6 +25,7 @@ class PackageMetadataTest extends TestCase
         foreach ([
             'php',
             'ext-dom',
+            'ext-filter',
             'ext-mbstring',
             'ext-simplexml',
             'guzzlehttp/guzzle',

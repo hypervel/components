@@ -31,11 +31,6 @@ use JsonSerializable;
 class CursorPaginator extends AbstractCursorPaginator implements Arrayable, ArrayAccess, Countable, IteratorAggregate, Jsonable, JsonSerializable, PaginatorContract
 {
     /**
-     * Indicates whether there are more items in the data source.
-     */
-    protected bool $hasMore;
-
-    /**
      * Create a new paginator instance.
      *
      * @param null|Arrayable<TKey, TValue>|Collection<TKey, TValue>|iterable<TKey, TValue> $items

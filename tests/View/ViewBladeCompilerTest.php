@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\View;
 
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Engine\Channel;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testing\ParallelTesting;
@@ -41,6 +42,38 @@ class ViewBladeCompilerTest extends TestCase
         $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v3foo') . '.php')->andReturn(true);
         $files->shouldReceive('lastModified')->once()->with('foo')->andReturn(100);
         $files->shouldReceive('lastModified')->once()->with(__DIR__ . '/' . hash('xxh128', 'v3foo') . '.php')->andReturn(0);
+        $this->assertTrue($compiler->isExpired('foo'));
+    }
+
+    public function testIsExpiredReturnsTrueWhenSourceFileDoesntExist(): void
+    {
+        $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
+        $compiled = __DIR__ . '/' . hash('xxh128', 'v3foo') . '.php';
+        $files->shouldReceive('exists')->once()->with($compiled)->andReturn(true);
+        $files->shouldReceive('lastModified')->once()->with('foo')->andReturn(false);
+
+        $this->assertTrue($compiler->isExpired('foo'));
+    }
+
+    public function testIsExpiredReturnsTrueWhenCompiledFileDisappearsBeforeTimestampRead(): void
+    {
+        $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
+        $compiled = __DIR__ . '/' . hash('xxh128', 'v3foo') . '.php';
+        $files->shouldReceive('exists')->once()->with($compiled)->andReturn(true);
+        $files->shouldReceive('lastModified')->once()->with('foo')->andReturn(100);
+        $files->shouldReceive('lastModified')->once()->with($compiled)->andReturn(false);
+
+        $this->assertTrue($compiler->isExpired('foo'));
+    }
+
+    public function testIsExpiredReturnsTrueWhenModificationTimesAreEqual(): void
+    {
+        $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
+        $compiled = __DIR__ . '/' . hash('xxh128', 'v3foo') . '.php';
+        $files->shouldReceive('exists')->once()->with($compiled)->andReturn(true);
+        $files->shouldReceive('lastModified')->once()->with('foo')->andReturn(100);
+        $files->shouldReceive('lastModified')->once()->with($compiled)->andReturn(100);
+
         $this->assertTrue($compiler->isExpired('foo'));
     }
 
@@ -82,6 +115,17 @@ class ViewBladeCompilerTest extends TestCase
         $compiler->compile('foo');
     }
 
+    public function testCompileMissingSourceThrowsPreciseFilesystemException(): void
+    {
+        $source = ParallelTesting::tempDir('ViewBladeCompilerMissingSource') . '/missing.blade.php';
+        $compiler = new BladeCompiler(new Filesystem, __DIR__);
+
+        $this->expectException(FileNotFoundException::class);
+        $this->expectExceptionMessage("File does not exist at path {$source}.");
+
+        $compiler->compile($source);
+    }
+
     public function testCompileCompilesFileAndReturnsContentsCreatingDirectory(): void
     {
         $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
@@ -117,6 +161,45 @@ class ViewBladeCompilerTest extends TestCase
         $files->shouldReceive('lastModified')->once()->with($compiledPath)->andReturn(200);
         $files->shouldReceive('replace')->never();
         $compiler->compile('foo');
+    }
+
+    #[DataProvider('missingFileDuringTimestampReadProvider')]
+    public function testCompileHandlesFilesDisappearingBeforeTimestampRead(
+        int|false $sourceModified,
+        int|false $compiledModified,
+        bool $shouldRepublish
+    ): void {
+        $compiledPath = __DIR__ . '/' . hash('xxh128', 'v3foo') . '.php';
+        $contents = 'Hello World<?php /**PATH foo ENDPATH**/ ?>';
+        $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
+        $files->shouldReceive('get')->once()->with('foo')->andReturn('Hello World');
+        $files->shouldReceive('exists')->once()->with(__DIR__)->andReturn(true);
+        $files->shouldReceive('exists')->once()->with($compiledPath)->andReturn(true);
+        $files->shouldReceive('hash')->once()->with($compiledPath, 'xxh128')->andReturn(hash('xxh128', $contents));
+        $files->shouldReceive('lastModified')->once()->with('foo')->andReturn($sourceModified);
+        $files->shouldReceive('lastModified')->once()->with($compiledPath)->andReturn($compiledModified);
+
+        $replaceExpectation = $files->shouldReceive('replace')->with($compiledPath, $contents);
+
+        if ($shouldRepublish) {
+            $replaceExpectation->once();
+        } else {
+            $replaceExpectation->never();
+        }
+
+        $compiler->compile('foo');
+    }
+
+    /**
+     * Provide file timestamps for compile races.
+     */
+    public static function missingFileDuringTimestampReadProvider(): array
+    {
+        return [
+            'source disappeared' => [false, 200, false],
+            'compiled file disappeared' => [100, false, true],
+            'source and compiled file disappeared' => [false, false, true],
+        ];
     }
 
     public function testCompileRefreshesCacheTimestampIfUnchangedButExpired(): void

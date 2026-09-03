@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use BadMethodCallException;
+use Hypervel\Contracts\Cache\AuthoritativeRawReadable;
 use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\Lock as LockContract;
 use Hypervel\Contracts\Cache\LockProvider;
@@ -14,7 +15,7 @@ use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
-class MemoizedStore implements CanFlushLocks, LockProvider, RawReadable, Store
+class MemoizedStore implements AuthoritativeRawReadable, CanFlushLocks, LockProvider, RawReadable, Store
 {
     /**
      * The memoized cache values.
@@ -63,6 +64,16 @@ class MemoizedStore implements CanFlushLocks, LockProvider, RawReadable, Store
         }
 
         return $this->cache[$prefixedKey] = $this->repository->getRaw($stringKey);
+    }
+
+    /**
+     * Retrieve an item without serving it from the memoized layer.
+     */
+    public function getAuthoritativeRaw(UnitEnum|string $key): mixed
+    {
+        $stringKey = (string) (is_object($key) ? enum_value($key) : $key);
+
+        return $this->repository->getAuthoritativeRaw($stringKey);
     }
 
     /**

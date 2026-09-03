@@ -494,6 +494,34 @@ class EventsDispatcherTest extends TestCase
         $this->assertTrue($d->hasWildcardListeners('foo'));
     }
 
+    public function testWildcardMatchingPreservesEscapingAnchoringCaseAndMultilineSemantics(): void
+    {
+        $dispatcher = new Dispatcher;
+        $dispatcher->listen('foo.*', static function (): void {});
+        $dispatcher->listen('hash#*', static function (): void {});
+
+        $this->assertTrue($dispatcher->hasWildcardListeners('foo.bar'));
+        $this->assertTrue($dispatcher->hasWildcardListeners("foo.\nbar"));
+        $this->assertTrue($dispatcher->hasWildcardListeners('hash#event'));
+        $this->assertFalse($dispatcher->hasWildcardListeners('fooXbar'));
+        $this->assertFalse($dispatcher->hasWildcardListeners('prefix.foo.bar'));
+        $this->assertFalse($dispatcher->hasWildcardListeners('Foo.bar'));
+
+        $endAnchoredDispatcher = new Dispatcher;
+        $endAnchoredDispatcher->listen('*.bar', static function (): void {});
+
+        $this->assertTrue($endAnchoredDispatcher->hasWildcardListeners('foo.bar'));
+        $this->assertFalse($endAnchoredDispatcher->hasWildcardListeners('foo.barbaz'));
+
+        $observed = [];
+        $dispatcher->observe('*', static function (string $event) use (&$observed): void {
+            $observed[] = $event;
+        });
+        $dispatcher->dispatch("line\nbreak");
+
+        $this->assertSame(["line\nbreak"], $observed);
+    }
+
     public function testListenersCanBeFound()
     {
         $d = new Dispatcher;

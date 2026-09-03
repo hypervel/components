@@ -24,6 +24,7 @@ class PackageMetadataTest extends TestCase
         );
 
         foreach ([
+            'ext-filter',
             'ext-posix',
             'ext-swoole',
             'psr/log',

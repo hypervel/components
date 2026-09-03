@@ -48,7 +48,8 @@ class EngineManager
      * Create a new engine manager instance.
      */
     public function __construct(
-        protected Container $container
+        protected Container $container,
+        protected EngineOperationRunner $operationRunner
     ) {
     }
 
@@ -59,7 +60,8 @@ class EngineManager
     {
         $name ??= $this->getDefaultDriver();
 
-        return $this->engines[$name] ??= $this->resolve($name);
+        return $this->engines[$name] ??= $this->resolve($name)
+            ->setOperationRunner($this->operationRunner, $name);
     }
 
     /**

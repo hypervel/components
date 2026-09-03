@@ -68,9 +68,15 @@ class UniqueJobPayloadContext
      */
     protected static function getCacheStore(ShouldBeUnique $job): ?string
     {
-        return method_exists($job, 'uniqueVia')
-            ? $job->uniqueVia()->getName()
-            : config()->string('cache.default');
+        if (! method_exists($job, 'uniqueVia')) {
+            return config()->string('cache.default');
+        }
+
+        $cache = $job->uniqueVia();
+
+        return is_null($cache)
+            ? config()->string('cache.default')
+            : $cache->getName();
     }
 
     /**

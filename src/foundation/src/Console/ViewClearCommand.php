@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\View\Component;
 use Hypervel\View\Engines\CompilerEngine;
 use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -46,8 +47,6 @@ class ViewClearCommand extends Command
             throw new RuntimeException('View path not found.');
         }
 
-        CompilerEngine::forgetCompiledOrNotExpired();
-
         $views = $this->files->glob("{$path}/*");
 
         if ($views === false) {
@@ -69,6 +68,9 @@ class ViewClearCommand extends Command
                 $exception ??= $throwable;
             }
         }
+
+        Component::flushCache();
+        CompilerEngine::forgetCompiledOrNotExpired();
 
         if ($exception !== null) {
             throw $exception;

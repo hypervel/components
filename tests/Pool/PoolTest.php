@@ -233,8 +233,10 @@ class PoolTest extends TestCase
         }
 
         usleep(5_000);
+        $this->assertSame(2, $pool->getWaiters());
         $pool->close();
         usleep(5_000);
+        $this->assertSame(0, $pool->getWaiters());
         $pool->release($borrowed);
 
         ksort($messages);

@@ -39,8 +39,9 @@ class ConsoleIntegrationTest extends SentryTestCase
         $unmatchedCommand = new ConsoleIntegrationCommand;
         $this->app->make(ConsoleIntegration::class)->afterExecute(new AfterExecute(
             $unmatchedCommand,
-            input: $this->commandInput($unmatchedCommand, true),
-            exitCode: 12,
+            null,
+            $this->commandInput($unmatchedCommand, true),
+            12,
         ));
         $lastBreadcrumb = $this->getLastSentryBreadcrumb();
 
@@ -70,8 +71,9 @@ class ConsoleIntegrationTest extends SentryTestCase
         $unmatchedCommand = new ConsoleIntegrationCommand;
         $this->app->make(ConsoleIntegration::class)->afterExecute(new AfterExecute(
             $unmatchedCommand,
-            input: $this->commandInput($unmatchedCommand, true),
-            exitCode: 12,
+            null,
+            $this->commandInput($unmatchedCommand, true),
+            12,
         ));
         $metadata = $this->getLastSentryBreadcrumb()->getMetadata();
 
@@ -195,13 +197,13 @@ class ConsoleIntegrationTest extends SentryTestCase
         $dispatcher->dispatch(new BeforeHandle($inner, $input));
         $innerScope = $this->getCurrentSentryScope();
 
-        $dispatcher->dispatch(new AfterExecute($inner, input: $input, exitCode: 0));
-        $dispatcher->dispatch(new AfterExecute($outer, input: $input, exitCode: 0));
+        $dispatcher->dispatch(new AfterExecute($inner, null, $input, 0));
+        $dispatcher->dispatch(new AfterExecute($outer, null, $input, 0));
 
         $this->assertSame($innerScope, $this->getCurrentSentryScope());
 
-        $integration->afterExecute(new AfterExecute($inner, input: $input, exitCode: 0));
-        $integration->afterExecute(new AfterExecute($outer, input: $input, exitCode: 0));
+        $integration->afterExecute(new AfterExecute($inner, null, $input, 0));
+        $integration->afterExecute(new AfterExecute($outer, null, $input, 0));
         $this->assertSame($baselineScope, $this->getCurrentSentryScope());
     }
 
@@ -257,11 +259,11 @@ class ConsoleIntegrationTest extends SentryTestCase
         $dispatcher->listen(BeforeHandle::class, [$integration, 'beforeHandle']);
         $dispatcher->dispatch(new BeforeHandle($inner, $input));
 
-        $integration->afterExecute(new AfterExecute($inner, input: $input, exitCode: 0));
+        $integration->afterExecute(new AfterExecute($inner, null, $input, 0));
 
         $this->assertSame($outerScope, $this->getCurrentSentryScope());
 
-        $integration->afterExecute(new AfterExecute($outer, input: $input, exitCode: 0));
+        $integration->afterExecute(new AfterExecute($outer, null, $input, 0));
         $this->assertSame($baselineScope, $this->getCurrentSentryScope());
     }
 
@@ -274,7 +276,7 @@ class ConsoleIntegrationTest extends SentryTestCase
         $integration = $this->app->make(ConsoleIntegration::class);
         $input = new ArgvInput(['artisan', '--foo=bar']);
 
-        $integration->afterExecute(new AfterExecute($command, input: $input, exitCode: 12));
+        $integration->afterExecute(new AfterExecute($command, null, $input, 12));
         $this->assertSame(12, $this->getLastSentryBreadcrumb()?->getMetadata()['exit']);
 
         $integration->afterExecute(new AfterExecute($command, new RuntimeException('failed', 17), $input, 0));
@@ -296,7 +298,7 @@ class ConsoleIntegrationTest extends SentryTestCase
     private function dispatchCommandFinishEvent(
         Command $command,
         ?RuntimeException $throwable = null,
-        ?int $exitCode = 0,
+        int $exitCode = 0,
         bool $withValue = false,
     ): void {
         $this->dispatchHypervelEvent(new AfterExecute(

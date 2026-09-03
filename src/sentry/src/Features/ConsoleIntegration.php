@@ -129,7 +129,7 @@ class ConsoleIntegration extends Feature
     /**
      * Resolve the command exit code represented by the terminal event.
      */
-    private function resolveExitCode(AfterExecute $event): ?int
+    private function resolveExitCode(AfterExecute $event): int
     {
         if ($event->throwable === null) {
             return $event->exitCode;
@@ -145,7 +145,7 @@ class ConsoleIntegration extends Feature
      *
      * @return array{input?: string}
      */
-    private function commandInputMetadata(?InputInterface $input): array
+    private function commandInputMetadata(InputInterface $input): array
     {
         if (! $this->shouldSendDefaultPii() || ! $input instanceof ArgvInput) {
             return [];

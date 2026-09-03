@@ -33,7 +33,9 @@ use Hypervel\Image\Transformations\Rotate;
 use Hypervel\Image\Transformations\Scale;
 use Hypervel\Image\Transformations\Sharpen;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use RuntimeException;
 use Stringable;
@@ -377,46 +379,40 @@ class ImageTest extends TestCase
         }
     }
 
-    public function testDimensionsFallsBackToNativeReaderWhenTheDriverCannotDecodeHeic(): void
+    public function testDimensionsPreservesDriverFailureForHeic(): void
     {
-        $container = new Container;
-        $container->instance('config', new Repository(['images' => ['default' => 'fake']]));
-
-        $manager = new ImageManager($container);
-        $manager->extend('fake', fn () => new class implements Driver {
-            public function process(string $contents, ImagePipeline $pipeline): string
-            {
-                return "\x00\x00\x00\x18ftypheic\x00\x00\x00\x00mif1heic";
-            }
-
-            public function dimensions(string $contents): array
-            {
-                throw new ImageException('The driver cannot decode this image.');
-            }
-
-            public function dominantColor(string $contents): string
-            {
-                return '#000000';
-            }
-
-            public function transformUsing(string $transformation, callable $callback): static
-            {
-                return $this;
-            }
-        });
-        $container->instance('image', $manager);
-
-        Container::setInstance($container);
+        $driverException = new ImageException('The driver cannot decode this image.');
+        $driver = m::mock(Driver::class);
+        $driver->expects('process')
+            ->once()
+            ->andReturn("\x00\x00\x00\x18ftypheic\x00\x00\x00\x00mif1heic");
+        $driver->expects('dimensions')->once()->andThrow($driverException);
+        $this->registerDrivers(['fake' => $driver]);
 
         try {
-            $image = (new Image($this->fakeImageContents()))->using('fake')->cover(1, 1);
+            (new Image('source image'))->using('fake')->blur()->dimensions();
+        } catch (ImageException $exception) {
+            $this->assertSame(
+                'Unable to determine the dimensions of the image: The driver cannot decode this image.',
+                $exception->getMessage(),
+            );
+            $this->assertSame($driverException, $exception->getPrevious());
 
-            $this->expectExceptionObject(new ImageException('Unable to determine the dimensions of the image.'));
-
-            $image->dimensions();
-        } finally {
-            Container::setInstance(null);
+            return;
         }
+
+        $this->fail('ImageException was not thrown.');
+    }
+
+    public function testDimensionsDoesNotRelabelUnsupportedDriverForHeic(): void
+    {
+        $this->registerDrivers([]);
+
+        $this->expectExceptionObject(new InvalidArgumentException('Image driver [missing] is not supported.'));
+
+        (new Image("\x00\x00\x00\x18ftypheic\x00\x00\x00\x00mif1heic"))
+            ->using('missing')
+            ->dimensions();
     }
 
     public function testDimensionsDoesNotMaskDriverTypeErrorsForHeic(): void
@@ -583,16 +579,46 @@ class ImageTest extends TestCase
         $this->assertSame(60, $this->getOptions($result)->quality);
     }
 
-    public function testEffectAndQualityValuesAreClamped(): void
+    public function testEffectAndQualityBoundaryValuesAreAccepted(): void
     {
         $image = $this->makeImage();
 
-        $this->assertSame(0, $this->getOptions($image->blur(-1))->blur);
-        $this->assertSame(100, $this->getOptions($image->blur(101))->blur);
-        $this->assertSame(0, $this->getOptions($image->sharpen(-1))->sharpen);
-        $this->assertSame(100, $this->getOptions($image->sharpen(101))->sharpen);
-        $this->assertSame(1, $this->getOptions($image->quality(0))->quality);
-        $this->assertSame(100, $this->getOptions($image->quality(101))->quality);
+        $this->assertSame(0, $this->getOptions($image->blur(0))->blur);
+        $this->assertSame(100, $this->getOptions($image->blur(100))->blur);
+        $this->assertSame(0, $this->getOptions($image->sharpen(0))->sharpen);
+        $this->assertSame(100, $this->getOptions($image->sharpen(100))->sharpen);
+        $this->assertSame(1, $this->getOptions($image->quality(1))->quality);
+        $this->assertSame(100, $this->getOptions($image->quality(100))->quality);
+    }
+
+    #[DataProvider('invalidEffectAndQualityProvider')]
+    public function testEffectAndQualityValuesOutsideTheirRangesAreRejected(
+        string $method,
+        array $arguments,
+        string $message,
+    ): void {
+        $this->expectExceptionObject(new ImageException($message));
+
+        $this->makeImage()->{$method}(...$arguments);
+    }
+
+    /**
+     * Provide invalid effect and quality values.
+     *
+     * @return array<string, array{string, array<int, int|string>, string}>
+     */
+    public static function invalidEffectAndQualityProvider(): array
+    {
+        return [
+            'blur below minimum' => ['blur', [-1], 'Image blur amount must be between 0 and 100.'],
+            'blur above maximum' => ['blur', [101], 'Image blur amount must be between 0 and 100.'],
+            'sharpen below minimum' => ['sharpen', [-1], 'Image sharpen amount must be between 0 and 100.'],
+            'sharpen above maximum' => ['sharpen', [101], 'Image sharpen amount must be between 0 and 100.'],
+            'quality below minimum' => ['quality', [0], 'Image quality must be between 1 and 100.'],
+            'quality above maximum' => ['quality', [101], 'Image quality must be between 1 and 100.'],
+            'optimize quality below minimum' => ['optimize', ['webp', 0], 'Image quality must be between 1 and 100.'],
+            'optimize quality above maximum' => ['optimize', ['webp', 101], 'Image quality must be between 1 and 100.'],
+        ];
     }
 
     public function testToWebpSetsFormat(): void
@@ -1131,21 +1157,48 @@ class ImageTest extends TestCase
         $this->assertSame(20, $options->cropY);
     }
 
-    public function testDimensionTransformationsClampNonPositiveDimensions(): void
+    public function testCropAcceptsNegativeOffsets(): void
     {
-        $image = $this->makeImage();
+        $options = $this->getOptions($this->makeImage()->crop(300, 200, -2, -3));
 
-        $cover = $this->getOptions($image->cover(0, -1));
-        $contain = $this->getOptions($image->contain(0, -1));
-        $crop = $this->getOptions($image->crop(0, -1, -2, -3));
-        $resize = $this->getOptions($image->resize(0, -1));
-        $scale = $this->getOptions($image->scale(0, -1));
+        $this->assertSame([300, 200, -2, -3], [
+            $options->cropWidth,
+            $options->cropHeight,
+            $options->cropX,
+            $options->cropY,
+        ]);
+    }
 
-        $this->assertSame([1, 1], [$cover->coverWidth, $cover->coverHeight]);
-        $this->assertSame([1, 1], [$contain->containWidth, $contain->containHeight]);
-        $this->assertSame([1, 1, -2, -3], [$crop->cropWidth, $crop->cropHeight, $crop->cropX, $crop->cropY]);
-        $this->assertSame([1, 1], [$resize->resizeWidth, $resize->resizeHeight]);
-        $this->assertSame([1, 1], [$scale->scaleWidth, $scale->scaleHeight]);
+    #[DataProvider('invalidDimensionProvider')]
+    public function testDimensionTransformationsRejectNonPositiveDimensions(
+        string $method,
+        array $arguments,
+        string $message,
+    ): void {
+        $this->expectExceptionObject(new ImageException($message));
+
+        $this->makeImage()->{$method}(...$arguments);
+    }
+
+    /**
+     * Provide non-positive image dimensions.
+     *
+     * @return array<string, array{string, array<int, null|int>, string}>
+     */
+    public static function invalidDimensionProvider(): array
+    {
+        return [
+            'cover zero width' => ['cover', [0, 1], 'Image width must be greater than zero.'],
+            'cover zero height' => ['cover', [1, 0], 'Image height must be greater than zero.'],
+            'cover negative width' => ['cover', [-1, 1], 'Image width must be greater than zero.'],
+            'cover negative height' => ['cover', [1, -1], 'Image height must be greater than zero.'],
+            'contain zero width' => ['contain', [0, 1], 'Image width must be greater than zero.'],
+            'crop negative height' => ['crop', [1, -1], 'Image height must be greater than zero.'],
+            'resize zero width' => ['resize', [0], 'Image width must be greater than zero.'],
+            'resize negative height' => ['resize', [null, -1], 'Image height must be greater than zero.'],
+            'scale negative width' => ['scale', [-1], 'Image width must be greater than zero.'],
+            'scale zero height' => ['scale', [null, 0], 'Image height must be greater than zero.'],
+        ];
     }
 
     public function testResizeSetsBothDimensions(): void

@@ -4662,6 +4662,100 @@ class HttpClientTest extends TestCase
         }
     }
 
+    public function testPriorSendsOptionTracksMixedRedirectsAndSynchronousRetries(): void
+    {
+        $attempt = 0;
+        $observedCounts = [];
+
+        $response = $this->factory
+            ->withMiddleware(function (callable $handler) use (&$observedCounts): callable {
+                return function (RequestInterface $request, array $options) use ($handler, &$observedCounts): PromiseInterface {
+                    $observedCounts[] = [
+                        'prior_sends' => $options[PendingRequest::PRIOR_SENDS_OPTION],
+                        'redirect_count' => $options['__redirect_count'] ?? null,
+                    ];
+
+                    return $handler($request, $options);
+                };
+            })
+            ->setHandler(function () use (&$attempt): PromiseInterface {
+                ++$attempt;
+
+                return Create::promiseFor(match ($attempt) {
+                    1 => new Psr7Response(307, ['Location' => '/redirected']),
+                    2 => new Psr7Response(500),
+                    default => new Psr7Response(200),
+                });
+            })
+            ->retry(2, 0)
+            ->get('https://example.test/original');
+
+        $this->assertTrue($response->successful());
+        $this->assertSame([
+            ['prior_sends' => 0, 'redirect_count' => null],
+            ['prior_sends' => 0, 'redirect_count' => 1],
+            ['prior_sends' => 2, 'redirect_count' => null],
+        ], $observedCounts);
+    }
+
+    public function testPriorSendsOptionTracksMixedRedirectsAndAsynchronousRetries(): void
+    {
+        $attempt = 0;
+        $observedCounts = [];
+
+        $response = $this->factory
+            ->withMiddleware(function (callable $handler) use (&$observedCounts): callable {
+                return function (RequestInterface $request, array $options) use ($handler, &$observedCounts): PromiseInterface {
+                    $observedCounts[] = [
+                        'prior_sends' => $options[PendingRequest::PRIOR_SENDS_OPTION],
+                        'redirect_count' => $options['__redirect_count'] ?? null,
+                    ];
+
+                    return $handler($request, $options);
+                };
+            })
+            ->setHandler(function () use (&$attempt): PromiseInterface {
+                ++$attempt;
+
+                return Create::promiseFor(match ($attempt) {
+                    1 => new Psr7Response(307, ['Location' => '/redirected']),
+                    2 => new Psr7Response(500),
+                    default => new Psr7Response(200),
+                });
+            })
+            ->async()
+            ->retry(2, 0)
+            ->get('https://example.test/original')
+            ->wait();
+
+        $this->assertTrue($response->successful());
+        $this->assertSame([
+            ['prior_sends' => 0, 'redirect_count' => null],
+            ['prior_sends' => 0, 'redirect_count' => 1],
+            ['prior_sends' => 2, 'redirect_count' => null],
+        ], $observedCounts);
+    }
+
+    public function testPriorSendsOptionResetsWhenPendingRequestIsReused(): void
+    {
+        $observedPriorSends = [];
+
+        $pendingRequest = $this->factory
+            ->withMiddleware(function (callable $handler) use (&$observedPriorSends): callable {
+                return function (RequestInterface $request, array $options) use ($handler, &$observedPriorSends): PromiseInterface {
+                    $observedPriorSends[] = $options[PendingRequest::PRIOR_SENDS_OPTION];
+
+                    return $handler($request, $options);
+                };
+            })
+            ->setHandler(fn (): PromiseInterface => Create::promiseFor(new Psr7Response(200)));
+
+        $pendingRequest->get('https://example.test/first');
+        $pendingRequest->get('https://example.test/second');
+
+        $this->assertSame([0, 0], $observedPriorSends);
+    }
+
     public function testGlobalRequestMiddlewareBodyReplacementInvalidatesLogicalRequestData(): void
     {
         $stubData = null;

@@ -72,7 +72,9 @@ abstract class AbstractProcess implements ProcessInterface
                 $exception = null;
 
                 try {
-                    $this->event?->dispatch(new BeforeProcessHandle($this, $i));
+                    if ($this->event?->hasListeners(BeforeProcessHandle::class)) {
+                        $this->event->dispatch(new BeforeProcessHandle($this, $i));
+                    }
 
                     $this->process = $process;
                     if ($this->enableCoroutine) {
@@ -88,7 +90,9 @@ abstract class AbstractProcess implements ProcessInterface
                     }
                 } finally {
                     try {
-                        $this->event?->dispatch(new AfterProcessHandle($this, $i));
+                        if ($this->event?->hasListeners(AfterProcessHandle::class)) {
+                            $this->event->dispatch(new AfterProcessHandle($this, $i));
+                        }
                     } catch (Throwable $throwable) {
                         $exception ??= $throwable;
                     }
@@ -194,7 +198,8 @@ abstract class AbstractProcess implements ProcessInterface
 
                             $data = unserialize($received);
 
-                            if ($data !== false || $received === 'b:0;') {
+                            if (($data !== false || $received === 'b:0;')
+                                && $this->event->hasListeners(PipeMessage::class)) {
                                 $this->event->dispatch(new PipeMessage($data));
                             }
                         } catch (Throwable $exception) {

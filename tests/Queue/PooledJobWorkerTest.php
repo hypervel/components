@@ -11,7 +11,12 @@ use Hypervel\Contracts\Queue\Factory;
 use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\ObjectPool\SimpleObjectPool;
+use Hypervel\Queue\Events\JobAttempted;
+use Hypervel\Queue\Events\JobExceptionOccurred;
+use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
+use Hypervel\Queue\Events\JobProcessing;
+use Hypervel\Queue\Events\JobReleasedAfterException;
 use Hypervel\Queue\Jobs\BeanstalkdJob;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
@@ -69,6 +74,9 @@ class PooledJobWorkerTest extends TestCase
 
         $attemptsObservedByListener = null;
         $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(JobProcessing::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->once()->with(JobProcessed::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->once()->with(JobAttempted::class)->andReturnTrue();
         $events->shouldReceive('dispatch')->times(3)
             ->andReturnUsing(function (object $event) use (&$attemptsObservedByListener): array {
                 if ($event instanceof JobProcessed) {
@@ -116,7 +124,11 @@ class PooledJobWorkerTest extends TestCase
         $pool = $this->pool();
         $job->withPoolLease(new Lease($pool, $pool->get()));
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('dispatch')->andReturn([]);
+        $events->shouldReceive('hasListeners')->once()->with(JobProcessing::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->once()->with(JobExceptionOccurred::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->once()->with(JobReleasedAfterException::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->once()->with(JobAttempted::class)->andReturnTrue();
+        $events->shouldReceive('dispatch')->times(4)->andReturn([]);
         $worker = new Worker(m::mock(Factory::class), $events, m::mock(ExceptionHandler::class), fn () => false);
 
         try {
@@ -152,7 +164,11 @@ class PooledJobWorkerTest extends TestCase
         $pool = $this->pool();
         $job->withPoolLease(new Lease($pool, $pool->get()));
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('dispatch')->andReturn([]);
+        $events->shouldReceive('hasListeners')->once()->with(JobProcessing::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->once()->with(JobExceptionOccurred::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->once()->with(JobAttempted::class)->andReturnTrue();
+        $events->shouldReceive('dispatch')->times(4)->andReturn([]);
         $container->instance(Dispatcher::class, $events);
         $worker = new Worker(m::mock(Factory::class), $events, m::mock(ExceptionHandler::class), fn () => false);
 

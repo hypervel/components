@@ -8,6 +8,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Telescope\Contracts\EntriesRepository;
+use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Storage\DatabaseEntriesRepository;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\TelescopeServiceProvider;
@@ -87,6 +88,36 @@ class TelescopeServiceProviderTest extends FeatureTestCase
         Coroutine::join([$coroutineId]);
 
         $this->assertSame([true, 'selected'], $observed);
+    }
+
+    public function testCreatedRecordingChildDoesNotInheritParentEntryGuard(): void
+    {
+        $storedBatches = [];
+        $store = $this->fakeRecordingStore($storedBatches);
+        $coroutineId = null;
+
+        Telescope::tag(function (IncomingEntry $entry) use (&$coroutineId): array {
+            if ($entry->content['message'] !== 'parent') {
+                return [];
+            }
+
+            $coroutineId = Coroutine::create(function (): void {
+                Telescope::recordLog(IncomingEntry::make(['message' => 'child']));
+            });
+
+            return [];
+        });
+
+        Telescope::recordLog(IncomingEntry::make(['message' => 'parent']));
+
+        $this->assertIsInt($coroutineId);
+        Coroutine::join([$coroutineId]);
+        Telescope::store($store);
+
+        $this->assertSame(['child'], array_column($storedBatches[0], 'message'));
+        $this->assertSame(['parent'], array_column($storedBatches[1], 'message'));
+        $this->assertNotNull($storedBatches[0][0]['batch_id']);
+        $this->assertSame($storedBatches[0][0]['batch_id'], $storedBatches[1][0]['batch_id']);
     }
 
     public function testRouteRegistrationRequiresStringPath(): void

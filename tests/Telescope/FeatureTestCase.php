@@ -6,16 +6,20 @@ namespace Hypervel\Tests\Telescope;
 
 use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\Queue;
+use Hypervel\Support\Collection;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\Http\Middleware\Authorize;
+use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Storage\EntryModel;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\TelescopeServiceProvider;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\TestCase;
+use Mockery as m;
+use ReflectionProperty;
 
 use function Hypervel\Testbench\load_migration_paths;
 
@@ -88,11 +92,38 @@ class FeatureTestCase extends TestCase
         parent::tearDown();
     }
 
-    protected function loadTelescopeEntries(): Collection
+    protected function loadTelescopeEntries(): EloquentCollection
     {
         $this->terminateTelescope();
 
         return EntryModel::all();
+    }
+
+    /**
+     * Create a recording store that captures stored batches.
+     *
+     * @param list<list<array{message: string, batch_id: null|string}>> $storedBatches
+     */
+    protected function fakeRecordingStore(array &$storedBatches): EntriesRepository
+    {
+        $store = m::mock(EntriesRepository::class);
+        $store->shouldReceive('store')
+            ->twice()
+            ->withArgs(function (Collection $entries) use (&$storedBatches): bool {
+                $storedBatches[] = $entries->map(fn (IncomingEntry $entry): array => [
+                    'message' => $entry->content['message'],
+                    'batch_id' => $entry->batchId,
+                ])->all();
+
+                return true;
+            });
+        $store->shouldReceive('update')
+            ->twice()
+            ->andReturn(Collection::make());
+
+        (new ReflectionProperty(Telescope::class, 'store'))->setValue($store);
+
+        return $store;
     }
 
     public function terminateTelescope(): void

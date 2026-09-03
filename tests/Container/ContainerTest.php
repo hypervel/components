@@ -933,6 +933,30 @@ class ContainerTest extends TestCase
         $this->assertEquals(ContainerCurrentResolvingConcrete::class, $resolved->currentlyResolving);
     }
 
+    public function testCurrentlyResolvingDoesNotCreateResolutionStateWhenIdle(): void
+    {
+        $container = new ContainerStateInspectionStub;
+
+        $this->assertFalse($container->hasResolutionState());
+        $this->assertNull($container->currentlyResolving());
+        $this->assertFalse($container->hasResolutionState());
+    }
+
+    public function testCachedSingletonDoesNotCreateResolutionStateWhenContextualBindingsExist(): void
+    {
+        $container = new ContainerStateInspectionStub;
+        $instance = new stdClass;
+
+        $container->when(ContainerCurrentResolvingConcrete::class)
+            ->needs('$currentlyResolving')
+            ->give('resolved');
+        $container->instance('cached', $instance);
+
+        $this->assertFalse($container->hasResolutionState());
+        $this->assertSame($instance, $container->make('cached'));
+        $this->assertFalse($container->hasResolutionState());
+    }
+
     public function testGetAliasRecursive()
     {
         $container = new Container;
@@ -1703,7 +1727,7 @@ class ContainerTest extends TestCase
     public function testDepthLimitFailureDoesNotMutateResolutionState(): void
     {
         $container = new ContainerStateInspectionStub;
-        CoroutineContext::set(Container::DEPTH_CONTEXT_KEY, $container->resolutionLimit());
+        $container->setResolutionDepth($container->resolutionLimit());
 
         try {
             $container->make(ContainerConcreteStub::class);
@@ -1712,11 +1736,11 @@ class ContainerTest extends TestCase
             $this->assertStringContainsString('Maximum resolution depth', $exception->getMessage());
         }
 
-        $this->assertSame($container->resolutionLimit(), CoroutineContext::get(Container::DEPTH_CONTEXT_KEY));
+        $this->assertSame($container->resolutionLimit(), $container->resolutionDepth());
         $this->assertSame([], $container->resolvingStack());
         $this->assertSame([], $container->parameterOverrideStack());
 
-        CoroutineContext::set(Container::DEPTH_CONTEXT_KEY, 0);
+        $container->setResolutionDepth(0);
 
         $this->assertInstanceOf(ContainerConcreteStub::class, $container->make(ContainerConcreteStub::class));
     }
@@ -1731,6 +1755,153 @@ class ContainerTest extends TestCase
         $second = $container->make(AutoSingletonStub::class);
 
         $this->assertSame($first, $second);
+    }
+
+    public function testMakeTransientIgnoresAutoSingletonWithoutReplacingIt(): void
+    {
+        $container = new Container;
+
+        $shared = $container->make(MakeTransientStub::class);
+        $first = $container->makeTransient(MakeTransientStub::class);
+        $second = $container->makeTransient(MakeTransientStub::class);
+
+        $this->assertNotSame($shared, $first);
+        $this->assertNotSame($first, $second);
+        $this->assertSame($shared, $container->make(MakeTransientStub::class));
+    }
+
+    public function testMakeTransientPreservesExplicitLifetimes(): void
+    {
+        $singletonContainer = new Container;
+        $singletonContainer->singleton(MakeTransientStub::class);
+        $singleton = $singletonContainer->makeTransient(MakeTransientStub::class);
+
+        $this->assertSame($singleton, $singletonContainer->makeTransient(MakeTransientStub::class));
+
+        $scopedContainer = new Container;
+        $scopedContainer->scoped(MakeTransientStub::class);
+        $scoped = $scopedContainer->makeTransient(MakeTransientStub::class);
+
+        $this->assertSame($scoped, $scopedContainer->makeTransient(MakeTransientStub::class));
+
+        $singletonAttributeContainer = new Container;
+        $singletonAttribute = $singletonAttributeContainer->makeTransient(ContainerSingletonAttribute::class);
+
+        $this->assertSame(
+            $singletonAttribute,
+            $singletonAttributeContainer->makeTransient(ContainerSingletonAttribute::class),
+        );
+
+        $scopedAttributeContainer = new Container;
+        $scopedAttribute = $scopedAttributeContainer->makeTransient(ContainerScopedAttribute::class);
+
+        $this->assertSame(
+            $scopedAttribute,
+            $scopedAttributeContainer->makeTransient(ContainerScopedAttribute::class),
+        );
+
+        $instanceContainer = new Container;
+        $instance = new MakeTransientStub;
+        $instanceContainer->instance(MakeTransientStub::class, $instance);
+
+        $this->assertSame($instance, $instanceContainer->makeTransient(MakeTransientStub::class));
+
+        $boundContainer = new Container;
+        $boundContainer->bind(MakeTransientStub::class);
+
+        $this->assertNotSame(
+            $boundContainer->makeTransient(MakeTransientStub::class),
+            $boundContainer->makeTransient(MakeTransientStub::class),
+        );
+    }
+
+    public function testMakeTransientOverridesDerivedExecutionScopePerCall(): void
+    {
+        $container = new Container;
+
+        $first = $container->makeTransient(ContainerExecutionScopedConsumer::class);
+        $second = $container->makeTransient(ContainerExecutionScopedConsumer::class);
+
+        $this->assertNotSame($first, $second);
+        $this->assertNotSame($first->value, $second->value);
+
+        $scoped = $container->make(ContainerExecutionScopedConsumer::class);
+
+        $this->assertNotSame($second, $scoped);
+        $this->assertSame($scoped, $container->make(ContainerExecutionScopedConsumer::class));
+    }
+
+    public function testMakeTransientHonorsLifetimeRegisteredBeforeResolution(): void
+    {
+        $container = new Container;
+        $registered = false;
+        $container->beforeResolving(
+            MakeTransientStub::class,
+            function (string $abstract, array $parameters, Container $container) use (&$registered): void {
+                if ($registered) {
+                    return;
+                }
+
+                $registered = true;
+                $container->singleton($abstract);
+            },
+        );
+
+        $shared = $container->makeTransient(MakeTransientStub::class);
+
+        $this->assertSame($shared, $container->makeTransient(MakeTransientStub::class));
+    }
+
+    public function testMakeTransientResolvesAliasesBeforeDeterminingTheLifetime(): void
+    {
+        $container = new Container;
+        $container->singleton('make-transient', fn (): MakeTransientStub => new MakeTransientStub);
+        $container->alias('make-transient', MakeTransientStub::class);
+
+        $shared = $container->make('make-transient');
+
+        $this->assertSame($shared, $container->makeTransient(MakeTransientStub::class));
+    }
+
+    public function testMakeTransientHonorsContainerHooks(): void
+    {
+        $container = new Container;
+        $callbacks = [];
+
+        $container->beforeResolving(
+            MakeTransientStub::class,
+            function () use (&$callbacks): void {
+                $callbacks[] = 'before';
+            },
+        );
+        $container->extend(MakeTransientStub::class, function (MakeTransientStub $instance): MakeTransientStub {
+            $instance->marks[] = 'extended';
+
+            return $instance;
+        });
+        $container->resolving(MakeTransientStub::class, function () use (&$callbacks): void {
+            $callbacks[] = 'resolving';
+        });
+        $container->afterResolving(MakeTransientStub::class, function () use (&$callbacks): void {
+            $callbacks[] = 'after';
+        });
+
+        $instance = $container->makeTransient(MakeTransientStub::class);
+
+        $this->assertSame(['extended'], $instance->marks);
+        $this->assertSame(['before', 'resolving', 'after'], $callbacks);
+        $this->assertTrue($container->resolved(MakeTransientStub::class));
+    }
+
+    public function testMakeTransientPreservesNestedDependencyLifetimes(): void
+    {
+        $container = new Container;
+
+        $first = $container->makeTransient(MakeTransientConsumerStub::class);
+        $second = $container->makeTransient(MakeTransientConsumerStub::class);
+
+        $this->assertNotSame($first, $second);
+        $this->assertSame($first->dependency, $second->dependency);
     }
 
     public function testTransientClassIsNotAutoSingletoned(): void
@@ -2327,6 +2498,23 @@ class AutoSingletonWithParamStub
     }
 }
 
+class MakeTransientStub
+{
+    public array $marks = [];
+}
+
+class MakeTransientDependencyStub
+{
+}
+
+class MakeTransientConsumerStub
+{
+    public function __construct(
+        public readonly MakeTransientDependencyStub $dependency,
+    ) {
+    }
+}
+
 class TransientStub implements Transient
 {
     public array $marks = [];
@@ -2400,6 +2588,11 @@ class ContainerVariadicDependencyConsumer
 
 class ContainerStateInspectionStub extends Container
 {
+    public function hasResolutionState(): bool
+    {
+        return CoroutineContext::has(self::RESOLUTION_STATE_CONTEXT_KEY);
+    }
+
     public function resolutionLimit(): int
     {
         return parent::MAX_RESOLUTION_DEPTH;
@@ -2407,11 +2600,21 @@ class ContainerStateInspectionStub extends Container
 
     public function resolvingStack(): array
     {
-        return $this->getResolvingStack();
+        return $this->getOrCreateResolutionState()->resolvingStack;
     }
 
     public function parameterOverrideStack(): array
     {
-        return $this->getParameterOverrideStack();
+        return $this->getOrCreateResolutionState()->parameterOverrides;
+    }
+
+    public function resolutionDepth(): int
+    {
+        return $this->getOrCreateResolutionState()->depth;
+    }
+
+    public function setResolutionDepth(int $depth): void
+    {
+        $this->getOrCreateResolutionState()->depth = $depth;
     }
 }

@@ -94,41 +94,55 @@ class Image implements Responsable, Stringable
     /**
      * Set the cover dimensions.
      *
-     * @param int<1, max> $width
-     * @param int<1, max> $height
+     * @param positive-int $width
+     * @param positive-int $height
+     *
+     * @throws ImageException
      */
     public function cover(int $width, int $height): static
     {
-        return $this->transform(new Cover(max(1, $width), max(1, $height)));
+        $this->ensureValidDimensions($width, $height);
+
+        return $this->transform(new Cover($width, $height));
     }
 
     /**
      * Set the contain dimensions.
      *
-     * @param int<1, max> $width
-     * @param int<1, max> $height
+     * @param positive-int $width
+     * @param positive-int $height
+     *
+     * @throws ImageException
      */
     public function contain(int $width, int $height, ?string $background = null): static
     {
-        return $this->transform(new Contain(max(1, $width), max(1, $height), $background));
+        $this->ensureValidDimensions($width, $height);
+
+        return $this->transform(new Contain($width, $height, $background));
     }
 
     /**
      * Crop the image to the given dimensions and position.
      *
-     * @param int<1, max> $width
-     * @param int<1, max> $height
+     * @param positive-int $width
+     * @param positive-int $height
+     *
+     * @throws ImageException
      */
     public function crop(int $width, int $height, int $x = 0, int $y = 0): static
     {
-        return $this->transform(new Crop(max(1, $width), max(1, $height), $x, $y));
+        $this->ensureValidDimensions($width, $height);
+
+        return $this->transform(new Crop($width, $height, $x, $y));
     }
 
     /**
      * Resize the image to the given dimensions.
      *
-     * @param null|int<1, max> $width
-     * @param null|int<1, max> $height
+     * @param null|positive-int $width
+     * @param null|positive-int $height
+     *
+     * @throws ImageException
      */
     public function resize(?int $width = null, ?int $height = null): static
     {
@@ -136,10 +150,9 @@ class Image implements Responsable, Stringable
             throw new ImageException('At least one resize dimension must be specified.');
         }
 
-        return $this->transform(new Resize(
-            $width === null ? null : max(1, $width),
-            $height === null ? null : max(1, $height),
-        ));
+        $this->ensureValidDimensions($width, $height);
+
+        return $this->transform(new Resize($width, $height));
     }
 
     /**
@@ -153,8 +166,10 @@ class Image implements Responsable, Stringable
     /**
      * Set the scale dimensions.
      *
-     * @param null|int<1, max> $width
-     * @param null|int<1, max> $height
+     * @param null|positive-int $width
+     * @param null|positive-int $height
+     *
+     * @throws ImageException
      */
     public function scale(?int $width = null, ?int $height = null): static
     {
@@ -162,10 +177,25 @@ class Image implements Responsable, Stringable
             throw new ImageException('At least one scale dimension must be specified.');
         }
 
-        return $this->transform(new Scale(
-            $width === null ? null : max(1, $width),
-            $height === null ? null : max(1, $height),
-        ));
+        $this->ensureValidDimensions($width, $height);
+
+        return $this->transform(new Scale($width, $height));
+    }
+
+    /**
+     * Ensure the image dimensions are valid.
+     *
+     * @throws ImageException
+     */
+    protected function ensureValidDimensions(?int $width, ?int $height): void
+    {
+        if ($width !== null && $width < 1) {
+            throw new ImageException('Image width must be greater than zero.');
+        }
+
+        if ($height !== null && $height < 1) {
+            throw new ImageException('Image height must be greater than zero.');
+        }
     }
 
     /**
@@ -180,10 +210,14 @@ class Image implements Responsable, Stringable
      * Apply a blur effect.
      *
      * @param int<0, 100> $amount
+     *
+     * @throws ImageException
      */
     public function blur(int $amount = 5): static
     {
-        return $this->transform(new Blur(max(0, min(100, $amount))));
+        $this->ensureValueIsBetween('blur amount', $amount, 0, 100);
+
+        return $this->transform(new Blur($amount));
     }
 
     /**
@@ -198,10 +232,14 @@ class Image implements Responsable, Stringable
      * Sharpen the image.
      *
      * @param int<0, 100> $amount
+     *
+     * @throws ImageException
      */
     public function sharpen(int $amount = 10): static
     {
-        return $this->transform(new Sharpen(max(0, min(100, $amount))));
+        $this->ensureValueIsBetween('sharpen amount', $amount, 0, 100);
+
+        return $this->transform(new Sharpen($amount));
     }
 
     /**
@@ -247,6 +285,8 @@ class Image implements Responsable, Stringable
     /**
      * Set the optimization options.
      *
+     * @param int<1, 100> $quality
+     *
      * @throws ImageException
      */
     public function optimize(string $format = 'webp', int $quality = ImageOutputOptions::DEFAULT_QUALITY): static
@@ -258,10 +298,26 @@ class Image implements Responsable, Stringable
      * Set the output quality.
      *
      * @param int<1, 100> $quality
+     *
+     * @throws ImageException
      */
     public function quality(int $quality): static
     {
-        return $this->withOutput(fn (ImageOutputOptions $output) => $output->quality = max(1, min(100, $quality)));
+        $this->ensureValueIsBetween('quality', $quality, 1, 100);
+
+        return $this->withOutput(fn (ImageOutputOptions $output) => $output->quality = $quality);
+    }
+
+    /**
+     * Ensure the value is within the given range.
+     *
+     * @throws ImageException
+     */
+    protected function ensureValueIsBetween(string $name, int $value, int $minimum, int $maximum): void
+    {
+        if ($value < $minimum || $value > $maximum) {
+            throw new ImageException("Image {$name} must be between {$minimum} and {$maximum}.");
+        }
     }
 
     /**
@@ -428,6 +484,8 @@ class Image implements Responsable, Stringable
 
     /**
      * Process the image recipe.
+     *
+     * @throws ImageException
      */
     protected function process(): string
     {
@@ -487,6 +545,8 @@ class Image implements Responsable, Stringable
      * Get the dimensions of the processed image.
      *
      * @return array{0: int, 1: int}
+     *
+     * @throws ImageException
      */
     public function dimensions(): array
     {
@@ -496,12 +556,17 @@ class Image implements Responsable, Stringable
 
         $contents = $this->toBytes();
 
-        // getimagesize() misreports HEIC's coded / padded frame size, so read HEIC via the driver...
+        // getimagesizefromstring() misreports HEIC's coded / padded frame size, so HEIC dimensions belong to the selected driver.
         if (in_array($this->mimeType(), ['image/heic', 'image/heif', 'image/x-heic'], true)) {
+            $driver = $this->resolveDriver();
+
             try {
-                return $this->dimensions = $this->resolveDriver()->dimensions($contents);
-            } catch (Exception) {
-                // The driver can't decode this image; fall back to the native reader below...
+                return $this->dimensions = $driver->dimensions($contents);
+            } catch (Exception $exception) {
+                throw new ImageException(
+                    "Unable to determine the dimensions of the image: {$exception->getMessage()}",
+                    previous: $exception,
+                );
             }
         }
 

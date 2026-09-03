@@ -45,7 +45,7 @@ class RemoveFromSearch implements ShouldQueue
         if ($this->models->isNotEmpty()) {
             /** @var Model&SearchableInterface $firstModel */
             $firstModel = $this->models->first();
-            $firstModel->searchableUsing()->delete($this->models);
+            $firstModel->searchableUsing()->runDelete($this->models);
         }
     }
 

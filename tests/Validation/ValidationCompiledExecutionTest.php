@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation\ValidationCompiledExecutionTest;
 
-use Brick\Math\Exception\NumberFormatException;
 use Closure;
 use DateTimeImmutable;
 use Hypervel\Contracts\Validation\ImplicitRule;
@@ -150,50 +149,68 @@ class ValidationCompiledExecutionTest extends TestCase
     public function testNumericSizeChecksEnforceExponentPolicyExactlyOnce(): void
     {
         foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
-            $calls = 0;
-            $validator = $this->makeValidator(
-                ['value' => '1e2'],
-                ['value' => 'max:200|numeric'],
-                validatorClass: $validatorClass,
-            );
-            $validator->ensureExponentWithinAllowedRangeUsing(
-                function (int $scale, string $attribute, string $value) use (&$calls): bool {
-                    ++$calls;
+            foreach ([true, false] as $allowed) {
+                $calls = 0;
+                $arguments = null;
+                $validator = $this->makeValidator(
+                    ['value' => '1e2'],
+                    ['value' => 'max:200|numeric'],
+                    validatorClass: $validatorClass,
+                );
+                $validator->ensureExponentWithinAllowedRangeUsing(
+                    function (int $scale, string $attribute, string $value) use (&$calls, &$arguments, $allowed): bool {
+                        ++$calls;
+                        $arguments = [$scale, $attribute, $value];
 
-                    return $scale === 2 && $attribute === 'value' && $value === '1e2';
-                },
-            );
+                        return $allowed;
+                    },
+                );
 
-            $this->assertTrue($validator->passes());
-            $this->assertSame(1, $calls);
+                $this->assertSame($allowed, $validator->passes());
+                $this->assertSame(1, $calls);
+                $this->assertSame([2, 'value', '1e2'], $arguments);
+            }
         }
     }
 
-    public function testNonFiniteNumericSizesPreserveNumberFormatExceptionWithoutWarnings(): void
+    public function testMalformedAndNonFiniteNumericSizesFailWithoutWarnings(): void
     {
-        $cases = [
-            [NAN, 'NAN'],
-            [INF, 'INF'],
-            [-INF, '-INF'],
+        $literalCases = [
+            [NAN, 'numeric|max:5'],
+            [INF, 'numeric|max:5'],
+            [-INF, 'numeric|max:5'],
         ];
 
-        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
-            foreach ($cases as [$value, $representation]) {
-                $validator = $this->makeValidator(
-                    ['value' => $value],
-                    ['value' => 'numeric|max:5'],
-                    validatorClass: $validatorClass,
-                );
+        foreach (["\x0C5", "5\x0C"] as $value) {
+            foreach (['min:3', 'max:3', 'size:3', 'between:1,5', 'gt:0', 'lt:10', 'gte:0', 'lte:10'] as $rule) {
+                $literalCases[] = [$value, 'numeric|' . $rule];
+            }
+        }
 
-                try {
-                    $validator->passes();
-                    $this->fail("{$validatorClass} did not reject {$representation}.");
-                } catch (NumberFormatException $exception) {
-                    $this->assertSame(
-                        "Value \"{$representation}\" does not represent a valid number.",
-                        $exception->getMessage(),
-                    );
-                }
+        $fieldCases = [];
+
+        foreach (['gt:other', 'lt:other', 'gte:other', 'lte:other'] as $rule) {
+            foreach (["\x0C5", "5\x0C"] as $value) {
+                $fieldCases[] = [['value' => $value, 'other' => 5], ['value' => ['numeric', $rule]]];
+                $fieldCases[] = [['value' => 5, 'other' => $value], ['value' => ['numeric', $rule]]];
+            }
+        }
+
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            foreach ($literalCases as [$value, $rule]) {
+                $this->assertFalse($this->makeValidator(
+                    ['value' => $value],
+                    ['value' => $rule],
+                    validatorClass: $validatorClass,
+                )->passes(), $validatorClass . ' accepted ' . $rule);
+            }
+
+            foreach ($fieldCases as [$data, $rules]) {
+                $this->assertFalse($this->makeValidator(
+                    $data,
+                    $rules,
+                    validatorClass: $validatorClass,
+                )->passes(), $validatorClass . ' accepted ' . $rules['value'][1]);
             }
         }
     }

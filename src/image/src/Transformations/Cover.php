@@ -9,6 +9,8 @@ use Hypervel\Contracts\Image\Transformation;
 class Cover implements Transformation
 {
     /**
+     * Create a new cover transformation.
+     *
      * @param positive-int $width
      * @param positive-int $height
      */

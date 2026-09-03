@@ -19,6 +19,8 @@ class ShutdownCallback
      */
     public function onShutdown(Server $server): void
     {
-        $this->dispatcher->dispatch(new OnShutdown($server));
+        if ($this->dispatcher->hasListeners(OnShutdown::class)) {
+            $this->dispatcher->dispatch(new OnShutdown($server));
+        }
     }
 }

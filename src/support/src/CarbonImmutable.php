@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Carbon\CarbonImmutable as BaseCarbonImmutable;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Support\Traits\DateHelpers;
 
 /**
@@ -24,7 +25,7 @@ use Hypervel\Support\Traits\DateHelpers;
  * @method static subMinutes(int|float $value = 1)
  * @method static subSeconds(int|float $value = 1)
  */
-class CarbonImmutable extends BaseCarbonImmutable
+class CarbonImmutable extends BaseCarbonImmutable implements Transient
 {
     use DateHelpers;
 

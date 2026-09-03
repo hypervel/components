@@ -30,11 +30,27 @@ class CollectionEngine extends Engine
     }
 
     /**
+     * Update the given models without observing an external index operation.
+     */
+    public function runUpdate(EloquentCollection $models): void
+    {
+        $this->update($models);
+    }
+
+    /**
      * Remove the given models from the search index.
      */
     public function delete(EloquentCollection $models): void
     {
         // No-op - data lives in the database
+    }
+
+    /**
+     * Delete the given models without observing an external index operation.
+     */
+    public function runDelete(EloquentCollection $models): void
+    {
+        $this->delete($models);
     }
 
     /**
@@ -273,6 +289,14 @@ class CollectionEngine extends Engine
     public function flush(Model $model): void
     {
         // No-op - data lives in the database
+    }
+
+    /**
+     * Flush the given model without observing an external index operation.
+     */
+    public function runFlush(Model $model): void
+    {
+        $this->flush($model);
     }
 
     /**

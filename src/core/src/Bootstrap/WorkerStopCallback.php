@@ -19,6 +19,8 @@ class WorkerStopCallback
      */
     public function onWorkerStop(Server $server, int $workerId): void
     {
-        $this->dispatcher->dispatch(new OnWorkerStop($server, $workerId));
+        if ($this->dispatcher->hasListeners(OnWorkerStop::class)) {
+            $this->dispatcher->dispatch(new OnWorkerStop($server, $workerId));
+        }
     }
 }

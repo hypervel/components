@@ -18,7 +18,9 @@ use Hypervel\View\Factory;
 use Hypervel\View\View;
 use Hypervel\View\ViewFinderInterface;
 use Mockery as m;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class ViewTest extends TestCase
 {
@@ -40,6 +42,7 @@ class ViewTest extends TestCase
         $view->getFactory()->shouldReceive('incrementRender')->once()->ordered();
         $view->getFactory()->shouldReceive('callComposer')->once()->ordered()->with($view);
         $view->getFactory()->shouldReceive('notifyRendering')->once()->ordered()->with($view);
+        $view->getFactory()->shouldNotReceive('notifyRendered');
         $view->getFactory()->shouldReceive('mergeSharedData')->once()->with(['foo' => 'bar'])->andReturn(['foo' => 'bar', 'shared' => 'foo']);
         $view->getEngine()->shouldReceive('get')->once()->with('path', ['foo' => 'bar', 'shared' => 'foo'])->andReturn('contents');
         $view->getFactory()->shouldReceive('decrementRender')->once()->ordered();
@@ -341,10 +344,337 @@ class ViewTest extends TestCase
         $this->assertSame(['first', 'second'], $order);
     }
 
+    public function testRenderedObserverRunsAfterEngineAtTheSameRenderDepth(): void
+    {
+        $factory = new Factory(
+            m::mock(EngineResolver::class),
+            m::mock(ViewFinderInterface::class),
+            $events = m::mock(Dispatcher::class),
+        );
+
+        $order = [];
+        $observedView = null;
+        $observedException = null;
+        $factory->observeRendering(function () use (&$order): void {
+            $order[] = 'rendering';
+        });
+        $factory->observeRendered(function ($view, $exception) use ($factory, &$order, &$observedView, &$observedException): void {
+            $order[] = 'rendered';
+            $observedView = $view;
+            $observedException = $exception;
+
+            $this->assertFalse($factory->doneRendering());
+        });
+
+        $engine = m::mock(Engine::class);
+        $engine->shouldReceive('get')->once()->andReturnUsing(function () use (&$order): string {
+            $order[] = 'engine';
+
+            return 'contents';
+        });
+        $events->shouldReceive('hasListeners')->andReturnFalse();
+
+        $view = new View($factory, $engine, 'test', 'path');
+
+        $this->assertSame('contents', $view->render());
+        $this->assertSame(['rendering', 'engine', 'rendered'], $order);
+        $this->assertSame($view, $observedView);
+        $this->assertNull($observedException);
+        $this->assertTrue($factory->doneRendering());
+    }
+
+    public function testRenderSectionsUsesCompletionObservers(): void
+    {
+        $factory = new Factory(
+            m::mock(EngineResolver::class),
+            m::mock(ViewFinderInterface::class),
+            $events = m::mock(Dispatcher::class),
+        );
+
+        $order = [];
+        $factory->observeRendering(function () use (&$order): void {
+            $order[] = 'rendering';
+        });
+        $factory->observeRendered(function (View $view, ?Throwable $exception) use (&$order): void {
+            $order[] = 'rendered';
+
+            $this->assertSame('test', $view->name());
+            $this->assertNull($exception);
+        });
+
+        $engine = m::mock(Engine::class);
+        $engine->shouldReceive('get')->once()->andReturnUsing(function () use (&$order): string {
+            $order[] = 'engine';
+
+            return 'contents';
+        });
+        $events->shouldReceive('hasListeners')->andReturnFalse();
+
+        $this->assertSame([], (new View($factory, $engine, 'test', 'path'))->renderSections());
+        $this->assertSame(['rendering', 'engine', 'rendered'], $order);
+    }
+
+    public function testRenderingFailureRemainsPrimaryAfterEveryRenderedObserverRuns(): void
+    {
+        $renderingException = new RuntimeException('rendering failed');
+        $completionException = new RuntimeException('completion failed');
+        $factory = new Factory(
+            m::mock(EngineResolver::class),
+            m::mock(ViewFinderInterface::class),
+            $events = m::mock(Dispatcher::class),
+        );
+
+        $order = [];
+        $factory->observeRendering(function () use ($renderingException): never {
+            throw $renderingException;
+        });
+        $factory->observeRendered(function (View $view, ?Throwable $exception) use ($renderingException, $completionException, &$order): never {
+            $order[] = 'first';
+            $this->assertSame($renderingException, $exception);
+
+            throw $completionException;
+        });
+        $factory->observeRendered(function (View $view, ?Throwable $exception) use ($renderingException, &$order): void {
+            $order[] = 'second';
+            $this->assertSame($renderingException, $exception);
+        });
+
+        $engine = m::mock(Engine::class);
+        $engine->shouldNotReceive('get');
+        $events->shouldReceive('hasListeners')->andReturnFalse();
+
+        try {
+            (new View($factory, $engine, 'test', 'path'))->render();
+            $this->fail('Expected rendering to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($renderingException, $exception);
+        }
+
+        $this->assertSame(['first', 'second'], $order);
+        $this->assertTrue($factory->doneRendering());
+    }
+
+    public function testEngineFailureIsPassedToRenderedObservers(): void
+    {
+        $renderingException = new RuntimeException('engine failed');
+        $factory = new Factory(
+            m::mock(EngineResolver::class),
+            m::mock(ViewFinderInterface::class),
+            $events = m::mock(Dispatcher::class),
+        );
+
+        $observedException = null;
+        $factory->observeRendered(function (View $view, ?Throwable $exception) use (&$observedException): void {
+            $observedException = $exception;
+        });
+
+        $engine = m::mock(Engine::class);
+        $engine->shouldReceive('get')->once()->andThrow($renderingException);
+        $events->shouldReceive('hasListeners')->andReturnFalse();
+
+        try {
+            (new View($factory, $engine, 'test', 'path'))->render();
+            $this->fail('Expected rendering to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($renderingException, $exception);
+        }
+
+        $this->assertSame($renderingException, $observedException);
+    }
+
+    public function testFirstRenderedObserverFailureIsThrownAfterEveryObserverRuns(): void
+    {
+        $firstException = new RuntimeException('first completion failed');
+        $factory = new Factory(
+            m::mock(EngineResolver::class),
+            m::mock(ViewFinderInterface::class),
+            $events = m::mock(Dispatcher::class),
+        );
+
+        $order = [];
+        $factory->observeRendered(function () use ($firstException, &$order): never {
+            $order[] = 'first';
+
+            throw $firstException;
+        });
+        $factory->observeRendered(function () use (&$order): never {
+            $order[] = 'second';
+
+            throw new RuntimeException('second completion failed');
+        });
+        $factory->observeRendered(function () use (&$order): void {
+            $order[] = 'third';
+        });
+
+        $engine = m::mock(Engine::class);
+        $engine->shouldReceive('get')->once()->andReturn('contents');
+        $events->shouldReceive('hasListeners')->andReturnFalse();
+
+        try {
+            (new View($factory, $engine, 'test', 'path'))->render();
+            $this->fail('Expected a completion observer to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($firstException, $exception);
+        }
+
+        $this->assertSame(['first', 'second', 'third'], $order);
+    }
+
+    public function testPreRenderCancellationSkipsCompletionObserversAndClearsState(): void
+    {
+        $cancellation = new CanceledException;
+        $factory = new Factory(
+            m::mock(EngineResolver::class),
+            m::mock(ViewFinderInterface::class),
+            $events = m::mock(Dispatcher::class),
+        );
+
+        $factory->inject('content', 'value');
+        $factory->startPush('scripts', 'script');
+        $factory->observeRendering(function () use ($cancellation): never {
+            throw $cancellation;
+        });
+        $factory->observeRendered(function (): void {
+            $this->fail('Completion observers must not run after cancellation.');
+        });
+
+        $engine = m::mock(Engine::class);
+        $engine->shouldNotReceive('get');
+        $events->shouldReceive('hasListeners')->andReturnFalse();
+
+        try {
+            (new View($factory, $engine, 'test', 'path'))->render();
+            $this->fail('Expected rendering to be cancelled.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertFalse($factory->hasSection('content'));
+        $this->assertSame('', $factory->yieldPushContent('scripts'));
+        $this->assertTrue($factory->doneRendering());
+    }
+
+    public function testRenderSectionsEngineCancellationSkipsCompletionObservers(): void
+    {
+        $cancellation = new CanceledException;
+        $factory = new Factory(
+            m::mock(EngineResolver::class),
+            m::mock(ViewFinderInterface::class),
+            $events = m::mock(Dispatcher::class),
+        );
+
+        $factory->observeRendered(function (): void {
+            $this->fail('Completion observers must not run after cancellation.');
+        });
+
+        $engine = m::mock(Engine::class);
+        $engine->shouldReceive('get')->once()->andThrow($cancellation);
+        $events->shouldReceive('hasListeners')->andReturnFalse();
+
+        try {
+            (new View($factory, $engine, 'test', 'path'))->renderSections();
+            $this->fail('Expected rendering to be cancelled.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertTrue($factory->doneRendering());
+    }
+
+    public function testRenderedObserverCancellationStopsRemainingObservers(): void
+    {
+        $cancellation = new CanceledException;
+        $factory = new Factory(
+            m::mock(EngineResolver::class),
+            m::mock(ViewFinderInterface::class),
+            $events = m::mock(Dispatcher::class),
+        );
+
+        $order = [];
+        $factory->observeRendered(function () use ($cancellation, &$order): never {
+            $order[] = 'first';
+
+            throw $cancellation;
+        });
+        $factory->observeRendered(function () use (&$order): void {
+            $order[] = 'second';
+        });
+
+        $engine = m::mock(Engine::class);
+        $engine->shouldReceive('get')->once()->andReturn('contents');
+        $events->shouldReceive('hasListeners')->andReturnFalse();
+
+        try {
+            (new View($factory, $engine, 'test', 'path'))->render();
+            $this->fail('Expected completion to be cancelled.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame(['first'], $order);
+    }
+
+    public function testRenderedObserverCancellationSupersedesRenderingFailure(): void
+    {
+        $renderingException = new RuntimeException('rendering failed');
+        $cancellation = new CanceledException;
+        $factory = new Factory(
+            m::mock(EngineResolver::class),
+            m::mock(ViewFinderInterface::class),
+            $events = m::mock(Dispatcher::class),
+        );
+
+        $factory->observeRendering(function () use ($renderingException): never {
+            throw $renderingException;
+        });
+        $factory->observeRendered(function (View $view, ?Throwable $exception) use ($renderingException, $cancellation): never {
+            $this->assertSame($renderingException, $exception);
+
+            throw $cancellation;
+        });
+
+        $engine = m::mock(Engine::class);
+        $engine->shouldNotReceive('get');
+        $events->shouldReceive('hasListeners')->andReturnFalse();
+
+        try {
+            (new View($factory, $engine, 'test', 'path'))->render();
+            $this->fail('Expected completion to be cancelled.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testRenderedObserversAreNotClearedByFlushState(): void
+    {
+        $factory = new Factory(
+            m::mock(EngineResolver::class),
+            m::mock(ViewFinderInterface::class),
+            $events = m::mock(Dispatcher::class),
+        );
+
+        $observerCalled = false;
+        $factory->observeRendered(function () use (&$observerCalled): void {
+            $observerCalled = true;
+        });
+        $factory->flushState();
+
+        $engine = m::mock(Engine::class);
+        $engine->shouldReceive('get')->once()->andReturn('contents');
+        $events->shouldReceive('hasListeners')->andReturnFalse();
+
+        (new View($factory, $engine, 'test', 'path'))->render();
+
+        $this->assertTrue($observerCalled);
+    }
+
     protected function getView(mixed $data = []): View
     {
+        $factory = m::mock(Factory::class);
+        $factory->shouldReceive('hasRenderedObservers')->andReturnFalse()->byDefault();
+
         return new View(
-            m::mock(Factory::class),
+            $factory,
             m::mock(Engine::class),
             'view',
             'path',

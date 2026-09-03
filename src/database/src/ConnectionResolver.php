@@ -10,6 +10,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolFactory;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -134,8 +135,12 @@ class ConnectionResolver implements ConnectionResolverInterface
 
             try {
                 $pooledConnection->discard();
+            } catch (CanceledException $cancellation) {
+                if (! $exception instanceof CanceledException) {
+                    throw $cancellation;
+                }
             } catch (Throwable) {
-                // Preserve the connection-creation or publication failure.
+                // Preserve the connection setup failure.
             }
 
             throw $exception;
@@ -228,7 +233,11 @@ class ConnectionResolver implements ConnectionResolverInterface
             try {
                 $terminate($connection);
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                if ($exception === null
+                    || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)
+                ) {
+                    $exception = $throwable;
+                }
             }
         }
 

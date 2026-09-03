@@ -489,6 +489,16 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
     }
 
     /**
+     * Update the given models without observing an external index operation.
+     *
+     * @param EloquentCollection<int, Model> $models
+     */
+    public function runUpdate(EloquentCollection $models): void
+    {
+        $this->update($models);
+    }
+
+    /**
      * Remove the given models from the search index.
      *
      * The database engine doesn't need to remove from an external index.
@@ -501,11 +511,29 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
     }
 
     /**
+     * Delete the given models without observing an external index operation.
+     *
+     * @param EloquentCollection<int, Model> $models
+     */
+    public function runDelete(EloquentCollection $models): void
+    {
+        $this->delete($models);
+    }
+
+    /**
      * Flush all of the model's records from the engine.
      */
     public function flush(Model $model): void
     {
         // No-op: The database is the index.
+    }
+
+    /**
+     * Flush the given model without observing an external index operation.
+     */
+    public function runFlush(Model $model): void
+    {
+        $this->flush($model);
     }
 
     /**

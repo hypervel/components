@@ -306,6 +306,22 @@ final class StreamState
     }
 
     /**
+     * Return the final status without waiting.
+     */
+    public function finalStatus(): ?Status
+    {
+        return $this->status;
+    }
+
+    /**
+     * Return the final transport or protocol failure without waiting.
+     */
+    public function finalFailure(): ?Throwable
+    {
+        return $this->failure;
+    }
+
+    /**
      * Wait for and remove the next serialized response message.
      */
     public function nextMessage(): ?string

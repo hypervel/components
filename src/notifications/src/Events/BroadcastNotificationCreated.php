@@ -12,6 +12,7 @@ use Hypervel\Notifications\Notification;
 use Hypervel\Queue\SerializesModels;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use LogicException;
 
 class BroadcastNotificationCreated implements ShouldBroadcast
 {
@@ -60,11 +61,19 @@ class BroadcastNotificationCreated implements ShouldBroadcast
 
     /**
      * Get the broadcast channel name for the event.
+     *
+     * @throws LogicException
      */
     protected function channelName(): array|string
     {
         if (method_exists($this->notifiable, 'receivesBroadcastNotificationsOn')) {
             return $this->notifiable->receivesBroadcastNotificationsOn($this->notification);
+        }
+
+        if ($this->notifiable instanceof AnonymousNotifiable) {
+            throw new LogicException(
+                'Anonymous notifiables must define an explicit broadcast route or the notification must define a broadcast channel.'
+            );
         }
 
         $class = str_replace('\\', '.', get_class($this->notifiable));

@@ -9,6 +9,7 @@ use Hypervel\Console\Attributes\Aliases;
 use Hypervel\Console\Attributes\Signature;
 use Hypervel\Console\Command;
 use Hypervel\Console\ContainerCommandLoader;
+use Hypervel\Console\Events\ArtisanStarting;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Testbench\TestCase;
@@ -571,7 +572,9 @@ class ConsoleApplicationResolveTest extends TestCase
     private function getMockConsole(array $methods): ConsoleApplication
     {
         $app = m::mock(Application::class, ['version' => '1.0']);
-        $events = m::mock(Dispatcher::class, ['dispatch' => null]);
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(ArtisanStarting::class)->andReturnFalse();
+        $events->shouldNotReceive('dispatch');
 
         return $this->getMockBuilder(ConsoleApplication::class)
             ->onlyMethods($methods)

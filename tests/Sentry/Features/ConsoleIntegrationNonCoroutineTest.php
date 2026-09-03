@@ -26,7 +26,7 @@ class ConsoleIntegrationNonCoroutineTest extends SentryTestCase
         $this->dispatchHypervelEvent(new BeforeHandle($command, $input));
         $this->assertNotSame($scope, $this->getCurrentSentryScope());
 
-        $this->dispatchHypervelEvent(new AfterExecute($command, input: $input, exitCode: 0));
+        $this->dispatchHypervelEvent(new AfterExecute($command, null, $input, 0));
         $this->assertSame($scope, $this->getCurrentSentryScope());
     }
 
@@ -44,11 +44,11 @@ class ConsoleIntegrationNonCoroutineTest extends SentryTestCase
         $outerScope = $this->getCurrentSentryScope();
 
         $this->dispatchHypervelEvent(new BeforeHandle($inner, $input));
-        $this->dispatchHypervelEvent(new AfterExecute($inner, input: $input, exitCode: 0));
+        $this->dispatchHypervelEvent(new AfterExecute($inner, null, $input, 0));
 
         $this->assertSame($outerScope, $this->getCurrentSentryScope());
 
-        $this->dispatchHypervelEvent(new AfterExecute($outer, input: $input, exitCode: 0));
+        $this->dispatchHypervelEvent(new AfterExecute($outer, null, $input, 0));
         $this->assertSame($baselineScope, $this->getCurrentSentryScope());
     }
 }

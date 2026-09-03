@@ -25,6 +25,7 @@ class PackageMetadataTest extends TestCase
 
         foreach ([
             'dragonmantank/cron-expression',
+            'ext-filter',
             'ext-mbstring',
             'ext-pcntl',
             'ext-posix',

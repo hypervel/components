@@ -33,6 +33,7 @@ use SortDirection;
 use stdClass;
 use Symfony\Component\VarDumper\VarDumper;
 use Throwable;
+use TypeError;
 use UnexpectedValueException;
 use WeakMap;
 
@@ -208,6 +209,26 @@ class SupportCollectionTest extends TestCase
         ]);
 
         $this->assertTrue($data->hasMany->verified);
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testEmptyFilterStringIsRejectedLikeAnyOtherNonCallableString($collection): void
+    {
+        foreach (['sole', 'hasSole', 'hasMany', 'firstOrFail'] as $method) {
+            $thrown = null;
+
+            try {
+                (new $collection([true, false]))->{$method}('');
+            } catch (TypeError $exception) {
+                $thrown = $exception;
+            }
+
+            $this->assertInstanceOf(
+                TypeError::class,
+                $thrown,
+                "Expected {$collection}::{$method}() to reject an empty filter string."
+            );
+        }
     }
 
     #[DataProvider('collectionClassProvider')]

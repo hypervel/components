@@ -8,6 +8,7 @@ use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Console\Command;
 use Hypervel\Console\Scheduling\CacheEventMutex;
 use Hypervel\Console\Scheduling\CacheSchedulingMutex;
+use Hypervel\Contracts\Console\Application as ConsoleApplicationContract;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
@@ -181,6 +182,61 @@ class KernelTest extends TestCase
 
         $this->assertSame('scheduling', $this->app->make(CacheEventMutex::class)->store);
         $this->assertSame('scheduling', $this->app->make(CacheSchedulingMutex::class)->store);
+    }
+
+    public function testSetArtisanSynchronizesTheKernelAndContainerBeforeReboundCallbacks(): void
+    {
+        $kernel = $this->app->make(KernelContract::class);
+        $kernel->getArtisan();
+        $reboundApplication = null;
+
+        $this->app->rebinding(ConsoleApplicationContract::class, function () use ($kernel, &$reboundApplication): void {
+            $reboundApplication = $kernel->getArtisan();
+        });
+
+        $replacement = new ConsoleApplication($this->app, $this->app->make('events'), $this->app->version());
+        $kernel->setArtisan($replacement);
+
+        $this->assertSame($replacement, $kernel->getArtisan());
+        $this->assertSame($replacement, $this->app->make(ConsoleApplicationContract::class));
+        $this->assertSame($replacement, $reboundApplication);
+    }
+
+    public function testClearingArtisanPreservesTheBindingAndLazilyBuildsAFreshApplication(): void
+    {
+        $kernel = $this->app->make(KernelContract::class);
+        $first = $this->app->make(ConsoleApplicationContract::class);
+        $resolvedFreshApplication = false;
+
+        $this->app->resolving(ConsoleApplicationContract::class, function () use (&$resolvedFreshApplication): void {
+            $resolvedFreshApplication = true;
+        });
+
+        $kernel->setArtisan(null);
+
+        $this->assertFalse($resolvedFreshApplication);
+        $this->assertTrue($this->app->resolved(ConsoleApplicationContract::class));
+
+        $fresh = $this->app->make(ConsoleApplicationContract::class);
+
+        $this->assertTrue($resolvedFreshApplication);
+        $this->assertNotSame($first, $fresh);
+        $this->assertSame($fresh, $kernel->getArtisan());
+    }
+
+    public function testClearingDirectlyConstructedArtisanLetsTheNextAccessRebuildIt(): void
+    {
+        $kernel = $this->app->make(KernelContract::class);
+        $first = $kernel->getArtisan();
+
+        $kernel->setArtisan(null);
+
+        $this->assertFalse($this->app->resolved(ConsoleApplicationContract::class));
+
+        $fresh = $kernel->getArtisan();
+
+        $this->assertNotSame($first, $fresh);
+        $this->assertSame($fresh, $this->app->make(ConsoleApplicationContract::class));
     }
 
     public function testReportExceptionDelegatesToExceptionHandler()

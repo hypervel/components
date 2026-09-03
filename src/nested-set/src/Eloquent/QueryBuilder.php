@@ -75,7 +75,7 @@ class QueryBuilder extends EloquentBuilder
 
         if ($id instanceof Model) {
             $model = $id;
-            $this->assertUsableNodeForPositionalQuery($model);
+            $this->ensureUsableNodeForPositionalQuery($model);
             $value = '?';
             $bindings = [$id->getRgt()]; /* @phpstan-ignore method.notFound */
         } else {
@@ -180,7 +180,7 @@ class QueryBuilder extends EloquentBuilder
     {
         $this->query->whereNested(function (BaseQueryBuilder $inner) use ($id, $andSelf, $not) {
             if ($id instanceof Model) {
-                $this->assertUsableNodeForPositionalQuery($id);
+                $this->ensureUsableNodeForPositionalQuery($id);
                 $id->applyNestedSetScope($inner); /* @phpstan-ignore method.notFound */
                 $data = $id->getBounds(); /* @phpstan-ignore method.notFound */
             } else {
@@ -263,7 +263,7 @@ class QueryBuilder extends EloquentBuilder
 
         if ($id instanceof Model) {
             $model = $id;
-            $this->assertUsableNodeForPositionalQuery($model);
+            $this->ensureUsableNodeForPositionalQuery($model);
             $value = '?';
             $bindings = [$id->getLft()]; /* @phpstan-ignore method.notFound */
         } else {
@@ -982,9 +982,9 @@ class QueryBuilder extends EloquentBuilder
     }
 
     /**
-     * Assert that a node can supply coordinates to this query.
+     * Ensure that a node can supply coordinates to this query.
      */
-    protected function assertUsableNodeForPositionalQuery(Model $node): void
+    protected function ensureUsableNodeForPositionalQuery(Model $node): void
     {
         if (! NestedSet::isNode($node)) {
             throw new InvalidArgumentException(sprintf(

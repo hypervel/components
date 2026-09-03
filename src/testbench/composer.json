@@ -27,7 +27,7 @@
         "composer/semver": "^3.4",
         "composer-runtime-api": "^2.2",
         "ext-posix": "*",
-        "mockery/mockery": "1.6.x-dev",
+        "mockery/mockery": "^1.6.15",
         "phpunit/phpunit": "^13.0.3",
         "symfony/console": "^8.1",
         "symfony/yaml": "^8.1",

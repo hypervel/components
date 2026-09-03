@@ -16,11 +16,6 @@ class PipelineServiceProvider extends ServiceProvider
     {
         $this->app->singleton(PipelineHubContract::class, Hub::class);
 
-        $pipelineFactory = fn ($app) => new Pipeline($app);
-
-        // Pipeline is a mutable per-operation builder, so the concrete must not
-        // fall through to the container's worker-lifetime auto-singleton cache.
-        $this->app->bind(Pipeline::class, $pipelineFactory);
-        $this->app->bind('pipeline', $pipelineFactory);
+        $this->app->bind('pipeline', fn ($app) => new Pipeline($app));
     }
 }

@@ -9,6 +9,7 @@ use DateTimeInterface;
 use Hypervel\Bus\UniqueJobPayloadContext;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\WorkerArrayStore;
+use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container as ContainerContract;
@@ -40,6 +41,63 @@ class UniqueJobPayloadContextTest extends TestCase
             'laravel_unique_job_key' => 'laravel_unique_job:' . UniqueJobPayloadContextJob::class . ':registered',
         ], UniqueJobPayloadContext::consume($registered));
         $this->assertNull(UniqueJobPayloadContext::consume($registered));
+    }
+
+    #[DataProvider('uniqueCacheStores')]
+    public function testRegistrationPreservesNullableCacheStoreSelection(string $kind, ?string $expectedStore): void
+    {
+        $container = new Container;
+        $container->instance('config', new ConfigRepository([
+            'cache' => ['default' => 'default'],
+        ]));
+        $container->instance(EventDispatcher::class, new EventsDispatcher($container));
+        Container::setInstance($container);
+
+        $queue = new UniqueJobPayloadSyncQueue;
+        $queue->setContainer($container);
+        $queue->setConnectionName('test');
+
+        $job = match ($kind) {
+            'no method' => new UniqueJobPayloadContextDefaultCacheJob($kind),
+            'null' => new UniqueJobPayloadContextNullableCacheJob($kind, null),
+            'named' => new UniqueJobPayloadContextNullableCacheJob(
+                $kind,
+                new Repository(new WorkerArrayStore, ['store' => 'unique']),
+            ),
+            'unnamed' => new UniqueJobPayloadContextNullableCacheJob(
+                $kind,
+                new Repository(new WorkerArrayStore),
+            ),
+        };
+
+        $metadata = null;
+        SyncQueue::createPayloadUsing(function () use (&$metadata): array {
+            $metadata = ContextRepository::getInstance()->allHidden();
+
+            return [];
+        });
+
+        UniqueJobPayloadContext::register($job);
+        $queue->push($job);
+
+        $this->assertSame([
+            'laravel_unique_job_cache_store' => $expectedStore,
+            'laravel_unique_job_key' => 'laravel_unique_job:' . get_class($job) . ':' . $kind,
+        ], $metadata);
+
+        if ($job instanceof UniqueJobPayloadContextNullableCacheJob) {
+            $this->assertSame(1, $job->uniqueViaCalls);
+        }
+    }
+
+    public static function uniqueCacheStores(): array
+    {
+        return [
+            'job without uniqueVia' => ['no method', 'default'],
+            'null repository' => ['null', 'default'],
+            'named repository' => ['named', 'unique'],
+            'unnamed repository' => ['unnamed', null],
+        ];
     }
 
     public function testRegistrationDoesNotRetainTheJob(): void
@@ -127,6 +185,42 @@ class UniqueJobPayloadContextJob implements ShouldBeUnique
     public function uniqueVia(): Repository
     {
         return new Repository(new WorkerArrayStore, ['store' => 'unique']);
+    }
+}
+
+class UniqueJobPayloadContextDefaultCacheJob implements ShouldBeUnique
+{
+    public function __construct(
+        public string $id
+    ) {
+    }
+
+    public function uniqueId(): string
+    {
+        return $this->id;
+    }
+}
+
+class UniqueJobPayloadContextNullableCacheJob implements ShouldBeUnique
+{
+    public int $uniqueViaCalls = 0;
+
+    public function __construct(
+        public string $id,
+        private ?Repository $cache,
+    ) {
+    }
+
+    public function uniqueId(): string
+    {
+        return $this->id;
+    }
+
+    public function uniqueVia(): ?Repository
+    {
+        ++$this->uniqueViaCalls;
+
+        return $this->cache;
     }
 }
 

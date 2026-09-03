@@ -38,5 +38,9 @@
         -->
         <env name="COLUMNS" value="80" force="true"/>
         <env name="LINES" value="24" force="true"/>
+        <!-- Prevent unrelated Testbench subprocesses from exporting telemetry. Not forced, so jobs can opt in. -->
+        <env name="OTEL_TRACES_EXPORTER" value="none"/>
+        <env name="OTEL_METRICS_EXPORTER" value="none"/>
+        <env name="OTEL_LOGS_EXPORTER" value="none"/>
     </php>
 </phpunit>

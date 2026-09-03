@@ -9,6 +9,7 @@ use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
@@ -24,8 +25,6 @@ use Hypervel\Telescope\Contracts\TerminableRepository;
 use Hypervel\Telescope\Jobs\ProcessPendingUpdates;
 use RuntimeException;
 use Throwable;
-
-use function event;
 
 class Telescope
 {
@@ -48,17 +47,11 @@ class Telescope
 
     public const string REDACTED_VALUE = '********';
 
-    public const string ENTRIES_QUEUE_CONTEXT_KEY = '__telescope.entries_queue';
-
-    public const string UPDATES_QUEUE_CONTEXT_KEY = '__telescope.updates_queue';
-
     public const string SHOULD_RECORD_CONTEXT_KEY = '__telescope.should_record';
 
-    public const string IS_RECORDING_CONTEXT_KEY = '__telescope.is_recording';
-
-    public const string HAS_STORED_CONTEXT_KEY = '__telescope.has_stored';
-
     public const string BATCH_ID_CONTEXT_KEY = '__telescope.batch_id';
+
+    protected const string RECORDING_STATE_CONTEXT_KEY = '__telescope.recording_state';
 
     protected const string CSP_NONCE_CONTEXT_KEY = '__telescope.csp_nonce';
 
@@ -271,20 +264,22 @@ class Telescope
             return;
         }
 
-        if (CoroutineContext::get(static::IS_RECORDING_CONTEXT_KEY, false)) {
+        $state = static::getOrCreateRecordingState();
+
+        if ($state->processingEntry) {
             return;
         }
 
         if (Coroutine::inCoroutine()
-            && ! CoroutineContext::get(static::HAS_STORED_CONTEXT_KEY, false)
+            && ! $state->storeScheduled
         ) {
             Coroutine::defer(function () {
                 static::store(static::$store);
             });
-            CoroutineContext::set(static::HAS_STORED_CONTEXT_KEY, true);
+            $state->storeScheduled = true;
         }
 
-        CoroutineContext::set(static::IS_RECORDING_CONTEXT_KEY, true);
+        $state->processingEntry = true;
 
         try {
             try {
@@ -299,11 +294,9 @@ class Telescope
                 return $tagCallback($entry);
             }, static::$tagUsing)));
 
-            static::withoutRecording(function () use ($entry) {
+            static::withoutRecording(function () use ($entry, $state) {
                 if (Collection::make(static::$filterUsing)->every->__invoke($entry)) {
-                    CoroutineContext::override(static::ENTRIES_QUEUE_CONTEXT_KEY, function ($entries) use ($entry) {
-                        return array_merge($entries ?? [], [$entry]);
-                    });
+                    $state->entries[] = $entry;
                 }
 
                 if (static::$afterRecordingHook) {
@@ -311,7 +304,7 @@ class Telescope
                 }
             });
         } finally {
-            CoroutineContext::set(static::IS_RECORDING_CONTEXT_KEY, false);
+            $state->processingEntry = false;
         }
     }
 
@@ -320,7 +313,9 @@ class Telescope
      */
     public static function getEntriesQueue(): array
     {
-        return CoroutineContext::get(static::ENTRIES_QUEUE_CONTEXT_KEY, []);
+        $state = static::getRecordingState();
+
+        return $state ? $state->entries : [];
     }
 
     /**
@@ -328,7 +323,35 @@ class Telescope
      */
     public static function getUpdatesQueue(): array
     {
-        return CoroutineContext::get(static::UPDATES_QUEUE_CONTEXT_KEY, []);
+        $state = static::getRecordingState();
+
+        return $state ? $state->updates : [];
+    }
+
+    /**
+     * Get the current recording state.
+     */
+    protected static function getRecordingState(): ?RecordingState
+    {
+        /** @var null|RecordingState $state */
+        $state = CoroutineContext::get(static::RECORDING_STATE_CONTEXT_KEY);
+
+        return $state;
+    }
+
+    /**
+     * Get or create the current recording state.
+     */
+    protected static function getOrCreateRecordingState(): RecordingState
+    {
+        if (($state = static::getRecordingState()) !== null) {
+            return $state;
+        }
+
+        $state = new RecordingState;
+        CoroutineContext::set(static::RECORDING_STATE_CONTEXT_KEY, $state);
+
+        return $state;
     }
 
     /**
@@ -340,9 +363,7 @@ class Telescope
             return;
         }
 
-        CoroutineContext::override(static::UPDATES_QUEUE_CONTEXT_KEY, function ($updates) use ($update) {
-            return array_merge($updates ?? [], [$update]);
-        });
+        static::getOrCreateRecordingState()->updates[] = $update;
     }
 
     /**
@@ -502,7 +523,9 @@ class Telescope
      */
     public static function flushEntries(): static
     {
-        CoroutineContext::set(static::ENTRIES_QUEUE_CONTEXT_KEY, []);
+        if (($state = static::getRecordingState()) !== null) {
+            $state->entries = [];
+        }
 
         return new static;
     }
@@ -512,7 +535,9 @@ class Telescope
      */
     public static function flushUpdates(): static
     {
-        CoroutineContext::set(static::UPDATES_QUEUE_CONTEXT_KEY, []);
+        if (($state = static::getRecordingState()) !== null) {
+            $state->updates = [];
+        }
 
         return new static;
     }
@@ -522,10 +547,15 @@ class Telescope
      */
     public static function catch(Throwable $e, array $tags = []): void
     {
-        event(new MessageLogged('error', $e->getMessage(), [
-            'exception' => $e,
-            'telescope' => $tags,
-        ]));
+        /** @var Dispatcher $events */
+        $events = Container::getInstance()->make('events');
+
+        if ($events->hasListeners(MessageLogged::class)) {
+            $events->dispatch(new MessageLogged('error', $e->getMessage(), [
+                'exception' => $e,
+                'telescope' => $tags,
+            ]));
+        }
     }
 
     /**

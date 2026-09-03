@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Compilers;
 
-use ErrorException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
@@ -37,8 +36,6 @@ abstract class Compiler
 
     /**
      * Determine if the view at the given path is expired.
-     *
-     * @throws ErrorException
      */
     public function isExpired(string $path): bool
     {
@@ -59,16 +56,15 @@ abstract class Compiler
             return false;
         }
 
-        try {
-            return $this->files->lastModified($path) >= $this->files->lastModified($compiled);
-        } catch (ErrorException $exception) {
-            // The compiled file might have been deleted between the initial check and lastModified() call
-            if (! $this->files->exists($compiled)) {
-                return true;
-            }
+        $sourceModified = $this->files->lastModified($path);
 
-            throw $exception;
+        if ($sourceModified === false) {
+            return true;
         }
+
+        $compiledModified = $this->files->lastModified($compiled);
+
+        return $compiledModified === false || $sourceModified >= $compiledModified;
     }
 
     /**

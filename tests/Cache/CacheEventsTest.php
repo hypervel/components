@@ -24,7 +24,10 @@ use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
+use Hypervel\Cache\NamespacedTaggedCache;
 use Hypervel\Cache\Repository;
+use Hypervel\Cache\VersionedTagSet;
+use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Tests\TestCase;
@@ -35,6 +38,69 @@ use Swoole\Coroutine\CanceledException;
 
 class CacheEventsTest extends TestCase
 {
+    public function testRepositorySkipsEventDispatchSeamWithoutListenersAndEntersItWithListeners(): void
+    {
+        $repository = new class(new ArrayStore, ['store' => 'array']) extends Repository {
+            public int $eventCalls = 0;
+
+            protected function event(object $event): void
+            {
+                ++$this->eventCalls;
+
+                parent::event($event);
+            }
+        };
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('hasListeners')->withAnyArgs()->andReturnFalse();
+        $dispatcher->shouldNotReceive('dispatch');
+        $repository->setEventDispatcher($dispatcher);
+
+        $this->assertNull($repository->get('missing'));
+        $this->assertTrue($repository->put('key', 'value', 60));
+        $this->assertTrue($repository->putMany(['one' => 1, 'two' => 2], 60));
+        $this->assertTrue($repository->clear());
+        $this->assertSame(0, $repository->eventCalls);
+
+        $dispatcher = $this->getDispatcher();
+        $dispatcher->shouldReceive('dispatch')->twice();
+        $repository->setEventDispatcher($dispatcher);
+
+        $this->assertTrue($repository->put('key', 'value', 60));
+        $this->assertSame(2, $repository->eventCalls);
+    }
+
+    public function testNamespacedTaggedCacheSkipsEventDispatchSeamWithoutListenersAndEntersItWithListeners(): void
+    {
+        $store = new ArrayStore;
+        $repository = new class($store, new VersionedTagSet($store, ['tag'])) extends NamespacedTaggedCache {
+            public int $eventCalls = 0;
+
+            protected function event(object $event): void
+            {
+                ++$this->eventCalls;
+
+                parent::event($event);
+            }
+        };
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('hasListeners')->withAnyArgs()->andReturnFalse();
+        $dispatcher->shouldNotReceive('dispatch');
+        $repository->setEventDispatcher($dispatcher);
+
+        $this->assertNull($repository->get('missing'));
+        $this->assertTrue($repository->put('key', 'value', 60));
+        $this->assertTrue($repository->putMany(['one' => 1, 'two' => 2], 60));
+        $this->assertTrue($repository->flush());
+        $this->assertSame(0, $repository->eventCalls);
+
+        $dispatcher = $this->getDispatcher();
+        $dispatcher->shouldReceive('dispatch')->twice();
+        $repository->setEventDispatcher($dispatcher);
+
+        $this->assertTrue($repository->put('key', 'value', 60));
+        $this->assertSame(2, $repository->eventCalls);
+    }
+
     public function testHasTriggersEvents()
     {
         $dispatcher = $this->getDispatcher();
@@ -177,6 +243,23 @@ class CacheEventsTest extends TestCase
         $this->assertSame('foo', $events[1]->key);
         $this->assertSame('bar', $events[1]->value);
         $this->assertSame(60, $events[1]->seconds);
+        $this->assertSame($exception, $events[1]->exception);
+    }
+
+    public function testPutFalseResultDispatchesFailureEventWithoutException(): void
+    {
+        $store = m::mock(Store::class);
+        $store->shouldReceive('put')->once()->with('foo', 'bar', 60)->andReturnFalse();
+        $events = [];
+        $repository = new Repository($store, ['store' => 'array']);
+        $repository->setEventDispatcher($this->getCapturingDispatcher($events));
+
+        $this->assertFalse($repository->put('foo', 'bar', 60));
+        $this->assertSame(
+            [WritingKey::class, KeyWriteFailed::class],
+            array_map(get_class(...), $events),
+        );
+        $this->assertNull($events[1]->exception);
     }
 
     public function testPutManyDispatchesFailureEventsWhenTheStoreThrows(): void
@@ -201,6 +284,8 @@ class CacheEventsTest extends TestCase
             array_map(get_class(...), $events),
         );
         $this->assertSame(['foo', 'baz'], array_map(static fn (KeyWriteFailed $event): string => $event->key, array_slice($events, 1)));
+        $this->assertSame($exception, $events[1]->exception);
+        $this->assertSame($exception, $events[2]->exception);
     }
 
     public function testForeverDispatchesFailureEventWhenTheStoreThrows(): void
@@ -225,6 +310,7 @@ class CacheEventsTest extends TestCase
         );
         $this->assertSame('foo', $events[1]->key);
         $this->assertNull($events[1]->seconds);
+        $this->assertSame($exception, $events[1]->exception);
     }
 
     public function testForgetDispatchesFailureEventWhenTheStoreThrows(): void
@@ -248,6 +334,7 @@ class CacheEventsTest extends TestCase
             array_map(get_class(...), $events),
         );
         $this->assertSame('foo', $events[1]->key);
+        $this->assertSame($exception, $events[1]->exception);
     }
 
     #[DataProvider('repositoryCancellationOperations')]
@@ -259,7 +346,8 @@ class CacheEventsTest extends TestCase
         string $startedEvent,
     ): void {
         $cancellation = new CanceledException('cache operation canceled');
-        $store = m::mock(Store::class);
+        $store = m::mock(Store::class, CanFlushLocks::class);
+        $store->shouldReceive('supportsFlushingLocks')->andReturnTrue()->byDefault();
         $store->shouldReceive($storeMethod)
             ->once()
             ->with(...$storeArguments)
@@ -287,6 +375,8 @@ class CacheEventsTest extends TestCase
             'put many' => ['putMany', [['foo' => 'bar'], 60], 'putMany', [['foo' => 'bar'], 60], WritingManyKeys::class],
             'forever' => ['forever', ['foo', 'bar'], 'forever', ['foo', 'bar'], WritingKey::class],
             'forget' => ['forget', ['foo'], 'forget', ['foo'], ForgettingKey::class],
+            'clear' => ['flush', [], 'clear', [], CacheFlushing::class],
+            'flush locks' => ['flushLocks', [], 'flushLocks', [], CacheLocksFlushing::class],
         ];
     }
 
@@ -431,7 +521,10 @@ class CacheEventsTest extends TestCase
         $repository->setEventDispatcher($dispatcher);
 
         $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(ForgettingKey::class, ['key' => 'baz']));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(KeyForgetFailed::class, ['key' => 'baz']));
+        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(KeyForgetFailed::class, [
+            'key' => 'baz',
+            'exception' => null,
+        ]));
         $dispatcher->shouldReceive('dispatch')->never()->with($this->assertEventMatches(KeyForgotten::class, ['key' => 'baz']));
         $this->assertFalse($repository->forget('baz'));
     }
@@ -471,6 +564,26 @@ class CacheEventsTest extends TestCase
         ], array_map(get_class(...), $events));
     }
 
+    public function testFlushDispatchesFailureEventWithExactException(): void
+    {
+        $exception = new RuntimeException('The cache flush failed.');
+        $store = m::mock(Store::class);
+        $store->shouldReceive('flush')->once()->andThrow($exception);
+        $events = [];
+        $repository = new Repository($store, ['store' => 'array']);
+        $repository->setEventDispatcher($this->getCapturingDispatcher($events));
+
+        try {
+            $repository->clear();
+            $this->fail('Expected the cache flush exception to be rethrown.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertSame([CacheFlushing::class, CacheFlushFailed::class], array_map(get_class(...), $events));
+        $this->assertSame($exception, $events[1]->exception);
+    }
+
     public function testFlushLocksTriggersEvents()
     {
         $dispatcher = $this->getDispatcher();
@@ -488,6 +601,30 @@ class CacheEventsTest extends TestCase
             ])
         );
         $this->assertTrue($repository->flushLocks());
+    }
+
+    public function testFlushLocksDispatchesFailureEventWithExactException(): void
+    {
+        $exception = new RuntimeException('The cache lock flush failed.');
+        $store = m::mock(Store::class, CanFlushLocks::class);
+        $store->shouldReceive('supportsFlushingLocks')->once()->andReturnTrue();
+        $store->shouldReceive('flushLocks')->once()->andThrow($exception);
+        $events = [];
+        $repository = new Repository($store, ['store' => 'array']);
+        $repository->setEventDispatcher($this->getCapturingDispatcher($events));
+
+        try {
+            $repository->flushLocks();
+            $this->fail('Expected the cache lock flush exception to be rethrown.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertSame(
+            [CacheLocksFlushing::class, CacheLocksFlushFailed::class],
+            array_map(get_class(...), $events),
+        );
+        $this->assertSame($exception, $events[1]->exception);
     }
 
     public function testFlushFailureDoesDispatchEvent()
@@ -510,6 +647,7 @@ class CacheEventsTest extends TestCase
         $dispatcher->shouldReceive('dispatch')->once()->with(
             $this->assertEventMatches(CacheFlushFailed::class, [
                 'storeName' => 'array',
+                'exception' => null,
             ])
         );
         $this->assertFalse($repository->clear());
@@ -536,6 +674,7 @@ class CacheEventsTest extends TestCase
         $dispatcher->shouldReceive('dispatch')->once()->with(
             $this->assertEventMatches(CacheLocksFlushFailed::class, [
                 'storeName' => 'array',
+                'exception' => null,
             ])
         );
         $this->assertFalse($repository->flushLocks());

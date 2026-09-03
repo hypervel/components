@@ -8,6 +8,7 @@ use Closure;
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\TransferException;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Foundation\Http\Middleware\Concerns\ExcludesPaths;
 use Hypervel\Http\Request;
 use Hypervel\Inertia\InertiaState;
@@ -193,6 +194,15 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
      */
     protected function handleSsrFailure(array $page, ?array $error): void
     {
+        /** @var Dispatcher $events */
+        $events = app('events');
+        $hasListeners = $events->hasListeners(SsrRenderFailed::class);
+        $throwOnError = config()->boolean('inertia.ssr.throw_on_error', false);
+
+        if (! $hasListeners && ! $throwOnError) {
+            return;
+        }
+
         $event = new SsrRenderFailed(
             page: $page,
             error: $this->stringOrNull($error['error'] ?? null) ?? 'Unknown SSR error',
@@ -203,11 +213,11 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
             sourceLocation: $this->stringOrNull($error['sourceLocation'] ?? null),
         );
 
-        // Dispatch the already-built event directly (avoids double construction)
-        event($event);
+        if ($hasListeners) {
+            $events->dispatch($event);
+        }
 
-        // Throw an exception if configured (useful for E2E testing)
-        if (config()->boolean('inertia.ssr.throw_on_error', false)) {
+        if ($throwOnError) {
             throw SsrException::fromEvent($event);
         }
     }

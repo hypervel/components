@@ -31,6 +31,7 @@ class MonitorCommandTest extends TestCase
         $manager->shouldReceive('connection')->with('redis')->andReturn($queue);
 
         $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(QueueBusy::class)->andReturnTrue();
         $events->shouldReceive('dispatch')
             ->once()
             ->with(m::on(fn (mixed $event): bool => $event instanceof QueueBusy
@@ -62,6 +63,7 @@ class MonitorCommandTest extends TestCase
         $manager->shouldReceive('connection')->with('redis')->andReturn($queue);
 
         $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(QueueBusy::class)->andReturnFalse();
         $events->shouldNotReceive('dispatch');
 
         $output = $this->runCommand(

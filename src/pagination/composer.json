@@ -30,12 +30,15 @@
     },
     "require": {
         "php": "^8.4",
+        "ext-filter": "*",
         "hypervel/collections": "^0.4",
         "hypervel/context": "^0.4",
         "hypervel/contracts": "^0.4",
-        "hypervel/database": "^0.4",
-        "hypervel/http": "^0.4",
         "hypervel/support": "^0.4"
+    },
+    "suggest": {
+        "hypervel/http": "Required to convert paginators to API resources (^0.4).",
+        "hypervel/view": "Required to render pagination links (^0.4)."
     },
     "config": {
         "sort-packages": true

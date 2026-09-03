@@ -31,6 +31,7 @@
     },
     "require": {
         "php": "^8.4",
+        "ext-filter": "*",
         "ext-pdo": "*",
         "ext-swoole": "^6.2.2",
         "brick/math": "^0.17",

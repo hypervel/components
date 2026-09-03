@@ -272,6 +272,26 @@ class StreamStateTest extends TestCase
         $this->assertSame(StatusCode::Ok, $state->status()->code());
     }
 
+    public function testReturnsTheFinalStatusAndFailureWithoutWaiting(): void
+    {
+        $state = $this->state();
+
+        $this->assertNull($state->finalStatus());
+        $this->assertNull($state->finalFailure());
+
+        $state->failWithStatus(new Status(StatusCode::Cancelled, 'cancelled'));
+
+        $this->assertSame(StatusCode::Cancelled, $state->finalStatus()?->code());
+        $this->assertNull($state->finalFailure());
+
+        $state = $this->state();
+        $failure = new ConnectionException('example.test:443', 'connection lost');
+        $state->fail($failure);
+
+        $this->assertNull($state->finalStatus());
+        $this->assertSame($failure, $state->finalFailure());
+    }
+
     public function testRejectsAnOversizedObservableHeaderBlock(): void
     {
         $state = $this->state(maxMetadataSize: 128);
@@ -513,6 +533,7 @@ class StreamStateTest extends TestCase
         ]);
 
         $this->assertSame($failure, $results['status']);
+        $this->assertNull($state->finalStatus());
         $this->assertSame('received', $state->nextMessage());
 
         try {

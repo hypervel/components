@@ -130,6 +130,13 @@ class Dispatcher implements DispatcherContract
     protected array $observerWildcards = [];
 
     /**
+     * The compiled listener and observer wildcard patterns.
+     *
+     * @var array<string, string>
+     */
+    protected array $compiledWildcardPatterns = [];
+
+    /**
      * The prepared event observers keyed by registered event name.
      *
      * @var array<string, array<int, Closure>>
@@ -226,6 +233,7 @@ class Dispatcher implements DispatcherContract
     protected function setupWildcardListen(string $event, array|object|string $listener): void
     {
         $this->wildcards[$event][] = $listener;
+        $this->compiledWildcardPatterns[$event] ??= $this->compileWildcardPattern($event);
         unset($this->preparedWildcardListeners[$event]);
     }
 
@@ -262,7 +270,19 @@ class Dispatcher implements DispatcherContract
     protected function setupWildcardObserver(string $event, array|object|string $observer): void
     {
         $this->observerWildcards[$event][] = $observer;
+        $this->compiledWildcardPatterns[$event] ??= $this->compileWildcardPattern($event);
         unset($this->preparedWildcardObservers[$event]);
+    }
+
+    /**
+     * Compile a case-sensitive wildcard pattern.
+     */
+    protected function compileWildcardPattern(string $pattern): string
+    {
+        $pattern = preg_quote($pattern, '#');
+        $pattern = str_replace('\*', '.*', $pattern);
+
+        return '#^' . $pattern . '\z#su';
     }
 
     /**
@@ -282,7 +302,7 @@ class Dispatcher implements DispatcherContract
     public function hasWildcardListeners(string $eventName): bool
     {
         foreach ($this->wildcards as $key => $listeners) {
-            if (Str::is($key, $eventName)) {
+            if ($key === '*' || preg_match($this->compiledWildcardPatterns[$key], $eventName) === 1) {
                 return true;
             }
         }
@@ -588,7 +608,7 @@ class Dispatcher implements DispatcherContract
         $wildcards = [];
 
         foreach ($this->wildcards as $key => $listeners) {
-            if (Str::is($key, $eventName)) {
+            if ($key === '*' || preg_match($this->compiledWildcardPatterns[$key], $eventName) === 1) {
                 array_push($wildcards, ...$this->prepareWildcardListeners($key));
             }
         }
@@ -695,7 +715,7 @@ class Dispatcher implements DispatcherContract
         $wildcards = [];
 
         foreach ($this->observerWildcards as $key => $observers) {
-            if (Str::is($key, $eventName)) {
+            if ($key === '*' || preg_match($this->compiledWildcardPatterns[$key], $eventName) === 1) {
                 array_push($wildcards, ...$this->prepareWildcardObservers($key));
             }
         }
@@ -1029,6 +1049,7 @@ class Dispatcher implements DispatcherContract
             unset(
                 $this->wildcards[$event],
                 $this->observerWildcards[$event],
+                $this->compiledWildcardPatterns[$event],
                 $this->preparedWildcardListeners[$event],
                 $this->preparedWildcardObservers[$event],
             );

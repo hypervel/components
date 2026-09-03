@@ -19,6 +19,8 @@ class FinishCallback
      */
     public function onFinish(Server $server, int $taskId, mixed $data): void
     {
-        $this->dispatcher->dispatch(new OnFinish($server, $taskId, $data));
+        if ($this->dispatcher->hasListeners(OnFinish::class)) {
+            $this->dispatcher->dispatch(new OnFinish($server, $taskId, $data));
+        }
     }
 }

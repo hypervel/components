@@ -24,6 +24,11 @@ use UnitEnum;
  * values from get() / many() and do NOT need to implement this interface —
  * Repository::getRaw() / manyRaw() will fall back to get() / many() on stores
  * that don't implement RawReadable.
+ *
+ * Cache wrappers may receive a custom repository that implements only the
+ * public Repository contract. Falling back to get() / get($keys) keeps that
+ * repository usable, but cannot preserve the internal null sentinel: cached
+ * null and a cache miss are indistinguishable through the public contract.
  */
 interface RawReadable
 {

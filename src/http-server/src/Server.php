@@ -16,6 +16,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\RequestTerminated;
+use Hypervel\HttpServer\Events\ResponseSent;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Http\Request as SwooleRequest;
 use Swoole\Http\Response as SwooleResponse;
@@ -151,6 +152,23 @@ class Server implements OnRequestInterface, BootstrapsForServer
                 }
             }
 
+            if (isset($request) && $cancellation === null) {
+                try {
+                    if ($this->event?->hasListeners(ResponseSent::class)) {
+                        $this->event->dispatch(new ResponseSent(
+                            request: $request,
+                            response: $response,
+                            exception: $exception,
+                            server: $this->serverName
+                        ));
+                    }
+                } catch (CanceledException $throwable) {
+                    $cancellation = $throwable;
+                } catch (Throwable $throwable) {
+                    $exception ??= $throwable;
+                }
+            }
+
             // Terminable middleware
             if (isset($request) && $response !== null && $cancellation === null) {
                 try {
@@ -177,10 +195,6 @@ class Server implements OnRequestInterface, BootstrapsForServer
                 } catch (Throwable $throwable) {
                     $exception ??= $throwable;
                 }
-            }
-
-            if (isset($request)) {
-                RequestContext::forget();
             }
 
             if ($cancellation !== null) {

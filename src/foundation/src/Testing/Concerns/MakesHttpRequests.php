@@ -15,6 +15,7 @@ use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;
 use Hypervel\Http\Request;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
+use Hypervel\HttpServer\Events\ResponseSent;
 use Hypervel\Session\Store as SessionStore;
 use Hypervel\Support\Collection;
 use Hypervel\Testing\LoggedExceptionCollection;
@@ -510,6 +511,12 @@ trait MakesHttpRequests
 
             $this->dispatchRequestLifecycleEvent(
                 RequestHandled::class,
+                $request,
+                $response
+            );
+
+            $this->dispatchRequestLifecycleEvent(
+                ResponseSent::class,
                 $request,
                 $response
             );

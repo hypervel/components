@@ -70,6 +70,16 @@ class TransformsToResourceCollectionTest extends TestCase
         $this->assertInstanceOf(ResourceCollectionTestResource::class, $resource[0]);
     }
 
+    public function testToResourceCollectionGuessesResourceForKeyedEloquentCollection(): void
+    {
+        $model = new ResourceCollectionTestModelWithResourceAttribute;
+        $collection = new EloquentCollection(['model-key' => $model]);
+
+        $resource = $collection->toResourceCollection();
+
+        $this->assertInstanceOf(AnonymousResourceCollection::class, $resource);
+    }
+
     public function testToResourceCollectionPrefersUseResourceCollectionOverUseResource(): void
     {
         $model = new ResourceCollectionTestModelWithBothAttributes;

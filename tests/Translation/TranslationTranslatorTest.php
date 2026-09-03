@@ -14,10 +14,11 @@ use Hypervel\Tests\Translation\Fixtures\Enums\Baz;
 use Hypervel\Tests\Translation\Fixtures\Enums\Foo;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\FileLoader;
-use Hypervel\Translation\MessageSelector;
+use Hypervel\Translation\MissingTranslationGroups;
 use Hypervel\Translation\Translator;
 use InvalidArgumentException;
 use Mockery as m;
+use ReflectionProperty;
 use RuntimeException;
 use stdClass;
 use TypeError;
@@ -51,6 +52,20 @@ class TranslationTranslatorTest extends TestCase
         $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([]);
         $translator->getLoader()->shouldReceive('load')->once()->with('en', 'foo', '*')->andReturn([]);
         $this->assertFalse($translator->hasForLocale('foo'));
+    }
+
+    public function testHasSuppressesMissingKeyCallbacks(): void
+    {
+        $translator = new Translator(new ArrayLoader, 'en');
+        $calls = 0;
+        $translator->handleMissingKeysUsing(function () use (&$calls): string {
+            ++$calls;
+
+            return 'handled';
+        });
+
+        $this->assertFalse($translator->has('messages.missing'));
+        $this->assertSame(0, $calls);
     }
 
     public function testGetMethodProperlyLoadsAndRetrievesItem(): void
@@ -249,6 +264,58 @@ class TranslationTranslatorTest extends TestCase
         $this->assertSame(['child' => 'last'], $translator->array('messages.parent'));
     }
 
+    public function testEmptyGroupsAreLoadedOnceWithinAnExecution(): void
+    {
+        $translator = new Translator($this->getLoader(), 'en');
+        $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([]);
+        $translator->getLoader()->shouldReceive('load')->once()->with('en', 'messages', '*')->andReturn([]);
+
+        $this->assertSame('messages.missing', $translator->get('messages.missing'));
+        $this->assertSame('messages.other', $translator->get('messages.other'));
+    }
+
+    public function testArbitraryMissingGroupsRemainExecutionScoped(): void
+    {
+        $loader = new CountingTranslationLoader;
+        $translator = new TranslationTranslatorStub($loader, 'en');
+
+        for ($index = 0; $index < 1000; ++$index) {
+            $translator->get("group{$index}.missing");
+        }
+
+        $this->assertSame([], $translator->loadedGroups());
+        $this->assertSame(1001, $loader->loadCount);
+        $this->assertSame(1001, $this->missingGroupCount($translator->missingGroups()));
+    }
+
+    public function testArbitraryMissingLocalesRemainExecutionScoped(): void
+    {
+        $loader = new CountingTranslationLoader;
+        $translator = new TranslationTranslatorStub($loader, 'en');
+
+        for ($index = 0; $index < 1000; ++$index) {
+            $translator->setLocale("locale{$index}");
+            $translator->get('messages.missing');
+        }
+
+        $this->assertSame([], $translator->loadedGroups());
+        $this->assertSame(2000, $loader->loadCount);
+        $this->assertSame(2000, $this->missingGroupCount($translator->missingGroups()));
+    }
+
+    public function testLinesAddedAfterAMissingGroupBecomeVisibleInCallOrder(): void
+    {
+        $translator = new Translator(new ArrayLoader, 'en');
+
+        $this->assertSame('messages.parent', $translator->get('messages.parent'));
+
+        $translator->addLines(['messages.parent.child' => 'first'], 'en');
+        $translator->addLines(['messages.parent' => 'replacement'], 'en');
+        $translator->addLines(['messages.parent.child' => 'last'], 'en');
+
+        $this->assertSame(['child' => 'last'], $translator->array('messages.parent'));
+    }
+
     public function testPendingLinesRemainWhenLoadingFails(): void
     {
         $exception = new RuntimeException('Unable to load translations.');
@@ -264,7 +331,7 @@ class TranslationTranslatorTest extends TestCase
                 return ['file' => 'from file'];
             }
         );
-        $translator = new Translator($loader, 'en');
+        $translator = new TranslationTranslatorStub($loader, 'en');
         $translator->addLines(['messages.added' => 'registered'], 'en');
 
         $thrown = null;
@@ -277,13 +344,16 @@ class TranslationTranslatorTest extends TestCase
         }
 
         $this->assertSame($exception, $thrown);
+        $this->assertFalse($translator->missingGroups()?->has('*', 'messages', 'en'));
         $this->assertSame('from file', $translator->get('messages.file'));
         $this->assertSame('registered', $translator->get('messages.added'));
     }
 
-    public function testSetLoadedClearsPendingLines(): void
+    public function testSetLoadedClearsPendingLinesAndMissingGroups(): void
     {
-        $translator = new Translator(new ArrayLoader, 'en');
+        $translator = new TranslationTranslatorStub(new ArrayLoader, 'en');
+
+        $translator->get('missing.value');
         $translator->addLines(['messages.added' => 'registered'], 'en');
         $translator->setLoaded([
             '*' => [
@@ -293,67 +363,100 @@ class TranslationTranslatorTest extends TestCase
             ],
         ]);
 
+        $this->assertNull($translator->missingGroups());
         $this->assertSame('messages.added', $translator->get('messages.added'));
     }
 
-    public function testChoiceMethodProperlyLoadsAndRetrievesItemForAnInt(): void
+    public function testChoicePassesCallerReplacementsToMissingKeyCallback(): void
     {
-        $translator = $this->getMockBuilder(Translator::class)->onlyMethods(['get', 'localeForChoice'])->setConstructorArgs([$this->getLoader(), 'en'])->getMock();
-        $translator->expects($this->once())->method('get')->with($this->equalTo('foo'), $this->equalTo([]), $this->equalTo('en'))->willReturn('line');
-        $translator->expects($this->once())->method('localeForChoice')->with($this->equalTo('foo'), $this->equalTo(null))->willReturn('en');
-        $translator->setSelector($selector = m::mock(MessageSelector::class));
-        $selector->shouldReceive('choose')->once()->with('line', 10, 'en')->andReturn('choiced');
-
-        $translator->choice('foo', 10, ['replace']);
-    }
-
-    public function testChoiceMethodProperlyLoadsAndRetrievesItemForAFloat(): void
-    {
-        $translator = $this->getMockBuilder(Translator::class)->onlyMethods(['get', 'localeForChoice'])->setConstructorArgs([$this->getLoader(), 'en'])->getMock();
-        $translator->expects($this->once())->method('get')->with($this->equalTo('foo'), $this->equalTo([]), $this->equalTo('en'))->willReturn('line');
-        $translator->expects($this->once())->method('localeForChoice')->with($this->equalTo('foo'), $this->equalTo(null))->willReturn('en');
-        $translator->setSelector($selector = m::mock(MessageSelector::class));
-        $selector->shouldReceive('choose')->once()->with('line', 1.2, 'en')->andReturn('choiced');
-
-        $translator->choice('foo', 1.2, ['replace']);
-    }
-
-    public function testChoiceMethodProperlyCountsCollectionsAndLoadsAndRetrievesItem(): void
-    {
-        $translator = $this->getMockBuilder(Translator::class)->onlyMethods(['get', 'localeForChoice'])->setConstructorArgs([$this->getLoader(), 'en'])->getMock();
-        $translator->expects($this->exactly(2))->method('get')->with($this->equalTo('foo'), $this->equalTo([]), $this->equalTo('en'))->willReturn('line');
-        $translator->expects($this->exactly(2))->method('localeForChoice')->with($this->equalTo('foo'), $this->equalTo(null))->willReturn('en');
-        $translator->setSelector($selector = m::mock(MessageSelector::class));
-        $selector->shouldReceive('choose')->twice()->with('line', 3, 'en')->andReturn('choiced');
-
-        $values = ['foo', 'bar', 'baz'];
-        $translator->choice('foo', $values, ['replace']);
-
-        $values = new Collection(['foo', 'bar', 'baz']);
-        $translator->choice('foo', $values, ['replace']);
-    }
-
-    public function testChoiceMethodProperlySelectsLocaleForChoose(): void
-    {
-        $translator = $this->getMockBuilder(Translator::class)->onlyMethods(['get', 'hasForLocale'])->setConstructorArgs([$this->getLoader(), 'cs'])->getMock();
+        $translator = new Translator(new ArrayLoader, 'en');
         $translator->setFallback('en');
-        $translator->expects($this->once())->method('get')->with($this->equalTo('foo'), $this->equalTo([]), $this->equalTo('en'))->willReturn('line');
-        $translator->expects($this->once())->method('hasForLocale')->with($this->equalTo('foo'), $this->equalTo('cs'))->willReturn(false);
-        $translator->setSelector($selector = m::mock(MessageSelector::class));
-        $selector->shouldReceive('choose')->once()->with('line', 10, 'en')->andReturn('choiced');
+        $received = null;
+        $translator->handleMissingKeysUsing(function (string $key, array $replace, ?string $locale, bool $fallback) use (&$received): string {
+            $received = [$key, $replace, $locale, $fallback];
 
-        $translator->choice('foo', 10, ['replace']);
+            return '{1} Hello :name|[2,*] Hello :name, you have :count messages';
+        });
+
+        $this->assertSame(
+            'Hello Taylor, you have 3 messages',
+            $translator->choice('messages.greeting', 3, ['name' => 'Taylor'])
+        );
+        $this->assertSame(
+            ['messages.greeting', ['name' => 'Taylor'], 'en', true],
+            $received
+        );
     }
 
-    public function testChoiceMethodProperlyUsesCustomCountReplacement(): void
+    public function testChoicePreservesCallerCountForMissingKeyCallback(): void
     {
-        $translator = $this->getMockBuilder(Translator::class)->onlyMethods(['get', 'localeForChoice'])->setConstructorArgs([$this->getLoader(), 'en'])->getMock();
-        $translator->expects($this->once())->method('get')->with($this->equalTo(':count foos'), $this->equalTo([]), $this->equalTo('en'))->willReturn('{1} :count foos|[2,*] :count foos');
-        $translator->expects($this->once())->method('localeForChoice')->with($this->equalTo(':count foos'), $this->equalTo(null))->willReturn('en');
-        $translator->setSelector($selector = m::mock(MessageSelector::class));
-        $selector->shouldReceive('choose')->once()->with('{1} :count foos|[2,*] :count foos', 1234, 'en')->andReturn(':count foos');
+        $translator = new Translator(new ArrayLoader, 'en');
+        $translator->setFallback('en');
+        $received = null;
+        $translator->handleMissingKeysUsing(function (string $key, array $replace) use (&$received): string {
+            $received = $replace;
 
-        $this->assertEquals('1,234 foos', $translator->choice(':count foos', 1234, ['count' => '1,234']));
+            return ':count item|:count items';
+        });
+
+        $this->assertSame('many items', $translator->choice('messages.items', 2, ['count' => 'many']));
+        $this->assertSame(['count' => 'many'], $received);
+    }
+
+    public function testChoiceUsesTheCurrentLocaleWhenNoFallbackIsConfigured(): void
+    {
+        $translator = new Translator(new ArrayLoader, 'en');
+        $receivedLocale = null;
+        $translator->handleMissingKeysUsing(function (string $key, array $replace, ?string $locale) use (&$receivedLocale): string {
+            $receivedLocale = $locale;
+
+            return 'apple|apples';
+        });
+
+        $this->assertSame('apples', $translator->choice('messages.apples', 2));
+        $this->assertSame('en', $receivedLocale);
+    }
+
+    public function testChoiceHandlesNumericArrayAndCountableValues(): void
+    {
+        $loader = (new ArrayLoader)->addMessages('en', 'messages', [
+            'items' => '{0} none|{1} one|[2,*] :count items',
+        ]);
+        $translator = new Translator($loader, 'en');
+
+        $this->assertSame('one', $translator->choice('messages.items', 1));
+        $this->assertSame('2 items', $translator->choice('messages.items', 2.0));
+        $this->assertSame('3 items', $translator->choice('messages.items', ['a', 'b', 'c']));
+        $this->assertSame('3 items', $translator->choice('messages.items', new Collection(['a', 'b', 'c'])));
+    }
+
+    public function testChoiceUsesTheFallbackLocaleForSelection(): void
+    {
+        $loader = (new ArrayLoader)->addMessages('fr', 'messages', [
+            'items' => '{0} aucun|{1} un|[2,*] :count éléments',
+        ]);
+        $translator = new Translator($loader, 'en');
+        $translator->setFallback('fr');
+
+        $this->assertSame('2 éléments', $translator->choice('messages.items', 2));
+    }
+
+    public function testChoiceAppliesReplacementsOnceAfterSelectingThePluralForm(): void
+    {
+        $loader = (new ArrayLoader)->addMessages('en', 'messages', [
+            'greeting' => '{1} Hello :name|[2,*] Hello :name',
+            'replacement' => '{1} :first|[2,*] :first',
+        ]);
+        $translator = new Translator($loader, 'en');
+
+        $this->assertSame(
+            'Hello Taylor | Hypervel',
+            $translator->choice('messages.greeting', 2, ['name' => 'Taylor | Hypervel'])
+        );
+        $this->assertSame(
+            ':second',
+            $translator->choice('messages.replacement', 2, ['first' => ':second', 'second' => 'replaced twice'])
+        );
     }
 
     public function testChoiceRequiresAStringTranslation(): void
@@ -764,8 +867,27 @@ class TranslationTranslatorTest extends TestCase
         $this->assertSame(1, $calls);
     }
 
+    public function testGetPassesCallerReplacementsToMissingKeyCallback(): void
+    {
+        $translator = new Translator(new ArrayLoader, 'en');
+        $received = null;
+        $translator->handleMissingKeysUsing(function (string $key, array $replace, ?string $locale, bool $fallback) use (&$received): string {
+            $received = [$key, $replace, $locale, $fallback];
+
+            return 'Hello :name';
+        });
+
+        $this->assertSame('Hello Taylor', $translator->get('messages.greeting', ['name' => 'Taylor'], 'fr', false));
+        $this->assertSame(
+            ['messages.greeting', ['name' => 'Taylor'], 'fr', false],
+            $received
+        );
+    }
+
     public function testFlushStateClearsMacros(): void
     {
+        new TranslationTranslatorStub(new ArrayLoader, 'en');
+        $nextTranslatorId = TranslationTranslatorStub::nextTranslatorId();
         Translator::macro('translationStaticStateProbe', static fn (): string => 'ok');
 
         $this->assertTrue(Translator::hasMacro('translationStaticStateProbe'));
@@ -773,6 +895,7 @@ class TranslationTranslatorTest extends TestCase
         Translator::flushState();
 
         $this->assertFalse(Translator::hasMacro('translationStaticStateProbe'));
+        $this->assertSame($nextTranslatorId, TranslationTranslatorStub::nextTranslatorId());
     }
 
     public function testDoubleUnderscoreHelperReturnsNullWhenKeyIsNull(): void
@@ -783,5 +906,50 @@ class TranslationTranslatorTest extends TestCase
     protected function getLoader(): Loader
     {
         return m::mock(Loader::class);
+    }
+
+    protected function missingGroupCount(?MissingTranslationGroups $missingTranslationGroups): int
+    {
+        if ($missingTranslationGroups === null) {
+            return 0;
+        }
+
+        $groups = (new ReflectionProperty(MissingTranslationGroups::class, 'groups'))
+            ->getValue($missingTranslationGroups);
+
+        return array_sum(array_map(
+            static fn (array $namespaceGroups): int => array_sum(array_map('count', $namespaceGroups)),
+            $groups
+        ));
+    }
+}
+
+class TranslationTranslatorStub extends Translator
+{
+    public function loadedGroups(): array
+    {
+        return $this->loaded;
+    }
+
+    public function missingGroups(): ?MissingTranslationGroups
+    {
+        return $this->missingTranslationGroups();
+    }
+
+    public static function nextTranslatorId(): int
+    {
+        return self::$nextTranslatorId;
+    }
+}
+
+class CountingTranslationLoader extends ArrayLoader
+{
+    public int $loadCount = 0;
+
+    public function load(string $locale, string $group, ?string $namespace = null): array
+    {
+        ++$this->loadCount;
+
+        return parent::load($locale, $group, $namespace);
     }
 }

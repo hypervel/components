@@ -31,6 +31,7 @@
     "require": {
         "php": "^8.4",
         "composer-runtime-api": "^2.2",
+        "ext-filter": "*",
         "ext-swoole": "^6.2.2",
         "ext-zlib": "*",
         "google/common-protos": "^4.14",

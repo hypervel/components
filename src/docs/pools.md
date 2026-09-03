@@ -61,6 +61,8 @@ Use the same name only when every callback creates the same kind of object with 
 
 Named pools share one registry within each worker. Prefix names with your application or package name, such as `app:reports`, to avoid collisions.
 
+If pool names contain dynamic values, review the [OpenTelemetry pool metric guidance](/docs/{{version}}/opentelemetry#runtime-pool-metrics) before exporting them as metric attributes.
+
 Call `pool()` immediately before each borrow instead of keeping the returned pool in a long-lived property. An idle managed pool may be removed and closed between operations.
 
 If the callback depends on credentials or other values that may change, use a pool definition and build its fingerprint from those values.
@@ -196,6 +198,8 @@ try {
 
 Leases finalize exactly once. An optional release callback may reset an object before it is returned; if that callback throws, the lease discards the object and propagates the reset failure.
 
+Use `getCurrentObjectNumber()`, `getBorrowedObjectNumber()`, `getObjectNumberInPool()`, and `getWaiters()` to inspect a pool without changing it. The `getStats()` method returns the same current total, borrowed, idle, and waiting counts together with the closed state.
+
 <a name="object-pool-lifecycle"></a>
 ### Object Pool Lifecycle
 
@@ -220,6 +224,8 @@ If two custom whole-driver disks may safely share a pool despite having differen
 ## Connection Pools
 
 The `Hypervel\Pool` component provides the lower-level foundation used by Hypervel's database and Redis connection pools. It is also available to package authors who need to manage another connection type.
+
+Use `getCurrentConnections()`, `getConnectionsInChannel()`, and `getWaiters()` to inspect the current managed, idle, and waiting counts without borrowing a connection.
 
 Hypervel's database pool owns borrowing, deadlines, heartbeat cancellation, and idle connection recycling. Each database connection owns its protocol-specific health check, reconnection, cleanup, and reuse rules. Therefore, PDO, native, and HTTP database drivers can use the same pool without exposing their underlying client to the pool component.
 

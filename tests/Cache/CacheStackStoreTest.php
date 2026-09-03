@@ -5,19 +5,25 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache;
 
 use Hypervel\Cache\ArrayStore;
+use Hypervel\Cache\CacheManager;
+use Hypervel\Cache\FailoverStore;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\StackStore;
 use Hypervel\Cache\StackStoreProxy;
 use Hypervel\Cache\SwooleStore;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use Mockery\MockInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+
+use function Hypervel\Support\defer;
 
 class CacheStackStoreTest extends TestCase
 {
@@ -51,6 +57,106 @@ class CacheStackStoreTest extends TestCase
         $this->swoole->shouldReceive('put')->once()->with($key, $record, $ttl)->andReturn(true);
 
         $this->assertSame($value, $this->store->get($key));
+    }
+
+    public function testAuthoritativeReadUsesBottomLayerWithoutRepairingUpperLayer(): void
+    {
+        $top = m::mock(ArrayStore::class);
+        $bottom = m::mock(ArrayStore::class);
+        $bottom->shouldReceive('get')->once()->with('key')->andReturn(['value' => 'fresh']);
+        $top->shouldNotReceive('get');
+        $top->shouldNotReceive('put');
+        $top->shouldNotReceive('forever');
+
+        $store = new StackStore([$top, $bottom]);
+
+        $this->assertSame('fresh', $store->getAuthoritativeRaw('key'));
+    }
+
+    public function testFlexibleSkipsRefreshWhenBottomMarkerIsNewerThanUpperLayer(): void
+    {
+        $top = new ArrayStore;
+        $bottom = new ArrayStore;
+        $repository = new Repository(new StackStore([$top, $bottom]));
+        $markerKey = Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'key';
+        $expiration = CarbonImmutable::now()->addSeconds(20)->getTimestamp();
+        $topValue = ['value' => 'stale', 'expiration' => $expiration];
+        $bottomValue = ['value' => 'fresh', 'expiration' => $expiration];
+        $topMarker = ['value' => CarbonImmutable::now()->subSeconds(11)->getTimestamp(), 'expiration' => $expiration];
+        $bottomMarker = ['value' => CarbonImmutable::now()->getTimestamp(), 'expiration' => $expiration];
+
+        $top->put('key', $topValue, 20);
+        $top->put($markerKey, $topMarker, 20);
+        $bottom->put('key', $bottomValue, 20);
+        $bottom->put($markerKey, $bottomMarker, 20);
+
+        $callbackInvocations = 0;
+
+        $this->assertSame('stale', $repository->flexible('key', [10, 20], function () use (&$callbackInvocations): string {
+            ++$callbackInvocations;
+
+            return 'refreshed';
+        }));
+
+        defer()->invoke();
+
+        $this->assertSame(0, $callbackInvocations);
+        $this->assertSame($topValue, $top->get('key'));
+        $this->assertSame($bottomValue, $bottom->get('key'));
+        $this->assertSame($bottomMarker, $bottom->get($markerKey));
+    }
+
+    #[DataProvider('authoritativeRecordProvider')]
+    public function testAuthoritativeReadHandlesSingleLayerRecords(mixed $record, mixed $expected): void
+    {
+        $store = m::mock(ArrayStore::class);
+        $store->shouldReceive('get')->once()->with('key')->andReturn($record);
+
+        $this->assertSame($expected, (new StackStore([$store]))->getAuthoritativeRaw('key'));
+    }
+
+    public static function authoritativeRecordProvider(): array
+    {
+        return [
+            'value' => [['value' => 'fresh'], 'fresh'],
+            'null sentinel' => [['value' => NullSentinel::VALUE], NullSentinel::VALUE],
+            'missing' => [null, null],
+            'scalar' => ['invalid', null],
+            'malformed array' => [['expiration' => 123], null],
+        ];
+    }
+
+    public function testAuthoritativeReadRecursesThroughBottomStack(): void
+    {
+        $outerTop = m::mock(ArrayStore::class);
+        $innerTop = m::mock(ArrayStore::class);
+        $innerBottom = m::mock(ArrayStore::class);
+        $innerBottom->shouldReceive('get')->once()->with('key')->andReturn([
+            'value' => ['value' => 'fresh'],
+        ]);
+        $outerTop->shouldNotReceive('get');
+        $innerTop->shouldNotReceive('get');
+
+        $store = new StackStore([
+            $outerTop,
+            new StackStore([$innerTop, $innerBottom]),
+        ]);
+
+        $this->assertSame('fresh', $store->getAuthoritativeRaw('key'));
+    }
+
+    public function testAuthoritativeReadRecursesThroughBottomFailoverStore(): void
+    {
+        $top = m::mock(ArrayStore::class);
+        $bottom = m::mock(ArrayStore::class);
+        $bottom->shouldReceive('get')->once()->with('key')->andReturn(['value' => 'fresh']);
+        $top->shouldNotReceive('get');
+
+        $cache = m::mock(CacheManager::class);
+        $cache->shouldReceive('store')->once()->with('bottom')->andReturn(new Repository($bottom));
+        $failover = new FailoverStore($cache, m::mock(Dispatcher::class), ['bottom']);
+
+        $this->assertSame('fresh', (new StackStore([$top, $failover]))->getAuthoritativeRaw('key'));
     }
 
     public function testReadReturnsLowerValueWhenUpperRepairFails(): void
@@ -489,6 +595,35 @@ class CacheStackStoreTest extends TestCase
             'fail' => 'two',
             'after' => 'three',
         ], $ttl));
+    }
+
+    #[DataProvider('proxyPutManyTtlProvider')]
+    public function testProxyPutManyAppliesLayerTtl(?int $layerTtl, int $requestedTtl, int $expectedTtl): void
+    {
+        $store = m::mock(ArrayStore::class);
+        $store->shouldReceive('putMany')->once()->with(['key' => 'value'], $expectedTtl)->andReturnTrue();
+
+        $proxy = new StackStoreProxy($store, $layerTtl);
+
+        $this->assertTrue($proxy->putMany(['key' => 'value'], $requestedTtl));
+    }
+
+    public static function proxyPutManyTtlProvider(): array
+    {
+        return [
+            'no cap' => [null, 90, 90],
+            'shorter requested TTL' => [60, 30, 30],
+            'equal requested TTL' => [60, 60, 60],
+            'longer requested TTL' => [60, 90, 60],
+        ];
+    }
+
+    public function testProxyPutManyReturnsUnderlyingResult(): void
+    {
+        $store = m::mock(ArrayStore::class);
+        $store->shouldReceive('putMany')->once()->with(['key' => 'value'], 60)->andReturnFalse();
+
+        $this->assertFalse((new StackStoreProxy($store, 60))->putMany(['key' => 'value'], 90));
     }
 
     public function testIncrement()

@@ -23,6 +23,7 @@ use Hypervel\Events\Dispatcher as EventsDispatcher;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Queue\Events\JobExceptionOccurred;
+use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Events\JobQueueingFailed;
@@ -102,6 +103,27 @@ class QueueSyncQueueTest extends TestCase
         }
     }
 
+    public function testLifecycleEventsAreNotDispatchedWithoutListeners(): void
+    {
+        unset($_SERVER['__sync.test']);
+
+        $sync = new SyncQueue;
+        $sync->setConnectionName('sync');
+        $container = $this->getContainer();
+        $events = m::mock(EventDispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(JobProcessing::class)->andReturnFalse();
+        $events->shouldReceive('hasListeners')->once()->with(JobProcessed::class)->andReturnFalse();
+        $events->shouldReceive('hasListeners')->once()->with(JobAttempted::class)->andReturnFalse();
+        $events->shouldReceive('dispatch')->never();
+        $container->instance('events', $events);
+        $container->instance(EventDispatcher::class, $events);
+        $sync->setContainer($container);
+
+        $sync->push(SyncQueueTestHandler::class, ['foo' => 'bar']);
+
+        $this->assertInstanceOf(SyncJob::class, $_SERVER['__sync.test'][0]);
+    }
+
     public function testFailedJobGetsHandledWhenAnExceptionIsThrown()
     {
         unset($_SERVER['__sync.failed']);
@@ -110,6 +132,10 @@ class QueueSyncQueueTest extends TestCase
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $events = m::mock(EventDispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(JobProcessing::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->once()->with(JobExceptionOccurred::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->once()->with(JobAttempted::class)->andReturnTrue();
         $events->shouldReceive('dispatch')->times(4);
         $container->instance('events', $events);
         $container->instance(EventDispatcher::class, $events);
@@ -268,8 +294,7 @@ class QueueSyncQueueTest extends TestCase
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $events = m::mock(EventDispatcher::class);
-        $events->shouldReceive('dispatch');
+        $events = new EventsDispatcher($container);
         $container->instance('events', $events);
         $container->instance(EventDispatcher::class, $events);
         $dispatcher = m::mock(Dispatcher::class);

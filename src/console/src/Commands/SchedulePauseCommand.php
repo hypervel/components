@@ -32,7 +32,9 @@ class SchedulePauseCommand extends Command
 
         $cache->forever('hypervel:schedule:paused', true);
 
-        $dispatcher->dispatch(new SchedulePaused);
+        if ($dispatcher->hasListeners(SchedulePaused::class)) {
+            $dispatcher->dispatch(new SchedulePaused);
+        }
 
         $this->components->info('Scheduled task processing has been paused.');
 

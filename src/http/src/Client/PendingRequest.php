@@ -46,6 +46,10 @@ class PendingRequest implements Transient
     use Conditionable;
     use Macroable;
 
+    public const string DATA_OPTION = 'hypervel_data';
+
+    public const string PRIOR_SENDS_OPTION = 'hypervel_prior_sends';
+
     protected const string PREPARED_BODY_OPTION = 'hypervel_prepared_body';
 
     /**
@@ -96,6 +100,11 @@ class PendingRequest implements Transient
      * The transfer stats for the request.
      */
     protected ?TransferStats $transferStats = null;
+
+    /**
+     * The number of physical requests started during the current logical send.
+     */
+    protected int $sendCount = 0;
 
     /**
      * The request options.
@@ -879,6 +888,8 @@ class PendingRequest implements Transient
 
         $options = $this->parseHttpOptions($options);
 
+        $this->sendCount = 0;
+
         [$this->pendingBody, $this->pendingFiles] = [null, []];
 
         if ($this->async) {
@@ -1184,10 +1195,13 @@ class PendingRequest implements Transient
             $this->transferStats = $transferStats;
         };
 
-        $requestOptions = ['on_stats' => $onStats];
+        $requestOptions = [
+            'on_stats' => $onStats,
+            self::PRIOR_SENDS_OPTION => $this->sendCount,
+        ];
 
         if ($this->bodyFormat !== 'body' && ! array_key_exists('body', $options)) {
-            $requestOptions['hypervel_data'] = $this->parseRequestData($method, $url, $options);
+            $requestOptions[self::DATA_OPTION] = $this->parseRequestData($method, $url, $options);
         }
 
         $mergedOptions = $this->normalizeRequestOptions($this->mergeOptions($requestOptions, $options));
@@ -1587,13 +1601,15 @@ class PendingRequest implements Transient
     {
         return function ($handler) {
             return function ($request, $options) use ($handler) {
+                ++$this->sendCount;
+
                 $preparedBody = $options[self::PREPARED_BODY_OPTION] ?? $request->getBody();
                 $request = $this->runBeforeSendingCallbacks($request, $options);
 
                 // Direct stream mutation is a low-level escape hatch; only replacement
                 // streams invalidate structured data.
                 if ($request->getBody() !== $preparedBody) {
-                    unset($options['hypervel_data']);
+                    unset($options[self::DATA_OPTION]);
                 }
 
                 unset($options[self::PREPARED_BODY_OPTION]);
@@ -1616,7 +1632,7 @@ class PendingRequest implements Transient
                     function ($response) use ($request, $options) {
                         $this->factory?->recordRequestResponsePair(
                             (new Request($request))
-                                ->withData($options['hypervel_data'] ?? [])
+                                ->withData($options[self::DATA_OPTION] ?? [])
                                 ->setRequestAttributes($this->attributes),
                             $this->newResponse($response)
                         );
@@ -1626,7 +1642,7 @@ class PendingRequest implements Transient
                     function ($reason) use ($request, $options) {
                         $this->factory?->recordRequestResponsePair(
                             (new Request($request))
-                                ->withData($options['hypervel_data'] ?? [])
+                                ->withData($options[self::DATA_OPTION] ?? [])
                                 ->setRequestAttributes($this->attributes),
                             $reason instanceof RequestException && $reason->hasResponse()
                                 ? $this->newResponse($reason->getResponse())
@@ -1649,7 +1665,7 @@ class PendingRequest implements Transient
             return function ($request, $options) use ($handler) {
                 $response = ($this->stubCallbacks ?? new Collection)
                     ->map
-                    ->__invoke((new Request($request))->withData($options['hypervel_data'] ?? [])->setRequestAttributes($this->attributes), $options)
+                    ->__invoke((new Request($request))->withData($options[self::DATA_OPTION] ?? [])->setRequestAttributes($this->attributes), $options)
                     ->filter()
                     ->first();
 
@@ -1742,7 +1758,7 @@ class PendingRequest implements Transient
             $preparedBody = $options[self::PREPARED_BODY_OPTION] ?? $request->getBody();
             unset($options[self::PREPARED_BODY_OPTION]);
 
-            $originalData = $options['hypervel_data'] ?? [];
+            $originalData = $options[self::DATA_OPTION] ?? [];
             $data = $request->getBody() === $preparedBody ? $originalData : [];
 
             $this->beforeSendingCallbacks->each(function ($callback) use (

@@ -70,12 +70,37 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
         $connection->shouldReceive('getSchemaState')->andReturn($schemaState = m::mock(SchemaState::class));
         $schemaState->shouldReceive('handleOutputUsing')->andReturnSelf();
         $schemaState->shouldReceive('load')->once()->with(__DIR__ . '/Fixtures/schema.sql');
+        $dispatcher->shouldReceive('hasListeners')->once()->with(SchemaLoaded::class)->andReturnTrue();
         $dispatcher->shouldReceive('dispatch')->once()->with(m::type(SchemaLoaded::class));
         $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
         $migrator->shouldReceive('run')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => false]);
         $migrator->shouldReceive('getNotes')->andReturn([]);
 
         $this->runCommand($command, ['--schema-path' => __DIR__ . '/Fixtures/schema.sql']);
+    }
+
+    public function testStoredSchemaDoesNotDispatchWithoutListeners(): void
+    {
+        $app = new ApplicationDatabaseMigrationStub(['path.database' => __DIR__]);
+        $app->useDatabasePath(__DIR__);
+        $command = new MigrateCommand($migrator = m::mock(Migrator::class), $dispatcher = m::mock(Dispatcher::class));
+        $command->setHypervel($app);
+        $this->expectMigrationPreflight($migrator);
+        $migrator->shouldReceive('hasRunAnyMigrations')->andReturn(false);
+        $migrator->shouldReceive('resolveConnection')->andReturn($connection = m::mock(Connection::class));
+        $connection->shouldReceive('getName')->andReturn('mysql');
+        $migrator->shouldReceive('deleteRepository')->once();
+        $connection->shouldReceive('getSchemaState')->andReturn($schemaState = m::mock(SchemaState::class));
+        $schemaState->shouldReceive('handleOutputUsing')->andReturnSelf();
+        $schemaState->shouldReceive('load')->once()->with(__DIR__ . '/Fixtures/schema.sql');
+        $dispatcher->shouldReceive('hasListeners')->once()->with(SchemaLoaded::class)->andReturnFalse();
+        $dispatcher->shouldReceive('dispatch')->never();
+        $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
+        $migrator->shouldReceive('run')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => false]);
+        $migrator->shouldReceive('getNotes')->andReturn([]);
+
+        $this->runCommand($command, ['--schema-path' => __DIR__ . '/Fixtures/schema.sql']);
+        $this->addToAssertionCount(1);
     }
 
     public function testMigrationRepositoryCreatedWhenNecessary(): void

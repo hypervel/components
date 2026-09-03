@@ -6,16 +6,21 @@ namespace Hypervel\Cache;
 
 use Closure;
 use Hypervel\Cache\Exceptions\NotSupportedException;
+use Hypervel\Contracts\Cache\AuthoritativeRawReadable;
 use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\Lock;
 use Hypervel\Contracts\Cache\LockProvider;
+use Hypervel\Contracts\Cache\RawReadable;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Support\CarbonImmutable;
 use InvalidArgumentException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
+use UnitEnum;
 
-class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
+use function Hypervel\Support\enum_value;
+
+class StackStore extends TaggableStore implements AuthoritativeRawReadable, CanFlushLocks, LockProvider
 {
     /**
      * The ordered store layers.
@@ -54,6 +59,23 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
         $record = $this->getOrRestoreRecord($key);
 
         return $record['value'] ?? null;
+    }
+
+    /**
+     * Retrieve an item from the authoritative bottom layer without backfilling upper layers.
+     */
+    public function getAuthoritativeRaw(UnitEnum|string $key): mixed
+    {
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
+        $store = $this->bottomStore();
+
+        $record = match (true) {
+            $store instanceof AuthoritativeRawReadable => $store->getAuthoritativeRaw($key),
+            $store instanceof RawReadable => $store->getRaw($key),
+            default => $store->get($key),
+        };
+
+        return ((array) $record)['value'] ?? null;
     }
 
     public function many(array $keys): array
@@ -238,18 +260,6 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
     public function getPrefix(): string
     {
         return '';
-    }
-
-    /**
-     * Get the underlying store layers.
-     *
-     * @return list<StackStoreProxy>
-     *
-     * @internal
-     */
-    public function getStores(): array
-    {
-        return $this->stores;
     }
 
     /**

@@ -56,6 +56,7 @@ class QueueBeanstalkdJobTest extends TestCase
         $job->getPheanstalk()->shouldReceive('delete')->once()->with($job->getPheanstalkJob())->andReturnSelf();
         $handler->shouldReceive('failed')->once()->with(['data'], m::type(Exception::class), 'test-uuid', m::type(BeanstalkdJob::class));
         $job->getContainer()->shouldReceive('make')->once()->with(Dispatcher::class)->andReturn($events = m::mock(Dispatcher::class));
+        $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturnTrue();
         $events->shouldReceive('dispatch')->once()->with(m::type(JobFailed::class))->andReturnNull();
 
         $job->fail(new Exception);
@@ -79,6 +80,7 @@ class QueueBeanstalkdJobTest extends TestCase
         $job->getPheanstalk()->shouldReceive('delete')->once()->with($job->getPheanstalkJob())->andReturnSelf();
         $handler->shouldReceive('failed')->once()->with(['data'], m::type(TimeoutExceededException::class), 'test-uuid', m::type(BeanstalkdJob::class));
         $job->getContainer()->shouldReceive('make')->once()->with(Dispatcher::class)->andReturn($events = m::mock(Dispatcher::class));
+        $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturnTrue();
         $events->shouldReceive('dispatch')->once()->with(m::type(JobFailed::class))->andReturnNull();
 
         $job->fail(TimeoutExceededException::forJob($job));

@@ -14,7 +14,10 @@ use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Http\Request;
 use Hypervel\Scout\Builder;
 use Hypervel\Scout\Contracts\DeletesByFilter;
+use Hypervel\Scout\Contracts\EngineOperationObserver;
 use Hypervel\Scout\Contracts\SearchableInterface;
+use Hypervel\Scout\EngineOperation;
+use Hypervel\Scout\EngineOperationRunner;
 use Hypervel\Scout\Engines\AlgoliaEngine;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Exceptions\NotSupportedException;
@@ -27,6 +30,7 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Throwable;
 
 use function Hypervel\Coroutine\go;
 
@@ -275,7 +279,10 @@ class AlgoliaEngineTest extends TestCase
             ->with('users_write', 123)
             ->andReturn(['status' => 'published']);
 
-        $engine = new AlgoliaEngine($client);
+        $runner = new EngineOperationRunner;
+        $observer = new AlgoliaEngineOperationObserver;
+        $runner->observe($observer);
+        $engine = (new AlgoliaEngine($client))->setOperationRunner($runner, 'algolia');
         $this->assertInstanceOf(DeletesByFilter::class, $engine);
 
         $model = m::mock(AlgoliaTestSearchableModel::class);
@@ -292,6 +299,10 @@ class AlgoliaEngineTest extends TestCase
         });
 
         $engine->deleteByFilter($builder);
+
+        $this->assertCount(1, $observer->operations);
+        $this->assertSame('delete_by_filter', $observer->operations[0]->operation);
+        $this->assertSame('users_write', $observer->operations[0]->index);
     }
 
     public function testDeleteByFilterUsesAnExplicitIndex(): void
@@ -355,6 +366,26 @@ class AlgoliaEngineTest extends TestCase
         }
 
         $this->assertTrue($prepared);
+    }
+
+    public function testDeleteByFilterDoesNotNotifyObserversForAnEmptyFilter(): void
+    {
+        $client = m::mock(AlgoliaSearchClient::class);
+        $client->shouldNotReceive('deleteBy');
+        $client->shouldNotReceive('waitForTask');
+        $observer = m::mock(EngineOperationObserver::class);
+        $observer->shouldNotReceive('starting');
+        $observer->shouldNotReceive('finished');
+        $runner = new EngineOperationRunner;
+        $runner->observe($observer);
+        $engine = (new AlgoliaEngine($client))->setOperationRunner($runner, 'algolia');
+        $model = m::mock(AlgoliaTestSearchableModel::class);
+        $model->shouldNotReceive('indexableAs');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Algolia filter deletion requires a non-empty filter.');
+
+        $engine->deleteByFilter(new Builder($model, ''));
     }
 
     #[DataProvider('incompleteFilterDeletionTasks')]
@@ -1347,6 +1378,30 @@ class AlgoliaEngineTest extends TestCase
     {
         // Must mock a class that uses SoftDeletes for usesSoftDelete() to return true
         return m::mock(AlgoliaTestSoftDeleteModel::class . ', ' . SearchableInterface::class);
+    }
+}
+
+class AlgoliaEngineOperationObserver implements EngineOperationObserver
+{
+    /**
+     * The observed operations.
+     *
+     * @var array<EngineOperation>
+     */
+    public array $operations = [];
+
+    public function starting(EngineOperation $operation): mixed
+    {
+        $this->operations[] = $operation;
+
+        return null;
+    }
+
+    public function finished(
+        EngineOperation $operation,
+        mixed $token,
+        ?Throwable $exception
+    ): void {
     }
 }
 

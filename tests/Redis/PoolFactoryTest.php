@@ -42,6 +42,21 @@ class PoolFactoryTest extends TestCase
         $this->assertNotSame($pool1, $pool2);
     }
 
+    public function testPoolsReturnsOnlyExistingPools(): void
+    {
+        $factory = new PoolFactory($this->mockContainerWithPools());
+
+        $this->assertSame([], $factory->pools());
+
+        $default = $factory->getPool('default');
+        $cache = $factory->getPool('cache');
+
+        $this->assertSame([
+            'default' => $default,
+            'cache' => $cache,
+        ], $factory->pools());
+    }
+
     public function testFlushAll(): void
     {
         $container = $this->mockContainerWithPools();

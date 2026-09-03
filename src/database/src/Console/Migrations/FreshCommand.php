@@ -100,9 +100,11 @@ class FreshCommand extends BaseCommand
         }
 
         if ($this->hypervel->bound(Dispatcher::class)) {
-            $this->hypervel->make(Dispatcher::class)->dispatch(
-                new DatabaseRefreshed($database, $this->needsSeeding())
-            );
+            $events = $this->hypervel->make(Dispatcher::class);
+
+            if ($events->hasListeners(DatabaseRefreshed::class)) {
+                $events->dispatch(new DatabaseRefreshed($database, $this->needsSeeding()));
+            }
         }
 
         if ($this->needsSeeding()) {

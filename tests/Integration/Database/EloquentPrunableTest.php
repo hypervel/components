@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database;
 
 use Exception;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Prunable;
 use Hypervel\Database\Eloquent\SoftDeletes;
@@ -67,6 +68,23 @@ class EloquentPrunableTest extends DatabaseTestCase
         $this->assertEquals(49, PrunableTestModel::count());
 
         Event::assertDispatched(ModelsPruned::class, 2);
+    }
+
+    public function testPassiveObserverDoesNotCausePrunedEventToDispatch(): void
+    {
+        PrunableTestModel::insert(['name' => 'foo']);
+        $observedEvents = [];
+        $this->app->make(Dispatcher::class)->observe(
+            ModelsPruned::class,
+            static function (ModelsPruned $event) use (&$observedEvents): void {
+                $observedEvents[] = $event;
+            }
+        );
+
+        $count = (new PrunableTestModel)->pruneAll();
+
+        $this->assertSame(1, $count);
+        $this->assertSame([], $observedEvents);
     }
 
     public function testPrunesSoftDeletedRecords()

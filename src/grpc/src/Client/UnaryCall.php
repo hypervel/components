@@ -6,6 +6,7 @@ namespace Hypervel\Grpc\Client;
 
 use Closure;
 use Google\Protobuf\Internal\Message;
+use Hypervel\Grpc\GrpcOperationHandle;
 use Hypervel\Grpc\Protocol\Deadline;
 
 final class UnaryCall extends Call
@@ -27,6 +28,7 @@ final class UnaryCall extends Call
         ?RetryPolicy $retryPolicy = null,
         ?Closure $attemptFactory = null,
         ?RetryBackoff $retryBackoff = null,
+        ?GrpcOperationHandle $operationHandle = null,
     ) {
         parent::__construct(
             $state,
@@ -37,6 +39,7 @@ final class UnaryCall extends Call
             $retryPolicy,
             $attemptFactory,
             $retryBackoff,
+            $operationHandle,
         );
     }
 

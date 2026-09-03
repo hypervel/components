@@ -36,7 +36,7 @@ $path = Image::fromStorage('avatars/photo.jpg', 'public')
 ```
 
 > [!WARNING]
-> Image manipulation can be CPU and memory-intensive. An image family retains its original source while processed variants retain their output bytes. Perform large image processing workloads on a [queued job](/docs/{{version}}/queues) instead of during the HTTP request that receives the upload.
+> Image decoding, transformation, and encoding are CPU-bound work. While an image is being processed, the worker cannot run other coroutines. An image family also retains its original source while processed variants retain their output bytes. Perform expensive or batch image processing on a [queued job](/docs/{{version}}/queues) instead of during the HTTP request that receives the upload.
 
 <a name="installation"></a>
 ## Installation
@@ -205,6 +205,8 @@ $image = $image->crop(300, 200);
 $image = $image->crop(300, 200, x: 50, y: 25);
 ```
 
+Any width or height you provide must be greater than zero. Invalid values throw a `Hypervel\Image\ImageException`.
+
 <a name="other-transformations"></a>
 ### Other Transformations
 
@@ -222,7 +224,7 @@ $image = $image->flipVertically();
 $image = $image->flipHorizontally();
 ```
 
-The `orient` method rotates the image according to its EXIF orientation data. The `rotate` method rotates the image clockwise by the given angle and accepts an optional background color. The `blur` and `sharpen` methods accept values between `0` and `100`.
+The `orient` method rotates the image according to its EXIF orientation data. The `rotate` method rotates the image clockwise by the given angle and accepts an optional background color. The `blur` and `sharpen` methods accept values between `0` and `100`. Values outside this range throw an `ImageException`.
 
 <a name="conditional-transformations"></a>
 #### Conditional Transformations
@@ -257,7 +259,7 @@ The public `toFormat` method accepts `webp`, `jpg`, `jpeg`, `png`, `gif`, `avif`
 $image = $image->toFormat('heif');
 ```
 
-You may use the `quality` method to set the output quality. The quality will be clamped between `1` and `100`:
+You may use the `quality` method to set the output quality. The quality must be between `1` and `100`; values outside this range throw an `ImageException`:
 
 ```php
 $image = $image->toWebp()->quality(80);

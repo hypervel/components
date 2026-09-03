@@ -444,10 +444,12 @@ class Worker
             $e
         );
 
-        $this->events->dispatch(new JobTimedOut(
-            $job->getConnectionName(),
-            $job
-        ));
+        if ($this->events->hasListeners(JobTimedOut::class)) {
+            $this->events->dispatch(new JobTimedOut(
+                $job->getConnectionName(),
+                $job
+            ));
+        }
     }
 
     /**
@@ -742,11 +744,13 @@ class Worker
             }
 
             if (! $canceled) {
-                $this->events->dispatch(new JobAttempted(
-                    $connectionName,
-                    $job,
-                    $exceptionOccurred ?? null
-                ));
+                if ($this->events->hasListeners(JobAttempted::class)) {
+                    $this->events->dispatch(new JobAttempted(
+                        $connectionName,
+                        $job,
+                        $exceptionOccurred ?? null
+                    ));
+                }
 
                 if ($invalidPayloadException !== null && static::$reportJobExceptions) {
                     $this->exceptions->report($invalidPayloadException);
@@ -831,12 +835,14 @@ class Worker
 
                 $job->release($backoff);
 
-                $this->events->dispatch(new JobReleasedAfterException(
-                    $connectionName,
-                    $job,
-                    $backoff,
-                    $e,
-                ));
+                if ($this->events->hasListeners(JobReleasedAfterException::class)) {
+                    $this->events->dispatch(new JobReleasedAfterException(
+                        $connectionName,
+                        $job,
+                        $backoff,
+                        $e,
+                    ));
+                }
             }
         }
 
@@ -957,7 +963,9 @@ class Worker
      */
     protected function raiseWorkerStartingEvent(string $connectionName, string $queue, WorkerOptions $options): void
     {
-        $this->events->dispatch(new WorkerStarting($connectionName, $queue, $options));
+        if ($this->events->hasListeners(WorkerStarting::class)) {
+            $this->events->dispatch(new WorkerStarting($connectionName, $queue, $options));
+        }
     }
 
     /**
@@ -988,10 +996,12 @@ class Worker
      */
     protected function raiseBeforeJobEvent(string $connectionName, ?JobContract $job): void
     {
-        $this->events->dispatch(new JobProcessing(
-            $connectionName,
-            $job
-        ));
+        if ($this->events->hasListeners(JobProcessing::class)) {
+            $this->events->dispatch(new JobProcessing(
+                $connectionName,
+                $job
+            ));
+        }
     }
 
     /**
@@ -999,10 +1009,12 @@ class Worker
      */
     protected function raiseAfterJobEvent(string $connectionName, JobContract $job): void
     {
-        $this->events->dispatch(new JobProcessed(
-            $connectionName,
-            $job
-        ));
+        if ($this->events->hasListeners(JobProcessed::class)) {
+            $this->events->dispatch(new JobProcessed(
+                $connectionName,
+                $job
+            ));
+        }
     }
 
     /**
@@ -1010,11 +1022,13 @@ class Worker
      */
     protected function raiseExceptionOccurredJobEvent(string $connectionName, ?JobContract $job, Throwable $e): void
     {
-        $this->events->dispatch(new JobExceptionOccurred(
-            $connectionName,
-            $job,
-            $e
-        ));
+        if ($this->events->hasListeners(JobExceptionOccurred::class)) {
+            $this->events->dispatch(new JobExceptionOccurred(
+                $connectionName,
+                $job,
+                $e
+            ));
+        }
     }
 
     /**
@@ -1078,7 +1092,9 @@ class Worker
     {
         $this->shouldQuit = true;
 
-        $this->events->dispatch(new WorkerInterrupted($signal, $connectionName, $queue, $options));
+        if ($this->events->hasListeners(WorkerInterrupted::class)) {
+            $this->events->dispatch(new WorkerInterrupted($signal, $connectionName, $queue, $options));
+        }
 
         $this->notifyJobsOfSignal($signal);
     }
@@ -1090,7 +1106,9 @@ class Worker
     {
         $this->paused = true;
 
-        $this->events->dispatch(new WorkerPausing($connectionName, $queue, $options));
+        if ($this->events->hasListeners(WorkerPausing::class)) {
+            $this->events->dispatch(new WorkerPausing($connectionName, $queue, $options));
+        }
     }
 
     /**
@@ -1100,7 +1118,9 @@ class Worker
     {
         $this->paused = false;
 
-        $this->events->dispatch(new WorkerResuming($connectionName, $queue, $options));
+        if ($this->events->hasListeners(WorkerResuming::class)) {
+            $this->events->dispatch(new WorkerResuming($connectionName, $queue, $options));
+        }
     }
 
     /**
@@ -1169,15 +1189,17 @@ class Worker
      */
     public function stop(int $status = 0, ?WorkerOptions $options = null, ?WorkerStopReason $reason = null): int
     {
-        $this->events->dispatch(new WorkerStopping(
-            $status,
-            $options,
-            $reason,
-            $this->jobsProcessed,
-            $this->lastJobProcessedAt,
-            $this->currentMemoryUsage(),
-            terminatesImmediately: false,
-        ));
+        if ($this->events->hasListeners(WorkerStopping::class)) {
+            $this->events->dispatch(new WorkerStopping(
+                $status,
+                $options,
+                $reason,
+                $this->jobsProcessed,
+                $this->lastJobProcessedAt,
+                $this->currentMemoryUsage(),
+                terminatesImmediately: false,
+            ));
+        }
 
         return $status;
     }
@@ -1190,15 +1212,17 @@ class Worker
         ?WorkerOptions $options = null,
         ?WorkerStopReason $reason = null,
     ): never {
-        $this->events->dispatch(new WorkerStopping(
-            $status,
-            $options,
-            $reason,
-            $this->jobsProcessed,
-            $this->lastJobProcessedAt,
-            $this->currentMemoryUsage(),
-            terminatesImmediately: true,
-        ));
+        if ($this->events->hasListeners(WorkerStopping::class)) {
+            $this->events->dispatch(new WorkerStopping(
+                $status,
+                $options,
+                $reason,
+                $this->jobsProcessed,
+                $this->lastJobProcessedAt,
+                $this->currentMemoryUsage(),
+                terminatesImmediately: true,
+            ));
+        }
 
         $this->terminateProcess($status);
     }

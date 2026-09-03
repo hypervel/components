@@ -7,6 +7,7 @@ namespace Hypervel\Cache\Redis;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Cache\Events\CacheFlushed;
+use Hypervel\Cache\Events\CacheFlushFailed;
 use Hypervel\Cache\Events\CacheFlushing;
 use Hypervel\Cache\Events\KeyWriteFailed;
 use Hypervel\Cache\Events\KeyWritten;
@@ -98,10 +99,9 @@ class AllTaggedCache extends NamespacedTaggedCache
             return $this->forget($key);
         }
 
-        $this->event(
-            WritingKey::class,
-            fn (): WritingKey => new WritingKey($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
-        );
+        if ($this->events?->hasListeners(WritingKey::class)) {
+            $this->event(new WritingKey($this->getName(), $key, NullSentinel::unwrap($value), $seconds));
+        }
 
         try {
             $result = $this->store->allTagOps()->put()->execute(
@@ -113,24 +113,25 @@ class AllTaggedCache extends NamespacedTaggedCache
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            $this->event(
-                KeyWriteFailed::class,
-                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
-            );
+            if ($this->events?->hasListeners(KeyWriteFailed::class)) {
+                $this->event(new KeyWriteFailed(
+                    $this->getName(),
+                    $key,
+                    NullSentinel::unwrap($value),
+                    $seconds,
+                    exception: $exception,
+                ));
+            }
 
             throw $exception;
         }
 
         if ($result) {
-            $this->event(
-                KeyWritten::class,
-                fn (): KeyWritten => new KeyWritten($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
-            );
-        } else {
-            $this->event(
-                KeyWriteFailed::class,
-                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
-            );
+            if ($this->events?->hasListeners(KeyWritten::class)) {
+                $this->event(new KeyWritten($this->getName(), $key, NullSentinel::unwrap($value), $seconds));
+            }
+        } elseif ($this->events?->hasListeners(KeyWriteFailed::class)) {
+            $this->event(new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value), $seconds));
         }
 
         return $result;
@@ -155,15 +156,14 @@ class AllTaggedCache extends NamespacedTaggedCache
             return $this->deleteMultiple(array_map(static fn ($key) => (string) $key, array_keys($values)));
         }
 
-        $this->event(
-            WritingManyKeys::class,
-            fn (): WritingManyKeys => new WritingManyKeys(
+        if ($this->events?->hasListeners(WritingManyKeys::class)) {
+            $this->event(new WritingManyKeys(
                 $this->getName(),
                 array_map(static fn ($key): string => (string) $key, array_keys($values)),
                 array_map(NullSentinel::unwrap(...), array_values($values)),
                 $seconds
-            )
-        );
+            ));
+        }
 
         try {
             $result = $this->store->allTagOps()->putMany()->execute(
@@ -175,27 +175,30 @@ class AllTaggedCache extends NamespacedTaggedCache
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            foreach ($values as $key => $value) {
-                $this->event(
-                    KeyWriteFailed::class,
-                    fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), (string) $key, NullSentinel::unwrap($value), $seconds)
-                );
+            if ($this->events?->hasListeners(KeyWriteFailed::class)) {
+                foreach ($values as $key => $value) {
+                    $this->event(new KeyWriteFailed(
+                        $this->getName(),
+                        (string) $key,
+                        NullSentinel::unwrap($value),
+                        $seconds,
+                        exception: $exception,
+                    ));
+                }
             }
 
             throw $exception;
         }
 
-        foreach ($values as $key => $value) {
-            if ($result) {
-                $this->event(
-                    KeyWritten::class,
-                    fn (): KeyWritten => new KeyWritten($this->getName(), (string) $key, NullSentinel::unwrap($value), $seconds)
-                );
-            } else {
-                $this->event(
-                    KeyWriteFailed::class,
-                    fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), (string) $key, NullSentinel::unwrap($value), $seconds)
-                );
+        if ($result) {
+            if ($this->events?->hasListeners(KeyWritten::class)) {
+                foreach ($values as $key => $value) {
+                    $this->event(new KeyWritten($this->getName(), (string) $key, NullSentinel::unwrap($value), $seconds));
+                }
+            }
+        } elseif ($this->events?->hasListeners(KeyWriteFailed::class)) {
+            foreach ($values as $key => $value) {
+                $this->event(new KeyWriteFailed($this->getName(), (string) $key, NullSentinel::unwrap($value), $seconds));
             }
         }
 
@@ -260,11 +263,13 @@ class AllTaggedCache extends NamespacedTaggedCache
     {
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
-        $this->event(WritingKey::class, fn (): WritingKey => new WritingKey(
-            $this->getName(),
-            $key,
-            NullSentinel::unwrap($value)
-        ));
+        if ($this->events?->hasListeners(WritingKey::class)) {
+            $this->event(new WritingKey(
+                $this->getName(),
+                $key,
+                NullSentinel::unwrap($value)
+            ));
+        }
 
         try {
             $result = $this->store->allTagOps()->forever()->execute(
@@ -275,24 +280,24 @@ class AllTaggedCache extends NamespacedTaggedCache
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            $this->event(
-                KeyWriteFailed::class,
-                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value))
-            );
+            if ($this->events?->hasListeners(KeyWriteFailed::class)) {
+                $this->event(new KeyWriteFailed(
+                    $this->getName(),
+                    $key,
+                    NullSentinel::unwrap($value),
+                    exception: $exception,
+                ));
+            }
 
             throw $exception;
         }
 
         if ($result) {
-            $this->event(
-                KeyWritten::class,
-                fn (): KeyWritten => new KeyWritten($this->getName(), $key, NullSentinel::unwrap($value))
-            );
-        } else {
-            $this->event(
-                KeyWriteFailed::class,
-                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value))
-            );
+            if ($this->events?->hasListeners(KeyWritten::class)) {
+                $this->event(new KeyWritten($this->getName(), $key, NullSentinel::unwrap($value)));
+            }
+        } elseif ($this->events?->hasListeners(KeyWriteFailed::class)) {
+            $this->event(new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value)));
         }
 
         return $result;
@@ -303,12 +308,27 @@ class AllTaggedCache extends NamespacedTaggedCache
      */
     public function flush(): bool
     {
-        $this->event(CacheFlushing::class, fn (): CacheFlushing => new CacheFlushing($this->getName()));
+        if ($this->events?->hasListeners(CacheFlushing::class)) {
+            $this->event(new CacheFlushing($this->getName()));
+        }
 
-        $this->store->allTagOps()->flush()->execute($this->tags->tagIds(), $this->tags->getNames());
+        try {
+            $this->store->allTagOps()->flush()->execute($this->tags->tagIds(), $this->tags->getNames());
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            if ($this->events?->hasListeners(CacheFlushFailed::class)) {
+                $this->event(new CacheFlushFailed($this->getName(), exception: $exception));
+            }
 
-        $this->event(CacheFlushed::class, fn (): CacheFlushed => new CacheFlushed($this->getName()));
+            throw $exception;
+        }
 
+        if ($this->events?->hasListeners(CacheFlushed::class)) {
+            $this->event(new CacheFlushed($this->getName()));
+        }
+
+        // The atomic Redis operation reports failure by throwing, including when no keys exist.
         return true;
     }
 

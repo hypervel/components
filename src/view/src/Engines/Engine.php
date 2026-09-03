@@ -14,7 +14,7 @@ abstract class Engine
     /**
      * Get the last view that was rendered.
      */
-    public function getLastRendered(): string
+    public function getLastRendered(): ?string
     {
         return $this->lastRendered;
     }

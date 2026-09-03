@@ -9,6 +9,8 @@ use Hypervel\Contracts\Image\Transformation;
 class Scale implements Transformation
 {
     /**
+     * Create a new scale transformation.
+     *
      * @param null|positive-int $width
      * @param null|positive-int $height
      */

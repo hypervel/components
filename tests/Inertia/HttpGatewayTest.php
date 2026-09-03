@@ -11,6 +11,7 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Request as GuzzleRequest;
 use GuzzleHttp\Psr7\Response as GuzzleResponse;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Inertia\Ssr\HttpGateway;
 use Hypervel\Inertia\Ssr\SsrErrorType;
 use Hypervel\Inertia\Ssr\SsrException;
@@ -471,6 +472,69 @@ class HttpGatewayTest extends TestCase
                 && $event->browserApi === 'window'
                 && $event->component() === 'Foo/Bar';
         });
+    }
+
+    public function testPassiveObserverDoesNotCauseSsrFailureEventToDispatch(): void
+    {
+        $observedEvents = [];
+        $this->app->make(Dispatcher::class)->observe(
+            SsrRenderFailed::class,
+            static function (SsrRenderFailed $event) use (&$observedEvents): void {
+                $observedEvents[] = $event;
+            }
+        );
+
+        config([
+            'inertia.ssr.enabled' => true,
+            'inertia.ssr.bundle' => __DIR__ . '/Fixtures/ssr-bundle.js',
+        ]);
+
+        $this->mockSsrClient([
+            new GuzzleResponse(500, [], json_encode([
+                'error' => 'window is not defined',
+                'type' => 'browser-api',
+            ])),
+        ]);
+
+        $this->assertNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
+        $this->assertSame([], $observedEvents);
+    }
+
+    public function testThrowOnErrorBuildsTheExceptionWithoutDispatchingToPassiveObservers(): void
+    {
+        $observedEvents = [];
+        $this->app->make(Dispatcher::class)->observe(
+            SsrRenderFailed::class,
+            static function (SsrRenderFailed $event) use (&$observedEvents): void {
+                $observedEvents[] = $event;
+            }
+        );
+
+        config([
+            'inertia.ssr.enabled' => true,
+            'inertia.ssr.bundle' => __DIR__ . '/Fixtures/ssr-bundle.js',
+            'inertia.ssr.throw_on_error' => true,
+        ]);
+
+        $this->mockSsrClient([
+            new GuzzleResponse(500, [], json_encode([
+                'error' => 'window is not defined',
+                'type' => 'browser-api',
+            ])),
+        ]);
+
+        $caughtException = null;
+
+        try {
+            $this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT);
+        } catch (SsrException $exception) {
+            $caughtException = $exception;
+        }
+
+        $this->assertNotNull($caughtException);
+        $this->assertSame('Foo/Bar', $caughtException->component());
+        $this->assertSame(SsrErrorType::BrowserApi, $caughtException->type());
+        $this->assertSame([], $observedEvents);
     }
 
     public function testItNormalizesMalformedRemoteErrorMetadata(): void

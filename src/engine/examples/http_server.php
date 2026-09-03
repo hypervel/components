@@ -41,7 +41,7 @@ $callback = function () {
             case '/timeout':
                 $time = $request->get['time'] ?? 1;
                 sleep((int) $time);
-                $response->end();
+                $response->end($request->get['body'] ?? null);
                 break;
             default:
                 $response->setStatusCode(404);

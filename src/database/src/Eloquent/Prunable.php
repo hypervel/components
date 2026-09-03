@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent;
 
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Events\ModelsPruned;
 use LogicException;
 use Throwable;
@@ -17,11 +18,12 @@ trait Prunable
     public function pruneAll(int $chunkSize = 1000): int
     {
         $total = 0;
+        $events = null;
 
         $this->prunable()
             ->when(static::isSoftDeletable(), function ($query) {
                 $query->withTrashed();
-            })->chunkById($chunkSize, function ($models) use (&$total) {
+            })->chunkById($chunkSize, function ($models) use (&$events, &$total) {
                 $models->each(function ($model) use (&$total) {
                     try {
                         $model->prune();
@@ -38,7 +40,11 @@ trait Prunable
                     }
                 });
 
-                event(new ModelsPruned(static::class, $total));
+                $events ??= app(Dispatcher::class);
+
+                if ($events->hasListeners(ModelsPruned::class)) {
+                    $events->dispatch(new ModelsPruned(static::class, $total));
+                }
             });
 
         return $total;

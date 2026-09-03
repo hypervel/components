@@ -32,7 +32,9 @@ class ScheduleResumeCommand extends Command
     {
         $cache->forget('hypervel:schedule:paused');
 
-        $dispatcher->dispatch(new ScheduleResumed);
+        if ($dispatcher->hasListeners(ScheduleResumed::class)) {
+            $dispatcher->dispatch(new ScheduleResumed);
+        }
 
         $this->components->info('Scheduled task processing has resumed.');
 

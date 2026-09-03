@@ -24,7 +24,8 @@ class ListenMethodTest extends TestCase
     {
         $dispatched = [];
         $dispatcher = m::mock(DispatcherContract::class);
-        $dispatcher->shouldReceive('dispatch')->andReturnUsing(function (object $event) use (&$dispatched): void {
+        $dispatcher->shouldReceive('hasListeners')->once()->with(PipeMessage::class)->andReturnTrue();
+        $dispatcher->shouldReceive('dispatch')->once()->andReturnUsing(function (object $event) use (&$dispatched): void {
             $dispatched[] = $event;
         });
 
@@ -57,11 +58,34 @@ class ListenMethodTest extends TestCase
         $this->assertSame(1, $process->socketExports);
     }
 
+    public function testListenerSkipsPipeMessageEventWithoutListeners(): void
+    {
+        $dispatcher = m::mock(DispatcherContract::class);
+        $dispatcher->shouldReceive('hasListeners')->once()->with(PipeMessage::class)->andReturnFalse();
+        $dispatcher->shouldNotReceive('dispatch');
+
+        $process = new ListenableProcess($this->makeContainer($dispatcher));
+        $socket = new FakeSocket([[serialize(['hello' => 'world']), 0]]);
+        $process->fakeSocket = $socket;
+        $quit = new Channel(1);
+
+        try {
+            $process->callListen($quit);
+            $this->waitUntil(fn (): bool => $socket->getCallCount() >= 1);
+        } finally {
+            $this->stopListener($quit);
+            $socket->close();
+        }
+
+        $this->assertSame(1, $socket->getCallCount());
+    }
+
     public function testListenerContinuesAfterEagain(): void
     {
         $dispatched = [];
         $dispatcher = m::mock(DispatcherContract::class);
-        $dispatcher->shouldReceive('dispatch')->andReturnUsing(function (object $event) use (&$dispatched): void {
+        $dispatcher->shouldReceive('hasListeners')->once()->with(PipeMessage::class)->andReturnTrue();
+        $dispatcher->shouldReceive('dispatch')->once()->andReturnUsing(function (object $event) use (&$dispatched): void {
             $dispatched[] = $event;
         });
 
@@ -94,11 +118,8 @@ class ListenMethodTest extends TestCase
 
     public function testListenerStopsOnPermanentSocketClosure(): void
     {
-        $dispatched = [];
         $dispatcher = m::mock(DispatcherContract::class);
-        $dispatcher->shouldReceive('dispatch')->andReturnUsing(function (object $event) use (&$dispatched): void {
-            $dispatched[] = $event;
-        });
+        $dispatcher->shouldNotReceive('dispatch');
 
         $handler = m::mock(ExceptionHandlerContract::class);
         $handler->shouldReceive('report')->with(m::type(SocketAcceptException::class))->once();
@@ -120,7 +141,6 @@ class ListenMethodTest extends TestCase
             $socket->close();
         }
 
-        $this->assertCount(0, $dispatched);
         $this->assertSame(1, $socket->getCallCount());
     }
 
@@ -227,7 +247,8 @@ class ListenMethodTest extends TestCase
         $payloads = [false, null, 0, '', []];
         $dispatched = [];
         $dispatcher = m::mock(DispatcherContract::class);
-        $dispatcher->shouldReceive('dispatch')->andReturnUsing(function (PipeMessage $event) use (&$dispatched): void {
+        $dispatcher->shouldReceive('hasListeners')->times(count($payloads))->with(PipeMessage::class)->andReturnTrue();
+        $dispatcher->shouldReceive('dispatch')->times(count($payloads))->andReturnUsing(function (PipeMessage $event) use (&$dispatched): void {
             $dispatched[] = $event->data;
         });
 

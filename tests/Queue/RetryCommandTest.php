@@ -12,6 +12,7 @@ use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Queue\Console\RetryCommand;
+use Hypervel\Queue\Events\JobRetryRequested;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Queue\NullQueue;
 use Hypervel\Queue\QueueManager;
@@ -85,6 +86,13 @@ class RetryCommandTest extends TestCase
 
         $this->app->instance('queue.failer', $failedJobs);
         $this->app->instance('queue', $queueManager);
+        $retryRequested = null;
+        $this->app->make('events')->listen(
+            JobRetryRequested::class,
+            static function (JobRetryRequested $event) use (&$retryRequested): void {
+                $retryRequested = $event;
+            },
+        );
 
         $command = new RetryCommand;
         $command->setHypervel($this->app);
@@ -98,6 +106,36 @@ class RetryCommandTest extends TestCase
         $expected['retryUntil'] = 987654321;
 
         $this->assertSame($expected, $pushedPayload);
+        $this->assertSame($failedJob, $retryRequested->job);
+    }
+
+    public function testPassiveObserverDoesNotCauseRetryRequestedEventToDispatch(): void
+    {
+        $payload = json_encode([
+            'uuid' => 'job-uuid',
+            'attempts' => 3,
+            'data' => [],
+        ], JSON_THROW_ON_ERROR);
+        $failedJob = $this->failedJob($payload);
+        $failedJobs = m::mock(FailedJobProviderInterface::class);
+        $failedJobs->shouldReceive('find')->once()->with('failed-id')->andReturn($failedJob);
+        $failedJobs->shouldReceive('forget')->once()->with('failed-id')->andReturn(true);
+        $queue = new NullQueue;
+        $queueManager = m::mock(QueueManager::class);
+        $queueManager->shouldReceive('connection')->once()->with('sqs')->andReturn($queue);
+        $observed = false;
+        $this->app->make('events')->observe(
+            JobRetryRequested::class,
+            static function () use (&$observed): void {
+                $observed = true;
+            },
+        );
+        $this->app->instance('queue.failer', $failedJobs);
+        $this->app->instance('queue', $queueManager);
+
+        $this->runRetryCommand();
+
+        $this->assertFalse($observed);
     }
 
     public function testRetryPreservesFifoOptionsOnDirectSqsQueue(): void

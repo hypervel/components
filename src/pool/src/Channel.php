@@ -69,6 +69,14 @@ class Channel
     }
 
     /**
+     * Get the number of coroutines waiting for pool state to change.
+     */
+    public function waiters(): int
+    {
+        return $this->waiters;
+    }
+
+    /**
      * Wait for pool state to change.
      */
     public function wait(float $timeout): bool

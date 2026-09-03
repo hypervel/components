@@ -360,6 +360,34 @@ class TimerTest extends TestCase
         });
     }
 
+    public function testTickStopsSilentlyWhenItsCallbackIsCancelled(): void
+    {
+        $logs = 0;
+        $logger = m::mock(LoggerInterface::class);
+        $logger->shouldReceive('error')->zeroOrMoreTimes()->andReturnUsing(
+            static function () use (&$logs): void {
+                ++$logs;
+            },
+        );
+        $timer = new Timer($logger);
+        $calls = 0;
+        $started = new Channel(1);
+
+        $timer->tick(0.001, static function () use (&$calls, $started): string {
+            ++$calls;
+            $started->push(true);
+
+            throw new CanceledException;
+        }, uniqid());
+
+        $this->assertTrue($started->pop(1.0));
+        usleep(10_000);
+
+        $this->assertSame(1, $calls);
+        $this->assertSame(0, $logs);
+        $this->assertSame(['num' => 0, 'round' => 0], Timer::stats());
+    }
+
     public function testTickClearedFromItsCallbackDoesNotWaitAnotherInterval(): void
     {
         $timer = new Timer;

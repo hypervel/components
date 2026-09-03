@@ -101,7 +101,7 @@ abstract class Pool implements PoolInterface
      */
     public function release(ConnectionInterface $connection): void
     {
-        $connectionId = $this->assertBorrowed($connection, 'release');
+        $connectionId = $this->ensureBorrowed($connection, 'release');
         unset($this->borrowedConnections[$connectionId]);
 
         if ($this->closed) {
@@ -118,7 +118,7 @@ abstract class Pool implements PoolInterface
      */
     public function discard(ConnectionInterface $connection): void
     {
-        $this->assertBorrowed($connection, 'discard');
+        $this->ensureBorrowed($connection, 'discard');
         $this->destroyConnection($connection);
     }
 
@@ -232,6 +232,14 @@ abstract class Pool implements PoolInterface
     public function getConnectionsInChannel(): int
     {
         return $this->channel->length();
+    }
+
+    /**
+     * Get the number of coroutines waiting for a connection.
+     */
+    public function getWaiters(): int
+    {
+        return $this->channel->waiters();
     }
 
     /**
@@ -470,9 +478,9 @@ abstract class Pool implements PoolInterface
     }
 
     /**
-     * Assert that a connection is currently borrowed from this pool.
+     * Ensure that a connection is currently borrowed from this pool.
      */
-    private function assertBorrowed(ConnectionInterface $connection, string $operation): int
+    private function ensureBorrowed(ConnectionInterface $connection, string $operation): int
     {
         $connectionId = spl_object_id($connection);
 

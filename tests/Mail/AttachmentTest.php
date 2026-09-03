@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Mail;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Filesystem\FilesystemAdapter;
+use Hypervel\Http\Testing\File;
 use Hypervel\Mail\Attachment;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
@@ -115,6 +116,48 @@ class AttachmentTest extends TestCase
         $b = Attachment::fromPath('/path/to/b.pdf');
 
         $this->assertFalse($a->isEquivalent($b));
+    }
+
+    public function testIsEquivalentHonorsComparisonOptions(): void
+    {
+        $a = Attachment::fromPath('/path/to/file.pdf')
+            ->as('renamed.pdf')
+            ->withMime('application/pdf');
+        $b = Attachment::fromPath('/path/to/file.pdf');
+
+        $this->assertTrue($a->isEquivalent($b, [
+            'as' => 'renamed.pdf',
+            'mime' => 'application/pdf',
+        ]));
+    }
+
+    public function testIsEquivalentWithStorageAttachments(): void
+    {
+        $storage = m::mock(FilesystemAdapter::class);
+        $storage->shouldReceive('mimeType')->twice()->with('report.txt')->andReturn('text/plain');
+        $storage->shouldReceive('get')->twice()->with('report.txt')->andReturn('file content');
+
+        $factory = m::mock(FilesystemFactory::class);
+        $factory->shouldReceive('disk')->twice()->with('documents')->andReturn($storage);
+
+        $container = new Container;
+        $container->instance(FilesystemFactory::class, $factory);
+        Container::setInstance($container);
+
+        $a = Attachment::fromStorageDisk('documents', 'report.txt');
+        $b = Attachment::fromStorageDisk('documents', 'report.txt');
+
+        $this->assertTrue($a->isEquivalent($b));
+    }
+
+    public function testIsEquivalentWithUploadedFileAttachments(): void
+    {
+        $file = File::createWithContent('example.pdf', 'content')
+            ->mimeType('application/pdf');
+        $a = Attachment::fromUploadedFile($file);
+        $b = Attachment::fromUploadedFile($file);
+
+        $this->assertTrue($a->isEquivalent($b));
     }
 
     public function testFromDataCreatesAttachment(): void

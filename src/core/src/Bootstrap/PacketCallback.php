@@ -19,6 +19,8 @@ class PacketCallback
      */
     public function onPacket(Server $server, string $data, array $clientInfo): void
     {
-        $this->dispatcher->dispatch(new OnPacket($server, $data, $clientInfo));
+        if ($this->dispatcher->hasListeners(OnPacket::class)) {
+            $this->dispatcher->dispatch(new OnPacket($server, $data, $clientInfo));
+        }
     }
 }

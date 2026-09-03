@@ -14,17 +14,15 @@ use Throwable;
  * Always fires regardless of success or failure. When the command threw an exception,
  * the throwable is available for inspection. Unlike CommandFinished, this event fires
  * within the command's execution boundary. Commands may disable coroutine execution,
- * so listeners must check before using coroutine-only APIs. Framework dispatches
- * always include the input and exit code; they remain nullable only for compatibility
- * with existing manual event construction.
+ * so listeners must check before using coroutine-only APIs.
  */
 class AfterExecute
 {
     public function __construct(
         public readonly Command $command,
-        public readonly ?Throwable $throwable = null,
-        public readonly ?InputInterface $input = null,
-        public readonly ?int $exitCode = null,
+        public readonly ?Throwable $throwable,
+        public readonly InputInterface $input,
+        public readonly int $exitCode,
     ) {
     }
 }

@@ -43,7 +43,7 @@
         "hypervel/engine": "^0.4"
     },
     "require-dev": {
-        "mockery/mockery": "1.6.x-dev"
+        "mockery/mockery": "^1.6.15"
     },
     "suggest": {
         "ext-pcntl": "Required for Progress cancellation handling and, with POSIX, animated standalone Tasks.",

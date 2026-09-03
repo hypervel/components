@@ -660,6 +660,7 @@ class MailMailableTest extends TestCase
 
         $this->assertTrue($mailable->hasMetadata('template_id', 'external-template-id'));
         $this->assertTrue($mailable->hasMetadata('customer_id', 101));
+        $this->assertTrue($mailable->hasMetadata('customer_id', '101'));
         $this->assertTrue($mailable->hasMetadata('order_id', 1000));
         $this->assertTrue($mailable->hasMetadata('subtotal', 1500));
         $this->assertTrue($mailable->hasMetadata('gst', 150));
@@ -688,30 +689,40 @@ class MailMailableTest extends TestCase
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
-        $mailable = new WelcomeMailableStub;
+        $mailable = new class extends WelcomeMailableStub {
+            public function envelope(): Envelope
+            {
+                return new Envelope(metadata: ['account_id' => 42]);
+            }
+        };
         $mailable->to('hello@laravel.com');
         $mailable->from('taylor@laravel.com');
         $mailable->html('test content');
 
         $mailable->metadata('origin', 'test-suite');
-        $mailable->metadata('user_id', '1');
+        $mailable->metadata('user_id', 1);
 
         $sentMessage = $mailer->send($mailable);
 
         $this->assertSame('hello@laravel.com', $sentMessage->getEnvelope()->getRecipients()[0]->getAddress());
         $this->assertStringContainsString('X-Metadata-origin: test-suite', $sentMessage->toString());
         $this->assertStringContainsString('X-Metadata-user_id: 1', $sentMessage->toString());
+        $this->assertStringContainsString('X-Metadata-account_id: 42', $sentMessage->toString());
 
         $this->assertTrue($mailable->hasMetadata('origin', 'test-suite'));
         $this->assertTrue($mailable->hasMetadata('user_id', '1'));
+        $this->assertTrue($mailable->hasMetadata('user_id', 1));
+        $this->assertTrue($mailable->hasMetadata('account_id', 42));
+        $mailable->metadata(['nullable' => null]);
+        $this->assertFalse($mailable->hasMetadata('nullable', ''));
         $this->assertFalse($mailable->hasMetadata('test', 'test'));
         $mailable->assertHasMetadata('origin', 'test-suite');
-        $mailable->assertHasMetadata('user_id', '1');
+        $mailable->assertHasMetadata('user_id', 1);
         try {
             $mailable->assertHasMetadata('test', 'test');
             $this->fail();
         } catch (AssertionFailedError $e) {
-            $this->assertSame("Did not see expected key [test] and value [test] in email metadata.\nFailed asserting that false is true.", $e->getMessage());
+            $this->assertSame("Email metadata does not match expected value.\nExpected: [test] => [test]\nActual: key [test] not found\nFailed asserting that false is true.", $e->getMessage());
         }
     }
 
@@ -746,8 +757,65 @@ class MailMailableTest extends TestCase
             $mailable->assertHasTag('bar');
             $this->fail();
         } catch (AssertionFailedError $e) {
-            $this->assertSame("Did not see expected tag [bar] in email tags.\nFailed asserting that false is true.", $e->getMessage());
+            $this->assertSame("Did not see expected tag in email tags.\nExpected: [bar]\nActual: [test, foo]\nFailed asserting that false is true.", $e->getMessage());
         }
+
+        $mailable->tag('01');
+        $this->assertFalse($mailable->hasTag('1'));
+    }
+
+    public function testAssertionDiagnosticsDoNotInvokeEnvelopeAgain(): void
+    {
+        $this->mockContainer();
+
+        $mailable = new class extends Mailable {
+            public int $envelopeCalls = 0;
+
+            public function envelope(): Envelope
+            {
+                ++$this->envelopeCalls;
+
+                return new Envelope(metadata: ['attempts' => 3]);
+            }
+        };
+        $mailable->html('test content');
+
+        $failure = null;
+
+        try {
+            $mailable->assertHasMetadata('attempts', 4);
+        } catch (AssertionFailedError $exception) {
+            $failure = $exception;
+        }
+
+        $this->assertInstanceOf(AssertionFailedError::class, $failure);
+        $this->assertSame(
+            "Email metadata does not match expected value.\nExpected: [attempts] => [4]\nActual: [attempts] => [3]\nFailed asserting that false is true.",
+            $failure->getMessage()
+        );
+        $this->assertSame(2, $mailable->envelopeCalls);
+    }
+
+    public function testTagAssertionReportsWhenMailableHasNoTags(): void
+    {
+        $this->mockContainer();
+
+        $mailable = new Mailable;
+        $mailable->html('test content');
+
+        $failure = null;
+
+        try {
+            $mailable->assertHasTag('bar');
+        } catch (AssertionFailedError $exception) {
+            $failure = $exception;
+        }
+
+        $this->assertInstanceOf(AssertionFailedError::class, $failure);
+        $this->assertSame(
+            "Did not see expected tag in email tags.\nExpected: [bar]\nActual: [none]\nFailed asserting that false is true.",
+            $failure->getMessage()
+        );
     }
 
     public function testItCanAttachMultipleFiles(): void
@@ -893,6 +961,41 @@ class MailMailableTest extends TestCase
         $this->assertFalse($mailable->hasAttachment($unnamedAttachable, ['as' => 'foo.jpg']));
         $this->assertFalse($mailable->hasAttachment($unnamedAttachable, ['mime' => 'image/png']));
         $this->assertTrue($mailable->hasAttachment($unnamedAttachable, ['as' => 'foo.jpg', 'mime' => 'image/png']));
+    }
+
+    public function testHasAttachmentWithEnvelopeAndNoDeclaredAttachments(): void
+    {
+        $mailable = new class extends Mailable {
+            public function envelope(): Envelope
+            {
+                return new Envelope;
+            }
+        };
+
+        $this->assertFalse($mailable->hasAttachment(Attachment::fromPath('/foo.jpg')));
+    }
+
+    public function testHasAttachmentWithDeclaredStorageAttachmentsAndNoEnvelope(): void
+    {
+        $storage = m::mock(FilesystemAdapter::class);
+        $storage->shouldReceive('mimeType')->with('report.txt')->andReturn('text/plain');
+        $storage->shouldReceive('mimeType')->with('other.txt')->andReturn('text/plain');
+        $storage->shouldReceive('get')->with('report.txt')->andReturn('report content');
+        $storage->shouldReceive('get')->with('other.txt')->andReturn('other content');
+
+        $factory = m::mock(FilesystemFactory::class);
+        $factory->shouldReceive('disk')->with('documents')->andReturn($storage);
+        $this->app->instance(FilesystemFactory::class, $factory);
+
+        $mailable = new class extends Mailable {
+            public function attachments(): array
+            {
+                return [Attachment::fromStorageDisk('documents', 'report.txt')];
+            }
+        };
+
+        $this->assertTrue($mailable->hasAttachment(Attachment::fromStorageDisk('documents', 'report.txt')));
+        $this->assertFalse($mailable->hasAttachment(Attachment::fromStorageDisk('documents', 'other.txt')));
     }
 
     public function testItCanCheckForPathBasedAttachments(): void

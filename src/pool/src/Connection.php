@@ -50,8 +50,10 @@ abstract class Connection implements ConnectionInterface
                 $this->lastReleaseTime = hrtime(true) / 1e9;
                 $events = $this->pool->getOption()->getEvents();
 
-                if (in_array(ReleaseConnection::class, $events, true)) {
-                    $this->dispatcher?->dispatch(new ReleaseConnection($this));
+                if (in_array(ReleaseConnection::class, $events, true)
+                    && $this->dispatcher?->hasListeners(ReleaseConnection::class)
+                ) {
+                    $this->dispatcher->dispatch(new ReleaseConnection($this));
                 }
             } catch (CanceledException $exception) {
                 $cancellation = $exception;

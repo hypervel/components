@@ -24,6 +24,7 @@
     ],
     "require": {
         "php": "^8.4",
+        "ext-filter": "*",
         "doctrine/inflector": "^2.0.5",
         "guzzlehttp/promises": "^2.5.2",
         "laravel/serializable-closure": "^2.0.10",

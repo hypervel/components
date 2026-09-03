@@ -152,9 +152,12 @@ class PooledConnection implements PoolConnectionInterface
         // Fetch dispatcher from container (not $this->dispatcher) so Event::fake() works.
         // Reconnection can be triggered after fake swaps the container binding.
         if ($this->container->bound('events')) {
-            $this->container->make('events')->dispatch(
-                new ConnectionEstablished($this->connection)
-            );
+            /** @var Dispatcher $events */
+            $events = $this->container->make('events');
+
+            if ($events->hasListeners(ConnectionEstablished::class)) {
+                $events->dispatch(new ConnectionEstablished($this->connection));
+            }
         }
 
         $now = hrtime(true) / 1e9;
@@ -290,12 +293,14 @@ class PooledConnection implements PoolConnectionInterface
     public function close(): bool
     {
         if ($this->connection instanceof Connection) {
-            // This drops only the wrapper's reference. The pool retains a shared
-            // in-memory SQLite PDO, while wrapper-owned transactions still roll back.
-            $this->connection->disconnect();
+            try {
+                $this->connection->disconnect();
+            } finally {
+                // The pool retains a shared in-memory SQLite PDO, while the wrapper
+                // must forget its connection even when transaction cleanup fails.
+                $this->connection = null;
+            }
         }
-
-        $this->connection = null;
 
         return true;
     }
@@ -305,6 +310,9 @@ class PooledConnection implements PoolConnectionInterface
      */
     public function release(): void
     {
+        $cancellationFailure = null;
+        $ordinaryFailure = null;
+
         try {
             if ($this->connection instanceof Connection) {
                 $errorCount = $this->connection->getErrorCount();
@@ -329,21 +337,56 @@ class PooledConnection implements PoolConnectionInterface
 
             // Dispatch release event if configured
             $events = $this->pool->getOption()->getEvents();
-            if (in_array(ReleaseConnection::class, $events, true)) {
-                $this->dispatcher?->dispatch(new ReleaseConnection($this));
+            if (in_array(ReleaseConnection::class, $events, true)
+                && $this->dispatcher?->hasListeners(ReleaseConnection::class)
+            ) {
+                $this->dispatcher->dispatch(new ReleaseConnection($this));
             }
-        } catch (Throwable $exception) {
-            $this->logger->error('Release connection failed: ' . $exception);
-            // Mark as stale so it will be recreated
+        } catch (CanceledException $cancellation) {
+            $cancellationFailure = $cancellation;
             $this->markInvalid();
-        } finally {
-            if ($this->connection !== null && ! $this->connection->isReusable()) {
-                $this->logger->warning('Database connection is not reusable, marking it as stale.');
-                $this->markInvalid();
-            }
+        } catch (Throwable $exception) {
+            $this->markInvalid();
 
-            $this->availableForReuse = true;
+            try {
+                $this->logger->error('Release connection failed: ' . $exception);
+            } catch (CanceledException $loggingCancellation) {
+                $cancellationFailure = $loggingCancellation;
+            } catch (Throwable $loggingException) {
+                $ordinaryFailure = $loggingException;
+            }
+        }
+
+        try {
+            if ($cancellationFailure === null
+                && $this->connection !== null
+                && ! $this->connection->isReusable()
+            ) {
+                $this->markInvalid();
+                $this->logger->warning('Database connection is not reusable, marking it as stale.');
+            }
+        } catch (CanceledException $stateCancellation) {
+            $cancellationFailure = $stateCancellation;
+        } catch (Throwable $exception) {
+            $ordinaryFailure ??= $exception;
+        }
+
+        $this->availableForReuse = true;
+
+        try {
             $this->pool->release($this);
+        } catch (CanceledException $releaseCancellation) {
+            $cancellationFailure ??= $releaseCancellation;
+        } catch (Throwable $exception) {
+            $ordinaryFailure ??= $exception;
+        }
+
+        if ($cancellationFailure !== null) {
+            throw $cancellationFailure;
+        }
+
+        if ($ordinaryFailure !== null) {
+            throw $ordinaryFailure;
         }
     }
 
@@ -462,9 +505,12 @@ class PooledConnection implements PoolConnectionInterface
         // Fetch dispatcher from container (not $this->dispatcher) so Event::fake() works.
         // Reconnection can be triggered after fake swaps the container binding.
         if ($this->container->bound('events')) {
-            $this->container->make('events')->dispatch(
-                new ConnectionEstablished($connection)
-            );
+            /** @var Dispatcher $events */
+            $events = $this->container->make('events');
+
+            if ($events->hasListeners(ConnectionEstablished::class)) {
+                $events->dispatch(new ConnectionEstablished($connection));
+            }
         }
 
         $this->stampGeneration(hrtime(true) / 1e9);

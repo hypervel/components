@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout\Engines;
 
+use Closure;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Builder;
+use Hypervel\Scout\Contracts\SearchableInterface;
+use Hypervel\Scout\EngineOperation;
+use Hypervel\Scout\EngineOperationRunner;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 
@@ -18,6 +22,16 @@ use Hypervel\Support\LazyCollection;
  */
 abstract class Engine
 {
+    /**
+     * The operation runner assigned to this engine.
+     */
+    protected ?EngineOperationRunner $operationRunner = null;
+
+    /**
+     * The configured name of this engine.
+     */
+    protected string $operationRunnerEngineName = '';
+
     /**
      * Update the given models in the search index.
      *
@@ -78,6 +92,190 @@ abstract class Engine
     abstract public function deleteIndex(string $name): mixed;
 
     /**
+     * Assign the operation runner to this engine.
+     *
+     * Boot-only. The runner persists on this engine for the worker lifetime.
+     * Engines without observable operations retain no runner.
+     *
+     * @return $this
+     */
+    public function setOperationRunner(EngineOperationRunner $runner, string $engineName): static
+    {
+        if (! $this->hasObservableOperations()) {
+            return $this;
+        }
+
+        $this->operationRunner = $runner;
+        $this->operationRunnerEngineName = $engineName;
+
+        return $this;
+    }
+
+    /**
+     * Determine if this engine has operations worth observing.
+     */
+    protected function hasObservableOperations(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Update the given models through the operation runner.
+     *
+     * @param EloquentCollection<int, Model> $models
+     */
+    public function runUpdate(EloquentCollection $models): void
+    {
+        if ($models->isEmpty()
+            || $this->operationRunner === null
+            || ! $this->operationRunner->hasObservers()) {
+            $this->update($models);
+
+            return;
+        }
+
+        /** @var Model&SearchableInterface $model */
+        $model = $models->first();
+
+        $this->operationRunner->run(
+            new EngineOperation(
+                'update',
+                $this->operationRunnerEngineName,
+                $model::class,
+                $model->indexableAs(),
+                $models->count(),
+            ),
+            fn () => $this->update($models),
+        );
+    }
+
+    /**
+     * Delete the given models through the operation runner.
+     *
+     * @param EloquentCollection<int, Model> $models
+     */
+    public function runDelete(EloquentCollection $models): void
+    {
+        if ($models->isEmpty()
+            || $this->operationRunner === null
+            || ! $this->operationRunner->hasObservers()) {
+            $this->delete($models);
+
+            return;
+        }
+
+        /** @var Model&SearchableInterface $model */
+        $model = $models->first();
+
+        $this->operationRunner->run(
+            new EngineOperation(
+                'delete',
+                $this->operationRunnerEngineName,
+                $model::class,
+                $model->indexableAs(),
+                $models->count(),
+            ),
+            fn () => $this->delete($models),
+        );
+    }
+
+    /**
+     * Search through the operation runner.
+     */
+    public function runSearch(Builder $builder): mixed
+    {
+        if ($this->operationRunner === null || ! $this->operationRunner->hasObservers()) {
+            return $this->search($builder);
+        }
+
+        return $this->operationRunner->run(
+            new EngineOperation(
+                'search',
+                $this->operationRunnerEngineName,
+                $builder->model::class,
+                $builder->index ?? $builder->model->searchableAs(),
+            ),
+            fn () => $this->search($builder),
+        );
+    }
+
+    /**
+     * Paginate through the operation runner.
+     */
+    public function runPaginate(Builder $builder, int $perPage, int $page): mixed
+    {
+        if ($this->operationRunner === null || ! $this->operationRunner->hasObservers()) {
+            return $this->paginate($builder, $perPage, $page);
+        }
+
+        return $this->operationRunner->run(
+            new EngineOperation(
+                'paginate',
+                $this->operationRunnerEngineName,
+                $builder->model::class,
+                $builder->index ?? $builder->model->searchableAs(),
+            ),
+            fn () => $this->paginate($builder, $perPage, $page),
+        );
+    }
+
+    /**
+     * Flush the given model through the operation runner.
+     */
+    public function runFlush(Model $model): void
+    {
+        if ($this->operationRunner === null || ! $this->operationRunner->hasObservers()) {
+            $this->flush($model);
+
+            return;
+        }
+
+        /** @var Model&SearchableInterface $model */
+        $this->operationRunner->run(
+            new EngineOperation(
+                'flush',
+                $this->operationRunnerEngineName,
+                $model::class,
+                $model->indexableAs(),
+            ),
+            fn () => $this->flush($model),
+        );
+    }
+
+    /**
+     * Run a Builder operation through the operation runner.
+     *
+     * An omitted index uses the Builder's configured or searchable index. Pass
+     * an explicit index when the operation targets another dataset.
+     *
+     * @template TResult
+     * @param Closure(): TResult $callback
+     * @return TResult
+     */
+    public function runOperation(
+        string $operation,
+        Builder $builder,
+        Closure $callback,
+        ?string $index = null
+    ): mixed {
+        if ($this->operationRunner === null || ! $this->operationRunner->hasObservers()) {
+            return $callback();
+        }
+
+        $index ??= $builder->index ?? $builder->model->searchableAs();
+
+        return $this->operationRunner->run(
+            new EngineOperation(
+                $operation,
+                $this->operationRunnerEngineName,
+                $builder->model::class,
+                $index,
+            ),
+            $callback,
+        );
+    }
+
+    /**
      * Pluck and return the primary keys of the given results using the given key name.
      */
     public function mapIdsFrom(mixed $results, string $key): Collection
@@ -90,7 +288,7 @@ abstract class Engine
      */
     public function keys(Builder $builder): Collection
     {
-        return $this->mapIds($this->search($builder));
+        return $this->mapIds($this->runSearch($builder));
     }
 
     /**
@@ -100,7 +298,7 @@ abstract class Engine
     {
         return $this->map(
             $builder,
-            $builder->applyAfterRawSearchCallback($this->search($builder)),
+            $builder->applyAfterRawSearchCallback($this->runSearch($builder)),
             $builder->model
         );
     }
@@ -112,7 +310,7 @@ abstract class Engine
     {
         return $this->lazyMap(
             $builder,
-            $builder->applyAfterRawSearchCallback($this->search($builder)),
+            $builder->applyAfterRawSearchCallback($this->runSearch($builder)),
             $builder->model
         );
     }

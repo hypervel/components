@@ -73,6 +73,7 @@ class DatabaseMigrationFreshCommandTest extends TestCase
                 return 0;
             }
         );
+        $dispatcher->shouldReceive('hasListeners')->once()->with(DatabaseRefreshed::class)->andReturnTrue();
         $dispatcher->shouldReceive('dispatch')->once()->with(m::type(DatabaseRefreshed::class))->andReturnUsing(
             function (DatabaseRefreshed $event) use (&$operations): void {
                 $this->assertSame('sqlite', $event->database);
@@ -330,6 +331,7 @@ class DatabaseMigrationFreshCommandTest extends TestCase
                 return $name === 'migrate' ? 0 : 1;
             }
         );
+        $dispatcher->shouldReceive('hasListeners')->once()->with(DatabaseRefreshed::class)->andReturnTrue();
         $dispatcher->shouldReceive('dispatch')->once()->andReturnUsing(function () use (&$operations): void {
             $operations[] = 'event';
         });

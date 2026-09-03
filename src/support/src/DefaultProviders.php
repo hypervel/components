@@ -22,15 +22,19 @@ class DefaultProviders
 {
     /**
      * The current providers.
+     *
+     * @var array<class-string>
      */
     protected array $providers;
 
     /**
      * Create a new default provider collection.
+     *
+     * @param null|array<class-string> $providers
      */
     public function __construct(?array $providers = null)
     {
-        $this->providers = $providers ?: [
+        $this->providers = $providers ?? [
             \Hypervel\Auth\AuthServiceProvider::class,
             \Hypervel\Auth\Passwords\PasswordResetServiceProvider::class,
             \Hypervel\Broadcasting\BroadcastServiceProvider::class,
@@ -67,16 +71,18 @@ class DefaultProviders
 
     /**
      * Merge the given providers into the provider collection.
+     *
+     * @param array<class-string> $providers
      */
     public function merge(array $providers): static
     {
-        $this->providers = array_merge($this->providers, $providers);
-
-        return new static($this->providers);
+        return new static(array_merge($this->providers, $providers));
     }
 
     /**
      * Replace the given providers with other providers.
+     *
+     * @param array<class-string, class-string> $replacements
      */
     public function replace(array $replacements): static
     {
@@ -93,17 +99,21 @@ class DefaultProviders
 
     /**
      * Disable the given providers.
+     *
+     * @param array<class-string> $providers
      */
     public function except(array $providers): static
     {
         return new static((new Collection($this->providers))
-            ->reject(fn ($p) => in_array($p, $providers))
+            ->diff($providers)
             ->values()
             ->toArray());
     }
 
     /**
      * Convert the provider collection to an array.
+     *
+     * @return array<class-string>
      */
     public function toArray(): array
     {

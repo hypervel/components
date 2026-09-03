@@ -1884,6 +1884,8 @@ class ProcessPodcast implements ShouldQueue
 
 Hypervel supports [Amazon SQS FIFO (First-In-First-Out)](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-fifo-queues.html) and [fair](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-fair-queues.html) queues. FIFO queues preserve message order within a group and use deduplication IDs to prevent duplicate sends.
 
+SQS FIFO queues do not support per-message delays. Hypervel rejects a positive delay on a FIFO job instead of silently sending the job immediately. Use a standard SQS queue or another queue transport when individual jobs need delayed delivery.
+
 FIFO queues require a message group ID to determine which jobs can be processed in parallel. Jobs with the same group ID are processed sequentially, while messages with different group IDs can be processed concurrently.
 
 Hypervel provides a fluent `onGroup` method to specify the message group ID when dispatching jobs:
@@ -3742,6 +3744,8 @@ class AppServiceProvider extends ServiceProvider
 ```
 
 Hypervel dispatches a `JobQueueing` event immediately before a job is sent to its queue and a `JobQueued` event after the queue accepts it. If the enqueue attempt throws an exception, a `JobQueueingFailed` event is dispatched with the original exception instead. Jobs deferred until a database transaction commits do not dispatch these events unless the enqueue attempt actually begins.
+
+The `JobPayloadFinalizing` event runs immediately before `JobQueueing` and may replace its encoded `payload`. It also provides the connection, queue, job, and normalized delay. Use this event for last-mile payload changes that must reach the queue backend. Listening to both events deliberately runs both listeners for each asynchronous job.
 
 Using the `looping` method on the `Queue` [facade](/docs/{{version}}/facades), you may specify callbacks that execute before the worker attempts to fetch a job from a queue. For example, you might register a closure to rollback any transactions that were left open by a previously failed job:
 

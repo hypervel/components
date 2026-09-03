@@ -136,6 +136,20 @@ interface Container extends ContainerInterface
     public function make(string $abstract, array $parameters = []): mixed;
 
     /**
+     * Resolve the given type with a transient implicit lifetime.
+     *
+     * Explicit lifetimes remain authoritative.
+     *
+     * @template TClass of object
+     *
+     * @param class-string<TClass>|string $abstract
+     * @return ($abstract is class-string<TClass> ? TClass : mixed)
+     *
+     * @throws BindingResolutionException
+     */
+    public function makeTransient(string $abstract): mixed;
+
+    /**
      * Instantiate a concrete instance of the given type.
      *
      * Unlike make(), this always creates a fresh instance — it bypasses

@@ -15,6 +15,10 @@ use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Grpc\Compression;
+use Hypervel\Grpc\Contracts\GrpcOperationObserver;
+use Hypervel\Grpc\GrpcOperation;
+use Hypervel\Grpc\GrpcOperationResult;
+use Hypervel\Grpc\GrpcOperationRunner;
 use Hypervel\Grpc\Protocol\FrameDecoder;
 use Hypervel\Grpc\Protocol\FrameEncoder;
 use Hypervel\Grpc\Protocol\MetadataCodec;
@@ -28,6 +32,7 @@ use Hypervel\Grpc\Server\Middleware\HandleCall;
 use Hypervel\Grpc\Server\ResponseFactory;
 use Hypervel\Grpc\Server\Server;
 use Hypervel\Grpc\Server\ServerCallContext;
+use Hypervel\Grpc\ServerGrpcOperation;
 use Hypervel\Grpc\StatusCode;
 use Hypervel\Http\Request;
 use Hypervel\Routing\CallableDispatcher;
@@ -38,6 +43,7 @@ use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Swoole\Http\Request as SwooleRequest;
 use Swoole\Http\Response as SwooleResponse;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -182,6 +188,36 @@ class ServerTest extends TestCase
         $this->assertSame('8', $capture->headers['grpc-status']);
     }
 
+    public function testObservedMalformedPathRetainsTheUnimplementedPreflightOutcome(): void
+    {
+        $environment = $this->environment();
+        $observer = new RecordingServerGrpcOperationObserver;
+        $environment->operations->observe($observer);
+        [$swooleResponse, $capture] = $this->response();
+
+        $environment->server->onRequest($this->request(
+            path: '/not-a-grpc-path',
+            query: 'secret=value',
+        ), $swooleResponse);
+
+        $this->assertSame('12', $capture->headers['grpc-status']);
+        $this->assertSame([], $environment->exceptionHandler->reported);
+        $this->assertCount(1, $observer->started);
+        $this->assertCount(1, $observer->finished);
+        $operation = $observer->started[0];
+        $this->assertInstanceOf(ServerGrpcOperation::class, $operation);
+        $this->assertSame('POST', $operation->httpMethod);
+        $this->assertSame('/not-a-grpc-path?secret=value', $operation->path);
+        $this->assertSame('grpc', $operation->serverName);
+        $this->assertSame('0.0.0.0', $operation->serverAddress);
+        $this->assertSame(50051, $operation->serverPort);
+        $this->assertNull($operation->serviceMethod());
+        $this->assertSame($operation, $observer->finished[0][0]);
+        $this->assertSame(StatusCode::Unimplemented, $observer->finished[0][2]->status?->code());
+        $this->assertNull($observer->finished[0][2]->exception);
+        $this->assertSame(1, $observer->finished[0][2]->attemptCount);
+    }
+
     public function testAccountsForTheConfiguredSchemeAuthorityAndExactPath(): void
     {
         $path = '/testing.Service/Unary';
@@ -234,6 +270,8 @@ class ServerTest extends TestCase
                 },
             );
         });
+        $observer = new RecordingServerGrpcOperationObserver;
+        $environment->operations->observe($observer);
         [$swooleResponse, $capture] = $this->response();
 
         $environment->server->onRequest($this->request(), $swooleResponse);
@@ -245,6 +283,8 @@ class ServerTest extends TestCase
         );
         $this->assertStringNotContainsString('sensitive', $capture->headers['grpc-message']);
         $this->assertSame([$failure], $environment->exceptionHandler->reported);
+        $this->assertSame(StatusCode::Unknown, $observer->finished[0][2]->status?->code());
+        $this->assertNull($observer->finished[0][2]->exception);
     }
 
     public function testFinalizesAfterOuterMiddlewareAndRejectsProtocolMutation(): void
@@ -275,6 +315,8 @@ class ServerTest extends TestCase
                 },
             );
         });
+        $observer = new RecordingServerGrpcOperationObserver;
+        $environment->operations->observe($observer);
         [$swooleResponse, $capture] = $this->response();
         $capture->writeResult = false;
         $capture->writable = false;
@@ -288,6 +330,36 @@ class ServerTest extends TestCase
             'Unable to write the streamed response.',
             $environment->exceptionHandler->reported[0]->getMessage(),
         );
+        $this->assertNull($observer->finished[0][2]->status);
+        $this->assertSame(
+            $environment->exceptionHandler->reported[0],
+            $observer->finished[0][2]->exception,
+        );
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('No gRPC server call is active');
+
+        $environment->contexts->get();
+    }
+
+    public function testCancellationSkipsObserverCompletionAndStillCleansTheCall(): void
+    {
+        $environment = $this->environment();
+        $observer = new RecordingServerGrpcOperationObserver;
+        $environment->operations->observe($observer);
+        [$swooleResponse, $capture] = $this->response();
+        $cancellation = new CanceledException;
+        $capture->endFailure = $cancellation;
+
+        try {
+            $environment->server->onRequest($this->request(), $swooleResponse);
+            $this->fail('Expected response emission to be canceled.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertCount(1, $observer->started);
+        $this->assertSame([], $observer->finished);
 
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('No gRPC server call is active');
@@ -344,6 +416,8 @@ class ServerTest extends TestCase
         $container->instance('config', new Repository([
             'grpc' => [
                 'server' => [
+                    'host' => '0.0.0.0',
+                    'port' => 50051,
                     'routes' => __DIR__ . '/Fixtures/routes.php',
                     'max_metadata_size' => $maxMetadataSize,
                     'tls' => $tls,
@@ -366,6 +440,7 @@ class ServerTest extends TestCase
             $router,
             $contexts,
             $exceptionHandler,
+            $container->make(GrpcOperationRunner::class),
         );
     }
 
@@ -449,6 +524,10 @@ class ServerTest extends TestCase
         );
         $response->shouldReceive('end')->zeroOrMoreTimes()->andReturnUsing(
             static function (...$arguments) use ($capture): bool {
+                if ($capture->endFailure !== null) {
+                    throw $capture->endFailure;
+                }
+
                 $capture->ends[] = $arguments;
 
                 return true;
@@ -469,6 +548,7 @@ readonly class ServerEnvironment
         public GrpcRouter $router,
         public CallContextStore $contexts,
         public RecordingExceptionHandler $exceptionHandler,
+        public GrpcOperationRunner $operations,
     ) {
     }
 }
@@ -492,6 +572,32 @@ class ServerResponseCapture
     public bool $writeResult = true;
 
     public bool $writable = true;
+
+    public ?Throwable $endFailure = null;
+}
+
+class RecordingServerGrpcOperationObserver implements GrpcOperationObserver
+{
+    /** @var list<GrpcOperation> */
+    public array $started = [];
+
+    /** @var list<array{GrpcOperation, mixed, GrpcOperationResult}> */
+    public array $finished = [];
+
+    public function starting(GrpcOperation $operation): int
+    {
+        $this->started[] = $operation;
+
+        return count($this->started);
+    }
+
+    public function finished(
+        GrpcOperation $operation,
+        mixed $token,
+        GrpcOperationResult $result,
+    ): void {
+        $this->finished[] = [$operation, $token, $result];
+    }
 }
 
 class MutatesGrpcResponse

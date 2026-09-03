@@ -114,6 +114,7 @@ class QueueServiceProvider extends ServiceProvider
      */
     protected function registerCallQueuedHandler(): void
     {
+        // The handler retains per-job command state, so concurrent jobs need fresh instances.
         $this->app->bind(CallQueuedHandler::class);
         $this->app->bind('Illuminate\Queue\CallQueuedHandler', CallQueuedHandler::class);
     }

@@ -19,6 +19,9 @@ use Traversable;
 use UnexpectedValueException;
 
 /**
+ * Some transformations may return a base collection when an implementation
+ * cannot preserve its concrete item contract.
+ *
  * @template TKey of array-key
  *
  * @template-covariant TValue
@@ -110,7 +113,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      *
      * @return static<int, mixed>
      */
-    public function collapse();
+    public function collapse(): Collection|static;
 
     /**
      * Alias for the "contains" method.
@@ -408,7 +411,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      *
      * @return static<int, mixed>
      */
-    public function flatten(int|float $depth = INF);
+    public function flatten(int|float $depth = INF): Collection|static;
 
     /**
      * Flip the values with their keys.
@@ -416,7 +419,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @return static<TValue, TKey>
      * @phpstan-ignore generics.notSubtype (TValue becomes key - only valid when TValue is array-key, but can't express this constraint)
      */
-    public function flip();
+    public function flip(): Collection|static;
 
     /**
      * Get an item from the collection by key.
@@ -547,7 +550,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      *
      * @return static<int, TKey>
      */
-    public function keys();
+    public function keys(): Collection|static;
 
     /**
      * Get the last item from the collection.
@@ -568,7 +571,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param callable(TValue, TKey): TMapValue $callback
      * @return static<TKey, TMapValue>
      */
-    public function map(callable $callback);
+    public function map(callable $callback): Collection|static;
 
     /**
      * Run a map over each nested chunk of items.
@@ -612,13 +615,10 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param callable(TValue, TKey): array<TMapWithKeysKey, TMapWithKeysValue> $callback
      * @return static<TMapWithKeysKey, TMapWithKeysValue>
      */
-    public function mapWithKeys(callable $callback);
+    public function mapWithKeys(callable $callback): Collection|static;
 
     /**
      * Map a collection and flatten the result by a single level.
-     *
-     * No return type: Eloquent\Collection::collapse() returns base collection,
-     * which would violate `: static` when called on Eloquent\Collection.
      *
      * @template TFlatMapKey of array-key
      * @template TFlatMapValue
@@ -626,7 +626,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param callable(TValue, TKey): (array<TFlatMapKey, TFlatMapValue>|Collection<TFlatMapKey, TFlatMapValue>) $callback
      * @return static<TFlatMapKey, TFlatMapValue>
      */
-    public function flatMap(callable $callback);
+    public function flatMap(callable $callback): Collection|static;
 
     /**
      * Map the values into a new class.
@@ -636,7 +636,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param class-string<TMapIntoValue> $class
      * @return static<TKey, TMapIntoValue>
      */
-    public function mapInto(string $class);
+    public function mapInto(string $class): Collection|static;
 
     /**
      * Merge the collection with the given items.
@@ -719,7 +719,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param (callable(TValue, TKey): bool)|string|TValue $key
      * @return static<int<0, 1>, static<TKey, TValue>>
      */
-    public function partition(mixed $key, mixed $operator = null, mixed $value = null);
+    public function partition(mixed $key, mixed $operator = null, mixed $value = null): Collection|static;
 
     /**
      * Push all of the given items onto the collection.
@@ -1020,7 +1020,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param array<array-key, string>|string $value
      * @return static<array-key, mixed>
      */
-    public function pluck(Closure|string|int|array|null $value, Closure|string|int|array|null $key = null);
+    public function pluck(Closure|string|int|array|null $value, Closure|string|int|array|null $key = null): Collection|static;
 
     /**
      * Create a collection of all elements that do not pass a given truth test.
@@ -1068,7 +1068,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param TPadValue $value
      * @return static<int, TPadValue|TValue>
      */
-    public function pad(int $size, mixed $value);
+    public function pad(int $size, mixed $value): Collection|static;
 
     /**
      * Get the values iterator.
@@ -1088,7 +1088,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param null|(callable(TValue, TKey): array-key)|string $countBy
      * @return static<array-key, int>
      */
-    public function countBy(callable|string|null $countBy = null);
+    public function countBy(callable|string|null $countBy = null): Collection|static;
 
     /**
      * Zip the collection together with one or more arrays.
@@ -1101,7 +1101,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param Arrayable<array-key, TZipValue>|iterable<array-key, TZipValue> ...$items
      * @return static<int, static<int, TValue|TZipValue>>
      */
-    public function zip(Arrayable|iterable ...$items);
+    public function zip(Arrayable|iterable ...$items): Collection|static;
 
     /**
      * Collect the values into a collection.

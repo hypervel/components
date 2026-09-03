@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Console\Scheduling;
 
 use DateTimeImmutable;
+use Hypervel\Bus\Queueable;
 use Hypervel\Console\Command;
 use Hypervel\Console\Scheduling\CacheAware;
 use Hypervel\Console\Scheduling\CacheEventMutex;
@@ -14,8 +15,10 @@ use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Console\Scheduling\SchedulingMutex;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
@@ -103,6 +106,101 @@ class ScheduleTest extends TestCase
         $scheduledJob = $schedule->job(JobToTestWithSchedule::class);
         self::assertSame(JobToTestWithSchedule::class, $scheduledJob->description);
         self::assertFalse($this->container->resolved(JobToTestWithSchedule::class));
+    }
+
+    public function testSynchronousJobResolvesToAFreshInstanceForEachFiring(): void
+    {
+        $dispatched = [];
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('dispatchNow')
+            ->twice()
+            ->andReturnUsing(function (ScheduleTestMutableJob $job) use (&$dispatched): void {
+                self::assertFalse($job->handled);
+
+                $dispatched[] = $job;
+                $job->handled = true;
+            });
+
+        $this->container->instance(Dispatcher::class, $dispatcher);
+        $this->container->instance('files', new Filesystem);
+
+        ScheduleTestMutableJob::$constructions = 0;
+
+        try {
+            $event = (new Schedule)->job(ScheduleTestMutableJob::class);
+            $event->run($this->container);
+            $event->run($this->container);
+
+            $constructions = ScheduleTestMutableJob::$constructions;
+        } finally {
+            ScheduleTestMutableJob::$constructions = 0;
+        }
+
+        self::assertCount(2, $dispatched);
+        self::assertNotSame($dispatched[0], $dispatched[1]);
+        self::assertSame([1, 2], array_column($dispatched, 'construction'));
+        self::assertSame(2, $constructions);
+    }
+
+    public function testExplicitlySharedClassStringJobIsDispatchedAsTheRegisteredInstance(): void
+    {
+        $job = new ScheduleTestMutableJob;
+        ScheduleTestMutableJob::$constructions = 0;
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('dispatchNow')
+            ->once()
+            ->andReturnUsing(static function (object $dispatched) use ($job): void {
+                self::assertSame($job, $dispatched);
+            });
+
+        $this->container->instance(ScheduleTestMutableJob::class, $job);
+        $this->container->instance(Dispatcher::class, $dispatcher);
+        $this->container->instance('files', new Filesystem);
+
+        (new Schedule)->job(ScheduleTestMutableJob::class)->run($this->container);
+    }
+
+    public function testSuppliedQueuedJobIsDispatchedAsProvided(): void
+    {
+        $job = new ScheduleTestQueuedJob;
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('dispatch')
+            ->once()
+            ->andReturnUsing(static function (object $dispatched) use ($job): void {
+                self::assertSame($job, $dispatched);
+                self::assertSame('connection-name', $dispatched->connection);
+                self::assertSame('queue-name', $dispatched->queue);
+            });
+
+        $this->container->instance(Dispatcher::class, $dispatcher);
+        $this->container->instance('files', new Filesystem);
+
+        (new Schedule)->job($job, 'queue-name', 'connection-name')->run($this->container);
+    }
+
+    public function testQueuedClassStringDoesNotRetainQueueStateAcrossEvents(): void
+    {
+        $dispatched = [];
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('dispatch')
+            ->twice()
+            ->andReturnUsing(static function (object $job) use (&$dispatched): void {
+                $dispatched[] = $job;
+            });
+
+        $this->container->instance(Dispatcher::class, $dispatcher);
+        $this->container->instance('files', new Filesystem);
+
+        $schedule = new Schedule;
+        $first = $schedule->job(ScheduleTestQueuedJob::class, 'first');
+        $second = $schedule->job(ScheduleTestQueuedJob::class);
+
+        $first->run($this->container);
+        $second->run($this->container);
+
+        self::assertNotSame($dispatched[0], $dispatched[1]);
+        self::assertSame('first', $dispatched[0]->queue);
+        self::assertNull($dispatched[1]->queue);
     }
 
     public function testItCanFilterEventsByEnvironments(): void
@@ -482,6 +580,25 @@ class ScheduleTestUndescribedCommandStub extends Command
     public function handle(): void
     {
     }
+}
+
+class ScheduleTestMutableJob
+{
+    public static int $constructions = 0;
+
+    public readonly int $construction;
+
+    public bool $handled = false;
+
+    public function __construct()
+    {
+        $this->construction = ++static::$constructions;
+    }
+}
+
+class ScheduleTestQueuedJob implements ShouldQueue
+{
+    use Queueable;
 }
 
 class JobToTestWithSchedule implements ShouldQueue

@@ -7,9 +7,11 @@ namespace Hypervel\Tests\Foundation\Console\KernelTerminateTest;
 use Carbon\CarbonInterval;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
 use Hypervel\Foundation\Events\Terminating;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
+use Mockery as m;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Input\StringInput;
@@ -45,6 +47,21 @@ class KernelTerminateTest extends TestCase
 
         // If we reach here without exception, the test passes.
         $this->assertTrue(true);
+    }
+
+    public function testTerminateDoesNotConstructOrDispatchAnEventWithoutListeners(): void
+    {
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')
+            ->once()
+            ->with(Terminating::class)
+            ->andReturnFalse();
+        $events->shouldNotReceive('dispatch');
+        $kernel = new ConsoleKernel($this->app, $events);
+
+        $kernel->terminate(new StringInput(''), 0);
+
+        $this->addToAssertionCount(1);
     }
 
     public function testCommandStartedAtIsNullBeforeHandle(): void

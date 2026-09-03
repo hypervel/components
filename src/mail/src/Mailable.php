@@ -128,6 +128,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * The metadata for the message.
+     *
+     * @var array<string, null|int|string>
      */
     protected array $metadata = [];
 
@@ -885,7 +887,7 @@ class Mailable implements MailableContract, Renderable
             $file = $file->toMailAttachment();
         }
 
-        if ($file instanceof Attachment && $this->hasEnvelopeAttachment($file, $options)) {
+        if ($file instanceof Attachment && $this->hasDeclaredAttachment($file, $options)) {
             return true;
         }
 
@@ -913,15 +915,14 @@ class Mailable implements MailableContract, Renderable
     }
 
     /**
-     * Determine if the mailable has the given envelope attachment.
+     * Determine if the mailable has the given declared attachment.
      */
-    private function hasEnvelopeAttachment(Attachment $attachment, array $options = []): bool
+    private function hasDeclaredAttachment(Attachment $attachment, array $options = []): bool
     {
-        if (! method_exists($this, 'envelope')) {
+        if (! method_exists($this, 'attachments')) {
             return false;
         }
 
-        /* @phpstan-ignore-next-line */
         $attachments = $this->attachments();
 
         return Collection::make(is_object($attachments) ? [$attachments] : $attachments)
@@ -1016,14 +1017,14 @@ class Mailable implements MailableContract, Renderable
      */
     public function hasTag(string $value): bool
     {
-        return in_array($value, $this->tags)
-            || (method_exists($this, 'envelope') && in_array($value, $this->envelope()->tags));
+        return in_array($value, $this->tags, true)
+            || (method_exists($this, 'envelope') && in_array($value, $this->envelope()->tags, true));
     }
 
     /**
      * Add a metadata header to the message when supported by the underlying transport.
      */
-    public function metadata(array|string $key, ?string $value = null): static
+    public function metadata(array|string $key, int|string|null $value = null): static
     {
         if (is_array($key)) {
             $this->metadata = array_merge($this->metadata, $key);
@@ -1039,7 +1040,7 @@ class Mailable implements MailableContract, Renderable
      */
     public function hasMetadata(string $key, int|string $value): bool
     {
-        return (isset($this->metadata[$key]) && $this->metadata[$key] === $value)
+        return (isset($this->metadata[$key]) && (string) $this->metadata[$key] === (string) $value)
             || (method_exists($this, 'envelope') && $this->envelope()->hasMetadata($key, $value));
     }
 
@@ -1383,9 +1384,11 @@ class Mailable implements MailableContract, Renderable
     {
         $this->renderForAssertions();
 
+        $actualTagsString = empty($this->tags) ? 'none' : implode(', ', $this->tags);
+
         PHPUnit::assertTrue(
             $this->hasTag($tag),
-            "Did not see expected tag [{$tag}] in email tags."
+            "Did not see expected tag in email tags.\nExpected: [{$tag}]\nActual: [{$actualTagsString}]"
         );
 
         return $this;
@@ -1394,13 +1397,16 @@ class Mailable implements MailableContract, Renderable
     /**
      * Assert that the mailable has the given metadata.
      */
-    public function assertHasMetadata(string $key, string $value): static
+    public function assertHasMetadata(string $key, int|string $value): static
     {
         $this->renderForAssertions();
 
+        $actualValue = $this->metadata[$key] ?? null;
+        $actualString = $actualValue !== null ? "[{$key}] => [{$actualValue}]" : "key [{$key}] not found";
+
         PHPUnit::assertTrue(
             $this->hasMetadata($key, $value),
-            "Did not see expected key [{$key}] and value [{$value}] in email metadata."
+            "Email metadata does not match expected value.\nExpected: [{$key}] => [{$value}]\nActual: {$actualString}"
         );
 
         return $this;

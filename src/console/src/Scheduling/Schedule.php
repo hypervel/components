@@ -202,7 +202,10 @@ class Schedule
         $this->events[] = $event = new CallbackEvent(
             $this->eventMutex,
             function () use ($job, $queue, $connection) {
-                $job = is_string($job) ? Container::getInstance()->make($job) : $job;
+                // Ordinary make() would reuse an implicit auto-singleton across firings.
+                $job = is_string($job)
+                    ? Container::getInstance()->makeTransient($job)
+                    : $job;
 
                 if ($job instanceof ShouldQueue) {
                     $this->dispatchToQueue($job, $queue ?? $job->queue, $connection ?? $job->connection); /* @phpstan-ignore-line */
@@ -237,14 +240,6 @@ class Schedule
 
             $job = CallQueuedClosure::create($job);
         }
-
-        // Clone the job to prevent mutation of the original instance. Hypervel's
-        // container caches unbound concretes (auto-singletons) for Swoole performance,
-        // so Container::make() may return the same object across multiple schedule
-        // callbacks. Without cloning, onConnection()/onQueue() would mutate a shared
-        // instance, causing state bleed between scheduled events and corrupting
-        // QueueFake assertions (which store object references, not snapshots).
-        $job = clone $job;
 
         if ($job instanceof ShouldBeUnique) {
             $this->dispatchUniqueJobToQueue($job, $queue, $connection);

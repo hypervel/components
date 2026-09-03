@@ -173,6 +173,23 @@ class QueuePauseResumeTest extends TestCase
         $this->assertSame('notifications', $dispatchedEvent->queue);
     }
 
+    public function testPassiveObserversDoNotCauseQueueStateEventsToDispatch(): void
+    {
+        $observed = [];
+        $this->events->observe(
+            [QueuePaused::class, QueueResumed::class],
+            static function (string $event) use (&$observed): void {
+                $observed[] = $event;
+            },
+        );
+
+        $this->manager->pause('redis', 'default');
+        $this->manager->pauseFor('redis', 'emails', 60);
+        $this->manager->resume('redis', 'default');
+
+        $this->assertSame([], $observed);
+    }
+
     public function testGetPausedQueues(): void
     {
         $this->assertSame([], $this->manager->getPausedQueues('redis', ['default', 'emails']));

@@ -127,23 +127,39 @@ class RedisManager implements FactoryContract, ConnectionContract
     /**
      * Enable Redis command events.
      *
-     * Boot-only. Existing pools retain their snapshotted event configuration;
-     * calling this after pool creation can leave generations with different behavior.
+     * Boot-only. Existing pools with a different snapshotted setting are
+     * replaced; borrowed connections from the old generation are destroyed on release.
      */
     public function enableEvents(): void
     {
         $this->config->enableEvents();
+        $this->refreshEventPools(true);
     }
 
     /**
      * Disable Redis command events.
      *
-     * Boot-only. Existing pools retain their snapshotted event configuration;
-     * calling this after pool creation can leave generations with different behavior.
+     * Boot-only. Existing pools with a different snapshotted setting are
+     * replaced; borrowed connections from the old generation are destroyed on release.
      */
     public function disableEvents(): void
     {
         $this->config->disableEvents();
+        $this->refreshEventPools(false);
+    }
+
+    /**
+     * Refresh pools whose command-event setting differs from the worker override.
+     */
+    protected function refreshEventPools(bool $eventsEnabled): void
+    {
+        foreach ($this->factory->pools() as $name => $pool) {
+            if ($pool->getConfig()['events'] === $eventsEnabled) {
+                continue;
+            }
+
+            $this->purge($name);
+        }
     }
 
     // REMOVED: Connector-driver extend()/setDriver() do not apply to Hypervel's phpredis-only pooled transport.

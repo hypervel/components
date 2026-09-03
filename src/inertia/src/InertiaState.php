@@ -126,7 +126,7 @@ class InertiaState implements ReplicableContext
     }
 
     /**
-     * Create an independent copy with the same state.
+     * Copy all current configuration and request state into an independent object.
      */
     public function replicate(): static
     {

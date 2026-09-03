@@ -12,6 +12,7 @@ use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Events\CommandFailed;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisManager;
 use Hypervel\Redis\RedisProxy;
@@ -246,13 +247,33 @@ class RedisManagerTest extends TestCase
         $this->assertFalse(method_exists($manager, 'setDriver'));
     }
 
-    public function testEnableEventsDelegatesToRedisConfigWithoutTouchingPools(): void
+    public function testEnableEventsRefreshesOnlyExistingPoolsWithDisabledEvents(): void
     {
         $app = m::mock(ContainerContract::class);
+        $disabledPool = m::mock(RedisPool::class);
+        $disabledPool->expects('getConfig')->andReturn(['events' => false]);
+        $enabledPool = m::mock(RedisPool::class);
+        $enabledPool->expects('getConfig')->andReturn(['events' => true]);
+
+        $config = m::mock(RedisConfig::class);
+        $config->expects('enableEvents')
+            ->globally()
+            ->ordered();
+
         $poolFactory = m::mock(PoolFactory::class);
         $poolFactory->expects('getPool')->never();
-        $config = m::mock(RedisConfig::class);
-        $config->expects('enableEvents');
+        $poolFactory->expects('pools')
+            ->globally()
+            ->ordered()
+            ->andReturn([
+                'disabled' => $disabledPool,
+                'enabled' => $enabledPool,
+            ]);
+        $poolFactory->expects('flushPool')
+            ->with('disabled')
+            ->globally()
+            ->ordered();
+
         $manager = new RedisManager(
             $app,
             $poolFactory,
@@ -263,13 +284,33 @@ class RedisManagerTest extends TestCase
         $manager->enableEvents();
     }
 
-    public function testDisableEventsDelegatesToRedisConfigWithoutTouchingPools(): void
+    public function testDisableEventsRefreshesOnlyExistingPoolsWithEnabledEvents(): void
     {
         $app = m::mock(ContainerContract::class);
+        $enabledPool = m::mock(RedisPool::class);
+        $enabledPool->expects('getConfig')->andReturn(['events' => true]);
+        $disabledPool = m::mock(RedisPool::class);
+        $disabledPool->expects('getConfig')->andReturn(['events' => false]);
+
+        $config = m::mock(RedisConfig::class);
+        $config->expects('disableEvents')
+            ->globally()
+            ->ordered();
+
         $poolFactory = m::mock(PoolFactory::class);
         $poolFactory->expects('getPool')->never();
-        $config = m::mock(RedisConfig::class);
-        $config->expects('disableEvents');
+        $poolFactory->expects('pools')
+            ->globally()
+            ->ordered()
+            ->andReturn([
+                'enabled' => $enabledPool,
+                'disabled' => $disabledPool,
+            ]);
+        $poolFactory->expects('flushPool')
+            ->with('enabled')
+            ->globally()
+            ->ordered();
+
         $manager = new RedisManager(
             $app,
             $poolFactory,

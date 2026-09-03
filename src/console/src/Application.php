@@ -84,7 +84,9 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
         $this->setAutoExit(false);
         $this->setCatchExceptions(false);
 
-        $this->dispatcher->dispatch(new ArtisanStarting($this));
+        if ($this->dispatcher->hasListeners(ArtisanStarting::class)) {
+            $this->dispatcher->dispatch(new ArtisanStarting($this));
+        }
 
         $this->bootstrap();
     }

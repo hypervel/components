@@ -35,6 +35,7 @@
     },
     "require": {
         "php": "^8.4",
+        "ext-filter": "*",
         "guzzlehttp/guzzle": "^7.15.1",
         "hypervel/collections": "^0.4",
         "hypervel/conditionable": "^0.4",
