@@ -19,6 +19,8 @@ class StartCallback
      */
     public function onStart(SwooleServer $server): void
     {
-        $this->dispatcher->dispatch(new OnStart($server));
+        if ($this->dispatcher->hasListeners(OnStart::class)) {
+            $this->dispatcher->dispatch(new OnStart($server));
+        }
     }
 }

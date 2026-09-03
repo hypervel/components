@@ -30,7 +30,9 @@ class WorkerExitCallback
         $this->dispatched = true;
 
         try {
-            $this->dispatcher->dispatch(new OnWorkerExit($server, $workerId));
+            if ($this->dispatcher->hasListeners(OnWorkerExit::class)) {
+                $this->dispatcher->dispatch(new OnWorkerExit($server, $workerId));
+            }
         } finally {
             CoordinatorManager::until(Constants::WORKER_EXIT)->resume();
         }

@@ -19,6 +19,8 @@ class WorkerErrorCallback
      */
     public function onWorkerError(Server $server, int $workerId, int $workerPid, int $exitCode, int $signal): void
     {
-        $this->dispatcher->dispatch(new OnWorkerError($server, $workerId, $workerPid, $exitCode, $signal));
+        if ($this->dispatcher->hasListeners(OnWorkerError::class)) {
+            $this->dispatcher->dispatch(new OnWorkerError($server, $workerId, $workerPid, $exitCode, $signal));
+        }
     }
 }

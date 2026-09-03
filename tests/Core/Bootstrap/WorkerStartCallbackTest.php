@@ -30,6 +30,9 @@ class WorkerStartCallbackTest extends TestCase
         $server->taskworker = false;
 
         $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('hasListeners')->once()->with(BeforeWorkerStart::class)->andReturnTrue();
+        $dispatcher->shouldReceive('hasListeners')->once()->with(MainWorkerStart::class)->andReturnTrue();
+        $dispatcher->shouldReceive('hasListeners')->once()->with(AfterWorkerStart::class)->andReturnTrue();
         $dispatcher->shouldReceive('dispatch')
             ->once()
             ->ordered()
@@ -68,6 +71,26 @@ class WorkerStartCallbackTest extends TestCase
         $this->assertTrue($coordinator->isClosing());
     }
 
+    public function testWorkerStartsAndResumesCoordinationWithoutLifecycleListeners(): void
+    {
+        $server = m::mock(Server::class);
+        $server->taskworker = false;
+
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('hasListeners')->once()->with(BeforeWorkerStart::class)->andReturnFalse();
+        $dispatcher->shouldReceive('hasListeners')->once()->with(MainWorkerStart::class)->andReturnFalse();
+        $dispatcher->shouldReceive('hasListeners')->once()->with(AfterWorkerStart::class)->andReturnFalse();
+        $dispatcher->shouldNotReceive('dispatch');
+
+        $logger = m::mock(StdoutLoggerInterface::class);
+        $logger->shouldReceive('info')->once()->with('Worker#0 started.');
+        $coordinator = CoordinatorManager::until(Constants::WORKER_START);
+
+        (new WorkerStartCallback($dispatcher, $logger))->onWorkerStart($server, 0);
+
+        $this->assertTrue($coordinator->isClosing());
+    }
+
     public function testStartupLoggingUsesConfigurationRefreshedDuringBeforeWorkerStart(): void
     {
         $config = new Repository([
@@ -79,6 +102,9 @@ class WorkerStartCallbackTest extends TestCase
         $server->taskworker = false;
 
         $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('hasListeners')->once()->with(BeforeWorkerStart::class)->andReturnTrue();
+        $dispatcher->shouldReceive('hasListeners')->once()->with(MainWorkerStart::class)->andReturnTrue();
+        $dispatcher->shouldReceive('hasListeners')->once()->with(AfterWorkerStart::class)->andReturnTrue();
         $dispatcher->shouldReceive('dispatch')
             ->once()
             ->with(m::type(BeforeWorkerStart::class))
@@ -102,6 +128,9 @@ class WorkerStartCallbackTest extends TestCase
         $server->taskworker = true;
 
         $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('hasListeners')->once()->with(BeforeWorkerStart::class)->andReturnTrue();
+        $dispatcher->shouldReceive('hasListeners')->once()->with(OtherWorkerStart::class)->andReturnTrue();
+        $dispatcher->shouldReceive('hasListeners')->once()->with(AfterWorkerStart::class)->andReturnTrue();
         $dispatcher->shouldReceive('dispatch')->once()->with(m::type(BeforeWorkerStart::class));
         $dispatcher->shouldReceive('dispatch')->once()->with(m::type(OtherWorkerStart::class));
         $dispatcher->shouldReceive('dispatch')->once()->with(m::type(AfterWorkerStart::class));

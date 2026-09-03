@@ -19,6 +19,8 @@ class ManagerStopCallback
      */
     public function onManagerStop(SwooleServer $server): void
     {
-        $this->dispatcher->dispatch(new OnManagerStop($server));
+        if ($this->dispatcher->hasListeners(OnManagerStop::class)) {
+            $this->dispatcher->dispatch(new OnManagerStop($server));
+        }
     }
 }
