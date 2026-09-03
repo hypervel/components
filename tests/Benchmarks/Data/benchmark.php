@@ -74,6 +74,52 @@ class DataBenchmarkColdData extends Data
     }
 }
 
+class DataBenchmarkPlainFive extends Data
+{
+    public int $one = 1;
+
+    public int $two = 2;
+
+    public int $three = 3;
+
+    public int $four = 4;
+
+    public int $five = 5;
+}
+
+class DataBenchmarkPlainTwenty extends DataBenchmarkPlainFive
+{
+    public int $six = 6;
+
+    public int $seven = 7;
+
+    public int $eight = 8;
+
+    public int $nine = 9;
+
+    public int $ten = 10;
+
+    public int $eleven = 11;
+
+    public int $twelve = 12;
+
+    public int $thirteen = 13;
+
+    public int $fourteen = 14;
+
+    public int $fifteen = 15;
+
+    public int $sixteen = 16;
+
+    public int $seventeen = 17;
+
+    public int $eighteen = 18;
+
+    public int $nineteen = 19;
+
+    public int $twenty = 20;
+}
+
 class DataBenchmarkLeaf extends Data
 {
     public function __construct(
@@ -369,6 +415,8 @@ class DataBenchmark
         $factoryIdentifiers = range(1, 1_000);
         $simpleData = DataBenchmarkUser::from($flatPayload);
         $nestedData = DataBenchmarkUser::from($nestedPayload);
+        $plainFiveData = new DataBenchmarkPlainFive;
+        $plainTwentyData = new DataBenchmarkPlainTwenty;
         $lazyTransformData = DataBenchmarkLazyItem::from($lazyRows[0])
             ->includePermanently('address')
             ->onlyPermanently('id', 'address.lineOne');
@@ -503,6 +551,16 @@ class DataBenchmark
                 $standardOperations,
                 $standardWarmup,
                 fn (): int => $simpleData->toArray()['id'],
+            ],
+            'transform-plain-five' => [
+                $standardOperations,
+                $standardWarmup,
+                fn (): int => $plainFiveData->toArray()['five'],
+            ],
+            'transform-plain-twenty' => [
+                $standardOperations,
+                $standardWarmup,
+                fn (): int => $plainTwentyData->toArray()['twenty'],
             ],
             'transform-nested' => [
                 $standardOperations,
