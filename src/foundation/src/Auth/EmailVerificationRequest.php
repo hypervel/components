@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Auth;
 
 use Hypervel\Auth\Events\Verified;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Foundation\Http\FormRequest;
 use Hypervel\Validation\Validator;
 
@@ -42,7 +43,12 @@ class EmailVerificationRequest extends FormRequest
         if (! $this->user()->hasVerifiedEmail()) {
             $this->user()->markEmailAsVerified();
 
-            event(new Verified($this->user()));
+            /** @var Dispatcher $events */
+            $events = app('events');
+
+            if ($events->hasListeners(Verified::class)) {
+                $events->dispatch(new Verified($this->user()));
+            }
         }
     }
 

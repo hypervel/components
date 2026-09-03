@@ -9,6 +9,7 @@ use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Console\Command;
 use Hypervel\Console\CommandMutex;
 use Hypervel\Console\Events\AfterExecute;
+use Hypervel\Console\Events\ArtisanStarting;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Console\Isolatable;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -27,6 +28,22 @@ use Throwable;
 class ConsoleApplicationDeferredCallbacksTest extends TestCase
 {
     protected bool $runTestsInCoroutine = false;
+
+    public function testPassiveObserverDoesNotCauseArtisanStartingEventToDispatch(): void
+    {
+        $observedEvents = [];
+        $this->app->make(Dispatcher::class)->observe(
+            ArtisanStarting::class,
+            static function (ArtisanStarting $event) use (&$observedEvents): void {
+                $observedEvents[] = $event;
+            }
+        );
+
+        $application = $this->createConsoleApplication();
+
+        $this->assertSame('Hypervel Framework', $application->getName());
+        $this->assertSame([], $observedEvents);
+    }
 
     public function testCoroutineCommandDrainsAfterObserversAndMutexCleanup(): void
     {
