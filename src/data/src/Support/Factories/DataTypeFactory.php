@@ -171,13 +171,11 @@ class DataTypeFactory
                 $declaringClass,
             );
             $itemType = null;
-            $keyType = null;
 
             $kind = $this->kindFor($name);
 
             if ($collectionOf !== null && ($kind->isNonDataIterable() || $kind->isDataCollectable())) {
                 $itemType = $this->buildNamedType($collectionOf, false);
-                $keyType = $this->buildArrayKeyType();
             } elseif ($annotation = $this->matchingAnnotation($name, $targetClass, $iterableAnnotations)) {
                 $annotationClass = ClassMetadataCache::reflectClass($annotation->declaringClass);
                 $itemType = $this->buildPhpDocType(
@@ -185,20 +183,12 @@ class DataTypeFactory
                     $targetClass,
                     $annotationClass,
                 );
-                $keyType = $annotation->keyType === null
-                    ? $this->buildArrayKeyType()
-                    : $this->buildPhpDocType(
-                        $annotation->keyType,
-                        $targetClass,
-                        $annotationClass,
-                    );
             }
 
             $type = $this->buildNamedType(
                 $name,
                 $reflectionType->isBuiltin(),
                 $itemType,
-                $keyType,
             );
 
             if ($forProperty && $this->requiresDataItemType($type->kind) && $type->dataClass === null) {
@@ -286,7 +276,6 @@ class DataTypeFactory
                 'array',
                 true,
                 $this->buildPhpDocType($type->type, $targetClass, $declaringClass),
-                $this->buildArrayKeyType(),
             );
         }
 
@@ -299,7 +288,6 @@ class DataTypeFactory
                     'array',
                     true,
                     $this->buildPhpDocType($genericTypes[0], $targetClass, $declaringClass),
-                    $this->buildNamedType('int', true),
                 );
             }
 
@@ -309,11 +297,9 @@ class DataTypeFactory
                 $declaringClass,
             );
             $itemType = null;
-            $keyType = $this->buildArrayKeyType();
 
             if (isset($genericTypes[1])) {
                 $itemType = $this->buildPhpDocType($genericTypes[1], $targetClass, $declaringClass);
-                $keyType = $this->buildPhpDocType($genericTypes[0], $targetClass, $declaringClass);
             } elseif (isset($genericTypes[0])) {
                 $itemType = $this->buildPhpDocType($genericTypes[0], $targetClass, $declaringClass);
             }
@@ -322,7 +308,6 @@ class DataTypeFactory
                 $resolved,
                 $this->isBuiltIn($resolved),
                 $itemType,
-                $keyType,
             );
         }
 
@@ -344,7 +329,6 @@ class DataTypeFactory
         string $name,
         bool $builtIn,
         ?Type $itemType = null,
-        ?Type $keyType = null,
     ): NamedType {
         $kind = $this->kindFor($name);
         $dataClass = $kind->isDataObject() ? $name : $this->uniqueDataClass($itemType);
@@ -360,7 +344,6 @@ class DataTypeFactory
             dataClass: $dataClass,
             iterableClass: $kind->isNonDataIterable() || $kind->isDataCollectable() ? $name : null,
             iterableItemType: $itemType,
-            iterableKeyType: $keyType,
         );
     }
 

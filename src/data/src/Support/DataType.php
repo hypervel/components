@@ -40,20 +40,6 @@ class DataType
     }
 
     /**
-     * Get the declared types and their inherited types.
-     *
-     * @return array<string, list<string>>
-     */
-    public function getAcceptedTypes(): array
-    {
-        if ($this->isMixed) {
-            return [];
-        }
-
-        return $this->type->getAcceptedTypes();
-    }
-
-    /**
      * Get every named type in declaration order.
      *
      * @return list<NamedType>

@@ -7,6 +7,20 @@ namespace Hypervel\Data\Support\Types;
 abstract class CombinationType extends Type
 {
     /**
+     * The flattened named types in declaration order.
+     *
+     * @var list<NamedType>
+     */
+    protected readonly array $namedTypes;
+
+    /**
+     * The one unambiguous built-in type.
+     *
+     * @var null|'array'|'bool'|'float'|'int'|'string'
+     */
+    protected readonly ?string $singleBuiltinType;
+
+    /**
      * Create a new combination type.
      *
      * @param non-empty-list<Type> $types
@@ -14,24 +28,24 @@ abstract class CombinationType extends Type
     public function __construct(
         public readonly array $types,
     ) {
-    }
-
-    /**
-     * Get the declared types and their inherited types.
-     *
-     * @return array<string, list<string>>
-     */
-    public function getAcceptedTypes(): array
-    {
-        $types = [];
+        $namedTypes = [];
+        $singleBuiltinType = null;
+        $builtinTypeCount = 0;
 
         foreach ($this->types as $type) {
-            foreach ($type->getAcceptedTypes() as $name => $acceptedTypes) {
-                $types[$name] = $acceptedTypes;
+            foreach ($type->getNamedTypes() as $namedType) {
+                $namedTypes[] = $namedType;
+                $builtinType = $namedType->getSingleBuiltinType();
+
+                if ($builtinType !== null) {
+                    $singleBuiltinType = $builtinType;
+                    ++$builtinTypeCount;
+                }
             }
         }
 
-        return $types;
+        $this->namedTypes = $namedTypes;
+        $this->singleBuiltinType = $builtinTypeCount === 1 ? $singleBuiltinType : null;
     }
 
     /**
@@ -41,12 +55,16 @@ abstract class CombinationType extends Type
      */
     public function getNamedTypes(): array
     {
-        $types = [];
+        return $this->namedTypes;
+    }
 
-        foreach ($this->types as $type) {
-            array_push($types, ...$type->getNamedTypes());
-        }
-
-        return $types;
+    /**
+     * Get the one unambiguous built-in type in this declaration.
+     *
+     * @return null|'array'|'bool'|'float'|'int'|'string'
+     */
+    public function getSingleBuiltinType(): ?string
+    {
+        return $this->singleBuiltinType;
     }
 }

@@ -27,16 +27,16 @@ abstract class Type
     abstract public function findAcceptedTypeForBaseType(string $class): ?string;
 
     /**
-     * Get the declared types and their inherited types.
-     *
-     * @return array<string, list<string>>
-     */
-    abstract public function getAcceptedTypes(): array;
-
-    /**
      * Get every named type in declaration order.
      *
      * @return list<NamedType>
      */
     abstract public function getNamedTypes(): array;
+
+    /**
+     * Get the one unambiguous built-in type in this declaration.
+     *
+     * @return null|'array'|'bool'|'float'|'int'|'string'
+     */
+    abstract public function getSingleBuiltinType(): ?string;
 }

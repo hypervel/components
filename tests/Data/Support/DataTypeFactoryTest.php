@@ -14,6 +14,7 @@ use Hypervel\Data\Support\DataPropertyType;
 use Hypervel\Data\Support\Factories\DataAttributesCollectionFactory;
 use Hypervel\Data\Support\Factories\DataTypeFactory;
 use Hypervel\Data\Support\Types\IntersectionType;
+use Hypervel\Data\Support\Types\NamedType;
 use Hypervel\Data\Support\Types\PhpDocTypeNameResolver;
 use Hypervel\Data\Support\Types\UnionType;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
@@ -78,6 +79,49 @@ class DataTypeFactoryTest extends TestCase
         $this->assertTrue($dnf->acceptsValue('value'));
         $this->assertFalse($dnf->acceptsValue(new stdClass));
         $this->assertFalse($dnf->type->guaranteesType(DataTypeFactoryFirstType::class));
+    }
+
+    /**
+     * Test single built-in types are derived from the flattened declaration graph.
+     */
+    public function testSingleBuiltinTypesUseTheFlattenedDeclarationGraph(): void
+    {
+        $integer = $this->property('integer');
+        $nullable = $this->property('nullable');
+        $union = $this->property('union');
+        $float = $this->property('float');
+        $strings = $this->property('strings');
+        $data = $this->property('data');
+        $intersection = $this->property('intersection');
+        $dnf = $this->property('dnf');
+        $arrayKeys = $this->property('arrayKeys');
+
+        $this->assertSame('int', $integer->type->getSingleBuiltinType());
+        $this->assertSame('int', $nullable->type->getSingleBuiltinType());
+        $this->assertNull($union->type->getSingleBuiltinType());
+        $this->assertSame('float', $float->type->getSingleBuiltinType());
+
+        $stringItemType = $strings->getNamedTypes()[0]->iterableItemType;
+
+        $this->assertInstanceOf(NamedType::class, $stringItemType);
+        $this->assertSame('string', $stringItemType->getSingleBuiltinType());
+        $this->assertNull($data->type->getSingleBuiltinType());
+        $this->assertSame('string', $dnf->type->getSingleBuiltinType());
+        $this->assertSame(
+            'int',
+            (new UnionType([
+                new UnionType([$integer->type, $data->type]),
+                $intersection->type,
+            ]))->getSingleBuiltinType(),
+        );
+        $this->assertNull(
+            (new UnionType([$union->type, $float->type]))->getSingleBuiltinType(),
+        );
+
+        $arrayKeyItemType = $arrayKeys->getNamedTypes()[0]->iterableItemType;
+
+        $this->assertInstanceOf(UnionType::class, $arrayKeyItemType);
+        $this->assertNull($arrayKeyItemType->getSingleBuiltinType());
     }
 
     /**
@@ -319,6 +363,9 @@ class DataTypeFactoryFixture
 
     /** @var array<string> */
     public array $strings;
+
+    /** @var array<array-key> */
+    public array $arrayKeys;
 
     /** @var array<string>|Collection<int, string> */
     public array|Collection $ambiguousIterables;

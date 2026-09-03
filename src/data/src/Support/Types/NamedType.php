@@ -26,7 +26,6 @@ class NamedType extends Type
         public readonly ?string $dataClass = null,
         public readonly ?string $iterableClass = null,
         public readonly ?Type $iterableItemType = null,
-        public readonly ?Type $iterableKeyType = null,
     ) {
         $this->isCastable = ! $this->builtIn && is_a($this->name, Castable::class, true);
     }
@@ -99,27 +98,6 @@ class NamedType extends Type
     }
 
     /**
-     * Get the declared type and its inherited types.
-     *
-     * @return array<string, list<string>>
-     */
-    public function getAcceptedTypes(): array
-    {
-        $acceptedTypes = [];
-
-        if (! $this->builtIn && self::typeExists($this->name)) {
-            $acceptedTypes = array_values(array_unique([
-                ...array_values(class_parents($this->name) ?: []),
-                ...array_values(class_implements($this->name) ?: []),
-            ]));
-        }
-
-        return [
-            $this->name => $acceptedTypes,
-        ];
-    }
-
-    /**
      * Get every named type in declaration order.
      *
      * @return list<NamedType>
@@ -127,6 +105,19 @@ class NamedType extends Type
     public function getNamedTypes(): array
     {
         return [$this];
+    }
+
+    /**
+     * Get the one unambiguous built-in type in this declaration.
+     *
+     * @return null|'array'|'bool'|'float'|'int'|'string'
+     */
+    public function getSingleBuiltinType(): ?string
+    {
+        return match ($this->name) {
+            'array', 'bool', 'float', 'int', 'string' => $this->name,
+            default => null,
+        };
     }
 
     /**
