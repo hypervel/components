@@ -34,6 +34,8 @@ use Hypervel\Data\Transformers\Transformer;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Inertia\DeferProp;
 use Hypervel\Inertia\OptionalProp;
+use Hypervel\Pagination\CursorPaginator;
+use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Testbench\TestCase;
 use RuntimeException;
 use Traversable;
@@ -75,6 +77,50 @@ class DataTransformerTest extends TestCase
             'status' => Status::Ready,
             'nested' => $nested,
         ], $data->all());
+    }
+
+    /**
+     * Test nested paginator properties retain native metadata.
+     */
+    public function testTransformsNestedOffsetAndCursorPaginatorsWithMetadata(): void
+    {
+        $offsetItem = new PaginatorItemData(1, 'offset');
+        $cursorItem = new PaginatorItemData(2, 'cursor');
+        $offset = new LengthAwarePaginator(
+            [$offsetItem],
+            12,
+            5,
+            2,
+            ['path' => '/offset', 'query' => ['tenant' => 'one']],
+        );
+        $cursor = new CursorPaginator(
+            [$cursorItem, new PaginatorItemData(3, 'next')],
+            1,
+            options: [
+                'path' => '/cursor',
+                'query' => ['tenant' => 'one'],
+                'parameters' => ['id'],
+            ],
+        );
+
+        $transformed = (new PaginatorOwnerData($offset, $cursor))->toArray();
+
+        $this->assertSame([
+            'id' => 1,
+            'label_text' => 'offset',
+        ], $transformed['offset']['data'][0]);
+        $this->assertSame(2, $transformed['offset']['current_page']);
+        $this->assertSame(12, $transformed['offset']['total']);
+        $this->assertSame('/offset', $transformed['offset']['path']);
+        $this->assertSame([
+            'id' => 2,
+            'label_text' => 'cursor',
+        ], $transformed['cursor']['data'][0]);
+        $this->assertSame('/cursor', $transformed['cursor']['path']);
+        $this->assertNotNull($transformed['cursor']['next_cursor']);
+        $this->assertStringContainsString('tenant=one', $transformed['cursor']['next_page_url']);
+        $this->assertSame($offsetItem, $offset->items()[0]);
+        $this->assertSame($cursorItem, $cursor->items()[0]);
     }
 
     /**
@@ -982,6 +1028,31 @@ class TransformingData extends Data
         public DateTimeImmutable $createdAt,
         public BackedEnum $status,
         public SimpleData $nested,
+    ) {
+    }
+}
+
+class PaginatorItemData extends Data
+{
+    public function __construct(
+        public int $id,
+        #[MapOutputName('label_text')]
+        public string $label,
+    ) {
+    }
+}
+
+class PaginatorOwnerData extends Data
+{
+    /**
+     * Create a nested paginator fixture.
+     *
+     * @param LengthAwarePaginator<int, PaginatorItemData> $offset
+     * @param CursorPaginator<int, PaginatorItemData> $cursor
+     */
+    public function __construct(
+        public LengthAwarePaginator $offset,
+        public CursorPaginator $cursor,
     ) {
     }
 }

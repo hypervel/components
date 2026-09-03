@@ -33,6 +33,8 @@ use Hypervel\Data\Support\Lazy\DefaultLazy;
 use Hypervel\Data\Support\Types\Type;
 use Hypervel\Data\Support\Wrapping\WrapExecutionType;
 use Hypervel\Data\Transformers\Transformer;
+use Hypervel\Pagination\AbstractCursorPaginator;
+use Hypervel\Pagination\AbstractPaginator;
 use Hypervel\Support\Collection;
 
 class DataTransformer
@@ -313,8 +315,7 @@ class DataTransformer
         PaginatedDataCollection|CursorPaginatedDataCollection $data,
         array $items,
     ): array {
-        $paginator = (clone $data->items())->setCollection(new Collection($items));
-        $transformed = $paginator->toArray();
+        $transformed = $this->transformPaginator($data->items(), $items);
         $wrapKey = $data->getWrap()->getKey($this->config->wrap) ?? 'data';
 
         if ($wrapKey === 'data') {
@@ -325,6 +326,21 @@ class DataTransformer
         unset($transformed['data']);
 
         return [$wrapKey => $items, ...$transformed];
+    }
+
+    /**
+     * Serialize a paginator clone with replacement items while retaining native metadata.
+     *
+     * @param array<array-key, mixed> $items
+     * @return array<string, mixed>
+     */
+    protected function transformPaginator(
+        AbstractPaginator|AbstractCursorPaginator $paginator,
+        array $items,
+    ): array {
+        return (clone $paginator)
+            ->setCollection(new Collection($items))
+            ->toArray();
     }
 
     /**
@@ -465,13 +481,17 @@ class DataTransformer
                 return $value;
             }
 
-            return $this->transformIterable(
+            $transformed = $this->transformIterable(
                 $property,
                 $value,
                 $iterableType,
                 $context->child($property->name),
                 $extensions,
             );
+
+            return $value instanceof AbstractPaginator || $value instanceof AbstractCursorPaginator
+                ? $this->transformPaginator($value, $transformed)
+                : $transformed;
         }
 
         if (is_array($value)) {
