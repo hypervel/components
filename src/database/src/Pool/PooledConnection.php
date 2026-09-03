@@ -152,9 +152,12 @@ class PooledConnection implements PoolConnectionInterface
         // Fetch dispatcher from container (not $this->dispatcher) so Event::fake() works.
         // Reconnection can be triggered after fake swaps the container binding.
         if ($this->container->bound('events')) {
-            $this->container->make('events')->dispatch(
-                new ConnectionEstablished($this->connection)
-            );
+            /** @var Dispatcher $events */
+            $events = $this->container->make('events');
+
+            if ($events->hasListeners(ConnectionEstablished::class)) {
+                $events->dispatch(new ConnectionEstablished($this->connection));
+            }
         }
 
         $now = hrtime(true) / 1e9;
@@ -334,8 +337,10 @@ class PooledConnection implements PoolConnectionInterface
 
             // Dispatch release event if configured
             $events = $this->pool->getOption()->getEvents();
-            if (in_array(ReleaseConnection::class, $events, true)) {
-                $this->dispatcher?->dispatch(new ReleaseConnection($this));
+            if (in_array(ReleaseConnection::class, $events, true)
+                && $this->dispatcher?->hasListeners(ReleaseConnection::class)
+            ) {
+                $this->dispatcher->dispatch(new ReleaseConnection($this));
             }
         } catch (CanceledException $cancellation) {
             $cancellationFailure = $cancellation;
@@ -500,9 +505,12 @@ class PooledConnection implements PoolConnectionInterface
         // Fetch dispatcher from container (not $this->dispatcher) so Event::fake() works.
         // Reconnection can be triggered after fake swaps the container binding.
         if ($this->container->bound('events')) {
-            $this->container->make('events')->dispatch(
-                new ConnectionEstablished($connection)
-            );
+            /** @var Dispatcher $events */
+            $events = $this->container->make('events');
+
+            if ($events->hasListeners(ConnectionEstablished::class)) {
+                $events->dispatch(new ConnectionEstablished($connection));
+            }
         }
 
         $this->stampGeneration(hrtime(true) / 1e9);

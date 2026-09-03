@@ -35,6 +35,7 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
 
         $console->shouldReceive('find')->with('migrate:reset')->andReturn($resetCommand);
         $console->shouldReceive('find')->with('migrate')->andReturn($migrateCommand);
+        $dispatcher->shouldReceive('hasListeners')->once()->with(DatabaseRefreshed::class)->andReturnTrue();
         $dispatcher->shouldReceive('dispatch')->once()->with(m::type(DatabaseRefreshed::class));
 
         $quote = DIRECTORY_SEPARATOR === '\\' ? '"' : "'";
@@ -63,6 +64,7 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
 
         $console->shouldReceive('find')->with('migrate:rollback')->andReturn($rollbackCommand);
         $console->shouldReceive('find')->with('migrate')->andReturn($migrateCommand);
+        $dispatcher->shouldReceive('hasListeners')->once()->with(DatabaseRefreshed::class)->andReturnTrue();
         $dispatcher->shouldReceive('dispatch')->once()->with(m::type(DatabaseRefreshed::class));
 
         $quote = DIRECTORY_SEPARATOR === '\\' ? '"' : "'";

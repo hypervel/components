@@ -24,7 +24,9 @@ use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
+use Hypervel\Cache\NamespacedTaggedCache;
 use Hypervel\Cache\Repository;
+use Hypervel\Cache\VersionedTagSet;
 use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -36,6 +38,69 @@ use Swoole\Coroutine\CanceledException;
 
 class CacheEventsTest extends TestCase
 {
+    public function testRepositorySkipsEventDispatchSeamWithoutListenersAndEntersItWithListeners(): void
+    {
+        $repository = new class(new ArrayStore, ['store' => 'array']) extends Repository {
+            public int $eventCalls = 0;
+
+            protected function event(object $event): void
+            {
+                ++$this->eventCalls;
+
+                parent::event($event);
+            }
+        };
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('hasListeners')->withAnyArgs()->andReturnFalse();
+        $dispatcher->shouldNotReceive('dispatch');
+        $repository->setEventDispatcher($dispatcher);
+
+        $this->assertNull($repository->get('missing'));
+        $this->assertTrue($repository->put('key', 'value', 60));
+        $this->assertTrue($repository->putMany(['one' => 1, 'two' => 2], 60));
+        $this->assertTrue($repository->clear());
+        $this->assertSame(0, $repository->eventCalls);
+
+        $dispatcher = $this->getDispatcher();
+        $dispatcher->shouldReceive('dispatch')->twice();
+        $repository->setEventDispatcher($dispatcher);
+
+        $this->assertTrue($repository->put('key', 'value', 60));
+        $this->assertSame(2, $repository->eventCalls);
+    }
+
+    public function testNamespacedTaggedCacheSkipsEventDispatchSeamWithoutListenersAndEntersItWithListeners(): void
+    {
+        $store = new ArrayStore;
+        $repository = new class($store, new VersionedTagSet($store, ['tag'])) extends NamespacedTaggedCache {
+            public int $eventCalls = 0;
+
+            protected function event(object $event): void
+            {
+                ++$this->eventCalls;
+
+                parent::event($event);
+            }
+        };
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('hasListeners')->withAnyArgs()->andReturnFalse();
+        $dispatcher->shouldNotReceive('dispatch');
+        $repository->setEventDispatcher($dispatcher);
+
+        $this->assertNull($repository->get('missing'));
+        $this->assertTrue($repository->put('key', 'value', 60));
+        $this->assertTrue($repository->putMany(['one' => 1, 'two' => 2], 60));
+        $this->assertTrue($repository->flush());
+        $this->assertSame(0, $repository->eventCalls);
+
+        $dispatcher = $this->getDispatcher();
+        $dispatcher->shouldReceive('dispatch')->twice();
+        $repository->setEventDispatcher($dispatcher);
+
+        $this->assertTrue($repository->put('key', 'value', 60));
+        $this->assertSame(2, $repository->eventCalls);
+    }
+
     public function testHasTriggersEvents()
     {
         $dispatcher = $this->getDispatcher();

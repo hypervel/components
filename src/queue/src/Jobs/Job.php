@@ -296,12 +296,15 @@ abstract class Job implements JobContract
             throw $exception;
         } finally {
             if (! $canceled) {
-                $this->resolve(Dispatcher::class)
-                    ->dispatch(new JobFailed(
+                $events = $this->resolve(Dispatcher::class);
+
+                if ($events->hasListeners(JobFailed::class)) {
+                    $events->dispatch(new JobFailed(
                         $this->connectionName,
                         $this,
                         $e ?: new ManuallyFailedException
                     ));
+                }
             }
         }
     }

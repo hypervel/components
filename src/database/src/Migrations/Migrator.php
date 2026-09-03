@@ -150,7 +150,9 @@ class Migrator
         // aren't, we will just make a note of it to the developer so they're aware
         // that all of the migrations have been run against this database system.
         if (count($migrations) === 0) {
-            $this->fireMigrationEvent(new NoPendingMigrations('up'));
+            if ($this->hasMigrationEventListeners(NoPendingMigrations::class)) {
+                $this->fireMigrationEvent(new NoPendingMigrations('up'));
+            }
 
             $this->write(Info::class, 'Nothing to migrate');
 
@@ -166,7 +168,9 @@ class Migrator
 
         $step = $options['step'] ?? false;
 
-        $this->fireMigrationEvent(new MigrationsStarted('up', $options));
+        if ($this->hasMigrationEventListeners(MigrationsStarted::class)) {
+            $this->fireMigrationEvent(new MigrationsStarted('up', $options));
+        }
 
         $this->write(Info::class, 'Running migrations.');
 
@@ -181,7 +185,9 @@ class Migrator
             }
         }
 
-        $this->fireMigrationEvent(new MigrationsEnded('up', $options));
+        if ($this->hasMigrationEventListeners(MigrationsEnded::class)) {
+            $this->fireMigrationEvent(new MigrationsEnded('up', $options));
+        }
 
         $this->output?->writeln('');
     }
@@ -209,7 +215,9 @@ class Migrator
             : true;
 
         if (! $shouldRunMigration) {
-            $this->fireMigrationEvent(new MigrationSkipped($name));
+            if ($this->hasMigrationEventListeners(MigrationSkipped::class)) {
+                $this->fireMigrationEvent(new MigrationSkipped($name));
+            }
 
             $this->write(Task::class, $name, fn () => MigrationResult::Skipped->value);
         } else {
@@ -237,7 +245,9 @@ class Migrator
         $migrations = $this->getMigrationsForRollback($options);
 
         if (count($migrations) === 0) {
-            $this->fireMigrationEvent(new NoPendingMigrations('down'));
+            if ($this->hasMigrationEventListeners(NoPendingMigrations::class)) {
+                $this->fireMigrationEvent(new NoPendingMigrations('down'));
+            }
 
             $this->write(Info::class, 'Nothing to rollback.');
 
@@ -280,7 +290,9 @@ class Migrator
 
         $this->requireFiles($files = $this->getMigrationFiles($paths));
 
-        $this->fireMigrationEvent(new MigrationsStarted('down', $options));
+        if ($this->hasMigrationEventListeners(MigrationsStarted::class)) {
+            $this->fireMigrationEvent(new MigrationsStarted('down', $options));
+        }
 
         $this->write(Info::class, 'Rolling back migrations.');
 
@@ -305,7 +317,9 @@ class Migrator
             );
         }
 
-        $this->fireMigrationEvent(new MigrationsEnded('down', $options));
+        if ($this->hasMigrationEventListeners(MigrationsEnded::class)) {
+            $this->fireMigrationEvent(new MigrationsEnded('down', $options));
+        }
 
         return $rolledBack;
     }
@@ -390,11 +404,15 @@ class Migrator
 
         $callback = function () use ($connection, $migration, $method, $name) {
             if (method_exists($migration, $method)) {
-                $this->fireMigrationEvent(new MigrationStarted($migration, $method, $name));
+                if ($this->hasMigrationEventListeners(MigrationStarted::class)) {
+                    $this->fireMigrationEvent(new MigrationStarted($migration, $method, $name));
+                }
 
                 $this->runMethod($connection, $migration, $method);
 
-                $this->fireMigrationEvent(new MigrationEnded($migration, $method, $name));
+                if ($this->hasMigrationEventListeners(MigrationEnded::class)) {
+                    $this->fireMigrationEvent(new MigrationEnded($migration, $method, $name));
+                }
             }
         };
 
@@ -868,6 +886,17 @@ class Migrator
                 }
             }
         }
+    }
+
+    /**
+     * Determine whether the given migration event has listeners.
+     */
+    protected function hasMigrationEventListeners(string $event): bool
+    {
+        $container = Container::getInstance();
+
+        return $container->bound(Dispatcher::class)
+            && $container->make(Dispatcher::class)->hasListeners($event);
     }
 
     /**

@@ -178,7 +178,9 @@ class PdoConnection extends Connection
     {
         $statement->setFetchMode($this->fetchMode);
 
-        $this->event(StatementPrepared::class, fn () => new StatementPrepared($this, $statement));
+        if ($this->events?->hasListeners(StatementPrepared::class)) {
+            $this->event(new StatementPrepared($this, $statement));
+        }
 
         return $statement;
     }

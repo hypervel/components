@@ -9,6 +9,7 @@ use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
@@ -24,8 +25,6 @@ use Hypervel\Telescope\Contracts\TerminableRepository;
 use Hypervel\Telescope\Jobs\ProcessPendingUpdates;
 use RuntimeException;
 use Throwable;
-
-use function event;
 
 class Telescope
 {
@@ -548,10 +547,15 @@ class Telescope
      */
     public static function catch(Throwable $e, array $tags = []): void
     {
-        event(new MessageLogged('error', $e->getMessage(), [
-            'exception' => $e,
-            'telescope' => $tags,
-        ]));
+        /** @var Dispatcher $events */
+        $events = Container::getInstance()->make('events');
+
+        if ($events->hasListeners(MessageLogged::class)) {
+            $events->dispatch(new MessageLogged('error', $e->getMessage(), [
+                'exception' => $e,
+                'telescope' => $tags,
+            ]));
+        }
     }
 
     /**

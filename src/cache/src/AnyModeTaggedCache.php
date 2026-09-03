@@ -44,9 +44,24 @@ abstract class AnyModeTaggedCache extends TaggedCache
     }
 
     /**
+     * Retrieve an item from the cache without unwrapping sentinels.
+     *
      * @throws BadMethodCallException always - tags are for writing and flushing only
      */
     public function getRaw(UnitEnum|string $key): mixed
+    {
+        throw new BadMethodCallException(
+            'Cannot get items via tags in any mode. Tags are for writing and flushing only. '
+            . 'Use Cache::get() directly with the full key.'
+        );
+    }
+
+    /**
+     * Retrieve an item without serving it from a non-authoritative read layer.
+     *
+     * @throws BadMethodCallException always - tags are for writing and flushing only
+     */
+    public function getAuthoritativeRaw(UnitEnum|string $key): mixed
     {
         throw new BadMethodCallException(
             'Cannot get items via tags in any mode. Tags are for writing and flushing only. '
@@ -68,6 +83,8 @@ abstract class AnyModeTaggedCache extends TaggedCache
     }
 
     /**
+     * Retrieve multiple items from the cache without unwrapping sentinels.
+     *
      * @throws BadMethodCallException always - tags are for writing and flushing only
      */
     public function manyRaw(array $keys): array
@@ -137,28 +154,28 @@ abstract class AnyModeTaggedCache extends TaggedCache
     {
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
-        $this->event(RetrievingKey::class, fn (): RetrievingKey => new RetrievingKey($this->getName(), $key));
+        if ($this->events?->hasListeners(RetrievingKey::class)) {
+            $this->event(new RetrievingKey($this->getName(), $key));
+        }
 
         try {
             $value = $this->handleIncompleteClass($key, $this->store->get($key));
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            $this->event(
-                KeyRetrievalFailed::class,
-                fn (): KeyRetrievalFailed => new KeyRetrievalFailed($this->getName(), $key, $exception)
-            );
+            if ($this->events?->hasListeners(KeyRetrievalFailed::class)) {
+                $this->event(new KeyRetrievalFailed($this->getName(), $key, $exception));
+            }
 
             throw $exception;
         }
 
         if (is_null($value)) {
-            $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed($this->getName(), $key));
-        } else {
-            $this->event(
-                CacheHit::class,
-                fn (): CacheHit => new CacheHit($this->getName(), $key, NullSentinel::unwrap($value))
-            );
+            if ($this->events?->hasListeners(CacheMissed::class)) {
+                $this->event(new CacheMissed($this->getName(), $key));
+            }
+        } elseif ($this->events?->hasListeners(CacheHit::class)) {
+            $this->event(new CacheHit($this->getName(), $key, NullSentinel::unwrap($value)));
         }
 
         return $value;
@@ -179,25 +196,28 @@ abstract class AnyModeTaggedCache extends TaggedCache
     {
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
-        $this->event(ForgettingKey::class, fn (): ForgettingKey => new ForgettingKey($this->getName(), $key));
+        if ($this->events?->hasListeners(ForgettingKey::class)) {
+            $this->event(new ForgettingKey($this->getName(), $key));
+        }
 
         try {
             $result = $this->store->forget($key);
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            $this->event(
-                KeyForgetFailed::class,
-                fn (): KeyForgetFailed => new KeyForgetFailed($this->getName(), $key, exception: $exception)
-            );
+            if ($this->events?->hasListeners(KeyForgetFailed::class)) {
+                $this->event(new KeyForgetFailed($this->getName(), $key, exception: $exception));
+            }
 
             throw $exception;
         }
 
         if ($result) {
-            $this->event(KeyForgotten::class, fn (): KeyForgotten => new KeyForgotten($this->getName(), $key));
-        } else {
-            $this->event(KeyForgetFailed::class, fn (): KeyForgetFailed => new KeyForgetFailed($this->getName(), $key));
+            if ($this->events?->hasListeners(KeyForgotten::class)) {
+                $this->event(new KeyForgotten($this->getName(), $key));
+            }
+        } elseif ($this->events?->hasListeners(KeyForgetFailed::class)) {
+            $this->event(new KeyForgetFailed($this->getName(), $key));
         }
 
         return $result;

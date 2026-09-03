@@ -7,6 +7,7 @@ namespace Hypervel\Testbench\Foundation\Console;
 use Composer\Config as ComposerConfig;
 use Hypervel\Console\OutputStyle;
 use Hypervel\Console\View\Components\Factory;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Server\Commands\ServerStartCommand as Command;
 use Hypervel\Testbench\Foundation\Events\ServeCommandEnded;
 use Hypervel\Testbench\Foundation\Events\ServeCommandStarted;
@@ -42,17 +43,26 @@ class ServeCommand extends Command
             : new OutputStyle($input, $output);
         $components = new Factory($styledOutput);
 
-        event(new ServeCommandStarted($input, $styledOutput, $components));
+        /** @var Dispatcher $events */
+        $events = app('events');
+
+        if ($events->hasListeners(ServeCommandStarted::class)) {
+            $events->dispatch(new ServeCommandStarted($input, $styledOutput, $components));
+        }
 
         try {
             $exitCode = $this->startServer($input);
         } catch (Throwable $throwable) {
-            event(new ServeCommandEnded($input, $styledOutput, $components, self::FAILURE));
+            if ($events->hasListeners(ServeCommandEnded::class)) {
+                $events->dispatch(new ServeCommandEnded($input, $styledOutput, $components, self::FAILURE));
+            }
 
             throw $throwable;
         }
 
-        event(new ServeCommandEnded($input, $styledOutput, $components, $exitCode));
+        if ($events->hasListeners(ServeCommandEnded::class)) {
+            $events->dispatch(new ServeCommandEnded($input, $styledOutput, $components, $exitCode));
+        }
 
         return $exitCode;
     }

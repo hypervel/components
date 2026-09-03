@@ -31,6 +31,7 @@ use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
 use Hypervel\Cache\Exceptions\NotSupportedException;
 use Hypervel\Cache\Limiters\ConcurrencyLimiterBuilder;
+use Hypervel\Contracts\Cache\AuthoritativeRawReadable;
 use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\LockTimeoutException;
@@ -52,7 +53,7 @@ use function Hypervel\Support\enum_value;
 /**
  * @mixin \Hypervel\Contracts\Cache\Store
  */
-class Repository implements ArrayAccess, CacheContract, RawReadable
+class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract, RawReadable
 {
     use InteractsWithTime;
     use Macroable {
@@ -116,6 +117,9 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
 
     /**
      * Retrieve an item from the cache by key.
+     *
+     * When an array is given, return a key-value map. Numeric entries are
+     * requested keys, while string-keyed entries use their values as defaults.
      *
      * @template TCacheValue
      *
@@ -329,40 +333,34 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
             return $this->forget($key);
         }
 
-        $this->event(
-            WritingKey::class,
-            fn (): WritingKey => new WritingKey($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
-        );
+        if ($this->events?->hasListeners(WritingKey::class)) {
+            $this->event(new WritingKey($this->getName(), $key, NullSentinel::unwrap($value), $seconds));
+        }
 
         try {
             $result = $this->store->put($this->itemKey($key), $value, $seconds);
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            $this->event(
-                KeyWriteFailed::class,
-                fn (): KeyWriteFailed => new KeyWriteFailed(
+            if ($this->events?->hasListeners(KeyWriteFailed::class)) {
+                $this->event(new KeyWriteFailed(
                     $this->getName(),
                     $key,
                     NullSentinel::unwrap($value),
                     $seconds,
                     exception: $exception,
-                )
-            );
+                ));
+            }
 
             throw $exception;
         }
 
         if ($result) {
-            $this->event(
-                KeyWritten::class,
-                fn (): KeyWritten => new KeyWritten($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
-            );
-        } else {
-            $this->event(
-                KeyWriteFailed::class,
-                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
-            );
+            if ($this->events?->hasListeners(KeyWritten::class)) {
+                $this->event(new KeyWritten($this->getName(), $key, NullSentinel::unwrap($value), $seconds));
+            }
+        } elseif ($this->events?->hasListeners(KeyWriteFailed::class)) {
+            $this->event(new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value), $seconds));
         }
 
         return $result;
@@ -395,48 +393,44 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
             return $this->deleteMultiple(array_map(static fn ($key) => (string) $key, array_keys($values)));
         }
 
-        $this->event(
-            WritingManyKeys::class,
-            fn (): WritingManyKeys => new WritingManyKeys(
+        if ($this->events?->hasListeners(WritingManyKeys::class)) {
+            $this->event(new WritingManyKeys(
                 $this->getName(),
                 array_map(static fn ($key) => (string) $key, array_keys($values)),
                 array_map(NullSentinel::unwrap(...), array_values($values)),
                 $seconds
-            )
-        );
+            ));
+        }
 
         try {
             $result = $this->store->putMany($values, $seconds);
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            foreach ($values as $key => $value) {
-                $this->event(
-                    KeyWriteFailed::class,
-                    fn (): KeyWriteFailed => new KeyWriteFailed(
+            if ($this->events?->hasListeners(KeyWriteFailed::class)) {
+                foreach ($values as $key => $value) {
+                    $this->event(new KeyWriteFailed(
                         $this->getName(),
                         (string) $key,
                         NullSentinel::unwrap($value),
                         $seconds,
                         exception: $exception,
-                    )
-                );
+                    ));
+                }
             }
 
             throw $exception;
         }
 
-        foreach ($values as $key => $value) {
-            if ($result) {
-                $this->event(
-                    KeyWritten::class,
-                    fn (): KeyWritten => new KeyWritten($this->getName(), (string) $key, NullSentinel::unwrap($value), $seconds)
-                );
-            } else {
-                $this->event(
-                    KeyWriteFailed::class,
-                    fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), (string) $key, NullSentinel::unwrap($value), $seconds)
-                );
+        if ($result) {
+            if ($this->events?->hasListeners(KeyWritten::class)) {
+                foreach ($values as $key => $value) {
+                    $this->event(new KeyWritten($this->getName(), (string) $key, NullSentinel::unwrap($value), $seconds));
+                }
+            }
+        } elseif ($this->events?->hasListeners(KeyWriteFailed::class)) {
+            foreach ($values as $key => $value) {
+                $this->event(new KeyWriteFailed($this->getName(), (string) $key, NullSentinel::unwrap($value), $seconds));
             }
         }
 
@@ -513,33 +507,33 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
     {
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
-        $this->event(WritingKey::class, fn (): WritingKey => new WritingKey($this->getName(), $key, NullSentinel::unwrap($value)));
+        if ($this->events?->hasListeners(WritingKey::class)) {
+            $this->event(new WritingKey($this->getName(), $key, NullSentinel::unwrap($value)));
+        }
 
         try {
             $result = $this->store->forever($this->itemKey($key), $value);
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            $this->event(
-                KeyWriteFailed::class,
-                fn (): KeyWriteFailed => new KeyWriteFailed(
+            if ($this->events?->hasListeners(KeyWriteFailed::class)) {
+                $this->event(new KeyWriteFailed(
                     $this->getName(),
                     $key,
                     NullSentinel::unwrap($value),
                     exception: $exception,
-                )
-            );
+                ));
+            }
 
             throw $exception;
         }
 
         if ($result) {
-            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten($this->getName(), $key, NullSentinel::unwrap($value)));
-        } else {
-            $this->event(
-                KeyWriteFailed::class,
-                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value))
-            );
+            if ($this->events?->hasListeners(KeyWritten::class)) {
+                $this->event(new KeyWritten($this->getName(), $key, NullSentinel::unwrap($value)));
+            }
+        } elseif ($this->events?->hasListeners(KeyWriteFailed::class)) {
+            $this->event(new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value)));
         }
 
         return $result;
@@ -727,9 +721,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
                 $lock['seconds'] ?? 0,
                 $lock['owner'] ?? null,
             )->get(function () use ($key, $markerKey, $callback, $created, $ttl) {
-                // Re-check the marker inside the lock. Single key, so getRaw is the
-                // right tool here — no need to batch.
-                if ($created !== $this->getRaw($markerKey)) {
+                if ($created !== $this->getAuthoritativeRaw($markerKey)) {
                     return;
                 }
 
@@ -756,8 +748,9 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      * Inherits flexible()'s support matrix: unsupported on any-mode tagged caches
      * (tags()->flexibleNullable() on a TagMode::Any store throws the same
      * BadMethodCallException that tags()->flexible() does, because flexible()
-     * internally reads via manyRaw() (initial batched read) and getRaw() (refresh
-     * closure), both of which AnyTaggedCache overrides to throw in any-mode).
+     * internally reads via manyRaw() (initial batched read) and
+     * getAuthoritativeRaw() (acquired-lock refresh read), both of which
+     * AnyTaggedCache overrides to throw in any-mode).
      *
      * @template TCacheValue
      *
@@ -826,28 +819,28 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
     {
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
-        $this->event(ForgettingKey::class, fn (): ForgettingKey => new ForgettingKey($this->getName(), $key));
+        if ($this->events?->hasListeners(ForgettingKey::class)) {
+            $this->event(new ForgettingKey($this->getName(), $key));
+        }
 
         try {
             $result = $this->store->forget($this->itemKey($key));
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            $this->event(
-                KeyForgetFailed::class,
-                fn (): KeyForgetFailed => new KeyForgetFailed($this->getName(), $key, exception: $exception)
-            );
+            if ($this->events?->hasListeners(KeyForgetFailed::class)) {
+                $this->event(new KeyForgetFailed($this->getName(), $key, exception: $exception));
+            }
 
             throw $exception;
         }
 
         if ($result) {
-            $this->event(KeyForgotten::class, fn (): KeyForgotten => new KeyForgotten($this->getName(), $key));
-        } else {
-            $this->event(
-                KeyForgetFailed::class,
-                fn (): KeyForgetFailed => new KeyForgetFailed($this->getName(), $key)
-            );
+            if ($this->events?->hasListeners(KeyForgotten::class)) {
+                $this->event(new KeyForgotten($this->getName(), $key));
+            }
+        } elseif ($this->events?->hasListeners(KeyForgetFailed::class)) {
+            $this->event(new KeyForgetFailed($this->getName(), $key));
         }
 
         return $result;
@@ -881,28 +874,28 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      */
     public function clear(): bool
     {
-        $this->event(CacheFlushing::class, fn (): CacheFlushing => new CacheFlushing($this->getName()));
+        if ($this->events?->hasListeners(CacheFlushing::class)) {
+            $this->event(new CacheFlushing($this->getName()));
+        }
 
         try {
             $result = $this->store->flush();
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            $this->event(
-                CacheFlushFailed::class,
-                fn (): CacheFlushFailed => new CacheFlushFailed($this->getName(), exception: $exception)
-            );
+            if ($this->events?->hasListeners(CacheFlushFailed::class)) {
+                $this->event(new CacheFlushFailed($this->getName(), exception: $exception));
+            }
 
             throw $exception;
         }
 
         if ($result) {
-            $this->event(CacheFlushed::class, fn (): CacheFlushed => new CacheFlushed($this->getName()));
-        } else {
-            $this->event(
-                CacheFlushFailed::class,
-                fn (): CacheFlushFailed => new CacheFlushFailed($this->getName())
-            );
+            if ($this->events?->hasListeners(CacheFlushed::class)) {
+                $this->event(new CacheFlushed($this->getName()));
+            }
+        } elseif ($this->events?->hasListeners(CacheFlushFailed::class)) {
+            $this->event(new CacheFlushFailed($this->getName()));
         }
 
         return $result;
@@ -921,31 +914,28 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
             throw new BadMethodCallException('This cache store does not support flushing locks.');
         }
 
-        $this->event(CacheLocksFlushing::class, fn (): CacheLocksFlushing => new CacheLocksFlushing($this->getName()));
+        if ($this->events?->hasListeners(CacheLocksFlushing::class)) {
+            $this->event(new CacheLocksFlushing($this->getName()));
+        }
 
         try {
             $result = $store->flushLocks();
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            $this->event(
-                CacheLocksFlushFailed::class,
-                fn (): CacheLocksFlushFailed => new CacheLocksFlushFailed($this->getName(), exception: $exception)
-            );
+            if ($this->events?->hasListeners(CacheLocksFlushFailed::class)) {
+                $this->event(new CacheLocksFlushFailed($this->getName(), exception: $exception));
+            }
 
             throw $exception;
         }
 
         if ($result) {
-            $this->event(
-                CacheLocksFlushed::class,
-                fn (): CacheLocksFlushed => new CacheLocksFlushed($this->getName())
-            );
-        } else {
-            $this->event(
-                CacheLocksFlushFailed::class,
-                fn (): CacheLocksFlushFailed => new CacheLocksFlushFailed($this->getName())
-            );
+            if ($this->events?->hasListeners(CacheLocksFlushed::class)) {
+                $this->event(new CacheLocksFlushed($this->getName()));
+            }
+        } elseif ($this->events?->hasListeners(CacheLocksFlushFailed::class)) {
+            $this->event(new CacheLocksFlushFailed($this->getName()));
         }
 
         return $result;
@@ -1200,21 +1190,15 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
     /**
      * Fire an event for this cache instance.
      */
-    protected function event(string $eventClass, Closure $event): void
+    protected function event(object $event): void
     {
-        if (! $this->events?->hasListeners($eventClass)) {
-            return;
-        }
-
-        $this->events->dispatch($event());
+        $this->events?->dispatch($event);
     }
 
     /**
      * Retrieve an item from the cache by key without unwrapping sentinels.
      *
-     * @internal For cache-layer internal use (sentinel-aware hit detection in
-     *   remember/rememberForever/flexible, plus the RawReadable seam that
-     *   wrapper stores like MemoizedStore / FailoverStore use). App code should
+     * @internal For cache-layer sentinel-aware reads. Application code should
      *   use get(), which unwraps NullSentinel::VALUE to null.
      *
      * Fires the same RetrievingKey / CacheHit / CacheMissed events as get(),
@@ -1225,12 +1209,17 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      * RawReadable (wrapper stores that need to preserve sentinels across their
      * own internal indirection). Otherwise calls $this->store->get(), which
      * plain stores already implement as a raw read.
+     *
+     * See getAuthoritativeRaw() for coordination reads that must bypass a
+     * non-authoritative wrapper layer.
      */
     public function getRaw(UnitEnum|string $key): mixed
     {
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
-        $this->event(RetrievingKey::class, fn (): RetrievingKey => new RetrievingKey($this->getName(), $key));
+        if ($this->events?->hasListeners(RetrievingKey::class)) {
+            $this->event(new RetrievingKey($this->getName(), $key));
+        }
 
         try {
             // Raw-readable wrappers already passed the value through an inner Repository.
@@ -1245,18 +1234,63 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            $this->event(
-                KeyRetrievalFailed::class,
-                fn (): KeyRetrievalFailed => new KeyRetrievalFailed($this->getName(), $key, $exception)
-            );
+            if ($this->events?->hasListeners(KeyRetrievalFailed::class)) {
+                $this->event(new KeyRetrievalFailed($this->getName(), $key, $exception));
+            }
 
             throw $exception;
         }
 
         if (is_null($value)) {
-            $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed($this->getName(), $key));
-        } else {
-            $this->event(CacheHit::class, fn (): CacheHit => new CacheHit($this->getName(), $key, NullSentinel::unwrap($value)));
+            if ($this->events?->hasListeners(CacheMissed::class)) {
+                $this->event(new CacheMissed($this->getName(), $key));
+            }
+        } elseif ($this->events?->hasListeners(CacheHit::class)) {
+            $this->event(new CacheHit($this->getName(), $key, NullSentinel::unwrap($value)));
+        }
+
+        return $value;
+    }
+
+    /**
+     * Retrieve an item without serving it from a non-authoritative read layer.
+     *
+     * @internal Used by cache coordination. Application code should use get().
+     *
+     * See getRaw() for ordinary sentinel-aware reads that may use an upper layer.
+     */
+    public function getAuthoritativeRaw(UnitEnum|string $key): mixed
+    {
+        $store = $this->store;
+
+        if (! $store instanceof AuthoritativeRawReadable) {
+            return $this->getRaw($key);
+        }
+
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
+
+        if ($this->events?->hasListeners(RetrievingKey::class)) {
+            $this->event(new RetrievingKey($this->getName(), $key));
+        }
+
+        try {
+            $value = $store->getAuthoritativeRaw($this->itemKey($key));
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            if ($this->events?->hasListeners(KeyRetrievalFailed::class)) {
+                $this->event(new KeyRetrievalFailed($this->getName(), $key, $exception));
+            }
+
+            throw $exception;
+        }
+
+        if (is_null($value)) {
+            if ($this->events?->hasListeners(CacheMissed::class)) {
+                $this->event(new CacheMissed($this->getName(), $key));
+            }
+        } elseif ($this->events?->hasListeners(CacheHit::class)) {
+            $this->event(new CacheHit($this->getName(), $key, NullSentinel::unwrap($value)));
         }
 
         return $value;
@@ -1298,10 +1332,9 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
             return [];
         }
 
-        $this->event(
-            RetrievingManyKeys::class,
-            fn (): RetrievingManyKeys => new RetrievingManyKeys($this->getName(), $keys)
-        );
+        if ($this->events?->hasListeners(RetrievingManyKeys::class)) {
+            $this->event(new RetrievingManyKeys($this->getName(), $keys));
+        }
 
         $itemKeys = array_map(fn (string $key): string => $this->itemKey($key), $keys);
 
@@ -1326,20 +1359,29 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            $this->event(
-                ManyKeysRetrievalFailed::class,
-                fn (): ManyKeysRetrievalFailed => new ManyKeysRetrievalFailed($this->getName(), $keys, $exception)
-            );
+            if ($this->events?->hasListeners(ManyKeysRetrievalFailed::class)) {
+                $this->event(new ManyKeysRetrievalFailed($this->getName(), $keys, $exception));
+            }
 
             throw $exception;
         }
 
         // Defer terminals until every value is normalized so handler failure cannot follow partial success.
-        foreach ($result as $key => $value) {
-            if (is_null($value)) {
-                $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed($this->getName(), $key));
-            } else {
-                $this->event(CacheHit::class, fn (): CacheHit => new CacheHit($this->getName(), $key, NullSentinel::unwrap($value)));
+        // The outer fast path cannot miss a new listener because nothing yields before this method returns.
+        if (
+            $this->events?->hasListeners(CacheMissed::class)
+            || $this->events?->hasListeners(CacheHit::class)
+        ) {
+            foreach ($result as $key => $value) {
+                // Keep the per-class checks live: an earlier hit listener may register
+                // a miss listener, or vice versa, before a later result is dispatched.
+                if (is_null($value)) {
+                    if ($this->events?->hasListeners(CacheMissed::class)) {
+                        $this->event(new CacheMissed($this->getName(), $key));
+                    }
+                } elseif ($this->events?->hasListeners(CacheHit::class)) {
+                    $this->event(new CacheHit($this->getName(), $key, NullSentinel::unwrap($value)));
+                }
             }
         }
 

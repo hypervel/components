@@ -35,6 +35,8 @@ class ServerNativeTest extends TestCase
 
         $events = [];
         $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('hasListeners')->once()->with(BeforeMainServerStart::class)->andReturnTrue();
+        $dispatcher->shouldReceive('hasListeners')->once()->with(BeforeServerStart::class)->andReturnTrue();
         $dispatcher->expects('dispatch')->twice()->andReturnUsing(
             static function (object $event) use (&$events): null {
                 $events[] = $event;

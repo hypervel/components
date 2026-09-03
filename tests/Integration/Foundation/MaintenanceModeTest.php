@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Foundation;
 
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
 use Hypervel\Foundation\Console\DownCommand;
@@ -286,6 +287,30 @@ class MaintenanceModeTest extends TestCase
         Event::assertNotDispatched(MaintenanceModeDisabled::class);
         $this->artisan(UpCommand::class);
         Event::assertDispatched(MaintenanceModeDisabled::class);
+    }
+
+    public function testPassiveObserversDoNotCauseMaintenanceEventsToDispatch(): void
+    {
+        $observedEvents = [];
+        $events = $this->app->make(Dispatcher::class);
+        $events->observe(
+            MaintenanceModeEnabled::class,
+            static function (MaintenanceModeEnabled $event) use (&$observedEvents): void {
+                $observedEvents[] = $event;
+            }
+        );
+        $events->observe(
+            MaintenanceModeDisabled::class,
+            static function (MaintenanceModeDisabled $event) use (&$observedEvents): void {
+                $observedEvents[] = $event;
+            }
+        );
+
+        $this->artisan(DownCommand::class)->assertSuccessful();
+        $this->assertFileExists(storage_path('framework/down'));
+        $this->artisan(UpCommand::class)->assertSuccessful();
+        $this->assertFileDoesNotExist(storage_path('framework/down'));
+        $this->assertSame([], $observedEvents);
     }
 
     public function testDownAttemptsReloadAfterEventFailureAndPreservesTheEventFailure(): void

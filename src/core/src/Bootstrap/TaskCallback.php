@@ -47,13 +47,15 @@ class TaskCallback
         $exception = null;
 
         try {
-            $event = new OnTask($server, $task);
-            $this->dispatcher->dispatch($event);
+            if ($this->dispatcher->hasListeners(OnTask::class)) {
+                $event = new OnTask($server, $task);
+                $this->dispatcher->dispatch($event);
 
-            if ($event->result !== null) {
-                $this->taskUsesObject
-                    ? $task->finish($event->result)
-                    : $server->finish($event->result);
+                if ($event->result !== null) {
+                    $this->taskUsesObject
+                        ? $task->finish($event->result)
+                        : $server->finish($event->result);
+                }
             }
         } catch (Throwable $throwable) {
             $exception = $throwable;

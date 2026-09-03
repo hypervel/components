@@ -176,6 +176,24 @@ class DatabaseManagerTest extends TestCase
         $this->assertNotNull($reconnected->getRawPdo());
     }
 
+    public function testPassiveObserverDoesNotCauseConnectionEstablishedEventToDispatch(): void
+    {
+        $events = new Dispatcher;
+        $this->db->setEventDispatcher($events);
+        $establishedConnections = [];
+        $events->observe(
+            ConnectionEstablished::class,
+            static function (ConnectionEstablished $event) use (&$establishedConnections): void {
+                $establishedConnections[] = $event->connection;
+            }
+        );
+
+        $connection = $this->db->getDatabaseManager()->connection();
+
+        $this->assertInstanceOf(Connection::class, $connection);
+        $this->assertSame([], $establishedConnections);
+    }
+
     public function testNonPooledReconnectRefreshesInPlaceAndDispatchesOneEventAfterReplacement(): void
     {
         $events = new Dispatcher;

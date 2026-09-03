@@ -40,7 +40,9 @@ class HealthCheckController
         $health = 'up';
 
         try {
-            $this->events->dispatch(new DiagnosingHealth);
+            if ($this->events->hasListeners(DiagnosingHealth::class)) {
+                $this->events->dispatch(new DiagnosingHealth);
+            }
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $throwable) {

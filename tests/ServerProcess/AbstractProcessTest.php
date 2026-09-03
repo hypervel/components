@@ -122,7 +122,9 @@ class AbstractProcessTest extends TestCase
     {
         $dispatched = [];
         $dispatcher = m::mock(DispatcherContract::class);
-        $dispatcher->shouldReceive('dispatch')->andReturnUsing(function ($event) use (&$dispatched) {
+        $dispatcher->shouldReceive('hasListeners')->once()->with(BeforeProcessHandle::class)->andReturnTrue();
+        $dispatcher->shouldReceive('hasListeners')->once()->with(AfterProcessHandle::class)->andReturnTrue();
+        $dispatcher->shouldReceive('dispatch')->times(2)->andReturnUsing(function ($event) use (&$dispatched) {
             $dispatched[] = $event;
         });
 
@@ -150,11 +152,40 @@ class AbstractProcessTest extends TestCase
         $this->assertSame(0, $dispatched[0]->index);
     }
 
+    public function testBindHandlesProcessWithoutLifecycleListeners(): void
+    {
+        $dispatcher = m::mock(DispatcherContract::class);
+        $dispatcher->shouldReceive('hasListeners')->once()->with(BeforeProcessHandle::class)->andReturnFalse();
+        $dispatcher->shouldReceive('hasListeners')->once()->with(AfterProcessHandle::class)->andReturnFalse();
+        $dispatcher->shouldNotReceive('dispatch');
+
+        $container = m::mock(ContainerContract::class);
+        $container->shouldReceive('bound')->with('events')->andReturnTrue();
+        $container->shouldReceive('make')->with('events')->andReturn($dispatcher);
+
+        $process = new FooProcess($container);
+        $server = m::mock(Server::class);
+        $server->shouldReceive('addProcess')->once()->andReturnUsing(function (SwooleProcess $swooleProcess): int {
+            $this->nativeProcesses[] = $swooleProcess;
+            $reflection = new ReflectionClass($swooleProcess);
+            $callback = $reflection->getProperty('callback')->getValue($swooleProcess);
+            $callback($swooleProcess);
+
+            return 1;
+        });
+
+        $process->bind($server);
+
+        $this->assertTrue(FooProcess::$handled);
+    }
+
     public function testBindDispatchesEventsWithCorrectIndices(): void
     {
         $dispatched = [];
         $dispatcher = m::mock(DispatcherContract::class);
-        $dispatcher->shouldReceive('dispatch')->andReturnUsing(function ($event) use (&$dispatched) {
+        $dispatcher->shouldReceive('hasListeners')->twice()->with(BeforeProcessHandle::class)->andReturnTrue();
+        $dispatcher->shouldReceive('hasListeners')->twice()->with(AfterProcessHandle::class)->andReturnTrue();
+        $dispatcher->shouldReceive('dispatch')->times(4)->andReturnUsing(function ($event) use (&$dispatched) {
             $dispatched[] = $event;
         });
 
@@ -307,6 +338,8 @@ class AbstractProcessTest extends TestCase
         $afterFailure = new RuntimeException('after event failed');
 
         $dispatcher = m::mock(DispatcherContract::class);
+        $dispatcher->shouldReceive('hasListeners')->once()->with(BeforeProcessHandle::class)->andReturnTrue();
+        $dispatcher->shouldReceive('hasListeners')->once()->with(AfterProcessHandle::class)->andReturnTrue();
         $dispatcher->shouldReceive('dispatch')->with(m::type(BeforeProcessHandle::class))->once();
         $dispatcher->shouldReceive('dispatch')->with(m::type(AfterProcessHandle::class))->once()->andThrow($afterFailure);
 
@@ -352,6 +385,8 @@ class AbstractProcessTest extends TestCase
         $reporterFailure = new RuntimeException('reporter failed');
 
         $dispatcher = m::mock(DispatcherContract::class);
+        $dispatcher->shouldReceive('hasListeners')->once()->with(BeforeProcessHandle::class)->andReturnTrue();
+        $dispatcher->shouldReceive('hasListeners')->once()->with(AfterProcessHandle::class)->andReturnTrue();
         $dispatcher->shouldReceive('dispatch')->with(m::type(BeforeProcessHandle::class))->once();
         $dispatcher->shouldReceive('dispatch')->with(m::type(AfterProcessHandle::class))->once();
 
