@@ -47,6 +47,7 @@ use Hypervel\Http\Request;
 use Hypervel\Pagination\Paginator;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\TestCase;
 use ReflectionFunction;
 use WeakReference;
@@ -861,6 +862,18 @@ class DataCreatorTest extends TestCase
         $this->assertSame('CAST:ITEM-PREPARED', $data->label);
     }
 
+    /**
+     * Test configured global normalizers participate in construction.
+     */
+    #[DefineEnvironment('withConfiguredNormalizer')]
+    public function testConfiguredGlobalNormalizersParticipateInConstruction(): void
+    {
+        $data = ConfiguredNormalizerData::from(new CreationSource('item', 'identifier'));
+
+        $this->assertSame('identifier', $data->id);
+        $this->assertSame('item', $data->label);
+    }
+
     public function testRejectsSuppliedComputedValuesAndInvalidAfterCreationResults(): void
     {
         try {
@@ -876,6 +889,14 @@ class DataCreatorTest extends TestCase
         BasicCreationData::factory()
             ->afterCreation(fn (): ChildCreationData => new ChildCreationData(1))
             ->from(['name' => 'Taylor']);
+    }
+
+    /**
+     * Configure a global data normalizer.
+     */
+    protected function withConfiguredNormalizer(Application $app): void
+    {
+        $app->make('config')->set('data.normalizers', [CreationSourceNormalizer::class]);
     }
 }
 
@@ -1674,6 +1695,15 @@ class CustomizedCreationData extends Data
     public static function normalizers(): array
     {
         return [CreationSourceNormalizer::class];
+    }
+}
+
+class ConfiguredNormalizerData extends Data
+{
+    public function __construct(
+        public string $id,
+        public string $label,
+    ) {
     }
 }
 

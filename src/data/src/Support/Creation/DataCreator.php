@@ -1869,7 +1869,7 @@ class DataCreator
             );
         }
 
-        $builtin = $this->singleBuiltinType($property);
+        $builtin = $property->type->type->getSingleBuiltinType();
 
         if ($builtin !== null) {
             $key = 'builtin:' . $builtin;
@@ -2099,7 +2099,7 @@ class DataCreator
             );
         }
 
-        $builtin = $this->singleBuiltinFromType($type);
+        $builtin = $type->getSingleBuiltinType();
 
         if ($builtin !== null) {
             $key = 'builtin:' . $builtin;
@@ -2204,6 +2204,14 @@ class DataCreator
         CreationContext $context,
         array &$extensions,
     ): array {
+        // Avoid building a memo key on the common path with no custom normalizers.
+        if ($context->normalizers === []
+            && $this->config->normalizers === []
+            && ! $dataClass->hasLifecycleMethod('normalizers')
+        ) {
+            return [];
+        }
+
         $key = 'normalizers:' . $dataClass->name;
 
         if (isset($extensions[$key])) {
@@ -2657,34 +2665,5 @@ class DataCreator
     protected function iterableValues(mixed $value): ?array
     {
         return $this->dataCollectables->items($value);
-    }
-
-    /**
-     * Get one unambiguous built-in scalar cast target.
-     *
-     * @return null|'array'|'bool'|'float'|'int'|'string'
-     */
-    protected function singleBuiltinType(DataProperty $property): ?string
-    {
-        return $this->singleBuiltinFromType($property->type->type);
-    }
-
-    /**
-     * Get one unambiguous built-in scalar cast target from a type.
-     *
-     * @return null|'array'|'bool'|'float'|'int'|'string'
-     */
-    protected function singleBuiltinFromType(Type $type): ?string
-    {
-        $types = array_values(array_filter(
-            $type->getNamedTypes(),
-            fn (NamedType $type): bool => in_array(
-                $type->name,
-                ['array', 'bool', 'float', 'int', 'string'],
-                true,
-            ),
-        ));
-
-        return count($types) === 1 ? $types[0]->name : null;
     }
 }
