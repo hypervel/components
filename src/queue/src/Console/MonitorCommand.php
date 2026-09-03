@@ -133,6 +133,10 @@ class MonitorCommand extends Command
      */
     protected function dispatchEvents(Collection $queues): void
     {
+        if (! $this->events->hasListeners(QueueBusy::class)) {
+            return;
+        }
+
         foreach ($queues as $queue) {
             if ($queue['status'] === '<fg=green;options=bold>OK</>') {
                 continue;

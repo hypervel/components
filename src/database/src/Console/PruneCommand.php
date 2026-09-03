@@ -9,7 +9,6 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Events\ModelPruningFinished;
 use Hypervel\Database\Events\ModelPruningStarting;
-use Hypervel\Database\Events\ModelsPruned;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
@@ -56,29 +55,17 @@ class PruneCommand extends Command
             return;
         }
 
-        $pruning = [];
-
-        $events->listen(ModelsPruned::class, function ($event) use (&$pruning) {
-            if (! in_array($event->model, $pruning)) {
-                $pruning[] = $event->model;
-
-                $this->newLine();
-
-                $this->components->info(sprintf('Pruning [%s] records.', $event->model));
-            }
-
-            $this->components->twoColumnDetail($event->model, "{$event->count} records");
-        });
-
-        $events->dispatch(new ModelPruningStarting($models->all()));
+        if ($events->hasListeners(ModelPruningStarting::class)) {
+            $events->dispatch(new ModelPruningStarting($models->all()));
+        }
 
         $models->each(function ($model) {
             $this->pruneModel($model);
         });
 
-        $events->dispatch(new ModelPruningFinished($models->all()));
-
-        $events->forget(ModelsPruned::class);
+        if ($events->hasListeners(ModelPruningFinished::class)) {
+            $events->dispatch(new ModelPruningFinished($models->all()));
+        }
     }
 
     /**
@@ -96,9 +83,16 @@ class PruneCommand extends Command
             ? $instance->pruneAll($chunkSize)
             : 0;
 
-        if ($total == 0) {
+        if ($total === 0) {
             $this->components->info("No prunable [{$model}] records found.");
+
+            return;
         }
+
+        $this->newLine();
+
+        $this->components->info(sprintf('Pruning [%s] records.', $model));
+        $this->components->twoColumnDetail($model, "{$total} records");
     }
 
     /**

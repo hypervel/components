@@ -94,9 +94,30 @@ class QueueJobTest extends TestCase
         $exception = new RuntimeException('Queue payload failed.');
         $job = new QueueJobPayloadStub('{invalid');
         $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturnTrue();
         $events->shouldReceive('dispatch')
             ->once()
             ->withArgs(fn (JobFailed $event) => $event->job === $job && $event->exception === $exception);
+
+        $container = m::mock(Container::class);
+        $container->shouldReceive('make')->once()->with(Dispatcher::class)->andReturn($events);
+
+        $job->setContainer($container);
+        $job->setConnectionName('redis');
+
+        $job->fail($exception);
+
+        $this->assertTrue($job->hasFailed());
+        $this->assertTrue($job->isDeleted());
+    }
+
+    public function testFailedEventIsNotDispatchedWithoutListeners(): void
+    {
+        $exception = new RuntimeException('Queue payload failed.');
+        $job = new QueueJobPayloadStub('{invalid');
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturnFalse();
+        $events->shouldReceive('dispatch')->never();
 
         $container = m::mock(Container::class);
         $container->shouldReceive('make')->once()->with(Dispatcher::class)->andReturn($events);
@@ -120,6 +141,7 @@ class QueueJobTest extends TestCase
             'data' => ['value' => true],
         ], JSON_THROW_ON_ERROR));
         $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturnTrue();
         $events->shouldReceive('dispatch')
             ->once()
             ->withArgs(fn (JobFailed $event) => $event->job === $job && $event->exception === $failure);
@@ -232,6 +254,7 @@ class QueueJobTest extends TestCase
         $database->shouldReceive('connection')->once()->with($databaseName)->andReturn($connection);
 
         $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturnTrue();
         $events->shouldReceive('dispatch')
             ->once()
             ->withArgs(fn (JobFailed $event) => $event->job === $job && $event->exception === $timeout);

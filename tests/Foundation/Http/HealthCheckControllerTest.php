@@ -20,12 +20,41 @@ use Swoole\Coroutine\CanceledException;
 
 class HealthCheckControllerTest extends TestCase
 {
+    public function testHealthyResponseDoesNotDispatchWithoutListeners(): void
+    {
+        $application = m::mock(Application::class);
+        $application->shouldNotReceive('hasDebugModeEnabled');
+        $events = m::mock(Dispatcher::class);
+        $events->expects('hasListeners')->with(DiagnosingHealth::class)->andReturnFalse();
+        $events->shouldNotReceive('dispatch');
+        $exceptions = m::mock(ExceptionHandler::class);
+        $exceptions->shouldNotReceive('report');
+        $response = new JsonResponse(['status' => 'up'], 200);
+        $responses = m::mock(ResponseFactory::class);
+        $responses->expects('json')->with(['status' => 'up'], 200)->andReturn($response);
+        $responses->shouldNotReceive('make');
+        $views = m::mock(ViewFactory::class);
+        $views->shouldNotReceive('file');
+        $controller = new HealthCheckController(
+            $application,
+            $events,
+            $exceptions,
+            $responses,
+            $views,
+        );
+
+        $this->assertSame($response, $controller(Request::create('/up', server: [
+            'HTTP_ACCEPT' => 'application/json',
+        ])));
+    }
+
     public function testDiagnosisFailureIsReportedAndReturnsTheDownResponse(): void
     {
         $failure = new RuntimeException('Database connection refused.');
         $application = m::mock(Application::class);
         $application->expects('hasDebugModeEnabled')->andReturnFalse();
         $events = m::mock(Dispatcher::class);
+        $events->expects('hasListeners')->with(DiagnosingHealth::class)->andReturnTrue();
         $events->expects('dispatch')
             ->with(m::type(DiagnosingHealth::class))
             ->andThrow($failure);
@@ -56,6 +85,7 @@ class HealthCheckControllerTest extends TestCase
         $application = m::mock(Application::class);
         $application->expects('hasDebugModeEnabled')->andReturnTrue();
         $events = m::mock(Dispatcher::class);
+        $events->expects('hasListeners')->with(DiagnosingHealth::class)->andReturnTrue();
         $events->expects('dispatch')
             ->with(m::type(DiagnosingHealth::class))
             ->andThrow($failure);
@@ -87,6 +117,7 @@ class HealthCheckControllerTest extends TestCase
         $application = m::mock(Application::class);
         $application->shouldNotReceive('hasDebugModeEnabled');
         $events = m::mock(Dispatcher::class);
+        $events->expects('hasListeners')->with(DiagnosingHealth::class)->andReturnTrue();
         $events->expects('dispatch')
             ->with(m::type(DiagnosingHealth::class))
             ->andThrow($cancellation);

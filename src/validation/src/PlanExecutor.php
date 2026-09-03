@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Validation;
 
 use Brick\Math\BigNumber;
+use Brick\Math\Exception\MathException as BrickMathException;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Exceptions\MathException;
 use Hypervel\Support\Str;
 use Hypervel\Validation\Enums\CheckType;
 use InvalidArgumentException;
@@ -369,25 +371,29 @@ trait PlanExecutor
         string $operator,
         bool $numeric,
     ): bool {
-        $size = $this->sizeOf($attribute, $value, $numeric);
+        try {
+            $size = $this->sizeOf($attribute, $value, $numeric);
 
-        if ($this->usesNativeSizeComparison($value, $numeric) && $threshold['integer'] !== null) {
+            if ($this->usesNativeSizeComparison($value, $numeric) && $threshold['integer'] !== null) {
+                return match ($operator) {
+                    '>=' => $size >= $threshold['integer'],
+                    '<=' => $size <= $threshold['integer'],
+                    '==' => $size === $threshold['integer'],
+                    default => throw new InvalidArgumentException("Unsupported size comparison operator: {$operator}"),
+                };
+            }
+
+            $size = BigNumber::of((string) $size);
+
             return match ($operator) {
-                '>=' => $size >= $threshold['integer'],
-                '<=' => $size <= $threshold['integer'],
-                '==' => $size === $threshold['integer'],
+                '>=' => $size->isGreaterThanOrEqualTo($threshold['raw']),
+                '<=' => $size->isLessThanOrEqualTo($threshold['raw']),
+                '==' => $size->isEqualTo($threshold['raw']),
                 default => throw new InvalidArgumentException("Unsupported size comparison operator: {$operator}"),
             };
+        } catch (MathException|BrickMathException) {
+            return false;
         }
-
-        $size = BigNumber::of((string) $size);
-
-        return match ($operator) {
-            '>=' => $size->isGreaterThanOrEqualTo($threshold['raw']),
-            '<=' => $size->isLessThanOrEqualTo($threshold['raw']),
-            '==' => $size->isEqualTo($threshold['raw']),
-            default => throw new InvalidArgumentException("Unsupported size comparison operator: {$operator}"),
-        };
     }
 
     /**
@@ -403,19 +409,23 @@ trait PlanExecutor
         array $maximum,
         bool $numeric,
     ): bool {
-        $size = $this->sizeOf($attribute, $value, $numeric);
+        try {
+            $size = $this->sizeOf($attribute, $value, $numeric);
 
-        if ($this->usesNativeSizeComparison($value, $numeric)
-            && $minimum['integer'] !== null
-            && $maximum['integer'] !== null
-        ) {
-            return $size >= $minimum['integer'] && $size <= $maximum['integer'];
+            if ($this->usesNativeSizeComparison($value, $numeric)
+                && $minimum['integer'] !== null
+                && $maximum['integer'] !== null
+            ) {
+                return $size >= $minimum['integer'] && $size <= $maximum['integer'];
+            }
+
+            $size = BigNumber::of((string) $size);
+
+            return $size->isGreaterThanOrEqualTo($minimum['raw'])
+                && $size->isLessThanOrEqualTo($maximum['raw']);
+        } catch (MathException|BrickMathException) {
+            return false;
         }
-
-        $size = BigNumber::of((string) $size);
-
-        return $size->isGreaterThanOrEqualTo($minimum['raw'])
-            && $size->isLessThanOrEqualTo($maximum['raw']);
     }
 
     /**

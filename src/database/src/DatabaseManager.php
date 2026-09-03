@@ -230,9 +230,12 @@ class DatabaseManager implements ConnectionResolverInterface
             return;
         }
 
-        $this->app->make('events')->dispatch(
-            new ConnectionEstablished($connection)
-        );
+        /** @var Dispatcher $events */
+        $events = $this->app->make('events');
+
+        if ($events->hasListeners(ConnectionEstablished::class)) {
+            $events->dispatch(new ConnectionEstablished($connection));
+        }
     }
 
     /**

@@ -1063,13 +1063,11 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     }
 
     /**
-     * Fire the given event if listeners are registered.
+     * Fire the given event.
      */
-    protected function event(string $eventClass, Closure $event): void
+    protected function event(object $event): void
     {
-        if ($this->events?->hasListeners($eventClass)) {
-            $this->events->dispatch($event());
-        }
+        $this->events?->dispatch($event);
     }
 
     /**

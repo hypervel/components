@@ -950,7 +950,7 @@ if (Event::hasListeners(OrderShipped::class)) {
 }
 ```
 
-Hypervel's framework code uses this pattern extensively — many internal events (route matching, query execution, cache hits, queue lifecycle, view composition, etc.) are wrapped in `hasListeners()` guards so they are only constructed and dispatched when something is actually listening. This is a Hypervel-specific optimization; Laravel always constructs and dispatches events regardless of listener count.
+Hypervel's framework code uses this pattern extensively — many internal events (route matching, query execution, cache hits, queue lifecycle, database connection and pool lifecycle, server and worker lifecycle, view composition, etc.) are wrapped in `hasListeners()` guards so they are only constructed and dispatched when something is actually listening. This is a Hypervel-specific optimization; Laravel always constructs and dispatches events regardless of listener count.
 
 `hasListeners()` counts exact listeners, targeted wildcard listeners, and listeners registered for interfaces implemented by an event class. When interface listeners are registered, the first check for a given event class may load it so Hypervel can inspect its interfaces; the result is cached for later checks.
 

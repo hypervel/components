@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Console;
 
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Console\VendorPublishCommand;
 use Hypervel\Foundation\Events\VendorTagPublished;
@@ -416,6 +417,29 @@ class VendorPublishCommandTest extends TestCase
             ->assertExitCode(0);
 
         Event::assertDispatched(VendorTagPublished::class);
+    }
+
+    public function testPassiveObserverDoesNotCauseVendorTagPublishedEventToDispatch(): void
+    {
+        $observedEvents = [];
+        $this->app->make(Dispatcher::class)->observe(
+            VendorTagPublished::class,
+            static function (VendorTagPublished $event) use (&$observedEvents): void {
+                $observedEvents[] = $event;
+            }
+        );
+
+        $source = $this->sourceDir . '/config.php';
+        $destination = $this->destDir . '/config.php';
+        file_put_contents($source, '<?php return [];');
+
+        ServiceProvider::$publishes[TestPublishProvider::class] = [$source => $destination];
+
+        $this->artisan('vendor:publish', ['--provider' => TestPublishProvider::class])
+            ->assertExitCode(0);
+
+        $this->assertFileExists($destination);
+        $this->assertSame([], $observedEvents);
     }
 
     public function testCreatesParentDirectories(): void

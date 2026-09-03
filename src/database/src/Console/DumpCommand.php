@@ -51,7 +51,9 @@ class DumpCommand extends Command
             $path = $this->path($connection)
         );
 
-        $dispatcher->dispatch(new SchemaDumped($connection, $path));
+        if ($dispatcher->hasListeners(SchemaDumped::class)) {
+            $dispatcher->dispatch(new SchemaDumped($connection, $path));
+        }
 
         $info = 'Database schema dumped';
 
@@ -63,7 +65,9 @@ class DumpCommand extends Command
 
             $info .= ' and pruned';
 
-            $dispatcher->dispatch(new MigrationsPruned($connection, $path));
+            if ($dispatcher->hasListeners(MigrationsPruned::class)) {
+                $dispatcher->dispatch(new MigrationsPruned($connection, $path));
+            }
         }
 
         $this->components->info($info . ' successfully.');

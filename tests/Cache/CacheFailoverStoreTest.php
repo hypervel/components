@@ -9,9 +9,15 @@ use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\Events\CacheFailedOver;
 use Hypervel\Cache\FailoverStore;
+use Hypervel\Cache\MemoizedStore;
+use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\Repository;
+use Hypervel\Cache\StackStore;
+use Hypervel\Contracts\Cache\AuthoritativeRawReadable;
 use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\LockProvider;
+use Hypervel\Contracts\Cache\RawReadable;
+use Hypervel\Contracts\Cache\Repository as RepositoryContract;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Tests\TestCase;
@@ -39,6 +45,87 @@ class CacheFailoverStoreTest extends TestCase
         (new Repository($this->makeFailoverStore(['cache' => $backingStore])))->get('key');
 
         $this->assertSame([['key', 'stdClass']], $handled);
+    }
+
+    public function testAuthoritativeReadDelegatesToCapableRepository(): void
+    {
+        $backingStore = m::mock(Store::class, AuthoritativeRawReadable::class);
+        $backingStore->shouldReceive('getAuthoritativeRaw')->once()->with('key')->andReturn(NullSentinel::VALUE);
+
+        $store = $this->makeFailoverStore(['cache' => $backingStore]);
+
+        $this->assertSame(NullSentinel::VALUE, $store->getAuthoritativeRaw('key'));
+    }
+
+    public function testAuthoritativeReadRecursesThroughStackBottom(): void
+    {
+        $top = new ArrayStore;
+        $bottom = new ArrayStore;
+        $stack = new StackStore([$top, $bottom]);
+
+        $stack->put('key', 'fresh', 60);
+        $top->put('key', ['value' => 'stale'], 60);
+
+        $store = $this->makeFailoverStore(['stack' => $stack]);
+
+        $this->assertSame('fresh', $store->getAuthoritativeRaw('key'));
+        $this->assertSame(['value' => 'stale'], $top->get('key'));
+    }
+
+    public function testAuthoritativeReadRecursesThroughMemoizedFailoverAndStack(): void
+    {
+        $top = new ArrayStore;
+        $bottom = new ArrayStore;
+        $stack = new StackStore([$top, $bottom]);
+        $stack->put('key', 'fresh', 60);
+        $top->put('key', ['value' => 'stale'], 60);
+
+        $failover = $this->makeFailoverStore(['stack' => $stack]);
+        $memoized = new MemoizedStore('memoized', new Repository($failover));
+
+        $this->assertSame('stale', $memoized->getRaw('key'));
+        $this->assertSame('fresh', $memoized->getAuthoritativeRaw('key'));
+        $this->assertSame('stale', $memoized->getRaw('key'));
+    }
+
+    public function testAuthoritativeReadFailsOverAfterStoreFailure(): void
+    {
+        $failure = new RuntimeException('primary unavailable');
+        $primary = m::mock(Store::class, AuthoritativeRawReadable::class);
+        $primary->shouldReceive('getAuthoritativeRaw')->once()->with('key')->andThrow($failure);
+        $secondary = m::mock(Store::class, AuthoritativeRawReadable::class);
+        $secondary->shouldReceive('getAuthoritativeRaw')->once()->with('key')->andReturn('value');
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(CacheFailedOver::class)->andReturnFalse();
+
+        $store = $this->makeFailoverStore(
+            ['primary' => $primary, 'secondary' => $secondary],
+            $events,
+        );
+
+        $this->assertSame('value', $store->getAuthoritativeRaw('key'));
+    }
+
+    public function testRawReadsFallBackToContractRepositoryWithLossyNullSemantics(): void
+    {
+        $repository = m::mock(RepositoryContract::class);
+        $repository->shouldReceive('get')->once()->with('key')->andReturn('value');
+        $repository->shouldReceive('get')->once()->with(['cached-null', 'miss'])->andReturn([
+            'cached-null' => null,
+            'miss' => null,
+        ]);
+        $repository->shouldReceive('get')->once()->with('null')->andReturnNull();
+
+        $store = $this->makeFailoverStore(['custom' => $repository]);
+
+        $this->assertSame('value', $store->getRaw('key'));
+        $this->assertSame([
+            'cached-null' => null,
+            'miss' => null,
+        ], $store->manyRaw(['cached-null', 'miss']));
+        $this->assertNull($store->getAuthoritativeRaw('null'));
+        $this->assertNotInstanceOf(RawReadable::class, $repository);
+        $this->assertNotInstanceOf(AuthoritativeRawReadable::class, $repository);
     }
 
     public function testCountersPreserveEveryContractValidResult(): void
@@ -473,7 +560,7 @@ class CacheFailoverStoreTest extends TestCase
     /**
      * Create a failover store with the given named backing stores.
      *
-     * @param array<string, Store> $stores
+     * @param array<string, RepositoryContract|Store> $stores
      * @param null|array<int, string> $storeNames
      */
     protected function makeFailoverStore(
@@ -487,7 +574,7 @@ class CacheFailoverStoreTest extends TestCase
         foreach ($stores as $name => $store) {
             $cache->shouldReceive('store')
                 ->with($name)
-                ->andReturn(new Repository($store));
+                ->andReturn($store instanceof RepositoryContract ? $store : new Repository($store));
         }
 
         return new FailoverStore(

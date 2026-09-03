@@ -1884,6 +1884,8 @@ class ProcessPodcast implements ShouldQueue
 
 Hypervel supports [Amazon SQS FIFO (First-In-First-Out)](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-fifo-queues.html) and [fair](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-fair-queues.html) queues. FIFO queues preserve message order within a group and use deduplication IDs to prevent duplicate sends.
 
+SQS FIFO queues do not support per-message delays. Hypervel rejects a positive delay on a FIFO job instead of silently sending the job immediately. Use a standard SQS queue or another queue transport when individual jobs need delayed delivery.
+
 FIFO queues require a message group ID to determine which jobs can be processed in parallel. Jobs with the same group ID are processed sequentially, while messages with different group IDs can be processed concurrently.
 
 Hypervel provides a fluent `onGroup` method to specify the message group ID when dispatching jobs:

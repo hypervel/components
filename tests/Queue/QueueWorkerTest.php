@@ -33,6 +33,7 @@ use Hypervel\Queue\Events\JobPopping;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Events\JobReleasedAfterException;
+use Hypervel\Queue\Events\JobTimedOut;
 use Hypervel\Queue\Events\Looping;
 use Hypervel\Queue\Events\WorkerIdle;
 use Hypervel\Queue\Events\WorkerInterrupted;
@@ -92,11 +93,25 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessed::class))->once();
     }
 
+    public function testJobLifecycleEventsAreNotDispatchedWithoutListeners(): void
+    {
+        $this->events->shouldReceive('hasListeners')->andReturnFalse();
+        $job = new WorkerFakeJob;
+
+        $this->getWorker()->process('default', $job, new WorkerOptions);
+
+        $this->assertTrue($job->fired);
+        $this->events->shouldHaveReceived('hasListeners')->with(JobProcessing::class)->once();
+        $this->events->shouldHaveReceived('hasListeners')->with(JobProcessed::class)->once();
+        $this->events->shouldHaveReceived('hasListeners')->with(JobAttempted::class)->once();
+        $this->events->shouldNotHaveReceived('dispatch');
+    }
+
     public function testProcessingAndAttemptedEventsSurroundSuccessfulJobExecution(): void
     {
         $order = [];
         $attemptedEvent = null;
-        $this->events->shouldReceive('dispatch')->andReturnUsing(
+        $this->events->shouldReceive('dispatch')->times(3)->andReturnUsing(
             function (object $event) use (&$order, &$attemptedEvent): void {
                 if ($event instanceof JobProcessing) {
                     $order[] = 'processing';
@@ -126,7 +141,7 @@ class QueueWorkerTest extends TestCase
         $order = [];
         $attemptedEvent = null;
         $exception = new RuntimeException('Job failed.');
-        $this->events->shouldReceive('dispatch')->andReturnUsing(
+        $this->events->shouldReceive('dispatch')->times(4)->andReturnUsing(
             function (object $event) use (&$order, &$attemptedEvent): void {
                 if ($event instanceof JobProcessing) {
                     $order[] = 'processing';
@@ -221,7 +236,7 @@ class QueueWorkerTest extends TestCase
         $order = [];
         $attemptedEvent = null;
         $exception = new InvalidPayloadException('Invalid queue payload.', '{invalid');
-        $this->events->shouldReceive('dispatch')->andReturnUsing(
+        $this->events->shouldReceive('dispatch')->times(4)->andReturnUsing(
             function (object $event) use (&$order, &$attemptedEvent): void {
                 if ($event instanceof JobExceptionOccurred) {
                     $order[] = 'exception';
@@ -416,6 +431,30 @@ class QueueWorkerTest extends TestCase
                 && $event->reason === WorkerStopReason::TimedOut
                 && $event->terminatesImmediately
         ))->once();
+        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobTimedOut::class))->once();
+    }
+
+    public function testTimeoutLifecycleEventsAreNotDispatchedWithoutListeners(): void
+    {
+        $this->events->shouldReceive('hasListeners')->andReturnFalse();
+        $timer = new QueueWorkerTimer;
+        $worker = new KillTestWorker(...$this->workerDependencies(timer: $timer));
+        $worker->currentTime = 100;
+        $options = new WorkerOptions(timeout: 5);
+        $worker->registerCoroutineJobForTest(new WorkerContractOnlyJob, $options);
+        $worker->startMonitorForTest($options);
+        $worker->currentTime = 105;
+
+        try {
+            $timer->fire(1);
+            $this->fail('Expected the timeout monitor to terminate the worker.');
+        } catch (WorkerKilledException $exception) {
+            $this->assertSame(Worker::EXIT_ERROR, $exception->status);
+        }
+
+        $this->events->shouldHaveReceived('hasListeners')->with(JobTimedOut::class)->once();
+        $this->events->shouldHaveReceived('hasListeners')->with(WorkerStopping::class)->once();
+        $this->events->shouldNotHaveReceived('dispatch');
     }
 
     public function testTimeoutMonitorUsesTheConfiguredExitCode(): void
@@ -1261,7 +1300,7 @@ class QueueWorkerTest extends TestCase
                 && $event->lastJobProcessedAt !== null
                 && $event->memoryUsage > 0
                 && ! $event->terminatesImmediately;
-        }));
+        }))->once();
     }
 
     public function testWorkerStopsWithLostConnectionReason(): void
@@ -1335,6 +1374,27 @@ class QueueWorkerTest extends TestCase
                 && $event->queue === 'queue'
                 && $event->workerOptions === $workerOptions;
         }))->once();
+    }
+
+    public function testSignalAndStopEventsAreNotDispatchedWithoutListeners(): void
+    {
+        $this->events->shouldReceive('hasListeners')->andReturnFalse();
+        $workerOptions = new WorkerOptions;
+        $worker = $this->getWorker('default', ['queue' => []]);
+
+        $worker->handlePauseSignalForTest('default', 'queue', $workerOptions);
+        $worker->handleResumeSignalForTest('default', 'queue', $workerOptions);
+        $worker->handleInterruptionSignalForTest(SIGTERM, 'default', 'queue', $workerOptions);
+        $status = $worker->stop(7, $workerOptions, WorkerStopReason::QueueEmpty);
+
+        $this->assertSame(7, $status);
+        $this->assertFalse($worker->paused);
+        $this->assertTrue($worker->shouldQuit);
+        $this->events->shouldHaveReceived('hasListeners')->with(WorkerPausing::class)->once();
+        $this->events->shouldHaveReceived('hasListeners')->with(WorkerResuming::class)->once();
+        $this->events->shouldHaveReceived('hasListeners')->with(WorkerInterrupted::class)->once();
+        $this->events->shouldHaveReceived('hasListeners')->with(WorkerStopping::class)->once();
+        $this->events->shouldNotHaveReceived('dispatch');
     }
 
     public function testNotifyJobsOfSignalNotifiesEveryRunningInterruptibleJob(): void
@@ -1428,6 +1488,25 @@ class QueueWorkerTest extends TestCase
                 && $event->backoff === 10
                 && $event->exception === $e;
         }))->once();
+    }
+
+    public function testFailureLifecycleEventsAreNotDispatchedWithoutListeners(): void
+    {
+        $this->events->shouldReceive('hasListeners')->andReturnFalse();
+        $exception = new RuntimeException;
+        $job = new WorkerFakeJob(static function () use ($exception): never {
+            throw $exception;
+        });
+
+        $worker = $this->getWorker('default', ['queue' => [$job]]);
+        $worker->runNextJob('default', 'queue', $this->workerOptions(['backoff' => 10]));
+
+        $this->assertTrue($job->released);
+        $this->assertSame(10, $job->releaseAfter);
+        $this->events->shouldHaveReceived('hasListeners')->with(JobExceptionOccurred::class)->once();
+        $this->events->shouldHaveReceived('hasListeners')->with(JobReleasedAfterException::class)->once();
+        $this->events->shouldHaveReceived('hasListeners')->with(JobAttempted::class)->once();
+        $this->events->shouldNotHaveReceived('dispatch');
     }
 
     /**

@@ -23,6 +23,7 @@ use Hypervel\Cache\Repository;
 use Hypervel\Cache\StackStore;
 use Hypervel\Cache\StackStoreProxy;
 use Hypervel\Cache\StackTaggedCache;
+use Hypervel\Cache\StackTagSet;
 use Hypervel\Cache\TaggableStore;
 use Hypervel\Cache\TaggedCache;
 use Hypervel\Cache\TagMode;
@@ -371,6 +372,48 @@ class CacheStackStoreTagsTest extends TestCase
         }
     }
 
+    public function testStackAnyModeTaggedCacheSkipsEventDispatchSeamWithoutListenersAndEntersItWithListeners(): void
+    {
+        $taggable = $this->anyModeTaggableStore();
+        $taggedCache = m::mock(TaggedCache::class);
+        $taggable->shouldReceive('get')->twice()->andReturnNull();
+        $taggable->shouldReceive('tags')->twice()->with(['tag'])->andReturn($taggedCache);
+        $taggedCache->shouldReceive('put')->twice()->with(m::type('string'), m::type('array'), 60)->andReturnTrue();
+
+        $stack = new StackStore([$taggable]);
+        $cache = new class($stack, new StackTagSet($stack, ['tag'])) extends StackTaggedCache {
+            public int $eventCalls = 0;
+
+            protected function event(object $event): void
+            {
+                ++$this->eventCalls;
+
+                parent::event($event);
+            }
+        };
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('hasListeners')->withAnyArgs()->andReturnFalse();
+        $dispatcher->shouldNotReceive('dispatch');
+        $cache->setEventDispatcher($dispatcher);
+
+        $this->assertTrue($cache->add('first', 'value', 60));
+        $this->assertSame(0, $cache->eventCalls);
+
+        $captured = [];
+        $cache->setEventDispatcher($this->capturingDispatcher($captured));
+
+        $this->assertTrue($cache->add('second', 'value', 60));
+        $this->assertSame(4, $cache->eventCalls);
+        $this->assertSame(
+            [RetrievingKey::class, CacheMissed::class, WritingKey::class, KeyWritten::class],
+            array_map(get_class(...), $captured),
+        );
+
+        foreach ($captured as $event) {
+            $this->assertSame(['tag'], $event->tags);
+        }
+    }
+
     public function testTaggedRememberDispatchesRepositoryReadFailureEventWhenTheStoreThrows(): void
     {
         $exception = new RuntimeException('read failed');
@@ -589,6 +632,7 @@ class CacheStackStoreTagsTest extends TestCase
 
         foreach ([
             fn () => $cache->get('key'),
+            fn () => $cache->getAuthoritativeRaw('key'),
             fn () => $cache->getMultiple(['key']),
             fn () => $cache->delete('key'),
             fn () => $cache->deleteMultiple(['key']),

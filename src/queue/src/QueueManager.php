@@ -8,6 +8,7 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Contracts\Queue\Monitor as MonitorContract;
 use Hypervel\Contracts\Queue\Queue;
@@ -174,9 +175,12 @@ class QueueManager implements FactoryContract, MonitorContract
             ->store()
             ->forever("illuminate:queue:paused:{$connection}:{$queue}", true);
 
-        $this->app->make('events')->dispatch(
-            new Events\QueuePaused($connection, $queue)
-        );
+        /** @var Dispatcher $events */
+        $events = $this->app->make('events');
+
+        if ($events->hasListeners(Events\QueuePaused::class)) {
+            $events->dispatch(new Events\QueuePaused($connection, $queue));
+        }
     }
 
     /**
@@ -189,9 +193,12 @@ class QueueManager implements FactoryContract, MonitorContract
             ->store()
             ->put("illuminate:queue:paused:{$connection}:{$queue}", true, $ttl);
 
-        $this->app->make('events')->dispatch(
-            new Events\QueuePaused($connection, $queue, $ttl)
-        );
+        /** @var Dispatcher $events */
+        $events = $this->app->make('events');
+
+        if ($events->hasListeners(Events\QueuePaused::class)) {
+            $events->dispatch(new Events\QueuePaused($connection, $queue, $ttl));
+        }
     }
 
     /**
@@ -204,9 +211,12 @@ class QueueManager implements FactoryContract, MonitorContract
             ->store()
             ->forget("illuminate:queue:paused:{$connection}:{$queue}");
 
-        $this->app->make('events')->dispatch(
-            new Events\QueueResumed($connection, $queue)
-        );
+        /** @var Dispatcher $events */
+        $events = $this->app->make('events');
+
+        if ($events->hasListeners(Events\QueueResumed::class)) {
+            $events->dispatch(new Events\QueueResumed($connection, $queue));
+        }
     }
 
     /**

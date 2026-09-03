@@ -251,6 +251,8 @@ If a later layer rejects a write or throws an exception, Hypervel removes the va
 
 Locks and lock-backed helpers, such as `Cache::lock`, `Cache::funnel`, and `Cache::withoutOverlapping`, are delegated to the bottom layer of the stack. Use a lock-capable bottom store, such as Redis, when a stack is your default cache store.
 
+Upper layers may continue serving a cached value until that layer's configured or item TTL expires after the value changes in a lower layer. `Cache::flexible()` preserves this normal microcache behavior, but rechecks its refresh marker against the bottom layer after acquiring the bottom-layer lock so a stale upper-layer marker does not trigger a duplicate refresh.
+
 <a name="session-cache"></a>
 ### Session Cache
 
@@ -291,6 +293,8 @@ CACHE_STORE=failover
 When a cache store operation fails and failover is activated, Hypervel will dispatch the `Hypervel\Cache\Events\CacheFailedOver` event, allowing you to report or log that a cache store has failed. Its `storeName` identifies the failed backing store, while `failoverStoreName` identifies the configured failover store when available.
 
 Reads, writes, increments, locks, and other ordinary operations stop after the first store call that does not throw. `forget` and `flush` instead attempt every configured store so a stale lower-priority value cannot reappear later. They return `false` after a partial failure; if every store throws, the last exception is rethrown.
+
+Each operation selects the first available backing store independently. If availability changes, a lock and a later read are not guaranteed to use the same backing store.
 
 <a name="cache-usage"></a>
 ## Cache Usage

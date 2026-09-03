@@ -17,6 +17,7 @@ use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Events\Dispatcher as ConcreteEventDispatcher;
+use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Events\JobPayloadFinalizing;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
@@ -31,6 +32,7 @@ use Hypervel\Tests\Queue\Fixtures\FakeSqsJobWithDeduplication;
 use Hypervel\Tests\Queue\Fixtures\FakeSqsJobWithMessageGroup;
 use Hypervel\Tests\TestCase;
 use Laravel\SerializableClosure\SerializableClosure;
+use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
@@ -809,68 +811,50 @@ class QueueSqsQueueTest extends TestCase
         $container->shouldHaveReceived('bound')->with('events')->times(3);
     }
 
-    public function testDelayedPushProperlyPushesJobStringOntoSqsFifoQueueWithoutDelay()
+    public function testDelayedPushRejectsPositiveDelayForStringJobOnSqsFifoQueue(): void
     {
-        Str::createUuidsUsing(fn () => $this->createMockedUuid($this->mockedDeduplicationId));
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['createPayload'])
+            ->setConstructorArgs([$this->sqs, $this->fifoQueueName, $this->account])
+            ->getMock();
+        $queue->setContainer(m::spy(ContainerContract::class));
+        $queue->expects($this->never())->method('createPayload');
+        $this->sqs->shouldNotReceive('sendMessage');
 
-        $queue = $this->getMockBuilder(SqsQueue::class)->onlyMethods(['createPayload', 'secondsUntil', 'getQueue'])->setConstructorArgs([$this->sqs, $this->fifoQueueName, $this->account])->getMock();
-        $queue->setContainer($container = m::spy(ContainerContract::class));
-        $queue->expects($this->once())->method('createPayload')->with($this->mockedJob, $this->fifoQueueName, $this->mockedData)->willReturn($this->mockedPayload);
-        $queue->expects($this->never())->method('secondsUntil')->with($this->mockedDelay)->willReturn($this->mockedDelay);
-        $queue->expects($this->once())->method('getQueue')->with($this->fifoQueueName)->willReturn($this->fifoQueueUrl);
-        $this->sqs->shouldReceive('sendMessage')->once()->with([
-            'QueueUrl' => $this->fifoQueueUrl,
-            'MessageBody' => $this->mockedPayload,
-            'MessageGroupId' => $this->fifoQueueName,
-            'MessageDeduplicationId' => $this->mockedDeduplicationId,
-        ])->andReturn($this->mockedSendMessageResponseModel);
-        $id = $queue->later($this->mockedDelay, $this->mockedJob, $this->mockedData, $this->fifoQueueName);
-        $this->assertEquals($this->mockedMessageId, $id);
-        $container->shouldHaveReceived('bound')->with('events')->times(3);
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('SQS FIFO queues do not support per-message delays.');
 
-        Str::createUuidsNormally();
+        $queue->later($this->mockedDelay, $this->mockedJob, $this->mockedData, $this->fifoQueueName);
     }
 
-    public function testDelayedPushProperlyPushesJobObjectOntoSqsFifoQueueWithoutDelay()
+    public function testDelayedPushRejectsPositiveDelayForObjectJobOnSqsFifoQueue(): void
     {
-        Str::createUuidsUsing(fn () => $this->createMockedUuid($this->mockedDeduplicationId));
-
         $job = (new FakeSqsJob)->onGroup($this->mockedMessageGroupId);
 
-        $queue = $this->getMockBuilder(SqsQueue::class)->onlyMethods(['createPayload', 'secondsUntil', 'getQueue'])->setConstructorArgs([$this->sqs, $this->fifoQueueName, $this->account])->getMock();
-        $queue->setContainer($container = m::spy(ContainerContract::class));
-        $queue->expects($this->once())->method('createPayload')->with($job, $this->fifoQueueName, $this->mockedData)->willReturn($this->mockedPayload);
-        $queue->expects($this->never())->method('secondsUntil')->with($this->mockedDelay)->willReturn($this->mockedDelay);
-        $queue->expects($this->once())->method('getQueue')->with($this->fifoQueueName)->willReturn($this->fifoQueueUrl);
-        $this->sqs->shouldReceive('sendMessage')->once()->with([
-            'QueueUrl' => $this->fifoQueueUrl,
-            'MessageBody' => $this->mockedPayload,
-            'MessageGroupId' => $this->mockedMessageGroupId,
-            'MessageDeduplicationId' => $this->mockedDeduplicationId,
-        ])->andReturn($this->mockedSendMessageResponseModel);
-        $id = $queue->later($this->mockedDelay, $job, $this->mockedData, $this->fifoQueueName);
-        $this->assertEquals($this->mockedMessageId, $id);
-        $container->shouldHaveReceived('bound')->with('events')->times(3);
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['createPayload'])
+            ->setConstructorArgs([$this->sqs, $this->fifoQueueName, $this->account])
+            ->getMock();
+        $queue->setContainer(m::spy(ContainerContract::class));
+        $queue->expects($this->never())->method('createPayload');
+        $this->sqs->shouldNotReceive('sendMessage');
 
-        Str::createUuidsNormally();
+        $this->expectException(LogicException::class);
+
+        $queue->later($this->mockedDelay, $job, $this->mockedData, $this->fifoQueueName);
     }
 
-    public function testDelayedPendingDispatchProperlyPushesJobObjectOntoSqsFifoQueueWithoutDelay()
+    public function testDelayedPendingDispatchRejectsPositiveDelayOnSqsFifoQueue(): void
     {
-        Str::createUuidsUsing(fn () => $this->createMockedUuid($this->mockedDeduplicationId));
-
         $pendingDispatch = FakeSqsJob::dispatch()->onGroup($this->mockedMessageGroupId)->delay($this->mockedDelay);
 
-        $queue = $this->getMockBuilder(SqsQueue::class)->onlyMethods(['createPayload', 'getQueue'])->setConstructorArgs([$this->sqs, $this->fifoQueueName, $this->account])->getMock();
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['createPayload'])
+            ->setConstructorArgs([$this->sqs, $this->fifoQueueName, $this->account])
+            ->getMock();
         $queue->setContainer($container = $this->createSpyContainer());
-        $queue->expects($this->once())->method('createPayload')->with($pendingDispatch->getJob(), $this->fifoQueueName, '')->willReturn($this->mockedPayload);
-        $queue->expects($this->once())->method('getQueue')->with(null)->willReturn($this->fifoQueueUrl);
-        $this->sqs->shouldReceive('sendMessage')->once()->with([
-            'QueueUrl' => $this->fifoQueueUrl,
-            'MessageBody' => $this->mockedPayload,
-            'MessageGroupId' => $this->mockedMessageGroupId,
-            'MessageDeduplicationId' => $this->mockedDeduplicationId,
-        ])->andReturn($this->mockedSendMessageResponseModel);
+        $queue->expects($this->never())->method('createPayload');
+        $this->sqs->shouldNotReceive('sendMessage');
 
         $dispatcher = new BusDispatcher($container, fn () => $queue);
         $container->shouldReceive('make')
@@ -878,12 +862,51 @@ class QueueSqsQueueTest extends TestCase
             ->andReturn($dispatcher);
         Container::setInstance($container);
 
-        // Destroy object to trigger dispatch.
-        unset($pendingDispatch);
+        $this->expectException(LogicException::class);
 
-        $container->shouldHaveReceived('bound')->with('events')->times(3);
+        unset($pendingDispatch);
+    }
+
+    #[DataProvider('nonPositiveFifoDelays')]
+    public function testNonPositiveAndElapsedDelaysRemainImmediateOnSqsFifoQueue(int|string $delay): void
+    {
+        $delay = $delay === 'past' ? CarbonImmutable::now()->subSecond() : $delay;
+        Str::createUuidsUsing(fn () => $this->createMockedUuid($this->mockedDeduplicationId));
+
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['createPayload', 'getQueue'])
+            ->setConstructorArgs([$this->sqs, $this->fifoQueueName, $this->account])
+            ->getMock();
+        $queue->setContainer(m::spy(ContainerContract::class));
+        $queue->expects($this->once())->method('createPayload')->with(
+            $this->mockedJob,
+            $this->fifoQueueName,
+            $this->mockedData,
+            $delay,
+        )->willReturn($this->mockedPayload);
+        $queue->expects($this->once())->method('getQueue')->with($this->fifoQueueName)->willReturn($this->fifoQueueUrl);
+        $this->sqs->shouldReceive('sendMessage')->once()->with([
+            'QueueUrl' => $this->fifoQueueUrl,
+            'MessageBody' => $this->mockedPayload,
+            'MessageGroupId' => $this->fifoQueueName,
+            'MessageDeduplicationId' => $this->mockedDeduplicationId,
+        ])->andReturn($this->mockedSendMessageResponseModel);
+
+        $this->assertSame(
+            $this->mockedMessageId,
+            $queue->later($delay, $this->mockedJob, $this->mockedData, $this->fifoQueueName),
+        );
 
         Str::createUuidsNormally();
+    }
+
+    public static function nonPositiveFifoDelays(): array
+    {
+        return [
+            'zero' => [0],
+            'negative' => [-1],
+            'past date' => ['past'],
+        ];
     }
 
     public function testPushRawStoresOverflowPayloadAndSendsItsPointer(): void
@@ -1273,6 +1296,68 @@ class QueueSqsQueueTest extends TestCase
         ];
     }
 
+    public function testBulkHonorsDelayAttributeOnStandardQueueWithoutExtraPreflightConversion(): void
+    {
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['secondsUntil'])
+            ->setConstructorArgs([$this->sqs, $this->queueName, $this->prefix])
+            ->getMock();
+        $queue->setContainer(new Container);
+        $queue->expects($this->exactly(2))->method('secondsUntil')->with(9)->willReturn(9);
+
+        $this->sqs->shouldReceive('sendMessageBatch')->once()->withArgs(
+            function (array $arguments): bool {
+                $entry = $arguments['Entries'][0];
+                $payload = json_decode($entry['MessageBody'], true, flags: JSON_THROW_ON_ERROR);
+
+                $this->assertSame(9, $entry['DelaySeconds']);
+                $this->assertSame(9, $payload['delay']);
+
+                return true;
+            }
+        )->andReturn(new Result([
+            'Successful' => [['Id' => '0', 'MessageId' => 'm1']],
+            'Failed' => [],
+        ]));
+
+        $queue->bulk([new SqsBulkAttributeDelayJob], 'data', $this->queueName);
+    }
+
+    public function testBulkRejectsDelayAttributeOnFifoBeforePayloadCreation(): void
+    {
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['createPayload'])
+            ->setConstructorArgs([$this->sqs, $this->fifoQueueName, $this->prefix])
+            ->getMock();
+        $queue->setContainer(new Container);
+        $queue->expects($this->never())->method('createPayload');
+        $this->sqs->shouldNotReceive('sendMessageBatch');
+
+        $this->expectException(LogicException::class);
+
+        $queue->bulk([new SqsBulkAttributeDelayJob], 'data', $this->fifoQueueName);
+    }
+
+    public function testMixedBulkRejectsPositiveFifoDelayBeforeTransactionLookupOrPayloadCreation(): void
+    {
+        $immediate = new FakeSqsJob;
+        $afterCommit = (new FakeSqsJob)->afterCommit()->delay(10);
+        $container = m::mock(ContainerContract::class);
+        $container->shouldNotReceive('has');
+
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['createPayload'])
+            ->setConstructorArgs([$this->sqs, $this->fifoQueueName, $this->prefix])
+            ->getMock();
+        $queue->setContainer($container);
+        $queue->expects($this->never())->method('createPayload');
+        $this->sqs->shouldNotReceive('sendMessageBatch');
+
+        $this->expectException(LogicException::class);
+
+        $queue->bulk([$immediate, $afterCommit], 'data', $this->fifoQueueName);
+    }
+
     public function testBulkSendsAllJobsInOneBatchAndPreservesOrder(): void
     {
         $queue = $this->getMockBuilder(SqsQueue::class)
@@ -1457,6 +1542,24 @@ class QueueSqsQueueTest extends TestCase
             ['MessageGroupId' => '0', 'MessageDeduplicationId' => '0'],
             $queue->getQueueableOptions($job, $this->fifoQueueName, 'payload'),
         );
+    }
+
+    #[DataProvider('defaultFifoQueueNames')]
+    public function testQueueableOptionsRejectsPositiveDelayForEffectiveFifoQueue(?string $queueName): void
+    {
+        $queue = new SqsQueue($this->sqs, $this->fifoQueueName, $this->prefix);
+
+        $this->expectException(LogicException::class);
+
+        $queue->getQueueableOptions($this->mockedJob, $queueName, 'payload', 10);
+    }
+
+    public static function defaultFifoQueueNames(): array
+    {
+        return [
+            'null uses default' => [null],
+            'empty uses default' => [''],
+        ];
     }
 
     public function testBulkRaisesExactEventsForSuccessfulAndRejectedEntries(): void
@@ -2018,4 +2121,9 @@ class QueueSqsQueueTest extends TestCase
 
         $this->assertNull($queue->bulk([], 'data', $this->queueName));
     }
+}
+
+#[Delay(9)]
+class SqsBulkAttributeDelayJob
+{
 }

@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Console;
 
 use Carbon\CarbonInterface;
 use Hypervel\Console\Command;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Events\VendorTagPublished;
 use Hypervel\Support\Arr;
@@ -177,7 +178,12 @@ class VendorPublishCommand extends Command
         if ($publishing === false) {
             $this->components->info('No publishable resources for tag [' . $tag . '].');
         } else {
-            $this->hypervel->make('events')->dispatch(new VendorTagPublished($tag, $pathsToPublish));
+            /** @var Dispatcher $events */
+            $events = $this->hypervel->make('events');
+
+            if ($events->hasListeners(VendorTagPublished::class)) {
+                $events->dispatch(new VendorTagPublished($tag, $pathsToPublish));
+            }
 
             $this->newLine();
         }

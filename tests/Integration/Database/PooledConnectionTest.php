@@ -98,6 +98,42 @@ class PooledConnectionTest extends DatabaseTestCase
         $this->assertTrue($fired, 'ConnectionEstablished event should be fired when a pooled connection is created');
     }
 
+    public function testPassiveObserversDoNotCausePooledLifecycleEventsToDispatch(): void
+    {
+        $this->app->make('config')->set('database.connections.pool_test.pool.events', [
+            ReleaseConnection::class,
+        ]);
+        $events = $this->app->make(Dispatcher::class);
+        $establishedConnections = [];
+        $releasedConnections = [];
+        $events->observe(
+            ConnectionEstablished::class,
+            static function (ConnectionEstablished $event) use (&$establishedConnections): void {
+                $establishedConnections[] = $event->connection;
+            }
+        );
+        $events->observe(
+            ReleaseConnection::class,
+            static function (ReleaseConnection $event) use (&$releasedConnections): void {
+                $releasedConnections[] = $event->connection;
+            }
+        );
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+
+        try {
+            $pooledConnection->reconnect();
+            $pooledConnection->release();
+
+            $this->assertSame([], $establishedConnections);
+            $this->assertSame([], $releasedConnections);
+        } finally {
+            $pool->close();
+        }
+    }
+
     public function testGetConnectionReturnsConnection(): void
     {
         $pool = new DbPool($this->app, 'pool_test');

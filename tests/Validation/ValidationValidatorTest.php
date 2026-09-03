@@ -24,7 +24,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
-use Hypervel\Support\Exceptions\MathException;
 use Hypervel\Support\Json;
 use Hypervel\Support\Stringable;
 use Hypervel\Tests\TestCase;
@@ -10283,19 +10282,61 @@ class ValidationValidatorTest extends TestCase
         ], $validator->messages()->keys());
     }
 
+    #[DataProvider('untrimmableWhitespaceLiteralParameterRules')]
+    public function testItFailsSizeRulesForNumericStringsWithUntrimmableWhitespaceWithoutThrowing(string $value, string $rule): void
+    {
+        $trans = $this->getArrayTranslator();
+        $validator = new Validator($trans, ['foo' => $value], ['foo' => ['numeric', $rule]]);
+
+        $this->assertFalse($validator->passes());
+    }
+
+    public static function untrimmableWhitespaceLiteralParameterRules(): array
+    {
+        $data = [];
+
+        foreach (["\x0C5", "5\x0C"] as $value) {
+            foreach (['min:3', 'max:3', 'size:3', 'between:1,5', 'gt:0', 'lt:10', 'gte:0', 'lte:10'] as $rule) {
+                $data[] = [$value, $rule];
+            }
+        }
+
+        return $data;
+    }
+
+    #[DataProvider('untrimmableWhitespaceFieldComparisonRules')]
+    public function testItFailsFieldComparisonRulesForUntrimmableWhitespaceWithoutThrowing(array $data, string $rule): void
+    {
+        $trans = $this->getArrayTranslator();
+        $validator = new Validator($trans, $data, ['foo' => ['numeric', $rule]]);
+
+        $this->assertFalse($validator->passes());
+    }
+
+    public static function untrimmableWhitespaceFieldComparisonRules(): array
+    {
+        $data = [];
+
+        foreach (['gt:bar', 'lt:bar', 'gte:bar', 'lte:bar'] as $rule) {
+            foreach (["\x0C5", "5\x0C"] as $value) {
+                $data[] = [['foo' => $value, 'bar' => 5], $rule];
+                $data[] = [['foo' => 5, 'bar' => $value], $rule];
+            }
+        }
+
+        return $data;
+    }
+
     #[DataProvider('outsideRangeExponents')]
-    public function testItLimitsLengthOfScientificNotationExponent($value)
+    public function testItLimitsLengthOfScientificNotationExponent(string $value): void
     {
         $trans = $this->getArrayTranslator();
         $validator = new Validator($trans, ['foo' => $value], ['foo' => 'numeric|min:3']);
 
-        $this->expectException(MathException::class);
-        $this->expectExceptionMessage('Scientific notation exponent outside of allowed range.');
-
-        $validator->passes();
+        $this->assertFalse($validator->passes());
     }
 
-    public static function outsideRangeExponents()
+    public static function outsideRangeExponents(): array
     {
         return [
             ['1.0e+1001'],
@@ -10328,7 +10369,7 @@ class ValidationValidatorTest extends TestCase
         ];
     }
 
-    public function testItCanConfigureAllowedExponentRange()
+    public function testItCanConfigureAllowedExponentRange(): void
     {
         $trans = $this->getArrayTranslator();
         $validator = new Validator($trans, ['foo' => '1.0e-1000'], ['foo' => ['numeric', 'max:3']]);
@@ -10347,10 +10388,8 @@ class ValidationValidatorTest extends TestCase
         $this->assertSame('1.0e-1000', $value);
 
         $withinRange = false;
-        $this->expectException(MathException::class);
-        $this->expectExceptionMessage('Scientific notation exponent outside of allowed range.');
 
-        $validator->passes();
+        $this->assertFalse($validator->passes());
     }
 
     public function testMessagesDefaultWhenUsingSizeSpecificCustomMessages()

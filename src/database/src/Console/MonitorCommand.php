@@ -105,6 +105,10 @@ class MonitorCommand extends DatabaseInspectionCommand
      */
     protected function dispatchEvents(Collection $databases): void
     {
+        if (! $this->events->hasListeners(DatabaseBusy::class)) {
+            return;
+        }
+
         $databases->each(function ($database) {
             if ($database['status'] === '<fg=green;options=bold>OK</>') {
                 return;

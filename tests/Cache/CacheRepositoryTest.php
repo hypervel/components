@@ -13,8 +13,10 @@ use DateTimeImmutable;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
+use Hypervel\Cache\Events\KeyRetrievalFailed;
 use Hypervel\Cache\Events\KeyWritten;
 use Hypervel\Cache\Events\ManyKeysRetrievalFailed;
+use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
@@ -27,6 +29,7 @@ use Hypervel\Cache\Repository;
 use Hypervel\Cache\StackStore;
 use Hypervel\Cache\TaggableStore;
 use Hypervel\Cache\TaggedCache;
+use Hypervel\Contracts\Cache\AuthoritativeRawReadable;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\LockTimeoutException;
 use Hypervel\Contracts\Cache\Store;
@@ -39,6 +42,9 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
+
+use function Hypervel\Support\defer;
 
 class CacheRepositoryTest extends TestCase
 {
@@ -54,6 +60,78 @@ class CacheRepositoryTest extends TestCase
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn('bar');
         $this->assertSame('bar', $repo->get('foo'));
+    }
+
+    public function testAuthoritativeRawReadUsesItemKeyAndPreservesSentinelEvents(): void
+    {
+        $store = m::mock(Store::class, AuthoritativeRawReadable::class);
+        $store->shouldReceive('getAuthoritativeRaw')->once()->with('prefix:foo')->andReturn(NullSentinel::VALUE);
+
+        $repository = new class($store) extends Repository {
+            protected function itemKey(string $key): string
+            {
+                return 'prefix:' . $key;
+            }
+        };
+
+        $events = [];
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
+        $dispatcher->shouldReceive('dispatch')->andReturnUsing(function ($event) use (&$events): void {
+            $events[] = $event;
+        });
+        $repository->setEventDispatcher($dispatcher);
+
+        $this->assertSame(NullSentinel::VALUE, $repository->getAuthoritativeRaw(TestCacheKey::Foo));
+        $this->assertCount(2, $events);
+        $this->assertInstanceOf(RetrievingKey::class, $events[0]);
+        $this->assertSame('foo', $events[0]->key);
+        $this->assertInstanceOf(CacheHit::class, $events[1]);
+        $this->assertNull($events[1]->value);
+    }
+
+    public function testAuthoritativeRawReadDispatchesRetrievalFailure(): void
+    {
+        $failure = new RuntimeException('read failed');
+        $store = m::mock(Store::class, AuthoritativeRawReadable::class);
+        $store->shouldReceive('getAuthoritativeRaw')->once()->with('foo')->andThrow($failure);
+
+        $repository = new Repository($store);
+        $events = [];
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
+        $dispatcher->shouldReceive('dispatch')->andReturnUsing(function ($event) use (&$events): void {
+            $events[] = $event;
+        });
+        $repository->setEventDispatcher($dispatcher);
+
+        try {
+            $repository->getAuthoritativeRaw('foo');
+            $this->fail('Expected the authoritative read to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertCount(2, $events);
+        $this->assertInstanceOf(RetrievingKey::class, $events[0]);
+        $this->assertInstanceOf(KeyRetrievalFailed::class, $events[1]);
+        $this->assertSame($failure, $events[1]->exception);
+    }
+
+    public function testAuthoritativeRawReadPreservesCancellation(): void
+    {
+        $cancellation = new CanceledException('read canceled');
+        $store = m::mock(Store::class, AuthoritativeRawReadable::class);
+        $store->shouldReceive('getAuthoritativeRaw')->once()->with('foo')->andThrow($cancellation);
+
+        $repository = new Repository($store);
+
+        try {
+            $repository->getAuthoritativeRaw('foo');
+            $this->fail('Expected the authoritative read to be canceled.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testGetReturnsMultipleValuesFromCacheWhenGivenAnArray()
@@ -230,6 +308,29 @@ class CacheRepositoryTest extends TestCase
 
         $repo->get('foo');
 
+        $this->assertSame([['foo', 'stdClass']], $handled);
+    }
+
+    public function testAuthoritativeRawReadFallsBackToStoreAndHandlesIncompleteClass(): void
+    {
+        $handled = [];
+        $incomplete = unserialize(serialize(new stdClass), ['allowed_classes' => false]);
+
+        Repository::handleUnserializableClassUsing(function ($key, $class) use (&$handled): void {
+            $handled[] = [$key, $class];
+        });
+
+        $store = m::mock(Store::class);
+        $store->shouldReceive('get')->once()->with('prefix:foo')->andReturn($incomplete);
+
+        $repository = new class($store) extends Repository {
+            protected function itemKey(string $key): string
+            {
+                return 'prefix:' . $key;
+            }
+        };
+
+        $this->assertSame($incomplete, $repository->getAuthoritativeRaw('foo'));
         $this->assertSame([['foo', 'stdClass']], $handled);
     }
 
@@ -485,6 +586,36 @@ class CacheRepositoryTest extends TestCase
         $result = $repo->flexibleNullable('foo', [10, 20], fn () => 'new');
 
         $this->assertSame('cached', $result);
+    }
+
+    public function testFlexibleSkipsRefreshWhenAuthoritativeMarkerChanged(): void
+    {
+        $created = CarbonImmutable::now()->subSeconds(11)->getTimestamp();
+        $markerKey = Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'foo';
+        $store = m::mock(implode(',', [Store::class, LockProvider::class, AuthoritativeRawReadable::class]));
+        $lock = m::mock(Lock::class);
+
+        $store->shouldReceive('many')->once()->with(['foo', $markerKey])->andReturn([
+            'foo' => 'stale',
+            $markerKey => $created,
+        ]);
+        $store->shouldReceive('lock')->once()->with('hypervel:cache:flexible:lock:foo', 0, null)->andReturn($lock);
+        $store->shouldReceive('getAuthoritativeRaw')->once()->with($markerKey)->andReturn($created + 1);
+        $store->shouldNotReceive('putMany');
+        $lock->shouldReceive('get')->once()->with(m::type('callable'))->andReturnUsing(fn ($callback) => $callback());
+
+        $repository = new Repository($store);
+        $callbackCalled = false;
+
+        $this->assertSame('stale', $repository->flexible('foo', [10, 20], function () use (&$callbackCalled): string {
+            $callbackCalled = true;
+
+            return 'new';
+        }));
+
+        defer()->invoke();
+
+        $this->assertFalse($callbackCalled);
     }
 
     public function testMixedUsageGetReturnsNullForCachedNullEntry()
