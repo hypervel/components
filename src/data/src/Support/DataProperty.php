@@ -8,7 +8,9 @@ use Hypervel\Contracts\Pagination\CursorPaginator;
 use Hypervel\Contracts\Pagination\Paginator;
 use Hypervel\Data\Casts\Cast;
 use Hypervel\Data\Contracts\BaseData;
+use Hypervel\Data\CursorPaginatedDataCollection;
 use Hypervel\Data\DataCollection;
+use Hypervel\Data\PaginatedDataCollection;
 use Hypervel\Data\Transformers\Transformer;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Enumerable;
@@ -80,17 +82,26 @@ class DataProperty
             return $this->type->acceptsValue($value);
         }
 
-        $type = $this->type->getDataCollectableType();
+        $types = $this->type->getDataCollectableTypes();
 
-        if ($type === null
-            || $type->dataClass === null
-            || ! $type->acceptsValue($value)
-        ) {
+        if ($types === []) {
             return false;
         }
 
-        if ($value instanceof DataCollection) {
-            return is_a($value->getDataClass(), $type->dataClass, true);
+        if ($value instanceof DataCollection
+            || $value instanceof PaginatedDataCollection
+            || $value instanceof CursorPaginatedDataCollection
+        ) {
+            foreach ($types as $type) {
+                if ($type->dataClass !== null
+                    && $type->acceptsValue($value)
+                    && is_a($value->getDataClass(), $type->dataClass, true)
+                ) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         if ($value instanceof LazyCollection) {
@@ -107,13 +118,21 @@ class DataProperty
             return false;
         }
 
-        foreach ($items as $item) {
-            if (! $item instanceof $type->dataClass) {
-                return false;
+        foreach ($types as $type) {
+            if ($type->dataClass === null || ! $type->acceptsValue($value)) {
+                continue;
             }
+
+            foreach ($items as $item) {
+                if (! $item instanceof $type->dataClass) {
+                    continue 2;
+                }
+            }
+
+            return true;
         }
 
-        return true;
+        return false;
     }
 
     /**

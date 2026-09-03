@@ -151,6 +151,27 @@ class DataTypeFactoryTest extends TestCase
     }
 
     /**
+     * Test generic item metadata is limited to iterable outer types.
+     */
+    public function testGenericItemMetadataRequiresAnIterableOuterType(): void
+    {
+        $integerRange = $this->property('integerRange');
+        $classString = $this->property('classString');
+        $nonEmptyArray = $this->property('nonEmptyArray');
+
+        $this->assertSame([], $integerRange->getIterableTypes());
+        $this->assertNull($integerRange->getNamedTypes()[0]->iterableItemType);
+        $this->assertSame([], $classString->getIterableTypes());
+        $this->assertSame('string', $classString->getNamedTypes()[0]->name);
+        $this->assertNull($classString->getNamedTypes()[0]->iterableItemType);
+        $this->assertSame(DataTypeKind::DataArray, $nonEmptyArray->getNamedTypes()[0]->kind);
+        $this->assertSame(
+            DataTypeFactoryItemData::class,
+            $nonEmptyArray->getNamedTypes()[0]->dataClass,
+        );
+    }
+
+    /**
      * Test exact iterable annotations win before widened container matches.
      */
     public function testExactIterableAnnotationsWinRegardlessOfUnionOrder(): void
@@ -338,6 +359,12 @@ class DataTypeFactoryFixture
 {
     public int $integer;
 
+    /** @var int<0, max> */
+    public int $integerRange;
+
+    /** @var class-string<DataTypeFactoryItemData> */
+    public string $classString;
+
     public ?int $nullable;
 
     public $untyped;
@@ -366,6 +393,9 @@ class DataTypeFactoryFixture
 
     /** @var array<array-key> */
     public array $arrayKeys;
+
+    /** @var non-empty-array<int, DataTypeFactoryItemData> */
+    public array $nonEmptyArray;
 
     /** @var array<string>|Collection<int, string> */
     public array|Collection $ambiguousIterables;

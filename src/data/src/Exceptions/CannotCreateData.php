@@ -121,8 +121,24 @@ class CannotCreateData extends Exception
     ): self {
         return new self(
             "Could not create property [{$property->className}::\${$property->name}] from an ambiguous "
-            . 'data-object union [' . implode(', ', $candidates) . ']. Supply an existing instance or define '
-            . 'an explicit cast, morph discriminator, or named factory.'
+            . 'data-object union [' . implode(', ', $candidates) . ']. Supply an existing instance, define '
+            . 'an explicit cast, or return the target object from a named factory.'
+        );
+    }
+
+    /**
+     * Create an exception for an ambiguous data-collectable union.
+     *
+     * @param list<string> $candidates
+     */
+    public static function ambiguousDataCollectableUnion(
+        DataProperty $property,
+        array $candidates,
+    ): self {
+        return new self(
+            "Could not create property [{$property->className}::\${$property->name}] from an ambiguous "
+            . 'data-collectable union [' . implode(', ', $candidates) . ']. Supply a finished compatible '
+            . 'container, define an explicit cast, or return the target object from a named factory.'
         );
     }
 

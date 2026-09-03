@@ -668,6 +668,22 @@ class DataCreatorTest extends TestCase
         $this->assertSame('2026-08-30', $data->dates[0]->format('Y-m-d'));
     }
 
+    public function testGenericPhpDocTypesKeepScalarAndIterableCreationSemantics(): void
+    {
+        $integer = IntegerRangeCreationData::from(['value' => '7']);
+        $children = NonEmptyArrayCreationData::from([
+            'children' => [['id' => '9']],
+        ]);
+        $metadata = $this->app
+            ->make(DataClassRepository::class)
+            ->get(IntegerRangeCreationData::class);
+
+        $this->assertSame(7, $integer->value);
+        $this->assertTrue($metadata->directArrayCreation);
+        $this->assertContainsOnlyInstancesOf(ChildCreationData::class, $children->children);
+        $this->assertSame(9, $children->children[0]->id);
+    }
+
     public function testDtoAndResourceUseTheSameFixedConstructionEngine(): void
     {
         $dto = CreationDto::from(['id' => '1']);
@@ -691,6 +707,42 @@ class DataCreatorTest extends TestCase
 
         $this->assertSame('direct:Taylor', $direct->value);
         $this->assertSame('NUMBER:42', $continued->value);
+    }
+
+    public function testNamedPayloadMatchesANamedFactory(): void
+    {
+        $data = NamedFactoryCreationData::from(value: 'Taylor');
+
+        $this->assertSame('direct:Taylor', $data->value);
+    }
+
+    public function testNamedPayloadWithoutAFactoryUsesOrdinaryCreation(): void
+    {
+        $data = ChildCreationData::from(payload: ['id' => '7']);
+
+        $this->assertSame(7, $data->id);
+    }
+
+    public function testNamedPayloadRetainsAutomaticLazyFactoryProvenance(): void
+    {
+        RecordingAutoLazy::reset();
+        AutoLazyNamedFactoryData::$source = null;
+
+        $data = AutoLazyNamedFactoryData::from(title: 'named');
+
+        $this->assertSame(AutoLazyNamedFactoryData::$source, RecordingAutoLazy::$payloads['title']);
+        $this->assertSame('named', $data->title->resolve());
+    }
+
+    public function testNamedPayloadRetainsAutomaticLazySourceWithoutAFactory(): void
+    {
+        RecordingAutoLazy::reset();
+        $payload = ['title' => 'named'];
+
+        $data = AutoLazyNamedPayloadData::from(payload: $payload);
+
+        $this->assertSame($payload, RecordingAutoLazy::$payloads['title']);
+        $this->assertSame('named', $data->title->resolve());
     }
 
     public function testNamedFactoryDependenciesUseContainerCallWithoutMethodBindingInterception(): void
@@ -842,6 +894,57 @@ class DataCreatorTest extends TestCase
         $this->expectExceptionMessageIsOrContains('ambiguous data-object union');
 
         AmbiguousCreationData::from(['child' => ['id' => 1]]);
+    }
+
+    public function testRejectsAmbiguousDataCollectableUnionsWithoutAnExplicitCast(): void
+    {
+        $this->expectException(CannotCreateData::class);
+        $this->expectExceptionMessageIsOrContains('ambiguous data-collectable union');
+
+        AmbiguousDataCollectableCreationData::from([
+            'children' => [['id' => 1]],
+        ]);
+    }
+
+    public function testAcceptsFinishedContainersThroughAnyDataCollectableUnionArm(): void
+    {
+        $native = new Collection([new ChildCreationData(1)]);
+        $package = new DataCollection(
+            AlternateChildCreationData::class,
+            [new AlternateChildCreationData(2)],
+        );
+
+        $nativeData = AmbiguousDataCollectableCreationData::from(['children' => $native]);
+        $packageData = AmbiguousDataCollectableCreationData::from(['children' => $package]);
+
+        $this->assertSame($native, $nativeData->children);
+        $this->assertSame($package, $packageData->children);
+    }
+
+    public function testRejectsFinishedLookingUnionContainerWithTheWrongItems(): void
+    {
+        $this->expectException(CannotCreateData::class);
+        $this->expectExceptionMessageIsOrContains('ambiguous data-collectable union');
+
+        AmbiguousDataCollectableCreationData::from([
+            'children' => new Collection([new AlternateChildCreationData(1)]),
+        ]);
+    }
+
+    public function testExplicitCastOwnsAnAmbiguousDataCollectableUnion(): void
+    {
+        $data = CastedAmbiguousDataCollectableCreationData::from(['children' => '7']);
+
+        $this->assertInstanceOf(Collection::class, $data->children);
+        $this->assertInstanceOf(ChildCreationData::class, $data->children->first());
+        $this->assertSame(7, $data->children->first()->id);
+    }
+
+    public function testUnrelatedUnionArmPassesThroughAmbiguousDataCollectableTypes(): void
+    {
+        $data = AmbiguousDataCollectableCreationData::from(['children' => 'unchanged']);
+
+        $this->assertSame('unchanged', $data->children);
     }
 
     public function testClassNormalizersCustomCastsAndCreationHooksShareOneOperation(): void
@@ -1225,6 +1328,15 @@ class AutoLazyNamedFactoryData extends Data
     }
 }
 
+class AutoLazyNamedPayloadData extends Data
+{
+    public function __construct(
+        #[RecordingAutoLazy]
+        public Lazy|string $title,
+    ) {
+    }
+}
+
 class AutoLazyNamedFactorySource
 {
     public function __construct(
@@ -1487,6 +1599,30 @@ class ScalarIterableCreationData extends Data
     }
 }
 
+class IntegerRangeCreationData extends Data
+{
+    /**
+     * Create an integer-range fixture.
+     *
+     * @param int<0, max> $value
+     */
+    public function __construct(public int $value)
+    {
+    }
+}
+
+class NonEmptyArrayCreationData extends Data
+{
+    /**
+     * Create a non-empty array fixture.
+     *
+     * @param non-empty-array<int, ChildCreationData> $children
+     */
+    public function __construct(public array $children)
+    {
+    }
+}
+
 enum CreationStatus: string
 {
     case Active = 'active';
@@ -1670,6 +1806,45 @@ class AmbiguousCreationData extends Data
     public function __construct(
         public ChildCreationData|AlternateChildCreationData $child,
     ) {
+    }
+}
+
+class AmbiguousDataCollectableCreationData extends Data
+{
+    /**
+     * Create an ambiguous data-collectable fixture.
+     *
+     * @param Collection<int, ChildCreationData>|DataCollection<int, AlternateChildCreationData>|string $children
+     */
+    public function __construct(
+        public Collection|DataCollection|string $children,
+    ) {
+    }
+}
+
+class CastedAmbiguousDataCollectableCreationData extends Data
+{
+    /**
+     * Create a cast-owned ambiguous data-collectable fixture.
+     *
+     * @param Collection<int, ChildCreationData>|DataCollection<int, AlternateChildCreationData> $children
+     */
+    public function __construct(
+        #[WithCast(AmbiguousDataCollectableCreationCast::class)]
+        public Collection|DataCollection $children,
+    ) {
+    }
+}
+
+class AmbiguousDataCollectableCreationCast implements Cast
+{
+    public function cast(
+        DataProperty $property,
+        mixed $value,
+        ConstructionState $state,
+        CreationContext $context,
+    ): Collection {
+        return new Collection([new ChildCreationData((int) $value)]);
     }
 }
 

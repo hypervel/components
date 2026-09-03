@@ -582,11 +582,12 @@ class DataCreator
         CreationContext $context,
         array $payloads,
     ): BaseData|array {
-        if ($context->mode === CreationMode::Create
-            && count($payloads) === 1
-            && $payloads[0] instanceof $class
-        ) {
-            return $payloads[0];
+        if ($context->mode === CreationMode::Create && count($payloads) === 1) {
+            $key = array_key_first($payloads);
+
+            if ($payloads[$key] instanceof $class) {
+                return $payloads[$key];
+            }
         }
 
         $shouldValidate = $context->mode !== CreationMode::Rules
@@ -653,8 +654,10 @@ class DataCreator
     /**
      * Normalize and fill one data node into the root construction state.
      *
+     * Factory matching consumes caller keys. Every later source-indexed operation receives a list.
+     *
      * @param class-string<BaseData> $class
-     * @param array<array-key, mixed> $payloads
+     * @param array<array-key, mixed> $payloads caller keys remain meaningful until named factory matching
      * @param OperationMemo $extensions
      */
     protected function fillNode(
@@ -676,6 +679,10 @@ class DataCreator
             }
 
             $payloads = [$result];
+        }
+
+        if (! array_is_list($payloads)) {
+            $payloads = array_values($payloads);
         }
 
         $direct = $this->tryCreateDirectArrayNode(
@@ -1768,9 +1775,10 @@ class DataCreator
             return $value;
         }
 
+        $dataCollectableTypes = $property->type->getDataCollectableTypes();
         $dataIterable = $property->type->getDataCollectableType();
         $shouldCast = ! is_object($value)
-            || $dataIterable !== null
+            || $dataCollectableTypes !== []
             || ! $property->type->acceptsValue($value);
         $casts = $shouldCast
             ? $this->propertyCasts($property, $state->context, $extensions)
@@ -1792,6 +1800,22 @@ class DataCreator
 
         if ($iterable !== null) {
             return $this->castTypedIterable($property, $iterable, $value, $state, $extensions, $casts);
+        }
+
+        if (count($dataCollectableTypes) > 1) {
+            foreach ($property->type->getNamedTypes() as $type) {
+                if (! $type->kind->isDataRelated() && $type->acceptsValue($value)) {
+                    return $value;
+                }
+            }
+
+            $candidates = [];
+
+            foreach ($dataCollectableTypes as $type) {
+                $candidates[] = "{$type->name}<{$type->dataClass}>";
+            }
+
+            throw CannotCreateData::ambiguousDataCollectableUnion($property, $candidates);
         }
 
         // The exact-array exit relies on accepted values passing before the fallback conversions below.

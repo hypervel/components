@@ -176,7 +176,13 @@ class DataTypeFactory
 
             if ($collectionOf !== null && ($kind->isNonDataIterable() || $kind->isDataCollectable())) {
                 $itemType = $this->buildNamedType($collectionOf, false);
-            } elseif ($annotation = $this->matchingAnnotation($name, $targetClass, $iterableAnnotations)) {
+            } elseif (($kind->isNonDataIterable() || $kind->isDataCollectable())
+                && $annotation = $this->matchingAnnotation(
+                    $name,
+                    $kind,
+                    $targetClass,
+                    $iterableAnnotations,
+                )) {
                 $annotationClass = ClassMetadataCache::reflectClass($annotation->declaringClass);
                 $itemType = $this->buildPhpDocType(
                     $annotation->itemType,
@@ -280,7 +286,7 @@ class DataTypeFactory
         }
 
         if ($type instanceof GenericTypeNode) {
-            $name = $type->type->name;
+            $name = $this->normalizePhpDocType($type->type->name);
             $genericTypes = $type->genericTypes;
 
             if ($name === 'list' || $name === 'non-empty-list') {
@@ -292,10 +298,16 @@ class DataTypeFactory
             }
 
             $resolved = $this->resolvePhpDocName(
-                $this->normalizePhpDocType($name),
+                $name,
                 $targetClass,
                 $declaringClass,
             );
+            $kind = $this->kindFor($resolved);
+
+            if (! $kind->isNonDataIterable() && ! $kind->isDataCollectable()) {
+                return $this->buildNamedType($resolved, $this->isBuiltIn($resolved));
+            }
+
             $itemType = null;
 
             if (isset($genericTypes[1])) {
@@ -355,6 +367,7 @@ class DataTypeFactory
      */
     protected function matchingAnnotation(
         string $nativeType,
+        DataTypeKind $nativeKind,
         ReflectionClass $targetClass,
         array $annotations,
     ): ?DataIterableAnnotation {
@@ -373,7 +386,7 @@ class DataTypeFactory
 
             if ($fallback === null
                 && (
-                    ($container === 'iterable' && $this->kindFor($nativeType)->isNonDataIterable())
+                    ($container === 'iterable' && $nativeKind->isNonDataIterable())
                     || (! $this->isBuiltIn($container) && is_a($nativeType, $container, true))
                 )
             ) {
@@ -524,6 +537,7 @@ class DataTypeFactory
     protected function normalizePhpDocType(string $type): string
     {
         return match (strtolower($type)) {
+            'non-empty-array' => 'array',
             'boolean' => 'bool',
             'double', 'real' => 'float',
             'integer', 'negative-int', 'non-negative-int', 'non-positive-int', 'positive-int' => 'int',
