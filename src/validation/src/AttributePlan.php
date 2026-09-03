@@ -20,6 +20,8 @@ final class AttributePlan
 
     public bool $sometimes = false;
 
+    public int $databasePresenceCheckCount = 0;
+
     /** @var list<DelegatedCheck|InlineCheck> */
     public array $checks = [];
 }

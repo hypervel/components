@@ -24,6 +24,8 @@
 - [Other API Differences](#other-api-differences)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
     - [Scout](#scout)
+    - [JSON Schema](#json-schema)
+    - [Data Objects](#data-objects)
     - [Rate Limiting](#rate-limiting)
     - [Pagination](#pagination)
     - [Dates](#dates)
@@ -417,6 +419,10 @@ Container lifecycles are adapted for Swoole:
 > [!WARNING]
 > Unbound concrete classes are automatically cached for the worker lifetime after their first resolution. If an unbound class captures the current user, tenant, request, or other mutable per-request data in its constructor, ordinary tests may pass while concurrent requests receive another request's state. Register the class with `bind()` for a fresh instance, use `scoped()` for one instance per request or job coroutine, call `makeTransient()` for one normal resolution without implicit auto-singletoning or constructor-derived execution scope, construct a guaranteed fresh instance with `build()`, or implement `Transient` when every subclass must always be fresh. Hypervel's intrinsically fresh model, value, builder, pending-request, pipeline, and response families already implement `Transient`; see [Transient Classes](/docs/{{version}}/container#transient-classes) for the current list and binding behavior.
 
+Hypervel treats a contextual attribute's resolved value as authoritative, including `null`. Laravel constructor injection may fall through from `null` to class or primitive resolution, a contextual binding, or a declared default. Move that fallback into the attribute resolver when porting code that relies on this behavior.
+
+On PHP 8.5 and later, `#[BindWhen]` conditions must depend only on boot-stable state. A matching condition becomes a normal worker-lifetime binding in Hypervel, while an unmatched condition may be evaluated again on a later resolution. Do not read the current request, user, or tenant from the condition.
+
 <a name="coroutine-aware-dependencies"></a>
 ### Coroutine-Aware Dependencies
 
@@ -493,6 +499,15 @@ Hypervel compiles integer and float values passed to Scout's Algolia `where`, `w
 ### JSON Schema
 
 When porting schemas that place sibling assertions beside a local `$ref` or use nullable composition, make overlapping assertions identical. Hypervel rejects conflicts instead of silently replacing referenced constraints. See the [JSON Schema documentation](/docs/{{version}}/json-schema#reconstructing-schemas).
+
+<a name="data-objects"></a>
+### Data Objects
+
+When porting `spatie/laravel-data`, replace its namespace with `Hypervel\Data` and review the [Data Objects documentation](/docs/{{version}}/data-objects). The familiar `Data`, `Dto`, `Resource`, `Optional`, mapping, casting, validation, lazy-value, collection, resource, and Eloquent APIs are all available.
+
+Replace Spatie's `From*` attributes with Hypervel contextual constructor attributes and its `withOptionalValues()` and `withoutOptionalValues()` factory switches with declared `Optional` unions. `SerializeTransformer` and `UnserializeCast` are not included; use native PHP serialization or explicit custom casts and transformers. Livewire and TypeScript integrations are also not included.
+
+Model attributes containing `null` remain explicit values, including for non-nullable properties with defaults. When several payloads are supplied to `from()`, the first payload containing a property's input key wins, including when its value is `null`.
 
 <a name="rate-limiting"></a>
 ### Rate Limiting
@@ -715,6 +730,7 @@ When reviewing a Laravel port, confirm the following:
 - Code that receives framework-created dates handles immutable Carbon instances correctly.
 - Service providers extend `Hypervel\Support\ServiceProvider`, keep bindings in `register`, and do not use `DeferrableProvider`.
 - Request-specific state is not stored on static properties, singleton services, service providers, managers, or unbound concrete services.
+- Contextual attribute null fallbacks and `BindWhen` conditions have been adapted to Hypervel's worker-lifetime container behavior.
 - Per-request values use context, coroutine context, scoped bindings, or fresh objects, while static caches contain only worker-safe immutable data.
 - Runtime configuration mutation has been removed or replaced with request-scoped state.
 - Third-party I/O and PHP extensions are coroutine-aware or deliberately isolated in a separate process.

@@ -9,13 +9,23 @@ use Hypervel\Tests\Validation\Fixtures\Values;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rule;
+use Hypervel\Validation\Rules\In;
 use Hypervel\Validation\Rules\NotIn;
 use Hypervel\Validation\Validator;
+use ReflectionMethod;
 
 include_once 'Enums.php';
 
 class ValidationNotInRuleTest extends TestCase
 {
+    public function testConstructorUsesTheSameInputTypeAsTheInRule(): void
+    {
+        $inType = (new ReflectionMethod(In::class, '__construct'))->getParameters()[0]->getType();
+        $notInType = (new ReflectionMethod(NotIn::class, '__construct'))->getParameters()[0]->getType();
+
+        $this->assertSame((string) $inType, (string) $notInType);
+    }
+
     public function testItCorrectlyFormatsAStringVersionOfTheRule()
     {
         $rule = new NotIn(['Laravel', 'Framework', 'PHP']);

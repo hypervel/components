@@ -958,9 +958,9 @@ A request or connector may convert responses into any value using `createDtoFrom
 ```php
 use Hypervel\Saloon\Http\Response;
 use Hypervel\Saloon\Http\Request;
-use Hypervel\Support\DataObject;
+use Hypervel\Data\Data;
 
-class GitHubUserData extends DataObject
+class GitHubUserData extends Data
 {
     public function __construct(
         public readonly int $id,
@@ -976,10 +976,7 @@ class GetUser extends Request
 
     public function createDtoFromResponse(Response $response): GitHubUserData
     {
-        return new GitHubUserData(
-            id: (int) $response->json('id'),
-            login: (string) $response->json('login'),
-        );
+        return GitHubUserData::from($response->json());
     }
 }
 ```
@@ -997,9 +994,9 @@ Saloon's `HasResponse` trait implements this contract for you:
 ```php
 use Hypervel\Saloon\Contracts\DataObjects\WithResponse;
 use Hypervel\Saloon\Traits\Responses\HasResponse;
-use Hypervel\Support\DataObject;
+use Hypervel\Data\Data;
 
-class GitHubUserData extends DataObject implements WithResponse
+class GitHubUserData extends Data implements WithResponse
 {
     use HasResponse;
 

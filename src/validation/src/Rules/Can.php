@@ -17,17 +17,12 @@ class Can implements Rule, ValidatorAwareRule
     protected ?Validator $validator = null;
 
     /**
-     * Constructor.
-     *
-     * @param string $ability the ability to check
-     * @param array $arguments the arguments to pass to the authorization check
+     * Create a new can validation rule.
      */
     public function __construct(
         protected string $ability,
-        protected array $arguments = []
+        protected array $arguments = [],
     ) {
-        $this->ability = $ability;
-        $this->arguments = $arguments;
     }
 
     /**

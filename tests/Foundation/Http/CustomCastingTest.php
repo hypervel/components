@@ -6,8 +6,6 @@ namespace Hypervel\Tests\Foundation\Http;
 
 use ArrayObject;
 use Carbon\CarbonInterface;
-use Hypervel\Foundation\Http\Casts\AsDataObjectArray;
-use Hypervel\Foundation\Http\Casts\AsDataObjectCollection;
 use Hypervel\Foundation\Http\Casts\AsEnumArrayObject;
 use Hypervel\Foundation\Http\Casts\AsEnumCollection;
 use Hypervel\Foundation\Http\Contracts\CastInputs;
@@ -16,7 +14,6 @@ use Hypervel\Routing\Redirector;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
-use Hypervel\Support\DataObject;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Json;
 use Hypervel\Testbench\TestCase;
@@ -374,71 +371,6 @@ class CustomCastingTest extends TestCase
             date_default_timezone_set($originalTimezone);
         }
     }
-
-    /**
-     * Test DataObject casting with DataObject.
-     */
-    public function testDataObjectCasting()
-    {
-        $request = DataObjectCastingRequest::create('/', 'POST', [
-            'contact' => ['name' => 'Jane', 'email' => 'jane@example.com'],
-        ]);
-        $request->setContainer($this->app);
-        $request->validateResolved();
-
-        $contact = $request->casted('contact');
-        $this->assertInstanceOf(Contact::class, $contact);
-        $this->assertSame('Jane', $contact->name);
-        $this->assertSame('jane@example.com', $contact->email);
-    }
-
-    /**
-     * Test AsDataObjectArray casting with DataObject.
-     */
-    public function testAsArrayObjectCasting()
-    {
-        $request = DataObjectArrayCastingRequest::create('/', 'POST', [
-            'contacts' => [
-                ['name' => 'John', 'email' => 'john@example.com'],
-                ['name' => 'Jane', 'email' => 'jane@example.com'],
-            ],
-        ]);
-        $request->setContainer($this->app);
-
-        $contacts = $request->casted('contacts', false);
-        $this->assertInstanceOf(ArrayObject::class, $contacts);
-        $this->assertCount(2, $contacts);
-        $this->assertInstanceOf(Contact::class, $contacts[0]);
-        $this->assertSame('John', $contacts[0]->name);
-        $this->assertSame('john@example.com', $contacts[0]->email);
-    }
-
-    /**
-     * Test AsCollection casting with DataObject.
-     */
-    public function testAsCollectionCasting()
-    {
-        $request = DataObjectCollectionCastingRequest::create('/', 'POST', [
-            'products' => [
-                ['sku' => 'ABC123', 'name' => 'Product A', 'price' => 100],
-                ['sku' => 'DEF456', 'name' => 'Product B', 'price' => 200],
-                ['sku' => 'GHI789', 'name' => 'Product C', 'price' => 150],
-            ],
-        ]);
-        $request->setContainer($this->app);
-
-        $products = $request->casted('products', false);
-        $this->assertInstanceOf(Collection::class, $products);
-        $this->assertCount(3, $products);
-        $this->assertInstanceOf(Product::class, $products->first());
-
-        // Test Collection methods
-        $expensiveProducts = $products->filter(fn ($p) => $p->price > 100);
-        $this->assertCount(2, $expensiveProducts);
-
-        $skus = $products->pluck('sku')->all();
-        $this->assertSame(['ABC123', 'DEF456', 'GHI789'], $skus);
-    }
 }
 
 // Test Request Classes
@@ -571,54 +503,6 @@ class DatetimeCastingRequest extends FormRequest
     }
 }
 
-class DataObjectCastingRequest extends FormRequest
-{
-    protected array $casts = [
-        'contact' => Contact::class,
-    ];
-
-    public function rules(): array
-    {
-        return [
-            'contact' => 'array',
-        ];
-    }
-}
-
-class DataObjectArrayCastingRequest extends FormRequest
-{
-    protected function casts(): array
-    {
-        return [
-            'contacts' => AsDataObjectArray::of(Contact::class),
-        ];
-    }
-
-    public function rules(): array
-    {
-        return [
-            'contacts' => 'array',
-        ];
-    }
-}
-
-class DataObjectCollectionCastingRequest extends FormRequest
-{
-    protected function casts(): array
-    {
-        return [
-            'products' => AsDataObjectCollection::of(Product::class),
-        ];
-    }
-
-    public function rules(): array
-    {
-        return [
-            'products' => 'array',
-        ];
-    }
-}
-
 // Test Enums and Classes
 
 enum UserStatus: string
@@ -647,24 +531,5 @@ class MoneyCast implements CastInputs
     public function get(string $key, mixed $value, array $inputs): Money
     {
         return Money::fromCents((int) $value);
-    }
-}
-
-class Contact extends DataObject
-{
-    public function __construct(
-        public readonly string $name,
-        public readonly string $email
-    ) {
-    }
-}
-
-class Product extends DataObject
-{
-    public function __construct(
-        public readonly string $sku,
-        public readonly string $name,
-        public readonly int $price
-    ) {
     }
 }

@@ -218,7 +218,8 @@ The `casts` method should return an array where the key is the name of the attri
 - `AsArrayObject::class`
 - `AsBinary::uuid()`
 - `AsCollection::class`
-- `AsDataObject::castUsing(...)`
+- `UserProfileData::class`
+- `DataCollection::class . ':' . MemberData::class`
 - `AsEncryptedArrayObject::class`
 - `AsEncryptedCollection::class`
 - `AsEnumArrayObject::of(...)`
@@ -331,11 +332,10 @@ class User extends Model
 <a name="data-object-casting"></a>
 #### Data Object Casting
 
-You may use the `Hypervel\Database\Eloquent\Casts\AsDataObject` cast class to cast a JSON column to a data object:
+Classes extending `Hypervel\Data\Data` or `Hypervel\Data\Resource` are directly castable. Use the class name to cast a JSON column:
 
 ```php
-use App\DataObjects\UserProfile;
-use Hypervel\Database\Eloquent\Casts\AsDataObject;
+use App\Data\UserProfileData;
 
 /**
  * Get the attributes that should be cast.
@@ -345,12 +345,30 @@ use Hypervel\Database\Eloquent\Casts\AsDataObject;
 protected function casts(): array
 {
     return [
-        'profile' => AsDataObject::castUsing(UserProfile::class),
+        'profile' => UserProfileData::class,
     ];
 }
 ```
 
-The target class should extend `Hypervel\Support\DataObject`.
+Use `DataCollection` with the item class as a cast argument for a JSON array of data objects:
+
+```php
+use App\Data\MemberData;
+use Hypervel\Data\DataCollection;
+
+protected function casts(): array
+{
+    return [
+        'members' => DataCollection::class . ':' . MemberData::class,
+    ];
+}
+```
+
+Both casts use Hypervel's configured Eloquent JSON codec and support the `encrypted` and `default` arguments. When storing an object, the casts use PHP property names and include hidden properties. Computed and appended values are omitted, while partial selections are ignored without being consumed. Conditional and relation lazy values must already be included when the model is saved, and saving never loads a relation. Closure and Inertia lazy values cannot be stored.
+
+`Dto` cannot be cast by Eloquent because it does not transform values. Paginated data collections also cannot be cast because their pagination details cannot be recreated from a JSON array. Store their items through a `DataCollection` instead.
+
+For the complete mapping, lazy-value, abstract morph, and encrypted-cast behavior, see the [Data Objects documentation](/docs/{{version}}/data-objects#eloquent-casting).
 
 <a name="array-and-json-casting"></a>
 ### Array and JSON Casting

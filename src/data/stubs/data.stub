@@ -1,0 +1,18 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Hypervel\Data\Data;
+
+class {{ class }} extends Data
+{
+    /**
+     * Create a new data object.
+     */
+    public function __construct(
+        //
+    ) {
+    }
+}
