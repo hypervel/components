@@ -56,19 +56,6 @@ enum DataTypeKind: string
     }
 
     /**
-     * Determine if this kind is not related to data objects.
-     */
-    public function isNonDataRelated(): bool
-    {
-        return $this === self::Default
-            || $this === self::Array
-            || $this === self::Iterable
-            || $this === self::Enumerable
-            || $this === self::Paginator
-            || $this === self::CursorPaginator;
-    }
-
-    /**
      * Determine if this kind describes a non-data iterable.
      */
     public function isNonDataIterable(): bool

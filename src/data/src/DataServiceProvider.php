@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Data;
 
-use Hypervel\Contracts\Config\Repository;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Data\Console\DataMakeCommand;
 use Hypervel\Data\Contracts\TransformableData;
 use Hypervel\Data\Support\DataConfig;
@@ -23,13 +21,6 @@ class DataServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(
             dirname(__DIR__) . '/config/data.php',
             'data',
-        );
-
-        $this->app->singleton(
-            DataConfig::class,
-            fn (Container $container): DataConfig => new DataConfig(
-                $container->make(Repository::class),
-            ),
         );
 
         // REMOVED: Livewire/Wireable integration has no Hypervel equivalent.

@@ -21,7 +21,6 @@ class DataServiceProviderTest extends TestCase
 
     public function testProviderBuildsOneBootStableConfiguration(): void
     {
-        $this->assertTrue($this->app->bound(DataConfig::class));
         $this->assertTrue($this->app->resolved(DataConfig::class));
 
         $dataConfig = $this->app->make(DataConfig::class);

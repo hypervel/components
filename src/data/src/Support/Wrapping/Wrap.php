@@ -38,26 +38,4 @@ readonly class Wrap
             WrapType::UseGlobal => $globalKey,
         };
     }
-
-    /**
-     * Get the serializable wrapping definition.
-     */
-    public function toSerializedArray(): array
-    {
-        return [
-            'type' => $this->type->value,
-            'key' => $this->key,
-        ];
-    }
-
-    /**
-     * Restore a serialized wrapping definition.
-     */
-    public static function fromSerializedArray(array $wrap): self
-    {
-        return new self(
-            type: WrapType::from($wrap['type']),
-            key: $wrap['key'] ?? null,
-        );
-    }
 }
