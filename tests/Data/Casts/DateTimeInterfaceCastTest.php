@@ -153,8 +153,8 @@ class DateTimeInterfaceCastTest extends TestCase
         [$state, $context] = $this->operation(['Y-m-d']);
 
         $this->expectException(CannotCastDate::class);
-        $this->expectExceptionMessage(DateTimeImmutable::class);
-        $this->expectExceptionMessage('Y-m-d');
+        $this->expectExceptionMessageIsOrContains(DateTimeImmutable::class);
+        $this->expectExceptionMessageMatches('/Y-m-d/');
 
         (new DateTimeInterfaceCast)->cast(
             $this->property('immutable'),
@@ -172,7 +172,7 @@ class DateTimeInterfaceCastTest extends TestCase
         [$state, $context] = $this->operation(['Y-m-d']);
 
         $this->expectException(CannotCastDate::class);
-        $this->expectExceptionMessage(AbstractDateTimeImmutable::class);
+        $this->expectExceptionMessageIsOrContains(AbstractDateTimeImmutable::class);
 
         (new DateTimeInterfaceCast)->cast(
             $this->property('abstract'),
