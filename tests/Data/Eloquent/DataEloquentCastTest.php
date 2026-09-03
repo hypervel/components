@@ -19,6 +19,8 @@ use Hypervel\Data\Eloquent\DataEloquentCast;
 use Hypervel\Data\Exceptions\CannotCastData;
 use Hypervel\Data\Lazy;
 use Hypervel\Data\Support\DataConfig;
+use Hypervel\Data\Support\Transformation\TransformationContext;
+use Hypervel\Data\Support\Transformation\TransformationContextFactory;
 use Hypervel\Database\Eloquent\Casts\Json;
 use Hypervel\Database\Eloquent\JsonEncodingException;
 use Hypervel\Database\Eloquent\Model;
@@ -122,6 +124,18 @@ class DataEloquentCastTest extends TestCase
         $this->assertSame($nestedPartials, $nested->getPartialsDefinition()->resolve($nested));
         $this->assertSame($collectionPartials, $items->getPartialsDefinition()->resolve($items));
         $this->assertSame($itemPartials, $item->getPartialsDefinition()->resolve($item));
+    }
+
+    public function testDataCastUsesTheInstanceTransformationBoundary(): void
+    {
+        StoredOverrideData::$context = null;
+        $model = new DataCastModel;
+        $model->override_data = new StoredOverrideData('Taylor');
+
+        $this->assertSame(['name' => 'Taylor'], Json::decode($model->getAttributes()['override_data']));
+        $this->assertInstanceOf(TransformationContext::class, StoredOverrideData::$context);
+        $this->assertTrue(StoredOverrideData::$context->constructable);
+        $this->assertFalse(StoredOverrideData::$context->mapPropertyNames);
     }
 
     public function testDataCastUsesTheConfiguredEloquentJsonCodec(): void
@@ -409,6 +423,7 @@ class DataCastModel extends Model
             'empty_default_data' => StoredEmptyData::class . ':default',
             'graph_data' => StoredGraphData::class,
             'pair_data' => StoredPairData::class,
+            'override_data' => StoredOverrideData::class,
             'abstract_data' => StoredAbstractData::class,
             'encrypted_data' => StoredSimpleData::class . ':encrypted',
             'encrypted_abstract_data' => StoredAbstractData::class . ':encrypted',
@@ -421,6 +436,28 @@ class StoredSimpleData extends Data
 {
     public function __construct(public string $name)
     {
+    }
+}
+
+class StoredOverrideData extends Data
+{
+    public static ?TransformationContext $context = null;
+
+    public function __construct(public string $name)
+    {
+    }
+
+    /**
+     * Capture the Eloquent persistence context.
+     */
+    public function transform(
+        TransformationContextFactory|TransformationContext|null $transformationContext = null,
+    ): array {
+        self::$context = $transformationContext instanceof TransformationContext
+            ? $transformationContext
+            : null;
+
+        return parent::transform($transformationContext);
     }
 }
 

@@ -8,7 +8,6 @@ use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
 use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\Contracts\TransformableData;
 use Hypervel\Data\Exceptions\CannotCastData;
-use Hypervel\Data\Support\Transformation\TransformationContextFactory;
 use Hypervel\Database\Eloquent\Casts\Json;
 use Hypervel\Database\Eloquent\JsonEncodingException;
 use Hypervel\Database\Eloquent\Model;
@@ -74,7 +73,7 @@ class DataEloquentCast extends AbstractDataEloquentCast implements CastsAttribut
             throw CannotCastData::shouldBeDataClass($model::class, $key, $this->dataClass);
         }
 
-        $payload = $value->transform(TransformationContextFactory::forPersistence());
+        $payload = $value->transform($this->dataTransformer->persistenceContext());
 
         if ($isAbstractClassCast) {
             $payload = $this->createMorphEnvelope($value, $payload);

@@ -9,7 +9,6 @@ use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\Contracts\TransformableData;
 use Hypervel\Data\DataCollection;
 use Hypervel\Data\Exceptions\CannotCastData;
-use Hypervel\Data\Support\Transformation\TransformationContextFactory;
 use Hypervel\Database\Eloquent\Casts\Json;
 use Hypervel\Database\Eloquent\JsonEncodingException;
 use Hypervel\Database\Eloquent\Model;
@@ -104,6 +103,7 @@ class DataCollectionEloquentCast extends AbstractDataEloquentCast implements Cas
 
         $payload = [];
         $isAbstractClassCast = $this->isAbstractClassCast();
+        $context = $this->dataTransformer->persistenceContext();
 
         foreach ($value as $itemKey => $item) {
             if (is_array($item) && ! $isAbstractClassCast) {
@@ -122,7 +122,7 @@ class DataCollectionEloquentCast extends AbstractDataEloquentCast implements Cas
                 throw CannotCastData::shouldBeDataClass($model::class, $key, $this->dataClass);
             }
 
-            $itemPayload = $item->transform(TransformationContextFactory::forPersistence());
+            $itemPayload = $item->transform($context);
             $payload[$itemKey] = $isAbstractClassCast
                 ? $this->createMorphEnvelope($item, $itemPayload)
                 : $itemPayload;

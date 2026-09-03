@@ -18,6 +18,8 @@ use Hypervel\Data\Eloquent\DataCollectionEloquentCast;
 use Hypervel\Data\Exceptions\CannotCastData;
 use Hypervel\Data\Lazy;
 use Hypervel\Data\Support\DataConfig;
+use Hypervel\Data\Support\Transformation\TransformationContext;
+use Hypervel\Data\Support\Transformation\TransformationContextFactory;
 use Hypervel\Database\Eloquent\Casts\Json;
 use Hypervel\Database\Eloquent\JsonEncodingException;
 use Hypervel\Database\Eloquent\Model;
@@ -152,6 +154,24 @@ class DataCollectionEloquentCastTest extends TestCase
         $this->assertSame($collectionPartials, $collection->getPartialsDefinition()->resolve($collection));
         $this->assertSame($firstPartials, $first->getPartialsDefinition()->resolve($first));
         $this->assertSame($secondPartials, $second->getPartialsDefinition()->resolve($second));
+    }
+
+    public function testCollectionCastUsesOneContextThroughEachItemTransformationBoundary(): void
+    {
+        CollectionOverrideData::$contexts = [];
+        $model = new CollectionCastModel;
+        $model->override_items = [
+            new CollectionOverrideData('Taylor'),
+            new CollectionOverrideData('Abigail'),
+        ];
+
+        $this->assertSame([
+            ['name' => 'Taylor'],
+            ['name' => 'Abigail'],
+        ], Json::decode($model->getAttributes()['override_items']));
+        $this->assertCount(2, CollectionOverrideData::$contexts);
+        $this->assertSame(CollectionOverrideData::$contexts[0], CollectionOverrideData::$contexts[1]);
+        $this->assertTrue(CollectionOverrideData::$contexts[0]->constructable);
     }
 
     public function testCollectionDefaultUsesItsLateBoundEmptyListRepresentation(): void
@@ -421,6 +441,7 @@ class CollectionCastModel extends Model
             'default_items' => DataCollection::class . ':' . CollectionItemData::class . ',default',
             'custom_items' => CustomDataCollection::class . ':' . CollectionItemData::class,
             'graph_items' => DataCollection::class . ':' . CollectionGraphItemData::class,
+            'override_items' => DataCollection::class . ':' . CollectionOverrideData::class,
             'abstract_items' => DataCollection::class . ':' . CollectionAbstractData::class,
             'encrypted_items' => DataCollection::class . ':' . CollectionItemData::class . ',encrypted',
             'encrypted_abstract_items' => DataCollection::class . ':' . CollectionAbstractData::class . ',encrypted',
@@ -433,6 +454,29 @@ class CollectionItemData extends Data
 {
     public function __construct(public string $name)
     {
+    }
+}
+
+class CollectionOverrideData extends Data
+{
+    /** @var list<TransformationContext> */
+    public static array $contexts = [];
+
+    public function __construct(public string $name)
+    {
+    }
+
+    /**
+     * Capture each Eloquent item persistence context.
+     */
+    public function transform(
+        TransformationContextFactory|TransformationContext|null $transformationContext = null,
+    ): array {
+        if ($transformationContext instanceof TransformationContext) {
+            self::$contexts[] = $transformationContext;
+        }
+
+        return parent::transform($transformationContext);
     }
 }
 

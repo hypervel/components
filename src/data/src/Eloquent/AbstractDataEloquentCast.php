@@ -10,6 +10,7 @@ use Hypervel\Data\Contracts\TransformableData;
 use Hypervel\Data\Exceptions\CannotCastData;
 use Hypervel\Data\Support\DataClassRepository;
 use Hypervel\Data\Support\DataConfig;
+use Hypervel\Data\Support\Transformation\DataTransformer;
 use Hypervel\Database\Eloquent\Casts\Json;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Facades\Crypt;
@@ -25,6 +26,8 @@ abstract class AbstractDataEloquentCast
 
     protected readonly DataClassRepository $dataClasses;
 
+    protected readonly DataTransformer $dataTransformer;
+
     /**
      * Create a shared data Eloquent cast.
      *
@@ -38,6 +41,7 @@ abstract class AbstractDataEloquentCast
         $container = Container::getInstance();
         $this->dataConfig = $container->make(DataConfig::class);
         $this->dataClasses = $container->make(DataClassRepository::class);
+        $this->dataTransformer = $container->make(DataTransformer::class);
 
         if (! $this->dataClasses->get($this->dataClass)->transformable) {
             throw CannotCastData::dataClassMustBeTransformable($this->dataClass);
