@@ -67,6 +67,7 @@ class DataClassFactory
         $attributes = DataAttributesCollectionFactory::buildFromReflectionClass($reflectionClass);
         $constructor = $reflectionClass->getConstructor();
         $constructorParameters = $this->resolveConstructorParameters($reflectionClass, $constructor);
+        $contextualParameters = $this->resolveContextualParameters($constructorParameters);
         $reflectionProperties = $this->resolveReflectionProperties($reflectionClass);
 
         $this->validateConstructorParameters($name, $constructorParameters, $reflectionProperties);
@@ -112,6 +113,7 @@ class DataClassFactory
             methods: $this->resolveMethods($reflectionClass),
             constructor: $constructor,
             constructorParameters: array_values($constructorParameters),
+            contextualParameters: $contextualParameters,
             isReadonly: $reflectionClass->isReadOnly(),
             isAbstract: $reflectionClass->isAbstract(),
             isFinal: $reflectionClass->isFinal(),
@@ -133,10 +135,16 @@ class DataClassFactory
             plainTransform: $this->isPlainTransform($properties),
             directArrayCreation: $this->supportsDirectArrayCreation(
                 $reflectionClass,
-                $constructorParameters,
+                $contextualParameters,
                 $properties,
                 $lifecycleMethods,
                 $propertyMorphable,
+            ),
+            directConstructorInstantiation: $this->supportsDirectConstructorInstantiation(
+                $reflectionClass,
+                $constructor,
+                $contextualParameters,
+                $properties,
             ),
             attributes: $attributes,
             dataIterablePropertyAnnotations: $iterableAnnotations,
@@ -165,6 +173,26 @@ class DataClassFactory
         }
 
         return $parameters;
+    }
+
+    /**
+     * Get constructor parameters resolved from contextual attributes.
+     *
+     * @param array<string, DataParameter> $parameters
+     * @return array<string, true>
+     */
+    protected function resolveContextualParameters(array $parameters): array
+    {
+        $contextualParameters = [];
+
+        // Keep both forms together; declaration validation prevents constructor-only names from colliding with data properties.
+        foreach ($parameters as $parameter) {
+            if ($parameter->contextualAttribute !== null) {
+                $contextualParameters[$parameter->name] = true;
+            }
+        }
+
+        return $contextualParameters;
     }
 
     /**
@@ -275,6 +303,11 @@ class DataClassFactory
 
             if ($property->computed && $property->isConstructorParameter) {
                 throw InvalidDataDeclaration::computedConstructorProperty($class, $property);
+            }
+
+            // Backed set-only hooks remain readable through their backing storage.
+            if ($reflectionProperty->isVirtual() && ! $property->hasGetHook) {
+                throw InvalidDataDeclaration::writeOnlyProperty($class, $property);
             }
 
             if ($property->isReadonly && ! $property->isConstructorParameter && ! $property->computed) {
@@ -447,13 +480,13 @@ class DataClassFactory
      * Determine if exact array values can bypass general construction.
      *
      * @param ReflectionClass<object> $reflectionClass
-     * @param array<string, DataParameter> $constructorParameters
+     * @param array<string, true> $contextualParameters
      * @param array<string, DataProperty> $properties
      * @param array<string, true> $lifecycleMethods
      */
     protected function supportsDirectArrayCreation(
         ReflectionClass $reflectionClass,
-        array $constructorParameters,
+        array $contextualParameters,
         array $properties,
         array $lifecycleMethods,
         bool $propertyMorphable,
@@ -465,10 +498,8 @@ class DataClassFactory
             return false;
         }
 
-        foreach ($constructorParameters as $parameter) {
-            if ($parameter->contextualAttribute !== null) {
-                return false;
-            }
+        if ($contextualParameters !== []) {
+            return false;
         }
 
         foreach ($properties as $property) {
@@ -478,6 +509,34 @@ class DataClassFactory
                 || $property->configuredCasts !== []
                 || $property->type->getDataCollectableTypes() !== []
                 || $property->type->getIterableTypes() !== []) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Determine if exact array values can be spread directly into the constructor.
+     *
+     * @param ReflectionClass<object> $reflectionClass
+     * @param array<string, true> $contextualParameters
+     * @param array<string, DataProperty> $properties
+     */
+    protected function supportsDirectConstructorInstantiation(
+        ReflectionClass $reflectionClass,
+        ?ReflectionMethod $constructor,
+        array $contextualParameters,
+        array $properties,
+    ): bool {
+        if ($reflectionClass->isAbstract()
+            || ($constructor !== null && (! $constructor->isPublic() || $constructor->isVariadic()))
+            || $contextualParameters !== []) {
+            return false;
+        }
+
+        foreach ($properties as $property) {
+            if (! $property->computed && ! $property->isConstructorParameter) {
                 return false;
             }
         }

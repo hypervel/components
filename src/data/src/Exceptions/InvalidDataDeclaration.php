@@ -73,6 +73,20 @@ class InvalidDataDeclaration extends LogicException
     }
 
     /**
+     * Create an exception for a write-only virtual property.
+     *
+     * @param class-string $class
+     */
+    public static function writeOnlyProperty(string $class, DataProperty $property): self
+    {
+        return new self(
+            "Data class [{$class}] declares write-only virtual property "
+            . "[{$property->className}::\${$property->name}], which can be neither supplied nor emitted. "
+            . 'Add a get hook or make the helper property non-public.'
+        );
+    }
+
+    /**
      * Create an exception for a contextual parameter conflicting with a data property.
      *
      * @param class-string $class

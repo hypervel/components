@@ -4,12 +4,40 @@ declare(strict_types=1);
 
 namespace Hypervel\Data\Support;
 
+use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\Lazy;
 use Hypervel\Data\Support\Types\NamedType;
 use Hypervel\Data\Support\Types\Type;
 
 class DataPropertyType extends DataType
 {
+    /**
+     * The declared data object types.
+     *
+     * @var list<NamedType>
+     */
+    protected readonly array $dataObjectTypes;
+
+    protected readonly ?NamedType $dataObjectType;
+
+    /**
+     * The declared data collection types.
+     *
+     * @var list<NamedType>
+     */
+    protected readonly array $dataCollectableTypes;
+
+    protected readonly ?NamedType $dataCollectableType;
+
+    /**
+     * The declared iterable types with item metadata.
+     *
+     * @var list<NamedType>
+     */
+    protected readonly array $iterableTypes;
+
+    protected readonly ?NamedType $nonDataIterableType;
+
     /**
      * Create a new data property type.
      *
@@ -23,6 +51,36 @@ class DataPropertyType extends DataType
         public readonly ?string $lazyType,
     ) {
         parent::__construct($type, $isNullable, $isMixed);
+
+        $dataObjectTypes = [];
+        $dataCollectableTypes = [];
+        $iterableTypes = [];
+        $nonDataIterableTypes = [];
+
+        foreach ($this->getNamedTypes() as $namedType) {
+            if ($namedType->kind->isDataObject()) {
+                $dataObjectTypes[] = $namedType;
+            }
+
+            if ($namedType->kind->isDataCollectable()) {
+                $dataCollectableTypes[] = $namedType;
+            }
+
+            if ($namedType->iterableItemType !== null) {
+                $iterableTypes[] = $namedType;
+
+                if (! $namedType->kind->isDataCollectable()) {
+                    $nonDataIterableTypes[] = $namedType;
+                }
+            }
+        }
+
+        $this->dataObjectTypes = $dataObjectTypes;
+        $this->dataObjectType = count($dataObjectTypes) === 1 ? $dataObjectTypes[0] : null;
+        $this->dataCollectableTypes = $dataCollectableTypes;
+        $this->dataCollectableType = count($dataCollectableTypes) === 1 ? $dataCollectableTypes[0] : null;
+        $this->iterableTypes = $iterableTypes;
+        $this->nonDataIterableType = count($nonDataIterableTypes) === 1 ? $nonDataIterableTypes[0] : null;
     }
 
     /**
@@ -32,10 +90,7 @@ class DataPropertyType extends DataType
      */
     public function getDataObjectTypes(): array
     {
-        return array_values(array_filter(
-            $this->getNamedTypes(),
-            fn (NamedType $type): bool => $type->kind->isDataObject(),
-        ));
+        return $this->dataObjectTypes;
     }
 
     /**
@@ -43,9 +98,17 @@ class DataPropertyType extends DataType
      */
     public function getDataObjectType(): ?NamedType
     {
-        $types = $this->getDataObjectTypes();
+        return $this->dataObjectType;
+    }
 
-        return count($types) === 1 ? $types[0] : null;
+    /**
+     * Get the one unambiguous declared data object class.
+     *
+     * @return null|class-string<BaseData>
+     */
+    public function getDataObjectClass(): ?string
+    {
+        return $this->dataObjectType?->dataClass;
     }
 
     /**
@@ -55,10 +118,7 @@ class DataPropertyType extends DataType
      */
     public function getDataCollectableTypes(): array
     {
-        return array_values(array_filter(
-            $this->getNamedTypes(),
-            fn (NamedType $type): bool => $type->kind->isDataCollectable(),
-        ));
+        return $this->dataCollectableTypes;
     }
 
     /**
@@ -66,9 +126,7 @@ class DataPropertyType extends DataType
      */
     public function getDataCollectableType(): ?NamedType
     {
-        $types = $this->getDataCollectableTypes();
-
-        return count($types) === 1 ? $types[0] : null;
+        return $this->dataCollectableType;
     }
 
     /**
@@ -78,9 +136,14 @@ class DataPropertyType extends DataType
      */
     public function getIterableTypes(): array
     {
-        return array_values(array_filter(
-            $this->getNamedTypes(),
-            fn (NamedType $type): bool => $type->iterableItemType !== null,
-        ));
+        return $this->iterableTypes;
+    }
+
+    /**
+     * Get the one unambiguous non-data iterable with item metadata.
+     */
+    public function getNonDataIterableType(): ?NamedType
+    {
+        return $this->nonDataIterableType;
     }
 }

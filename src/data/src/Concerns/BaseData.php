@@ -14,7 +14,6 @@ use Hypervel\Data\DataCollection;
 use Hypervel\Data\PaginatedDataCollection;
 use Hypervel\Data\Support\Creation\CreationContextFactory;
 use Hypervel\Data\Support\Creation\DataCreator;
-use Hypervel\Data\Support\DataConfig;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
@@ -143,14 +142,10 @@ trait BaseData
      */
     public static function factory(): CreationContextFactory
     {
-        $container = Container::getInstance();
-
         /** @var CreationContextFactory<static> $factory */
-        $factory = new CreationContextFactory(
-            $container->make(DataCreator::class),
-            $container->make(DataConfig::class),
-            static::class,
-        );
+        $factory = Container::getInstance()
+            ->make(DataCreator::class)
+            ->factory(static::class);
 
         return $factory;
     }

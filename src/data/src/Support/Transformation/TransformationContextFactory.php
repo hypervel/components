@@ -50,7 +50,8 @@ class TransformationContextFactory implements Transient
      */
     public static function create(): static
     {
-        return Container::getInstance()->make(static::class);
+        // Mutable factories stay fresh; subclasses customize this path through late static binding, not container bindings.
+        return new static(Container::getInstance()->make(DataConfig::class));
     }
 
     /**
@@ -65,31 +66,53 @@ class TransformationContextFactory implements Transient
     }
 
     /**
+     * Create the immutable constructable persistence context.
+     */
+    public static function persistenceContext(?int $maxDepth): TransformationContext
+    {
+        return new TransformationContext(
+            transformValues: true,
+            mapPropertyNames: false,
+            constructable: true,
+            include: PartialTree::compile(['*']),
+            wrapExecutionType: WrapExecutionType::Disabled,
+            maxDepth: $maxDepth,
+        );
+    }
+
+    /**
      * Build the context for one root transformation.
      */
     public function get(object $data): TransformationContext
     {
         if ($this->constructable) {
+            return static::persistenceContext($this->configuredMaxDepth);
+        }
+
+        $dataPartials = $data instanceof IncludeableData
+            ? $data->getPartialsDefinition()
+            : null;
+
+        if ($this->partialDefinitions->isEmpty() && ($dataPartials?->isEmpty() ?? true)) {
             return new TransformationContext(
-                transformValues: true,
-                mapPropertyNames: false,
-                constructable: true,
-                include: PartialTree::compile(['*']),
-                wrapExecutionType: WrapExecutionType::Disabled,
-                maxDepth: $this->configuredMaxDepth,
+                transformValues: $this->transformValues,
+                mapPropertyNames: $this->mapPropertyNames,
+                transformers: $this->transformers,
+                wrapExecutionType: $this->wrapExecutionType,
+                maxDepth: $this->maxDepth,
             );
         }
 
         $partials = $this->partialDefinitions->resolve($data);
 
-        if ($data instanceof IncludeableData) {
-            $dataPartials = $data->getPartialsDefinition()->resolve(
+        if ($dataPartials !== null) {
+            $resolvedDataPartials = $dataPartials->resolve(
                 $data,
                 consumeTemporary: true,
             );
 
             foreach ($partials as $type => $paths) {
-                array_push($partials[$type], ...$dataPartials[$type]);
+                array_push($partials[$type], ...$resolvedDataPartials[$type]);
             }
         }
 

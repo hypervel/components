@@ -88,6 +88,8 @@ class DataTypeFactoryTest extends TestCase
         $imported = $this->property('imported');
         $attributed = $this->property('attributed');
         $unionItems = $this->property('unionItems');
+        $strings = $this->property('strings');
+        $ambiguousIterables = $this->property('ambiguousIterables');
 
         $this->assertSame(DataTypeKind::DataArray, $imported->getNamedTypes()[0]->kind);
         $this->assertSame(GroupedImportedData::class, $imported->getNamedTypes()[0]->dataClass);
@@ -99,6 +101,9 @@ class DataTypeFactoryTest extends TestCase
         $this->assertTrue($itemType->acceptsValue('value'));
         $this->assertTrue($itemType->acceptsValue(m::mock(DataTypeFactoryItemData::class)));
         $this->assertSame(DataTypeFactoryItemData::class, $unionItems->getNamedTypes()[0]->dataClass);
+        $this->assertSame($strings->getIterableTypes()[0], $strings->getNonDataIterableType());
+        $this->assertCount(2, $ambiguousIterables->getIterableTypes());
+        $this->assertNull($ambiguousIterables->getNonDataIterableType());
     }
 
     /**
@@ -133,6 +138,7 @@ class DataTypeFactoryTest extends TestCase
 
         $this->assertSame(DataTypeKind::DataObject, $data->getNamedTypes()[0]->kind);
         $this->assertSame($data->getNamedTypes()[0], $data->getDataObjectType());
+        $this->assertSame(DataTypeFactoryItemData::class, $data->getDataObjectClass());
         $this->assertNull($data->getDataCollectableType());
         $this->assertTrue($data->acceptsValue(m::mock(DataTypeFactoryItemData::class)));
         $this->assertSame(
@@ -140,6 +146,7 @@ class DataTypeFactoryTest extends TestCase
             $dataCollection->getDataCollectableType(),
         );
         $this->assertNull($dataCollection->getDataObjectType());
+        $this->assertNull($dataCollection->getDataObjectClass());
         $this->assertTrue($float->acceptsValue(10));
         $this->assertTrue($float->acceptsValue(10.5));
     }
@@ -309,6 +316,12 @@ class DataTypeFactoryFixture
 
     /** @var array<DataTypeFactoryItemData|string> */
     public array $unionItems;
+
+    /** @var array<string> */
+    public array $strings;
+
+    /** @var array<string>|Collection<int, string> */
+    public array|Collection $ambiguousIterables;
 
     public DataTypeFactoryItemData $data;
 

@@ -16,10 +16,14 @@ final readonly class DataClass
     /**
      * Create a new data class definition.
      *
+     * Contextual parameter names include promoted and constructor-only forms.
+     * Declaration validation prevents constructor-only names from colliding with data properties.
+     *
      * @param class-string<BaseData> $name
      * @param array<string, DataProperty> $properties
      * @param array<string, DataMethod> $methods
      * @param list<DataParameter> $constructorParameters
+     * @param array<string, true> $contextualParameters
      * @param array<string, true> $lifecycleMethods
      * @param array<string, non-empty-list<DataIterableAnnotation>> $dataIterablePropertyAnnotations
      * @param array<array-key, string> $outputMappedProperties
@@ -30,6 +34,7 @@ final readonly class DataClass
         public readonly array $methods,
         public readonly ?ReflectionMethod $constructor,
         public readonly array $constructorParameters,
+        public readonly array $contextualParameters,
         public readonly bool $isReadonly,
         public readonly bool $isAbstract,
         public readonly bool $isFinal,
@@ -50,6 +55,7 @@ final readonly class DataClass
         public readonly ?string $redirectRoute,
         public readonly bool $plainTransform,
         public readonly bool $directArrayCreation,
+        public readonly bool $directConstructorInstantiation,
         public readonly DataAttributesCollection $attributes,
         public readonly array $dataIterablePropertyAnnotations,
         public readonly array $outputMappedProperties,

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Data\Support\Transformation\DataTransformerTest;
 
+use AllowDynamicProperties;
 use ArrayIterator;
 use BackedEnum;
 use Closure;
@@ -26,6 +27,7 @@ use Hypervel\Data\Lazy;
 use Hypervel\Data\Normalizers\Normalized\Normalized;
 use Hypervel\Data\Normalizers\Normalizer;
 use Hypervel\Data\Support\DataProperty;
+use Hypervel\Data\Support\Transformation\DataTransformer;
 use Hypervel\Data\Support\Transformation\TransformationContext;
 use Hypervel\Data\Support\Transformation\TransformationContextFactory;
 use Hypervel\Data\Transformers\Transformer;
@@ -33,6 +35,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Inertia\DeferProp;
 use Hypervel\Inertia\OptionalProp;
 use Hypervel\Testbench\TestCase;
+use RuntimeException;
 use Traversable;
 
 class DataTransformerTest extends TestCase
@@ -72,6 +75,130 @@ class DataTransformerTest extends TestCase
             'status' => Status::Ready,
             'nested' => $nested,
         ], $data->all());
+    }
+
+    /**
+     * Test plain transformation follows metadata order and declared properties.
+     */
+    public function testPlainTransformPreservesMetadataOrderAndFiltersRuntimeKeys(): void
+    {
+        $data = new PlainOrderData;
+        $data->runtime = 'ignored';
+
+        $this->assertSame([
+            'child' => 'child',
+            'redeclared' => 'child-redeclared',
+            'parent' => 'parent',
+        ], $data->toArray());
+    }
+
+    /**
+     * Test plain transformation reads public property hooks exactly once.
+     */
+    public function testPlainTransformReadsBackedAndVirtualHooksOnce(): void
+    {
+        PlainHookData::$backedReads = 0;
+        PlainHookData::$virtualReads = 0;
+
+        $this->assertSame([
+            'backed' => 'BACKED',
+            'virtual' => 'virtual',
+        ], (new PlainHookData)->toArray());
+        $this->assertSame(1, PlainHookData::$backedReads);
+        $this->assertSame(1, PlainHookData::$virtualReads);
+    }
+
+    /**
+     * Test general transformation reads hooks only after property selection.
+     */
+    public function testGeneralTransformReadsHooksOnlyAfterSelection(): void
+    {
+        GeneralHookData::$visibleReads = 0;
+        $data = (new GeneralHookData)
+            ->only('value', 'hidden', 'excepted')
+            ->except('excepted');
+
+        $this->assertSame(['mapped_value' => 'VALUE'], $data->toArray());
+        $this->assertSame(1, GeneralHookData::$visibleReads);
+        $this->assertSame(
+            ['value' => 'VALUE'],
+            $data->transform(TransformationContextFactory::forPersistence()),
+        );
+        $this->assertSame(2, GeneralHookData::$visibleReads);
+    }
+
+    /**
+     * Test backed set-only hooks normalize supplied values without a getter.
+     */
+    public function testBackedSetOnlyHooksRemainConstructableAndTransformable(): void
+    {
+        $data = BackedSetOnlyData::from(['name' => 'taylor']);
+
+        $this->assertSame('TAYLOR', $data->name);
+        $this->assertSame(['name' => 'TAYLOR'], $data->toArray());
+    }
+
+    /**
+     * Test stored root contexts match fresh factory contexts.
+     */
+    public function testStoredRootContextsMatchFreshFactoryContexts(): void
+    {
+        $data = new SimpleData('value');
+        $transformer = $this->app->make(DataTransformer::class);
+        $storedDefault = $transformer->defaultContext($data);
+        $storedAll = $transformer->allContext($data);
+
+        $this->assertSame($storedDefault, $transformer->defaultContext($data));
+        $this->assertSame($storedAll, $transformer->allContext($data));
+        $this->assertSame($transformer->persistenceContext(), $transformer->persistenceContext());
+        $this->assertEquals(
+            TransformationContextFactory::create()->get($data),
+            $storedDefault,
+        );
+        $this->assertEquals(
+            TransformationContextFactory::create()->withoutValueTransformation()->get($data),
+            $storedAll,
+        );
+        $this->assertEquals(
+            TransformationContextFactory::forPersistence()->get($data),
+            $transformer->persistenceContext(),
+        );
+
+        $defaultPartials = (new SimpleData('value'))
+            ->include('value')
+            ->excludePermanently('value');
+        $firstDefault = $transformer->defaultContext($defaultPartials);
+        $secondDefault = $transformer->defaultContext($defaultPartials);
+
+        $this->assertNotSame($storedDefault, $firstDefault);
+        $this->assertTrue($firstDefault->include?->selects('value'));
+        $this->assertTrue($firstDefault->exclude?->selects('value'));
+        $this->assertNull($secondDefault->include);
+        $this->assertTrue($secondDefault->exclude?->selects('value'));
+
+        $allPartials = (new SimpleData('value'))
+            ->only('value')
+            ->exceptPermanently('value');
+        $firstAll = $transformer->allContext($allPartials);
+        $secondAll = $transformer->allContext($allPartials);
+
+        $this->assertNotSame($storedAll, $firstAll);
+        $this->assertTrue($firstAll->only?->selects('value'));
+        $this->assertTrue($firstAll->except?->selects('value'));
+        $this->assertNull($secondAll->only);
+        $this->assertTrue($secondAll->except?->selects('value'));
+    }
+
+    /**
+     * Test all dispatches its cached context through the instance transform method.
+     */
+    public function testAllRetainsTheInstanceTransformationBoundary(): void
+    {
+        OverrideTransformData::$context = null;
+
+        $this->assertSame(['value' => 'value'], (new OverrideTransformData('value'))->all());
+        $this->assertInstanceOf(TransformationContext::class, OverrideTransformData::$context);
+        $this->assertFalse(OverrideTransformData::$context->transformValues);
     }
 
     /**
@@ -526,7 +653,7 @@ class DataTransformerTest extends TestCase
     {
         $data = new NestedData(new NestedData(new SimpleData('deep')));
 
-        $this->expectExceptionMessage('Max transformation depth of 1 reached.');
+        $this->expectExceptionMessageIsOrContains('Max transformation depth of 1 reached.');
 
         $data->transform(TransformationContextFactory::create()->maxDepth(1));
     }
@@ -603,7 +730,7 @@ class DataTransformerTest extends TestCase
         $data = new ConstructableLazyData(Lazy::closure(static fn (): string => 'value'));
 
         $this->expectException(CannotTransformData::class);
-        $this->expectExceptionMessage('Lazy property [' . ConstructableLazyData::class . '::$value] does not resolve to constructable data.');
+        $this->expectExceptionMessageIsOrContains('Lazy property [' . ConstructableLazyData::class . '::$value] does not resolve to constructable data.');
 
         $data->transform(TransformationContextFactory::forPersistence());
     }
@@ -684,6 +811,110 @@ class SimpleData extends Data
 {
     public function __construct(public string $value)
     {
+    }
+}
+
+class OverrideTransformData extends Data
+{
+    public static ?TransformationContext $context = null;
+
+    public function __construct(public string $value)
+    {
+    }
+
+    /**
+     * Capture the context supplied through the public transformation boundary.
+     */
+    public function transform(
+        TransformationContextFactory|TransformationContext|null $transformationContext = null,
+    ): array {
+        self::$context = $transformationContext instanceof TransformationContext
+            ? $transformationContext
+            : null;
+
+        return parent::transform($transformationContext);
+    }
+}
+
+class PlainOrderParentData extends Data
+{
+    protected string $redeclared = 'parent-redeclared';
+
+    public string $parent = 'parent';
+}
+
+#[AllowDynamicProperties]
+class PlainOrderData extends PlainOrderParentData
+{
+    public string $child = 'child';
+
+    public string $redeclared = 'child-redeclared';
+
+    public string $uninitialized;
+}
+
+class PlainHookData extends Data
+{
+    public static int $backedReads = 0;
+
+    public static int $virtualReads = 0;
+
+    public string $backed = 'backed' {
+        get {
+            ++self::$backedReads;
+
+            return strtoupper($this->backed);
+        }
+    }
+
+    public string $virtual {
+        get {
+            ++self::$virtualReads;
+
+            return 'virtual';
+        }
+    }
+}
+
+class GeneralHookData extends Data
+{
+    public static int $visibleReads = 0;
+
+    #[MapOutputName('mapped_value')]
+    public string $value = 'value' {
+        get {
+            ++self::$visibleReads;
+
+            return strtoupper($this->value);
+        }
+    }
+
+    #[Hidden]
+    public string $hidden {
+        get {
+            throw new RuntimeException('Hidden getter should not run.');
+        }
+    }
+
+    public string $excepted {
+        get {
+            throw new RuntimeException('Excepted getter should not run.');
+        }
+    }
+
+    public string $unselected {
+        get {
+            throw new RuntimeException('Unselected getter should not run.');
+        }
+    }
+}
+
+class BackedSetOnlyData extends Data
+{
+    public string $name = '' {
+        set {
+            $this->name = strtoupper($value);
+        }
     }
 }
 

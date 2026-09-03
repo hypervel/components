@@ -25,6 +25,7 @@ use Hypervel\Data\Support\DataPropertyType;
 use Hypervel\Data\Support\NameMapperResolver;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
+use PropertyHookType;
 use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionProperty;
@@ -110,7 +111,7 @@ class DataPropertyFactory
             isPromoted: $reflectionProperty->isPromoted(),
             isConstructorParameter: $constructorParameter !== null,
             isReadonly: $reflectionProperty->isReadOnly(),
-            isVirtual: $isVirtual,
+            hasGetHook: $reflectionProperty->hasHook(PropertyHookType::Get),
             morphable: $attributes->has(PropertyForMorph::class),
             loadRelation: $attributes->has(LoadRelation::class),
             autoLazy: $autoLazy,

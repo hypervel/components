@@ -20,15 +20,14 @@ trait TransformableData
     public function transform(
         TransformationContextFactory|TransformationContext|null $transformationContext = null,
     ): array {
+        $transformer = Container::getInstance()->make(DataTransformer::class);
         $transformationContext = match (true) {
             $transformationContext instanceof TransformationContext => $transformationContext,
             $transformationContext instanceof TransformationContextFactory => $transformationContext->get($this),
-            default => TransformationContextFactory::create()->get($this),
+            default => $transformer->defaultContext($this),
         };
 
-        return Container::getInstance()
-            ->make(DataTransformer::class)
-            ->transform($this, $transformationContext);
+        return $transformer->transform($this, $transformationContext);
     }
 
     /**
@@ -38,7 +37,11 @@ trait TransformableData
      */
     public function all(): array
     {
-        return $this->transform(TransformationContextFactory::create()->withValueTransformation(false));
+        $context = Container::getInstance()
+            ->make(DataTransformer::class)
+            ->allContext($this);
+
+        return $this->transform($context);
     }
 
     /**

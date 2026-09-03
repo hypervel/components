@@ -40,7 +40,7 @@ class DataProperty
         public readonly bool $isPromoted,
         public readonly bool $isConstructorParameter,
         public readonly bool $isReadonly,
-        public readonly bool $isVirtual,
+        public readonly bool $hasGetHook,
         public readonly bool $morphable,
         public readonly bool $loadRelation,
         public readonly ?ReflectionAttribute $autoLazy,

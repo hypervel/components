@@ -39,6 +39,12 @@ class DataTransformer
 {
     protected readonly ?DateTimeZone $dateTimezone;
 
+    protected readonly TransformationContext $defaultContext;
+
+    protected readonly TransformationContext $allContext;
+
+    protected readonly TransformationContext $persistenceContext;
+
     /**
      * Create a data transformer.
      */
@@ -50,6 +56,54 @@ class DataTransformer
         $this->dateTimezone = $config->dateTimezone === null
             ? null
             : new DateTimeZone($config->dateTimezone);
+        $this->defaultContext = new TransformationContext(
+            maxDepth: $config->maxTransformationDepth,
+        );
+        $this->allContext = new TransformationContext(
+            transformValues: false,
+            maxDepth: $config->maxTransformationDepth,
+        );
+        $this->persistenceContext = TransformationContextFactory::persistenceContext(
+            $config->maxTransformationDepth,
+        );
+    }
+
+    /**
+     * Get the default root context.
+     *
+     * Temporary instance partials are consumed when present.
+     */
+    public function defaultContext(object $data): TransformationContext
+    {
+        if (! $data instanceof IncludeableData || $data->getPartialsDefinition()->isEmpty()) {
+            return $this->defaultContext;
+        }
+
+        return TransformationContextFactory::create()->get($data);
+    }
+
+    /**
+     * Get the non-transforming root context.
+     *
+     * Temporary instance partials are consumed when present.
+     */
+    public function allContext(object $data): TransformationContext
+    {
+        if (! $data instanceof IncludeableData || $data->getPartialsDefinition()->isEmpty()) {
+            return $this->allContext;
+        }
+
+        return TransformationContextFactory::create()
+            ->withoutValueTransformation()
+            ->get($data);
+    }
+
+    /**
+     * Get the immutable constructable persistence context.
+     */
+    public function persistenceContext(): TransformationContext
+    {
+        return $this->persistenceContext;
     }
 
     /**
@@ -103,7 +157,6 @@ class DataTransformer
         }
 
         $dataClass = $this->dataClasses->get($data::class);
-        $values = get_object_vars($data);
 
         // The plain path includes computed output, which cannot reconstruct the object.
         if (! $context->constructable
@@ -114,11 +167,13 @@ class DataTransformer
             return $this->finalizeTransformation(
                 $data,
                 $context,
-                $this->transformPlain($data, $dataClass, $values),
+                $this->transformPlain($data, $dataClass),
                 $includeAdditionalData,
             );
         }
 
+        // Raw storage keeps excluded property hooks from running as a side effect.
+        $values = get_mangled_object_vars($data);
         $transformed = [];
 
         foreach ($dataClass->properties as $property) {
@@ -132,7 +187,7 @@ class DataTransformer
                 continue;
             }
 
-            if ($property->isVirtual) {
+            if ($property->hasGetHook) {
                 $value = $data->{$property->name};
             } elseif (array_key_exists($property->name, $values)) {
                 $value = $values[$property->name];
@@ -314,22 +369,19 @@ class DataTransformer
     /**
      * Copy values for metadata proven to need no property transformation.
      *
-     * @param array<string, mixed> $values
      * @return array<array-key, mixed>
      */
-    protected function transformPlain(BaseData $data, DataClass $dataClass, array $values): array
+    protected function transformPlain(BaseData $data, DataClass $dataClass): array
     {
-        $transformed = [];
+        // Every property is emitted, so public get hooks own the logical values.
+        $values = get_object_vars($data);
+        $transformed = array_intersect_key($dataClass->properties, $values);
 
-        foreach ($dataClass->properties as $property) {
-            if ($property->isVirtual) {
-                $transformed[$property->name] = $data->{$property->name};
-            } elseif (array_key_exists($property->name, $values)) {
-                $transformed[$property->name] = $values[$property->name];
-            }
+        if (count($transformed) !== count($values)) {
+            $values = array_intersect_key($values, $dataClass->properties);
         }
 
-        return $transformed;
+        return array_replace($transformed, $values);
     }
 
     /**

@@ -75,10 +75,13 @@ class TransformationContextFactoryTest extends TestCase
     {
         $first = TransformationContextFactory::create()->maxDepth(1);
         $second = TransformationContextFactory::create();
+        $custom = CustomTransformationContextFactory::create();
 
         $this->assertNotSame($first, $second);
+        $this->assertInstanceOf(CustomTransformationContextFactory::class, $custom);
         $this->assertSame(1, $first->get(new stdClass)->maxDepth);
         $this->assertNull($second->get(new stdClass)->maxDepth);
+        $this->assertFalse($second->get(new stdClass)->hasPartials());
     }
 
     public function testPersistenceFactoryDerivesACompleteConstructableView(): void
@@ -102,9 +105,14 @@ class TransformationContextFactoryTest extends TestCase
         $this->assertNull($context->except);
         $this->assertSame(WrapExecutionType::Disabled, $context->wrapExecutionType);
         $this->assertNull($context->maxDepth);
+        $this->assertEquals(TransformationContextFactory::persistenceContext(null), $context);
         $this->assertFalse($data->getPartialsDefinition()->isEmpty());
         $this->assertSame(['name' => 'Taylor'], $data->toArray());
     }
+}
+
+class CustomTransformationContextFactory extends TransformationContextFactory
+{
 }
 
 class PersistenceContextData extends Data

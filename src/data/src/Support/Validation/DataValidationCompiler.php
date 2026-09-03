@@ -139,7 +139,7 @@ class DataValidationCompiler
         bool $observed = true,
     ): void {
         $dataClass = $this->dataClasses->get($class);
-        $contextualProperties = $this->contextualPropertyNames($dataClass);
+        $contextualProperties = $dataClass->contextualParameters;
 
         foreach ($dataClass->properties as $property) {
             if ($property->computed) {
@@ -180,7 +180,7 @@ class DataValidationCompiler
                 continue;
             }
 
-            if ($this->isFinishedDataValue($property, $value)) {
+            if ($property->isFinishedValue($value)) {
                 $accumulator->preservedPaths[] = $propertyPath;
                 $accumulator->finishedStructuralPaths[$structuralPropertyPath->get()] = true;
 
@@ -191,8 +191,8 @@ class DataValidationCompiler
                 continue;
             }
 
-            $nestedDataClass = $this->nestedDataClass($property);
-            $dataIterable = $this->dataIterableType($property);
+            $nestedDataClass = $property->type->getDataObjectClass();
+            $dataIterable = $property->type->getDataCollectableType();
             $dataIterableClass = $dataIterable?->dataClass;
             $inferredRequired = false;
             $propertyRulePath = $propertyPath->get();
@@ -861,7 +861,7 @@ class DataValidationCompiler
 
         if ($property->computed
             || ! $property->validate
-            || isset($this->contextualPropertyNames($dataClass)[$property->name])
+            || isset($dataClass->contextualParameters[$property->name])
         ) {
             return [];
         }
@@ -873,7 +873,7 @@ class DataValidationCompiler
         $hasValue = $observed && $state->hasValue($inputPath);
         $value = $hasValue ? $state->getValue($inputPath) : null;
 
-        if ($this->isFinishedDataValue($property, $value)) {
+        if ($property->isFinishedValue($value)) {
             return [];
         }
 
@@ -884,7 +884,7 @@ class DataValidationCompiler
             )];
         }
 
-        $nestedDataClass = $this->nestedDataClass($property);
+        $nestedDataClass = $property->type->getDataObjectClass();
 
         if ($nestedDataClass !== null) {
             $state->enterProperty($property->name, $inputPath);
@@ -904,7 +904,7 @@ class DataValidationCompiler
             }
         }
 
-        $dataIterable = $this->dataIterableType($property);
+        $dataIterable = $property->type->getDataCollectableType();
 
         if ($dataIterable === null) {
             return [new TranslatedValidationPath(
@@ -1239,32 +1239,6 @@ class DataValidationCompiler
     }
 
     /**
-     * Determine if a supplied object is a finished declared Data value.
-     */
-    protected function isFinishedDataValue(DataProperty $property, mixed $value): bool
-    {
-        return $property->isFinishedValue($value);
-    }
-
-    /**
-     * Get constructor-backed properties resolved by contextual attributes.
-     *
-     * @return array<string, true>
-     */
-    protected function contextualPropertyNames(DataClass $dataClass): array
-    {
-        $properties = [];
-
-        foreach ($dataClass->constructorParameters as $parameter) {
-            if ($parameter->isPromoted && $parameter->contextualAttribute !== null) {
-                $properties[$parameter->name] = true;
-            }
-        }
-
-        return $properties;
-    }
-
-    /**
      * Record an exact field or opaque subtree excluded from rule compilation.
      */
     protected function recordAuxiliaryPath(
@@ -1335,27 +1309,5 @@ class DataValidationCompiler
             && ! is_a($type->name, UnitEnum::class, true)
             && ! is_a($type->name, Optional::class, true)
             && ! is_a($type->name, Lazy::class, true);
-    }
-
-    /**
-     * Get the one unambiguous nested data class declared by a property.
-     *
-     * @return null|class-string<BaseData>
-     */
-    protected function nestedDataClass(DataProperty $property): ?string
-    {
-        $types = $property->type->getDataObjectTypes();
-
-        return count($types) === 1 ? $types[0]->dataClass : null;
-    }
-
-    /**
-     * Get the one unambiguous data iterable declared by a property.
-     */
-    protected function dataIterableType(DataProperty $property): ?NamedType
-    {
-        $types = $property->type->getDataCollectableTypes();
-
-        return count($types) === 1 ? $types[0] : null;
     }
 }

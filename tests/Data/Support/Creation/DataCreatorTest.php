@@ -40,6 +40,7 @@ use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\Creation\CreationMode;
 use Hypervel\Data\Support\Creation\DataCreator;
 use Hypervel\Data\Support\Creation\ValidationStrategy;
+use Hypervel\Data\Support\DataClassRepository;
 use Hypervel\Data\Support\DataProperty;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
@@ -228,9 +229,52 @@ class DataCreatorTest extends TestCase
     public function testDirectArrayCreationUsesTheSharedInstantiator(): void
     {
         $this->expectException(CannotCreateData::class);
-        $this->expectExceptionMessage('constructor is private');
+        $this->expectExceptionMessageIsOrContains('constructor is private');
 
         DirectPrivateConstructorCreationData::from(['value' => 'private']);
+    }
+
+    /**
+     * Test exact array creation rejects a variadic ordinary constructor without nesting its value.
+     */
+    public function testDirectArrayCreationRejectsVariadicOrdinaryConstructor(): void
+    {
+        $metadata = $this->app->make(DataClassRepository::class)->get(
+            DirectVariadicConstructorCreationData::class,
+        );
+
+        $this->assertTrue($metadata->directArrayCreation);
+        $this->assertFalse($metadata->directConstructorInstantiation);
+
+        $this->expectException(CannotCreateData::class);
+        $this->expectExceptionMessageIsOrContains('::$items] is variadic');
+        $this->expectExceptionMessageMatches('/matching public static from\* method/');
+
+        DirectVariadicConstructorCreationData::from([
+            'name' => 'Taylor',
+            'items' => [1, 2],
+        ]);
+    }
+
+    /**
+     * Test a variadic constructor is rejected before missing parameters are inspected.
+     */
+    public function testVariadicConstructorErrorPrecedesMissingParameterErrors(): void
+    {
+        $this->expectException(CannotCreateData::class);
+        $this->expectExceptionMessageIsOrContains('::$items] is variadic');
+
+        DirectVariadicConstructorCreationData::from(['other' => 'value']);
+    }
+
+    /**
+     * Test a direct-returning factory can own a non-public variadic constructor.
+     */
+    public function testNamedFactoryCanOwnNonPublicVariadicConstructor(): void
+    {
+        $data = DirectPrivateVariadicConstructorCreationData::from(['items' => [1, 2]]);
+
+        $this->assertSame([1, 2], $data->items);
     }
 
     public function testCreatesNestedDataWithoutReenteringThePublicFactory(): void
@@ -323,7 +367,7 @@ class DataCreatorTest extends TestCase
     public function testPaginatorPropertiesRejectItemOnlySourcesWithoutMetadata(): void
     {
         $this->expectException(CannotCreateDataCollectable::class);
-        $this->expectExceptionMessage('from `array`');
+        $this->expectExceptionMessageIsOrContains('from `array`');
 
         DataPaginatorCreationData::from([
             'children' => [['id' => '7']],
@@ -514,7 +558,7 @@ class DataCreatorTest extends TestCase
     public function testAutomaticLoadedRelationLazyRequiresAModelSource(): void
     {
         $this->expectException(CannotCreateData::class);
-        $this->expectExceptionMessage('no Eloquent model source was supplied');
+        $this->expectExceptionMessageIsOrContains('no Eloquent model source was supplied');
 
         AutoWhenLoadedCreationData::from([
             'child' => ['id' => '1'],
@@ -532,7 +576,7 @@ class DataCreatorTest extends TestCase
             ->from(['child' => ['type' => 'plain']]);
 
         $this->expectException(CannotCreateData::class);
-        $this->expectExceptionMessage('no Eloquent model source was supplied');
+        $this->expectExceptionMessageIsOrContains('no Eloquent model source was supplied');
 
         $data->child->resolve();
     }
@@ -794,7 +838,7 @@ class DataCreatorTest extends TestCase
     public function testRejectsAmbiguousDataObjectUnionsWithoutAnExplicitCast(): void
     {
         $this->expectException(CannotCreateData::class);
-        $this->expectExceptionMessage('ambiguous data-object union');
+        $this->expectExceptionMessageIsOrContains('ambiguous data-object union');
 
         AmbiguousCreationData::from(['child' => ['id' => 1]]);
     }
@@ -827,7 +871,7 @@ class DataCreatorTest extends TestCase
         }
 
         $this->expectException(CannotCreateData::class);
-        $this->expectExceptionMessage('instead of an instance of');
+        $this->expectExceptionMessageIsOrContains('instead of an instance of');
 
         BasicCreationData::factory()
             ->afterCreation(fn (): ChildCreationData => new ChildCreationData(1))
@@ -937,6 +981,34 @@ class DirectPrivateConstructorCreationData extends Data
     private function __construct(string $value)
     {
         $this->value = $value;
+    }
+}
+
+class DirectVariadicConstructorCreationData extends Data
+{
+    public string $name;
+
+    public array $items;
+
+    public function __construct(string $name, mixed ...$items)
+    {
+        $this->name = $name;
+        $this->items = $items;
+    }
+}
+
+class DirectPrivateVariadicConstructorCreationData extends Data
+{
+    public readonly array $items;
+
+    private function __construct(mixed ...$items)
+    {
+        $this->items = $items;
+    }
+
+    public static function fromPayload(array $payload): self
+    {
+        return new self(...$payload['items']);
     }
 }
 

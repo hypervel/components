@@ -84,6 +84,7 @@ class DataClassTest extends TestCase
             'last_name' => 'lastName',
         ], $class->outputMappedProperties);
         $this->assertFalse($class->plainTransform);
+        $this->assertTrue($class->directConstructorInstantiation);
     }
 
     /**
@@ -103,6 +104,17 @@ class DataClassTest extends TestCase
         $this->assertFalse($class->properties['unbound']->isConstructorParameter);
         $this->assertTrue($class->properties['unbound']->hasDefaultValue);
         $this->assertTrue($class->plainTransform);
+    }
+
+    /**
+     * Test backed set-only hooks remain valid data properties.
+     */
+    public function testBackedSetOnlyHookRemainsValid(): void
+    {
+        $class = $this->factory()->build(new ReflectionClass(BackedSetOnlyDataFixture::class));
+
+        $this->assertFalse($class->properties['name']->computed);
+        $this->assertFalse($class->properties['name']->hasGetHook);
     }
 
     /**
@@ -126,13 +138,25 @@ class DataClassTest extends TestCase
     {
         $promoted = $this->factory()->build(new ReflectionClass(PromotedContextualDataFixture::class));
         $constructorOnly = $this->factory()->build(new ReflectionClass(ConstructorOnlyContextualDataFixture::class));
+        $defaultedConstructorOnly = $this->factory()->build(
+            new ReflectionClass(DefaultedConstructorOnlyContextualDataFixture::class),
+        );
 
         $this->assertTrue($promoted->properties['userId']->isConstructorParameter);
         $this->assertFalse($promoted->properties['userId']->validate);
         $this->assertSame(ContextualValue::class, $promoted->constructorParameters[0]->contextualAttribute?->getName());
+        $this->assertSame(['userId' => true], $promoted->contextualParameters);
+        $this->assertFalse($promoted->directArrayCreation);
+        $this->assertFalse($promoted->directConstructorInstantiation);
         $this->assertFalse($constructorOnly->properties['name']->isConstructorParameter);
         $this->assertTrue($constructorOnly->properties['name']->validate);
         $this->assertSame('userId', $constructorOnly->constructorParameters[0]->name);
+        $this->assertSame(['userId' => true], $constructorOnly->contextualParameters);
+        $this->assertFalse($constructorOnly->directArrayCreation);
+        $this->assertFalse($constructorOnly->directConstructorInstantiation);
+        $this->assertSame(['userId' => true], $defaultedConstructorOnly->contextualParameters);
+        $this->assertFalse($defaultedConstructorOnly->directArrayCreation);
+        $this->assertFalse($defaultedConstructorOnly->directConstructorInstantiation);
     }
 
     /**
@@ -179,6 +203,34 @@ class DataClassTest extends TestCase
     }
 
     /**
+     * Test direct constructor instantiation requires complete public constructor ownership.
+     */
+    public function testDirectConstructorInstantiationEligibilityUsesCompiledClassFacts(): void
+    {
+        $this->assertTrue(
+            $this->factory()->build(new ReflectionClass(DirectArrayCreationDataFixture::class))
+                ->directConstructorInstantiation,
+        );
+        $this->assertTrue(
+            $this->factory()->build(new ReflectionClass(ComputedOnlyDataFixture::class))
+                ->directConstructorInstantiation,
+        );
+
+        foreach ([
+            AbstractDirectArrayCreationDataFixture::class,
+            PrivateConstructorDataFixture::class,
+            PromotedContextualDataFixture::class,
+            ConstructorOnlyContextualDataFixture::class,
+            BackedSetOnlyDataFixture::class,
+        ] as $class) {
+            $this->assertFalse(
+                $this->factory()->build(new ReflectionClass($class))->directConstructorInstantiation,
+                $class,
+            );
+        }
+    }
+
+    /**
      * Test invalid constructor/property ownership declarations.
      *
      * @param class-string $class
@@ -189,7 +241,7 @@ class DataClassTest extends TestCase
         string $message,
     ): void {
         $this->expectException(InvalidDataDeclaration::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIsOrContains($message);
 
         $this->factory()->build(new ReflectionClass($class));
     }
@@ -202,6 +254,7 @@ class DataClassTest extends TestCase
         return [
             'unbound readonly property' => [UnboundReadonlyDataFixture::class, 'cannot assign unbound readonly property'],
             'computed constructor property' => [ComputedConstructorDataFixture::class, 'declares output-only property'],
+            'write-only virtual property' => [WriteOnlyVirtualDataFixture::class, 'declares write-only virtual property'],
             'contextual property collision' => [ContextualCollisionDataFixture::class, 'conflicts with public data property'],
             'non-public promoted property' => [NonPublicPromotedDataFixture::class, 'promotes non-public property'],
             'constructor parameter without property' => [MissingPropertyDataFixture::class, 'has no corresponding public data property'],
@@ -217,7 +270,7 @@ class DataClassTest extends TestCase
     public function testMappingCollisionsFailDuringMetadataBuild(string $class, string $message): void
     {
         $this->expectException(InvalidDataDeclaration::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIsOrContains($message);
 
         $this->factory()->build(new ReflectionClass($class));
     }
@@ -281,8 +334,8 @@ class DataClassTest extends TestCase
     public function testEloquentCollectionPropertiesRejectItemsThatDoNotGuaranteeModels(string $class): void
     {
         $this->expectException(InvalidDataDeclaration::class);
-        $this->expectExceptionMessage('must guarantee');
-        $this->expectExceptionMessage(Model::class);
+        $this->expectExceptionMessageIsOrContains('must guarantee');
+        $this->expectExceptionMessageMatches('/' . preg_quote(Model::class, '/') . '/');
 
         $this->factory()->build(new ReflectionClass($class));
     }
@@ -400,6 +453,15 @@ class ConstructorBindingDataFixture
         $this->readonlyName = $readonlyName;
         $this->requiredWithPropertyDefault = $requiredWithPropertyDefault;
         $this->normalizedName = strtoupper($normalizedName);
+    }
+}
+
+class BackedSetOnlyDataFixture
+{
+    public string $name = 'Taylor' {
+        set {
+            $this->name = strtoupper($value);
+        }
     }
 }
 
@@ -533,6 +595,20 @@ class ConstructorOnlyContextualDataFixture
     }
 }
 
+class DefaultedConstructorOnlyContextualDataFixture
+{
+    public string $name = 'Taylor';
+
+    /**
+     * Create a new defaulted constructor-only contextual fixture.
+     */
+    public function __construct(
+        #[ContextualValue]
+        ?int $userId = null,
+    ) {
+    }
+}
+
 class UnboundReadonlyDataFixture
 {
     public readonly string $name;
@@ -547,6 +623,21 @@ class ComputedConstructorDataFixture
         #[Computed]
         public string $slug,
     ) {
+    }
+}
+
+class ComputedOnlyDataFixture
+{
+    public string $slug {
+        get => 'computed';
+    }
+}
+
+class WriteOnlyVirtualDataFixture
+{
+    public string $secret {
+        set {
+        }
     }
 }
 

@@ -28,6 +28,25 @@ use ReflectionClass;
 class DataInstantiatorTest extends TestCase
 {
     /**
+     * Test direct and ordinary instantiation preserve constructor behavior.
+     */
+    public function testDirectInstantiationMatchesTheOrdinaryConstructorPath(): void
+    {
+        $metadata = $this->metadata(InstantiatorDirectDataFixture::class);
+        $instantiator = new DataInstantiator(new Container);
+
+        $this->assertTrue($metadata->directConstructorInstantiation);
+        $this->assertEquals(
+            $instantiator->instantiate($metadata, ['name' => 'taylor']),
+            $instantiator->instantiateDirect($metadata, ['name' => 'taylor']),
+        );
+        $this->assertSame(
+            'TAYLOR',
+            $instantiator->instantiateDirect($metadata, ['name' => 'taylor'])->name,
+        );
+    }
+
+    /**
      * Test constructor-bound values are not overwritten after construction.
      */
     public function testPreservesConstructorNormalizationAndAssignsOnlyUnboundProperties(): void
@@ -74,7 +93,7 @@ class DataInstantiatorTest extends TestCase
     public function testThrowsForMissingConstructorValues(): void
     {
         $this->expectException(CannotCreateData::class);
-        $this->expectExceptionMessage('Parameters missing: name');
+        $this->expectExceptionMessageIsOrContains('Parameters missing: name');
 
         (new DataInstantiator(new Container))->instantiate(
             $this->metadata(InstantiatorDataFixture::class),
@@ -105,7 +124,7 @@ class DataInstantiatorTest extends TestCase
     public function testThrowsForMissingUnboundPropertyValues(): void
     {
         $this->expectException(CannotCreateData::class);
-        $this->expectExceptionMessage('required property');
+        $this->expectExceptionMessageIsOrContains('required property');
 
         (new DataInstantiator(new Container))->instantiate(
             $this->metadata(InstantiatorUnboundDataFixture::class),
@@ -119,11 +138,25 @@ class DataInstantiatorTest extends TestCase
     public function testThrowsForNonPublicOrdinaryConstruction(): void
     {
         $this->expectException(CannotCreateData::class);
-        $this->expectExceptionMessage('constructor is private');
-        $this->expectExceptionMessage('matching public static from* method');
+        $this->expectExceptionMessageIsOrContains('constructor is private');
+        $this->expectExceptionMessageMatches('/matching public static from\* method/');
 
         (new DataInstantiator(new Container))->instantiate(
             $this->metadata(InstantiatorPrivateDataFixture::class),
+            ['name' => 'Taylor'],
+        );
+    }
+
+    /**
+     * Test ordinary construction reports a protected constructor accurately.
+     */
+    public function testThrowsForProtectedOrdinaryConstruction(): void
+    {
+        $this->expectException(CannotCreateData::class);
+        $this->expectExceptionMessageIsOrContains('constructor is protected');
+
+        (new DataInstantiator(new Container))->instantiate(
+            $this->metadata(InstantiatorProtectedDataFixture::class),
             ['name' => 'Taylor'],
         );
     }
@@ -163,6 +196,17 @@ class InstantiatorDataFixture extends Data
      * Create an instantiator fixture.
      */
     public function __construct(string $name)
+    {
+        $this->name = strtoupper($name);
+    }
+}
+
+class InstantiatorDirectDataFixture extends Data
+{
+    /**
+     * Create a direct-instantiation fixture.
+     */
+    public function __construct(public string $name)
     {
         $this->name = strtoupper($name);
     }
@@ -225,6 +269,19 @@ class InstantiatorPrivateDataFixture extends Data
      * Create a private-constructor fixture.
      */
     private function __construct(string $name)
+    {
+        $this->name = $name;
+    }
+}
+
+class InstantiatorProtectedDataFixture extends Data
+{
+    public readonly string $name;
+
+    /**
+     * Create a protected-constructor fixture.
+     */
+    protected function __construct(string $name)
     {
         $this->name = $name;
     }

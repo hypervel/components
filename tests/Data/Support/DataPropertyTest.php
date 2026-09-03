@@ -99,6 +99,7 @@ class DataPropertyTest extends TestCase
         );
         $computed = $this->buildProperty($factory, $class, 'computed', $config, $mapperResolver);
         $virtual = $this->buildProperty($factory, $class, 'virtual', $config, $mapperResolver);
+        $backedHook = $this->buildProperty($factory, $class, 'backedHook', $config, $mapperResolver);
 
         $this->assertFalse($optional->hasDefaultValue);
         $this->assertTrue($optional->type->isOptional);
@@ -107,9 +108,11 @@ class DataPropertyTest extends TestCase
         $this->assertTrue($nonPromoted->hasDefaultValue);
         $this->assertTrue($computed->computed);
         $this->assertFalse($computed->validate);
-        $this->assertTrue($virtual->isVirtual);
+        $this->assertTrue($virtual->hasGetHook);
         $this->assertTrue($virtual->computed);
         $this->assertFalse($virtual->validate);
+        $this->assertTrue($backedHook->hasGetHook);
+        $this->assertFalse($backedHook->computed);
     }
 
     /**
@@ -295,6 +298,10 @@ class DataPropertyFixture
 
     public string $virtual {
         get => 'virtual';
+    }
+
+    public string $backedHook = 'backed' {
+        get => strtoupper($this->backedHook);
     }
 
     public string $createdAt;

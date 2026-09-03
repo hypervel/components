@@ -75,6 +75,19 @@ class DataCreator
     }
 
     /**
+     * Create a fresh construction factory for a data class.
+     *
+     * @template TData of BaseData
+     *
+     * @param class-string<TData> $class
+     * @return CreationContextFactory<TData>
+     */
+    public function factory(string $class): CreationContextFactory
+    {
+        return new CreationContextFactory($this, $this->config, $class);
+    }
+
+    /**
      * Create a data object through one fixed construction operation.
      *
      * @template TData of BaseData
@@ -818,7 +831,9 @@ class DataCreator
             $properties[$property->name] = $value;
         }
 
-        return $this->instantiator->instantiate($dataClass, $properties);
+        return $dataClass->directConstructorInstantiation
+            ? $this->instantiator->instantiateDirect($dataClass, $properties)
+            : $this->instantiator->instantiate($dataClass, $properties);
     }
 
     /**
@@ -890,7 +905,7 @@ class DataCreator
         bool $compilesRules,
         bool $fromValidationHook,
     ): void {
-        $contextualParameters = $this->contextualParameterNames($dataClass);
+        $contextualParameters = $dataClass->contextualParameters;
 
         foreach ($dataClass->properties as $property) {
             [$wireKey, $value] = $resolvedProperties[$property->name];
@@ -988,9 +1003,9 @@ class DataCreator
         bool $compilesRules,
         bool $fromValidationHook,
     ): void {
-        $dataIterable = $this->dataIterableType($property);
+        $dataIterable = $property->type->getDataCollectableType();
         $typedIterable = $dataIterable === null
-            ? $this->typedIterableType($property)
+            ? $property->type->getNonDataIterableType()
             : null;
 
         if ($dataIterable !== null || $typedIterable !== null) {
@@ -1071,7 +1086,7 @@ class DataCreator
             return;
         }
 
-        $nestedDataClass = $this->nestedDataClass($property);
+        $nestedDataClass = $property->type->getDataObjectClass();
 
         if ($nestedDataClass !== null
             && $value !== null
@@ -1303,7 +1318,7 @@ class DataCreator
         $resolvedProperties = $class === $declaredClass
             ? $declaredProperties
             : $this->resolveProperties($dataClass, [$payload], $state->context);
-        $contextualParameters = $this->contextualParameterNames($dataClass);
+        $contextualParameters = $dataClass->contextualParameters;
 
         foreach ($dataClass->properties as $property) {
             $previousWireKey = $state->originalKey($property->name);
@@ -1369,9 +1384,9 @@ class DataCreator
             $state->recordAutoLazy($property->name, $autoLazySource);
         }
 
-        $dataIterable = $this->dataIterableType($property);
+        $dataIterable = $property->type->getDataCollectableType();
         $typedIterable = $dataIterable === null
-            ? $this->typedIterableType($property)
+            ? $property->type->getNonDataIterableType()
             : null;
 
         if ($property->autoLazy !== null
@@ -1423,7 +1438,7 @@ class DataCreator
             return;
         }
 
-        $nestedDataClass = $this->nestedDataClass($property);
+        $nestedDataClass = $property->type->getDataObjectClass();
 
         if ($nestedDataClass === null) {
             return;
@@ -1618,7 +1633,7 @@ class DataCreator
         $class = $state->nodeClass() ?? $state->context->dataClass;
         $dataClass = $this->dataClasses->get($class);
         $properties = [];
-        $contextualParameters = $this->contextualParameterNames($dataClass);
+        $contextualParameters = $dataClass->contextualParameters;
 
         foreach ($dataClass->properties as $property) {
             if (isset($contextualParameters[$property->name])) {
@@ -1753,7 +1768,7 @@ class DataCreator
             return $value;
         }
 
-        $dataIterable = $this->dataIterableType($property);
+        $dataIterable = $property->type->getDataCollectableType();
         $shouldCast = ! is_object($value)
             || $dataIterable !== null
             || ! $property->type->acceptsValue($value);
@@ -1773,7 +1788,7 @@ class DataCreator
             return $this->castDataIterable($property, $dataIterable, $value, $state, $extensions);
         }
 
-        $iterable = $this->typedIterableType($property);
+        $iterable = $property->type->getNonDataIterableType();
 
         if ($iterable !== null) {
             return $this->castTypedIterable($property, $iterable, $value, $state, $extensions, $casts);
@@ -2584,47 +2599,17 @@ class DataCreator
     }
 
     /**
-     * Get constructor parameter names resolved contextually by the container.
-     *
-     * @return array<string, true>
-     */
-    protected function contextualParameterNames(DataClass $dataClass): array
-    {
-        $names = [];
-
-        foreach ($dataClass->constructorParameters as $parameter) {
-            if ($parameter->contextualAttribute !== null) {
-                $names[$parameter->name] = true;
-            }
-        }
-
-        return $names;
-    }
-
-    /**
-     * Get the one unambiguous nested data class declared by a property.
-     *
-     * @return null|class-string<BaseData>
-     */
-    protected function nestedDataClass(DataProperty $property): ?string
-    {
-        $types = $property->type->getDataObjectTypes();
-
-        return count($types) === 1 ? $types[0]->dataClass : null;
-    }
-
-    /**
      * Determine if an automatic lazy property needs deferred Fill replay.
      */
     protected function requiresAutoLazyReplay(DataProperty $property): bool
     {
-        if ($this->nestedDataClass($property) !== null
-            || $this->dataIterableType($property) !== null
+        if ($property->type->getDataObjectClass() !== null
+            || $property->type->getDataCollectableType() !== null
         ) {
             return true;
         }
 
-        $type = $this->typedIterableType($property);
+        $type = $property->type->getNonDataIterableType();
 
         return $type !== null
             && ($type->kind->isPaginator() || $type->kind->isCursorPaginator());
@@ -2662,29 +2647,6 @@ class DataCreator
         } finally {
             $state->leave();
         }
-    }
-
-    /**
-     * Get the one unambiguous data iterable declared by a property.
-     */
-    protected function dataIterableType(DataProperty $property): ?NamedType
-    {
-        $types = $property->type->getDataCollectableTypes();
-
-        return count($types) === 1 ? $types[0] : null;
-    }
-
-    /**
-     * Get the one unambiguous non-data iterable declared by a property.
-     */
-    protected function typedIterableType(DataProperty $property): ?NamedType
-    {
-        $types = array_values(array_filter(
-            $property->type->getIterableTypes(),
-            fn (NamedType $type): bool => ! $type->kind->isDataCollectable(),
-        ));
-
-        return count($types) === 1 ? $types[0] : null;
     }
 
     /**

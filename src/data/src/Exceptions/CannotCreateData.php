@@ -73,6 +73,22 @@ class CannotCreateData extends Exception
     }
 
     /**
+     * Create an exception for ordinary construction through a variadic constructor.
+     */
+    public static function variadicConstructor(DataClass $dataClass): self
+    {
+        $parameter = $dataClass->constructorParameters[count($dataClass->constructorParameters) - 1];
+        $declaringClass = $parameter->reflection->getDeclaringClass()?->getName() ?? $dataClass->name;
+
+        return new self(
+            "Could not create data class [{$dataClass->name}] because its constructor parameter "
+            . "[{$declaringClass}::\${$parameter->name}] is variadic and no matching named factory returned an instance. "
+            . 'Data construction maps one value per public property and cannot infer a variadic argument list. '
+            . 'Return the target instance from a matching public static from* method or make the constructor non-variadic.'
+        );
+    }
+
+    /**
      * Create an exception for a missing unbound property value.
      */
     public static function propertyMissing(DataClass $dataClass, DataProperty $property): self

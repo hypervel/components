@@ -20,6 +20,24 @@ class DataInstantiator
     }
 
     /**
+     * Instantiate a metadata-proven exact-array node directly.
+     *
+     * Declaration validation owns constructor/property correspondence, exact-array
+     * creation omits computed keys, and class metadata proves public, complete,
+     * non-variadic constructor ownership without contextual parameters.
+     *
+     * @internal
+     *
+     * @param array<string, mixed> $properties
+     */
+    public function instantiateDirect(DataClass $dataClass, array $properties): BaseData
+    {
+        $class = $dataClass->name;
+
+        return new $class(...$properties);
+    }
+
+    /**
      * Instantiate and assign one fully cast data node.
      *
      * @param array<string, mixed> $properties
@@ -28,6 +46,10 @@ class DataInstantiator
     {
         if ($dataClass->constructor !== null && ! $dataClass->constructor->isPublic()) {
             throw CannotCreateData::nonPublicConstructor($dataClass);
+        }
+
+        if ($dataClass->constructor?->isVariadic()) {
+            throw CannotCreateData::variadicConstructor($dataClass);
         }
 
         $parameters = [];
