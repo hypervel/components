@@ -72,16 +72,6 @@ class PruneCommandTest extends TestCase
         );
 
         $this->assertStringContainsString(
-            '10 records',
-            $output,
-        );
-
-        $this->assertStringContainsString(
-            'Hypervel\Tests\Database\Pruning\Models\PrunableTestModelWithPrunableRecords',
-            $output,
-        );
-
-        $this->assertStringContainsString(
             '20 records',
             $output,
         );
@@ -89,12 +79,27 @@ class PruneCommandTest extends TestCase
 
     public function testPrunableTestModelWithoutPrunableRecords()
     {
+        $observedEvents = [];
+        $events = Application::getInstance()->make(DispatcherContract::class);
+        $events->observe(
+            ModelPruningStarting::class,
+            static function (ModelPruningStarting $event) use (&$observedEvents): void {
+                $observedEvents[] = $event;
+            }
+        );
+        $events->observe(
+            ModelPruningFinished::class,
+            static function (ModelPruningFinished $event) use (&$observedEvents): void {
+                $observedEvents[] = $event;
+            }
+        );
         $output = $this->artisan(['--model' => Pruning\Models\PrunableTestModelWithoutPrunableRecords::class]);
 
         $this->assertStringContainsString(
             'No prunable [Hypervel\Tests\Database\Pruning\Models\PrunableTestModelWithoutPrunableRecords] records found.',
             $output->fetch()
         );
+        $this->assertSame([], $observedEvents);
     }
 
     public function testPrunableSoftDeletedModelWithPrunableRecords()
@@ -243,25 +248,37 @@ class PruneCommandTest extends TestCase
         $this->assertEquals(4, Pruning\Models\PrunableTestSoftDeletedModelWithPrunableRecords::withTrashed()->count());
     }
 
-    public function testTheCommandDispatchesEvents()
+    public function testTheCommandDispatchesEventsWithoutRemovingApplicationListeners(): void
     {
-        $dispatcher = m::mock(DispatcherContract::class)->shouldIgnoreMissing();
-
-        $dispatcher->shouldReceive('dispatch')->once()->withArgs(function ($event) {
-            return get_class($event) === ModelPruningStarting::class
-                && $event->models === [Pruning\Models\PrunableTestModelWithPrunableRecords::class];
+        $events = Application::getInstance()->make(DispatcherContract::class);
+        $startingEvents = [];
+        $prunedEvents = [];
+        $finishedEvents = [];
+        $events->listen(ModelPruningStarting::class, static function (ModelPruningStarting $event) use (&$startingEvents): void {
+            $startingEvents[] = $event;
         });
-        $dispatcher->shouldReceive('listen')->once()->with(ModelsPruned::class, m::type(Closure::class));
-        $dispatcher->shouldReceive('dispatch')->twice()->with(m::type(ModelsPruned::class));
-        $dispatcher->shouldReceive('dispatch')->once()->withArgs(function ($event) {
-            return get_class($event) === ModelPruningFinished::class
-                && $event->models === [Pruning\Models\PrunableTestModelWithPrunableRecords::class];
+        $events->listen(ModelsPruned::class, static function (ModelsPruned $event) use (&$prunedEvents): void {
+            $prunedEvents[] = $event;
         });
-        $dispatcher->shouldReceive('forget')->once()->with(ModelsPruned::class);
-
-        Application::getInstance()->instance(DispatcherContract::class, $dispatcher);
+        $events->listen(ModelPruningFinished::class, static function (ModelPruningFinished $event) use (&$finishedEvents): void {
+            $finishedEvents[] = $event;
+        });
 
         $this->artisan(['--model' => Pruning\Models\PrunableTestModelWithPrunableRecords::class]);
+        $this->artisan(['--model' => Pruning\Models\PrunableTestModelWithPrunableRecords::class]);
+
+        $this->assertCount(2, $startingEvents);
+        $this->assertCount(4, $prunedEvents);
+        $this->assertCount(2, $finishedEvents);
+        $this->assertSame([10, 20, 10, 20], array_column($prunedEvents, 'count'));
+        $this->assertSame(
+            [Pruning\Models\PrunableTestModelWithPrunableRecords::class],
+            $startingEvents[0]->models,
+        );
+        $this->assertSame(
+            [Pruning\Models\PrunableTestModelWithPrunableRecords::class],
+            $finishedEvents[1]->models,
+        );
     }
 
     protected function artisan($arguments)

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent;
 
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Events\ModelsPruned;
 use LogicException;
 
@@ -21,6 +22,7 @@ trait MassPrunable
         });
 
         $total = 0;
+        $events = null;
 
         $softDeletable = static::isSoftDeletable();
 
@@ -30,7 +32,11 @@ trait MassPrunable
                 : $query->delete();
 
             if ($count > 0) {
-                event(new ModelsPruned(static::class, $total));
+                $events ??= app(Dispatcher::class);
+
+                if ($events->hasListeners(ModelsPruned::class)) {
+                    $events->dispatch(new ModelsPruned(static::class, $total));
+                }
             }
         } while ($count > 0);
 
