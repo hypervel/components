@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Bus;
 
+use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Bus\Queueable;
-use Hypervel\Bus\UniqueJobPayloadContext;
 use Hypervel\Cache\Repository as CacheRepository;
 use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Container\Container;
@@ -221,7 +221,7 @@ class BusPendingDispatchTest extends TestCase
         }
     }
 
-    public function testUniqueMetadataRemainsRegisteredUntilAfterResponsePayloadCreation(): void
+    public function testUniqueMetadataReachesAfterResponseDispatcherBeforeUnclaimedOwnershipIsReleased(): void
     {
         Container::setInstance($container = new Container);
 
@@ -231,14 +231,16 @@ class BusPendingDispatchTest extends TestCase
 
             $job = new UniquePendingDispatchJob($cache);
             $deferredJob = null;
+            $metadata = null;
 
             $dispatcher = m::mock(Dispatcher::class);
             $dispatcher->shouldReceive('dispatch')->never();
             $dispatcher->shouldReceive('dispatchAfterResponse')
                 ->once()
                 ->with($job)
-                ->andReturnUsing(function (object $job) use (&$deferredJob): void {
+                ->andReturnUsing(function (object $job) use (&$deferredJob, &$metadata): void {
                     $deferredJob = $job;
+                    $metadata = DispatchLockContext::peekPayloadMetadata($job);
                 });
             $container->instance(Dispatcher::class, $dispatcher);
 
@@ -246,10 +248,17 @@ class BusPendingDispatchTest extends TestCase
             unset($pendingDispatch);
 
             $this->assertSame($job, $deferredJob);
-            $this->assertSame([
-                'laravel_unique_job_cache_store' => 'unique',
-                'laravel_unique_job_key' => 'laravel_unique_job:' . UniquePendingDispatchJob::class . ':after-response',
-            ], UniqueJobPayloadContext::consume($deferredJob));
+            $this->assertNotNull($metadata);
+            $this->assertSame('unique', $metadata['laravel_unique_job_cache_store']);
+            $this->assertSame(
+                'laravel_unique_job:' . UniquePendingDispatchJob::class . ':after-response',
+                $metadata['laravel_unique_job_key'],
+            );
+            $this->assertNotSame('', $metadata['laravel_unique_job_lock_owner']);
+            $this->assertNull(DispatchLockContext::peekPayloadMetadata($job));
+            $this->assertFalse(
+                $cache->restoreLock($metadata['laravel_unique_job_key'], $metadata['laravel_unique_job_lock_owner'])->isLocked()
+            );
         } finally {
             Container::setInstance(null);
         }

@@ -95,12 +95,33 @@ class JobPayload implements ArrayAccess
      */
     public function prepare(mixed $job): static
     {
+        return $this->prepareForQueueing($job)->markAsPushed();
+    }
+
+    /**
+     * Prepare the payload metadata while the original job is available.
+     */
+    public function prepareForQueueing(mixed $job): static
+    {
+        if ($job === null && isset($this->decoded['type'])) {
+            return $this;
+        }
+
         $tags = $this->determineTags($job);
 
         return $this->set([
             'type' => $this->determineType($job),
             'tags' => $tags,
             'silenced' => $this->shouldBeSilenced($job, $tags),
+        ]);
+    }
+
+    /**
+     * Mark the payload as published to Redis.
+     */
+    public function markAsPushed(): static
+    {
+        return $this->set([
             'pushedAt' => str_replace(',', '.', (string) microtime(true)),
         ]);
     }

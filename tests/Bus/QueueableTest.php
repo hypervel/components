@@ -113,6 +113,11 @@ class QueueableTest extends TestCase
         $this->assertNull($job->deduplicator);
     }
 
+    public function testUniqueLockOwnerDefaultsToEmptyString(): void
+    {
+        $this->assertSame('', (new FakeJob)->uniqueLockOwner);
+    }
+
     // REMOVED: testWithDeduplicatorRejectsNonClosureCallable - withDeduplicator() now accepts array|callable|null to match Laravel, which includes string callables
 
     public function testPrependToChainWithMultipleJobs(): void

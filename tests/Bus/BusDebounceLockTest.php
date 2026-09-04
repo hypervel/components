@@ -7,9 +7,12 @@ namespace Hypervel\Tests\Bus;
 use Hypervel\Bus\DebounceLock;
 use Hypervel\Cache\Repository as CacheRepository;
 use Hypervel\Cache\WorkerArrayStore;
+use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Engine\Channel;
 use Hypervel\Queue\Attributes\DebounceFor;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
+use RuntimeException;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -39,6 +42,41 @@ class BusDebounceLockTest extends TestCase
         $this->assertFalse($results[0]['maxWaitExceeded']);
         $this->assertFalse($results[1]['maxWaitExceeded']);
         $this->assertSame(1, $store->successfulTimestampAdds);
+    }
+
+    public function testReleaseProbeFailureDoesNotRemoveEitherDebounceRecord(): void
+    {
+        $failure = new RuntimeException('Owner probe failed.');
+        $cache = m::mock(Cache::class);
+        $cache->shouldReceive('get')->once()->with('debounce-key')->andThrow($failure);
+        $cache->shouldReceive('forget')->never();
+
+        try {
+            DebounceLock::releaseOwned($cache, 'debounce-key', 'owner');
+            $this->fail('Expected the owner probe failure was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+    }
+
+    public function testAcquisitionFailureRemainsPrimaryWhenCleanupProbeFails(): void
+    {
+        $job = new BusDebounceLockJob('entity-1');
+        $key = DebounceLock::getKey($job);
+        $failure = new RuntimeException('Maximum-wait read failed.');
+        $cleanupFailure = new RuntimeException('Cleanup owner probe failed.');
+        $cache = m::mock(Cache::class);
+        $cache->shouldReceive('put')->once()->with($key, m::type('string'), 300)->andReturnTrue();
+        $cache->shouldReceive('get')->once()->with($key . ':first_dispatched_at')->andThrow($failure);
+        $cache->shouldReceive('get')->once()->with($key)->andThrow($cleanupFailure);
+        $cache->shouldReceive('forget')->never();
+
+        try {
+            (new DebounceLock($cache))->acquire($job);
+            $this->fail('Expected the maximum-wait read failure was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
     }
 }
 

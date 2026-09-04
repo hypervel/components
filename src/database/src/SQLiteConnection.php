@@ -81,6 +81,16 @@ class SQLiteConnection extends PdoConnection
     }
 
     /**
+     * Resolve the maximum number of bindings supported by one statement.
+     */
+    protected function resolveMaxBindings(): int
+    {
+        $version = (string) ($this->getConfig('version') ?? $this->getServerVersion());
+
+        return version_compare($version, '3.32.0', '>=') ? 32_766 : self::DEFAULT_MAX_BINDINGS;
+    }
+
+    /**
      * Get the default query grammar instance.
      */
     protected function getDefaultQueryGrammar(): SQLiteGrammar

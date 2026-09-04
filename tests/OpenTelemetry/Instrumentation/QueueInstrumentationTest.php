@@ -6,6 +6,7 @@ namespace Hypervel\Tests\OpenTelemetry\Instrumentation;
 
 use ArrayObject;
 use Hypervel\Config\Repository;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Events\Dispatcher;
@@ -25,6 +26,7 @@ use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\Events\JobTimedOut;
+use Hypervel\Queue\NullQueue;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\SyncQueue;
 use Hypervel\Queue\TimeoutExceededException;
@@ -63,6 +65,7 @@ use OpenTelemetry\SDK\Trace\TracerProvider;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use OpenTelemetry\SemConv\Attributes\ExceptionAttributes;
 use OpenTelemetry\SemConv\Incubating\Attributes\MessagingIncubatingAttributes;
+use Override;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -559,6 +562,121 @@ class QueueInstrumentationTest extends TestCase
         $this->assertNull(QueueProducerStateStore::current()->takeUuid('job-uuid'));
     }
 
+    public function testEarlierFinalizerFailureCreatesNoProducerState(): void
+    {
+        $exception = new RuntimeException('Earlier finalizer failed.');
+        $this->events->listen(JobPayloadFinalizing::class, static function () use ($exception): never {
+            throw $exception;
+        });
+        $this->instrumentation()->register($this->options());
+        $queue = $this->lifecycleQueue();
+
+        try {
+            $queue->push('SendEmail@handle');
+            $this->fail('The earlier finalizer failure was not rethrown.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertFalse($queue->stored);
+        $this->assertNull(QueueProducerStateStore::current()->takeUuid('job-uuid'));
+        $this->assertSame([], $this->spanExporter->getSpans());
+    }
+
+    public function testLaterFinalizerFailureCompletesMetricsOnlyProducerByUuid(): void
+    {
+        $exception = new RuntimeException('Later finalizer failed.');
+        $this->instrumentation()->register($this->options([
+            'traces' => false,
+            'propagation' => true,
+            'metrics' => $this->metrics(sent: true, sendDuration: true),
+        ]));
+        $this->events->listen(JobPayloadFinalizing::class, static function (JobPayloadFinalizing $event) use ($exception): never {
+            $payload = $event->payload();
+            $payload['later'] = true;
+            $event->payload = json_encode($payload, JSON_THROW_ON_ERROR);
+
+            throw $exception;
+        });
+        $queue = $this->lifecycleQueue();
+
+        try {
+            $queue->push('SendEmail@handle');
+            $this->fail('The later finalizer failure was not rethrown.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertFalse($queue->stored);
+        $this->assertNull(QueueProducerStateStore::current()->takeUuid('job-uuid'));
+        $this->metricReader->collect();
+        $this->assertSame(1, $this->sumPoint(self::SENT_MESSAGES_METRIC)->value);
+        $this->assertSame(
+            RuntimeException::class,
+            $this->sumPoint(self::SENT_MESSAGES_METRIC)->attributes->get(ErrorAttributes::ERROR_TYPE),
+        );
+    }
+
+    public function testQueueingListenerFailureCompletesProducerState(): void
+    {
+        $exception = new RuntimeException('Queueing listener failed.');
+        $this->instrumentation()->register($this->options());
+        $this->events->listen(JobQueueing::class, static function () use ($exception): never {
+            throw $exception;
+        });
+        $queue = $this->lifecycleQueue();
+
+        try {
+            $queue->push('SendEmail@handle');
+            $this->fail('The queueing-listener failure was not rethrown.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertFalse($queue->stored);
+        $this->assertNull(QueueProducerStateStore::current()->takeUuid('job-uuid'));
+        $this->assertSame(StatusCode::STATUS_ERROR, $this->exportedSpan('enqueue emails')->getStatus()->getCode());
+    }
+
+    public function testTransportFailureCompletesProducerState(): void
+    {
+        $exception = new RuntimeException('Transport failed.');
+        $this->instrumentation()->register($this->options());
+        $queue = $this->lifecycleQueue($exception);
+
+        try {
+            $queue->push('SendEmail@handle');
+            $this->fail('The transport failure was not rethrown.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertFalse($queue->stored);
+        $this->assertNull(QueueProducerStateStore::current()->takeUuid('job-uuid'));
+        $this->assertSame(StatusCode::STATUS_ERROR, $this->exportedSpan('enqueue emails')->getStatus()->getCode());
+    }
+
+    public function testAcceptedJobRemainsSuccessfulWhenLaterQueuedListenerThrows(): void
+    {
+        $exception = new RuntimeException('Later queued listener failed.');
+        $this->instrumentation()->register($this->options());
+        $this->events->listen(JobQueued::class, static function () use ($exception): never {
+            throw $exception;
+        });
+        $queue = $this->lifecycleQueue();
+
+        try {
+            $queue->push('SendEmail@handle');
+            $this->fail('The later queued-listener failure was not rethrown.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertTrue($queue->stored);
+        $this->assertNull(QueueProducerStateStore::current()->takeUuid('job-uuid'));
+        $this->assertSame(StatusCode::STATUS_UNSET, $this->exportedSpan('enqueue emails')->getStatus()->getCode());
+    }
+
     public function testMidBatchFinalizerFailureDoesNotCompleteAnEarlierSibling(): void
     {
         $exception = new RuntimeException('Second propagation failed.');
@@ -998,6 +1116,21 @@ class QueueInstrumentationTest extends TestCase
     }
 
     /**
+     * Create a queue that exposes the persistent enqueue lifecycle.
+     */
+    private function lifecycleQueue(?Throwable $failure = null): QueueInstrumentationLifecycleQueue
+    {
+        $container = new Container;
+        $container->instance('events', $this->events);
+
+        $queue = new QueueInstrumentationLifecycleQueue($failure);
+        $queue->setContainer($container);
+        $queue->setConnectionName('redis');
+
+        return $queue;
+    }
+
+    /**
      * Create a remote producer context.
      */
     private function remoteContext(): ContextInterface
@@ -1253,5 +1386,47 @@ class QueueInstrumentationPayloadQueue extends SyncQueue
     public static function payloadCallbackCount(): int
     {
         return count(static::$createPayloadCallbacks);
+    }
+}
+
+class QueueInstrumentationLifecycleQueue extends NullQueue
+{
+    public bool $stored = false;
+
+    public function __construct(private ?Throwable $failure = null)
+    {
+    }
+
+    /**
+     * Push a job through the persistent queue lifecycle.
+     */
+    public function push(object|string $job, mixed $data = '', ?string $queue = 'emails'): mixed
+    {
+        return $this->enqueueUsing(
+            $job,
+            $this->createPayload($job, $queue, $data),
+            $queue,
+            null,
+            static function (self $owner): string {
+                if ($owner->failure !== null) {
+                    throw $owner->failure;
+                }
+
+                $owner->stored = true;
+
+                return 'job-id';
+            },
+        );
+    }
+
+    /**
+     * Create a deterministic test payload.
+     */
+    #[Override]
+    protected function createPayloadArray(array|object|string $job, ?string $queue, mixed $data = ''): array
+    {
+        return array_replace(parent::createPayloadArray($job, $queue, $data), [
+            'uuid' => 'job-uuid',
+        ]);
     }
 }

@@ -6,6 +6,7 @@ namespace Hypervel\Queue;
 
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\IndexAwareQueue;
@@ -274,10 +275,25 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
                     }
 
                     $settled = true;
-                    $this->attemptOnAllConnections($method, $arguments, $job);
+
+                    if (is_object($job)) {
+                        DispatchLockContext::claim($job);
+                    }
+
+                    try {
+                        $this->attemptOnAllConnections($method, $arguments, $job);
+                    } finally {
+                        if (is_object($job)) {
+                            DispatchLockContext::release($job);
+                        }
+                    }
                 },
                 $connection
             );
+        }
+
+        if (is_object($job)) {
+            DispatchLockContext::delegate($job);
         }
 
         return true;

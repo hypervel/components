@@ -18,6 +18,11 @@ use WeakMap;
 class PdoConnection extends Connection
 {
     /**
+     * The conservative maximum number of statement bindings.
+     */
+    public const int DEFAULT_MAX_BINDINGS = 999;
+
+    /**
      * The active PDO connection.
      *
      * @var null|(Closure(): PDO)|PDO
@@ -35,6 +40,16 @@ class PdoConnection extends Connection
      * The default fetch mode of the connection.
      */
     protected int $fetchMode = PDO::FETCH_OBJ;
+
+    /**
+     * The lock clause supported by the current physical connection generation.
+     */
+    protected bool|string|null $lockForPopping = null;
+
+    /**
+     * The maximum number of statement bindings supported by the current physical connection generation.
+     */
+    protected ?int $maxBindings = null;
 
     /**
      * The registered database session configurators.
@@ -632,6 +647,8 @@ class PdoConnection extends Connection
     public function setPdo(PDO|Closure|null $pdo): static
     {
         $this->transactions = 0;
+        $this->lockForPopping = null;
+        $this->maxBindings = null;
 
         $this->pdo = $pdo;
 
@@ -858,6 +875,42 @@ class PdoConnection extends Connection
     public function getServerVersion(): string
     {
         return $this->getPdo()->getAttribute(PDO::ATTR_SERVER_VERSION);
+    }
+
+    /**
+     * Get the lock clause supported when popping queued jobs.
+     *
+     * @internal
+     */
+    public function lockForPopping(): bool|string
+    {
+        return $this->lockForPopping ??= $this->resolveLockForPopping();
+    }
+
+    /**
+     * Resolve the lock clause supported when popping queued jobs.
+     */
+    protected function resolveLockForPopping(): bool|string
+    {
+        return true;
+    }
+
+    /**
+     * Get the maximum number of bindings supported by one statement.
+     *
+     * @internal
+     */
+    public function maxBindings(): int
+    {
+        return $this->maxBindings ??= $this->resolveMaxBindings();
+    }
+
+    /**
+     * Resolve the maximum number of bindings supported by one statement.
+     */
+    protected function resolveMaxBindings(): int
+    {
+        return self::DEFAULT_MAX_BINDINGS;
     }
 
     /**

@@ -186,7 +186,7 @@ class WaitConcurrentTest extends TestCase
         });
 
         $this->assertTrue($cleanupStarted->pop());
-        $this->assertTrue($concurrent->wait(0.001));
+        $this->assertFalse($concurrent->wait(0.001));
         $concurrent->cancel();
 
         try {
@@ -202,6 +202,7 @@ class WaitConcurrentTest extends TestCase
         }
 
         $this->assertTrue($cleanupCompleted);
+        $this->assertTrue($concurrent->wait(0.001));
     }
 
     public function testCancellationWhileWaitingCancelsActiveBodies(): void

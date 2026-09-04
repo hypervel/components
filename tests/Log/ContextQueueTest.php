@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Log;
 
-use Hypervel\Bus\UniqueJobPayloadContext;
+use Hypervel\Bus\DispatchLockContext;
+use Hypervel\Bus\UniqueLock;
 use Hypervel\Cache\Repository as CacheRepository;
 use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Context\CoroutineContext;
@@ -76,7 +77,7 @@ class ContextQueueTest extends TestCase
             ->addHidden('persistent', 'value');
 
         $job = new ContextQueueUniqueJob('unique-id');
-        UniqueJobPayloadContext::register($job);
+        $this->acquireUniqueJob($job);
 
         $queue = $this->createSyncQueue();
         $payload = $queue->testCreatePayload($job, null);
@@ -86,10 +87,11 @@ class ContextQueueTest extends TestCase
             'laravel_unique_job:' . ContextQueueUniqueJob::class . ':unique-id',
             unserialize($payload['illuminate:log:context']['hidden']['laravel_unique_job_key'])
         );
+        $this->assertNotSame('', unserialize($payload['illuminate:log:context']['hidden']['laravel_unique_job_lock_owner']));
         $this->assertSame('value', unserialize($payload['illuminate:log:context']['hidden']['persistent']));
         $this->assertSame('abc-123', $context->get('trace_id'));
         $this->assertSame(['persistent' => 'value'], $context->allHidden());
-        $this->assertNull(UniqueJobPayloadContext::consume($job));
+        $this->assertNotNull(DispatchLockContext::peekPayloadMetadata($job));
     }
 
     public function testLaterPayloadHookCanComposeWithContextAndLiveJobMetadata(): void
@@ -100,7 +102,7 @@ class ContextQueueTest extends TestCase
             ->addHidden('persistent', 'hidden-value');
 
         $job = new ContextQueueUniqueJob('composed-payload');
-        UniqueJobPayloadContext::register($job);
+        $this->acquireUniqueJob($job);
 
         $observedCommandName = null;
         $observedCommand = null;
@@ -131,15 +133,17 @@ class ContextQueueTest extends TestCase
             'laravel_unique_job:' . ContextQueueUniqueJob::class . ':composed-payload',
             unserialize($context['hidden']['laravel_unique_job_key']),
         );
+        $this->assertNotSame('', unserialize($context['hidden']['laravel_unique_job_lock_owner']));
         $this->assertSame(ContextQueueUniqueJob::class, $payload['data']['commandName']);
         $this->assertInstanceOf(ContextQueueUniqueJob::class, unserialize($payload['data']['command']));
+        $this->assertNotNull(DispatchLockContext::peekPayloadMetadata($job));
     }
 
     public function testUniqueJobMetadataScopeIsRestoredWhenAPayloadHookThrows(): void
     {
         $context = Repository::getInstance()->addHidden('persistent', 'value');
         $job = new ContextQueueUniqueJob('failing-payload');
-        UniqueJobPayloadContext::register($job);
+        $this->acquireUniqueJob($job);
 
         $throw = true;
         Queue::createPayloadUsing(function (string $connection, ?string $queue, array $payload) use (&$throw): array {
@@ -160,7 +164,11 @@ class ContextQueueTest extends TestCase
         }
 
         $this->assertSame(['persistent' => 'value'], $context->allHidden());
-        $this->assertNull(UniqueJobPayloadContext::consume($job));
+        $this->assertNotNull(DispatchLockContext::peekPayloadMetadata($job));
+
+        DispatchLockContext::release($job);
+
+        $this->assertNull(DispatchLockContext::peekPayloadMetadata($job));
 
         $throw = false;
         $payload = $queue->testCreatePayload(new ContextQueueTestJob, null);
@@ -367,6 +375,16 @@ class ContextQueueTest extends TestCase
         $queue->setConnectionName('sync');
 
         return $queue;
+    }
+
+    /**
+     * Acquire the unique lock owned by a test dispatch.
+     */
+    private function acquireUniqueJob(ContextQueueUniqueJob $job): void
+    {
+        $this->assertTrue(
+            (new UniqueLock(new CacheRepository(new WorkerArrayStore)))->acquireForDispatch($job)
+        );
     }
 }
 

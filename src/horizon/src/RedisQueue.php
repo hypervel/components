@@ -60,17 +60,24 @@ class RedisQueue extends BaseQueue
     public function pushRaw(string $payload, ?string $queue = null, array $options = []): mixed
     {
         $job = CoroutineContext::get(static::LAST_PUSHED_CONTEXT_KEY);
-        CoroutineContext::forget(static::LAST_PUSHED_CONTEXT_KEY);
 
-        $payload = (new JobPayload($payload))->prepare($job);
+        try {
+            $payload = (new JobPayload($payload))->prepare($job);
 
-        $this->event($this->getQueue($queue), new JobPending($payload->value));
+            if ($this->hasEventListeners(JobPending::class)) {
+                $this->event($this->getQueue($queue), new JobPending($payload->value));
+            }
 
-        parent::pushRaw($payload->value, $queue, $options);
+            parent::pushRaw($payload->value, $queue, $options);
 
-        $this->event($this->getQueue($queue), new JobPushed($payload->value));
+            if ($this->hasEventListeners(JobPushed::class)) {
+                $this->event($this->getQueue($queue), new JobPushed($payload->value));
+            }
 
-        return $payload->id();
+            return $payload->id();
+        } finally {
+            CoroutineContext::forget(static::LAST_PUSHED_CONTEXT_KEY);
+        }
     }
 
     /**
@@ -92,25 +99,55 @@ class RedisQueue extends BaseQueue
     #[Override]
     public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed
     {
-        $payload = (new JobPayload(
-            $this->createPayload($job, $this->getQueue($queue), $data, $delay)
-        ))->prepare($job)->value;
-
         return $this->enqueueUsing(
             $job,
-            $payload,
+            $this->createPayload($job, $this->getQueue($queue), $data, $delay),
             $queue,
             $delay,
-            function (BaseQueue $owner, $payload, $queue, $delay) {
-                // The base callback supplies the unused owner first. This callback must remain
-                // bound for parent::laterRaw(); Horizon's Redis queue is not pooled.
-                $this->event($this->getQueue($queue), new JobPending($payload));
+            static function (BaseQueue $owner, string $payload, ?string $queue, DateInterval|DateTimeInterface|int $delay) use ($job) {
+                // Horizon's Redis queue is not pooled, so after-commit dispatch returns this same queue type.
+                /** @var self $owner */
+                $payload = (new JobPayload($payload))->prepare($job)->value;
 
-                return tap(parent::laterRaw($delay, $payload, $queue), function () use ($payload, $queue) {
-                    $this->event($this->getQueue($queue), new JobPushed($payload));
-                });
+                if ($owner->hasEventListeners(JobPending::class)) {
+                    $owner->event($owner->getQueue($queue), new JobPending($payload));
+                }
+
+                $id = $owner->laterRaw($delay, $payload, $queue);
+
+                if ($owner->hasEventListeners(JobPushed::class)) {
+                    $owner->event($owner->getQueue($queue), new JobPushed($payload));
+                }
+
+                return $id;
             }
         );
+    }
+
+    /**
+     * Prepare a payload for bulk storage.
+     */
+    #[Override]
+    protected function preparePayloadForBulk(object|string $job, string $payload, ?string $queue): string
+    {
+        $payload = (new JobPayload($payload))->prepare($job)->value;
+
+        if ($this->hasEventListeners(JobPending::class)) {
+            $this->event($this->getQueue($queue), new JobPending($payload));
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Handle a payload that was stored as part of a batch.
+     */
+    #[Override]
+    protected function handlePayloadPushedInBulk(string $payload, ?string $queue): void
+    {
+        if ($this->hasEventListeners(JobPushed::class)) {
+            $this->event($this->getQueue($queue), new JobPushed($payload));
+        }
     }
 
     /**
@@ -121,7 +158,7 @@ class RedisQueue extends BaseQueue
     {
         return tap(parent::pop($queue, $index), function ($result) use ($queue) {
             /** @var null|RedisJob $result */
-            if ($result) {
+            if ($result && $this->hasEventListeners(JobReserved::class)) {
                 try {
                     $event = new JobReserved($result->getReservedJob());
                 } catch (InvalidPayloadException) {
@@ -140,7 +177,9 @@ class RedisQueue extends BaseQueue
     public function migrateExpiredJobs(string $from, string $to): array
     {
         return tap(parent::migrateExpiredJobs($from, $to), function ($jobs) use ($to) {
-            $this->event($to, new JobsMigrated($jobs));
+            if ($this->hasEventListeners(JobsMigrated::class)) {
+                $this->event($to, new JobsMigrated($jobs));
+            }
         });
     }
 
@@ -151,6 +190,10 @@ class RedisQueue extends BaseQueue
     public function deleteReserved(string $queue, RedisJob $job): void
     {
         parent::deleteReserved($queue, $job);
+
+        if (! $this->hasEventListeners(JobDeleted::class)) {
+            return;
+        }
 
         try {
             $event = new JobDeleted($job, $job->getReservedJob());
@@ -168,6 +211,10 @@ class RedisQueue extends BaseQueue
     public function deleteAndRelease(string $queue, RedisJob $job, DateInterval|DateTimeInterface|int $delay): void
     {
         parent::deleteAndRelease($queue, $job, $delay);
+
+        if (! $this->hasEventListeners(JobReleased::class)) {
+            return;
+        }
 
         try {
             $event = new JobReleased($job->getReservedJob(), $delay);
@@ -190,6 +237,15 @@ class RedisQueue extends BaseQueue
                 $event->connection($this->getConnectionName())->queue($queue)
             );
         }
+    }
+
+    /**
+     * Determine if the given Horizon event has listeners.
+     */
+    protected function hasEventListeners(string $event): bool
+    {
+        return $this->container->bound(Dispatcher::class)
+            && $this->container->make(Dispatcher::class)->hasListeners($event);
     }
 
     /**

@@ -9,6 +9,7 @@ use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Signal\SignalHandler;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Waiter;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Engine\Signal as EngineSignal;
 use Hypervel\Support\SafeCaller;
@@ -84,11 +85,13 @@ class SignalManager
                             break;
                         }
 
-                        foreach ($handlers as $handler) {
-                            $this->safeCaller->call(
-                                fn () => $handler->handle($signal),
-                            );
-                        }
+                        (new Waiter(-1))->wait(function () use ($handlers, $signal): void {
+                            foreach ($handlers as $handler) {
+                                $this->safeCaller->call(
+                                    fn () => $handler->handle($signal),
+                                );
+                            }
+                        });
                     }
                 }, function (Closure $run) use (&$coroutineIds): void {
                     $coroutineIds[] = Coroutine::id();

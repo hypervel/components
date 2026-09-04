@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Signal;
 use ArrayObject;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
@@ -97,6 +98,48 @@ class SignalManagerTest extends TestCase
             $this->assertTrue(posix_kill(getmypid(), SIGUSR1));
             $this->assertTrue($handled->pop(0.5));
             $this->assertSame(['threw', 'recorded', 'threw', 'recorded'], $trace->getArrayCopy());
+        } finally {
+            $manager->stop();
+            $handled->close();
+        }
+    }
+
+    #[RunInSeparateProcess]
+    public function testEachSignalHandlerBatchRunsInAFreshOwnedCoroutine(): void
+    {
+        $contextWasPresent = new ArrayObject;
+        $handled = new Channel(2);
+        $handler = new class($contextWasPresent, $handled) implements SignalHandler {
+            public function __construct(
+                protected ArrayObject $contextWasPresent,
+                protected Channel $handled,
+            ) {
+            }
+
+            public function signals(): array
+            {
+                return [self::WORKER => [SIGUSR1]];
+            }
+
+            public function handle(int $signal): void
+            {
+                $this->contextWasPresent[] = CoroutineContext::has('signal.manager.test');
+                CoroutineContext::set('signal.manager.test', true);
+                $this->handled->push(true);
+            }
+        };
+        $manager = $this->createManager($handler);
+
+        try {
+            $manager->listen(SignalHandler::WORKER);
+
+            $this->assertTrue(posix_kill(getmypid(), SIGUSR1));
+            $this->assertTrue($handled->pop(0.5));
+            SwooleCoroutine::sleep(0.005);
+            $this->assertTrue(posix_kill(getmypid(), SIGUSR1));
+            $this->assertTrue($handled->pop(0.5));
+
+            $this->assertSame([false, false], $contextWasPresent->getArrayCopy());
         } finally {
             $manager->stop();
             $handled->close();

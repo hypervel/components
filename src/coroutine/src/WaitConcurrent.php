@@ -46,7 +46,7 @@ class WaitConcurrent extends Concurrent
     }
 
     /**
-     * Start a coroutine and track it until its body completes.
+     * Start a coroutine and track it through deferred cleanup.
      *
      * @param array<string>|false $copyContext
      */
@@ -55,6 +55,8 @@ class WaitConcurrent extends Concurrent
         $this->wg->add();
         $started = false;
         $wrapper = function (Closure $run) use (&$started): void {
+            Coroutine::defer(fn () => $this->wg->done());
+
             $coroutineId = Coroutine::id();
 
             try {
@@ -63,7 +65,6 @@ class WaitConcurrent extends Concurrent
                 $run();
             } finally {
                 unset($this->activeCoroutines[$coroutineId]);
-                $this->wg->done();
             }
         };
 

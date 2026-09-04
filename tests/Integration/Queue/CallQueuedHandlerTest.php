@@ -10,10 +10,14 @@ use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\DebounceLock;
 use Hypervel\Bus\Dispatcher;
 use Hypervel\Bus\Queueable;
+use Hypervel\Cache\WorkerArrayStore;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Lock;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\Events\JobDebounced;
@@ -189,21 +193,55 @@ class CallQueuedHandlerTest extends TestCase
         Event::assertNotDispatched(JobFailed::class);
     }
 
-    public function testUniqueJobLockIsReleasedViaContextOnModelNotFound()
+    public function testUniqueJobLockIsReleasedViaContextOnModelNotFound(): void
     {
-        $lock = m::mock(\Hypervel\Contracts\Cache\Lock::class);
+        $lock = m::mock(Lock::class);
         $lock->shouldReceive('forceRelease')->once();
 
-        $store = m::mock(\Hypervel\Contracts\Cache\Repository::class);
-        $store->shouldReceive('lock')->with('laravel_unique_job:TestJob:42')->andReturn($lock);
+        $cache = m::mock(Cache::class);
+        $cache->shouldReceive('lock')->with('laravel_unique_job:TestJob:42')->andReturn($lock);
 
-        $cacheFactory = m::mock(\Hypervel\Contracts\Cache\Factory::class);
-        $cacheFactory->shouldReceive('store')->with('array')->andReturn($store);
-        $this->app->instance(\Hypervel\Contracts\Cache\Factory::class, $cacheFactory);
+        $cacheFactory = m::mock(CacheFactory::class);
+        $cacheFactory->shouldReceive('store')->with('array')->andReturn($cache);
+        $this->app->instance(CacheFactory::class, $cacheFactory);
 
-        \Hypervel\Log\Context\Repository::getInstance()->addHidden([
+        ContextRepository::getInstance()->addHidden([
             'laravel_unique_job_cache_store' => 'array',
             'laravel_unique_job_key' => 'laravel_unique_job:TestJob:42',
+        ]);
+
+        $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
+
+        $job = m::mock(Job::class);
+        $job->shouldReceive('payload')->andReturn(['deleteWhenMissingModels' => false]);
+        $job->shouldReceive('fail')->once();
+
+        $instance->call($job, [
+            'command' => serialize(new CallQueuedHandlerExceptionThrowerWithoutDelete),
+        ]);
+    }
+
+    public function testUniqueJobLockOwnerIsRestoredViaContextOnModelNotFound(): void
+    {
+        $lock = m::mock(Lock::class);
+        $lock->shouldReceive('release')->once();
+
+        $cache = m::mock(Cache::class);
+        $cache->shouldReceive('getStore')->once()->andReturn(new WorkerArrayStore);
+        $cache->shouldReceive('restoreLock')
+            ->once()
+            ->with('laravel_unique_job:TestJob:42', 'owner-token')
+            ->andReturn($lock);
+        $cache->shouldNotReceive('lock');
+
+        $cacheFactory = m::mock(CacheFactory::class);
+        $cacheFactory->shouldReceive('store')->with('array')->andReturn($cache);
+        $this->app->instance(CacheFactory::class, $cacheFactory);
+
+        ContextRepository::getInstance()->addHidden([
+            'laravel_unique_job_cache_store' => 'array',
+            'laravel_unique_job_key' => 'laravel_unique_job:TestJob:42',
+            'laravel_unique_job_lock_owner' => 'owner-token',
         ]);
 
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);

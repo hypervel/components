@@ -8,12 +8,14 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Bus\Batchable;
+use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseTransactionsManager;
-use Hypervel\Database\MySqlConnection;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
@@ -68,32 +70,13 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertSame('0', $queue->getQueue('0'));
     }
 
-    #[DataProvider('databaseLockProvider')]
-    public function testLockForPoppingUsesConnectionEngineAndVersion(
-        string $driver,
-        ?string $configuredVersion,
-        ?string $serverVersion,
-        ?bool $isMaria,
-        bool|string $expected,
-    ): void {
+    public function testLockForPoppingUsesThePdoConnectionCapability(): void
+    {
         $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = $isMaria === null
-            ? m::mock(ConnectionInterface::class)
-            : m::mock(MySqlConnection::class);
+        $connection = m::mock(PdoConnection::class);
 
         $resolver->shouldReceive('connection')->once()->with(null)->andReturn($connection);
-        $connection->shouldReceive('getDriverName')->once()->andReturn($driver);
-        $connection->shouldReceive('getConfig')->once()->with('version')->andReturn($configuredVersion);
-
-        if ($configuredVersion === null) {
-            $connection->shouldReceive('getServerVersion')->once()->andReturn($serverVersion);
-        } else {
-            $connection->shouldNotReceive('getServerVersion');
-        }
-
-        if ($isMaria !== null) {
-            $connection->shouldReceive('isMaria')->once()->andReturn($isMaria);
-        }
+        $connection->shouldReceive('lockForPopping')->once()->andReturn('FOR UPDATE SKIP LOCKED');
 
         $queue = new TestDatabaseQueue(
             resolver: $resolver,
@@ -103,26 +86,23 @@ class QueueDatabaseQueueUnitTest extends TestCase
             currentTime: 1732502704,
         );
 
-        $this->assertSame($expected, $queue->lockForPopping());
+        $this->assertSame('FOR UPDATE SKIP LOCKED', $queue->lockForPopping());
     }
 
-    public static function databaseLockProvider(): array
+    public function testLockForPoppingUsesAConservativeFallbackForNonPdoConnections(): void
     {
-        return [
-            'mysql before 8.0.1' => ['mysql', null, '8.0.0', false, true],
-            'mysql at 8.0.1' => ['mysql', null, '8.0.1', false, 'FOR UPDATE SKIP LOCKED'],
-            'mariadb through mysql before 10.6' => ['mysql', null, '10.5.99', true, true],
-            'mariadb through mysql at 10.6' => ['mysql', null, '10.6.0', true, 'FOR UPDATE SKIP LOCKED'],
-            'explicit mariadb before 10.6' => ['mariadb', null, '10.5.99', null, true],
-            'explicit mariadb at 10.6' => ['mariadb', null, '10.6.0', null, 'FOR UPDATE SKIP LOCKED'],
-            'configured mysql version' => ['mysql', '8.0.1', null, false, 'FOR UPDATE SKIP LOCKED'],
-            'configured mariadb version through mysql' => ['mysql', '10.5.99', null, true, true],
-            'configured mariadb marker' => ['mysql', '5.5.5-10.6.1-MariaDB', null, null, 'FOR UPDATE SKIP LOCKED'],
-            'raw mariadb marker' => ['mysql', null, '5.5.5-10.5.99-MariaDB', null, true],
-            'postgres' => ['pgsql', null, '9.5', null, 'FOR UPDATE SKIP LOCKED'],
-            'vitess' => ['mysql', null, '19.0.0-vitess', false, 'FOR UPDATE SKIP LOCKED'],
-            'planetscale' => ['mysql', null, '19.0.0-PlanetScale', false, 'FOR UPDATE SKIP LOCKED'],
-        ];
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver->shouldReceive('connection')->once()->with(null)->andReturn(m::mock(ConnectionInterface::class));
+
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver,
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+
+        $this->assertTrue($queue->lockForPopping());
     }
 
     #[DataProvider('pushJobsDataProvider')]
@@ -320,6 +300,150 @@ class QueueDatabaseQueueUnitTest extends TestCase
         });
 
         $queue->bulk(['foo', 'bar'], ['data'], 'queue');
+    }
+
+    public function testBulkUsesOneInsertWithoutATransactionAtTheBindingLimit(): void
+    {
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver = m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+        $queue->setContainer(new Container);
+
+        $resolver->shouldReceive('connection')->once()->with(null)->andReturn($connection = m::mock(PdoConnection::class));
+        $connection->shouldReceive('maxBindings')->once()->andReturn(12);
+        $connection->shouldNotReceive('transaction');
+        $connection->shouldReceive('table')->once()->with('table')->andReturn($query = m::mock(Builder::class));
+        $query->shouldReceive('insert')->once()->with(m::on(static fn (array $rows): bool => count($rows) === 2))->andReturnTrue();
+
+        $this->assertTrue($queue->bulk(['first', 'second']));
+    }
+
+    public function testBulkUsesTheMinimumChunksInsideOneTransactionAboveTheBindingLimit(): void
+    {
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver = m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+        $queue->setContainer(new Container);
+
+        $resolver->shouldReceive('connection')->once()->with(null)->andReturn($connection = m::mock(PdoConnection::class));
+        $connection->shouldReceive('maxBindings')->once()->andReturn(12);
+        $connection->shouldReceive('transaction')->once()->andReturnUsing(
+            static fn (Closure $callback): mixed => $callback()
+        );
+        $connection->shouldReceive('table')->twice()->with('table')->andReturn($query = m::mock(Builder::class));
+        $chunkSizes = [];
+        $query->shouldReceive('insert')->twice()->andReturnUsing(static function (array $rows) use (&$chunkSizes): bool {
+            $chunkSizes[] = count($rows);
+
+            return true;
+        });
+
+        $this->assertTrue($queue->bulk(['first', 'second', 'third']));
+        $this->assertSame([2, 1], $chunkSizes);
+    }
+
+    public function testBulkTreatsAnExplicitFalseInsertAsFailure(): void
+    {
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver = m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+        $queue->setContainer(new Container);
+
+        $resolver->shouldReceive('connection')->once()->with(null)->andReturn($connection = m::mock(ConnectionInterface::class));
+        $connection->shouldReceive('table')->once()->with('table')->andReturn($query = m::mock(Builder::class));
+        $query->shouldReceive('insert')->once()->andReturnFalse();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unable to insert queued jobs into the database.');
+
+        $queue->bulk(['job']);
+    }
+
+    public function testBulkRetainsDispatchOwnershipUntilTheTransactionCommits(): void
+    {
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver = m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+        $queue->setContainer(new Container);
+        $first = new DatabaseBulkOwnedJob;
+        $second = new DatabaseBulkOwnedJob;
+        $cache = m::mock(CacheRepository::class);
+        DispatchLockContext::registerDebounce($first, $cache, 'first', 'owner-1');
+        DispatchLockContext::registerDebounce($second, $cache, 'second', 'owner-2');
+
+        $resolver->shouldReceive('connection')->once()->with(null)->andReturn($connection = m::mock(PdoConnection::class));
+        $connection->shouldReceive('maxBindings')->once()->andReturn(6);
+        $connection->shouldReceive('transaction')->once()->andReturnUsing(function (Closure $callback) use ($first, $second): mixed {
+            $this->assertTrue(DispatchLockContext::has($first));
+            $this->assertTrue(DispatchLockContext::has($second));
+
+            $result = $callback();
+
+            $this->assertTrue(DispatchLockContext::has($first));
+            $this->assertTrue(DispatchLockContext::has($second));
+
+            return $result;
+        });
+        $connection->shouldReceive('table')->twice()->with('table')->andReturn($query = m::mock(Builder::class));
+        $query->shouldReceive('insert')->twice()->andReturnTrue();
+
+        $this->assertTrue($queue->bulk([$first, $second]));
+        $this->assertFalse(DispatchLockContext::has($first));
+        $this->assertFalse(DispatchLockContext::has($second));
+    }
+
+    public function testBulkAcceptsEveryDispatchBeforeRaisingSuccessEvents(): void
+    {
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver = m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+        $dispatcher = new Dispatcher($container = new Container);
+        $container->instance('events', $dispatcher);
+        $queue->setContainer($container);
+        $queue->setConnectionName('database');
+        $first = new DatabaseBulkOwnedJob;
+        $second = new DatabaseBulkOwnedJob;
+        $cache = m::mock(CacheRepository::class);
+        DispatchLockContext::registerDebounce($first, $cache, 'first', 'owner-1');
+        DispatchLockContext::registerDebounce($second, $cache, 'second', 'owner-2');
+        $exception = new RuntimeException('Listener failed.');
+
+        $resolver->shouldReceive('connection')->once()->with(null)->andReturn($connection = m::mock(ConnectionInterface::class));
+        $connection->shouldReceive('table')->once()->with('table')->andReturn($query = m::mock(Builder::class));
+        $query->shouldReceive('insert')->once()->andReturnTrue();
+        $dispatcher->listen(JobQueued::class, static function () use ($exception): never {
+            throw $exception;
+        });
+
+        try {
+            $queue->bulk([$first, $second]);
+            $this->fail('Expected the success listener to fail.');
+        } catch (RuntimeException $actual) {
+            $this->assertSame($exception, $actual);
+        }
+
+        $this->assertFalse(DispatchLockContext::has($first));
+        $this->assertFalse(DispatchLockContext::has($second));
     }
 
     public function testBulkHonorsTheDelayAttribute(): void
@@ -860,6 +984,10 @@ class DatabaseBulkAttributeDelayJob
 
 #[Delay(9)]
 class DatabaseBulkAfterCommitDelayJob implements ShouldQueueAfterCommit
+{
+}
+
+class DatabaseBulkOwnedJob
 {
 }
 

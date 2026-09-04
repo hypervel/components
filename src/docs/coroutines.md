@@ -765,6 +765,8 @@ if (! $concurrent->wait(timeout: 5.0)) {
 }
 ```
 
+A successful wait includes each child's deferred cleanup, so resources held by a child are released before the method returns.
+
 You may cancel every currently active child body using the `cancel` method:
 
 ```php

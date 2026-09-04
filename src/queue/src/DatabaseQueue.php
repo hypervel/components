@@ -12,19 +12,21 @@ use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseTransactionsManager;
-use Hypervel\Database\MySqlConnection;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Queue\Concerns\InsertsDatabaseRows;
 use Hypervel\Queue\Jobs\DatabaseJob;
 use Hypervel\Queue\Jobs\DatabaseJobRecord;
 use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
-use Hypervel\Support\Str;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
 {
+    use InsertsDatabaseRows;
+
     public const int DEFAULT_RETRY_AFTER = 60;
 
     /**
@@ -299,30 +301,14 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
         }
 
         $preparedJobs = $this->prepareBatchJobs($afterCommit, $data, $queue);
-
-        // A non-empty deferred group means partitionJobsByAfterCommit() resolved a transactions manager.
-        foreach ($afterCommit as $job) {
-            /** @var DatabaseTransactionsManager $transactions */
-            $this->addJobRollbackCallback($transactions, $job);
-        }
-
-        if ($this->afterCommitDispatcher !== null) {
-            $dispatcher = $this->afterCommitDispatcher;
-
-            $transactions->addCallback(
-                static fn () => $dispatcher(
-                    static function (Queue $owner) use ($preparedJobs, $queue): mixed {
-                        /** @var DatabaseQueue $owner */
-                        return $owner->enqueueBatch($preparedJobs, $queue);
-                    }
-                )
-            );
-
-            return $result;
-        }
-
-        $transactions->addCallback(
-            fn () => $this->enqueueBatch($preparedJobs, $queue)
+        /** @var DatabaseTransactionsManager $transactions */
+        $this->deferBatchEnqueueAfterCommit(
+            $transactions,
+            $afterCommit,
+            static function (Queue $owner) use ($preparedJobs, $queue): mixed {
+                /** @var DatabaseQueue $owner */
+                return $owner->enqueueBatch($preparedJobs, $queue);
+            },
         );
 
         return $result;
@@ -353,33 +339,40 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      */
     protected function enqueueBatch(array $jobs, ?string $queue): mixed
     {
-        foreach ($jobs as $index => $job) {
-            $jobs[$index]['payload'] = $this->finalizePayloadForQueueing(
-                $queue,
-                $job['job'],
-                $job['payload'],
-                $job['delay'],
-            );
-        }
-
-        // Every payload must be final before any batch member begins its
-        // existing JobQueueing lifecycle or the database write.
-        foreach ($jobs as $job) {
-            $this->raiseJobQueueingEvent($queue, $job['job'], $job['payload'], $job['delay']);
-        }
-
         try {
-            $now = $this->availableAt();
+            foreach ($jobs as $index => $job) {
+                $jobs[$index]['payload'] = $this->finalizePayloadForQueueing(
+                    $queue,
+                    $job['job'],
+                    $job['payload'],
+                    $job['delay'],
+                );
+            }
 
-            $result = $this->getDatabase()->table($this->table)->insert(
+            // Every payload must be final before any batch member begins its
+            // existing JobQueueing lifecycle or the database write.
+            foreach ($jobs as $job) {
+                $this->raiseJobQueueingEvent($queue, $job['job'], $job['payload'], $job['delay']);
+            }
+
+            $now = $this->availableAt();
+            $connection = $this->getDatabase();
+            $maxBindings = $connection instanceof PdoConnection
+                ? $connection->maxBindings()
+                : PdoConnection::DEFAULT_MAX_BINDINGS;
+
+            $this->insertDatabaseRows(
+                $connection,
+                $this->table,
                 Collection::make($jobs)
                     ->map(fn (array $job): array => $this->buildDatabaseRecord(
                         $this->getQueue($queue),
                         $job['payload'],
                         $job['delay'] !== null ? $this->availableAt($job['delay']) : $now,
-                    ))
-                    ->all()
+                    ))->all(),
+                $maxBindings,
             );
+            $result = true;
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
@@ -388,6 +381,10 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
             }
 
             throw $exception;
+        }
+
+        foreach ($jobs as $job) {
+            $this->acceptDispatchLocks($job['job']);
         }
 
         foreach ($jobs as $job) {
@@ -473,28 +470,10 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     protected function getLockForPopping(): bool|string
     {
         $connection = $this->getDatabase();
-        $databaseEngine = $connection->getDriverName();
-        $databaseVersion = $connection->getConfig('version') ?? $connection->getServerVersion();
 
-        if (Str::of($databaseVersion)->contains('MariaDB')) {
-            $databaseEngine = 'mariadb';
-            $databaseVersion = Str::before(Str::after($databaseVersion, '5.5.5-'), '-');
-        } elseif ($connection instanceof MySqlConnection && $connection->isMaria()) {
-            $databaseEngine = 'mariadb';
-        } elseif (Str::of($databaseVersion)->contains(['vitess', 'PlanetScale'])) {
-            $databaseEngine = 'vitess';
-            $databaseVersion = Str::before($databaseVersion, '-');
-        }
-
-        if (($databaseEngine === 'mysql' && version_compare($databaseVersion, '8.0.1', '>='))
-            || ($databaseEngine === 'mariadb' && version_compare($databaseVersion, '10.6.0', '>='))
-            || ($databaseEngine === 'pgsql' && version_compare($databaseVersion, '9.5', '>='))
-            || ($databaseEngine === 'vitess' && version_compare($databaseVersion, '19.0', '>='))
-        ) {
-            return 'FOR UPDATE SKIP LOCKED';
-        }
-
-        return true;
+        return $connection instanceof PdoConnection
+            ? $connection->lockForPopping()
+            : true;
     }
 
     /**

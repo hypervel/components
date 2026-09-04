@@ -126,6 +126,26 @@ class PostgresConnection extends PdoConnection
     }
 
     /**
+     * Resolve the lock clause supported when popping queued jobs.
+     */
+    protected function resolveLockForPopping(): bool|string
+    {
+        $version = (string) ($this->getConfig('version') ?? $this->getServerVersion());
+
+        return version_compare($version, '9.5', '>=')
+            ? 'FOR UPDATE SKIP LOCKED'
+            : true;
+    }
+
+    /**
+     * Resolve the maximum number of bindings supported by one statement.
+     */
+    protected function resolveMaxBindings(): int
+    {
+        return 65_535;
+    }
+
+    /**
      * Get the default query grammar instance.
      */
     protected function getDefaultQueryGrammar(): PostgresGrammar

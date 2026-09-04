@@ -8,7 +8,7 @@ use BadMethodCallException;
 use Closure;
 use DateTimeInterface;
 use DateTimeZone;
-use Hypervel\Bus\UniqueJobPayloadContext;
+use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
@@ -24,7 +24,6 @@ use Hypervel\Support\ProcessUtils;
 use Hypervel\Support\Traits\Macroable;
 use RuntimeException;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
-use Throwable;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -266,20 +265,14 @@ class Schedule
 
         $lock = new UniqueLock(Container::getInstance()->make(Cache::class));
 
-        if (! $lock->acquire($job)) {
+        if (! $lock->acquireForDispatch($job)) {
             return;
         }
 
-        UniqueJobPayloadContext::register($job);
-
         try {
             $this->getDispatcher()->dispatch($job);
-        } catch (Throwable $exception) {
-            if (UniqueJobPayloadContext::consume($job) !== null) {
-                $lock->release($job);
-            }
-
-            throw $exception;
+        } finally {
+            DispatchLockContext::release($job);
         }
     }
 

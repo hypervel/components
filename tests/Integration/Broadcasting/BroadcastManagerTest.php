@@ -15,6 +15,8 @@ use Hypervel\Broadcasting\BroadcastManager;
 use Hypervel\Broadcasting\BroadcastPoolProxy;
 use Hypervel\Broadcasting\Channel;
 use Hypervel\Broadcasting\UniqueBroadcastEvent;
+use Hypervel\Cache\ArrayStore;
+use Hypervel\Cache\Repository as CacheRepository;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Broadcasting\Broadcaster;
@@ -24,9 +26,12 @@ use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcastNow;
 use Hypervel\Contracts\Broadcasting\ShouldRescue;
 use Hypervel\Contracts\Cache\Lock;
+use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Repository as Cache;
+use Hypervel\Contracts\Cache\Store as CacheStore;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Foundation\CachesRoutes;
+use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Http\Request;
@@ -154,7 +159,9 @@ class BroadcastManagerTest extends TestCase
         $lockKey = 'laravel_unique_job:' . hash('xxh128', TestEventUnique::class) . ':';
         $lock = m::mock(Lock::class);
         $lock->shouldReceive('get')->once()->andReturn(true);
+        $lock->shouldReceive('owner')->once()->andReturn('unique-lock-owner');
         $cache = m::mock(Cache::class);
+        $cache->shouldReceive('getStore')->once()->andReturn(m::mock(CacheStore::class, LockProvider::class));
         $cache->shouldReceive('lock')->with($lockKey, 0)->andReturn($lock);
         $this->app->singleton(Cache::class, fn () => $cache);
 
@@ -172,7 +179,9 @@ class BroadcastManagerTest extends TestCase
         $lockKey = 'laravel_unique_job:' . hash('xxh128', TestEventUniqueEnum::class) . ':';
         $lock = m::mock(Lock::class);
         $lock->shouldReceive('get')->once()->andReturn(true);
+        $lock->shouldReceive('owner')->once()->andReturn('unique-lock-owner');
         $cache = m::mock(Cache::class);
+        $cache->shouldReceive('getStore')->once()->andReturn(m::mock(CacheStore::class, LockProvider::class));
         $cache->shouldReceive('lock')->with($lockKey, 0)->andReturn($lock);
         $this->app->singleton(Cache::class, fn () => $cache);
 
@@ -193,7 +202,9 @@ class BroadcastManagerTest extends TestCase
         $lockKey = 'laravel_unique_job:' . hash('xxh128', CloneCountingUniqueBroadcastEvent::class) . ':';
         $lock = m::mock(Lock::class);
         $lock->shouldReceive('get')->once()->andReturn(true);
+        $lock->shouldReceive('owner')->once()->andReturn('unique-lock-owner');
         $cache = m::mock(Cache::class);
+        $cache->shouldReceive('getStore')->once()->andReturn(m::mock(CacheStore::class, LockProvider::class));
         $cache->shouldReceive('lock')->with($lockKey, 0)->andReturn($lock);
         $this->app->singleton(Cache::class, fn () => $cache);
 
@@ -228,6 +239,60 @@ class BroadcastManagerTest extends TestCase
         Queue::assertPushed(UniqueBroadcastEvent::class);
 
         $lockKey = 'laravel_unique_job:' . hash('xxh128', TestEventUniqueWithIdMethod::class) . ':unique-id-method';
+        $this->assertFalse($this->app->get(Cache::class)->lock($lockKey, 10)->get());
+    }
+
+    public function testUniqueEventLockIsReleasedWhenQueueResolutionFails(): void
+    {
+        $cache = new CacheRepository(new ArrayStore);
+        $queue = m::mock(QueueFactory::class);
+        $failure = new Exception('Queue unavailable.');
+        $lockKey = 'laravel_unique_job:' . hash('xxh128', TestEventUnique::class) . ':';
+
+        $this->app->instance(Cache::class, $cache);
+        $this->app->instance(QueueFactory::class, $queue);
+        $queue->shouldReceive('connection')->once()->andThrow($failure);
+
+        try {
+            Broadcast::queue(new TestEventUnique);
+
+            $this->fail('Expected queue resolution to fail.');
+        } catch (Exception $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $replacement = $cache->lock($lockKey, 10);
+        $this->assertTrue($replacement->get());
+        $replacement->forceRelease();
+    }
+
+    public function testRescuedUniqueEventPublicationFailureReleasesItsLock(): void
+    {
+        $cache = new CacheRepository(new ArrayStore);
+        $queue = m::mock(QueueFactory::class);
+        $lockKey = 'laravel_unique_job:' . hash('xxh128', TestEventUniqueRescue::class) . ':';
+
+        $this->app->instance(Cache::class, $cache);
+        $this->app->instance(QueueFactory::class, $queue);
+        $queue->shouldReceive('connection')->once()->andThrow(new Exception('Queue unavailable.'));
+
+        Broadcast::queue(new TestEventUniqueRescue);
+
+        $replacement = $cache->lock($lockKey, 10);
+        $this->assertTrue($replacement->get());
+        $replacement->forceRelease();
+    }
+
+    public function testUniqueEventWithNullableCacheResolverUsesDefaultCache(): void
+    {
+        Queue::fake();
+
+        $event = new TestEventUniqueWithNullableCache;
+        Broadcast::queue($event);
+
+        Queue::assertPushed(UniqueBroadcastEvent::class);
+
+        $lockKey = 'laravel_unique_job:' . hash('xxh128', TestEventUniqueWithNullableCache::class) . ':';
         $this->assertFalse($this->app->get(Cache::class)->lock($lockKey, 10)->get());
     }
 
@@ -840,6 +905,18 @@ class TestEventUniqueWithIdMethod extends TestEventUnique
     {
         return 'unique-id-method';
     }
+}
+
+class TestEventUniqueWithNullableCache extends TestEventUnique
+{
+    public function uniqueVia(): ?Cache
+    {
+        return null;
+    }
+}
+
+class TestEventUniqueRescue extends TestEventUnique implements ShouldRescue
+{
 }
 
 class TestEventRescue implements ShouldBroadcast, ShouldRescue

@@ -135,10 +135,13 @@ class SyncQueue extends Queue implements QueueContract
             /** @var DatabaseTransactionsManager $transactions */
             $transactions = $this->container->make('db.transactions');
 
-            $this->addJobRollbackCallback($transactions, $job);
-
-            $transactions->addCallback(
-                fn () => $this->executeJob($job, $data, $queue)
+            $this->deferEnqueueAfterCommit(
+                $transactions,
+                $job,
+                static function (Queue $owner) use ($job, $data, $queue): int {
+                    /** @var SyncQueue $owner */
+                    return $owner->executeJob($job, $data, $queue);
+                },
             );
 
             return null;
@@ -154,7 +157,11 @@ class SyncQueue extends Queue implements QueueContract
      */
     protected function executeJob(object|string $job, mixed $data = '', ?string $queue = null): int
     {
-        return $this->executePayload($this->createPayload($job, $queue, $data), $queue);
+        $result = $this->executePayload($this->createPayload($job, $queue, $data), $queue);
+
+        $this->acceptDispatchLocks($job);
+
+        return $result;
     }
 
     /**
@@ -285,7 +292,7 @@ class SyncQueue extends Queue implements QueueContract
      */
     public function pushRaw(string $payload, ?string $queue = null, array $options = []): mixed
     {
-        return null;
+        return $this->executePayload($payload, $queue);
     }
 
     /**

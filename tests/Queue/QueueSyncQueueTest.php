@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Queue;
 
 use Exception;
 use Hypervel\Bus\Dispatcher as BusDispatcher;
+use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Bus\Dispatcher as DispatcherContract;
@@ -72,6 +73,25 @@ class QueueSyncQueueTest extends TestCase
         $sync->push(SyncQueueTestHandler::class, ['foo' => 'bar']);
         $this->assertInstanceOf(SyncJob::class, $_SERVER['__sync.test'][0]);
         $this->assertEquals(['foo' => 'bar'], $_SERVER['__sync.test'][1]);
+    }
+
+    public function testPushRawExecutesPayloadInstantly(): void
+    {
+        unset($_SERVER['__sync.test']);
+
+        $sync = new SyncQueue;
+        $sync->setContainer($this->getContainer());
+        $sync->setConnectionName('sync');
+
+        $result = $sync->pushRaw(json_encode([
+            'uuid' => 'raw-job',
+            'job' => SyncQueueTestHandler::class,
+            'data' => ['foo' => 'raw'],
+        ], JSON_THROW_ON_ERROR));
+
+        $this->assertSame(0, $result);
+        $this->assertInstanceOf(SyncJob::class, $_SERVER['__sync.test'][0]);
+        $this->assertSame(['foo' => 'raw'], $_SERVER['__sync.test'][1]);
     }
 
     public function testJobsReportTheirResolvedQueueName(): void
@@ -352,8 +372,11 @@ class QueueSyncQueueTest extends TestCase
         $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
 
+        $job = new SyncQueueAfterCommitUniqueJob;
+        DispatchLockContext::registerUnique($job, $container->make(Cache::class), null, 'unique-key', 'owner');
+
         $sync->setContainer($container);
-        $sync->push(new SyncQueueAfterCommitUniqueJob);
+        $sync->push($job);
     }
 
     public function testItAddsATransactionRollbackCallbackForAfterCommitDebouncedJobs(): void
@@ -366,8 +389,11 @@ class QueueSyncQueueTest extends TestCase
         $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
 
+        $job = new SyncQueueAfterCommitDebouncedJob;
+        DispatchLockContext::registerDebounce($job, $container->make(Cache::class), 'debounce-key', 'owner');
+
         $sync->setContainer($container);
-        $sync->push(new SyncQueueAfterCommitDebouncedJob);
+        $sync->push($job);
     }
 
     public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitUniqueJobs()
@@ -380,8 +406,25 @@ class QueueSyncQueueTest extends TestCase
         $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
 
+        $job = new SyncQueueAfterCommitInterfaceUniqueJob;
+        DispatchLockContext::registerUnique($job, $container->make(Cache::class), null, 'unique-key', 'owner');
+
         $sync->setContainer($container);
-        $sync->push(new SyncQueueAfterCommitInterfaceUniqueJob);
+        $sync->push($job);
+    }
+
+    public function testAfterCommitUniqueJobWithoutDispatchOwnershipDoesNotAddRollbackCallback(): void
+    {
+        $sync = new SyncQueue;
+        $sync->setConnectionName('sync');
+        $container = $this->getContainer();
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->shouldReceive('addCallback')->once()->andReturnNull();
+        $transactionManager->shouldReceive('addCallbackForRollback')->never();
+        $container->instance('db.transactions', $transactionManager);
+
+        $sync->setContainer($container);
+        $sync->push(new SyncQueueAfterCommitUniqueJob);
     }
 
     /**

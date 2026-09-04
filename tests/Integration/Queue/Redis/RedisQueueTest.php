@@ -15,6 +15,7 @@ use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Queue\RedisQueue;
+use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\CarbonImmutable;
@@ -505,6 +506,7 @@ class RedisQueueTest extends TestCase
         $events->shouldReceive('dispatch')->with(m::type(JobQueued::class))->andReturnNull()->times(3);
 
         $container = m::mock(Container::class);
+        $container->shouldReceive('has')->with('db.transactions')->andReturnFalse()->once();
         $container->shouldReceive('bound')->with('events')->andReturn(true)->times(9);
         $container->shouldReceive('make')->with('events')->andReturn($events)->times(9);
 
@@ -517,6 +519,59 @@ class RedisQueueTest extends TestCase
             new RedisQueueIntegrationTestJob(10),
             new RedisQueueIntegrationTestJob(15),
         ]);
+    }
+
+    public function testBulkStoresImmediateAndDelayedJobsWithExactNotifications(): void
+    {
+        $default = $this->defaultQueueName();
+        $this->setQueue($default);
+
+        $this->queue->bulk([
+            new RedisQueueIntegrationTestJob(1),
+            new RedisQueueIntegrationDelayedJob(2, 60),
+            new RedisQueueIntegrationTestJob(3),
+        ]);
+
+        $redisKey = $this->getQueueRedisKey($default);
+        $immediate = $this->redisConnection()->lrange($redisKey, 0, -1);
+        $delayed = $this->redisConnection()->zrange("{$redisKey}:delayed", 0, -1);
+
+        $this->assertSame([1, 3], array_map(
+            static fn (string $payload): int => unserialize(json_decode($payload)->data->command)->i,
+            $immediate,
+        ));
+        $this->assertSame([2], array_map(
+            static fn (string $payload): int => unserialize(json_decode($payload)->data->command)->i,
+            $delayed,
+        ));
+        $this->assertSame(2, $this->redisConnection()->llen("{$redisKey}:notify"));
+    }
+
+    public function testBulkScriptFailureLeavesEarlierWritesAndStopsLaterWrites(): void
+    {
+        $default = $this->defaultQueueName();
+        $this->setQueue($default);
+        $redisKey = $this->getQueueRedisKey($default);
+        $this->redisConnection()->set($redisKey, 'not-a-list');
+        $caught = null;
+
+        try {
+            $this->queue->bulk([
+                new RedisQueueIntegrationDelayedJob(1, 60),
+                new RedisQueueIntegrationTestJob(2),
+                new RedisQueueIntegrationDelayedJob(3, 120),
+            ]);
+        } catch (LuaScriptException $caught) {
+        }
+
+        $this->assertInstanceOf(LuaScriptException::class, $caught);
+        $delayed = $this->redisConnection()->zrange("{$redisKey}:delayed", 0, -1);
+        $this->assertSame([1], array_map(
+            static fn (string $payload): int => unserialize(json_decode($payload)->data->command)->i,
+            $delayed,
+        ));
+        $this->assertSame('not-a-list', $this->redisConnection()->get($redisKey));
+        $this->assertSame(0, $this->redisConnection()->llen("{$redisKey}:notify"));
     }
 
     public function testDelayedJobsWorkWithPhpRedisSerializationEnabled(): void
@@ -714,5 +769,13 @@ class RedisQueueIntegrationTestJob
 
     public function handle(): void
     {
+    }
+}
+
+class RedisQueueIntegrationDelayedJob extends RedisQueueIntegrationTestJob
+{
+    public function __construct(int $i, public int $delay)
+    {
+        parent::__construct($i);
     }
 }

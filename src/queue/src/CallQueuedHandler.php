@@ -12,6 +12,7 @@ use Hypervel\Bus\DebounceLock;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Encryption\Encrypter;
@@ -130,6 +131,10 @@ class CallQueuedHandler
                     $this->ensureUniqueJobLockIsReleased($command);
 
                     $lockReleased = true;
+                }
+
+                if (($command->debounceOwner ?? '') !== '') {
+                    (new DebounceLock($this->container->make(Cache::class)))->releaseMaxWait($command);
                 }
 
                 return $this->dispatcher->dispatchNow(
@@ -297,16 +302,22 @@ class CallQueuedHandler
         $context = ContextRepository::getInstance();
 
         // IMPORTANT: Uses Laravel's keys for cross-framework queue interoperability.
-        [$store, $key] = [
+        [$store, $key, $owner] = [
             $context->getHidden('laravel_unique_job_cache_store'),
             $context->getHidden('laravel_unique_job_key'),
+            $context->getHidden('laravel_unique_job_lock_owner'),
         ];
 
         if ($store && $key) {
-            $this->container->make(CacheFactory::class)
-                ->store($store)
-                ->lock($key) // @phpstan-ignore method.notFound (lock() is on LockProvider, which concrete stores implement)
-                ->forceRelease();
+            $cache = $this->container->make(CacheFactory::class)->store($store);
+
+            if (is_string($owner) && $owner !== '' && $cache->getStore() instanceof LockProvider) {
+                // @phpstan-ignore method.notFound (restoreLock() is on LockProvider, which concrete stores implement)
+                $cache->restoreLock($key, $owner)->release();
+            } elseif ($owner === null || $owner === '') {
+                $cache->lock($key) // @phpstan-ignore method.notFound (lock() is on LockProvider, which concrete stores implement)
+                    ->forceRelease();
+            }
         }
     }
 

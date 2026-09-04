@@ -6,6 +6,10 @@ namespace Hypervel\Tests\Queue;
 
 use DateInterval;
 use Exception;
+use Hypervel\Bus\DispatchLockContext;
+use Hypervel\Bus\UniqueLock;
+use Hypervel\Cache\ArrayStore as WorkerArrayStore;
+use Hypervel\Cache\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -50,6 +54,24 @@ class QueueDeferredQueueTest extends TestCase
 
         $this->assertInstanceOf(SyncJob::class, $_SERVER['__deferred.test'][0]);
         $this->assertEquals(['foo' => 'bar'], $_SERVER['__deferred.test'][1]);
+    }
+
+    public function testPushRawDefersPayloadExecution(): void
+    {
+        unset($_SERVER['__deferred.test']);
+
+        $deferred = new DeferredQueue;
+        $deferred->setContainer($this->getContainer());
+        $deferred->setConnectionName('deferred');
+
+        run(fn () => $deferred->pushRaw(json_encode([
+            'uuid' => 'raw-job',
+            'job' => DeferredQueueTestHandler::class,
+            'data' => ['foo' => 'raw'],
+        ], JSON_THROW_ON_ERROR)));
+
+        $this->assertInstanceOf(SyncJob::class, $_SERVER['__deferred.test'][0]);
+        $this->assertSame(['foo' => 'raw'], $_SERVER['__deferred.test'][1]);
     }
 
     public function testJobsReportTheirResolvedQueueName(): void
@@ -193,8 +215,11 @@ class QueueDeferredQueueTest extends TestCase
         $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
 
+        $job = new DeferredQueueAfterCommitUniqueJob;
+        DispatchLockContext::registerUnique($job, $container->make(Cache::class), null, 'unique-key', 'owner');
+
         $deferred->setContainer($container);
-        run(fn () => $deferred->push(new DeferredQueueAfterCommitUniqueJob));
+        run(fn () => $deferred->push($job));
     }
 
     public function testItAddsATransactionRollbackCallbackForAfterCommitDebouncedJobs(): void
@@ -207,8 +232,11 @@ class QueueDeferredQueueTest extends TestCase
         $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
 
+        $job = new DeferredQueueAfterCommitDebouncedJob;
+        DispatchLockContext::registerDebounce($job, $container->make(Cache::class), 'debounce-key', 'owner');
+
         $deferred->setContainer($container);
-        run(fn () => $deferred->push(new DeferredQueueAfterCommitDebouncedJob));
+        run(fn () => $deferred->push($job));
     }
 
     public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitUniqueJobs()
@@ -221,8 +249,11 @@ class QueueDeferredQueueTest extends TestCase
         $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
 
+        $job = new DeferredQueueAfterCommitInterfaceUniqueJob;
+        DispatchLockContext::registerUnique($job, $container->make(Cache::class), null, 'unique-key', 'owner');
+
         $deferred->setContainer($container);
-        run(fn () => $deferred->push(new DeferredQueueAfterCommitInterfaceUniqueJob));
+        run(fn () => $deferred->push($job));
     }
 
     public function testLaterSchedulesJobWithDelay()
@@ -364,9 +395,11 @@ class QueueDeferredQueueTest extends TestCase
             });
         $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
+        $job = new DeferredQueueAfterCommitUniqueJob;
+        DispatchLockContext::registerUnique($job, $container->make(Cache::class), null, 'unique-key', 'owner');
         $deferred->setContainer($container);
 
-        run(fn () => $deferred->later(5, new DeferredQueueAfterCommitUniqueJob));
+        run(fn () => $deferred->later(5, $job));
     }
 
     public function testLaterAddsTransactionRollbackCallbackForAfterCommitDebouncedJobs(): void
@@ -387,9 +420,11 @@ class QueueDeferredQueueTest extends TestCase
             });
         $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
+        $job = new DeferredQueueAfterCommitDebouncedJob;
+        DispatchLockContext::registerDebounce($job, $container->make(Cache::class), 'debounce-key', 'owner');
         $deferred->setContainer($container);
 
-        run(fn () => $deferred->later(5, new DeferredQueueAfterCommitDebouncedJob));
+        run(fn () => $deferred->later(5, $job));
     }
 
     public function testLaterAddsTransactionCallbackForInterfaceBasedAfterCommitUniqueJobs()
@@ -410,9 +445,11 @@ class QueueDeferredQueueTest extends TestCase
             });
         $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
+        $job = new DeferredQueueAfterCommitInterfaceUniqueJob;
+        DispatchLockContext::registerUnique($job, $container->make(Cache::class), null, 'unique-key', 'owner');
         $deferred->setContainer($container);
 
-        run(fn () => $deferred->later(5, new DeferredQueueAfterCommitInterfaceUniqueJob));
+        run(fn () => $deferred->later(5, $job));
     }
 
     public function testLaterClampsNegativeIntegerDelay()
@@ -484,12 +521,21 @@ class QueueDeferredQueueTest extends TestCase
     {
         unset($_SERVER['__deferred.later.test']);
 
+        $cache = new Repository(new WorkerArrayStore);
+        $job = new DeferredQueueAfterCommitUniqueJob;
+        $lock = new UniqueLock($cache);
+        $this->assertTrue($lock->acquireForDispatch($job));
+        $metadata = DispatchLockContext::peekPayloadMetadata($job);
+        $this->assertNotNull($metadata);
+
+        $callback = null;
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')
             ->once()
             ->with(5.0, m::type('Closure'))
-            ->andReturnUsing(function ($delay, $callback) {
-                $callback(true);
+            ->andReturnUsing(function ($delay, $scheduledCallback) use (&$callback) {
+                $callback = $scheduledCallback;
+
                 return 1;
             });
 
@@ -497,15 +543,27 @@ class QueueDeferredQueueTest extends TestCase
         $deferred->setConnectionName('deferred');
         $deferred->setContainer($this->getContainer());
 
-        run(fn () => $deferred->later(5, DeferredQueueLaterTestHandler::class, ['foo' => 'bar']));
+        run(fn () => $deferred->later(5, $job));
 
         $this->assertArrayNotHasKey('__deferred.later.test', $_SERVER);
+        $this->assertNotNull($callback);
+        $this->assertTrue(
+            $cache->restoreLock($metadata['laravel_unique_job_key'], $metadata['laravel_unique_job_lock_owner'])->isLocked()
+        );
+
+        $callback(true);
+
+        $this->assertFalse(
+            $cache->restoreLock($metadata['laravel_unique_job_key'], $metadata['laravel_unique_job_lock_owner'])->isLocked()
+        );
     }
 
     protected function getContainer(): Container
     {
         $container = new Container;
         $container->instance(Cache::class, m::mock(Cache::class));
+        $container->instance(Dispatcher::class, new EventsDispatcher($container));
+        Container::setInstance($container);
 
         return $container;
     }
