@@ -59,6 +59,7 @@ use Stringable;
 use UnitEnum;
 use ValueError;
 
+use function Hypervel\Support\enum_from;
 use function Hypervel\Support\enum_value;
 
 trait HasAttributes
@@ -942,6 +943,10 @@ trait HasAttributes
             $convertedCastType = trim(strtolower($castType));
         }
 
+        if ($convertedCastType === 'decimal') {
+            $this->ensureValidDecimalScale($castType, $key);
+        }
+
         return $this->castMetadataCache['castType'][$key] = static::$castTypeCache[$castType] = $convertedCastType;
     }
 
@@ -1008,6 +1013,20 @@ trait HasAttributes
     protected function isDecimalCast(string $cast): bool
     {
         return str_starts_with($cast, 'decimal:');
+    }
+
+    /**
+     * Ensure the decimal cast has a valid scale.
+     */
+    protected function ensureValidDecimalScale(string $cast, string $attribute): void
+    {
+        $scale = explode(':', $cast, 2)[1] ?? null;
+
+        if (filter_var($scale, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]) === false) {
+            throw new InvalidArgumentException(
+                "The decimal cast for attribute [{$attribute}] requires a non-negative integer scale."
+            );
+        }
     }
 
     /**
@@ -1238,7 +1257,7 @@ trait HasAttributes
     protected function getEnumCaseFromValue(string $enumClass, string|int $value): mixed
     {
         return is_subclass_of($enumClass, BackedEnum::class)
-            ? $enumClass::from($value)
+            ? enum_from($enumClass, $value)
             : constant($enumClass . '::' . $value);
     }
 
