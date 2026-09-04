@@ -223,7 +223,7 @@ Adjusting this value based on your queue load can be more efficient than continu
 ```
 
 > [!WARNING]
-> Setting `block_for` to `0` will cause queue workers to block indefinitely until a job is available. This can delay worker restart and pause checks until the next job has been processed.
+> Setting `block_for` to `0` will cause queue workers to block indefinitely until a job is available. This can delay worker termination and pause checks until another job becomes available. Running jobs may also not be notified of an interruption until then.
 
 <a name="sqs-overflow-storage"></a>
 #### SQS Overflow Storage
