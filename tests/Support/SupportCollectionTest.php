@@ -3518,7 +3518,7 @@ class SupportCollectionTest extends TestCase
     public function testMapIntoWithIntBackedEnums($collection): void
     {
         $data = new $collection([
-            1, 2,
+            1, '2',
         ]);
 
         $data = $data->mapInto(TestBackedEnum::class);
