@@ -168,7 +168,7 @@ class ValidationRuleParser
             return $this->explodeWildcardRulesCompilable($results, $attribute, $rules);
         }
 
-        $keys = $this->expandWildcardKeys($attribute, $this->data);
+        $keys = ValidationData::expandWildcardKeys($attribute, $this->data);
 
         if ($keys === []) {
             return $results;
@@ -204,7 +204,7 @@ class ValidationRuleParser
      */
     protected function explodeWildcardRulesCompilable(array $results, string $attribute, array|object|string $rules): array
     {
-        $keys = $this->expandWildcardKeys($attribute, $this->data);
+        $keys = ValidationData::expandWildcardKeys($attribute, $this->data);
 
         if ($keys === []) {
             return $results;
@@ -295,71 +295,6 @@ class ValidationRuleParser
         }
 
         return $results;
-    }
-
-    /**
-     * Expand a wildcard attribute into all matching concrete keys by
-     * traversing the data structure directly.
-     *
-     * @param array<string, mixed> $data
-     * @return list<string>
-     */
-    protected function expandWildcardKeys(string $attribute, array $data): array
-    {
-        $segments = explode('.', $attribute);
-        $results = [];
-
-        $this->traverseWildcardSegments($segments, 0, $data, '', $results);
-
-        return $results;
-    }
-
-    /**
-     * Recursively traverse data segments to expand wildcard keys.
-     *
-     * @param list<string> $segments
-     * @param list<string> $results
-     */
-    protected function traverseWildcardSegments(array $segments, int $index, mixed $data, string $prefix, array &$results): void
-    {
-        if ($index >= count($segments)) {
-            $results[] = rtrim($prefix, '.');
-            return;
-        }
-
-        $segment = $segments[$index];
-
-        if ($segment === '*') {
-            if (! is_array($data)) {
-                return;
-            }
-
-            foreach ($data as $key => $value) {
-                $this->traverseWildcardSegments($segments, $index + 1, $value, $prefix . $key . '.', $results);
-            }
-
-            return;
-        }
-
-        if (str_contains($segment, '*')) {
-            if (! is_array($data)) {
-                return;
-            }
-
-            $pattern = '/^' . str_replace('\*', '[^\.]*', preg_quote($segment, '/')) . '\z/';
-
-            foreach ($data as $key => $value) {
-                if (preg_match($pattern, (string) $key) === 1) {
-                    $this->traverseWildcardSegments($segments, $index + 1, $value, $prefix . $key . '.', $results);
-                }
-            }
-
-            return;
-        }
-
-        $nextData = is_array($data) && array_key_exists($segment, $data) ? $data[$segment] : null;
-
-        $this->traverseWildcardSegments($segments, $index + 1, $nextData, $prefix . $segment . '.', $results);
     }
 
     /**

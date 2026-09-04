@@ -316,11 +316,6 @@ class Validator implements ValidatorContract
     protected array $defaultNumericRules = ['Numeric', 'Integer', 'Decimal'];
 
     /**
-     * The current random hash for the validator.
-     */
-    protected static ?string $placeholderHash = null;
-
-    /**
      * Indicates if DNS lookups performed by validation rules should be faked to always succeed.
      */
     protected static bool $fakeDnsLookups = false;
@@ -349,10 +344,6 @@ class Validator implements ValidatorContract
         array $messages = [],
         array $attributes = [],
     ) {
-        if (! isset(static::$placeholderHash)) {
-            static::$placeholderHash = Str::random();
-        }
-
         $this->initialRules = $rules;
         $this->customMessages = $messages;
         $this->data = $this->parseData($data);
@@ -366,24 +357,7 @@ class Validator implements ValidatorContract
      */
     public function parseData(array $data): array
     {
-        $newData = [];
-
-        foreach ($data as $key => $value) {
-            $key = (string) $key;
-            if (is_array($value)) {
-                $value = $this->parseData($value);
-            }
-
-            $key = str_replace(
-                ['.', '*'],
-                ['__dot__' . static::$placeholderHash, '__asterisk__' . static::$placeholderHash],
-                $key
-            );
-
-            $newData[$key] = $value;
-        }
-
-        return $newData;
+        return ValidationData::encodeKeys($data);
     }
 
     /**
@@ -391,15 +365,7 @@ class Validator implements ValidatorContract
      */
     protected function replacePlaceholders(array $data): array
     {
-        $originalData = [];
-
-        foreach ($data as $key => $value) {
-            $originalData[$this->replacePlaceholderInString((string) $key)] = is_array($value)
-                ? $this->replacePlaceholders($value)
-                : $value;
-        }
-
-        return $originalData;
+        return ValidationData::decodeKeys($data);
     }
 
     /**
@@ -407,11 +373,7 @@ class Validator implements ValidatorContract
      */
     protected function replacePlaceholderInString(string $value): string
     {
-        return str_replace(
-            ['__dot__' . static::$placeholderHash, '__asterisk__' . static::$placeholderHash],
-            ['.', '*'],
-            $value
-        );
+        return ValidationData::replacePlaceholderInString($value);
     }
 
     /**
@@ -419,13 +381,12 @@ class Validator implements ValidatorContract
      */
     protected function replaceDotPlaceholderInParameters(array $parameters): array
     {
-        return array_map(function ($field) {
-            return str_replace(
-                ['__dot__' . static::$placeholderHash, '__asterisk__' . static::$placeholderHash],
-                ['.', '*'],
-                $field,
-            );
-        }, $parameters);
+        // Inline date-comparison failures bypass validateAttribute(), so their raw
+        // scalar parameters need the same string normalization as delegated rules.
+        return array_map(
+            static fn (mixed $field): string => ValidationData::replacePlaceholderInString((string) $field),
+            $parameters,
+        );
     }
 
     /**
@@ -2060,11 +2021,7 @@ class Validator implements ValidatorContract
      */
     protected static function encodeAttributeWithPlaceholder(string $attribute): string
     {
-        return str_replace(
-            ['\.', '\*'],
-            ['__dot__' . static::$placeholderHash, '__asterisk__' . static::$placeholderHash],
-            $attribute,
-        );
+        return ValidationData::encodeAttribute($attribute);
     }
 
     /**
@@ -2072,11 +2029,7 @@ class Validator implements ValidatorContract
      */
     protected static function decodeAttributeWithPlaceholder(string $attribute): string
     {
-        return str_replace(
-            ['__dot__' . static::$placeholderHash, '__asterisk__' . static::$placeholderHash],
-            ['\.', '\*'],
-            $attribute,
-        );
+        return ValidationData::decodeAttribute($attribute);
     }
 
     /**
@@ -2095,7 +2048,6 @@ class Validator implements ValidatorContract
      */
     public static function flushState(): void
     {
-        static::$placeholderHash = null;
         static::$fakeDnsLookups = false;
     }
 
