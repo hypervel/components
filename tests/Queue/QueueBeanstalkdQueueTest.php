@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
+use Hypervel\Container\Container as Application;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Events\Dispatcher;
 use Hypervel\Queue\BeanstalkdQueue;
+use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Jobs\BeanstalkdJob;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
@@ -101,6 +104,30 @@ class QueueBeanstalkdQueueTest extends TestCase
         $this->queue->push('foo', ['data']);
 
         $this->container->shouldHaveReceived('bound')->with('events')->times(6);
+    }
+
+    public function testJobQueuedReceivesTheExactBeanstalkdJobIdentifier(): void
+    {
+        $this->setQueue('default', 60);
+
+        $jobId = m::mock(JobIdInterface::class);
+        $pheanstalk = $this->queue->getPheanstalk();
+        $pheanstalk->shouldReceive('useTube')->once()->with(m::type(TubeName::class));
+        $pheanstalk->shouldReceive('put')->once()->andReturn($jobId);
+
+        $events = new Dispatcher;
+        $queuedEvent = null;
+        $events->listen(JobQueued::class, function (JobQueued $event) use (&$queuedEvent): void {
+            $queuedEvent = $event;
+        });
+
+        $container = new Application;
+        $container->instance('events', $events);
+        $this->queue->setContainer($container);
+
+        $this->assertSame($jobId, $this->queue->push('foo', ['data']));
+        $this->assertInstanceOf(JobQueued::class, $queuedEvent);
+        $this->assertSame($jobId, $queuedEvent->id);
     }
 
     public function testDelayedPushProperlyPushesJobOntoBeanstalkd(): void
