@@ -44,7 +44,6 @@ use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use OpenTelemetry\SemConv\Incubating\Attributes\MessagingIncubatingAttributes;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
-use UnexpectedValueException;
 use WeakMap;
 
 class QueueInstrumentation extends AbstractInstrumentation
@@ -266,12 +265,7 @@ class QueueInstrumentation extends AbstractInstrumentation
         if ($this->tracer !== null) {
             $payload = $event->payload();
             $uuid = $payload['uuid'] ?? null;
-
-            if (! is_string($uuid)) {
-                throw new UnexpectedValueException(
-                    'A persistent queue payload must contain a string UUID before OpenTelemetry finalization.',
-                );
-            }
+            $uuid = is_string($uuid) ? $uuid : null;
 
             $startedAt = $this->clock->now();
             $span = $this->tracer
@@ -294,7 +288,10 @@ class QueueInstrumentation extends AbstractInstrumentation
             }
 
             if ($span?->isRecording()) {
-                $span->setAttribute(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ID, $uuid);
+                if ($uuid !== null) {
+                    $span->setAttribute(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ID, $uuid);
+                }
+
                 $span->setAttribute(
                     MessagingIncubatingAttributes::MESSAGING_MESSAGE_ENVELOPE_SIZE,
                     strlen($finalPayload),
@@ -318,14 +315,8 @@ class QueueInstrumentation extends AbstractInstrumentation
         }
 
         if ($span !== null || $this->sentMessages !== null || $this->sendDuration !== null) {
-            $state = new QueueProducerState($startedAt, $context, $span, $attributes);
-            $store = QueueProducerStateStore::current();
-
-            if ($span !== null) {
-                $store->put($uuid, $finalPayload, $state);
-            } else {
-                $store->putTiming($finalPayload, $state);
-            }
+            $state = new QueueProducerState($startedAt, $context, $span, $attributes, $uuid);
+            QueueProducerStateStore::current()->put($finalPayload, $state);
         }
 
         $event->payload = $finalPayload;
