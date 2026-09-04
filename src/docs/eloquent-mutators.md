@@ -253,6 +253,8 @@ The `casts` method should return an array where the key is the name of the attri
 
 </div>
 
+The `decimal` cast requires a non-negative integer precision, such as `decimal:2`.
+
 To demonstrate attribute casting, let's cast the `is_admin` attribute, which is stored in our database as an integer (`0` or `1`) to a boolean value:
 
 ```php

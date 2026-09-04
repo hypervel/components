@@ -688,209 +688,205 @@ protected function passedValidation(): void
 <a name="casting-form-request-data"></a>
 ### Casting Form Request Data
 
-Hypervel's form requests may cast validated input into the PHP types your application expects. This is useful when HTML forms or JSON payloads contain strings that should be handled as booleans, integers, dates, arrays, enums, or data objects after validation has passed.
+Hypervel's form requests may cast validated input into the PHP types your application expects. Casts run after validation has passed, so your validation rules always receive the submitted values.
 
-You may define casts using a `$casts` property on your form request:
+Define casts by adding a protected `casts` method to your form request:
 
 ```php
 <?php
 
 namespace App\Http\Requests;
 
+use App\Enums\PostStatus;
 use Hypervel\Foundation\Http\FormRequest;
 
 class StorePostRequest extends FormRequest
 {
     /**
-     * The inputs that should be cast.
+     * Get the casts for the validated request input.
      *
-     * @var array<string, string>
+     * @return array<string, string>
      */
-    protected array $casts = [
-        'published_at' => 'datetime',
-        'views' => 'integer',
-        'is_featured' => 'boolean',
-        'tags' => 'array',
-        'related_posts' => 'collection',
-        'metadata' => 'json',
-        'settings' => 'object',
-        'rating' => 'decimal:2',
-    ];
-
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Hypervel\Contracts\Validation\ValidationRule|array<mixed>|string>
-     */
-    public function rules(): array
+    protected function casts(): array
     {
         return [
-            'title' => ['required', 'string', 'max:255'],
-            'published_at' => ['required', 'date'],
-            'views' => ['required', 'integer', 'min:0'],
-            'is_featured' => ['required', 'boolean'],
-            'tags' => ['required', 'json'],
-            'related_posts' => ['required', 'json'],
-            'metadata' => ['required', 'json'],
-            'settings' => ['required', 'json'],
-            'rating' => ['required', 'numeric', 'between:0,5'],
+            'published_at' => 'datetime',
+            'views' => 'integer',
+            'is_featured' => 'boolean',
+            'tags' => 'array',
+            'settings' => 'object',
+            'rating' => 'decimal:2',
+            'status' => PostStatus::class,
+            'history.*.status' => PostStatus::class,
         ];
     }
 }
 ```
 
-Alternatively, you may define casts using a `casts` method:
+The normal `validated` and `safe` methods return the cast values:
 
 ```php
-/**
- * Get the casts that apply to the request.
- *
- * @return array<string, string>
- */
+$data = $request->validated();
+$publishedAt = $request->validated('published_at');
+$publishedAt = $request->validated('published_at', $default);
+
+$safe = $request->safe();
+$dates = $request->safe(['published_at']);
+```
+
+The request itself is not changed. The `input` and `all` methods, request properties, and validator data continue to contain the submitted values. Fields that were not validated are never added to the cast result.
+
+Hypervel applies casts each time you call `validated` or `safe`. Cast results are not cached between calls.
+
+Hypervel supports the following primitive casts:
+
+| Cast | Result |
+|---|---|
+| `int`, `integer` | Integer |
+| `real`, `float`, `double` | Float, including the `Infinity`, `-Infinity`, and `NaN` string values |
+| `string` | String |
+| `bool`, `boolean` | Boolean using the same conversion as `Request::boolean()`, including `1`, `true`, `on`, `yes`, `0`, `false`, `off`, and `no` |
+| `decimal:<scale>` | Rounded decimal string with the specified number of decimal places; the scale must be a non-negative integer |
+| `array`, `json` | JSON string decoded to an array, or an array left as-is |
+| `collection` | JSON string or array converted to a `Hypervel\Support\Collection`, or an existing collection left as-is |
+| `object` | JSON string or decoded array converted to an object, or an existing object left as-is |
+| `date` | Date instance with its time set to the start of the day |
+| `datetime` | Date and time instance |
+| `date:<format>`, `datetime:<format>` | Date parsed using the given PHP date format |
+| `timestamp` | Unix timestamp |
+
+Primitive and enum casts preserve `null`. A custom caster receives a present `null` value so it may decide how nullable input should be handled. Missing paths are skipped.
+
+Use validation rules that guarantee each submitted value can be cast. For example, validate JSON strings with the `json` rule, decimals with the `numeric` rule, and formatted dates with the matching `date_format` rule. An incompatible value causes casting to throw.
+
+Date and time casts accept `DateTimeInterface` instances, Unix timestamps, and date strings. Numeric strings without an explicit format are treated as Unix timestamps. An explicit format takes precedence, so `datetime:!Y` parses the value `2026` as a year rather than a timestamp.
+
+#### Enum Casting
+
+Declare an enum class as the cast type:
+
+```php
+use App\Enums\PostStatus;
+
 protected function casts(): array
 {
     return [
-        'price' => 'decimal:' . $this->input('currency_decimals', 2),
-        'settings' => 'json',
+        'status' => PostStatus::class,
+        'history.*.status' => PostStatus::class,
     ];
 }
 ```
 
-After defining your casts, you may retrieve the casted values using the `casted` method. By default, this method casts the request's validated input:
+Integer-backed enums accept the numeric strings normally submitted by forms and JSON clients. Existing matching enum cases are preserved.
 
-```php
-$data = $request->casted();
-
-$publishedAt = $request->casted('published_at');
-
-$data = $request->casted(['published_at', 'views', 'is_featured']);
-```
-
-If you need to cast raw request input instead of validated input, pass `false` as the second argument:
-
-```php
-$data = $request->casted(validate: false);
-
-$publishedAt = $request->casted('published_at', validate: false);
-```
-
-Hypervel supports the following primitive cast types:
-
-<div class="content-list" markdown="1">
-
-- `array` - Decodes a JSON string to a PHP array
-- `bool` / `boolean` - Casts to a boolean
-- `collection` - Decodes a JSON string to a `Hypervel\Support\Collection`
-- `date` - Casts to a date with the time set to the start of the day
-- `datetime` - Casts to a date and time instance
-- `decimal:<digits>` - Casts to a decimal string with the given number of digits
-- `double` / `float` / `real` - Casts to a float
-- `int` / `integer` - Casts to an integer
-- `json` - Decodes a JSON string to a PHP array
-- `object` - Decodes a JSON string to an object
-- `string` - Casts to a string
-- `timestamp` - Casts to a Unix timestamp
-
-</div>
-
-You may also cast inputs to PHP enums:
+Use a wildcard cast for an ordinary enum array. Use `AsEnumCollection::of()` when you want a Support collection instead:
 
 ```php
 use App\Enums\PostStatus;
+use Hypervel\Foundation\Http\Casts\AsEnumCollection;
 
-protected array $casts = [
-    'status' => PostStatus::class,
-];
-```
-
-Inputs may also be cast to classes extending `Hypervel\Data\Data`, `Dto`, or `Resource` using the package's explicit FormRequest casts:
-
-```php
-<?php
-
-namespace App\Data;
-
-use Hypervel\Data\Data;
-
-class PostMetadata extends Data
+protected function casts(): array
 {
-    public function __construct(
-        public readonly string $author,
-        public readonly array $keywords,
-        public readonly ?string $description = null,
-    ) {
-    }
+    return [
+        'statuses.*' => PostStatus::class,
+        'status_collection' => AsEnumCollection::of(PostStatus::class),
+    ];
 }
 ```
 
-```php
-use App\Data\PostMetadata;
-use Hypervel\Data\Http\Casts\AsData;
+Cast paths use the same dotted and wildcard notation as validation rules. Escape a literal dot as `\.` and a literal asterisk as `\*`:
 
-protected array $casts = [
-    'metadata' => AsData::of(PostMetadata::class),
-];
+```php
+protected function casts(): array
+{
+    return [
+        'settings\.theme.enabled' => 'boolean',
+        'flags.literal\*' => 'boolean',
+        'orders.*.items.*.price' => 'decimal:2',
+    ];
+}
 ```
 
-Hypervel also provides cast helpers for collections of data objects and arrays or collections of enums:
+#### Data Object Casting
+
+Classes extending `Hypervel\Data\Data`, `Dto`, or `Resource` may be declared directly. Use `AsDataCollection::of()` when the input contains several data objects:
 
 ```php
 use App\Data\ContactData;
-use App\Enums\PostStatus;
+use App\Data\PostDto;
+use App\Data\PostMetadataData;
+use App\Data\PostResource;
 use Hypervel\Data\Http\Casts\AsDataCollection;
-use Hypervel\Foundation\Http\Casts\AsEnumArrayObject;
-use Hypervel\Foundation\Http\Casts\AsEnumCollection;
 
-protected array $casts = [
-    'status_history' => AsEnumArrayObject::of(PostStatus::class),
-    'statuses' => AsEnumCollection::of(PostStatus::class),
-    'contact_list' => AsDataCollection::of(ContactData::class, 'array'),
-    'contacts' => AsDataCollection::of(ContactData::class),
-];
+protected function casts(): array
+{
+    return [
+        'metadata' => PostMetadataData::class,
+        'dto' => PostDto::class,
+        'resource' => PostResource::class,
+        'contacts' => AsDataCollection::of(ContactData::class),
+        'contact_array' => AsDataCollection::of(ContactData::class, 'array'),
+    ];
+}
 ```
 
-`AsEnumArrayObject` returns an `ArrayObject`, while `AsEnumCollection` returns a `Hypervel\Support\Collection`. `AsDataCollection` returns a `Hypervel\Data\DataCollection` by default and accepts the same explicit targets as `Data::collect()`, including `'array'` and `Hypervel\Support\Collection::class`.
+`AsDataCollection` returns a `Hypervel\Data\DataCollection` by default and accepts the same explicit targets as `Data::collect()`, including `'array'` and `Hypervel\Support\Collection::class`.
 
-For more complex casting logic, you may create a custom cast class that implements the `CastInputs` interface:
+Direct `Data`, `Dto`, and `Resource` request casts do not accept cast arguments. Eloquent-only options such as `default` and `encrypted` do not apply to validated request input.
+
+#### Custom Casts
+
+A custom request caster implements the `CastsRequestInput` contract. Its `cast` method receives the concrete input key, its validated value, and the complete original validated input array:
 
 ```php
 <?php
 
 namespace App\Casts;
 
-use Hypervel\Foundation\Http\Contracts\CastInputs;
+use App\ValueObjects\Money;
+use Hypervel\Contracts\Http\CastsRequestInput;
 
-class UppercaseCast implements CastInputs
+class MoneyCast implements CastsRequestInput
 {
-    /**
-     * Transform the input value.
-     */
-    public function get(string $key, mixed $value, array $inputs): string
+    public function __construct(protected readonly string $currency)
     {
-        return strtoupper((string) $value);
+    }
+
+    public function cast(string $key, mixed $value, array $input): Money
+    {
+        return new Money(
+            amount: (int) $value,
+            currency: $input['currency'] ?? $this->currency,
+        );
     }
 }
 ```
 
 ```php
-use App\Casts\UppercaseCast;
+use App\Casts\MoneyCast;
 
-protected array $casts = [
-    'title' => UppercaseCast::class,
-];
+protected function casts(): array
+{
+    return [
+        'price' => MoneyCast::class . ':USD',
+    ];
+}
 ```
 
-You may also make a class castable by implementing the `Castable` interface:
+Cast arguments follow the familiar comma-separated class-cast syntax and are passed to the caster's constructor.
+
+A value-object class may implement `RequestCastable` and choose its request caster:
 
 ```php
 <?php
 
 namespace App\ValueObjects;
 
-use Hypervel\Foundation\Http\Contracts\Castable;
-use Hypervel\Foundation\Http\Contracts\CastInputs;
+use App\Casts\MoneyCast;
+use Hypervel\Contracts\Http\CastsRequestInput;
+use Hypervel\Contracts\Http\RequestCastable;
 
-class Money implements Castable
+class Money implements RequestCastable
 {
     public function __construct(
         public readonly int $amount,
@@ -898,23 +894,25 @@ class Money implements Castable
     ) {
     }
 
-    /**
-     * Get the caster class to use for this value object.
-     */
-    public static function castUsing(array $arguments = []): CastInputs|string
+    public static function castRequestUsing(array $arguments): CastsRequestInput|string
     {
-        return new class implements CastInputs {
-            public function get(string $key, mixed $value, array $inputs): Money
-            {
-                return new Money(
-                    amount: (int) ($value * 100),
-                    currency: $inputs['currency'] ?? 'USD',
-                );
-            }
-        };
+        return MoneyCast::class;
     }
 }
 ```
+
+```php
+protected function casts(): array
+{
+    return [
+        'price' => Money::class . ':USD',
+    ];
+}
+```
+
+When a class name is returned, Hypervel creates the caster with the same positional arguments from the declaration. A caster object may be returned instead.
+
+Scalar, enum, and date results pass through normal database normalization when assigned to a model. Arrays and objects—including Data objects, Collections, decoded JSON objects, and custom value objects—need a compatible model serialization boundary such as a Data/DataCollection Eloquent cast, a JSON-family cast, or a custom cast or mutator.
 
 <a name="manually-creating-validators"></a>
 ## Manually Creating Validators
