@@ -1,0 +1,640 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Benchmarks\Data\Fixtures;
+
+use ArrayAccess;
+use BackedEnum;
+use Carbon\Carbon as BaseCarbon;
+use Carbon\CarbonImmutable as BaseCarbonImmutable;
+use Carbon\CarbonInterface;
+use Carbon\Exceptions\InvalidFormatException;
+use DateTime;
+use DateTimeImmutable;
+use DateTimeInterface;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Str;
+use JsonSerializable;
+use LogicException;
+use OutOfBoundsException;
+use ReflectionClass;
+use ReflectionNamedType;
+use ReflectionParameter;
+use ReflectionProperty;
+use ReflectionUnionType;
+use RuntimeException;
+
+abstract class DataObject implements ArrayAccess, JsonSerializable
+{
+    /**
+     * The default date format for DateTime properties.
+     */
+    protected const string DEFAULT_DATE_FORMAT = 'Y-m-d H:i:s';
+
+    /**
+     * Reflection parameters cache (class name => [ReflectionParameter]).
+     */
+    public static array $reflectionParametersCache = [];
+
+    /**
+     * Property map cache (class name => [snake_case key => camelCase property]).
+     */
+    public static array $propertyMapCache = [];
+
+    /**
+     * Reversed property map cache (class name => [camelCase key => snake_case property]).
+     */
+    public static array $reversedPropertyMapCache = [];
+
+    /**
+     * Flag to indicate if auto-casting is enabled.
+     */
+    protected static bool $autoCasting = true;
+
+    /**
+     * Cache for dependencies map (class name => dependencies array).
+     */
+    protected static array $dependenciesMapCache = [];
+
+    /**
+     * The date format for DateTime properties.
+     */
+    protected static string $dateFormat = self::DEFAULT_DATE_FORMAT;
+
+    /**
+     * Cache for the array representation of the object.
+     */
+    protected array $arrayCache = [];
+
+    /**
+     * Create an instance of the class using the provided data array.
+     */
+    public static function make(array $data, bool $autoResolve = false): static
+    {
+        $properties = static::getReversedPropertyMap();
+        if ($autoResolve) {
+            $data = static::getConvertedData($data);
+        }
+
+        $constructorArgs = [];
+        foreach (static::getReflectionParameters() as $parameter) {
+            $paramName = $parameter->getName();
+            $dataKey = $properties[$paramName];
+            $dataValue = null;
+
+            // check if the data key exists in the array
+            // and convert the value to the correct type automatically
+            if (array_key_exists($dataKey, $data)) {
+                $dataValue = $data[$dataKey];
+                if (static::$autoCasting) {
+                    $dataValue = static::convertValueToType($dataValue, $parameter);
+                }
+            // use the default value if available
+            } elseif ($parameter->isDefaultValueAvailable()) {
+                $dataValue = $parameter->getDefaultValue();
+            } else {
+                $dataValue = static::getDefaultValueForType($parameter);
+            }
+
+            $constructorArgs[$paramName] = $dataValue;
+        }
+
+        return new static(...$constructorArgs);
+    }
+
+    /**
+     * Create an instance of the class using the provided data array.
+     * This is an alias of the `make` method.
+     */
+    public static function from(array $data, bool $autoResolve = false): static
+    {
+        return static::make($data, $autoResolve);
+    }
+
+    /**
+     * Get the customized dependencies map.
+     *
+     * @return array<string, callable>
+     */
+    protected static function getCustomizedDependencies(): array
+    {
+        $dependencies = [];
+        $dateTargets = [
+            DateTimeInterface::class,
+            CarbonInterface::class,
+            DateTime::class,
+            DateTimeImmutable::class,
+            Carbon::class,
+            CarbonImmutable::class,
+            BaseCarbon::class,
+            BaseCarbonImmutable::class,
+        ];
+
+        foreach ($dateTargets as $target) {
+            $dependencies[$target] = static fn (mixed $value): ?DateTimeInterface => $value === [] ? null : static::asDateTime($value, $target);
+        }
+
+        return $dependencies;
+    }
+
+    /**
+     * Get the serialization handlers for specific dependency types.
+     *
+     * @return array<string, callable>
+     */
+    protected static function getSerializers(): array
+    {
+        return [
+            DateTimeInterface::class => static fn (DateTimeInterface $value): string => $value->format('c'),
+        ];
+    }
+
+    /**
+     * Convert a value to the declared date target.
+     *
+     * @param BaseCarbon::class|BaseCarbonImmutable::class|Carbon::class|CarbonImmutable::class|CarbonInterface::class|DateTime::class|DateTimeImmutable::class|DateTimeInterface::class $target
+     */
+    protected static function asDateTime(mixed $value, string $target): DateTimeInterface
+    {
+        if ($value instanceof DateTimeInterface) {
+            $date = Date::instance($value);
+        } elseif (is_numeric($value)) {
+            $date = Date::createFromTimestamp(
+                $value,
+                date_default_timezone_get()
+            );
+        } elseif (static::isStandardDateFormat($value)) {
+            $date = Date::parse($value)->startOfDay();
+        } else {
+            try {
+                $date = Date::createFromFormat(static::$dateFormat, $value);
+                // @phpstan-ignore catch.neverThrown (the Date facade's magic dispatch hides Carbon's @throws from analysis)
+            } catch (InvalidFormatException) {
+                $date = null;
+            }
+
+            $date ??= Date::parse($value);
+        }
+
+        return match ($target) {
+            DateTimeInterface::class, CarbonInterface::class => $date,
+            DateTime::class => DateTime::createFromInterface($date),
+            DateTimeImmutable::class => DateTimeImmutable::createFromInterface($date),
+            // instance() clones same-mutability subclasses, so cross the mutability
+            // boundary first to honor the exact target while retaining Carbon settings.
+            Carbon::class => Carbon::instance($date->toImmutable()),
+            CarbonImmutable::class => CarbonImmutable::instance($date->toMutable()),
+            BaseCarbon::class => BaseCarbon::instance($date->toImmutable()),
+            BaseCarbonImmutable::class => BaseCarbonImmutable::instance($date->toMutable()),
+        };
+    }
+
+    /**
+     * Determine if the given value is a standard date format.
+     */
+    protected static function isStandardDateFormat(mixed $value): bool
+    {
+        return (bool) preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})$/', (string) $value);
+    }
+
+    /**
+     * Get the converted data array with dependencies resolved.
+     */
+    protected static function getConvertedData(array $data): array
+    {
+        if (! $dependencies = static::getDependenciesData()) {
+            return $data;
+        }
+
+        return static::replaceDependenciesData(
+            $dependencies,
+            $data
+        );
+    }
+
+    /**
+     * Get the dependencies map for the current class.
+     *
+     * @return array<string, array{handler: callable, children: array}>
+     */
+    protected static function getDependenciesData(): array
+    {
+        if (array_key_exists(static::class, static::$dependenciesMapCache)) {
+            return static::$dependenciesMapCache[static::class];
+        }
+
+        return static::$dependenciesMapCache[static::class] = static::resolveDependenciesMap(static::class);
+    }
+
+    protected static function getDependencyFromUnionType(ReflectionUnionType $type): ?ReflectionNamedType
+    {
+        foreach ($type->getTypes() as $namedType) {
+            if (! $namedType instanceof ReflectionNamedType) {
+                continue;
+            }
+
+            $className = $namedType->getName();
+            if (
+                is_subclass_of($className, DataObject::class)
+                || is_a($className, DateTimeInterface::class, true)
+            ) {
+                return $namedType;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Check if the union type allows null.
+     */
+    protected static function hasNullableUnionType(ReflectionUnionType $type): bool
+    {
+        foreach ($type->getTypes() as $namedType) {
+            if ($namedType->allowsNull()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Recursively resolve the dependencies map for the given class.
+     *
+     * @param array<string, bool> $visited
+     * @return array<string, array{handler: callable, children: array}>
+     */
+    protected static function resolveDependenciesMap(string $class, array &$visited = []): array
+    {
+        if (isset($visited[$class])) {
+            return [];
+        }
+
+        $visited[$class] = true;
+        $reflection = new ReflectionClass($class);
+        $properties = $reflection->getProperties(ReflectionProperty::IS_PUBLIC);
+        $customizedDependencies = $class::getCustomizedDependencies();
+
+        $result = [];
+        foreach ($properties as $property) {
+            if ($property->isStatic()) {
+                continue;
+            }
+            $propertyType = $property->getType();
+
+            if (! $propertyType instanceof ReflectionNamedType && ! $propertyType instanceof ReflectionUnionType) {
+                continue;
+            }
+
+            $allowsNull = $propertyType->allowsNull();
+            if ($propertyType instanceof ReflectionUnionType) {
+                $allowsNull = static::hasNullableUnionType($propertyType);
+                $propertyType = static::getDependencyFromUnionType($propertyType);
+
+                if ($propertyType === null) {
+                    continue;
+                }
+            }
+
+            $typeName = $propertyType->getName();
+            $dataKey = $class::isAutoCasting()
+                ? $class::convertPropertyToDataKey($property->getName())
+                : $property->getName();
+
+            if (is_subclass_of($typeName, DataObject::class)) {
+                $result[$dataKey] = [
+                    'handler' => fn ($value) => $value instanceof $typeName ? $value : $typeName::make($value),
+                    'nullable' => $allowsNull,
+                    'children' => static::resolveDependenciesMap($typeName, $visited),
+                ];
+                continue;
+            }
+            if (enum_exists($typeName) && is_subclass_of($typeName, BackedEnum::class, true)) {
+                $result[$dataKey] = [
+                    'handler' => fn ($value) => $value instanceof $typeName ? $value : $typeName::from($value),
+                    'nullable' => $allowsNull,
+                    'children' => [],
+                ];
+                continue;
+            }
+            if ($resolver = $customizedDependencies[$typeName] ?? null) {
+                $result[$dataKey] = [
+                    'handler' => $resolver,
+                    'nullable' => $allowsNull,
+                    'children' => [],
+                ];
+                continue;
+            }
+        }
+
+        unset($visited[$class]);
+
+        return $result;
+    }
+
+    /**
+     * Recursively replace dependencies data in the given data array.
+     */
+    protected static function replaceDependenciesData(array $dependencies, array $data): array
+    {
+        foreach ($dependencies as $key => $dependency) {
+            if (! array_key_exists($key, $data)) {
+                continue;
+            }
+
+            $handler = $dependency['handler'];
+            $children = $dependency['children'] ?? [];
+            $nullable = $dependency['nullable'] ?? false;
+            $matched = $data[$key];
+
+            if ($nullable && $matched === null) {
+                continue;
+            }
+            if (! is_array($matched)) {
+                $data[$key] = $handler($matched === null ? [] : $matched);
+                continue;
+            }
+
+            if ($children) {
+                $data[$key] = static::replaceDependenciesData($children, $matched);
+            }
+
+            $data[$key] = $handler($data[$key]);
+        }
+
+        return $data;
+    }
+
+    /**
+     * Enable or disable auto-casting of data values.
+     *
+     * Boot-only. The auto-casting flag persists in a static property for the
+     * worker lifetime and affects every subsequent data object hydration.
+     */
+    public static function enableAutoCasting(): void
+    {
+        static::$autoCasting = true;
+    }
+
+    /**
+     * Enable or disable auto-casting of data values.
+     */
+    public static function isAutoCasting(): bool
+    {
+        return static::$autoCasting;
+    }
+
+    /**
+     * Disable auto-casting of data values.
+     *
+     * Boot-only. The auto-casting flag persists in a static property for the
+     * worker lifetime and affects every subsequent data object hydration.
+     */
+    public static function disableAutoCasting(): void
+    {
+        static::$autoCasting = false;
+    }
+
+    /**
+     * Convert the property name to the data key format.
+     * It converts camelCase to snake_case by default.
+     */
+    public static function convertPropertyToDataKey(string $input): string
+    {
+        return Str::snake($input);
+    }
+
+    /**
+     * Convert the data key to the property name format.
+     * It converts snake_case to camelCase by default.
+     */
+    public static function convertDataKeyToProperty(string $input): string
+    {
+        return Str::camel($input);
+    }
+
+    /**
+     * Get the reflection parameters for the constructor.
+     *
+     * @return ReflectionParameter[]
+     */
+    protected static function getReflectionParameters(): array
+    {
+        if (! is_null($parameters = static::$reflectionParametersCache[static::class] ?? null)) {
+            return $parameters;
+        }
+
+        $reflection = new ReflectionClass(static::class);
+        $constructor = $reflection->getConstructor();
+        $parameters = $constructor ? $constructor->getParameters() : [];
+
+        return static::$reflectionParametersCache[static::class] = $parameters;
+    }
+
+    /**
+     * Convert the value to the correct type based on the parameter type.
+     */
+    protected static function convertValueToType(mixed $value, ReflectionParameter $parameter): mixed
+    {
+        if (! $type = $parameter->getType()) {
+            return $value;
+        }
+        if ($type->allowsNull() && is_null($value)) {
+            return null;
+        }
+
+        if ($type instanceof ReflectionNamedType) {
+            return match ($type->getName()) {
+                'int' => (int) $value,
+                'float' => (float) $value,
+                'string' => (string) $value,
+                'bool' => (bool) $value,
+                'array' => is_array($value) ? $value : [$value],
+                default => $value,
+            };
+        }
+
+        return $value;
+    }
+
+    /**
+     * Get default value for the parameter type.
+     */
+    protected static function getDefaultValueForType(ReflectionParameter $parameter): mixed
+    {
+        $type = $parameter->getType();
+        if (! $type || $type->allowsNull()) {
+            return null;
+        }
+
+        throw new RuntimeException(
+            "Missing required property `{$parameter->name}` in `" . static::class . '`'
+        );
+    }
+
+    /**
+     * Get property map (snake_case key => camelCase property).
+     *
+     * @return array<string, string>
+     */
+    protected static function getPropertyMap(): array
+    {
+        if (array_key_exists(static::class, static::$propertyMapCache)) {
+            return static::$propertyMapCache[static::class];
+        }
+
+        $reflection = new ReflectionClass(static::class);
+        $properties = $reflection->getProperties(ReflectionProperty::IS_PUBLIC);
+        $map = [];
+
+        foreach ($properties as $property) {
+            if ($property->isStatic()) {
+                continue;
+            }
+            $propName = $property->getName();
+            $snakeKey = static::convertPropertyToDataKey($propName);
+            $map[$snakeKey] = $propName;
+        }
+
+        return static::$propertyMapCache[static::class] = $map;
+    }
+
+    /**
+     * Get reversed property map (camelCase key => snake_case property).
+     *
+     * @return array<string, string>
+     */
+    protected static function getReversedPropertyMap(): array
+    {
+        if (array_key_exists(static::class, static::$reversedPropertyMapCache)) {
+            return static::$reversedPropertyMapCache[static::class];
+        }
+
+        return static::$reversedPropertyMapCache[static::class] = array_flip(
+            static::getPropertyMap()
+        );
+    }
+
+    /**
+     * Update the object properties with the provided data array.
+     */
+    public function update(array $data): static
+    {
+        $properties = static::getPropertyMap();
+        foreach ($data as $key => $value) {
+            $this->{$properties[$key]} = $value;
+        }
+
+        $this->refresh();
+
+        return $this;
+    }
+
+    /**
+     * Check if the offset exists.
+     */
+    public function offsetExists(mixed $offset): bool
+    {
+        return array_key_exists($offset, static::getPropertyMap());
+    }
+
+    /**
+     * Get the value at the specified offset.
+     */
+    public function offsetGet(mixed $offset): mixed
+    {
+        if (array_key_exists($offset, $this->toArray())) {
+            return $this->toArray()[$offset];
+        }
+
+        throw new OutOfBoundsException("Undefined offset: {$offset}");
+    }
+
+    /**
+     * Set the value at the specified offset.
+     */
+    public function offsetSet(mixed $offset, mixed $value): void
+    {
+        throw new LogicException('Data object may not be mutated using array access.');
+    }
+
+    /**
+     * Unset the value at the specified offset.
+     */
+    public function offsetUnset(mixed $offset): void
+    {
+        throw new LogicException('Data object may not be mutated using array access.');
+    }
+
+    /**
+     * Convert the object to an array representation.
+     */
+    public function toArray(): array
+    {
+        if ($this->arrayCache) {
+            return $this->arrayCache;
+        }
+
+        $result = [];
+        $map = static::getPropertyMap();
+
+        $serializers = static::getSerializers();
+        foreach ($map as $snakeKey => $propName) {
+            $value = $this->{$propName};
+            // recursively convert nested objects to arrays
+            if ($value instanceof self) {
+                $value = $value->toArray();
+            } elseif (
+                $value instanceof DateTimeInterface
+                && $serializer = $serializers[DateTimeInterface::class] ?? null
+            ) {
+                $value = $serializer($value);
+            } elseif (
+                is_object($value)
+                && $serializer = $serializers[$value::class] ?? null
+            ) {
+                $value = $serializer($value);
+            } elseif (is_object($value) && method_exists($value, 'toArray')) {
+                $value = $value->toArray();
+            }
+            $result[$snakeKey] = $value;
+        }
+
+        return $this->arrayCache = $result;
+    }
+
+    /**
+     * JSON serialize the object.
+     */
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
+    }
+
+    /**
+     * Return a refreshed instance of the object with cleared cache.
+     */
+    public function refresh(): static
+    {
+        $this->arrayCache = [];
+
+        return $this;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$reflectionParametersCache = [];
+        static::$propertyMapCache = [];
+        static::$reversedPropertyMapCache = [];
+        static::$autoCasting = true;
+        static::$dependenciesMapCache = [];
+        static::$dateFormat = self::DEFAULT_DATE_FORMAT;
+    }
+}
