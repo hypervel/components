@@ -300,6 +300,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Validation\Rules\File::flushState();
         \Hypervel\Validation\Rules\Password::flushState();
         \Hypervel\Validation\RulePlanCache::flushState();
+        \Hypervel\Validation\ValidationData::flushState();
         \Hypervel\Validation\ValidationRuleParser::flushState();
         \Hypervel\Validation\Validator::flushState();
         \Hypervel\View\Component::flushState();

@@ -5332,7 +5332,10 @@ class ModelWithPrimitiveCasts extends Model
         $toReturn = [];
 
         foreach (static::$primitiveCastTypes as $index => $primitiveCastType) {
-            $toReturn['primitive_cast_' . $index] = $primitiveCastType;
+            // The list contains normalized markers, while decimal declarations require a scale.
+            $toReturn['primitive_cast_' . $index] = $primitiveCastType === 'decimal'
+                ? 'decimal:2'
+                : $primitiveCastType;
         }
 
         return $toReturn;

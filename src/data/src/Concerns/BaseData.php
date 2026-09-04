@@ -29,6 +29,8 @@ use Traversable;
 
 trait BaseData
 {
+    use RequestCastableData;
+
     /**
      * Create an optional data object.
      */
