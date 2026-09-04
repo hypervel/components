@@ -16,7 +16,7 @@ use Hypervel\Foundation\Http\Attributes\FailOnUnknownFields;
 use Hypervel\Foundation\Http\Attributes\RedirectTo;
 use Hypervel\Foundation\Http\Attributes\RedirectToRoute;
 use Hypervel\Foundation\Http\Attributes\StopOnFirstFailure;
-use Hypervel\Foundation\Http\Traits\HasCasts;
+use Hypervel\Foundation\Http\Concerns\HasCasts;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Redirector;
 use Hypervel\Support\ValidatedInput;
@@ -334,9 +334,11 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
      */
     public function safe(?array $keys = null): array|ValidatedInput
     {
+        $validated = new ValidatedInput($this->castValidatedInput($this->validator->validated()));
+
         return is_array($keys)
-            ? $this->validator->safe()->only($keys)
-            : $this->validator->safe();
+            ? $validated->only($keys)
+            : $validated;
     }
 
     /**
@@ -344,7 +346,7 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
      */
     public function validated(array|int|string|null $key = null, mixed $default = null): mixed
     {
-        return data_get($this->validator->validated(), $key, $default);
+        return data_get($this->castValidatedInput($this->validator->validated()), $key, $default);
     }
 
     /**

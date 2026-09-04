@@ -97,6 +97,14 @@ final readonly class CompiledValidation
             return;
         }
 
+        $value = $source[$segment];
+        $nextOffset = $offset + 1;
+
+        // A failed descent must not materialize an empty container in the validated payload.
+        if ($nextOffset !== count($segments) && ! is_array($value)) {
+            return;
+        }
+
         if (! is_array($target)) {
             $target = [];
         }
@@ -107,9 +115,9 @@ final readonly class CompiledValidation
 
         $this->restoreValueAtPath(
             $target[$segment],
-            $source[$segment],
+            $value,
             $segments,
-            $offset + 1,
+            $nextOffset,
         );
     }
 }
