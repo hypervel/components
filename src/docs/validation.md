@@ -807,6 +807,8 @@ protected function casts(): array
 }
 ```
 
+Each declaration is matched against the original validated input. Declarations may not overlap at a present input path, including parent and child paths such as `orders` and `orders.*.price`. Use one custom caster for the parent when both transformations belong together. A parent cast that decodes JSON does not expose new child paths to another declaration; for example, casting `settings` from JSON does not make `settings.rows` available for a second cast.
+
 #### Data Object Casting
 
 Classes extending `Hypervel\Data\Data`, `Dto`, or `Resource` may be declared directly. Use `AsDataCollection::of()` when the input contains several data objects:

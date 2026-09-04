@@ -75,6 +75,9 @@ trait HasCasts
         }
 
         $usesEncodedKeys = false;
+        $shouldCheckForOverlappingPaths = false;
+        $hasMultipleCasts = count($casts) > 1;
+        $castRoots = [];
 
         foreach ($casts as $attribute => $_) {
             // A dotted declaration may read a literal key while Arr::set() writes a nested path.
@@ -83,14 +86,23 @@ trait HasCasts
                 || (str_contains($attribute, '.') && array_key_exists($attribute, $input))
             ) {
                 $usesEncodedKeys = true;
+            }
 
-                break;
+            // Only declarations sharing a root, or using a wildcard root, can overlap.
+            if ($hasMultipleCasts && ! $shouldCheckForOverlappingPaths) {
+                $root = $this->getCastPathRoot($attribute);
+                $hasWildcardRoot = str_contains(str_replace('\*', '', $root), '*');
+
+                $shouldCheckForOverlappingPaths = $hasWildcardRoot || isset($castRoots[$root]);
+                $castRoots[$root] = true;
             }
         }
 
         $sourceInput = $usesEncodedKeys ? ValidationData::encodeKeys($input) : $input;
         $castedInput = $sourceInput;
         $missing = new stdClass;
+        $castPathOwners = [];
+        $castDescendantOwners = [];
 
         foreach ($casts as $attribute => $cast) {
             $castAttribute = $usesEncodedKeys ? ValidationData::encodeAttribute($attribute) : $attribute;
@@ -109,6 +121,18 @@ trait HasCasts
 
             if ($values === []) {
                 continue;
+            }
+
+            if ($shouldCheckForOverlappingPaths) {
+                foreach ($values as [$key]) {
+                    $this->ensureCastPathDoesNotOverlap(
+                        $key,
+                        $attribute,
+                        $usesEncodedKeys,
+                        $castPathOwners,
+                        $castDescendantOwners,
+                    );
+                }
             }
 
             [$castType, $argumentString] = array_pad(explode(':', $cast, 2), 2, null);
@@ -141,6 +165,65 @@ trait HasCasts
         }
 
         return $usesEncodedKeys ? ValidationData::decodeKeys($castedInput) : $castedInput;
+    }
+
+    /**
+     * Get the root segment from a cast path.
+     */
+    private function getCastPathRoot(string $attribute): string
+    {
+        $offset = 0;
+
+        while (($position = strpos($attribute, '.', $offset)) !== false) {
+            if ($position === 0 || $attribute[$position - 1] !== '\\') {
+                return substr($attribute, 0, $position);
+            }
+
+            $offset = $position + 1;
+        }
+
+        return $attribute;
+    }
+
+    /**
+     * Ensure the cast path does not overlap another declaration.
+     *
+     * @param array<string, string> $castPathOwners
+     * @param array<string, string> $castDescendantOwners
+     */
+    private function ensureCastPathDoesNotOverlap(
+        string $key,
+        string $attribute,
+        bool $usesEncodedKeys,
+        array &$castPathOwners,
+        array &$castDescendantOwners,
+    ): void {
+        $overlappingAttribute = $castPathOwners[$key] ?? $castDescendantOwners[$key] ?? null;
+        $ancestorPaths = [];
+        $position = strpos($key, '.');
+
+        while ($overlappingAttribute === null && $position !== false) {
+            $ancestorPath = substr($key, 0, $position);
+            $ancestorPaths[] = $ancestorPath;
+            $overlappingAttribute = $castPathOwners[$ancestorPath] ?? null;
+            $position = strpos($key, '.', $position + 1);
+        }
+
+        if ($overlappingAttribute !== null) {
+            $concreteInput = $usesEncodedKeys
+                ? ValidationData::replacePlaceholderInString($key)
+                : $key;
+
+            throw new InvalidArgumentException(
+                "Cast declarations [{$overlappingAttribute}] and [{$attribute}] overlap at input [{$concreteInput}]."
+            );
+        }
+
+        $castPathOwners[$key] = $attribute;
+
+        foreach ($ancestorPaths as $ancestorPath) {
+            $castDescendantOwners[$ancestorPath] ??= $attribute;
+        }
     }
 
     /**

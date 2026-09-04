@@ -407,6 +407,126 @@ class FormRequestCastingTest extends TestCase
     }
 
     /**
+     * Test present cast paths cannot overlap.
+     */
+    #[DataProvider('overlappingCastPathProvider')]
+    public function testRejectsOverlappingCastPaths(array $casts, array $input, string $message): void
+    {
+        $request = $this->validateRequest(ConfigurableCastPathsRequest::class, [
+            'cast_declarations' => $casts,
+            ...$input,
+        ]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($message);
+
+        $request->validated();
+    }
+
+    /**
+     * Provide overlapping cast paths.
+     */
+    public static function overlappingCastPathProvider(): array
+    {
+        return [
+            'parent before child' => [
+                ['settings' => 'object', 'settings.rows' => 'int'],
+                ['settings' => ['theme' => 'dark', 'rows' => '5']],
+                'Cast declarations [settings] and [settings.rows] overlap at input [settings.rows].',
+            ],
+            'child before parent' => [
+                ['settings.rows' => 'int', 'settings' => 'collection'],
+                ['settings' => ['theme' => 'dark', 'rows' => '5']],
+                'Cast declarations [settings.rows] and [settings] overlap at input [settings].',
+            ],
+            'wildcard parent and child' => [
+                ['orders.*' => 'collection', 'orders.*.price' => 'decimal:2'],
+                ['orders' => [['price' => '5.25']]],
+                'Cast declarations [orders.*] and [orders.*.price] overlap at input [orders.0.price].',
+            ],
+            'wildcard and exact duplicate' => [
+                ['orders.*.price' => 'decimal:2', 'orders.0.price' => 'int'],
+                ['orders' => [['price' => '5']]],
+                'Cast declarations [orders.*.price] and [orders.0.price] overlap at input [orders.0.price].',
+            ],
+            'partial wildcard parent and child' => [
+                ['profiles.user_*' => 'object', 'profiles.user_one.age' => 'int'],
+                ['profiles' => ['user_one' => ['age' => '31']]],
+                'Cast declarations [profiles.user_*] and [profiles.user_one.age] overlap at input [profiles.user_one.age].',
+            ],
+            'top-level wildcard parent and child' => [
+                ['*' => 'object', 'settings.rows' => 'int'],
+                ['settings' => ['rows' => '5']],
+                'Cast declarations [*] and [settings.rows] overlap at input [settings.rows].',
+            ],
+            'escaped literal parent and child' => [
+                ['meta\.data' => 'object', 'meta\.data.left' => 'int'],
+                ['meta.data' => ['left' => '1']],
+                'Cast declarations [meta\.data] and [meta\.data.left] overlap at input [meta.data.left].',
+            ],
+        ];
+    }
+
+    /**
+     * Test cast paths under the same root remain independent when they do not overlap.
+     */
+    public function testCastsNonOverlappingPathsUnderTheSameRoot(): void
+    {
+        $request = $this->validateRequest(ConfigurableCastPathsRequest::class, [
+            'cast_declarations' => [
+                'orders.*.price' => 'decimal:2',
+                'orders.*.quantity' => 'int',
+            ],
+            'orders' => [
+                ['price' => '5.255', 'quantity' => '2'],
+                ['price' => '10', 'quantity' => '3'],
+            ],
+        ]);
+
+        $this->assertSame([
+            ['price' => '5.26', 'quantity' => 2],
+            ['price' => '10.00', 'quantity' => 3],
+        ], $request->validated('orders'));
+    }
+
+    /**
+     * Test escaped literal paths remain distinct from nested paths.
+     */
+    public function testCastsEscapedLiteralPathsWithoutFalseOverlaps(): void
+    {
+        $request = $this->validateRequest(ConfigurableCastPathsRequest::class, [
+            'cast_declarations' => [
+                'meta\.data.left' => 'int',
+                'meta\.data.right' => 'int',
+                'meta.data' => 'int',
+            ],
+            'meta.data' => ['left' => '1', 'right' => '2'],
+            'meta' => ['data' => '3'],
+        ]);
+
+        $this->assertSame([
+            'meta.data' => ['left' => 1, 'right' => 2],
+            'meta' => ['data' => 3],
+        ], $request->validated());
+    }
+
+    /**
+     * Test a parent cast does not expose descendant paths absent from the validated input.
+     */
+    public function testCastPathsMatchTheOriginalValidatedInput(): void
+    {
+        $request = $this->validateRequest(ConfigurableCastPathsRequest::class, [
+            'cast_declarations' => [
+                'settings' => 'array',
+                'settings.rows' => 'int',
+            ],
+            'settings' => '{"rows":"5"}',
+        ]);
+
+        $this->assertSame(['rows' => '5'], $request->validated('settings'));
+    }
+
+    /**
      * Test an unescaped dotted cast does not consume a literal-dot input key.
      */
     public function testUnescapedDottedCastDoesNotConsumeLiteralDotInput(): void
@@ -783,6 +903,25 @@ class WildcardRequest extends FormRequest
             'meta\.data' => ['required', 'array'],
             'flags' => ['required', 'array'],
             'groups' => ['required', 'array'],
+        ];
+    }
+}
+
+class ConfigurableCastPathsRequest extends FormRequest
+{
+    protected function casts(): array
+    {
+        return $this->input('cast_declarations');
+    }
+
+    public function rules(): array
+    {
+        return [
+            'settings' => ['sometimes'],
+            'orders' => ['sometimes', 'array'],
+            'profiles' => ['sometimes', 'array'],
+            'meta\.data' => ['sometimes'],
+            'meta' => ['sometimes'],
         ];
     }
 }
