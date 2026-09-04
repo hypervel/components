@@ -241,6 +241,8 @@ Add two separate concrete methods to `PdoConnection`; do not expand `ConnectionI
 - `lockForPopping(): bool|string`;
 - `maxBindings(): int`.
 
+Mark both methods `@internal`: they are queue-facing capability probes rather than public database APIs, so the facade documenter must omit them from the generated `DB` surface.
+
 `PdoConnection` owns nullable per-generation cache fields, public cached accessors, conservative default resolver hooks, and invalidation in `setPdo()`. `MySqlConnection`, `PostgresConnection`, and `SQLiteConnection` override only the resolver hooks for their engines. The MySQL resolver covers both MySQL and MariaDB by checking `isMaria()` before applying the normalized-version threshold; `MariaDbConnection` inherits it without another override. Every replacement/reconnect path funnels through `setPdo()`; pooled check-in keeps the same PDO and must not invalidate.
 
 Capability rules:
