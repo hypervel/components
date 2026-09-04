@@ -879,6 +879,8 @@ class PdoConnection extends Connection
 
     /**
      * Get the lock clause supported when popping queued jobs.
+     *
+     * @internal
      */
     public function lockForPopping(): bool|string
     {
@@ -895,6 +897,8 @@ class PdoConnection extends Connection
 
     /**
      * Get the maximum number of bindings supported by one statement.
+     *
+     * @internal
      */
     public function maxBindings(): int
     {
