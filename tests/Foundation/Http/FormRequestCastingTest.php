@@ -86,6 +86,27 @@ class FormRequestCastingTest extends TestCase
     }
 
     /**
+     * Test numeric attributes are cast through exact and generic paths.
+     */
+    public function testCastsNumericAttributesThroughExactAndGenericPaths(): void
+    {
+        $input = [123 => '12', 'nested' => ['value' => '5']];
+        $exactRequest = $this->validateRequest(ExactNumericAttributeRequest::class, $input);
+        $genericRequest = $this->validateRequest(GenericNumericAttributeRequest::class, $input);
+
+        foreach ([$exactRequest, $genericRequest] as $request) {
+            $value = $request->validated()[123];
+
+            $this->assertInstanceOf(stdClass::class, $value);
+            $this->assertSame('123', $value->key);
+            $this->assertSame('12', $value->value);
+            $this->assertSame('12', $request->input('123'));
+        }
+
+        $this->assertSame(5, $genericRequest->validated('nested.value'));
+    }
+
+    /**
      * Test primitive aliases and scalar conversions.
      */
     public function testCastsPrimitiveScalarValues(): void
@@ -430,6 +451,33 @@ class FormRequestCastingTest extends TestCase
         $this->assertTrue($validated['flags']['literal*']);
         $this->assertSame(5, $validated['groups']['theme.dark']['value']);
         $this->assertArrayNotHasKey('theme', $validated['groups']);
+    }
+
+    /**
+     * Test encoded cast paths preserve literal keys in native and custom cast values.
+     */
+    public function testEncodedCastPathsPassDecodedValuesToCasters(): void
+    {
+        $request = $this->validateRequest(ConfigurableCastPathsRequest::class, [
+            'cast_declarations' => [
+                'profiles.*.collection' => 'collection',
+                'profiles.*.object' => 'object',
+                'profiles.*.custom' => InputSnapshotCast::class,
+            ],
+            'profiles' => [
+                'user.one' => [
+                    'collection' => ['theme.dark' => 'light'],
+                    'object' => ['theme.dark' => 'light'],
+                    'custom' => ['theme.dark' => 'light'],
+                ],
+            ],
+        ]);
+        $profile = $request->validated('profiles')['user.one'];
+
+        $this->assertSame(['theme.dark' => 'light'], $profile['collection']->all());
+        $this->assertSame(['theme.dark' => 'light'], (array) $profile['object']);
+        $this->assertInstanceOf(stdClass::class, $profile['custom']);
+        $this->assertSame(['theme.dark' => 'light'], $profile['custom']->value);
     }
 
     /**
@@ -806,6 +854,39 @@ class GenericCastParityRequest extends ExactCastParityRequest
     {
         return [
             ...parent::rules(),
+            'nested' => ['required', 'array'],
+            'nested.value' => ['required', 'integer'],
+        ];
+    }
+}
+
+class ExactNumericAttributeRequest extends FormRequest
+{
+    protected function casts(): array
+    {
+        return [123 => InputSnapshotCast::class];
+    }
+
+    public function rules(): array
+    {
+        return [123 => ['required']];
+    }
+}
+
+class GenericNumericAttributeRequest extends FormRequest
+{
+    protected function casts(): array
+    {
+        return [
+            123 => InputSnapshotCast::class,
+            'nested.value' => 'int',
+        ];
+    }
+
+    public function rules(): array
+    {
+        return [
+            123 => ['required'],
             'nested' => ['required', 'array'],
             'nested.value' => ['required', 'integer'],
         ];
@@ -1194,6 +1275,17 @@ class NullAwareCast implements CastsRequestInput
     public function cast(string $key, mixed $value, array $input): string
     {
         return $key . ':' . get_debug_type($value) . ':' . $input['fallback'];
+    }
+}
+
+class InputSnapshotCast implements CastsRequestInput
+{
+    public function cast(string $key, mixed $value, array $input): stdClass
+    {
+        return (object) [
+            'key' => $key,
+            'value' => $value,
+        ];
     }
 }
 

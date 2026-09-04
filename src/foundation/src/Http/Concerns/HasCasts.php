@@ -53,7 +53,7 @@ trait HasCasts
     /**
      * Get the casts for the validated request input.
      *
-     * @return array<string, string>
+     * @return array<array-key, string>
      */
     protected function casts(): array
     {
@@ -77,6 +77,8 @@ trait HasCasts
         $usesCastPaths = false;
 
         foreach ($casts as $attribute => $_) {
+            $attribute = (string) $attribute;
+
             if (strpbrk($attribute, '.*') !== false) {
                 $usesCastPaths = true;
 
@@ -92,6 +94,7 @@ trait HasCasts
         $usesEncodedKeys = false;
 
         foreach ($casts as $attribute => $_) {
+            $attribute = (string) $attribute;
             $usesWildcardPaths = $usesWildcardPaths || str_contains($attribute, '*');
 
             // Escaped paths and dotted declarations that collide with literal keys require placeholders.
@@ -116,6 +119,8 @@ trait HasCasts
         $castRoots = [];
 
         foreach ($casts as $attribute => $_) {
+            $attribute = (string) $attribute;
+
             // Only declarations sharing a root, or using a wildcard root, can overlap.
             if ($hasMultipleCasts && ! $shouldCheckForOverlappingPaths) {
                 $root = $this->getCastPathRoot($attribute);
@@ -133,6 +138,7 @@ trait HasCasts
         $castDescendantOwners = [];
 
         foreach ($casts as $attribute => $cast) {
+            $attribute = (string) $attribute;
             $castAttribute = $usesEncodedKeys ? ValidationData::encodeAttribute($attribute) : $attribute;
             $keys = str_contains($castAttribute, '*')
                 ? ValidationData::expandWildcardKeys($castAttribute, $sourceInput)
@@ -185,6 +191,11 @@ trait HasCasts
                 : null;
 
             foreach ($values as [$key, $value]) {
+                // No cast may see internal placeholder keys, including native collection and object conversions.
+                if ($usesEncodedKeys && is_array($value)) {
+                    $value = ValidationData::decodeKeys($value);
+                }
+
                 $value = $caster === null
                     ? $this->castNativeInput($castType, $primitiveCastType, $argumentString, $value)
                     : $caster->cast(
@@ -207,7 +218,7 @@ trait HasCasts
      * none contains path syntax.
      *
      * @param array<array-key, mixed> $input
-     * @param array<string, string> $casts
+     * @param array<array-key, string> $casts
      * @return array<array-key, mixed>
      */
     private function castExactValidatedInput(array $input, array $casts): array
@@ -215,6 +226,8 @@ trait HasCasts
         $castedInput = $input;
 
         foreach ($casts as $attribute => $cast) {
+            $attribute = (string) $attribute;
+
             if (! array_key_exists($attribute, $input)) {
                 continue;
             }
