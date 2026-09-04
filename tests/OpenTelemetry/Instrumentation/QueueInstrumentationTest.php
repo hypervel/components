@@ -225,6 +225,152 @@ class QueueInstrumentationTest extends TestCase
         $this->assertProducerWithoutStringUuid(json_encode($payload, JSON_THROW_ON_ERROR));
     }
 
+    public function testDuplicateUuidLessPayloadsCompleteEveryTracedProducerAcrossMixedOutcomes(): void
+    {
+        $this->instrumentation()->register($this->options([
+            'propagation' => false,
+        ]));
+        $payload = json_decode($this->payload(), true, flags: JSON_THROW_ON_ERROR);
+        unset($payload['uuid']);
+        $payload = json_encode($payload, JSON_THROW_ON_ERROR);
+        $first = $this->finalizingEvent(payload: $payload);
+        $second = $this->finalizingEvent(payload: $payload);
+        $exception = new RuntimeException('Queueing failed.');
+
+        $this->clock->timestamp = 1_000_000_000;
+        $this->events->dispatch($first);
+        $this->clock->timestamp = 2_000_000_000;
+        $this->events->dispatch($second);
+        $this->assertSame($first->payload, $second->payload);
+
+        $this->clock->timestamp = 3_000_000_000;
+        $this->events->dispatch(new JobQueued(
+            'redis',
+            'emails',
+            42,
+            'SendEmail@handle',
+            $first->payload,
+            null,
+        ));
+        $this->clock->timestamp = 5_000_000_000;
+        $this->events->dispatch(new JobQueueingFailed(
+            'redis',
+            'emails',
+            'SendEmail@handle',
+            $second->payload,
+            null,
+            $exception,
+        ));
+
+        $spans = $this->spanExporter->getSpans();
+        $this->assertCount(2, $spans);
+        $errorSpans = array_values(array_filter(
+            $spans,
+            static fn (SpanDataInterface $span): bool => $span->getStatus()->getCode() === StatusCode::STATUS_ERROR,
+        ));
+        $this->assertCount(1, $errorSpans);
+        $this->assertSame(
+            RuntimeException::class,
+            $errorSpans[0]->getAttributes()->get(ErrorAttributes::ERROR_TYPE),
+        );
+        $this->assertNull(QueueProducerStateStore::current()->take($payload));
+
+        $this->metricReader->collect();
+        $sent = $this->metric(self::SENT_MESSAGES_METRIC);
+        $this->assertInstanceOf(Sum::class, $sent->data);
+        $sentPoints = $sent->data->dataPoints;
+        $this->assertIsArray($sentPoints);
+        $this->assertCount(2, $sentPoints);
+        $sentCount = 0;
+        $sentErrorCount = 0;
+
+        foreach ($sentPoints as $point) {
+            $sentCount += $point->value;
+
+            if ($point->attributes->has(ErrorAttributes::ERROR_TYPE)) {
+                ++$sentErrorCount;
+                $this->assertSame(
+                    RuntimeException::class,
+                    $point->attributes->get(ErrorAttributes::ERROR_TYPE),
+                );
+            }
+        }
+
+        $this->assertSame(2, $sentCount);
+        $this->assertSame(1, $sentErrorCount);
+
+        $duration = $this->metric(self::SEND_DURATION_METRIC);
+        $this->assertInstanceOf(Histogram::class, $duration->data);
+        $durationPoints = $duration->data->dataPoints;
+        $this->assertIsArray($durationPoints);
+        $this->assertCount(2, $durationPoints);
+        $durationCount = 0;
+        $durationSum = 0;
+        $durationErrorCount = 0;
+
+        foreach ($durationPoints as $point) {
+            $durationCount += $point->count;
+            $durationSum += $point->sum;
+
+            if ($point->attributes->has(ErrorAttributes::ERROR_TYPE)) {
+                ++$durationErrorCount;
+                $this->assertSame(
+                    RuntimeException::class,
+                    $point->attributes->get(ErrorAttributes::ERROR_TYPE),
+                );
+            }
+        }
+
+        $this->assertSame(2, $durationCount);
+        $this->assertSame(5, $durationSum);
+        $this->assertSame(1, $durationErrorCount);
+    }
+
+    public function testDuplicateUuidLessPayloadsCompleteEveryMetricsOnlyProducer(): void
+    {
+        $this->instrumentation()->register($this->options([
+            'traces' => false,
+            'propagation' => false,
+            'metrics' => $this->metrics(sent: true, sendDuration: true),
+        ]));
+        $payload = json_decode($this->payload(), true, flags: JSON_THROW_ON_ERROR);
+        unset($payload['uuid']);
+        $payload = json_encode($payload, JSON_THROW_ON_ERROR);
+        $first = $this->finalizingEvent(payload: $payload);
+        $second = $this->finalizingEvent(payload: $payload);
+
+        $this->clock->timestamp = 1_000_000_000;
+        $this->events->dispatch($first);
+        $this->clock->timestamp = 2_000_000_000;
+        $this->events->dispatch($second);
+        $this->clock->timestamp = 3_000_000_000;
+        $this->events->dispatch(new JobQueued(
+            'redis',
+            'emails',
+            42,
+            'SendEmail@handle',
+            $first->payload,
+            null,
+        ));
+        $this->clock->timestamp = 5_000_000_000;
+        $this->events->dispatch(new JobQueued(
+            'redis',
+            'emails',
+            43,
+            'SendEmail@handle',
+            $second->payload,
+            null,
+        ));
+
+        $this->assertSame([], $this->spanExporter->getSpans());
+        $this->assertNull(QueueProducerStateStore::current()->take($payload));
+        $this->metricReader->collect();
+        $this->assertSame(2, $this->sumPoint(self::SENT_MESSAGES_METRIC)->value);
+        $duration = $this->histogramPoint(self::SEND_DURATION_METRIC);
+        $this->assertSame(2, $duration->count);
+        $this->assertSame(5, $duration->sum);
+    }
+
     public function testTracingWithoutPropagationKeepsTheOriginalPayloadAndStillCorrelates(): void
     {
         $this->instrumentation()->register($this->options([

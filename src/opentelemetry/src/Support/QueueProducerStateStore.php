@@ -11,7 +11,7 @@ class QueueProducerStateStore implements NonCopyableContext
 {
     private const string CONTEXT_KEY = '__opentelemetry.queue.producers';
 
-    /** @var array<string, QueueProducerState> */
+    /** @var array<string, non-empty-list<QueueProducerState>|QueueProducerState> */
     protected array $statesByPayload = [];
 
     /** @var array<string, string> */
@@ -39,7 +39,13 @@ class QueueProducerStateStore implements NonCopyableContext
      */
     public function put(string $payload, QueueProducerState $state): void
     {
-        $this->statesByPayload[$payload] = $state;
+        if (! isset($this->statesByPayload[$payload])) {
+            $this->statesByPayload[$payload] = $state;
+        } elseif ($this->statesByPayload[$payload] instanceof QueueProducerState) {
+            $this->statesByPayload[$payload] = [$this->statesByPayload[$payload], $state];
+        } else {
+            $this->statesByPayload[$payload][] = $state;
+        }
 
         if ($state->uuid !== null) {
             $this->payloadByUuid[$state->uuid] = $payload;
@@ -55,7 +61,19 @@ class QueueProducerStateStore implements NonCopyableContext
             return null;
         }
 
-        $state = $this->statesByPayload[$payload];
+        if ($this->statesByPayload[$payload] instanceof QueueProducerState) {
+            $state = $this->statesByPayload[$payload];
+        } else {
+            // Terminal events cannot distinguish byte-identical payloads, so LIFO discards no
+            // correlation fact. Pop the stored list itself: reading it into a local first would
+            // separate the array on every pop and make draining a bucket quadratic.
+            $state = array_pop($this->statesByPayload[$payload]);
+
+            if ($this->statesByPayload[$payload] !== []) {
+                return $state;
+            }
+        }
+
         unset($this->statesByPayload[$payload]);
 
         if ($state->uuid !== null) {
