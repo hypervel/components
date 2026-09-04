@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Data\Http\Casts;
 
+use Hypervel\Contracts\Http\CastsRequestInput;
+use Hypervel\Contracts\Http\RequestCastable;
 use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\DataCollection;
-use Hypervel\Foundation\Http\Contracts\Castable;
-use Hypervel\Foundation\Http\Contracts\CastInputs;
 use InvalidArgumentException;
 
-class AsDataCollection implements Castable, CastInputs
+class AsDataCollection implements CastsRequestInput, RequestCastable
 {
     /**
      * Create a FormRequest data collection cast.
@@ -39,9 +39,11 @@ class AsDataCollection implements Castable, CastInputs
     }
 
     /**
-     * Get the caster for a data collection.
+     * Get the request caster for a data collection.
+     *
+     * @param string[] $arguments
      */
-    public static function castUsing(array $arguments = []): CastInputs
+    public static function castRequestUsing(array $arguments): CastsRequestInput
     {
         $dataClass = $arguments[0] ?? throw new InvalidArgumentException(
             'A data class is required for the FormRequest data collection cast.',
@@ -51,11 +53,11 @@ class AsDataCollection implements Castable, CastInputs
     }
 
     /**
-     * Transform an input value into a data collection.
+     * Cast an input value to a data collection.
      */
-    public function get(string $key, mixed $value, array $inputs): mixed
+    public function cast(string $key, mixed $value, array $input): mixed
     {
-        if (! array_key_exists($key, $inputs) || $value === null) {
+        if ($value === null) {
             return null;
         }
 
