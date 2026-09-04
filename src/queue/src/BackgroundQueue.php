@@ -4,15 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
-use DateInterval;
-use DateTimeInterface;
-use Hypervel\Coordinator\Timer;
+use Closure;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Database\DatabaseTransactionsManager;
-use Swoole\Coroutine\CanceledException;
-use Throwable;
 
-class BackgroundQueue extends SyncQueue
+class BackgroundQueue extends CoroutineQueue
 {
     /**
      * The name of the default queue.
@@ -20,110 +15,10 @@ class BackgroundQueue extends SyncQueue
     protected string $default = 'background';
 
     /**
-     * The exception callback that should be used for handling uncaught exceptions in background execution.
-     *
-     * @var null|callable
+     * Execute the given callback in a new coroutine.
      */
-    protected $exceptionCallback;
-
-    /**
-     * The timer used to schedule delayed jobs.
-     */
-    protected Timer $timer;
-
-    /**
-     * Create a new background queue instance.
-     */
-    public function __construct(
-        bool $dispatchAfterCommit = false,
-        ?Timer $timer = null
-    ) {
-        parent::__construct($dispatchAfterCommit);
-        $this->timer = $timer ?? new Timer;
-    }
-
-    /**
-     * Push a new job onto the queue after (n) seconds.
-     */
-    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed
+    protected function scheduleExecution(Closure $execution): void
     {
-        if ($this->shouldDispatchAfterCommit($job)
-            && $this->container->has('db.transactions')
-        ) {
-            /** @var DatabaseTransactionsManager $transactions */
-            $transactions = $this->container->make('db.transactions');
-
-            $this->addJobRollbackCallback($transactions, $job);
-
-            $transactions->addCallback(
-                fn () => $this->scheduleTimer(
-                    $delay,
-                    $this->createPayload($job, $queue, $data),
-                    $queue
-                )
-            );
-
-            return null;
-        }
-
-        return $this->scheduleTimer(
-            $delay,
-            $this->createPayload($job, $queue, $data),
-            $queue
-        );
-    }
-
-    /**
-     * Set the exception callback for the background queue.
-     *
-     * Boot-only. The callback persists on the cached queue connection for the
-     * worker lifetime and handles every subsequent background job exception.
-     */
-    public function setExceptionCallback(?callable $callback): static
-    {
-        $this->exceptionCallback = $callback;
-
-        return $this;
-    }
-
-    /**
-     * Schedule the timer that will execute the job after the delay.
-     *
-     * Skips execution when the worker is closing — pending delayed jobs are
-     * dropped rather than racing against shutdown cleanup. Devs needing
-     * durability across worker restarts should use a persistent queue.
-     */
-    protected function scheduleTimer(DateInterval|DateTimeInterface|int $delay, string $payload, ?string $queue): int
-    {
-        return $this->timer->after(
-            max(0.0, (float) $this->secondsUntil($delay)),
-            function (bool $isClosing = false) use ($payload, $queue) {
-                if ($isClosing) {
-                    return;
-                }
-
-                $this->executePayload($payload, $queue);
-            }
-        );
-    }
-
-    /**
-     * Execute a serialized job in the background queue.
-     */
-    protected function executePayload(string $payload, ?string $queue = null): int
-    {
-        Coroutine::create(function () use ($payload, $queue) {
-            try {
-                parent::executePayload($payload, $queue);
-            } catch (CanceledException $exception) {
-                throw $exception;
-            } catch (Throwable $e) {
-                if ($this->exceptionCallback) {
-                    ($this->exceptionCallback)($e);
-                }
-            }
-        });
-
-        return 0;
+        Coroutine::create($execution);
     }
 }
