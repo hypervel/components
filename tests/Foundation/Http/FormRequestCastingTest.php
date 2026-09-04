@@ -60,6 +60,32 @@ class FormRequestCastingTest extends TestCase
     }
 
     /**
+     * Test exact and generic paths resolve cast declarations consistently.
+     */
+    public function testExactAndGenericPathsResolveCastsConsistently(): void
+    {
+        $input = [
+            'number' => '12',
+            'decimal' => '12.345',
+            'date' => '2024-01-15',
+            'status' => 'active',
+            'custom' => '10',
+            'multiplier' => 3,
+            'nested' => ['value' => '5'],
+        ];
+        $exact = $this->validateRequest(ExactCastParityRequest::class, $input)->validated();
+        $generic = $this->validateRequest(GenericCastParityRequest::class, $input)->validated();
+
+        foreach (['number', 'decimal', 'status', 'multiplier'] as $key) {
+            $this->assertSame($exact[$key], $generic[$key]);
+        }
+
+        $this->assertEquals($exact['date'], $generic['date']);
+        $this->assertEquals($exact['custom'], $generic['custom']);
+        $this->assertSame(5, $generic['nested']['value']);
+    }
+
+    /**
      * Test primitive aliases and scalar conversions.
      */
     public function testCastsPrimitiveScalarValues(): void
@@ -407,6 +433,23 @@ class FormRequestCastingTest extends TestCase
     }
 
     /**
+     * Test wildcard casts preserve unrelated keys containing path characters.
+     */
+    public function testWildcardCastsPreserveUnrelatedLiteralDotKeys(): void
+    {
+        $request = $this->validateRequest(ConfigurableCastPathsRequest::class, [
+            'cast_declarations' => ['orders.*.price' => 'int'],
+            'orders' => [['price' => '5']],
+            'meta.data' => ['version' => '1'],
+        ]);
+
+        $this->assertSame([
+            'orders' => [['price' => 5]],
+            'meta.data' => ['version' => '1'],
+        ], $request->validated());
+    }
+
+    /**
      * Test present cast paths cannot overlap.
      */
     #[DataProvider('overlappingCastPathProvider')]
@@ -719,6 +762,52 @@ class ExtractionRequest extends FormRequest
             'age' => ['required', 'integer'],
             'status' => ['required', Rule::enum(UserStatus::class)],
             'name' => ['required', 'string'],
+        ];
+    }
+}
+
+class ExactCastParityRequest extends FormRequest
+{
+    protected function casts(): array
+    {
+        return [
+            'number' => 'int',
+            'decimal' => 'decimal:2',
+            'date' => 'datetime:!Y-m-d',
+            'status' => UserStatus::class,
+            'custom' => MoneyCast::class . ':USD',
+        ];
+    }
+
+    public function rules(): array
+    {
+        return [
+            'number' => ['required', 'integer'],
+            'decimal' => ['required', 'numeric'],
+            'date' => ['required', 'string'],
+            'status' => ['required', Rule::enum(UserStatus::class)],
+            'custom' => ['required', 'numeric'],
+            'multiplier' => ['required', 'integer'],
+        ];
+    }
+}
+
+class GenericCastParityRequest extends ExactCastParityRequest
+{
+    protected function casts(): array
+    {
+        return [
+            ...parent::casts(),
+            'nested.value' => 'int',
+        ];
+    }
+
+    public function rules(): array
+    {
+        return [
+            ...parent::rules(),
+            'nested' => ['required', 'array'],
+            'nested.value' => ['required', 'integer'],
         ];
     }
 }
