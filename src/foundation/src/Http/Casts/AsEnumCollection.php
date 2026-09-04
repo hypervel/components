@@ -5,48 +5,64 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Http\Casts;
 
 use BackedEnum;
-use Hypervel\Foundation\Http\Contracts\Castable;
-use Hypervel\Foundation\Http\Contracts\CastInputs;
+use Hypervel\Contracts\Http\CastsRequestInput;
+use Hypervel\Contracts\Http\RequestCastable;
 use Hypervel\Support\Collection;
+use InvalidArgumentException;
+use UnitEnum;
 
-class AsEnumCollection implements Castable
+use function Hypervel\Support\enum_from;
+
+class AsEnumCollection implements RequestCastable
 {
     /**
-     * Get the caster class to use when casting from / to this cast target.
+     * Get the caster declaration for the given enum.
      *
-     * @param string $class The enum class name
+     * @param class-string<UnitEnum> $enum
      */
-    public static function of(string $class): string
+    public static function of(string $enum): string
     {
-        return static::class . ':' . $class;
+        return static::class . ':' . $enum;
     }
 
     /**
-     * Get the caster class to use when casting from / to this cast target.
+     * Get the request input caster.
+     *
+     * @param string[] $arguments
      */
-    public static function castUsing(array $arguments = []): CastInputs
+    public static function castRequestUsing(array $arguments): CastsRequestInput
     {
-        return new class($arguments) implements CastInputs {
-            public function __construct(protected array $arguments)
+        $enum = $arguments[0] ?? throw new InvalidArgumentException(
+            'An enum class is required for the FormRequest enum collection cast.',
+        );
+
+        return new class($enum) implements CastsRequestInput {
+            /**
+             * Create an enum collection caster.
+             *
+             * @param class-string<UnitEnum> $enum
+             */
+            public function __construct(protected string $enum)
             {
             }
 
-            public function get(string $key, mixed $value, array $inputs): mixed
+            /**
+             * Cast the given value to a collection of enums.
+             */
+            public function cast(string $key, mixed $value, array $input): ?Collection
             {
-                if (! isset($inputs[$key]) || ! is_array($value)) {
+                if ($value === null) {
                     return null;
                 }
 
-                $enumClass = $this->arguments[0];
-
-                return (new Collection($value))->map(function ($item) use ($enumClass) {
-                    if ($item instanceof $enumClass) {
+                return (new Collection($value))->map(function (mixed $item): UnitEnum {
+                    if ($item instanceof $this->enum) {
                         return $item;
                     }
 
-                    return is_subclass_of($enumClass, BackedEnum::class)
-                        ? $enumClass::from($item)
-                        : constant($enumClass . '::' . $item);
+                    return is_subclass_of($this->enum, BackedEnum::class)
+                        ? enum_from($this->enum, $item)
+                        : constant($this->enum . '::' . $item);
                 });
             }
         };

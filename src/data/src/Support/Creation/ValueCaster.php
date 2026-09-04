@@ -16,6 +16,8 @@ use Hypervel\Data\Support\DataProperty;
 use Hypervel\Support\Facades\Date;
 use Throwable;
 
+use function Hypervel\Support\enum_from;
+
 class ValueCaster
 {
     /**
@@ -57,7 +59,7 @@ class ValueCaster
         }
 
         try {
-            return $type::from($value);
+            return enum_from($type, $value);
         } catch (Throwable) {
             throw CannotCastEnum::create($type, $value, $property);
         }

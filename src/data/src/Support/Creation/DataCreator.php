@@ -58,6 +58,7 @@ use Hypervel\Support\LazyCollection;
 use Traversable;
 
 use function data_set;
+use function Hypervel\Support\enum_try_from;
 
 /** @phpstan-type OperationMemo array<string, object|list<Normalizer>> */
 class DataCreator
@@ -1927,7 +1928,7 @@ class DataCreator
             throw CannotCreateData::ambiguousDataCollectableUnion($property, $candidates);
         }
 
-        // The exact-array exit relies on accepted values passing before the fallback conversions below.
+        // The lean recipe relies on accepted values passing before the fallback conversions below.
         if ($property->type->acceptsValue($value)) {
             return $value;
         }
@@ -2720,8 +2721,8 @@ class DataCreator
 
             $enum = $property->type->findAcceptedTypeForBaseType(BackedEnum::class);
 
-            if ($enum !== null && (is_int($value) || is_string($value))) {
-                $value = $enum::tryFrom($value) ?? $value;
+            if ($enum !== null) {
+                $value = enum_try_from($enum, $value) ?? $value;
             }
 
             $properties[$property->name] = $value;

@@ -10,16 +10,20 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Events\StatementPrepared;
+use Hypervel\Database\MariaDbConnection;
 use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\PdoConnection;
+use Hypervel\Database\PostgresConnection;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Grammars\Grammar as SchemaGrammar;
 use Hypervel\Database\SessionConfigurator;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PDO;
 use PDOException;
 use PDOStatement;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use stdClass;
 
@@ -402,6 +406,82 @@ class DatabasePdoConnectionTest extends TestCase
         $this->assertNotSame('', $connection->getServerVersion());
         $this->assertSame(2, $configurator->stateCalls);
         $this->assertSame(1, $configurator->applyCalls);
+    }
+
+    #[DataProvider('databaseCapabilityProvider')]
+    public function testDatabaseCapabilities(
+        string $connectionClass,
+        string $serverVersion,
+        ?string $configuredVersion,
+        bool|string $expectedLock,
+        int $expectedMaxBindings,
+    ): void {
+        $pdo = new VersionedPDOStub($serverVersion);
+        $config = ['name' => 'test'];
+
+        if ($configuredVersion !== null) {
+            $config['version'] = $configuredVersion;
+        }
+
+        /** @var class-string<PdoConnection> $connectionClass */
+        $connection = new $connectionClass($pdo, 'test_db', '', $config);
+
+        $this->assertSame($expectedLock, $connection->lockForPopping());
+        $this->assertSame($expectedMaxBindings, $connection->maxBindings());
+    }
+
+    public static function databaseCapabilityProvider(): array
+    {
+        return [
+            'unknown PDO connection' => [PdoConnection::class, '1.0', null, true, 999],
+            'MySQL before SKIP LOCKED' => [MySqlConnection::class, '8.0.0', null, true, 65_535],
+            'MySQL with SKIP LOCKED' => [MySqlConnection::class, '8.0.1', null, 'FOR UPDATE SKIP LOCKED', 65_535],
+            'MariaDB through MySQL before SKIP LOCKED' => [MySqlConnection::class, '5.5.5-10.5.99-MariaDB', null, true, 65_535],
+            'MariaDB through MySQL with SKIP LOCKED' => [MySqlConnection::class, '5.5.5-10.6.0-MariaDB', null, 'FOR UPDATE SKIP LOCKED', 65_535],
+            'MariaDB connection' => [MariaDbConnection::class, '5.5.5-10.6.0-MariaDB', null, 'FOR UPDATE SKIP LOCKED', 65_535],
+            'configured MySQL override' => [MySqlConnection::class, '8.0.0', '8.0.1', 'FOR UPDATE SKIP LOCKED', 65_535],
+            'configured MariaDB marker' => [MySqlConnection::class, '8.0.0', '5.5.5-10.6.0-MariaDB', 'FOR UPDATE SKIP LOCKED', 65_535],
+            'Vitess before SKIP LOCKED' => [MySqlConnection::class, '8.0.0', '18.0.0-vitess', true, 65_535],
+            'Vitess with SKIP LOCKED' => [MySqlConnection::class, '8.0.0', '19.0.0-vitess', 'FOR UPDATE SKIP LOCKED', 65_535],
+            'PlanetScale with SKIP LOCKED' => [MySqlConnection::class, '8.0.0', '19.0.0-PlanetScale', 'FOR UPDATE SKIP LOCKED', 65_535],
+            'PostgreSQL before SKIP LOCKED' => [PostgresConnection::class, '9.4', null, true, 65_535],
+            'PostgreSQL with SKIP LOCKED' => [PostgresConnection::class, '9.5', null, 'FOR UPDATE SKIP LOCKED', 65_535],
+            'SQLite before expanded binding limit' => [SQLiteConnection::class, '3.31.1', null, true, 999],
+            'SQLite with expanded binding limit' => [SQLiteConnection::class, '3.32.0', null, true, 32_766],
+        ];
+    }
+
+    public function testDatabaseCapabilitiesAreCachedUntilThePdoIsReplaced(): void
+    {
+        $connection = new class(new PDOStub, 'test_db') extends PdoConnection {
+            public int $lockResolutionCount = 0;
+
+            public int $bindingResolutionCount = 0;
+
+            protected function resolveLockForPopping(): bool|string
+            {
+                return ++$this->lockResolutionCount === 1 ? true : 'FOR UPDATE SKIP LOCKED';
+            }
+
+            protected function resolveMaxBindings(): int
+            {
+                return ++$this->bindingResolutionCount === 1 ? 999 : 65_535;
+            }
+        };
+
+        $this->assertTrue($connection->lockForPopping());
+        $this->assertTrue($connection->lockForPopping());
+        $this->assertSame(999, $connection->maxBindings());
+        $this->assertSame(999, $connection->maxBindings());
+        $this->assertSame(1, $connection->lockResolutionCount);
+        $this->assertSame(1, $connection->bindingResolutionCount);
+
+        $connection->setPdo(new PDOStub);
+
+        $this->assertSame('FOR UPDATE SKIP LOCKED', $connection->lockForPopping());
+        $this->assertSame(65_535, $connection->maxBindings());
+        $this->assertSame(2, $connection->lockResolutionCount);
+        $this->assertSame(2, $connection->bindingResolutionCount);
     }
 
     public function testEscapingUsesThePdoThatExecutedTheLastWrite(): void
@@ -1116,6 +1196,18 @@ class PDOStub extends PDO
 {
     public function __construct()
     {
+    }
+}
+
+class VersionedPDOStub extends PDOStub
+{
+    public function __construct(private readonly string $serverVersion)
+    {
+    }
+
+    public function getAttribute(int $attribute): mixed
+    {
+        return $this->serverVersion;
     }
 }
 

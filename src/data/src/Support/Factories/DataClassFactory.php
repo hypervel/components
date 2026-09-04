@@ -590,7 +590,7 @@ class DataClassFactory
     }
 
     /**
-     * Determine if exact array values can be spread directly into the constructor.
+     * Determine if resolved recipe values can be spread directly into the constructor.
      *
      * @param ReflectionClass<object> $reflectionClass
      * @param array<string, true> $contextualParameters

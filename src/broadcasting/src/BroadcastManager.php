@@ -12,6 +12,7 @@ use Hypervel\Broadcasting\Broadcasters\LogBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\NullBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\PusherBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\RedisBroadcaster;
+use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Contracts\Broadcasting\Broadcaster;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactoryContract;
@@ -237,6 +238,17 @@ class BroadcastManager implements BroadcastingFactoryContract
             )
             ->pushOn($queue, $broadcastEvent);
 
+        if ($event instanceof ShouldBeUnique) {
+            $dispatch = $push;
+            $push = static function () use ($broadcastEvent, $dispatch): mixed {
+                try {
+                    return $dispatch();
+                } finally {
+                    DispatchLockContext::release($broadcastEvent);
+                }
+            };
+        }
+
         $event instanceof ShouldRescue
             ? $this->rescue($push)
             : $push();
@@ -245,13 +257,10 @@ class BroadcastManager implements BroadcastingFactoryContract
     /**
      * Determine if the broadcastable event must be unique and determine if we can acquire the necessary lock.
      */
-    protected function mustBeUniqueAndCannotAcquireLock(mixed $event): bool
+    protected function mustBeUniqueAndCannotAcquireLock(object $event): bool
     {
-        return ! (new UniqueLock(
-            method_exists($event, 'uniqueVia')
-                ? $event->uniqueVia()
-                : $this->app->make(Cache::class)
-        ))->acquire($event);
+        return ! (new UniqueLock($this->app->make(Cache::class)))
+            ->acquireForDispatch($event);
     }
 
     /**

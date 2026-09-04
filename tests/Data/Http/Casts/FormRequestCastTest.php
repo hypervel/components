@@ -9,9 +9,10 @@ use Hypervel\Data\Data;
 use Hypervel\Data\DataCollection;
 use Hypervel\Data\DataServiceProvider;
 use Hypervel\Data\Dto;
-use Hypervel\Data\Http\Casts\AsData;
 use Hypervel\Data\Http\Casts\AsDataCollection;
+use Hypervel\Data\Resource;
 use Hypervel\Foundation\Http\FormRequest;
+use Hypervel\Routing\Redirector;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
@@ -27,27 +28,46 @@ class FormRequestCastTest extends TestCase
         return [DataServiceProvider::class];
     }
 
-    public function testAsDataCastsValidatedInputThroughTheDataFactory(): void
+    /**
+     * Test Data, Dto, and Resource classes cast validated request input directly.
+     */
+    public function testDataClassesCastValidatedInputDirectly(): void
     {
-        $request = DataCastingRequest::create('/', 'POST', [
+        $request = $this->validateRequest(DataCastingRequest::class, [
             'contact' => ['name' => 'Taylor'],
             'dto' => ['name' => 'Abigail'],
+            'resource' => ['name' => 'Tim'],
         ]);
-        $request->setContainer($this->app);
-        $request->validateResolved();
+        $validated = $request->validated();
 
-        $contact = $request->casted('contact');
-        $dto = $request->casted('dto');
-
-        $this->assertInstanceOf(RequestContactData::class, $contact);
-        $this->assertSame('Taylor', $contact->name);
-        $this->assertInstanceOf(RequestContactDto::class, $dto);
-        $this->assertSame('Abigail', $dto->name);
+        $this->assertEquals(new RequestContactData('Taylor'), $validated['contact']);
+        $this->assertEquals(new RequestContactDto('Abigail'), $validated['dto']);
+        $this->assertEquals(new RequestContactResource('Tim'), $validated['resource']);
     }
 
-    public function testAsDataCollectionSupportsTheDefaultAndExplicitTargets(): void
+    /**
+     * Test direct data object request casts reject declaration arguments.
+     */
+    public function testDataClassCastRejectsArguments(): void
     {
-        $request = DataCollectionCastingRequest::create('/', 'POST', [
+        $request = $this->validateRequest(DataCastingWithArgumentsRequest::class, [
+            'contact' => ['name' => 'Taylor'],
+        ]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Data object request cast [' . RequestContactData::class . '] does not accept arguments.',
+        );
+
+        $request->validated();
+    }
+
+    /**
+     * Test data collection casts support default and explicit targets.
+     */
+    public function testDataCollectionSupportsDefaultAndExplicitTargets(): void
+    {
+        $request = $this->validateRequest(DataCollectionCastingRequest::class, [
             'default_contacts' => [
                 'primary' => ['name' => 'Taylor'],
                 'secondary' => ['name' => 'Abigail'],
@@ -59,11 +79,10 @@ class FormRequestCastTest extends TestCase
                 'secondary' => ['name' => 'Abigail'],
             ],
         ]);
-        $request->setContainer($this->app);
-
-        $default = $request->casted('default_contacts', false);
-        $array = $request->casted('array_contacts', false);
-        $collection = $request->casted('collection_contacts', false);
+        $validated = $request->validated();
+        $default = $validated['default_contacts'];
+        $array = $validated['array_contacts'];
+        $collection = $validated['collection_contacts'];
 
         $this->assertInstanceOf(DataCollection::class, $default);
         $this->assertSame(['primary', 'secondary'], array_keys($default->items()));
@@ -75,26 +94,30 @@ class FormRequestCastTest extends TestCase
         $this->assertEquals(new RequestContactData('Abigail'), $collection['secondary']);
     }
 
-    public function testDataCastsReturnNullForMissingOrNullInputs(): void
+    /**
+     * Test Data casts preserve present nulls and do not add missing input.
+     */
+    public function testDataCastsPreserveNullAndMissingInput(): void
     {
-        $request = NullableDataCastingRequest::create('/', 'POST', [
+        $request = $this->validateRequest(NullableDataCastingRequest::class, [
             'contact' => null,
             'contacts' => null,
         ]);
-        $request->setContainer($this->app);
+        $validated = $request->validated();
 
-        $this->assertNull($request->casted('contact', false));
-        $this->assertNull($request->casted('contacts', false));
-        $this->assertNull($request->casted('missing_contact', false));
-        $this->assertNull($request->casted('missing_contacts', false));
+        $this->assertSame([
+            'contact' => null,
+            'contacts' => null,
+        ], $validated);
+        $this->assertArrayNotHasKey('missing_contact', $validated);
+        $this->assertArrayNotHasKey('missing_contacts', $validated);
     }
 
-    public function testCastDeclarationsUseTheGenericFoundationCasterSurface(): void
+    /**
+     * Test data collection declarations retain Laravel-style positional syntax.
+     */
+    public function testDataCollectionDeclarationSyntax(): void
     {
-        $this->assertSame(
-            AsData::class . ':' . RequestContactData::class,
-            AsData::of(RequestContactData::class),
-        );
         $this->assertSame(
             AsDataCollection::class . ':' . RequestContactData::class . ',' . DataCollection::class,
             AsDataCollection::of(RequestContactData::class),
@@ -105,35 +128,49 @@ class FormRequestCastTest extends TestCase
         );
     }
 
-    public function testDataCastsRejectMissingAndInvalidTargetClasses(): void
+    /**
+     * Test data collection casts reject missing and invalid data classes.
+     */
+    public function testDataCollectionRejectsInvalidDeclarations(): void
     {
         foreach ([
-            static fn () => AsData::castUsing(),
-            static fn () => AsDataCollection::castUsing(),
-            static fn () => AsData::castUsing([stdClass::class]),
-            static fn () => AsDataCollection::castUsing([stdClass::class]),
+            static fn () => AsDataCollection::castRequestUsing([]),
+            static fn () => AsDataCollection::castRequestUsing([stdClass::class]),
         ] as $declaration) {
             $this->assertThrows($declaration, InvalidArgumentException::class);
         }
+    }
+
+    /**
+     * Validate and prepare a form request.
+     *
+     * @template TRequest of FormRequest
+     *
+     * @param class-string<TRequest> $class
+     * @return TRequest
+     */
+    protected function validateRequest(string $class, array $input): FormRequest
+    {
+        $request = $class::create('/', 'POST', $input);
+        $request->setContainer($this->app)
+            ->setRedirector($this->app->make(Redirector::class));
+        $request->validateResolved();
+
+        return $request;
     }
 }
 
 class DataCastingRequest extends FormRequest
 {
-    /**
-     * Get the request casts.
-     */
     protected function casts(): array
     {
         return [
-            'contact' => AsData::of(RequestContactData::class),
-            'dto' => AsData::of(RequestContactDto::class),
+            'contact' => RequestContactData::class,
+            'dto' => RequestContactDto::class,
+            'resource' => RequestContactResource::class,
         ];
     }
 
-    /**
-     * Get the validation rules for the request.
-     */
     public function rules(): array
     {
         return [
@@ -141,15 +178,30 @@ class DataCastingRequest extends FormRequest
             'contact.name' => ['required', 'string'],
             'dto' => ['required', 'array'],
             'dto.name' => ['required', 'string'],
+            'resource' => ['required', 'array'],
+            'resource.name' => ['required', 'string'],
+        ];
+    }
+}
+
+class DataCastingWithArgumentsRequest extends FormRequest
+{
+    protected function casts(): array
+    {
+        return ['contact' => RequestContactData::class . ':default'];
+    }
+
+    public function rules(): array
+    {
+        return [
+            'contact' => ['required', 'array'],
+            'contact.name' => ['required', 'string'],
         ];
     }
 }
 
 class DataCollectionCastingRequest extends FormRequest
 {
-    /**
-     * Get the request casts.
-     */
     protected function casts(): array
     {
         return [
@@ -159,36 +211,34 @@ class DataCollectionCastingRequest extends FormRequest
         ];
     }
 
-    /**
-     * Get the validation rules for the request.
-     */
     public function rules(): array
     {
-        return [];
+        return [
+            'default_contacts' => ['required', 'array'],
+            'array_contacts' => ['required', 'array'],
+            'collection_contacts' => ['required', 'array'],
+        ];
     }
 }
 
 class NullableDataCastingRequest extends FormRequest
 {
-    /**
-     * Get the request casts.
-     */
     protected function casts(): array
     {
         return [
-            'contact' => AsData::of(RequestContactData::class),
+            'contact' => RequestContactData::class,
             'contacts' => AsDataCollection::of(RequestContactData::class),
-            'missing_contact' => AsData::of(RequestContactData::class),
+            'missing_contact' => RequestContactData::class,
             'missing_contacts' => AsDataCollection::of(RequestContactData::class),
         ];
     }
 
-    /**
-     * Get the validation rules for the request.
-     */
     public function rules(): array
     {
-        return [];
+        return [
+            'contact' => ['nullable'],
+            'contacts' => ['nullable'],
+        ];
     }
 }
 
@@ -200,6 +250,13 @@ class RequestContactData extends Data
 }
 
 class RequestContactDto extends Dto
+{
+    public function __construct(public string $name)
+    {
+    }
+}
+
+class RequestContactResource extends Resource
 {
     public function __construct(public string $name)
     {

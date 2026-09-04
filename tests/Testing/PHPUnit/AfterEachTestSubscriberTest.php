@@ -42,6 +42,7 @@ use Hypervel\Telescope\Watchers\DumpWatcher;
 use Hypervel\Testing\PHPUnit\AfterEachTestCleanup;
 use Hypervel\Testing\PHPUnit\AfterEachTestSubscriber;
 use Hypervel\Tests\TestCase;
+use Hypervel\Validation\ValidationData;
 use Laravel\SerializableClosure\SerializableClosure;
 use Laravel\SerializableClosure\Serializers\Native;
 use Laravel\SerializableClosure\Serializers\Signed;
@@ -182,6 +183,29 @@ class AfterEachTestSubscriberTest extends TestCase
             $this->assertNull(Request::create('/')->attributes->get('from_factory'));
         } finally {
             Request::flushState();
+        }
+    }
+
+    public function testFrameworkCleanupFlushesValidationDataPlaceholderState(): void
+    {
+        ValidationData::encodeAttribute('profile\.name');
+        $placeholderHash = new ReflectionProperty(ValidationData::class, 'placeholderHash');
+
+        $this->assertIsString($placeholderHash->getValue());
+
+        $subscriber = new class extends AfterEachTestSubscriber {
+            public function flushFrameworkStateForTest(): void
+            {
+                $this->flushFrameworkState();
+            }
+        };
+
+        try {
+            $subscriber->flushFrameworkStateForTest();
+
+            $this->assertNull($placeholderHash->getValue());
+        } finally {
+            ValidationData::flushState();
         }
     }
 

@@ -45,6 +45,7 @@ class PackageMetadataTest extends TestCase
         }
 
         foreach ([
+            'brick/math',
             'guzzlehttp/guzzle',
             'league/flysystem',
             'league/uri',

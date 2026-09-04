@@ -217,7 +217,7 @@ class DataTransformerTest extends TestCase
     /**
      * Test plain transformation follows metadata order and declared properties.
      */
-    public function testPlainTransformPreservesMetadataOrderAndFiltersRuntimeKeys(): void
+    public function testBulkCopyPreservesMetadataOrderAndFiltersRuntimeKeys(): void
     {
         $data = new PlainOrderData;
         $data->runtime = 'ignored';
@@ -232,7 +232,7 @@ class DataTransformerTest extends TestCase
     /**
      * Test plain transformation reads public property hooks exactly once.
      */
-    public function testPlainTransformReadsBackedAndVirtualHooksOnce(): void
+    public function testBulkCopyReadsBackedAndVirtualHooksOnce(): void
     {
         PlainHookData::$backedReads = 0;
         PlainHookData::$virtualReads = 0;

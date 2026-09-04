@@ -4,7 +4,7 @@
 
 - Target repository: `contrib/hypervel/components-data-fix`.
 - Target branch: `feature/data-lean-tier`, created from `0.4`.
-- Implementation is in progress.
+- Implemented and verified.
 - This follow-up supersedes the completed package plan where its measured hot-path decisions differ, including the old monolithic `directArrayCreation` and `plainTransform` predicates. Unrelated package design remains unchanged.
 - The existing `Data`, `Dto`, and `Resource` APIs remain the only public data-object model. Do not restore `Hypervel\Support\DataObject`, add a fast-mode API, or expose recipe selection to applications.
 
@@ -117,6 +117,24 @@ Fresh-process first use measured 17.951 ms for the first Data class and 170.7 us
 | Public nested `toArray()` | 5.535 us |
 
 The current flat bulk-copy path is already compact. It is a regression guard, not code to replace with an unconditional per-property recipe loop.
+
+### Verified result
+
+Three alternating fresh-process runs compared the completed branch with the current `0.4` tip. Each standard run used 2,000 operations, seven samples, and 100 warm-up operations. The median change across those runs was:
+
+| Scenario | p50 change | p95 change |
+| --- | ---: | ---: |
+| Flat construction | -35.1% | -44.6% |
+| Nested construction | -80.5% | -80.3% |
+| Deep/wide construction | -86.3% | -86.7% |
+| Eager 1,000-item collection | -26.9% | -38.4% |
+| Lazy 1,000-item traversal | -39.3% | -38.7% |
+| Simple transformation | -33.6% | -35.7% |
+| Nested transformation | -20.1% | -26.9% |
+| Plain five-property transformation | -1.0% | -6.4% |
+| Validate 5,000 nested items | +0.1% | +0.4% |
+
+AutoLazy, customized collection factories, lazy partials, Eloquent relation loading, and other fallback-heavy rows remained within inter-run noise. Metadata analysis added about 16 us once per used class. Across 500 representative five-property classes, retained metadata grew by 235 KB and cached default contexts by 212 KB. The production provider moves about 15 ms into pre-fork application startup; three alternating Testbench runs showed no unit-test startup regression.
 
 ## Design
 
@@ -332,8 +350,8 @@ No user documentation or Laravel porting-guide change is required because the pu
 5. Add transformation recipe execution while retaining bulk copy. Run transformer, partial, Eloquent cast, resource, and response tests.
 6. Add PHPDoc screening/lazy parser and run annotation/type metadata tests.
 7. Register post-provider application-boot warming for creator and transformer outside unit tests, then run provider and package integration tests.
-8. After an owner-authorized checkpoint commit, merge current `0.4` into the branch. Preserve its shared enum coercion in `ValueCaster` and morph resolution, then run `EnumCastTest`, `DataCreatorTest`, `FormRequestCastTest`, and `CapabilityTest` before benchmarking.
-9. Rerun the comparison and standard benchmark harnesses. Remove any specialization that does not earn its code or regresses p95/memory materially.
+8. After an owner-authorized checkpoint commit, merge current `0.4` into the branch. Preserve its shared enum coercion in `ValueCaster` and morph resolution. Add a dedicated lean numeric-string regression that asserts both the compiled enum operation and exact integer-backed target before checking the concrete result, then run `EnumCastTest`, `DataCreatorTest`, `FormRequestCastTest`, and `CapabilityTest` before benchmarking.
+9. Rerun the comparison and standard benchmark harnesses. Retake the clean-`0.4` side of every branch acceptance comparison at the merged `0.4` tip; pre-merge measurements remain valid only for the isolated historical `DataObject` matrix. Remove any specialization that does not earn its code or regresses p95/memory materially.
 10. Run `composer fix`, perform a complete caller/callee and edge-case self-review, then obtain code-review signoff.
 
 ## Test Plan
@@ -449,11 +467,12 @@ Acceptance rules:
 
 ## Completion Checklist
 
-- [ ] Reproducible baseline and historical fixture exist only under benchmarks.
-- [ ] One public Data family remains; no fast-mode surface exists.
-- [ ] Recipes are immutable, bounded, non-recursive, and contain no runtime state.
-- [ ] Named factories, validation, operation memos, and constructors execute once at their owning boundary.
-- [ ] Lean/general equivalence and fallback tests cover every supported operation and failure.
-- [ ] First-request service initialization is moved to post-provider application boot without slowing unit-test apps.
-- [ ] Benchmark wins and memory bounds are recorded; unearned machinery is removed.
-- [ ] Targeted tests, `composer fix`, self-review, and peer code review are green.
+- [x] Reproducible baseline and historical fixture exist only under benchmarks.
+- [x] One public Data family remains; no fast-mode surface exists.
+- [x] Recipes are immutable, bounded, non-recursive, and contain no runtime state.
+- [x] Named factories, validation, operation memos, and constructors execute once at their owning boundary.
+- [x] Lean/general equivalence and fallback tests cover every supported operation and failure.
+- [x] First-request service initialization is moved to post-provider application boot without slowing unit-test apps.
+- [x] Benchmark wins and memory bounds are recorded; unearned machinery is removed.
+- [x] Targeted tests, `composer fix`, and self-review are green.
+- [x] Peer code review is signed off.

@@ -129,8 +129,8 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Auth\SessionGuard::flushState();
         \Hypervel\Auth\TokenGuard::flushState();
         \Hypervel\Broadcasting\Broadcasters\Broadcaster::flushState();
+        \Hypervel\Bus\DispatchLockContext::flushState();
         \Hypervel\Bus\PendingBatch::flushState();
-        \Hypervel\Bus\UniqueJobPayloadContext::flushState();
         \Hypervel\Cache\Redis\Console\BenchmarkCommand::flushState();
         \Hypervel\Cache\Redis\Console\DoctorCommand::flushState();
         \Hypervel\Cache\Repository::flushState();
@@ -300,6 +300,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Validation\Rules\File::flushState();
         \Hypervel\Validation\Rules\Password::flushState();
         \Hypervel\Validation\RulePlanCache::flushState();
+        \Hypervel\Validation\ValidationData::flushState();
         \Hypervel\Validation\ValidationRuleParser::flushState();
         \Hypervel\Validation\Validator::flushState();
         \Hypervel\View\Component::flushState();

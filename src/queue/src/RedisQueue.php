@@ -11,12 +11,16 @@ use Hypervel\Contracts\Queue\IndexAwareQueue;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Redis\Factory as Redis;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAwareQueue
 {
@@ -251,29 +255,139 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
      */
     public function bulk(array $jobs, mixed $data = '', ?string $queue = null): mixed
     {
-        $connection = $this->getConnection();
+        $jobs = array_values($jobs);
 
-        $callback = function () use ($jobs, $data, $queue): void {
-            foreach ($jobs as $job) {
-                $delay = $this->getJobDelay($job);
-
-                if ($delay !== null) {
-                    $this->later($delay, $job, $data, $queue);
-                } else {
-                    $this->push($job, $data, $queue);
-                }
-            }
-        };
-
-        if ($connection->isCluster()) {
-            $connection->transaction($callback);
-        } else {
-            $connection->pipeline(
-                fn () => $connection->transaction($callback)
-            );
+        if ($jobs === []) {
+            return null;
         }
 
+        $transactions = null;
+
+        if ($this->container->has('db.transactions')) {
+            /** @var DatabaseTransactionsManager $transactions */
+            $transactions = $this->container->make('db.transactions');
+        }
+
+        [$afterCommit, $immediate] = $this->partitionJobsByAfterCommit($jobs, $transactions);
+
+        if ($immediate !== []) {
+            $this->enqueueBatch($this->prepareBatchJobs($immediate, $data, $queue), $queue);
+        }
+
+        if ($afterCommit === []) {
+            return null;
+        }
+
+        $preparedJobs = $this->prepareBatchJobs($afterCommit, $data, $queue);
+        /** @var DatabaseTransactionsManager $transactions */
+        $this->deferBatchEnqueueAfterCommit(
+            $transactions,
+            $afterCommit,
+            static function (Queue $owner) use ($preparedJobs, $queue): void {
+                /** @var RedisQueue $owner */
+                $owner->enqueueBatch($preparedJobs, $queue);
+            },
+        );
+
         return null;
+    }
+
+    /**
+     * Prepare the payload and delay for each of the given jobs.
+     *
+     * @return array<int, array{job: object|string, delay: null|DateInterval|DateTimeInterface|int, payload: string}>
+     */
+    protected function prepareBatchJobs(array $jobs, mixed $data, ?string $queue): array
+    {
+        return Collection::make($jobs)
+            ->map(function (object|string $job) use ($data, $queue): array {
+                $delay = $this->getJobDelay($job);
+
+                return [
+                    'job' => $job,
+                    'delay' => $delay,
+                    'payload' => $this->createPayload($job, $this->getQueue($queue), $data, $delay),
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * Store a prepared batch and raise its queue lifecycle events.
+     */
+    protected function enqueueBatch(array $jobs, ?string $queue): void
+    {
+        try {
+            foreach ($jobs as $index => $job) {
+                $jobs[$index]['payload'] = $this->finalizePayloadForQueueing(
+                    $queue,
+                    $job['job'],
+                    $job['payload'],
+                    $job['delay'],
+                );
+            }
+
+            foreach ($jobs as $index => $job) {
+                $this->raiseJobQueueingEvent($queue, $job['job'], $job['payload'], $job['delay']);
+                $jobs[$index]['payload'] = $this->preparePayloadForBulk(
+                    $job['job'],
+                    $job['payload'],
+                    $queue,
+                );
+            }
+
+            $arguments = [];
+
+            foreach ($jobs as $job) {
+                $arguments[] = $job['delay'] === null ? 'i' : $this->availableAt($job['delay']);
+                $arguments[] = $job['payload'];
+            }
+
+            $connection = $this->getConnection();
+            $this->isCluster ??= $connection->isCluster();
+            $queueKey = $this->getQueueRedisKey($queue);
+            $stored = $connection->evalWithShaCache(
+                LuaScripts::bulk(),
+                [$queueKey, $queueKey . ':notify', $queueKey . ':delayed'],
+                $arguments,
+            );
+
+            if (! is_int($stored) || $stored !== count($jobs)) {
+                throw new RuntimeException('Redis did not confirm every queued job in the batch.');
+            }
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            foreach ($jobs as $job) {
+                $this->raiseJobQueueingFailedEvent($queue, $job['job'], $job['payload'], $job['delay'], $exception);
+            }
+
+            throw $exception;
+        }
+
+        foreach ($jobs as $job) {
+            $this->acceptDispatchLocks($job['job']);
+        }
+
+        foreach ($jobs as $job) {
+            $this->handlePayloadPushedInBulk($job['payload'], $queue);
+            $this->raiseJobQueuedEvent($queue, null, $job['job'], $job['payload'], $job['delay']);
+        }
+    }
+
+    /**
+     * Prepare a payload for bulk storage.
+     */
+    protected function preparePayloadForBulk(object|string $job, string $payload, ?string $queue): string
+    {
+        return $payload;
+    }
+
+    /**
+     * Handle a payload that was stored as part of a batch.
+     */
+    protected function handlePayloadPushedInBulk(string $payload, ?string $queue): void
+    {
     }
 
     /**
@@ -299,12 +413,10 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     {
         $queue = $this->getQueueRedisKey($queue);
 
-        $this->getConnection()->eval(
+        $this->getConnection()->evalWithShaCache(
             LuaScripts::push(),
-            2,
-            $queue,
-            $queue . ':notify',
-            $payload,
+            [$queue, $queue . ':notify'],
+            [$payload],
         );
 
         return json_decode($payload, true)['id'] ?? null;
@@ -338,12 +450,10 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     {
         $queue = $this->getQueueRedisKey($queue);
 
-        $this->getConnection()->eval(
+        $this->getConnection()->evalWithShaCache(
             LuaScripts::later(),
-            1,
-            $queue . ':delayed',
-            $this->availableAt($delay),
-            $payload,
+            [$queue . ':delayed'],
+            [$this->availableAt($delay), $payload],
         );
 
         return json_decode($payload, true)['id'] ?? null;

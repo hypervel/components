@@ -304,6 +304,7 @@ class DataCreatorTest extends TestCase
             'id' => '7',
             'date' => '2026-09-02T12:00:00+00:00',
             'status' => 'active',
+            'integerStatus' => '1',
         ];
         $nested = DirectNestedCreationData::from($nestedPayload);
         $generalNested = DirectNestedCreationData::factory()
@@ -325,7 +326,31 @@ class DataCreatorTest extends TestCase
         $this->assertEquals($converted->date, $generalConverted->date);
         $this->assertSame(CreationStatus::Active, $converted->status);
         $this->assertSame($converted->status, $generalConverted->status);
+        $this->assertSame(IntegerCreationStatus::Active, $converted->integerStatus);
+        $this->assertSame($converted->integerStatus, $generalConverted->integerStatus);
         $this->assertSame(8, $items[0]->child->id);
+    }
+
+    /**
+     * Test lean construction coerces numeric strings to integer-backed enums.
+     */
+    public function testLeanCreationCoercesNumericStringsToIntegerBackedEnums(): void
+    {
+        $property = $this->app->make(DataClassRepository::class)
+            ->get(DirectConvertedCreationData::class)
+            ->properties['integerStatus'];
+
+        $this->assertSame(DataPropertyOperation::Enum, $property->constructionOperation);
+        $this->assertSame(IntegerCreationStatus::class, $property->constructionTarget);
+
+        $data = DirectConvertedCreationData::from([
+            'id' => 7,
+            'date' => new DateTimeImmutable,
+            'status' => CreationStatus::Active,
+            'integerStatus' => '1',
+        ]);
+
+        $this->assertSame(IntegerCreationStatus::Active, $data->integerStatus);
     }
 
     /**
@@ -1118,6 +1143,18 @@ class DataCreatorTest extends TestCase
         $this->assertSame(6, $nested->shapes[1]->side);
     }
 
+    public function testResolvesIntegerBackedMorphFromNumericString(): void
+    {
+        $shape = IntegerShapeCreationData::from([
+            'status' => '1',
+            'radius' => '7',
+        ]);
+
+        $this->assertInstanceOf(IntegerCircleCreationData::class, $shape);
+        $this->assertSame(IntegerCreationStatus::Active, $shape->status);
+        $this->assertSame(7, $shape->radius);
+    }
+
     public function testRetainsPerItemWireKeyChoices(): void
     {
         $data = MappedItemListCreationData::from([
@@ -1397,6 +1434,7 @@ class DirectConvertedCreationData extends Data
         public int $id,
         public DateTimeImmutable $date,
         public CreationStatus $status,
+        public IntegerCreationStatus $integerStatus,
     ) {
     }
 }
@@ -2112,6 +2150,11 @@ enum CreationStatus: string
     case Inactive = 'inactive';
 }
 
+enum IntegerCreationStatus: int
+{
+    case Active = 1;
+}
+
 class CreationDto extends Dto
 {
     public function __construct(
@@ -2235,6 +2278,30 @@ class DefaultCircleCreationData extends DefaultShapeCreationData
         public int $radius,
         CreationStatus $status = CreationStatus::Active,
     ) {
+        parent::__construct($status);
+    }
+}
+
+abstract class IntegerShapeCreationData extends Data implements PropertyMorphableData
+{
+    public function __construct(
+        #[PropertyForMorph]
+        public IntegerCreationStatus $status,
+    ) {
+    }
+
+    public static function morph(array $properties): ?string
+    {
+        return match ($properties['status']) {
+            IntegerCreationStatus::Active => IntegerCircleCreationData::class,
+        };
+    }
+}
+
+class IntegerCircleCreationData extends IntegerShapeCreationData
+{
+    public function __construct(IntegerCreationStatus $status, public int $radius)
+    {
         parent::__construct($status);
     }
 }
