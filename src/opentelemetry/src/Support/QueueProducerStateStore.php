@@ -12,16 +12,10 @@ class QueueProducerStateStore implements NonCopyableContext
     private const string CONTEXT_KEY = '__opentelemetry.queue.producers';
 
     /** @var array<string, QueueProducerState> */
-    protected array $states = [];
-
-    /** @var array<string, string> */
-    protected array $uuidByPayload = [];
+    protected array $statesByPayload = [];
 
     /** @var array<string, string> */
     protected array $payloadByUuid = [];
-
-    /** @var array<string, QueueProducerState> */
-    protected array $timings = [];
 
     /**
      * Return producer state for the current coroutine.
@@ -41,21 +35,15 @@ class QueueProducerStateStore implements NonCopyableContext
     }
 
     /**
-     * Retain state by framework UUID and the encoded payload emitted by this instrumentation.
+     * Retain state by exact payload with an optional framework-UUID fallback.
      */
-    public function put(string $uuid, string $payload, QueueProducerState $state): void
+    public function put(string $payload, QueueProducerState $state): void
     {
-        $this->states[$uuid] = $state;
-        $this->uuidByPayload[$payload] = $uuid;
-        $this->payloadByUuid[$uuid] = $payload;
-    }
+        $this->statesByPayload[$payload] = $state;
 
-    /**
-     * Retain metric-only timing state by the final encoded payload.
-     */
-    public function putTiming(string $payload, QueueProducerState $state): void
-    {
-        $this->timings[$payload] = $state;
+        if ($state->uuid !== null) {
+            $this->payloadByUuid[$state->uuid] = $payload;
+        }
     }
 
     /**
@@ -63,16 +51,16 @@ class QueueProducerStateStore implements NonCopyableContext
      */
     public function take(string $payload): ?QueueProducerState
     {
-        if (isset($this->uuidByPayload[$payload])) {
-            return $this->takeUuid($this->uuidByPayload[$payload]);
-        }
-
-        if (! isset($this->timings[$payload])) {
+        if (! isset($this->statesByPayload[$payload])) {
             return null;
         }
 
-        $state = $this->timings[$payload];
-        unset($this->timings[$payload]);
+        $state = $this->statesByPayload[$payload];
+        unset($this->statesByPayload[$payload]);
+
+        if ($state->uuid !== null) {
+            unset($this->payloadByUuid[$state->uuid]);
+        }
 
         return $state;
     }
@@ -82,18 +70,8 @@ class QueueProducerStateStore implements NonCopyableContext
      */
     public function takeUuid(string $uuid): ?QueueProducerState
     {
-        if (! isset($this->states[$uuid])) {
-            return null;
-        }
+        $payload = $this->payloadByUuid[$uuid] ?? null;
 
-        $state = $this->states[$uuid];
-        $payload = $this->payloadByUuid[$uuid];
-        unset(
-            $this->states[$uuid],
-            $this->payloadByUuid[$uuid],
-            $this->uuidByPayload[$payload],
-        );
-
-        return $state;
+        return $payload === null ? null : $this->take($payload);
     }
 }

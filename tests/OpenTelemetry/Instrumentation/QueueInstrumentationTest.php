@@ -209,6 +209,22 @@ class QueueInstrumentationTest extends TestCase
         $this->assertNull($duration->attributes->get(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ENVELOPE_SIZE));
     }
 
+    public function testProducerWithoutUuidCompletesThroughExactPayloadCorrelation(): void
+    {
+        $payload = json_decode($this->payload(), true, flags: JSON_THROW_ON_ERROR);
+        unset($payload['uuid']);
+
+        $this->assertProducerWithoutStringUuid(json_encode($payload, JSON_THROW_ON_ERROR));
+    }
+
+    public function testProducerWithNonStringUuidCompletesThroughExactPayloadCorrelation(): void
+    {
+        $payload = json_decode($this->payload(), true, flags: JSON_THROW_ON_ERROR);
+        $payload['uuid'] = 42;
+
+        $this->assertProducerWithoutStringUuid(json_encode($payload, JSON_THROW_ON_ERROR));
+    }
+
     public function testTracingWithoutPropagationKeepsTheOriginalPayloadAndStillCorrelates(): void
     {
         $this->instrumentation()->register($this->options([
@@ -902,6 +918,32 @@ class QueueInstrumentationTest extends TestCase
             self::PROCESS_DURATION_METRIC => $processDuration,
             self::DEPTH_METRIC => $depth,
         ];
+    }
+
+    /**
+     * Assert that producer telemetry completes without a string UUID.
+     */
+    private function assertProducerWithoutStringUuid(string $payload): void
+    {
+        $this->instrumentation()->register($this->options());
+        $event = $this->finalizingEvent(payload: $payload);
+
+        $this->clock->timestamp = 1_000_000_000;
+        $this->events->dispatch($event);
+        $this->clock->timestamp = 3_000_000_000;
+        $this->events->dispatch(new JobQueued('redis', 'emails', 42, 'SendEmail@handle', $event->payload, null));
+
+        $span = $this->exportedSpan('enqueue emails');
+        $this->assertSame(1_000_000_000, $span->getStartEpochNanos());
+        $this->assertSame(3_000_000_000, $span->getEndEpochNanos());
+        $this->assertFalse(
+            $span->getAttributes()->has(MessagingIncubatingAttributes::MESSAGING_MESSAGE_ID),
+        );
+        $this->assertNull(QueueProducerStateStore::current()->take($event->payload));
+
+        $this->metricReader->collect();
+        $this->assertSame(1, $this->sumPoint(self::SENT_MESSAGES_METRIC)->value);
+        $this->assertSame(2, $this->histogramPoint(self::SEND_DURATION_METRIC)->sum);
     }
 
     /**
