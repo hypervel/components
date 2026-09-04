@@ -815,6 +815,18 @@ class DataCreatorTest extends TestCase
         $this->assertSame(6, $nested->shapes[1]->side);
     }
 
+    public function testResolvesIntegerBackedMorphFromNumericString(): void
+    {
+        $shape = IntegerShapeCreationData::from([
+            'status' => '1',
+            'radius' => '7',
+        ]);
+
+        $this->assertInstanceOf(IntegerCircleCreationData::class, $shape);
+        $this->assertSame(IntegerCreationStatus::Active, $shape->status);
+        $this->assertSame(7, $shape->radius);
+    }
+
     public function testRetainsPerItemWireKeyChoices(): void
     {
         $data = MappedItemListCreationData::from([
@@ -1629,6 +1641,11 @@ enum CreationStatus: string
     case Inactive = 'inactive';
 }
 
+enum IntegerCreationStatus: int
+{
+    case Active = 1;
+}
+
 class CreationDto extends Dto
 {
     public function __construct(
@@ -1752,6 +1769,30 @@ class DefaultCircleCreationData extends DefaultShapeCreationData
         public int $radius,
         CreationStatus $status = CreationStatus::Active,
     ) {
+        parent::__construct($status);
+    }
+}
+
+abstract class IntegerShapeCreationData extends Data implements PropertyMorphableData
+{
+    public function __construct(
+        #[PropertyForMorph]
+        public IntegerCreationStatus $status,
+    ) {
+    }
+
+    public static function morph(array $properties): ?string
+    {
+        return match ($properties['status']) {
+            IntegerCreationStatus::Active => IntegerCircleCreationData::class,
+        };
+    }
+}
+
+class IntegerCircleCreationData extends IntegerShapeCreationData
+{
+    public function __construct(IntegerCreationStatus $status, public int $radius)
+    {
         parent::__construct($status);
     }
 }
