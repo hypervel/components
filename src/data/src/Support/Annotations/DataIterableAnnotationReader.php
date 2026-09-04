@@ -22,25 +22,9 @@ use ReflectionProperty;
 
 class DataIterableAnnotationReader
 {
-    protected readonly Lexer $lexer;
+    protected ?Lexer $lexer = null;
 
-    protected readonly PhpDocParser $parser;
-
-    /**
-     * Create a new iterable annotation reader.
-     */
-    public function __construct()
-    {
-        $config = new ParserConfig(usedAttributes: []);
-        $constantExpressionParser = new ConstExprParser($config);
-
-        $this->lexer = new Lexer($config);
-        $this->parser = new PhpDocParser(
-            $config,
-            new TypeParser($config, $constantExpressionParser),
-            $constantExpressionParser,
-        );
-    }
+    protected ?PhpDocParser $parser = null;
 
     /**
      * Get iterable annotations declared for class properties.
@@ -123,6 +107,18 @@ class DataIterableAnnotationReader
     {
         if ($comment === false) {
             return null;
+        }
+
+        if ($this->lexer === null || $this->parser === null) {
+            $config = new ParserConfig(usedAttributes: []);
+            $constantExpressionParser = new ConstExprParser($config);
+
+            $this->lexer = new Lexer($config);
+            $this->parser = new PhpDocParser(
+                $config,
+                new TypeParser($config, $constantExpressionParser),
+                $constantExpressionParser,
+            );
         }
 
         return $this->parser->parse(new TokenIterator($this->lexer->tokenize($comment)));

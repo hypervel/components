@@ -17,6 +17,8 @@ use Hypervel\Data\Attributes\Computed;
 use Hypervel\Data\Attributes\DataCollectionOf;
 use Hypervel\Data\Attributes\Hidden;
 use Hypervel\Data\Attributes\MapOutputName;
+use Hypervel\Data\Attributes\WithTransformer;
+use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\Contracts\BaseDataCollectable;
 use Hypervel\Data\Data;
 use Hypervel\Data\DataCollection;
@@ -26,6 +28,7 @@ use Hypervel\Data\Exceptions\CannotTransformData;
 use Hypervel\Data\Lazy;
 use Hypervel\Data\Normalizers\Normalized\Normalized;
 use Hypervel\Data\Normalizers\Normalizer;
+use Hypervel\Data\Support\DataClass;
 use Hypervel\Data\Support\DataProperty;
 use Hypervel\Data\Support\Transformation\DataTransformer;
 use Hypervel\Data\Support\Transformation\TransformationContext;
@@ -77,6 +80,94 @@ class DataTransformerTest extends TestCase
             'status' => Status::Ready,
             'nested' => $nested,
         ], $data->all());
+    }
+
+    /**
+     * Test fixed output recipes match the general transformation path.
+     */
+    public function testFixedOutputRecipeMatchesGeneralTransformation(): void
+    {
+        $date = new DateTimeImmutable('2026-08-31T10:30:00+00:00');
+        $data = new RecipeOutputData(
+            'Taylor',
+            $date,
+            Status::Ready,
+            new SimpleData('nested'),
+        );
+        $irrelevantTransformer = new class implements Transformer {
+            public function transform(
+                DataProperty $property,
+                mixed $value,
+                TransformationContext $context,
+            ): mixed {
+                return $value;
+            }
+        };
+        $general = TransformationContextFactory::create()
+            ->withTransformer(RuntimeException::class, $irrelevantTransformer);
+
+        $this->assertSame([
+            'computed' => 'computed',
+            'display_name' => 'Taylor',
+            'createdAt' => '2026-08-31T10:30:00+00:00',
+            'status' => 'ready',
+            'nested' => ['value' => 'nested'],
+        ], $data->toArray());
+        $this->assertSame($data->toArray(), $data->transform($general));
+
+        $unmapped = TransformationContextFactory::create()->withoutPropertyNameMapping();
+        $generalUnmapped = TransformationContextFactory::create()
+            ->withoutPropertyNameMapping()
+            ->withTransformer(RuntimeException::class, $irrelevantTransformer);
+
+        $this->assertSame($data->transform($generalUnmapped), $data->transform($unmapped));
+        $this->assertArrayHasKey('name', $data->transform($unmapped));
+        $this->assertArrayNotHasKey('display_name', $data->transform($unmapped));
+    }
+
+    /**
+     * Test plain values retain bulk-copy transformation without value conversion.
+     */
+    public function testAllUsesBulkCopyForPlainData(): void
+    {
+        $transformer = $this->app->make(BulkCopyRecordingDataTransformer::class);
+        $this->app->instance(DataTransformer::class, $transformer);
+        $data = new ArrayData(['nested' => ['value' => 'value']]);
+        $transformed = $data->toArray();
+
+        $this->assertSame(1, $transformer->bulkCopyCalls);
+        $this->assertSame($transformed, $data->all());
+        $this->assertSame(2, $transformer->bulkCopyCalls);
+    }
+
+    /**
+     * Test property transformers prevent bulk-copy transformation.
+     */
+    public function testPropertyTransformersPreventBulkCopy(): void
+    {
+        $transformer = $this->app->make(BulkCopyRecordingDataTransformer::class);
+        $this->app->instance(DataTransformer::class, $transformer);
+
+        $this->assertSame(
+            ['value' => 'TRANSFORMED'],
+            (new PropertyTransformedData('transformed'))->toArray(),
+        );
+        $this->assertSame(0, $transformer->bulkCopyCalls);
+    }
+
+    /**
+     * Test data-annotated arrays prevent bulk-copy transformation.
+     */
+    public function testDataAnnotatedArraysPreventBulkCopy(): void
+    {
+        $transformer = $this->app->make(BulkCopyRecordingDataTransformer::class);
+        $this->app->instance(DataTransformer::class, $transformer);
+
+        $this->assertSame(
+            ['items' => [['value' => 'nested']]],
+            (new AnnotatedArrayOwnerData([new SimpleData('nested')]))->toArray(),
+        );
+        $this->assertNotContains(AnnotatedArrayOwnerData::class, $transformer->bulkCopiedClasses);
     }
 
     /**
@@ -848,6 +939,25 @@ class DataTransformerTest extends TestCase
     }
 }
 
+class BulkCopyRecordingDataTransformer extends DataTransformer
+{
+    public int $bulkCopyCalls = 0;
+
+    /** @var list<class-string<BaseData>> */
+    public array $bulkCopiedClasses = [];
+
+    /**
+     * Record and perform one bulk-copy transformation.
+     */
+    protected function transformBulkCopy(BaseData $data, DataClass $dataClass): array
+    {
+        ++$this->bulkCopyCalls;
+        $this->bulkCopiedClasses[] = $data::class;
+
+        return parent::transformBulkCopy($data, $dataClass);
+    }
+}
+
 enum Status: string
 {
     case Ready = 'ready';
@@ -856,6 +966,39 @@ enum Status: string
 class SimpleData extends Data
 {
     public function __construct(public string $value)
+    {
+    }
+}
+
+class PropertyTransformedData extends Data
+{
+    public function __construct(
+        #[WithTransformer(UppercasePropertyTransformer::class)]
+        public string $value,
+    ) {
+    }
+}
+
+class UppercasePropertyTransformer implements Transformer
+{
+    /**
+     * Transform the fixture value to uppercase.
+     */
+    public function transform(
+        DataProperty $property,
+        mixed $value,
+        TransformationContext $context,
+    ): string {
+        return strtoupper((string) $value);
+    }
+}
+
+class AnnotatedArrayOwnerData extends Data
+{
+    /**
+     * @param list<SimpleData> $items
+     */
+    public function __construct(public array $items)
     {
     }
 }
@@ -1027,6 +1170,26 @@ class TransformingData extends Data
         public string $name,
         public DateTimeImmutable $createdAt,
         public BackedEnum $status,
+        public SimpleData $nested,
+    ) {
+    }
+}
+
+class RecipeOutputData extends Data
+{
+    #[Computed]
+    public string $computed = 'computed';
+
+    #[Hidden]
+    public string $hidden = 'hidden';
+
+    public string $uninitialized;
+
+    public function __construct(
+        #[MapOutputName('display_name')]
+        public string $name,
+        public DateTimeImmutable $createdAt,
+        public Status $status,
         public SimpleData $nested,
     ) {
     }
