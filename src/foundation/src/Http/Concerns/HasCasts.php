@@ -29,25 +29,25 @@ trait HasCasts
     /**
      * The built-in request cast types.
      *
-     * @var list<'array'|'bool'|'boolean'|'collection'|'date'|'datetime'|'decimal'|'double'|'float'|'int'|'integer'|'json'|'object'|'real'|'string'|'timestamp'>
+     * @var array<'array'|'bool'|'boolean'|'collection'|'date'|'datetime'|'decimal'|'double'|'float'|'int'|'integer'|'json'|'object'|'real'|'string'|'timestamp', true>
      */
     private const array PRIMITIVE_CAST_TYPES = [
-        'array',
-        'bool',
-        'boolean',
-        'collection',
-        'date',
-        'datetime',
-        'decimal',
-        'double',
-        'float',
-        'int',
-        'integer',
-        'json',
-        'object',
-        'real',
-        'string',
-        'timestamp',
+        'array' => true,
+        'bool' => true,
+        'boolean' => true,
+        'collection' => true,
+        'date' => true,
+        'datetime' => true,
+        'decimal' => true,
+        'double' => true,
+        'float' => true,
+        'int' => true,
+        'integer' => true,
+        'json' => true,
+        'object' => true,
+        'real' => true,
+        'string' => true,
+        'timestamp' => true,
     ];
 
     /**
@@ -74,20 +74,48 @@ trait HasCasts
             return $input;
         }
 
-        $usesEncodedKeys = false;
-        $shouldCheckForOverlappingPaths = false;
-        $hasMultipleCasts = count($casts) > 1;
-        $castRoots = [];
+        $usesCastPaths = false;
 
         foreach ($casts as $attribute => $_) {
-            // A dotted declaration may read a literal key while Arr::set() writes a nested path.
-            if (str_contains($attribute, '*')
+            if (strpbrk($attribute, '.*') !== false) {
+                $usesCastPaths = true;
+
+                break;
+            }
+        }
+
+        if (! $usesCastPaths) {
+            return $this->castExactValidatedInput($input, $casts);
+        }
+
+        $usesWildcardPaths = false;
+        $usesEncodedKeys = false;
+
+        foreach ($casts as $attribute => $_) {
+            $usesWildcardPaths = $usesWildcardPaths || str_contains($attribute, '*');
+
+            // Escaped paths and dotted declarations that collide with literal keys require placeholders.
+            if (str_contains($attribute, '\*')
                 || str_contains($attribute, '\.')
                 || (str_contains($attribute, '.') && array_key_exists($attribute, $input))
             ) {
                 $usesEncodedKeys = true;
             }
+        }
 
+        // Wildcard expansion embeds data keys in dot paths, so literal dots or asterisks still need placeholders.
+        if (! $usesEncodedKeys
+            && $usesWildcardPaths
+            && $this->inputContainsPathCharacters($input)
+        ) {
+            $usesEncodedKeys = true;
+        }
+
+        $shouldCheckForOverlappingPaths = false;
+        $hasMultipleCasts = count($casts) > 1;
+        $castRoots = [];
+
+        foreach ($casts as $attribute => $_) {
             // Only declarations sharing a root, or using a wildcard root, can overlap.
             if ($hasMultipleCasts && ! $shouldCheckForOverlappingPaths) {
                 $root = $this->getCastPathRoot($attribute);
@@ -135,10 +163,11 @@ trait HasCasts
                 }
             }
 
-            [$castType, $argumentString] = array_pad(explode(':', $cast, 2), 2, null);
-            $arguments = $argumentString === null ? [] : explode(',', $argumentString);
+            $segments = explode(':', $cast, 2);
+            $castType = $segments[0];
+            $argumentString = $segments[1] ?? null;
             $normalizedCastType = strtolower(trim($castType));
-            $primitiveCastType = in_array($normalizedCastType, self::PRIMITIVE_CAST_TYPES, true)
+            $primitiveCastType = isset(self::PRIMITIVE_CAST_TYPES[$normalizedCastType])
                 ? $normalizedCastType
                 : null;
 
@@ -148,7 +177,11 @@ trait HasCasts
 
             $isEnumCast = $primitiveCastType === null && enum_exists($castType);
             $caster = $primitiveCastType === null && ! $isEnumCast
-                ? $this->resolveRequestCaster($castType, $arguments, $attribute)
+                ? $this->resolveRequestCaster(
+                    $castType,
+                    $argumentString === null ? [] : explode(',', $argumentString),
+                    $attribute,
+                )
                 : null;
 
             foreach ($values as [$key, $value]) {
@@ -165,6 +198,73 @@ trait HasCasts
         }
 
         return $usesEncodedKeys ? ValidationData::decodeKeys($castedInput) : $castedInput;
+    }
+
+    /**
+     * Cast validated input with top-level exact declarations.
+     *
+     * These declarations cannot overlap because PHP array keys are unique and
+     * none contains path syntax.
+     *
+     * @param array<array-key, mixed> $input
+     * @param array<string, string> $casts
+     * @return array<array-key, mixed>
+     */
+    private function castExactValidatedInput(array $input, array $casts): array
+    {
+        $castedInput = $input;
+
+        foreach ($casts as $attribute => $cast) {
+            if (! array_key_exists($attribute, $input)) {
+                continue;
+            }
+
+            $segments = explode(':', $cast, 2);
+            $castType = $segments[0];
+            $argumentString = $segments[1] ?? null;
+            $normalizedCastType = strtolower(trim($castType));
+            $primitiveCastType = isset(self::PRIMITIVE_CAST_TYPES[$normalizedCastType])
+                ? $normalizedCastType
+                : null;
+
+            if ($primitiveCastType === 'decimal') {
+                $this->ensureValidDecimalScale($argumentString, $attribute);
+            }
+
+            $isEnumCast = $primitiveCastType === null && enum_exists($castType);
+            $caster = $primitiveCastType === null && ! $isEnumCast
+                ? $this->resolveRequestCaster(
+                    $castType,
+                    $argumentString === null ? [] : explode(',', $argumentString),
+                    $attribute,
+                )
+                : null;
+            $value = $input[$attribute];
+
+            $castedInput[$attribute] = $caster === null
+                ? $this->castNativeInput($castType, $primitiveCastType, $argumentString, $value)
+                : $caster->cast($attribute, $value, $input);
+        }
+
+        return $castedInput;
+    }
+
+    /**
+     * Determine whether input keys contain dot-path characters.
+     *
+     * @param array<array-key, mixed> $input
+     */
+    private function inputContainsPathCharacters(array $input): bool
+    {
+        foreach ($input as $key => $value) {
+            if ((is_string($key) && strpbrk($key, '.*') !== false)
+                || (is_array($value) && $this->inputContainsPathCharacters($value))
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
