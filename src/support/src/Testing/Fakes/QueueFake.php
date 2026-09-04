@@ -8,6 +8,7 @@ use BadMethodCallException;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container;
@@ -549,6 +550,10 @@ class QueueFake extends QueueManager implements Fake, Queue
 
             if ($job instanceof ShouldBeUnique) {
                 $this->uniqueJobs[] = $job;
+            }
+
+            if (is_object($job)) {
+                DispatchLockContext::accept($job);
             }
 
             $result = null;
