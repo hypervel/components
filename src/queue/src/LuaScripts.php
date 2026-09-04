@@ -53,6 +53,35 @@ LUA;
     }
 
     /**
+     * Get the Lua script for pushing a batch of immediate and delayed jobs.
+     *
+     * KEYS[1] - The queue to push immediate jobs onto
+     * KEYS[2] - The notification list for the queue
+     * KEYS[3] - The delayed queue to push delayed jobs onto
+     * ARGV[odd] - "i" for an immediate job, or its delayed availability timestamp
+     * ARGV[even] - The job payload paired with the preceding mode or timestamp
+     */
+    public static function bulk(): string
+    {
+        return <<<'LUA'
+local stored = 0
+
+for i = 1, #ARGV, 2 do
+    if ARGV[i] == 'i' then
+        redis.call('rpush', KEYS[1], ARGV[i + 1])
+        redis.call('rpush', KEYS[2], 1)
+    else
+        redis.call('zadd', KEYS[3], ARGV[i], ARGV[i + 1])
+    end
+
+    stored = stored + 1
+end
+
+return stored
+LUA;
+    }
+
+    /**
      * Get the Lua script for popping the next job off of the queue.
      *
      * KEYS[1] - The queue to pop jobs from, for example: queues:foo

@@ -94,6 +94,9 @@ class RetryJobTest extends IntegrationTestCase
             json_encode([
                 'id' => '1',
                 'displayName' => 'foo',
+                'type' => 'event',
+                'tags' => ['stored-tag'],
+                'silenced' => true,
                 'retryUntil' => now()->addMinute(3)->timestamp,
                 'job' => 'Illuminate\Queue\CallQueuedHandler@call',
                 'data' => [
@@ -112,5 +115,11 @@ class RetryJobTest extends IntegrationTestCase
         $retried = json_decode($retried, true);
 
         $this->assertSame('pending', $retried[0]['status']);
+
+        $payload = json_decode(Redis::connection('horizon')->hGet($retried[0]['id'], 'payload'), true);
+        $this->assertSame('event', $payload['type']);
+        $this->assertSame(['stored-tag'], $payload['tags']);
+        $this->assertTrue($payload['silenced']);
+        $this->assertIsNumeric($payload['pushedAt']);
     }
 }
