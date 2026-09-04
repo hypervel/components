@@ -57,6 +57,7 @@ use Hypervel\Support\LazyCollection;
 use Traversable;
 
 use function data_set;
+use function Hypervel\Support\enum_try_from;
 
 /** @phpstan-type OperationMemo array<string, object|list<Normalizer>> */
 class DataCreator
@@ -2582,8 +2583,8 @@ class DataCreator
 
             $enum = $property->type->findAcceptedTypeForBaseType(BackedEnum::class);
 
-            if ($enum !== null && (is_int($value) || is_string($value))) {
-                $value = $enum::tryFrom($value) ?? $value;
+            if ($enum !== null) {
+                $value = enum_try_from($enum, $value) ?? $value;
             }
 
             $properties[$property->name] = $value;

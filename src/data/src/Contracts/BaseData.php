@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Data\Contracts;
 
 use Hypervel\Contracts\Container\SelfBuilding;
+use Hypervel\Contracts\Http\RequestCastable;
 use Hypervel\Contracts\Pagination\CursorPaginator as CursorPaginatorContract;
 use Hypervel\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginatorContract;
 use Hypervel\Contracts\Pagination\Paginator as PaginatorContract;
@@ -25,7 +26,7 @@ use Hypervel\Support\Enumerable;
 use Hypervel\Support\LazyCollection;
 use Traversable;
 
-interface BaseData extends SelfBuilding
+interface BaseData extends RequestCastable, SelfBuilding
 {
     /**
      * Create an optional data object.

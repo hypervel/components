@@ -16,6 +16,7 @@ use Hypervel\Support\Stringable as HypervelStringable;
 use Hypervel\Support\Traits\InteractsWithData;
 use Hypervel\Tests\TestCase;
 use ReflectionMethod;
+use stdClass;
 use Stringable;
 use TypeError;
 
@@ -69,6 +70,51 @@ class InteractsWithDataTest extends TestCase
         $this->assertSame(
             InteractsWithDataTestStringEnum::Utc,
             $instance->enum('timezone', InteractsWithDataTestStringEnum::class),
+        );
+    }
+
+    public function testFilledHandlesTypedValuesWithoutStringifyingObjects(): void
+    {
+        $instance = new TestInteractsWithDataClass([
+            'null' => null,
+            'blank' => ' ',
+            'blank_stringable' => new HypervelStringable(' '),
+            'boolean' => false,
+            'array' => [],
+            'integer' => 0,
+            'enum' => InteractsWithDataTestIntEnum::One,
+            'object' => new stdClass,
+        ]);
+
+        $this->assertFalse($instance->filled('null'));
+        $this->assertFalse($instance->filled('blank'));
+        $this->assertFalse($instance->filled('blank_stringable'));
+        $this->assertTrue($instance->filled('boolean'));
+        $this->assertTrue($instance->filled('array'));
+        $this->assertTrue($instance->filled('integer'));
+        $this->assertTrue($instance->filled('enum'));
+        $this->assertTrue($instance->filled('object'));
+    }
+
+    public function testEnumMethodsAcceptNumericStringsAndExistingCases(): void
+    {
+        $instance = new TestInteractsWithDataClass([
+            'numeric' => '1',
+            'case' => InteractsWithDataTestIntEnum::Two,
+            'cases' => ['1', InteractsWithDataTestIntEnum::Two, 'invalid'],
+        ]);
+
+        $this->assertSame(
+            InteractsWithDataTestIntEnum::One,
+            $instance->enum('numeric', InteractsWithDataTestIntEnum::class),
+        );
+        $this->assertSame(
+            InteractsWithDataTestIntEnum::Two,
+            $instance->enum('case', InteractsWithDataTestIntEnum::class),
+        );
+        $this->assertSame(
+            [InteractsWithDataTestIntEnum::One, InteractsWithDataTestIntEnum::Two],
+            $instance->enums('cases', InteractsWithDataTestIntEnum::class),
         );
     }
 

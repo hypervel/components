@@ -39,6 +39,19 @@ class EnumCastTest extends TestCase
     }
 
     /**
+     * Test integer-backed enums accept numeric strings.
+     */
+    public function testCastsIntegerBackedEnumFromNumericString(): void
+    {
+        [$state, $context] = $this->operation();
+
+        $this->assertSame(
+            IntegerEnumCastStatus::Ready,
+            (new EnumCast)->cast($this->property('integerStatus'), '1', $state, $context),
+        );
+    }
+
+    /**
      * Test iterable item enum metadata is used.
      */
     public function testCastsIterableBackedEnumValues(): void
@@ -129,9 +142,16 @@ enum OtherEnumCastStatus: string
     case Ready = 'ready';
 }
 
+enum IntegerEnumCastStatus: int
+{
+    case Ready = 1;
+}
+
 class EnumCastDataFixture
 {
     public EnumCastStatus $status;
+
+    public IntegerEnumCastStatus $integerStatus;
 
     /** @var list<EnumCastStatus> */
     public array $statuses;

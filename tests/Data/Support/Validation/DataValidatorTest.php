@@ -1429,6 +1429,24 @@ class DataValidatorTest extends TestCase
     }
 
     /**
+     * Test validation hooks do not replace scalar mapped ancestors with arrays.
+     */
+    public function testBeforeValidationDoesNotReplaceScalarMappedAncestorsWithArrays(): void
+    {
+        $payload = HookMappedUnvalidatedDataFixture::factory()
+            ->beforeValidation(static fn (array $payload): array => [
+                ...$payload,
+                'nested' => 'scalar',
+            ])
+            ->validate([
+                'id' => 1,
+                'nested' => ['value' => 'original'],
+            ]);
+
+        $this->assertSame(['id' => 1], $payload);
+    }
+
+    /**
      * Test validation hooks can replace filled data with a named-factory value.
      */
     public function testBeforeValidationReconcilesStructuredValuesThroughNamedFactories(): void
@@ -2820,6 +2838,16 @@ class HookMappedScalarDataFixture extends Data
     public function __construct(
         #[MapInputName('email_address')]
         public string $email,
+    ) {
+    }
+}
+
+class HookMappedUnvalidatedDataFixture extends Data
+{
+    public function __construct(
+        public int $id,
+        #[MapInputName('nested.value'), WithoutValidation]
+        public ?string $value = null,
     ) {
     }
 }

@@ -11,6 +11,7 @@ use Hypervel\Database\Eloquent\JsonEncodingException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
 
+use function Hypervel\Support\enum_from;
 use function Hypervel\Support\enum_value;
 
 class AsEnumArrayObject implements Castable
@@ -49,7 +50,7 @@ class AsEnumArrayObject implements Castable
 
                 return new ArrayObject((new Collection($data))->map(function ($value) use ($enumClass) {
                     return is_subclass_of($enumClass, BackedEnum::class)
-                        ? $enumClass::from($value)
+                        ? enum_from($enumClass, $value)
                         : constant($enumClass . '::' . $value);
                 })->toArray());
             }

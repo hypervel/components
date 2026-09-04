@@ -68,6 +68,62 @@ class ExportSchedulerTest extends TestCase
         $scheduler->stop();
     }
 
+    public function testStopDuringAnInFlightExportDoesNotRescheduleClearedCadence(): void
+    {
+        $manager = m::mock(OpenTelemetryManager::class);
+        $manager->shouldReceive('isBound')->once()->andReturnTrue();
+        $manager->shouldReceive('configuration')->once()->andReturn($this->configuration());
+        $timer = new ExportSchedulerTimer;
+        $scheduler = new TestExportScheduler($manager, $timer);
+        $manager->shouldReceive('flushSignals')
+            ->once()
+            ->with(['logs'])
+            ->andReturnUsing(function () use ($scheduler): bool {
+                $scheduler->stop();
+
+                return true;
+            });
+        $scheduler->start();
+        $scheduler->time = 1000;
+
+        $this->assertNull($timer->fire());
+        $this->assertFalse($scheduler->isRunning());
+        $this->assertSame([1], $timer->cleared);
+    }
+
+    public function testStaleExportDoesNotAdvanceRestartedCadence(): void
+    {
+        $manager = m::mock(OpenTelemetryManager::class);
+        $manager->shouldReceive('isBound')->twice()->andReturnTrue();
+        $manager->shouldReceive('configuration')->twice()->andReturn($this->configuration());
+        $timer = new ExportSchedulerTimer;
+        $scheduler = new TestExportScheduler($manager, $timer);
+        $manager->shouldReceive('flushSignals')
+            ->once()
+            ->with(['logs'])
+            ->andReturnUsing(function () use ($scheduler): bool {
+                $scheduler->stop();
+                $scheduler->start();
+
+                return true;
+            });
+        $manager->shouldReceive('flushSignals')->once()->with(['logs'])->andReturnTrue();
+        $scheduler->start();
+        $scheduler->time = 1000;
+
+        $this->assertNull($timer->fire());
+        $this->assertTrue($scheduler->isRunning());
+        $this->assertSame([1], $timer->cleared);
+
+        $scheduler->time = 2000;
+
+        $this->assertNull($timer->fire());
+
+        $scheduler->stop();
+
+        $this->assertSame([1, 2], $timer->cleared);
+    }
+
     public function testPeriodicContentionSkipsWithoutReportingProviderFailure(): void
     {
         $manager = m::mock(OpenTelemetryManager::class);
@@ -206,6 +262,8 @@ class TestExportScheduler extends ExportScheduler
 
 class ExportSchedulerTimer extends Timer
 {
+    private int $nextId = 0;
+
     public ?float $interval = null;
 
     public ?Closure $callback = null;
@@ -224,7 +282,7 @@ class ExportSchedulerTimer extends Timer
         $this->interval = $timeout;
         $this->callback = $closure(...);
 
-        return 1;
+        return ++$this->nextId;
     }
 
     /**

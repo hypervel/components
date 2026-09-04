@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules;
 
+use BackedEnum;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\Validator;
@@ -11,9 +12,9 @@ use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Conditionable;
 use Stringable;
-use TypeError;
 use UnitEnum;
 
+use function Hypervel\Support\enum_try_from;
 use function Hypervel\Support\enum_value;
 
 class Enum implements Rule, Stringable, ValidatorAwareRule
@@ -54,17 +55,13 @@ class Enum implements Rule, Stringable, ValidatorAwareRule
             return $this->isDesirable($value);
         }
 
-        if (is_null($value) || ! enum_exists($this->type) || ! method_exists($this->type, 'tryFrom')) {
+        if ($value === null || ! is_subclass_of($this->type, BackedEnum::class)) {
             return false;
         }
 
-        try {
-            $value = $this->type::tryFrom($value);
+        $value = enum_try_from($this->type, $value);
 
-            return ! is_null($value) && $this->isDesirable($value);
-        } catch (TypeError) {
-            return false;
-        }
+        return $value !== null && $this->isDesirable($value);
     }
 
     /**

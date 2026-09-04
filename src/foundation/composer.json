@@ -27,6 +27,7 @@
         "composer-runtime-api": "^2.2",
         "ext-filter": "*",
         "ext-posix": "*",
+        "brick/math": "^0.17",
         "guzzlehttp/guzzle": "^7.15.1",
         "laravel/serializable-closure": "^2.0.10",
         "league/flysystem": "^3.25.1",

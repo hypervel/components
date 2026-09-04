@@ -126,6 +126,47 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
         );
     }
 
+    public function testCompleteMultiChunkPayloadIsDrainedAfterChildExit(): void
+    {
+        $expected = [
+            'ok' => true,
+            'result' => str_repeat('x', 8192),
+        ];
+        $process = new Process(function (Process $process) use ($expected): void {
+            try {
+                $this->writeChildPayload($process, $expected);
+            } finally {
+                posix_kill(getmypid(), SIGKILL);
+            }
+        }, false, SOCK_STREAM);
+        $pid = $process->start();
+
+        if ($pid === false) {
+            throw new RuntimeException('Unable to start cache concurrency child.');
+        }
+
+        $process->setBlocking(false);
+        $reaped = [];
+        $reapDeadline = hrtime(true) + 1_000_000_000;
+
+        try {
+            while (! $this->reapIfExited($pid, $reaped)) {
+                if (hrtime(true) >= $reapDeadline) {
+                    throw new RuntimeException("Timed out reaping cache concurrency child [{$pid}].");
+                }
+
+                usleep(1_000);
+            }
+
+            $this->assertSame(
+                $expected,
+                $this->readChildPayload($process, $pid, $reaped, hrtime(true) + 1_000_000_000),
+            );
+        } finally {
+            $this->cleanupChildProcesses([$pid => $process], $reaped);
+        }
+    }
+
     public function testChildThrowableIsReturnedAsAnErrorPayload(): void
     {
         $this->expectException(RuntimeException::class);
@@ -326,6 +367,7 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
         $frameLength = null;
 
         while (hrtime(true) < $deadline) {
+            $exited = $this->reapIfExited($pid, $reaped);
             $chunk = $process->read(8192);
 
             if (is_string($chunk) && $chunk !== '') {
@@ -366,9 +408,11 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
 
                     return $payload;
                 }
+
+                continue;
             }
 
-            if ($this->reapIfExited($pid, $reaped)) {
+            if ($exited) {
                 throw new RuntimeException(
                     "Cache concurrency child [{$pid}] exited before sending a complete payload.",
                 );

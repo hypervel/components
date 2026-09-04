@@ -722,7 +722,7 @@ Override static `jsonOptions()` or `withResponse(Request $request, JsonResponse 
 <a name="form-request-casting"></a>
 ## Form Request Casting
 
-Use the package-owned casts to convert FormRequest input after validation:
+Declare a `Data`, `Dto`, or `Resource` class directly in a form request's protected `casts` method. The request creates the object after validation and returns it from `validated()` and `safe()`:
 
 ```php
 <?php
@@ -733,7 +733,8 @@ namespace App\Http\Requests;
 
 use App\Data\AddressData;
 use App\Data\ContactData;
-use Hypervel\Data\Http\Casts\AsData;
+use App\Data\ProfileDto;
+use App\Data\UserResource;
 use Hypervel\Data\Http\Casts\AsDataCollection;
 use Hypervel\Foundation\Http\FormRequest;
 
@@ -742,14 +743,18 @@ class StoreUserRequest extends FormRequest
     protected function casts(): array
     {
         return [
-            'address' => AsData::of(AddressData::class),
+            'address' => AddressData::class,
+            'profile' => ProfileDto::class,
+            'resource' => UserResource::class,
             'contacts' => AsDataCollection::of(ContactData::class),
         ];
     }
 }
 ```
 
-`AsDataCollection::of()` returns a `DataCollection` by default and accepts the same explicit targets as `collect()`, including `'array'` and `Hypervel\Support\Collection::class`:
+The object is built through its normal `from()` pipeline. A present `null` remains `null`, and a missing input is not added to the validated result. Direct `Data`, `Dto`, and `Resource` request casts do not accept cast arguments; Eloquent-only options such as `default` and `encrypted` do not apply here.
+
+Use `AsDataCollection::of()` when the input contains several objects. It returns a `DataCollection` by default and accepts the same explicit targets as `collect()`, including `'array'` and `Hypervel\Support\Collection::class`:
 
 ```php
 protected function casts(): array

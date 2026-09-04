@@ -35,6 +35,28 @@ class CompiledValidationTest extends TestCase
     }
 
     /**
+     * Test exact paths only create containers for descendable source values.
+     */
+    public function testExactPathsOnlyCreateDescendableSourceContainers(): void
+    {
+        $compiled = new CompiledValidation(
+            rules: [],
+            preservedPaths: [
+                ValidationPath::create('nested.value'),
+            ],
+        );
+
+        $this->assertSame([], $compiled->restorePreservedValues(
+            [],
+            ['nested' => 'scalar'],
+        ));
+        $this->assertSame(['nested' => []], $compiled->restorePreservedValues(
+            [],
+            ['nested' => []],
+        ));
+    }
+
+    /**
      * Test wildcard paths restore each existing source leaf without key collisions.
      */
     public function testRestoresPreservedValuesByWildcardPath(): void

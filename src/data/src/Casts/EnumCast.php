@@ -11,6 +11,8 @@ use Hypervel\Data\Support\Creation\CreationContext;
 use Hypervel\Data\Support\DataProperty;
 use Throwable;
 
+use function Hypervel\Support\enum_from;
+
 class EnumCast implements Cast, IterableItemCast
 {
     /**
@@ -78,7 +80,7 @@ class EnumCast implements Cast, IterableItemCast
         }
 
         try {
-            return $type::from($value);
+            return enum_from($type, $value);
         } catch (Throwable) {
             throw CannotCastEnum::create($type, $value, $property);
         }

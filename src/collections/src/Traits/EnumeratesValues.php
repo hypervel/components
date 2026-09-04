@@ -20,6 +20,7 @@ use Stringable;
 use UnexpectedValueException;
 use UnitEnum;
 
+use function Hypervel\Support\enum_from;
 use function Hypervel\Support\enum_value;
 
 /**
@@ -455,7 +456,7 @@ trait EnumeratesValues
     public function mapInto(string $class): Collection|static
     {
         if (is_subclass_of($class, BackedEnum::class)) {
-            return $this->map(fn ($value, $key) => $class::from($value));
+            return $this->map(fn ($value, $key) => enum_from($class, $value));
         }
 
         return $this->map(fn ($value, $key) => new $class($value, $key));

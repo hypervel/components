@@ -31,7 +31,7 @@ class ValidationEnumRuleTest extends TestCase
         );
     }
 
-    public function testValidationPassesWhenPassingCorrectEnum()
+    public function testValidationPassesWhenPassingCorrectEnum(): void
     {
         $v = new Validator(
             $this->app->make('translator'),
@@ -48,7 +48,7 @@ class ValidationEnumRuleTest extends TestCase
         $this->assertFalse($v->fails());
     }
 
-    public function testValidationPassesWhenPassingInstanceOfEnum()
+    public function testValidationPassesWhenPassingInstanceOfEnum(): void
     {
         $v = new Validator(
             $this->app->make('translator'),
@@ -63,7 +63,7 @@ class ValidationEnumRuleTest extends TestCase
         $this->assertFalse($v->fails());
     }
 
-    public function testValidationPassesWhenPassingInstanceOfPureEnum()
+    public function testValidationPassesWhenPassingInstanceOfPureEnum(): void
     {
         $v = new Validator(
             $this->app->make('translator'),
@@ -78,7 +78,7 @@ class ValidationEnumRuleTest extends TestCase
         $this->assertFalse($v->fails());
     }
 
-    public function testValidationFailsWhenProvidingNoExistingCases()
+    public function testValidationFailsWhenProvidingNoExistingCases(): void
     {
         $v = new Validator(
             $this->app->make('translator'),
@@ -94,7 +94,7 @@ class ValidationEnumRuleTest extends TestCase
         $this->assertEquals(['The selected status is invalid.'], $v->messages()->get('status'));
     }
 
-    public function testValidationPassesForAllCasesUntilEitherOnlyOrExceptIsPassed()
+    public function testValidationPassesForAllCasesUntilEitherOnlyOrExceptIsPassed(): void
     {
         $v = new Validator(
             $this->app->make('translator'),
@@ -118,7 +118,7 @@ class ValidationEnumRuleTest extends TestCase
         int|IntegerStatus $enum,
         array|Arrayable|IntegerStatus $only,
         bool $expected
-    ) {
+    ): void {
         $v = new Validator(
             $this->app->make('translator'),
             [
@@ -137,7 +137,7 @@ class ValidationEnumRuleTest extends TestCase
         int|IntegerStatus $enum,
         array|Arrayable|IntegerStatus $except,
         bool $expected
-    ) {
+    ): void {
         $v = new Validator(
             $this->app->make('translator'),
             [
@@ -162,7 +162,7 @@ class ValidationEnumRuleTest extends TestCase
         ];
     }
 
-    public function testOnlyHasHigherOrderThanExcept()
+    public function testOnlyHasHigherOrderThanExcept(): void
     {
         $v = new Validator(
             $this->app->make('translator'),
@@ -179,7 +179,7 @@ class ValidationEnumRuleTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testValidationFailsWhenProvidingDifferentType()
+    public function testValidationFailsWhenProvidingDifferentType(): void
     {
         $v = new Validator(
             $this->app->make('translator'),
@@ -195,7 +195,7 @@ class ValidationEnumRuleTest extends TestCase
         $this->assertEquals(['The selected status is invalid.'], $v->messages()->get('status'));
     }
 
-    public function testValidationPassesWhenProvidingDifferentTypeThatIsCastableToTheEnumType()
+    public function testValidationPassesWhenProvidingDifferentTypeThatIsCastableToTheEnumType(): void
     {
         $v = new Validator(
             $this->app->make('translator'),
@@ -207,7 +207,7 @@ class ValidationEnumRuleTest extends TestCase
             ]
         );
 
-        $this->assertTrue($v->fails());
+        $this->assertFalse($v->fails());
 
         $v = new Validator(
             $this->app->make('translator'),
@@ -222,7 +222,7 @@ class ValidationEnumRuleTest extends TestCase
         $this->assertFalse($v->fails());
     }
 
-    public function testValidationFailsWhenProvidingNull()
+    public function testValidationFailsWhenProvidingNull(): void
     {
         $v = new Validator(
             $this->app->make('translator'),
@@ -238,7 +238,7 @@ class ValidationEnumRuleTest extends TestCase
         $this->assertEquals(['The selected status is invalid.'], $v->messages()->get('status'));
     }
 
-    public function testValidationPassesWhenProvidingNullButTheFieldIsNullable()
+    public function testValidationPassesWhenProvidingNullButTheFieldIsNullable(): void
     {
         $v = new Validator(
             $this->app->make('translator'),
@@ -253,7 +253,7 @@ class ValidationEnumRuleTest extends TestCase
         $this->assertFalse($v->fails());
     }
 
-    public function testValidationFailsOnPureEnum()
+    public function testValidationFailsOnPureEnum(): void
     {
         $v = new Validator(
             $this->app->make('translator'),
@@ -268,7 +268,7 @@ class ValidationEnumRuleTest extends TestCase
         $this->assertTrue($v->fails());
     }
 
-    public function testValidationFailsWhenProvidingStringToIntegerType()
+    public function testValidationFailsWhenProvidingStringToIntegerType(): void
     {
         $v = new Validator(
             $this->app->make('translator'),
@@ -284,7 +284,7 @@ class ValidationEnumRuleTest extends TestCase
         $this->assertEquals(['The selected status is invalid.'], $v->messages()->get('status'));
     }
 
-    public function testValidationFailsWhenUsingDifferentCase()
+    public function testValidationFailsWhenUsingDifferentCase(): void
     {
         $v = new Validator(
             $this->app->make('translator'),
@@ -300,7 +300,7 @@ class ValidationEnumRuleTest extends TestCase
         $this->assertEquals(['The selected status is invalid.'], $v->messages()->get('status'));
     }
 
-    public function testCustomMessageUsingDotNotationAndFqcnWorks()
+    public function testCustomMessageUsingDotNotationAndFqcnWorks(): void
     {
         $v = new Validator(
             $this->app->make('translator'),
@@ -326,21 +326,21 @@ class ValidationEnumRuleTest extends TestCase
         ], $v->messages()->all());
     }
 
-    public function testEnumRuleIsStringable()
+    public function testEnumRuleIsStringable(): void
     {
         $rule = new Enum(StringStatus::class);
 
         $this->assertSame('in:"pending","done"', (string) $rule);
     }
 
-    public function testEnumRuleStringableWithOnly()
+    public function testEnumRuleStringableWithOnly(): void
     {
         $rule = (new Enum(StringStatus::class))->only([StringStatus::Pending]);
 
         $this->assertSame('in:"pending"', (string) $rule);
     }
 
-    public function testEnumRuleStringableWithExcept()
+    public function testEnumRuleStringableWithExcept(): void
     {
         $rule = (new Enum(StringStatus::class))->except([StringStatus::Pending]);
 

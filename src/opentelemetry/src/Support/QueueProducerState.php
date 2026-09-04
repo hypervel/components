@@ -12,6 +12,8 @@ final readonly class QueueProducerState
     /**
      * Create producer telemetry state.
      *
+     * The UUID stays with the state so exact-payload removal can clear its fallback index.
+     *
      * @param array<string, string> $attributes
      */
     public function __construct(
@@ -19,6 +21,7 @@ final readonly class QueueProducerState
         public ContextInterface $context,
         public ?SpanInterface $span,
         public array $attributes,
+        public ?string $uuid,
     ) {
     }
 }

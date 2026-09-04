@@ -23,6 +23,8 @@ class ExportScheduler
 
     protected ?int $timerId = null;
 
+    protected int $generation = 0;
+
     /** @var array<string, int> */
     protected array $intervals = [];
 
@@ -128,6 +130,9 @@ class ExportScheduler
             return Timer::STOP;
         }
 
+        // Snapshot before the flush can yield: stop() may reset cadence state and
+        // invalidate this run while the export is suspended.
+        $generation = $this->generation;
         $now = $this->now();
         $dueSignals = [];
 
@@ -150,14 +155,16 @@ class ExportScheduler
         } catch (Throwable $exception) {
             self::logError('OpenTelemetry periodic export failed.', ['exception' => $exception]);
         } finally {
-            $finishedAt = $this->now();
+            if ($generation === $this->generation) {
+                $finishedAt = $this->now();
 
-            foreach ($dueSignals as $signal) {
-                $interval = $this->intervals[$signal];
-                $missedIntervals = (int) floor(
-                    max(0.0, $finishedAt - $this->nextDueAt[$signal]) / $interval,
-                ) + 1;
-                $this->nextDueAt[$signal] += $missedIntervals * $interval;
+                foreach ($dueSignals as $signal) {
+                    $interval = $this->intervals[$signal];
+                    $missedIntervals = (int) floor(
+                        max(0.0, $finishedAt - $this->nextDueAt[$signal]) / $interval,
+                    ) + 1;
+                    $this->nextDueAt[$signal] += $missedIntervals * $interval;
+                }
             }
         }
 
@@ -177,6 +184,7 @@ class ExportScheduler
      */
     protected function reset(): void
     {
+        ++$this->generation;
         $this->timerId = null;
         $this->intervals = [];
         $this->nextDueAt = [];

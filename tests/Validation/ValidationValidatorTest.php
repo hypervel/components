@@ -6757,6 +6757,21 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->fails());
     }
 
+    /**
+     * Test inlined date-comparison failures normalize scalar rule parameters.
+     */
+    public function testInlineDateComparisonFailuresNormalizeScalarParameters(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['published_at' => '2020-01-01'],
+            ['published_at' => [['after', 1700000000]]],
+        );
+
+        $this->assertTrue($validator->fails());
+        $this->assertSame(['1700000000'], $validator->failed()['published_at']['After']);
+    }
+
     public function testBeforeAndAfterAcceptImmutableFallbackDates(): void
     {
         $translator = $this->getArrayTranslator();
