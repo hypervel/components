@@ -7,6 +7,8 @@ namespace Hypervel\Events;
 use Closure;
 use Error;
 use Exception;
+use Hypervel\Bus\DebounceLock;
+use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
@@ -25,6 +27,7 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Queue\Attributes\Backoff;
 use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\DebounceFor;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
 use Hypervel\Queue\Attributes\FailOnTimeout;
@@ -40,6 +43,7 @@ use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\ReflectsClosures;
+use LogicException;
 use ReflectionClass;
 use ReflectionException;
 use Swoole\Coroutine\CanceledException;
@@ -929,42 +933,67 @@ class Dispatcher implements DispatcherContract
     {
         [$listener, $job] = $this->createListenerAndJob($class, $method, $arguments);
 
+        /** @var ?int $debounceFor */
+        $debounceFor = $this->getAttributeValue($listener, DebounceFor::class, 'debounceFor');
+
+        if ($debounceFor !== null && $job->shouldBeUnique) {
+            throw new LogicException('A debounced listener cannot also implement ShouldBeUnique.');
+        }
+
         if ($job->shouldBeUnique
-            && ! (new UniqueLock($this->container->make(Cache::class)))->acquire($job)) {
+            && ! (new UniqueLock($this->container->make(Cache::class)))->acquireForDispatch($job)) {
             return;
         }
 
-        $connectionName = method_exists($listener, 'viaConnection')
-            ? (isset($arguments[0]) ? $listener->viaConnection($arguments[0]) : $listener->viaConnection())
-            : $this->getAttributeValue($listener, Connection::class, 'connection');
+        $ownsDispatchLocks = $job->shouldBeUnique || $debounceFor !== null;
 
-        if ($connectionName instanceof UnitEnum) {
-            $connectionName = (string) enum_value($connectionName);
+        try {
+            $connectionName = method_exists($listener, 'viaConnection')
+                ? (isset($arguments[0]) ? $listener->viaConnection($arguments[0]) : $listener->viaConnection())
+                : $this->getAttributeValue($listener, Connection::class, 'connection');
+
+            if ($connectionName instanceof UnitEnum) {
+                $connectionName = (string) enum_value($connectionName);
+            }
+
+            $connection = $this->resolveQueue()->connection(
+                $connectionName ?? $this->resolveConnectionFromQueueRoute($listener) ?? null
+            );
+
+            $queue = method_exists($listener, 'viaQueue')
+                ? (isset($arguments[0]) ? $listener->viaQueue($arguments[0]) : $listener->viaQueue())
+                : $this->getAttributeValue($listener, QueueAttribute::class, 'queue');
+
+            $delay = method_exists($listener, 'withDelay')
+                ? (isset($arguments[0]) ? $listener->withDelay($arguments[0]) : $listener->withDelay())
+                : $this->getAttributeValue($listener, Delay::class, 'delay');
+
+            if (is_null($queue)) {
+                $queue = $this->resolveQueueFromQueueRoute($listener) ?? null;
+            }
+
+            if ($queue instanceof UnitEnum) {
+                $queue = (string) enum_value($queue);
+            }
+
+            if ($debounceFor !== null) {
+                $debounce = (new DebounceLock($this->container->make(Cache::class)))->acquireForDispatch(
+                    $job,
+                    $debounceFor,
+                    $this->getAttributeInstance($listener, DebounceFor::class)?->maxWait,
+                );
+
+                $delay ??= $debounce['maxWaitExceeded'] ? 0 : $debounceFor;
+            }
+
+            is_null($delay)
+                ? $connection->pushOn($queue, $job)
+                : $connection->laterOn($queue, $delay, $job);
+        } finally {
+            if ($ownsDispatchLocks) {
+                DispatchLockContext::release($job);
+            }
         }
-
-        $connection = $this->resolveQueue()->connection(
-            $connectionName ?? $this->resolveConnectionFromQueueRoute($listener) ?? null
-        );
-
-        $queue = method_exists($listener, 'viaQueue')
-            ? (isset($arguments[0]) ? $listener->viaQueue($arguments[0]) : $listener->viaQueue())
-            : $this->getAttributeValue($listener, QueueAttribute::class, 'queue');
-
-        $delay = method_exists($listener, 'withDelay')
-            ? (isset($arguments[0]) ? $listener->withDelay($arguments[0]) : $listener->withDelay())
-            : $this->getAttributeValue($listener, Delay::class, 'delay');
-
-        if (is_null($queue)) {
-            $queue = $this->resolveQueueFromQueueRoute($listener) ?? null;
-        }
-
-        if ($queue instanceof UnitEnum) {
-            $queue = (string) enum_value($queue);
-        }
-
-        is_null($delay)
-            ? $connection->pushOn($queue, $job)
-            : $connection->laterOn($queue, $delay, $job);
     }
 
     /**
@@ -1032,6 +1061,12 @@ class Dispatcher implements DispatcherContract
                 $job->uniqueFor = method_exists($listener, 'uniqueFor')
                     ? $listener->uniqueFor(...$data)
                     : ($this->getAttributeValue($listener, UniqueFor::class, 'uniqueFor') ?? 0);
+            }
+
+            if ($this->getAttributeValue($listener, DebounceFor::class, 'debounceFor') !== null) {
+                $job->debounceId = method_exists($listener, 'debounceId')
+                    ? $listener->debounceId(...$data)
+                    : ($listener->debounceId ?? null);
             }
         });
     }

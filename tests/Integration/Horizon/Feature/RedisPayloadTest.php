@@ -51,6 +51,36 @@ class RedisPayloadTest extends IntegrationTestCase
         $this->assertSame('notification', $JobPayload->decoded['type']);
     }
 
+    public function testPreparationAndPublicationTimestampCanRunSeparately(): void
+    {
+        $payload = new JobPayload(json_encode(['id' => '1']));
+
+        $this->assertSame($payload, $payload->prepareForQueueing(new FakeJobWithTagsMethod));
+        $this->assertSame('job', $payload->decoded['type']);
+        $this->assertSame(['first', 'second'], $payload->decoded['tags']);
+        $this->assertFalse($payload->decoded['silenced']);
+        $this->assertArrayNotHasKey('pushedAt', $payload->decoded);
+
+        $this->assertSame($payload, $payload->markAsPushed());
+        $this->assertIsNumeric($payload->decoded['pushedAt']);
+    }
+
+    public function testPreparingClassifiedPayloadWithoutOriginalJobPreservesMetadata(): void
+    {
+        $payload = new JobPayload(json_encode([
+            'id' => '1',
+            'type' => 'event',
+            'tags' => ['stored-tag'],
+            'silenced' => true,
+        ]));
+
+        $this->assertSame($payload, $payload->prepare(null));
+        $this->assertSame('event', $payload->decoded['type']);
+        $this->assertSame(['stored-tag'], $payload->decoded['tags']);
+        $this->assertTrue($payload->decoded['silenced']);
+        $this->assertIsNumeric($payload->decoded['pushedAt']);
+    }
+
     public function testTagsAreCorrectlyDetermined()
     {
         $JobPayload = new JobPayload(json_encode(['id' => '1']));

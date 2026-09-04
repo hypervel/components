@@ -6,10 +6,12 @@ namespace Hypervel\Tests\Support;
 
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
+use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Bus\Queueable;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Bus\QueueingDispatcher;
+use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Support\Testing\Fakes\BatchRepositoryFake;
 use Hypervel\Support\Testing\Fakes\BusFake;
 use Hypervel\Support\Testing\Fakes\PendingBatchFake;
@@ -17,6 +19,7 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\ExpectationFailedException;
+use RuntimeException;
 
 class SupportTestingBusFakeTest extends TestCase
 {
@@ -146,6 +149,30 @@ class SupportTestingBusFakeTest extends TestCase
             ['dispatchSync'],
             ['dispatchNow'],
             ['dispatchToQueue'],
+        ];
+    }
+
+    #[DataProvider('fakeDispatchMethods')]
+    public function testFakeDispatchMethodsAcceptDispatchLockOwnership(string $dispatchMethod): void
+    {
+        $command = new BusJobStub;
+        DispatchLockContext::registerUnique($command, m::mock(Cache::class), null, 'key', 'owner');
+
+        $this->assertTrue(DispatchLockContext::has($command));
+
+        $this->fake->{$dispatchMethod}($command);
+
+        $this->assertFalse(DispatchLockContext::has($command));
+    }
+
+    public static function fakeDispatchMethods(): array
+    {
+        return [
+            ['dispatch'],
+            ['dispatchSync'],
+            ['dispatchNow'],
+            ['dispatchToQueue'],
+            ['dispatchAfterResponse'],
         ];
     }
 
@@ -910,6 +937,37 @@ class SupportTestingBusFakeTest extends TestCase
         ];
     }
 
+    public function testSerializedCommandAcceptanceUsesOriginalIdentity(): void
+    {
+        $command = new BusFakeJobWithSerialization('hello');
+        DispatchLockContext::registerUnique($command, m::mock(Cache::class), null, 'key', 'owner');
+        $serializingBusFake = (clone $this->fake)->serializeAndRestore();
+
+        $serializingBusFake->dispatch($command);
+
+        $storedCommand = $serializingBusFake->dispatched(BusFakeJobWithSerialization::class)->first();
+
+        $this->assertNotSame($command, $storedCommand);
+        $this->assertFalse(DispatchLockContext::has($command));
+    }
+
+    public function testSerializationFailureRetainsDispatchLockOwnership(): void
+    {
+        $exception = new RuntimeException('Serialization failed.');
+        $command = new BusFakeJobWithFailingSerialization($exception);
+        DispatchLockContext::registerUnique($command, m::mock(Cache::class), null, 'key', 'owner');
+        $serializingBusFake = (clone $this->fake)->serializeAndRestore();
+
+        try {
+            $serializingBusFake->dispatch($command);
+            $this->fail('The command should not have been recorded.');
+        } catch (RuntimeException $actual) {
+            $this->assertSame($exception, $actual);
+        }
+
+        $this->assertTrue(DispatchLockContext::has($command));
+    }
+
     public function testCanSerializeAndRestoreCommandsInBatch(): void
     {
         $serializingBusFake = (clone $this->fake)->serializeAndRestore();
@@ -1122,5 +1180,17 @@ class BusFakeJobWithSerialization
     public function __unserialize(array $data): void
     {
         $this->value = $data['value'] . '-unserialized';
+    }
+}
+
+class BusFakeJobWithFailingSerialization
+{
+    public function __construct(public RuntimeException $exception)
+    {
+    }
+
+    public function __serialize(): array
+    {
+        throw $this->exception;
     }
 }

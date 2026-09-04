@@ -9,6 +9,7 @@ use DateInterval;
 use DateTimeInterface;
 use Exception;
 use Hypervel\Bus\DebounceLock;
+use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Repository as CacheRepository;
@@ -316,8 +317,8 @@ class FailoverQueueTest extends TestCase
         $job = new FailoverQueueUniqueDebouncedJob;
         $uniqueLock = new UniqueLock($cache);
         $debounceLock = new DebounceLock($cache);
-        $this->assertTrue($uniqueLock->acquire($job));
-        $job->debounceOwner = $debounceLock->acquire($job)['owner'];
+        $this->assertTrue($uniqueLock->acquireForDispatch($job));
+        $debounceLock->acquireForDispatch($job);
 
         $transactions->begin('first', 1);
         $transactions->begin('second', 1);
@@ -380,6 +381,9 @@ class FailoverQueueTest extends TestCase
         $uniqueKey = UniqueLock::getKey($job);
         $debounceKey = DebounceLock::getKey($job);
 
+        DispatchLockContext::registerUnique($job, $cache, null, $uniqueKey, '');
+        DispatchLockContext::registerDebounce($job, $cache, $debounceKey, $job->debounceOwner);
+
         $cache->shouldReceive('lock')->once()->with($uniqueKey)->andReturn($lock);
         $lock->shouldReceive('forceRelease')->once()->andThrow($failure);
         $cache->shouldReceive('get')->once()->with($debounceKey)->andReturn($job->debounceOwner);
@@ -420,8 +424,8 @@ class FailoverQueueTest extends TestCase
         $job = new FailoverQueueUniqueDebouncedJob;
         $uniqueLock = new UniqueLock($cache);
         $debounceLock = new DebounceLock($cache);
-        $this->assertTrue($uniqueLock->acquire($job));
-        $job->debounceOwner = $debounceLock->acquire($job)['owner'];
+        $this->assertTrue($uniqueLock->acquireForDispatch($job));
+        $debounceLock->acquireForDispatch($job);
 
         $transactions->begin('database', 1);
         $transactions->begin('database', 2);
@@ -756,6 +760,10 @@ class FailoverQueueSuccessfulConnection implements Queue
     public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
     {
         $this->pushedJobs[] = $job;
+
+        if (is_object($job)) {
+            DispatchLockContext::accept($job);
+        }
 
         return "{$this->name}:ok";
     }

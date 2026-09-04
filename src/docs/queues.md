@@ -223,7 +223,7 @@ Adjusting this value based on your queue load can be more efficient than continu
 ```
 
 > [!WARNING]
-> Setting `block_for` to `0` will cause queue workers to block indefinitely until a job is available. This can delay worker restart and pause checks until the next job has been processed.
+> Setting `block_for` to `0` will cause queue workers to block indefinitely until a job is available. This can delay worker termination and pause checks until another job becomes available. Running jobs may also not be notified of an interruption until then.
 
 <a name="sqs-overflow-storage"></a>
 #### SQS Overflow Storage
@@ -436,6 +436,8 @@ class UpdateSearchIndex implements ShouldQueue, ShouldBeUnique
 
 In the example above, the `UpdateSearchIndex` job is unique. So, the job will not be dispatched if another instance of the job is already on the queue and has not finished processing.
 
+When a unique job dispatched through its static `dispatch` method is not queued because its lock is already held, Hypervel dispatches the `Hypervel\Queue\Events\UniqueJobSkipped` event. The event's `job` property contains the job that was skipped.
+
 In certain cases, you may want to define a specific "key" that makes the job unique or you may want to specify a timeout beyond which the job no longer stays unique. To accomplish this, you may use the `UniqueFor` attribute and define a `uniqueId` method on your job class:
 
 ```php
@@ -583,6 +585,9 @@ If a debounced job is superseded by a newer dispatch, Hypervel will dispatch the
 
 > [!WARNING]
 > If your application dispatches debounced jobs from multiple web servers or containers, you should ensure that all of your servers are communicating with the same central cache server.
+
+> [!WARNING]
+> Debouncing is a best-effort way to coalesce work, not a guarantee that only one matching job will run. Concurrent dispatch and cleanup across multiple servers may allow more than one matching job to run, and dispatch during middleware may extend an active `maxWait` window. Debounced jobs should be idempotent.
 
 <a name="encrypted-jobs"></a>
 ### Encrypted Jobs
@@ -1265,7 +1270,7 @@ Similarly, the `background` connection processes jobs in another coroutine withi
 RecordDelivery::dispatch($order)->onConnection('background');
 ```
 
-The `background` and `deferred` drivers do not persist jobs to an external queue backend. Delayed jobs on these connections are scheduled with an in-memory timer and will be lost if the worker exits before the timer fires. Use a persistent queue connection such as `database`, `redis`, `sqs`, or `beanstalkd` for durable delayed work.
+The `background` and `deferred` drivers do not persist jobs to an external queue backend. Delayed jobs on these connections are scheduled with an in-memory timer and will be lost if the worker exits before the timer fires. During a graceful queue worker shutdown, Hypervel releases unique and debounce locks for delayed local jobs that it drops. An abrupt termination or cancellation during execution cannot run that cleanup, so a unique lock may remain until its `uniqueFor` duration expires, or indefinitely when no duration is configured. Use a persistent queue connection such as `database`, `redis`, `sqs`, or `beanstalkd` for durable delayed work.
 
 Uncaught exceptions from jobs run on either connection are reported through your application's exception handler.
 
@@ -1298,6 +1303,8 @@ Bus::bulk(
 ```
 
 Bulk dispatch sends jobs directly to the selected queue driver and does not run the `PreparesForDispatch`, unique job, or debounce dispatch lifecycle. Dispatch jobs that use these features individually.
+
+Redis bulk dispatch sends each connection and queue group with one server-side Lua call. The whole group must fit the Redis protocol and query limits configured by your deployment, and monitoring tools report it as one script invocation. Size very large groups with those limits in mind.
 
 <a name="preparing-jobs-before-dispatch"></a>
 ### Preparing Jobs Before Dispatch
@@ -3773,4 +3780,6 @@ Event::listen(function (WorkerIdle $event) {
 });
 ```
 
-Queue workers also dispatch a `WorkerStopping` event before they stop. Its `terminatesImmediately` property is `true` when the process will be terminated as soon as the listeners return. In that case, listeners should not start cleanup that must finish after the listener returns.
+When an interrupting signal is delivered to running jobs, Hypervel dispatches a `Hypervel\Queue\Events\JobInterrupted` event once for each job that was notified. Its `connectionName`, `job`, and `signal` properties identify the interrupted work.
+
+Queue workers also dispatch a `WorkerStopping` event before they stop. Its `connectionName` and `queue` properties identify the worker, while `terminatesImmediately` is `true` when the process will be terminated as soon as the listeners return. In that case, listeners should not start cleanup that must finish after the listener returns.
