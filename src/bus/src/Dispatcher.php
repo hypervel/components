@@ -268,7 +268,23 @@ class Dispatcher implements QueueingDispatcher
             return;
         }
 
-        Coroutine::defer(fn () => $this->dispatchSync($command, $handler));
+        Coroutine::defer(function () use ($command, $handler): void {
+            if (is_object($command)) {
+                DispatchLockContext::claim($command);
+            }
+
+            try {
+                $this->dispatchSync($command, $handler);
+            } finally {
+                if (is_object($command)) {
+                    DispatchLockContext::release($command);
+                }
+            }
+        });
+
+        if (is_object($command)) {
+            DispatchLockContext::delegate($command);
+        }
     }
 
     /**

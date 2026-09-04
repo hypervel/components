@@ -175,6 +175,10 @@ class JobDispatchingTest extends QueueTestCase
             'laravel_unique_job:' . UniqueJob::class . ':after-response-metadata',
             unserialize($payload['illuminate:log:context']['hidden']['laravel_unique_job_key'])
         );
+        $this->assertNotSame(
+            '',
+            unserialize($payload['illuminate:log:context']['hidden']['laravel_unique_job_lock_owner'])
+        );
     }
 
     public function testPayloadHookFailureDoesNotLeakUniqueMetadataIntoTheNextPayload(): void
