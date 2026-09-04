@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Data\Support\Factories;
 
+use BackedEnum;
+use DateTimeInterface;
 use Hypervel\Data\Attributes\AutoLazy;
 use Hypervel\Data\Attributes\AutoWhenLoadedLazy;
 use Hypervel\Data\Attributes\Computed;
@@ -14,6 +16,7 @@ use Hypervel\Data\Attributes\PropertyForMorph;
 use Hypervel\Data\Attributes\WithCastAndTransformer;
 use Hypervel\Data\Attributes\WithoutValidation;
 use Hypervel\Data\Attributes\WithTransformer;
+use Hypervel\Data\Enums\DataPropertyOperation;
 use Hypervel\Data\Exceptions\InvalidDataDeclaration;
 use Hypervel\Data\Mappers\NameMapper;
 use Hypervel\Data\Optional;
@@ -97,11 +100,17 @@ class DataPropertyFactory
 
         $isVirtual = $reflectionProperty->isVirtual();
         $computed = $attributes->has(Computed::class) || $isVirtual;
+        $configuredCasts = $this->applicableExtensions($type, $this->config->casts);
+        $configuredTransformers = $this->applicableExtensions($type, $this->config->transformers);
+        [$constructionOperation, $constructionTarget] = $this->resolveConstructionOperation($type, $computed);
 
         $property = new DataProperty(
             name: $reflectionProperty->name,
             className: $reflectionProperty->class,
             type: $type,
+            constructionOperation: $constructionOperation,
+            constructionTarget: $constructionTarget,
+            transformationOperation: $this->resolveTransformationOperation($type),
             validate: ! $computed
                 && $constructorParameter?->contextualAttribute === null
                 && ! $attributes->has(AutoWhenLoadedLazy::class)
@@ -124,8 +133,8 @@ class DataPropertyFactory
                 ? null
                 : (is_int($inputMappedName) ? [$inputMappedName] : explode('.', $inputMappedName)),
             outputMappedName: $outputMappedName,
-            configuredCasts: $this->applicableExtensions($type, $this->config->casts),
-            configuredTransformers: $this->applicableExtensions($type, $this->config->transformers),
+            configuredCasts: $configuredCasts,
+            configuredTransformers: $configuredTransformers,
             attributes: $attributes,
             reflection: $reflectionProperty,
         );
@@ -142,6 +151,126 @@ class DataPropertyFactory
         }
 
         return $property;
+    }
+
+    /**
+     * Resolve the fixed construction operation for a property declaration.
+     *
+     * Classification stops at the first conversion family present, matching the general
+     * engine's priority. Copy delegates ambiguous or custom conversion to that engine.
+     *
+     * @return array{DataPropertyOperation, null|string}
+     */
+    protected function resolveConstructionOperation(
+        DataPropertyType $type,
+        bool $computed,
+    ): array {
+        if ($computed) {
+            return [DataPropertyOperation::Copy, null];
+        }
+
+        $dataObjectTypes = $type->getDataObjectTypes();
+
+        if ($dataObjectTypes !== []) {
+            return count($dataObjectTypes) === 1
+                ? [DataPropertyOperation::Data, $dataObjectTypes[0]->dataClass]
+                : [DataPropertyOperation::Copy, null];
+        }
+
+        foreach ($type->getNamedTypes() as $namedType) {
+            if ($namedType->isCastable) {
+                return [DataPropertyOperation::Copy, null];
+            }
+        }
+
+        $dateTypes = $this->acceptedTypes($type, DateTimeInterface::class);
+
+        if ($dateTypes !== []) {
+            return count($dateTypes) === 1
+                ? [DataPropertyOperation::Date, $dateTypes[0]]
+                : [DataPropertyOperation::Copy, null];
+        }
+
+        $enumTypes = $this->acceptedTypes($type, BackedEnum::class);
+
+        if ($enumTypes !== []) {
+            return count($enumTypes) === 1
+                ? [DataPropertyOperation::Enum, $enumTypes[0]]
+                : [DataPropertyOperation::Copy, null];
+        }
+
+        if (($target = $type->type->getSingleBuiltinType()) !== null) {
+            return [DataPropertyOperation::Builtin, $target];
+        }
+
+        return [DataPropertyOperation::Copy, null];
+    }
+
+    /**
+     * Resolve the fixed transformation operation for a property declaration.
+     */
+    protected function resolveTransformationOperation(DataPropertyType $type): ?DataPropertyOperation
+    {
+        $operations = [];
+        $targets = [];
+
+        foreach ($type->getNamedTypes() as $namedType) {
+            $operation = match (true) {
+                $namedType->kind->isDataObject() => DataPropertyOperation::Data,
+                ! $namedType->builtIn && is_a($namedType->name, DateTimeInterface::class, true) => DataPropertyOperation::Date,
+                ! $namedType->builtIn && is_a($namedType->name, BackedEnum::class, true) => DataPropertyOperation::Enum,
+                $namedType->builtIn && in_array($namedType->name, [
+                    'array',
+                    'bool',
+                    'false',
+                    'float',
+                    'int',
+                    'null',
+                    'string',
+                    'true',
+                ], true) => DataPropertyOperation::Copy,
+                default => null,
+            };
+
+            if ($operation === null) {
+                return null;
+            }
+
+            if ($operation !== DataPropertyOperation::Copy) {
+                $operations[$operation->name] = $operation;
+                $targets[$operation->name][$namedType->name] = true;
+            }
+        }
+
+        if (count($operations) > 1) {
+            return null;
+        }
+
+        $operation = $operations === []
+            ? DataPropertyOperation::Copy
+            : array_values($operations)[0];
+
+        return count($targets[$operation->name] ?? []) > 1 ? null : $operation;
+    }
+
+    /**
+     * Find the declared types accepted by a base class.
+     *
+     * @return list<string>
+     */
+    protected function acceptedTypes(DataPropertyType $type, string $baseType): array
+    {
+        $types = [];
+
+        foreach ($type->getNamedTypes() as $namedType) {
+            if ($namedType->builtIn || ! is_a($namedType->name, $baseType, true)) {
+                continue;
+            }
+
+            $types[$namedType->name] = $namedType->name;
+        }
+
+        return array_values($types);
     }
 
     /**

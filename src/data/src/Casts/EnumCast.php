@@ -5,13 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Data\Casts;
 
 use BackedEnum;
-use Hypervel\Data\Exceptions\CannotCastEnum;
 use Hypervel\Data\Support\Creation\ConstructionState;
 use Hypervel\Data\Support\Creation\CreationContext;
+use Hypervel\Data\Support\Creation\ValueCaster;
 use Hypervel\Data\Support\DataProperty;
-use Throwable;
-
-use function Hypervel\Support\enum_from;
 
 class EnumCast implements Cast, IterableItemCast
 {
@@ -67,23 +64,7 @@ class EnumCast implements Cast, IterableItemCast
         mixed $value,
         DataProperty $property,
     ): BackedEnum|Uncastable {
-        if ($type === null) {
-            return Uncastable::create();
-        }
-
-        if ($value instanceof $type) {
-            return $value;
-        }
-
-        if ($value instanceof BackedEnum) {
-            $value = $value->value;
-        }
-
-        try {
-            return enum_from($type, $value);
-        } catch (Throwable) {
-            throw CannotCastEnum::create($type, $value, $property);
-        }
+        return ValueCaster::castEnum($type, $value, $property);
     }
 
     /**

@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Data\Support\Creation;
 
 use Attribute;
 use Closure;
+use DateTime;
 use DateTimeImmutable;
 use Hypervel\Container\Attributes\Config;
 use Hypervel\Contracts\Foundation\Application;
@@ -20,11 +21,13 @@ use Hypervel\Data\Attributes\MapInputName;
 use Hypervel\Data\Attributes\PropertyForMorph;
 use Hypervel\Data\Attributes\WithCast;
 use Hypervel\Data\Casts\Cast;
+use Hypervel\Data\Casts\Castable;
 use Hypervel\Data\Contracts\PropertyMorphableData;
 use Hypervel\Data\Data;
 use Hypervel\Data\DataCollection;
 use Hypervel\Data\DataServiceProvider;
 use Hypervel\Data\Dto;
+use Hypervel\Data\Enums\DataPropertyOperation;
 use Hypervel\Data\Exceptions\CannotCreateAbstractClass;
 use Hypervel\Data\Exceptions\CannotCreateData;
 use Hypervel\Data\Exceptions\CannotCreateDataCollectable;
@@ -37,6 +40,7 @@ use Hypervel\Data\Resource;
 use Hypervel\Data\Support\Creation\AutoLazyReplayMode;
 use Hypervel\Data\Support\Creation\ConstructionState;
 use Hypervel\Data\Support\Creation\CreationContext;
+use Hypervel\Data\Support\Creation\CreationContextFactory;
 use Hypervel\Data\Support\Creation\CreationMode;
 use Hypervel\Data\Support\Creation\DataCreator;
 use Hypervel\Data\Support\Creation\ValidationStrategy;
@@ -49,7 +53,10 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionFunction;
+use Throwable;
+use TypeError;
 use WeakReference;
 
 class DataCreatorTest extends TestCase
@@ -96,6 +103,147 @@ class DataCreatorTest extends TestCase
         $this->assertNotSame(BasicCreationData::factory(), BasicCreationData::factory());
     }
 
+    public function testFreshDefaultFactoriesShareOnlyTheirImmutableContext(): void
+    {
+        $first = BasicCreationData::factory();
+        $second = BasicCreationData::factory();
+        $other = ChildCreationData::factory();
+
+        $this->assertNotSame($first, $second);
+        $this->assertSame($first->get(), $second->get());
+        $this->assertNotSame($first->get(), $other->get());
+
+        $default = $first->get();
+        $first->withoutPropertyNameMapping();
+
+        $this->assertNotSame($default, $first->get());
+        $this->assertSame($default, BasicCreationData::factory()->get());
+    }
+
+    public function testEveryFactoryMutatorInvalidatesAndRebuildsTheCreateContext(): void
+    {
+        $hook = static fn (mixed $value): mixed => $value;
+        $cases = [
+            'validationStrategy' => [
+                static fn (CreationContextFactory $factory) => $factory->validationStrategy(ValidationStrategy::Disabled),
+                fn (CreationContext $context) => $this->assertSame(ValidationStrategy::Disabled, $context->validationStrategy),
+            ],
+            'withoutValidation' => [
+                static fn (CreationContextFactory $factory) => $factory->withoutValidation(),
+                fn (CreationContext $context) => $this->assertSame(ValidationStrategy::Disabled, $context->validationStrategy),
+            ],
+            'onlyValidateRequests' => [
+                static fn (CreationContextFactory $factory) => $factory->onlyValidateRequests(),
+                fn (CreationContext $context) => $this->assertSame(ValidationStrategy::OnlyRequests, $context->validationStrategy),
+            ],
+            'alwaysValidate' => [
+                static fn (CreationContextFactory $factory) => $factory->alwaysValidate(),
+                fn (CreationContext $context) => $this->assertSame(ValidationStrategy::Always, $context->validationStrategy),
+            ],
+            'withPropertyNameMapping' => [
+                static fn (CreationContextFactory $factory) => $factory->withPropertyNameMapping(),
+                fn (CreationContext $context) => $this->assertTrue($context->mapPropertyNames),
+            ],
+            'withoutPropertyNameMapping' => [
+                static fn (CreationContextFactory $factory) => $factory->withoutPropertyNameMapping(),
+                fn (CreationContext $context) => $this->assertFalse($context->mapPropertyNames),
+            ],
+            'withoutMagicalCreation' => [
+                static fn (CreationContextFactory $factory) => $factory->withoutMagicalCreation(),
+                fn (CreationContext $context) => $this->assertTrue($context->disableMagicalCreation),
+            ],
+            'withMagicalCreation' => [
+                static fn (CreationContextFactory $factory) => $factory->withMagicalCreation(),
+                fn (CreationContext $context) => $this->assertFalse($context->disableMagicalCreation),
+            ],
+            'ignoreMagicalMethod' => [
+                static fn (CreationContextFactory $factory) => $factory->ignoreMagicalMethod('fromString'),
+                fn (CreationContext $context) => $this->assertSame(['fromString'], $context->ignoredMagicalMethods),
+            ],
+            'withCast' => [
+                static fn (CreationContextFactory $factory) => $factory->withCast(CreationSource::class, CreationIdentifierCast::class),
+                fn (CreationContext $context) => $this->assertSame(
+                    [CreationSource::class => CreationIdentifierCast::class],
+                    $context->casts,
+                ),
+            ],
+            'withCastCollection' => [
+                static fn (CreationContextFactory $factory) => $factory->withCastCollection([
+                    CreationSource::class => CreationIdentifierCast::class,
+                ]),
+                fn (CreationContext $context) => $this->assertSame(
+                    [CreationSource::class => CreationIdentifierCast::class],
+                    $context->casts,
+                ),
+            ],
+            'withNormalizers' => [
+                static fn (CreationContextFactory $factory) => $factory->withNormalizers(CreationSourceNormalizer::class),
+                fn (CreationContext $context) => $this->assertSame(
+                    [CreationSourceNormalizer::class],
+                    $context->normalizers,
+                ),
+            ],
+            'prepareData' => [
+                static fn (CreationContextFactory $factory) => $factory->prepareData($hook),
+                fn (CreationContext $context) => $this->assertSame([$hook], $context->prepareDataHooks),
+            ],
+            'beforeValidation' => [
+                static fn (CreationContextFactory $factory) => $factory->beforeValidation($hook),
+                fn (CreationContext $context) => $this->assertSame([$hook], $context->beforeValidationHooks),
+            ],
+            'beforeRules' => [
+                static fn (CreationContextFactory $factory) => $factory->beforeRules($hook),
+                fn (CreationContext $context) => $this->assertSame([$hook], $context->beforeRulesHooks),
+            ],
+            'afterRules' => [
+                static fn (CreationContextFactory $factory) => $factory->afterRules($hook),
+                fn (CreationContext $context) => $this->assertSame([$hook], $context->afterRulesHooks),
+            ],
+            'withValidator' => [
+                static fn (CreationContextFactory $factory) => $factory->withValidator($hook),
+                fn (CreationContext $context) => $this->assertSame([$hook], $context->withValidatorHooks),
+            ],
+            'afterValidation' => [
+                static fn (CreationContextFactory $factory) => $factory->afterValidation($hook),
+                fn (CreationContext $context) => $this->assertSame([$hook], $context->afterValidationHooks),
+            ],
+            'beforeCreation' => [
+                static fn (CreationContextFactory $factory) => $factory->beforeCreation($hook),
+                fn (CreationContext $context) => $this->assertSame([$hook], $context->beforeCreationHooks),
+            ],
+            'afterCreation' => [
+                static fn (CreationContextFactory $factory) => $factory->afterCreation($hook),
+                fn (CreationContext $context) => $this->assertSame([$hook], $context->afterCreationHooks),
+            ],
+        ];
+
+        foreach ($cases as $name => [$mutate, $verify]) {
+            $factory = BasicCreationData::factory();
+            $before = $factory->get();
+
+            $this->assertSame($before, $factory->get(), $name);
+            $mutate($factory);
+            $after = $factory->get();
+
+            $this->assertNotSame($before, $after, $name);
+            $this->assertSame($after, $factory->get(), $name);
+            $verify($after);
+        }
+    }
+
+    public function testFromRetainsTheLateStaticFactoryBoundary(): void
+    {
+        FactoryOverrideCreationData::$factoryCalls = 0;
+
+        $data = FactoryOverrideCreationData::from([
+            'name' => 'Raw',
+            'profile' => ['name' => 'Mapped'],
+        ]);
+
+        $this->assertSame('Raw', $data->name);
+        $this->assertSame(1, FactoryOverrideCreationData::$factoryCalls);
+    }
+
     /**
      * Test exact array creation preserves mapping, absence, and accepted values.
      */
@@ -107,6 +255,7 @@ class DataCreatorTest extends TestCase
         $data = DirectArrayCreationData::from([
             'profile' => ['name' => 'Mapped'],
             'name' => 'Fallback',
+            'nullable_value' => null,
             'defaultedNullable' => null,
             'metadata' => ['role' => 'maintainer'],
             'child' => $child,
@@ -117,6 +266,7 @@ class DataCreatorTest extends TestCase
         ]);
         $fallback = DirectArrayCreationData::from([
             'name' => 'Fallback',
+            'nullable' => 'raw-fallback',
             'child' => $child,
             'date' => $date,
             'status' => CreationStatus::Inactive,
@@ -139,6 +289,7 @@ class DataCreatorTest extends TestCase
         $this->assertSame('computed', $data->computed);
         $this->assertSame('virtual', $data->virtual);
         $this->assertSame('Fallback', $fallback->name);
+        $this->assertSame('raw-fallback', $fallback->nullable);
         $this->assertSame('fallback', $fallback->defaultedNullable);
         $this->assertSame([], $fallback->metadata);
     }
@@ -146,23 +297,132 @@ class DataCreatorTest extends TestCase
     /**
      * Test direct array misses retain the authoritative general construction path.
      */
-    public function testDirectArrayCreationFallsThroughForNestedAndConvertedValues(): void
+    public function testLeanCreationMatchesGeneralCreationForNestedAndConvertedValues(): void
     {
-        $nested = DirectNestedCreationData::from(['child' => ['id' => 42]]);
-        $converted = DirectConvertedCreationData::from([
+        $nestedPayload = ['child' => ['id' => '42']];
+        $convertedPayload = [
             'id' => '7',
             'date' => '2026-09-02T12:00:00+00:00',
             'status' => 'active',
-        ]);
+            'integerStatus' => '1',
+        ];
+        $nested = DirectNestedCreationData::from($nestedPayload);
+        $generalNested = DirectNestedCreationData::factory()
+            ->beforeCreation(static fn (array $properties): array => $properties)
+            ->from($nestedPayload);
+        $converted = DirectConvertedCreationData::from($convertedPayload);
+        $generalConverted = DirectConvertedCreationData::factory()
+            ->beforeCreation(static fn (array $properties): array => $properties)
+            ->from($convertedPayload);
         $items = DirectNestedCreationData::collect([
             ['child' => new ChildCreationData(8)],
         ], 'array');
 
         $this->assertSame(42, $nested->child->id);
+        $this->assertSame($nested->child->id, $generalNested->child->id);
         $this->assertSame(7, $converted->id);
+        $this->assertSame($converted->id, $generalConverted->id);
         $this->assertInstanceOf(DateTimeImmutable::class, $converted->date);
+        $this->assertEquals($converted->date, $generalConverted->date);
         $this->assertSame(CreationStatus::Active, $converted->status);
+        $this->assertSame($converted->status, $generalConverted->status);
+        $this->assertSame(IntegerCreationStatus::Active, $converted->integerStatus);
+        $this->assertSame($converted->integerStatus, $generalConverted->integerStatus);
         $this->assertSame(8, $items[0]->child->id);
+    }
+
+    /**
+     * Test lean construction coerces numeric strings to integer-backed enums.
+     */
+    public function testLeanCreationCoercesNumericStringsToIntegerBackedEnums(): void
+    {
+        $property = $this->app->make(DataClassRepository::class)
+            ->get(DirectConvertedCreationData::class)
+            ->properties['integerStatus'];
+
+        $this->assertSame(DataPropertyOperation::Enum, $property->constructionOperation);
+        $this->assertSame(IntegerCreationStatus::class, $property->constructionTarget);
+
+        $data = DirectConvertedCreationData::from([
+            'id' => 7,
+            'date' => new DateTimeImmutable,
+            'status' => CreationStatus::Active,
+            'integerStatus' => '1',
+        ]);
+
+        $this->assertSame(IntegerCreationStatus::Active, $data->integerStatus);
+    }
+
+    /**
+     * Test lean construction preserves higher-priority conversion behavior.
+     *
+     * @param class-string<Data> $class
+     */
+    #[DataProvider('leanConstructionPriorityProvider')]
+    public function testLeanConstructionPreservesHigherPriorityConversionBehavior(
+        string $class,
+        mixed $value,
+    ): void {
+        $property = $this->app->make(DataClassRepository::class)->get($class)->properties['value'];
+
+        $this->assertSame(DataPropertyOperation::Copy, $property->constructionOperation);
+        $this->assertNull($property->constructionTarget);
+
+        $lean = $this->captureCreationOutcome(
+            static fn (): mixed => $class::from(['value' => $value])->value,
+        );
+        $general = $this->captureCreationOutcome(
+            static fn (): mixed => $class::factory()
+                ->beforeCreation(static fn (array $properties): array => $properties)
+                ->from(['value' => $value])
+                ->value,
+        );
+
+        $this->assertEquals($general, $lean);
+    }
+
+    /**
+     * Provide order-sensitive construction declarations.
+     *
+     * @return array<string, array{class-string<Data>, mixed}>
+     */
+    public static function leanConstructionPriorityProvider(): array
+    {
+        return [
+            'ambiguous Data before date' => [AmbiguousDataBeforeDateCreationData::class, '2026-01-01'],
+            'Castable before date' => [CastableBeforeDateCreationData::class, '2026-01-01'],
+            'ambiguous date before enum' => [AmbiguousDateBeforeEnumCreationData::class, '2026-01-01'],
+            'ambiguous enum before built-in' => [AmbiguousEnumBeforeBuiltinCreationData::class, '1'],
+        ];
+    }
+
+    public function testLeanCreationPreflightsBeforeRunningNestedConstruction(): void
+    {
+        PreflightChildCreationData::$constructorCalls = 0;
+
+        try {
+            PreflightParentCreationData::from([
+                'child' => ['id' => '9'],
+                'source' => 'unsupported',
+            ]);
+            $this->fail('Expected the unsupported object value to be rejected.');
+        } catch (TypeError) {
+            $this->assertSame(1, PreflightChildCreationData::$constructorCalls);
+        }
+    }
+
+    public function testLeanParentSharesResolvedExtensionsAcrossGeneralChildren(): void
+    {
+        DeferredItemCreationCast::$instances = 0;
+
+        $data = LeanParentWithGeneralChildrenData::from([
+            'first' => ['id' => '17'],
+            'second' => ['id' => '18'],
+        ]);
+
+        $this->assertSame(17, $data->first->id);
+        $this->assertSame(18, $data->second->id);
+        $this->assertSame(1, DeferredItemCreationCast::$instances);
     }
 
     /**
@@ -244,7 +504,7 @@ class DataCreatorTest extends TestCase
             DirectVariadicConstructorCreationData::class,
         );
 
-        $this->assertTrue($metadata->directArrayCreation);
+        $this->assertNotNull($metadata->creationRecipe);
         $this->assertFalse($metadata->directConstructorInstantiation);
 
         $this->expectException(CannotCreateData::class);
@@ -491,6 +751,56 @@ class DataCreatorTest extends TestCase
         $this->assertSame('named', $named->title->resolve());
     }
 
+    public function testAutomaticLazyReplayConstructsExactAndCoercingChildrenOnce(): void
+    {
+        foreach ([7, '7'] as $id) {
+            CountingAutoLazyChildData::$constructorCalls = 0;
+            $data = CountingAutoLazyParentData::from(['child' => ['id' => $id]]);
+
+            $this->assertSame(7, $data->child->resolve()->id);
+            $this->assertSame(1, CountingAutoLazyChildData::$constructorCalls);
+        }
+    }
+
+    public function testAutomaticLazyReplayConsumesMappedAndUnmappedStateValues(): void
+    {
+        $mapped = MappedAutoLazyParentData::from([
+            'profile' => ['child' => ['id' => 11]],
+        ]);
+        $unmapped = MappedAutoLazyParentData::factory()
+            ->withoutPropertyNameMapping()
+            ->from(['child' => ['id' => 12]]);
+
+        $this->assertSame(11, $mapped->child->resolve()->id);
+        $this->assertSame(12, $unmapped->child->resolve()->id);
+    }
+
+    public function testAutomaticLazyPaginatorItemsConstructAndRunFactoriesOnce(): void
+    {
+        CountingAutoLazyChildData::$constructorCalls = 0;
+        $source = new Paginator([
+            'exact' => ['id' => 13],
+            'coercing' => ['id' => '14'],
+        ], 15, 2);
+        $plain = CountingAutoLazyCollectionData::from(['children' => $source])
+            ->children
+            ->resolve();
+
+        $this->assertInstanceOf(Paginator::class, $plain);
+        $this->assertSame(2, $plain->currentPage());
+        $this->assertSame(['exact', 'coercing'], array_keys($plain->items()));
+        $this->assertSame([13, 14], array_column($plain->items(), 'id'));
+        $this->assertSame(2, CountingAutoLazyChildData::$constructorCalls);
+
+        CountingAutoLazyFactoryChildData::$factoryCalls = 0;
+        $factory = CountingAutoLazyFactoryCollectionData::from([
+            'children' => new Paginator(['factory' => ['id' => 15]], 15, 3),
+        ])->children->resolve();
+
+        $this->assertSame(15, $factory->items()['factory']->id);
+        $this->assertSame(1, CountingAutoLazyFactoryChildData::$factoryCalls);
+    }
+
     public function testAutomaticLazyReplayUsesNormalAndHookSpecificFillPaths(): void
     {
         AutoLazyCountingNormalizer::$calls = 0;
@@ -554,6 +864,24 @@ class DataCreatorTest extends TestCase
         $nullModel->setRelation('child', null);
 
         $this->assertNull(AutoWhenLoadedCreationData::from($nullModel)->child);
+    }
+
+    public function testAutomaticLoadedRelationLazyConsumesARecipeEligibleChild(): void
+    {
+        $model = new AutoLazyRelationModel;
+        $model->setRelation('child', ['id' => 16]);
+
+        $child = RecipeAutoWhenLoadedCreationData::from($model)->child->resolve();
+
+        $this->assertInstanceOf(CountingAutoLazyChildData::class, $child);
+        $this->assertSame(16, $child->id);
+    }
+
+    public function testNonReplayAutomaticLazyUsesTheResolvedClosureValue(): void
+    {
+        $data = NonReplayAutoLazyCreationData::from(['value' => 'filled']);
+
+        $this->assertSame('resolved', $data->value->resolve());
     }
 
     public function testAutomaticLoadedRelationLazyRequiresAModelSource(): void
@@ -679,7 +1007,7 @@ class DataCreatorTest extends TestCase
             ->get(IntegerRangeCreationData::class);
 
         $this->assertSame(7, $integer->value);
-        $this->assertTrue($metadata->directArrayCreation);
+        $this->assertNotNull($metadata->creationRecipe);
         $this->assertContainsOnlyInstancesOf(ChildCreationData::class, $children->children);
         $this->assertSame(9, $children->children[0]->id);
     }
@@ -1007,6 +1335,24 @@ class DataCreatorTest extends TestCase
     }
 
     /**
+     * Capture a creation value or its exact failure contract.
+     *
+     * @return array{result: 'exception', class: class-string<Throwable>, message: string}|array{result: 'value', value: mixed}
+     */
+    protected function captureCreationOutcome(Closure $create): array
+    {
+        try {
+            return ['result' => 'value', 'value' => $create()];
+        } catch (Throwable $exception) {
+            return [
+                'result' => 'exception',
+                'class' => $exception::class,
+                'message' => $exception->getMessage(),
+            ];
+        }
+    }
+
+    /**
      * Configure a global data normalizer.
      */
     protected function withConfiguredNormalizer(Application $app): void
@@ -1027,6 +1373,24 @@ class BasicCreationData extends Data
     }
 }
 
+class FactoryOverrideCreationData extends Data
+{
+    public static int $factoryCalls = 0;
+
+    public function __construct(
+        #[MapInputName('profile.name')]
+        public string $name,
+    ) {
+    }
+
+    public static function factory(): CreationContextFactory
+    {
+        ++self::$factoryCalls;
+
+        return parent::factory()->withoutPropertyNameMapping();
+    }
+}
+
 class DirectArrayCreationData extends Data
 {
     public string $assigned;
@@ -1043,6 +1407,7 @@ class DirectArrayCreationData extends Data
     public function __construct(
         #[MapInputName('profile.name')]
         public string $name,
+        #[MapInputName('nullable_value')]
         public ?string $nullable,
         public string|Optional $optional,
         public ChildCreationData $child,
@@ -1069,6 +1434,44 @@ class DirectConvertedCreationData extends Data
         public int $id,
         public DateTimeImmutable $date,
         public CreationStatus $status,
+        public IntegerCreationStatus $integerStatus,
+    ) {
+    }
+}
+
+class PreflightChildCreationData extends Data
+{
+    public static int $constructorCalls = 0;
+
+    public function __construct(public int $id)
+    {
+        ++self::$constructorCalls;
+    }
+}
+
+class PreflightParentCreationData extends Data
+{
+    public function __construct(
+        public PreflightChildCreationData $child,
+        public CreationSource $source,
+    ) {
+    }
+}
+
+class GeneralChildCreationData extends Data
+{
+    public function __construct(
+        #[WithCast(DeferredItemCreationCast::class)]
+        public int $id,
+    ) {
+    }
+}
+
+class LeanParentWithGeneralChildrenData extends Data
+{
+    public function __construct(
+        public GeneralChildCreationData $first,
+        public GeneralChildCreationData $second,
     ) {
     }
 }
@@ -1301,6 +1704,78 @@ class AutoLazyCreationData extends Data
     }
 }
 
+class CountingAutoLazyChildData extends Data
+{
+    public static int $constructorCalls = 0;
+
+    public function __construct(public int $id)
+    {
+        ++self::$constructorCalls;
+    }
+}
+
+class CountingAutoLazyParentData extends Data
+{
+    public function __construct(
+        #[AutoLazy]
+        public Lazy|CountingAutoLazyChildData $child,
+    ) {
+    }
+}
+
+class MappedAutoLazyParentData extends Data
+{
+    public function __construct(
+        #[AutoLazy, MapInputName('profile.child')]
+        public Lazy|CountingAutoLazyChildData $child,
+    ) {
+    }
+}
+
+class CountingAutoLazyCollectionData extends Data
+{
+    /**
+     * Create a counting automatic-lazy collection fixture.
+     *
+     * @param Lazy|Paginator<array-key, CountingAutoLazyChildData> $children
+     */
+    public function __construct(
+        #[AutoLazy, DataCollectionOf(CountingAutoLazyChildData::class)]
+        public Lazy|Paginator $children,
+    ) {
+    }
+}
+
+class CountingAutoLazyFactoryChildData extends Data
+{
+    public static int $factoryCalls = 0;
+
+    public function __construct(public int $id)
+    {
+    }
+
+    public static function fromArray(array $payload): self
+    {
+        ++self::$factoryCalls;
+
+        return new self((int) $payload['id']);
+    }
+}
+
+class CountingAutoLazyFactoryCollectionData extends Data
+{
+    /**
+     * Create a counting automatic-lazy factory collection fixture.
+     *
+     * @param Lazy|Paginator<array-key, CountingAutoLazyFactoryChildData> $children
+     */
+    public function __construct(
+        #[AutoLazy, DataCollectionOf(CountingAutoLazyFactoryChildData::class)]
+        public Lazy|Paginator $children,
+    ) {
+    }
+}
+
 class AutoLazyFirstSource
 {
     public function __construct(
@@ -1459,6 +1934,40 @@ class AutoWhenLoadedCreationData extends Data
         #[AutoWhenLoadedLazy]
         public Lazy|AutoLazyNormalizedChildData|null $child,
     ) {
+    }
+}
+
+class RecipeAutoWhenLoadedCreationData extends Data
+{
+    public function __construct(
+        #[AutoWhenLoadedLazy]
+        public Lazy|CountingAutoLazyChildData|null $child,
+    ) {
+    }
+}
+
+class NonReplayAutoLazyCreationData extends Data
+{
+    public function __construct(
+        #[ResolvedValueAutoLazy]
+        public Lazy|string $value,
+    ) {
+    }
+}
+
+#[Attribute(Attribute::TARGET_PROPERTY)]
+class ResolvedValueAutoLazy extends AutoLazy
+{
+    /**
+     * Build an automatic lazy value from a distinct resolved input.
+     */
+    public function build(
+        Closure $castValue,
+        mixed $payload,
+        DataProperty $property,
+        mixed $value,
+    ): Lazy {
+        return Lazy::create(static fn () => $castValue('resolved'));
     }
 }
 
@@ -1848,6 +2357,79 @@ class AmbiguousCreationData extends Data
         public ChildCreationData|AlternateChildCreationData $child,
     ) {
     }
+}
+
+class AmbiguousDataBeforeDateCreationData extends Data
+{
+    public function __construct(
+        public ChildCreationData|AlternateChildCreationData|DateTimeImmutable $value,
+    ) {
+    }
+}
+
+class CastableBeforeDateCreationData extends Data
+{
+    public function __construct(
+        public PriorityCreationCastable|DateTimeImmutable $value,
+    ) {
+    }
+}
+
+class AmbiguousDateBeforeEnumCreationData extends Data
+{
+    public function __construct(
+        public DateTimeImmutable|DateTime|PriorityCreationStatus $value,
+    ) {
+    }
+}
+
+class AmbiguousEnumBeforeBuiltinCreationData extends Data
+{
+    public function __construct(
+        public PriorityCreationStatus|AlternatePriorityCreationStatus|int $value,
+    ) {
+    }
+}
+
+class PriorityCreationCastable implements Castable
+{
+    public function __construct(
+        public readonly string $value,
+    ) {
+    }
+
+    /**
+     * Create the cast for this type.
+     */
+    public static function dataCastUsing(array $arguments): Cast
+    {
+        return new PriorityCreationCast;
+    }
+}
+
+class PriorityCreationCast implements Cast
+{
+    /**
+     * Cast a value into the declared Castable type.
+     */
+    public function cast(
+        DataProperty $property,
+        mixed $value,
+        ConstructionState $state,
+        CreationContext $context,
+    ): PriorityCreationCastable {
+        return new PriorityCreationCastable((string) $value);
+    }
+}
+
+enum PriorityCreationStatus: string
+{
+    case Active = 'active';
+}
+
+enum AlternatePriorityCreationStatus: string
+{
+    case Inactive = 'inactive';
 }
 
 class AmbiguousDataCollectableCreationData extends Data

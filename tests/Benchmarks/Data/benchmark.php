@@ -16,6 +16,7 @@ use Hypervel\Data\Contracts\PropertyMorphableData;
 use Hypervel\Data\Data;
 use Hypervel\Data\DataCollection;
 use Hypervel\Data\DataServiceProvider;
+use Hypervel\Data\Eloquent\DataEloquentCast;
 use Hypervel\Data\Lazy;
 use Hypervel\Data\Support\Creation\ConstructionState;
 use Hypervel\Data\Support\Creation\CreationContext;
@@ -29,6 +30,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\HasOne;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Http\Request;
 use Hypervel\Support\ClassMetadataCache;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Testbench\Bootstrapper;
@@ -186,6 +188,16 @@ class DataBenchmarkLazyItem extends Data
         #[AutoLazy]
         public DataBenchmarkAddress|Lazy $address,
     ) {
+    }
+}
+
+class DataBenchmarkAnnotatedItems extends Data
+{
+    /**
+     * @param list<DataBenchmarkAddress> $items
+     */
+    public function __construct(public array $items)
+    {
     }
 }
 
@@ -417,18 +429,30 @@ class DataBenchmark
         $nestedData = DataBenchmarkUser::from($nestedPayload);
         $plainFiveData = new DataBenchmarkPlainFive;
         $plainTwentyData = new DataBenchmarkPlainTwenty;
+        $request = Request::create('/');
+        $model = new DataBenchmarkUserModel;
+        /** @var DataEloquentCast<DataBenchmarkUser> $eloquentCast */
+        $eloquentCast = new DataEloquentCast(DataBenchmarkUser::class);
+        $encodedNestedData = $eloquentCast->set($model, 'payload', $nestedData, [])
+            ?? throw new LogicException('The benchmark Data cast returned null for a Data value.');
         $lazyTransformData = DataBenchmarkLazyItem::from($lazyRows[0])
             ->includePermanently('address')
             ->onlyPermanently('id', 'address.lineOne');
 
         $results = [
             $this->benchmarkOnce(
-                'data-from-cold-first-use',
+                'data-class-first-use',
                 fn (): int => DataBenchmarkColdData::from([
                     'id' => 1,
                     'name' => 'Cold',
                     'active' => true,
                 ])->id,
+            ),
+            $this->benchmarkOnce(
+                'metadata-parser-first-use',
+                fn (): int => count($this->dataClassFactory
+                    ->build(ClassMetadataCache::reflectClass(DataBenchmarkAnnotatedItems::class))
+                    ->properties),
             ),
         ];
 
@@ -562,6 +586,11 @@ class DataBenchmark
                 $standardWarmup,
                 fn (): int => $plainTwentyData->toArray()['twenty'],
             ],
+            'transform-plain-twenty-all' => [
+                $standardOperations,
+                $standardWarmup,
+                fn (): int => $plainTwentyData->all()['twenty'],
+            ],
             'transform-nested' => [
                 $standardOperations,
                 $standardWarmup,
@@ -571,6 +600,22 @@ class DataBenchmark
                 $nestedOperations,
                 $nestedWarmup,
                 fn (): int => $lazyTransformData->toArray()['id'],
+            ],
+            'resource-response' => [
+                $nestedOperations,
+                $nestedWarmup,
+                fn (): int => strlen((string) $nestedData->toResponse($request)->getContent()),
+            ],
+            'eloquent-cast-get' => [
+                $standardOperations,
+                $standardWarmup,
+                fn (): int => $eloquentCast->get($model, 'payload', $encodedNestedData, [])?->id ?? 0,
+            ],
+            'eloquent-cast-set' => [
+                $standardOperations,
+                $standardWarmup,
+                fn (): int => strlen($eloquentCast->set($model, 'payload', $nestedData, [])
+                    ?? throw new LogicException('The benchmark Data cast returned null for a Data value.')),
             ],
             'metadata-analysis' => [
                 $nestedOperations,
@@ -871,7 +916,7 @@ function main(): int
 
     try {
         $operations = parseIntegerOption($options, 'operations', 20_000, 1, 1_000_000);
-        $samples = parseIntegerOption($options, 'samples', 7, 1, 100);
+        $samples = parseIntegerOption($options, 'samples', 21, 1, 100);
         $warmup = parseIntegerOption($options, 'warmup', 1_000, 0, 100_000);
         $databasePath = tempnam(sys_get_temp_dir(), 'hypervel-data-benchmark-');
 
@@ -1090,7 +1135,7 @@ Usage: php tests/Benchmarks/Data/benchmark.php [options]
 
 Options:
   --operations=COUNT    Operations measured per sample (default: 20000)
-  --samples=COUNT       Number of measured samples (default: 7)
+  --samples=COUNT       Number of measured samples (default: 21)
   --warmup=COUNT        Unmeasured warmup operations (default: 1000)
   --json=PATH           Write the complete report as JSON
   --csv=PATH            Write scenario results as CSV

@@ -20,6 +20,7 @@ use Hypervel\Data\Contracts\TransformableData;
 use Hypervel\Data\Contracts\WrappableData;
 use Hypervel\Data\CursorPaginatedDataCollection;
 use Hypervel\Data\DataCollection;
+use Hypervel\Data\Enums\DataPropertyOperation;
 use Hypervel\Data\Exceptions\CannotTransformData;
 use Hypervel\Data\Exceptions\MaxTransformationDepthReached;
 use Hypervel\Data\Lazy;
@@ -147,6 +148,7 @@ class DataTransformer
      * Transform a nested data object within the current root operation.
      *
      * @param array<string, object> $extensions
+     * @param-out array<string, object> $extensions
      */
     protected function transformData(
         BaseData&TransformableData $data,
@@ -160,18 +162,32 @@ class DataTransformer
 
         $dataClass = $this->dataClasses->get($data::class);
 
-        // The plain path includes computed output, which cannot reconstruct the object.
-        if (! $context->constructable
-            && $dataClass->plainTransform
-            && ! $context->hasPartials()
-            && $context->transformers === []
-        ) {
-            return $this->finalizeTransformation(
-                $data,
-                $context,
-                $this->transformPlain($data, $dataClass),
-                $includeAdditionalData,
-            );
+        if ($dataClass->bulkCopyTransformation) {
+            // Bulk copy preserves values and includes computed output, so it cannot reconstruct the object.
+            if (! $context->constructable
+                && $context->transformers === []
+                && ! $context->hasPartials()
+            ) {
+                return $this->finalizeTransformation(
+                    $data,
+                    $context,
+                    $this->transformBulkCopy($data, $dataClass),
+                    $includeAdditionalData,
+                );
+            }
+        } elseif (($recipe = $dataClass->transformationRecipe) !== null) {
+            if ($context->transformValues
+                && ! $context->constructable
+                && $context->transformers === []
+                && ! $context->hasPartials()
+            ) {
+                return $this->finalizeTransformation(
+                    $data,
+                    $context,
+                    $this->transformUsingRecipe($data, $recipe, $context, $extensions),
+                    $includeAdditionalData,
+                );
+            }
         }
 
         // Raw storage keeps excluded property hooks from running as a side effect.
@@ -387,7 +403,7 @@ class DataTransformer
      *
      * @return array<array-key, mixed>
      */
-    protected function transformPlain(BaseData $data, DataClass $dataClass): array
+    protected function transformBulkCopy(BaseData $data, DataClass $dataClass): array
     {
         // Every property is emitted, so public get hooks own the logical values.
         $values = get_object_vars($data);
@@ -398,6 +414,59 @@ class DataTransformer
         }
 
         return array_replace($transformed, $values);
+    }
+
+    /**
+     * Transform values through immutable class metadata.
+     *
+     * @param array<string, object> $extensions
+     * @param-out array<string, object> $extensions
+     * @return array<array-key, mixed>
+     */
+    protected function transformUsingRecipe(
+        BaseData $data,
+        DataTransformationRecipe $recipe,
+        TransformationContext $context,
+        array &$extensions,
+    ): array {
+        // Raw storage keeps uninitialized properties from invoking public access.
+        $values = get_mangled_object_vars($data);
+        $transformed = [];
+
+        foreach ($recipe->properties as $property) {
+            if ($property->hasGetHook) {
+                $value = $data->{$property->name};
+            } elseif (array_key_exists($property->name, $values)) {
+                $value = $values[$property->name];
+            } else {
+                continue;
+            }
+
+            if ($value !== null) {
+                $value = match ($property->transformationOperation) {
+                    DataPropertyOperation::Date,
+                    DataPropertyOperation::Enum => $this->transformBuiltIn($value),
+                    DataPropertyOperation::Data => $value instanceof BaseData
+                        ? $this->transformNested(
+                            $value,
+                            $context->child(
+                                $property->name,
+                                $this->resolveWrapExecutionType($value, $context),
+                            ),
+                            $extensions,
+                        )
+                        : $value,
+                    default => $value,
+                };
+            }
+
+            $name = $context->mapPropertyNames && $property->outputMappedName !== null
+                ? $property->outputMappedName
+                : $property->name;
+            $transformed[$name] = $value;
+        }
+
+        return $transformed;
     }
 
     /**

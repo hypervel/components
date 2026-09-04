@@ -10,6 +10,7 @@ use Hypervel\Data\Casts\Cast;
 use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\CursorPaginatedDataCollection;
 use Hypervel\Data\DataCollection;
+use Hypervel\Data\Enums\DataPropertyOperation;
 use Hypervel\Data\PaginatedDataCollection;
 use Hypervel\Data\Transformers\Transformer;
 use Hypervel\Database\Eloquent\Model;
@@ -29,6 +30,7 @@ class DataProperty
      * @param null|ReflectionAttribute<object> $cast
      * @param null|ReflectionAttribute<object> $transformer
      * @param null|non-empty-list<array-key> $inputMappedPath
+     * @param null|'array'|'bool'|'float'|'int'|'string'|class-string $constructionTarget
      * @param list<class-string<Cast>> $configuredCasts
      * @param list<class-string<Transformer>> $configuredTransformers
      */
@@ -36,6 +38,9 @@ class DataProperty
         public readonly string $name,
         public readonly string $className,
         public readonly DataPropertyType $type,
+        public readonly DataPropertyOperation $constructionOperation,
+        public readonly ?string $constructionTarget,
+        public readonly ?DataPropertyOperation $transformationOperation,
         public readonly bool $validate,
         public readonly bool $computed,
         public readonly bool $hidden,

@@ -20,10 +20,10 @@ class DataInstantiator
     }
 
     /**
-     * Instantiate a metadata-proven exact-array node directly.
+     * Instantiate a metadata-proven lean array node directly.
      *
-     * Declaration validation owns constructor/property correspondence, exact-array
-     * creation omits computed keys, and class metadata proves public, complete,
+     * Declaration validation owns constructor/property correspondence, the creation
+     * recipe omits computed keys, and class metadata proves public, complete,
      * non-variadic constructor ownership without contextual parameters.
      *
      * @internal
