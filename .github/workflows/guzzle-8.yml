@@ -1,0 +1,139 @@
+# @TODO: Remove Guzzle 7 compatibility when Hypervel requires Guzzle 8; delete this focused workflow.
+name: guzzle 8
+
+on:
+  push:
+  pull_request:
+
+env:
+  RUN_BLOCKING_TESTS: true
+
+jobs:
+  compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      meilisearch:
+        image: getmeili/meilisearch:latest
+        env:
+          MEILI_MASTER_KEY: secret
+          MEILI_NO_ANALYTICS: true
+        ports:
+          - 7700:7700
+        options: >-
+          --health-cmd "curl -f http://localhost:7700/health"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      typesense:
+        image: typesense/typesense:27.1
+        env:
+          TYPESENSE_API_KEY: secret
+          TYPESENSE_DATA_DIR: /tmp
+        ports:
+          - 8108:8108
+
+    container:
+      image: phpswoole/swoole:6.2.0-php8.4
+
+    name: Guzzle 8 Compatibility
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Log trigger context
+        uses: ./.github/actions/log-trigger-context
+
+      - name: Setup PHP extensions
+        uses: ./.github/actions/setup-php
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v5
+        with:
+          path: /root/.composer/cache
+          key: composer-guzzle-8-${{ hashFiles('composer.json') }}
+          restore-keys: composer-guzzle-8-
+
+      - name: Install Guzzle 8 dependency graph
+        run: |
+          COMPOSER_MEMORY_LIMIT=-1 composer remove --dev algolia/algoliasearch-client-php --no-update --no-interaction
+          COMPOSER_MEMORY_LIMIT=-1 composer update --with-all-dependencies --with guzzlehttp/guzzle:^8.0.2 --prefer-dist --no-interaction --no-progress --optimize-autoloader
+          php -r 'require "vendor/autoload.php"; $version = Composer\InstalledVersions::getPrettyVersion("guzzlehttp/guzzle"); if (! is_string($version) || ! str_starts_with($version, "8.")) { fwrite(STDERR, sprintf("Expected Guzzle 8, installed [%s].\n", $version ?? "unknown")); exit(1); } echo "Installed Guzzle {$version}.\n";'
+
+          # Metadata tests inspect the committed manifest. The disposable lock intentionally
+          # retains the Guzzle 8 solve, so this lane must not validate it after restoration.
+          git restore composer.json
+
+      - name: Execute affected package tests
+        run: |
+          for suite in Http Engine ObjectPool Sentry Telescope Broadcasting Console Notifications Socialite Inertia ApiClient; do
+            vendor/bin/paratest "tests/${suite}"
+          done
+          vendor/bin/paratest --filter '/^(?!.*Algolia)/' tests/Foundation
+
+      - name: Execute Scout compatibility tests
+        run: vendor/bin/paratest --filter '/^(?!.*Algolia)/' tests/Scout
+
+      - name: Execute metadata and facade tests
+        run: vendor/bin/phpunit --no-progress tests/Composer tests/FacadeDocumenter
+
+      - name: Execute static analysis
+        run: |
+          # Algolia pins PSR-7 2, so this graph cannot analyze ScoutServiceProvider or
+          # InteractsWithAlgolia. The normal lane owns those two optional-SDK files.
+          vendor/bin/phpstan --configuration=phpstan.neon.dist --memory-limit=-1 --no-progress \
+            src/contracts/src/Engine/Http \
+            src/engine/src/Exceptions/HttpClientBusyException.php \
+            src/engine/src/Http \
+            src/foundation/src/Testing/Concerns/InteractsWithTestCaseLifecycle.php \
+            src/http/src \
+            src/object-pool/src \
+            src/server/src/TlsOptions.php \
+            src/api-client/src \
+            src/broadcasting/src \
+            src/console/src/Scheduling/Event.php \
+            src/inertia/src \
+            src/notifications/src \
+            src/scout/src/Engines/MeilisearchRetryPolicy.php \
+            src/sentry/src \
+            src/socialite/src \
+            src/support/src/Facades/Http.php \
+            src/telescope/src
+          vendor/bin/phpstan --configuration=phpstan.types.neon.dist --memory-limit=-1 --no-progress
+
+      - name: Run Testbench package-mode suite
+        run: php src/testbench/bin/testbench package:test --parallel tests/Testbench
+
+      - name: Start test servers
+        run: |
+          rm -f /tmp/test-servers-ready
+          bin/test-servers.sh engine &
+          while [ ! -f /tmp/test-servers-ready ]; do sleep 1; done
+
+      - name: Execute Engine integration tests
+        env:
+          TEST_SERVER_HOST: 127.0.0.1
+        run: |
+          vendor/bin/paratest tests/Integration/Engine
+          vendor/bin/paratest tests/Integration/Http/Transport
+          vendor/bin/paratest tests/Integration/HttpServer
+
+      - name: Execute Scout integration tests
+        env:
+          RUN_MEILISEARCH_INTEGRATION_TESTS: true
+          MEILISEARCH_HOST: meilisearch
+          MEILISEARCH_PORT: 7700
+          MEILISEARCH_KEY: secret
+          RUN_TYPESENSE_INTEGRATION_TESTS: true
+          TYPESENSE_HOST: typesense
+          TYPESENSE_PORT: 8108
+          TYPESENSE_API_KEY: secret
+          TYPESENSE_PROTOCOL: http
+        run: |
+          vendor/bin/paratest tests/Integration/Scout/Meilisearch
+          vendor/bin/paratest tests/Integration/Scout/Typesense

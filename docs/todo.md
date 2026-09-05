@@ -35,6 +35,10 @@
 
 - Port the complete first-party Image component through the dedicated [Image package handoff](notes/image-package.md). The HTTP integration must add `Request::image(string $key): ?Image`, port `testImageMethod` and `testImageMethodReturnsNullForMissingKey`, and add the `hypervel/image` suggestion to `src/http/composer.json` with its package-metadata regression.
 
+## HTTP Client
+
+- Remove Guzzle 7 compatibility once Hypervel and its supported SDK ecosystem can require Guzzle 8, including Algolia support for PSR-7 3. Raise the root, Console, HTTP, Notifications, Scout, and Socialite constraints to Guzzle 8; delete the focused Guzzle 8 workflow and return all tests/static analysis to the normal workflows; replace dynamic Guzzle 8 exception and transport-sharing detection with direct types/constants; merge the Guzzle 8 request-option classification into the common map; use Guzzle 8's TLS floor directly; simplify exception response/request extraction to the Guzzle 8 hierarchy; and remove Guzzle 7 branches, fixtures, skips, and tests. Search for `@TODO: Remove Guzzle 7 compatibility` to find every source, test, and workflow cleanup boundary.
+
 ## HTTP Server
 
 - Remove trailer-stream one-chunk lookahead once the minimum supported Swoole release includes [swoole-src#6124](https://github.com/swoole/swoole-src/pull/6124). Current releases send an empty `END_STREAM` DATA frame before trailer HEADERS when `end()` receives no body after `write()`, so `ResponseBridge` retains the final chunk for `end($chunk)` and delays delivery by one chunk. Once fixed, raise the `ext-swoole` constraint, write every chunk immediately, emit trailers, call bare `end()`, invert the deterministic bridge ordering tests, and add real gRPC incremental-delivery coverage.
