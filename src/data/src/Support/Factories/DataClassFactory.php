@@ -118,7 +118,10 @@ class DataClassFactory
         $redirectRoute = $attributes->first(RedirectToRoute::class)?->newInstance();
         $lifecycleMethods = $this->resolveLifecycleMethods($reflectionClass);
         $propertyMorphable = $reflectionClass->implementsInterface(PropertyMorphableData::class);
-        $transformationRecipe = $this->resolveTransformationRecipe($properties);
+        $transformable = $reflectionClass->implementsInterface(TransformableData::class);
+        $transformationRecipe = $transformable
+            ? $this->resolveTransformationRecipe($properties)
+            : null;
         $bulkCopyTransformation = $transformationRecipe !== null
             && $this->supportsBulkCopyTransformation($properties);
 
@@ -136,7 +139,7 @@ class DataClassFactory
             appendable: $reflectionClass->implementsInterface(AppendableData::class),
             includeable: $reflectionClass->implementsInterface(IncludeableData::class),
             responsable: $reflectionClass->implementsInterface(ResponsableData::class),
-            transformable: $reflectionClass->implementsInterface(TransformableData::class),
+            transformable: $transformable,
             validateable: $reflectionClass->implementsInterface(ValidateableData::class),
             wrappable: $reflectionClass->implementsInterface(WrappableData::class),
             emptyData: $reflectionClass->implementsInterface(EmptyData::class),

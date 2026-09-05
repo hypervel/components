@@ -24,6 +24,7 @@ use Hypervel\Data\Casts\Cast;
 use Hypervel\Data\Contracts\PropertyMorphableData;
 use Hypervel\Data\Data;
 use Hypervel\Data\DataCollection;
+use Hypervel\Data\Dto;
 use Hypervel\Data\Enums\DataPropertyOperation;
 use Hypervel\Data\Exceptions\InvalidDataDeclaration;
 use Hypervel\Data\Lazy;
@@ -189,6 +190,19 @@ class DataClassTest extends TestCase
         $this->assertNull($transformed->transformationRecipe);
         $this->assertFalse($annotated->bulkCopyTransformation);
         $this->assertNull($annotated->transformationRecipe);
+    }
+
+    /**
+     * Test non-transformable data does not retain unreachable transformation metadata.
+     */
+    public function testNonTransformableDataSkipsTransformationMetadata(): void
+    {
+        $class = $this->factory()->build(new ReflectionClass(NonTransformableDtoFixture::class));
+
+        $this->assertFalse($class->transformable);
+        $this->assertFalse($class->bulkCopyTransformation);
+        $this->assertNull($class->transformationRecipe);
+        $this->assertNotNull($class->creationRecipe);
     }
 
     /**
@@ -470,7 +484,7 @@ class DataClassTest extends TestCase
 #[ErrorBag('metadata')]
 #[RedirectTo('/metadata')]
 #[RedirectToRoute('metadata.store')]
-class DataClassMetadataFixture
+class DataClassMetadataFixture extends Data
 {
     /**
      * Create a new metadata fixture.
@@ -506,7 +520,7 @@ class DataClassMetadataFixture
     }
 }
 
-class ConstructorBindingDataFixture
+class ConstructorBindingDataFixture extends Data
 {
     public readonly string $readonlyName;
 
@@ -595,6 +609,13 @@ class ArbitraryObjectDataFixture extends Data
 class PlainArrayTransformationFixture extends Data
 {
     public array $values = [];
+}
+
+class NonTransformableDtoFixture extends Dto
+{
+    public function __construct(public int $id)
+    {
+    }
 }
 
 class PropertyTransformerDataFixture extends Data

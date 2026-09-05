@@ -30,6 +30,7 @@ use Hypervel\Data\Normalizers\Normalized\Normalized;
 use Hypervel\Data\Normalizers\Normalizer;
 use Hypervel\Data\Support\DataClass;
 use Hypervel\Data\Support\DataProperty;
+use Hypervel\Data\Support\Partials\PartialsDefinition;
 use Hypervel\Data\Support\Transformation\DataTransformer;
 use Hypervel\Data\Support\Transformation\TransformationContext;
 use Hypervel\Data\Support\Transformation\TransformationContextFactory;
@@ -40,6 +41,7 @@ use Hypervel\Inertia\OptionalProp;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Testbench\TestCase;
+use ReflectionProperty;
 use RuntimeException;
 use Traversable;
 
@@ -383,6 +385,121 @@ class DataTransformerTest extends TestCase
         $this->assertSame($closure, $transformed['closure']);
         $this->assertArrayNotHasKey('default', $transformed);
         $this->assertArrayNotHasKey('excluded', $transformed);
+    }
+
+    /**
+     * Test plain transformations do not retain an empty partial definition store.
+     */
+    public function testPlainTransformationsDoNotRetainEmptyPartials(): void
+    {
+        $data = new SimpleData('value');
+
+        $this->assertNull($this->partialDefinitionsState($data));
+        $this->assertSame(['value' => 'value'], $data->toArray());
+        $this->assertFalse($this->partialDefinitionsState($data));
+        $this->assertSame(['value' => 'value'], $data->all());
+        $this->assertFalse($this->partialDefinitionsState($data));
+
+        TransformationContextFactory::create()->get($data);
+
+        $this->assertFalse($this->partialDefinitionsState($data));
+
+        $data->only('value');
+
+        $this->assertInstanceOf(PartialsDefinition::class, $this->partialDefinitionsState($data));
+        $this->assertSame(['value' => 'value'], $data->toArray());
+        $this->assertFalse($data->hasPartialsDefinition());
+    }
+
+    /**
+     * Test class-owned partial defaults still initialize once and remain active.
+     */
+    public function testClassOwnedPartialDefaultsStillInitialize(): void
+    {
+        $data = new DefaultPartialsData('first', 'second');
+
+        $this->assertNull($this->partialDefinitionsState($data));
+        $this->assertTrue($data->hasPartialsDefinition());
+        $this->assertInstanceOf(PartialsDefinition::class, $this->partialDefinitionsState($data));
+        $this->assertSame(['first' => 'first'], $data->toArray());
+        $this->assertTrue($data->hasPartialsDefinition());
+    }
+
+    /**
+     * Test disabled class-owned defaults retain the empty sentinel.
+     */
+    public function testDisabledClassOwnedPartialDefaultsRemainEmpty(): void
+    {
+        $data = new DisabledDefaultPartialsData('first', 'second');
+
+        $this->assertFalse($data->hasPartialsDefinition());
+        $this->assertFalse($this->partialDefinitionsState($data));
+        $this->assertSame([
+            'first' => 'first',
+            'second' => 'second',
+        ], $data->toArray());
+        $this->assertFalse($this->partialDefinitionsState($data));
+    }
+
+    /**
+     * Test plain collections and their items do not retain empty partial stores.
+     */
+    public function testPlainCollectionsDoNotRetainEmptyPartials(): void
+    {
+        $first = new SimpleData('first');
+        $second = new SimpleData('second');
+        $collection = new DataCollection(SimpleData::class, [$first, $second]);
+
+        $this->assertSame([
+            ['value' => 'first'],
+            ['value' => 'second'],
+        ], $collection->toArray());
+        $this->assertFalse($this->partialDefinitionsState($collection));
+        $this->assertFalse($this->partialDefinitionsState($first));
+        $this->assertFalse($this->partialDefinitionsState($second));
+    }
+
+    /**
+     * Test unrelated parent partials do not allocate stores on nested values or iterable items.
+     */
+    public function testUnrelatedParentPartialsDoNotAllocateNestedStores(): void
+    {
+        $nested = new NestedLazyData(
+            Lazy::create(static fn (): string => 'temporary'),
+            Lazy::create(static fn (): string => 'permanent'),
+        );
+        $first = new NestedLazyData(
+            Lazy::create(static fn (): string => 'first'),
+            Lazy::create(static fn (): string => 'ignored'),
+        );
+        $second = new NestedLazyData(
+            Lazy::create(static fn (): string => 'second'),
+            Lazy::create(static fn (): string => 'ignored'),
+        );
+
+        (new PartialOwnerData($nested))->include('enabled')->all();
+        (new DataArrayOwner([$first, $second]))->include('items')->all();
+
+        $this->assertNull($this->partialDefinitionsState($nested));
+        $this->assertNull($this->partialDefinitionsState($first));
+        $this->assertNull($this->partialDefinitionsState($second));
+    }
+
+    /**
+     * Test root collection partials still propagate to unchanged items.
+     */
+    public function testRootCollectionPartialsPropagateToUnchangedItems(): void
+    {
+        $item = new NestedLazyData(
+            Lazy::create(static fn (): string => 'temporary'),
+            Lazy::create(static fn (): string => 'ignored'),
+        );
+        $collection = (new DataCollection(NestedLazyData::class, [$item]))
+            ->include('temporary');
+
+        $this->assertSame([$item], $collection->all());
+        $this->assertInstanceOf(PartialsDefinition::class, $this->partialDefinitionsState($item));
+        $this->assertSame(['temporary' => 'temporary'], $item->toArray());
     }
 
     /**
@@ -937,6 +1054,17 @@ class DataTransformerTest extends TestCase
         ], $data->transform(TransformationContextFactory::forPersistence()));
         $this->assertSame(1, $model->relationReads);
     }
+
+    /**
+     * Get the internal partial definition state without initializing it.
+     */
+    private function partialDefinitionsState(object $data): PartialsDefinition|false|null
+    {
+        /** @var null|false|PartialsDefinition $state */
+        $state = (new ReflectionProperty($data, 'partialDefinitions'))->getValue($data);
+
+        return $state;
+    }
 }
 
 class BulkCopyRecordingDataTransformer extends DataTransformer
@@ -967,6 +1095,40 @@ class SimpleData extends Data
 {
     public function __construct(public string $value)
     {
+    }
+}
+
+class DefaultPartialsData extends Data
+{
+    public function __construct(
+        public string $first,
+        public string $second,
+    ) {
+    }
+
+    /**
+     * Keep the first property by default.
+     */
+    protected function onlyProperties(): array
+    {
+        return ['first'];
+    }
+}
+
+class DisabledDefaultPartialsData extends Data
+{
+    public function __construct(
+        public string $first,
+        public string $second,
+    ) {
+    }
+
+    /**
+     * Disable the conditional default selection.
+     */
+    protected function onlyProperties(): array
+    {
+        return ['first' => false];
     }
 }
 

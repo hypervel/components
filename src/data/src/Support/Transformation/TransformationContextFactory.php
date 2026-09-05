@@ -89,7 +89,7 @@ class TransformationContextFactory implements Transient
             return static::persistenceContext($this->configuredMaxDepth);
         }
 
-        $dataPartials = $data instanceof IncludeableData
+        $dataPartials = $data instanceof IncludeableData && $data->hasPartialsDefinition()
             ? $data->getPartialsDefinition()
             : null;
 
