@@ -100,6 +100,8 @@ Constructor property names are the exact input and output keys. Unknown input ke
 
 Common integer, float, boolean, and string representations are converted strictly. Backed enums, dates, and properties typed as a concrete `DataObject` are also converted. Invalid scalar values throw an `InvalidArgumentException` instead of being silently coerced. Use an application named factory when an external payload needs different names or custom conversion.
 
+Integer-backed enums accept integral numeric values such as `1`, `"1.0"`, and `"1e0"`. Fractional values are rejected instead of being truncated to an enum case.
+
 When a form request owns validation, you may declare a lightweight data object directly in its `casts` method. Use a wildcard to convert each member of a validated list:
 
 ```php
@@ -548,6 +550,8 @@ $order->status === OrderStatus::Paid;
 
 // true
 ```
+
+Integer-backed enums accept integral numeric values, including decimal and exponent strings such as `"1.0"` and `"1e0"`. Fractional values are rejected instead of being truncated to an enum case.
 
 <a name="casts-and-transformers"></a>
 ## Casts and Transformers

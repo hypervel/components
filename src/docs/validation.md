@@ -777,7 +777,7 @@ protected function casts(): array
 }
 ```
 
-Integer-backed enums accept the numeric strings normally submitted by forms and JSON clients. Existing matching enum cases are preserved.
+Integer-backed enums accept integral numeric values, including decimal and exponent strings such as `"1.0"` and `"1e0"`. Fractional values are rejected instead of being truncated to an enum case. Existing matching enum cases are preserved.
 
 Use a wildcard cast for an ordinary enum array. Use `AsEnumCollection::of()` when you want a Support collection instead:
 
@@ -2020,6 +2020,8 @@ $request->validate([
     'status' => [Rule::enum(ServerStatus::class)],
 ]);
 ```
+
+For integer-backed enums, integral numeric values are valid while fractional values are rejected instead of being truncated to an enum case.
 
 The `Enum` rule's `only` and `except` methods may be used to limit which enum cases should be considered valid:
 
