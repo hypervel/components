@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\ObjectPool;
 
 use Hypervel\Core\Events\AfterWorkerStart;
+use Hypervel\Core\Events\OnWorkerExit;
 use Hypervel\ObjectPool\Contracts\Factory;
 use Hypervel\ObjectPool\Contracts\Recycler;
 use Hypervel\ObjectPool\Listeners\StartRecycler;
@@ -29,8 +30,14 @@ class ObjectPoolServiceProvider extends ServiceProvider
     {
         $events = $this->app->make('events');
 
-        $events->listen(AfterWorkerStart::class, function (AfterWorkerStart $event) {
+        $events->listen(AfterWorkerStart::class, function (AfterWorkerStart $event): void {
             $this->app->make(StartRecycler::class)->handle($event);
+        });
+
+        $events->listen(OnWorkerExit::class, function (OnWorkerExit $event): void {
+            if ($this->app->resolved(PoolManager::class)) {
+                $this->app->make(PoolManager::class)->flush();
+            }
         });
     }
 }
