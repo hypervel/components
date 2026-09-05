@@ -497,13 +497,13 @@ function execute(): void
     $nested = ['child' => $leaf, 'id' => 2, 'name' => 'nested', 'active' => true, 'note' => null];
     $deep = ['child' => ['child' => $leaf, 'id' => 2, 'name' => 'middle'], 'id' => 3, 'name' => 'deep'];
     $enum = ['id' => 1, 'status' => 'active'];
-    $dataObjectDate = ['id' => 1, 'createdAt' => '2026-09-04 12:34:56'];
+    $dataObjectDate = ['id' => 1, 'createdAt' => '2026-09-04T12:34:56+00:00'];
     $dataDate = ['id' => 1, 'created_at' => '2026-09-04T12:34:56+00:00'];
     $dataObjectMixed = [
         'externalId' => '9',
         'displayName' => 123,
         'status' => 'active',
-        'createdAt' => '2026-09-04 12:34:56',
+        'createdAt' => '2026-09-04T12:34:56+00:00',
         'child' => ['id' => '1', 'code' => 456, 'enabled' => 1, 'score' => '9.5'],
     ];
     $dataMixed = [
