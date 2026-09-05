@@ -93,7 +93,9 @@ public function start(): void
     }
 
     SentrySdk::startContext($this->hub);
-    Coroutine::defer(static fn (): void => SentrySdk::endContext());
+    Coroutine::defer(static function (): void {
+        SentrySdk::endContext();
+    });
 }
 ```
 
@@ -107,12 +109,12 @@ Update `src/sentry/src/SentryServiceProvider.php` in this order:
 2. Eagerly resolve `HubInterface` as today. Construct the custom Hub with a clone of the current no-client SDK scope, following current `sentry-laravel`'s `cloneCurrentHubScope()` behavior. This preserves tags and other scope data configured through `withExceptions()` before the real client exists. Do not clone a Hub that already has a client.
 3. Before `bootFeatures()`, register one closure for these five start events: `JobProcessing`, `ScheduledTaskStarting`, `ConnectionOpening`, `MessageReceived`, and `ConnectionClosing`. The closure resolves `RuntimeContextBoundary` from the current container at dispatch time, so application/test rebindings work. Do not add `class_exists()`, a Composer dependency, or a suggestion for the optional WebSocket event classes.
 4. Register the active-only child propagation hook before application work can create children.
-5. Keep feature boot, ordinary Sentry events, middleware, and tracing behavior in their current relative order after the early boundary listeners. Event dispatcher insertion order then guarantees queue/scheduling Sentry feature listeners see the installed runtime context.
-6. Replace the current `enable_logs`-gated terminating callback with an active-only `SentrySdk::flush()` callback. Run it only when `CoroutineRuntimeContextStorage::get()` is `null`: HTTP termination occurs before its deferred context end and must not double-flush, while root console/global buffers still need flushing.
+5. Register the active-only `SentrySdk::flush()` terminating callback in the same non-null storage block. Run it only when `CoroutineRuntimeContextStorage::get()` is `null`: HTTP termination occurs before its deferred context end and must not double-flush, while root console/global buffers still need flushing.
+6. Keep feature boot, ordinary Sentry events, middleware, and tracing behavior in their current relative order after the early runtime-context registrations. Guard feature behavior with the explicit active flag; use the storage value only where the instance is required. Event dispatcher insertion order then guarantees queue/scheduling Sentry feature listeners see the installed runtime context.
 
 Change `registerCoroutineContextPropagation()` to accept the resolved storage instance. The hook must remain direct and allocation-conscious without adding a direct `hypervel/engine` dependency:
 
-- Fetch the current raw container once through `CoroutineContext::getContainer()`. Although its declared return type is `array|ArrayObject|null`, narrow the in-coroutine value to `ArrayObject` in the hook using the repository's normal narrowing order; do not widen `inheritFrom()` to accept `array`.
+- Fetch the current raw container once through `CoroutineContext::getContainer()`. The hook always runs inside a newly created coroutine, so narrow the current container to `ArrayObject` and the parent container to `?ArrayObject` with `@var`; do not add unreachable runtime guards or widen `inheritFrom()` to accept `array`.
 - If the delivery marker is present, return immediately without looking up the parent or cloning anything.
 - Fetch the parent raw container once. Reuse those two containers for the Hub stack, Request, and runtime-holder work; the current code performs repeated engine lookups for each value.
 - Prefer an already-installed child stack/request (from `fork()`), otherwise use the parent's. Preserve the current eager Layer/Scope and Request cloning semantics.
@@ -164,9 +166,8 @@ Add `public const string DELIVERY_CONTEXT_KEY = '__sentry.delivery'` to `HttpPoo
 
 Simplify `Integration` around the SDK's complete flush facade:
 
-- `flushEvents()` calls `SentrySdk::flush()` directly.
 - `drainEvents()` first calls `SentrySdk::flush()` so current Logs, Metrics, and accepted client work are published. It then preserves the existing null-client success result, positive timeout normalization, and final `client->flush($timeout)` bounded wait.
-- Remove the private duplicate flush helper and now-unused Logs/Metrics imports.
+- Remove the now-unused internal `flushEvents()` wrapper, the private duplicate flush helper, and now-unused Logs/Metrics imports. The SDK facade resolved the issue for which upstream introduced `flushEvents()`, and Hypervel has no production caller.
 
 The extra no-timeout client flush inside `SentrySdk::flush()` is only the pooled transport's WaitGroup count observation; the following positive flush captures and waits for the accepted generation. Keep the worker-exit drain and transport shutdown in `EventHandler::workerExitHandler()` unchanged.
 
@@ -174,7 +175,7 @@ The extra no-timeout client flush inside `SentrySdk::flush()` is only the pooled
 
 - Keep the existing `enable_logs` and `enable_metrics` keys because they are current Sentry Laravel configuration APIs, even though the SDK marks them deprecated. Remove false unsupported comments, restore `enable_metrics` to the SDK/upstream default of `true`, and describe `logs_channel_level` and `log_flush_threshold` without unsupported wording. Do not introduce another configuration switch for runtime contexts.
 - Remove test setup that sets `enable_logs` as though it activated the Logs API. Keep config parsing coverage for both deprecated compatibility keys without using either as a runtime gate.
-- Update `src/docs/sentry.md` to remove the Logs and Trace Metrics warnings, state that both are execution-isolated, show the current `Sentry\traceMetrics()` API, and mention WebSocket callbacks among isolated lifecycles. Keep delivery/shutdown wording consistent with deferred context flush plus the asynchronous pool.
+- Update `src/docs/sentry.md` to remove the Logs and Trace Metrics warnings, state that both are execution-isolated, define an execution as including its spawned child coroutines, show the current `Sentry\traceMetrics()` API, and mention WebSocket callbacks among isolated lifecycles. Explain that the deprecated `enable_logs` and `enable_metrics` options are compatibility no-ops and point to `before_send_log` / `before_send_metric` as kill switches. Keep delivery/shutdown wording consistent with final-owner context flush plus the asynchronous pool.
 - Update `src/docs/websockets.md` to list all six events in lifecycle order with timing and payloads: `ConnectionOpening`, `ConnectionOpened`, `MessageReceived`, `MessageHandled` (currently missing), `ConnectionClosing`, and `ConnectionClosed`.
 - Do not add a Laravel porting-guide entry: the two WebSocket events are Hypervel-native APIs and require no Laravel migration action.
 
@@ -187,11 +188,12 @@ The extra no-timeout client flush inside `SentrySdk::flush()` is only the pooled
 5. Update `src/sentry/src/SentryServiceProvider.php` for storage registration, scope cloning, early boundaries, terminating flush, and optimized child propagation.
 6. Update `src/sentry/src/Transport/HttpPoolTransport.php` with the delivery marker.
 7. Update `src/sentry/src/Http/FlushEventsMiddleware.php` to start the boundary while preserving its public name and middleware position.
-8. Update `src/sentry/src/Integration.php` to use `SentrySdk::flush()` and retain bounded drain semantics.
+8. Update `src/sentry/src/Integration.php` to remove the superseded internal flush wrapper and retain bounded drain semantics through `SentrySdk::flush()`.
 9. Remove superseded operation flushes/imports/comments from `TracksPushedScopesAndSpans.php`, `QueueFeature.php`, and `ConsoleSchedulingFeature.php`; update the defer-order comment in `Tracing/Middleware.php`.
 10. Add `ConnectionOpening.php` and `ConnectionClosing.php`, then update WebSocket `Server.php` at the verified lifecycle points.
 11. Update Sentry config and the two canonical documentation pages. Remove every statement that Logs or Trace Metrics are unsupported.
-12. Update the affected tests serially, running each test file as soon as it changes.
+12. Update the affected tests serially, centralize exact captured-event filtering in `SentryTestCase`, and reset the SDK's process-global registration through `AfterEachTestSubscriber`. Run each test file as soon as it changes.
+13. Isolate the Horizon process-niceness test in a separate process and assert its change from the inherited baseline. This prevents the full parallel suite from permanently changing a reusable worker's process-global niceness or assuming it started at zero.
 
 ## Testing
 
@@ -213,12 +215,14 @@ Extend `CoroutineContextPropagationTest` to prove:
 ### Boundary integration and flushes
 
 - Update `FlushEventsMiddlewareTest` to inject the real boundary and assert context lifetime/flush ordering rather than a direct flush defer.
-- Update `FlushLifecycleTest` for `SentrySdk::flush()` ordering and the two-step bounded drain (`flush(null)` observation followed by the positive wait). Replace terminal scheduled-task/pre-pop flush expectations with execution-end behavior, while retaining root console termination, graceful queue drain, immediate-stop, and worker-exit coverage.
+- Update `FlushLifecycleTest` for the two-step bounded drain: `SentrySdk::flush()` publishes Logs and Metrics before the final positive client wait. Replace terminal scheduled-task/pre-pop flush expectations with execution-end behavior, while retaining root console termination, graceful queue drain, immediate-stop, and worker-exit coverage.
 - Extend `ServiceProviderListenerRegistrationTest` to assert all five start listeners are registered, the queue and scheduling boundary listeners precede their corresponding Sentry feature listeners, and every boundary listener resolves the service from the container at event time. The three new WebSocket events have no separate Sentry feature listeners to order against.
-- Extend `ServiceProviderWithoutDsnTest` to assert inactive applications clear any prior SDK runtime storage and register none of the boundary listeners or coroutine propagation work.
+- Extend `ServiceProviderWithoutDsnTest` to assert through public behavior that inactive applications clear any prior SDK runtime storage and register none of the boundary listeners or coroutine propagation work.
 - Add a provider regression proving scope data configured on the no-client SDK Hub before provider resolution survives when the real Hypervel Hub/client is installed.
 - Adjust queue and scheduling integration assertions only where the new execution-end owner changes flush timing; keep their scope, span, exception, and check-in behavior intact.
 - Update `HttpPoolTransportTest` to assert the delivery marker is installed before child startup hooks while preserving all existing ownership/failure tests.
+- Reset Sentry's registered runtime storage and Hub once in `AfterEachTestSubscriber::flushSentryState()` rather than in individual tests.
+- Add `getCapturedSentryEventsOfType()` to `SentryTestCase` and use it for exact event-type filtering across the affected Sentry tests.
 
 ### Logs, Metrics, and WebSockets
 
@@ -245,7 +249,7 @@ Run the same script after implementation. The no-parent path must stay within me
 
 - After each new or changed test file: `./vendor/bin/phpunit --no-progress <test-file>` from the components worktree root.
 - After each coherent Sentry or WebSocket slice: run the affected package test directories.
-- Run `composer fix` once at the final checkpoint. If it fails, follow the repository's targeted correction and remaining-script rules rather than rerunning successful full checks blindly.
+- At the final checkpoint, run `composer lint:fix`, `composer analyse`, the targeted Sentry, WebSocket Server, and interacting instrumentation tests, `composer test:parallel`, `composer test:testbench`, and `composer test:dogfood`, in that order.
 - Inspect `git diff --check`, `git status --short`, Composer manifests, and the final diff for stale imports, direct optional dependencies, unsupported documentation, dead flush code, debug files, and benchmark artifacts.
 
 ## Completion criteria
@@ -256,4 +260,4 @@ Run the same script after implementation. The no-parent path must stay within me
 - Inactive Sentry clears the process-global SDK storage at boot and adds no listeners or child hook. Active child overhead is the minimum counted-sharing work, and the delivery fast path skips all application propagation.
 - The custom Hub remains current and tested; bootstrap scope data is no longer lost.
 - Public middleware/config/facade APIs remain Laravel-shaped, the optional package graph is unchanged, and canonical docs contain no stale unsupported claims.
-- Focused tests, performance comparison, and `composer fix` pass with no temporary or dead files remaining.
+- Formatting, both PHPStan configurations, focused tests, the full parallel suite, Testbench package-mode tests, dogfood tests, and the performance comparison pass with no temporary or dead files remaining.
