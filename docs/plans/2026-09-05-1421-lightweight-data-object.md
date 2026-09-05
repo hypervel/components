@@ -7,8 +7,9 @@ Add a small `Hypervel\Support\DataObject` for trusted internal message envelopes
 This is a complement to `Hypervel\Data`, not a second version of it:
 
 - `DataObject` maps one array into public promoted constructor properties and converts common PHP value types.
-- `Data`, `Dto`, and `Resource` remain the choices for validation, input or output name mapping, contextual values, custom casts and transformers, lazy values, partials, collections, HTTP resources, persistence, FormRequest, Inertia, and Saloon integration.
-- There is no public fast mode, feature flag, configuration, container service, provider, or integration layer.
+- `Data`, `Dto`, and `Resource` remain the choices for object-owned validation, input or output name mapping, contextual values, custom casts and transformers, lazy values, partials, collections, HTTP resources, persistence, Inertia, and Saloon integration.
+- `DataObject` may receive input already validated by a FormRequest through Foundation's generic request-cast contract. It does not add validation or a Foundation special case.
+- There is no public fast mode, feature flag, configuration, container service, provider, or bespoke integration layer.
 
 The API is new for Hypervel 0.4. Do not preserve earlier Hypervel-specific methods or behavior merely for compatibility.
 
@@ -55,14 +56,18 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Hypervel\Contracts\Container\Transient;
+use Hypervel\Contracts\Http\CastsRequestInput;
+use Hypervel\Contracts\Http\RequestCastable;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use JsonSerializable;
 
 /** @implements Arrayable<string, mixed> */
-abstract class DataObject implements Arrayable, Jsonable, JsonSerializable, Transient
+abstract class DataObject implements Arrayable, Jsonable, JsonSerializable, RequestCastable, Transient
 {
     public static function from(array $data): static;
+
+    public static function castRequestUsing(array $arguments): CastsRequestInput;
 
     public function toArray(): array;
 
@@ -123,6 +128,27 @@ A child with no constructor inherits its parent's promoted properties and constr
 - Let explicit `null` bypass conversion and reach the constructor. PHP's native type error enforces non-nullable declarations.
 
 `from()` is the only base construction method. Do not add the old `make()` alias, `autoResolve` argument, `update()`, `refresh()`, or `ArrayAccess`. Direct public-property access is the normal PHP API, while application classes may define meaningful named factories.
+
+### Form request casting
+
+Implement Foundation's existing `RequestCastable` extension contract directly on `DataObject`. `castRequestUsing()` rejects declaration arguments and returns a fresh `Hypervel\Support\Http\DataObjectRequestCast` configured for `static::class`. The Support-owned caster implements only `CastsRequestInput`, preserves `null`, passes an array to the concrete class's `from()` method, and fails clearly with the input key when a present value is not an array. It contains no cache or mutable state.
+
+This keeps Foundation generic and adds no Support dependency on Foundation or Data. A FormRequest can cast one validated object or each member of a validated list through its existing exact and wildcard paths:
+
+```php
+protected function casts(): array
+{
+    return [
+        'contact' => Contact::class,
+        'contacts.*' => Contact::class,
+    ];
+}
+
+$contact = $request->validated('contact');
+$contacts = $request->validated('contacts');
+```
+
+The first result is a `Contact`; the second is an array whose members are `Contact` objects. Validation still runs on submitted arrays before request casting. Do not restore `casted()`, Foundation DataObject detection, `AsDataObjectArray`, or `AsDataObjectCollection`; the current `validated()` / `safe()` APIs and wildcard cast walker provide the same outcomes through one general extension point.
 
 ## Worker-Cached Recipes
 
@@ -263,9 +289,10 @@ Update `src/docs/data-objects.md` in Laravel prose:
 - add `Lightweight Data Objects` to the contents and place the section after `Choosing a Base Class`;
 - end `Choosing a Base Class` with a link to that section for trusted internal values that need only typed construction and array output;
 - show a small internal message-envelope example using `Hypervel\Support\DataObject::from()`;
+- show that a FormRequest may declare a DataObject class directly in `casts()`, including the `items.*` wildcard form for lists, when request rules own validation;
 - explain that exact constructor names are keys, common PHP scalar/enum/date conversions and properties typed as a DataObject subclass are automatic, invalid scalar forms throw, and `toArray()`/JSON recursively normalize supported values;
 - state that an `array` property does not infer or hydrate an item type, and show a named factory using `array_map(Item::from(...), $data['items'])` when an envelope needs a one-off list conversion; direct reusable typed collections to Data;
-- direct external/request validation, reusable mapping, custom casts, partials, resources, collections, and persistence to `Data`, `Dto`, or `Resource` as appropriate;
+- direct object-owned validation, reusable mapping, custom casts, partials, resources, collection abstractions, and persistence to `Data`, `Dto`, or `Resource` as appropriate;
 - do not document recipe caching, integer kind tags, reflection layout, rejected APIs, benchmarks, or implementation history.
 
 Do not add a Support README difference or porting-guide entry. This is an additive Hypervel API with canonical user documentation, not an existing Laravel API that porters must adapt.
@@ -285,6 +312,7 @@ Add `tests/Support/DataObjectTest.php`, using a test-specific namespace for its 
 - Two constructions with a promoted `new` object default receive distinct objects.
 - Public promoted `readonly` properties work.
 - Every subclass inherits the `Transient` lifetime marker.
+- Every subclass is request-castable without arguments and returns a caster for that concrete subclass; cast arguments fail clearly.
 - Direct mutation is visible in the next `toArray()` and JSON result.
 - Nested DataObjects, arrays of DataObjects, associative keys, dates, enums, and another `Arrayable` normalize recursively.
 - An array-typed property retains raw array items during construction rather than guessing an item type.
@@ -342,6 +370,8 @@ Do not test PHP compile-time failures for variadic promotion or readonly inherit
 
 Run `tests/Support/DataObjectTest.php` immediately after creating or changing it.
 
+Extend `tests/Foundation/Http/FormRequestCastingTest.php` with public-behavior coverage that proves a direct `DataObject` declaration converts one already-validated array, `contacts.*` converts every member while preserving list keys, `null` remains null, invalid non-array input fails clearly, and `validated()` / `safe()` expose the converted values through the existing APIs. Keep the fixtures local to that test file and run it immediately after changing it. No Foundation source change is required.
+
 ## Benchmarks
 
 Use the frozen legacy fixture only during acceptance:
@@ -381,18 +411,21 @@ Do not add benchmark thresholds to PHPUnit.
 | File | Change |
 | --- | --- |
 | `src/support/src/DataObject.php` | Add the complete lightweight mapper, conversion, transformation, recipe compilation, and cache reset. |
+| `src/support/src/Http/DataObjectRequestCast.php` | Adapt one already-validated array to a configured lightweight DataObject class. |
 | `tests/Support/DataObjectTest.php` | Add supported behavior, failure, declaration, recursion, date, and serialization coverage. |
+| `tests/Foundation/Http/FormRequestCastingTest.php` | Cover direct and wildcard lightweight DataObject request casts. |
 | `src/docs/data-objects.md` | Document the lightweight choice and its boundary from Hypervel Data. |
+| `src/docs/validation.md` | Document lightweight DataObject declarations in FormRequest casts. |
 | `docs/todo.md` | Record the coherent typed-input accessor audit and conditional future scalar extraction. |
 | `tests/Benchmarks/Data/compare-data-object.php` | Measure the new supported mapper against Data after the temporary legacy acceptance comparison. |
 | `tests/Benchmarks/Data/README.md` | Describe the supported benchmark. |
 | `tests/Benchmarks/Data/Fixtures/DataObject.php` | Delete after the legacy acceptance measurements are recorded. |
 
-No Composer, provider, alias, facade, contract, Foundation, Database, Saloon, Data package, or test-subscriber change is required.
+No Composer, provider, alias, facade, contract, Foundation source, Database, Saloon, Data package, or test-subscriber change is required.
 
 ## Verification
 
-1. Run `./vendor/bin/phpunit --no-progress tests/Support/DataObjectTest.php` after every coherent test/source change.
+1. Run `./vendor/bin/phpunit --no-progress tests/Support/DataObjectTest.php` after every coherent Support test/source change, and run `./vendor/bin/phpunit --no-progress tests/Foundation/Http/FormRequestCastingTest.php` immediately after changing that test.
 2. Run `composer lint` to check formatting while iterating, and `composer lint:fix` when changed files need formatting.
 3. Run targeted PHPStan for source investigation only if needed; tests are excluded from PHPStan.
 4. Run the three-column acceptance benchmarks as specified, remove the legacy fixture, then rerun the final two-column harness.
@@ -411,5 +444,5 @@ No Composer, provider, alias, facade, contract, Foundation, Database, Saloon, Da
 - **Cache transformed arrays:** is incorrect for mutable public properties and increases retained instance memory.
 - **Cache evaluated defaults or retain reflection:** risks shared mutable default objects or pays avoidable worker memory to reproduce PHP behavior.
 - **Generate hydration closures or source code:** adds compile machinery and debugging cost for a compact recipe loop without evidence of a net win.
-- **Add mapping, hooks, custom conversion, validation, or integration adapters:** recreates a second Data package rather than the requested internal mapper.
+- **Add mapping, hooks, custom conversion, validation, or bespoke integration adapters:** recreates a second Data package rather than the requested internal mapper. Implementing the existing generic `RequestCastable` contract is deliberately narrower: FormRequest owns validation and the adapter only calls `from()`.
 - **Add coroutine state or locking:** recipes are immutable, declaration-derived, bounded, and published by one assignment after classification, so a duplicate compile is harmless.
