@@ -10,8 +10,10 @@
 #   ./bin/test-servers.sh engine grpc  # Start selected groups
 #
 # Groups:
-#   engine  — HTTP (19501), TCP (19502), WebSocket (19503), HTTP v2 (19505),
-#             Hypervel HTTP Server (19506)
+#   engine  — HTTP/h2c (19501), TCP (19502), WebSocket (19503),
+#             HTTP connection (19505), Hypervel HTTP Server (19506),
+#             literal HTTP (19530), literal HTTPS (19531), TLS ALPN (19532),
+#             stalled TLS handshake (19533)
 #   grpc    — Hypervel plaintext (19520), grpc-go plaintext (19521),
 #             Hypervel TLS (19522), grpc-go TLS (19523)
 #   reverb  — Single-worker (19510), Redis scaling (19511), multi-worker (19512),
@@ -99,7 +101,34 @@ wait_for_tcp() {
     exit 1
 }
 
+# Wait for a TLS HTTP server using a verified handshake.
+wait_for_https() {
+    local port=$1
+    local label=$2
+    local ca_file=$3
+    local certificate=${4:-}
+    local private_key=${5:-}
+    local max=30
+    local curl_options=(-sf --cacert "$ca_file")
+
+    if [ -n "$certificate" ]; then
+        curl_options+=(--cert "$certificate" --key "$private_key")
+    fi
+
+    for i in $(seq 1 $max); do
+        if curl "${curl_options[@]}" "https://127.0.0.1:${port}/up" > /dev/null 2>&1; then
+            return 0
+        fi
+        sleep 1
+    done
+
+    echo "ERROR: ${label} on port ${port} failed to start within ${max}s"
+    exit 1
+}
+
 start_engine() {
+    local http_tls_dir="$PROJECT_DIR/tests/Integration/Http/Transport/Fixtures/Tls"
+
     echo "Starting engine test servers..."
 
     setsid php "$PROJECT_DIR/src/engine/examples/http_server.php" &
@@ -114,19 +143,40 @@ start_engine() {
     PIDS+=($!)
     echo "  WebSocket server started on port 19503 (PID: $!)"
 
-    setsid php "$PROJECT_DIR/src/engine/examples/http_server_v2.php" &
+    setsid php "$PROJECT_DIR/src/engine/examples/http_connection_server.php" &
     PIDS+=($!)
-    echo "  HTTP v2 server started on port 19505 (PID: $!)"
+    echo "  HTTP connection server started on port 19505 (PID: $!)"
 
     setsid php "$PROJECT_DIR/tests/Integration/HttpServer/server.php" &
     PIDS+=($!)
     echo "  Hypervel HTTP Server starting on port 19506 (PID: $!)..."
 
-    wait_for_tcp 19501 "HTTP"
+    setsid sh -c "HTTP_TRANSPORT_FIXTURE_MODE=plain HTTP_TRANSPORT_FIXTURE_PORT=19530 exec php '$PROJECT_DIR/tests/Integration/Http/Transport/Fixtures/literal_socket_server.php'" &
+    PIDS+=($!)
+    echo "  Literal HTTP server started on port 19530 (PID: $!)"
+
+    setsid sh -c "HTTP_TRANSPORT_FIXTURE_MODE=tls HTTP_TRANSPORT_FIXTURE_PORT=19531 exec php '$PROJECT_DIR/tests/Integration/Http/Transport/Fixtures/literal_socket_server.php'" &
+    PIDS+=($!)
+    echo "  Literal HTTPS server started on port 19531 (PID: $!)"
+
+    setsid php "$PROJECT_DIR/tests/Integration/Http/Transport/Fixtures/tls_server.php" &
+    PIDS+=($!)
+    echo "  TLS ALPN server started on port 19532 (PID: $!)"
+
+    setsid sh -c "HTTP_TRANSPORT_FIXTURE_MODE=stall HTTP_TRANSPORT_FIXTURE_PORT=19533 exec php '$PROJECT_DIR/tests/Integration/Http/Transport/Fixtures/literal_socket_server.php'" &
+    PIDS+=($!)
+    echo "  Stalled TLS handshake server started on port 19533 (PID: $!)"
+
+    wait_for_tcp 19501 "HTTP/h2c"
     wait_for_tcp 19502 "TCP packet"
     wait_for_tcp 19503 "WebSocket"
-    wait_for_tcp 19505 "HTTP v2"
+    wait_for_tcp 19505 "HTTP connection"
     wait_for_server 19506 "Hypervel HTTP Server"
+    wait_for_tcp 19530 "Literal HTTP"
+    wait_for_https 19531 "Literal HTTPS" "$http_tls_dir/ca.crt"
+    wait_for_https 19532 "TLS ALPN" "$http_tls_dir/ca.crt" \
+        "$http_tls_dir/client.crt" "$http_tls_dir/client.key"
+    wait_for_tcp 19533 "Stalled TLS handshake"
 }
 
 start_grpc() {

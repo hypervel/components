@@ -3,10 +3,9 @@
 declare(strict_types=1);
 
 /**
- * HTTP/2 test server for engine integration tests.
+ * HTTP/1.1 connection test server for engine integration tests.
  *
  * Listens on port 19505 and handles cookie-based test endpoints.
- * This is a simplified version that doesn't require HttpMessage classes.
  */
 
 use Hypervel\Engine\Coroutine;

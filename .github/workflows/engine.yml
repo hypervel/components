@@ -10,7 +10,7 @@ env:
 jobs:
   engine:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     container:
       image: phpswoole/swoole:6.2.0-php8.4
@@ -53,4 +53,5 @@ jobs:
           TEST_SERVER_HOST: 127.0.0.1
         run: |
           vendor/bin/paratest tests/Integration/Engine
+          vendor/bin/paratest tests/Integration/Http/Transport
           vendor/bin/paratest tests/Integration/HttpServer
