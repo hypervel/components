@@ -28,8 +28,6 @@ class LogLogsIntegrationTest extends SentryTestCase
         parent::defineEnvironment($app);
 
         tap($app->make('config'), static function (Repository $config) {
-            $config->set('sentry.enable_logs', true);
-
             $config->set('logging.channels.sentry_logs', [
                 'driver' => 'sentry_logs',
             ]);
@@ -130,9 +128,7 @@ class LogLogsIntegrationTest extends SentryTestCase
 
         $this->assertCount(0, logger()->aggregator()->all());
 
-        $logEvents = array_values(array_filter($this->getCapturedSentryEvents(), static function (array $event): bool {
-            return $event[0]->getType() === EventType::logs();
-        }));
+        $logEvents = $this->getCapturedSentryEventsOfType(EventType::logs());
 
         $this->assertCount(1, $logEvents);
         $this->assertCount(2, $logEvents[0][0]->getLogs());
@@ -158,9 +154,7 @@ class LogLogsIntegrationTest extends SentryTestCase
 
         $this->assertCount(2, $bufferedLogs);
 
-        $logEvents = array_values(array_filter($this->getCapturedSentryEvents(), static function (array $event): bool {
-            return $event[0]->getType() === EventType::logs();
-        }));
+        $logEvents = $this->getCapturedSentryEventsOfType(EventType::logs());
 
         $this->assertCount(0, $logEvents);
 

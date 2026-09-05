@@ -25,7 +25,7 @@
 
 [Sentry](https://sentry.io) provides error tracking and performance monitoring for your Hypervel application. Hypervel's Sentry integration captures exceptions, logs, requests, database queries, cache operations, queued jobs, notifications, Redis commands, scheduled tasks, and filesystem operations.
 
-The integration is designed for Hypervel's long-running Swoole workers. Request state is isolated between coroutines, while Sentry's HTTP connections are pooled and reused across requests.
+The integration is designed for Hypervel's long-running Swoole workers. Sentry state is isolated across requests, queued jobs, scheduled tasks, and WebSocket callbacks, while HTTP connections are pooled and reused across executions. An execution remains active until any application child coroutines it starts have finished.
 
 <a name="installation"></a>
 ## Installation
@@ -142,10 +142,11 @@ Log records sent through this channel are converted into Sentry events. Exceptio
 <a name="sentry-logs"></a>
 ### Sentry Logs
 
-> [!WARNING]
-> Sentry Logs are currently unsupported in Hypervel. The Sentry SDK shares its buffered log records across application executions, so one execution may flush records collected by another. Keep `SENTRY_ENABLE_LOGS` disabled. The regular `sentry` event channel remains fully supported.
+The `sentry_logs` channel sends structured records to Sentry Logs. Records are isolated between concurrent requests, queued jobs, scheduled tasks, and WebSocket callbacks, then flushed when that execution finishes.
 
-The `sentry_logs` channel and its configuration remain available so applications can adopt Sentry Logs when the SDK provides isolated runtime contexts. The channel uses `SENTRY_LOG_LEVEL` and falls back directly to your application's `LOG_LEVEL` value. The upstream `SENTRY_LOGS_LEVEL` compatibility alias is not supported.
+The channel uses `SENTRY_LOG_LEVEL` and falls back directly to your application's `LOG_LEVEL` value. The upstream `SENTRY_LOGS_LEVEL` compatibility alias is not supported.
+
+The `SENTRY_ENABLE_LOGS` option is kept for compatibility but is deprecated and no longer turns logs on or off. To disable Sentry Logs, configure `before_send_log` to return `null`.
 
 <a name="performance-monitoring"></a>
 ## Performance Monitoring
@@ -209,10 +210,19 @@ This middleware can downsample a transaction that was already sampled by your gl
 <a name="metrics"></a>
 ### Metrics
 
-> [!WARNING]
-> Sentry trace metrics are currently unsupported in Hypervel. The Sentry SDK shares its metric aggregators across application executions, so one execution may flush metrics collected by another. This does not affect transaction tracing or spans.
+You may record trace metrics using Sentry's `traceMetrics` function:
 
-Trace metrics are disabled by default. The `SENTRY_ENABLE_METRICS` option remains available, but enabling it is unsupported until the SDK can isolate metric aggregators between application executions.
+```php
+use function Sentry\traceMetrics;
+
+traceMetrics()->count('orders.processed', 1, [
+    'region' => 'us-east',
+]);
+```
+
+Metrics are isolated between concurrent requests, queued jobs, scheduled tasks, and WebSocket callbacks, then flushed when that execution finishes.
+
+The `SENTRY_ENABLE_METRICS` option is kept for compatibility but is deprecated and no longer turns metrics on or off. To disable trace metrics, configure `before_send_metric` to return `null`.
 
 <a name="scheduled-tasks"></a>
 ### Scheduled Tasks
@@ -308,7 +318,7 @@ Spotlight may be used without configuring a Sentry DSN.
 <a name="delivery-and-shutdown"></a>
 ## Delivery and Shutdown
 
-Sentry events are sent from detached coroutines using a bounded pool of reusable HTTP transports. Normal requests and queued jobs do not wait for event delivery, and commands use the same non-blocking delivery by default. Sends started outside a coroutine complete before returning so short-lived CLI processes cannot exit while an accepted send is still running. If the pool is exhausted during an exception storm, new telemetry is dropped instead of delaying application work.
+Buffered logs and metrics are flushed when their execution finishes. Sentry envelopes are then sent from detached coroutines using a bounded pool of reusable HTTP transports. Requests, queued jobs, scheduled tasks, and WebSocket callbacks do not wait for event delivery, and commands use the same non-blocking delivery by default. Sends started outside a coroutine complete before returning so short-lived CLI processes cannot exit while an accepted send is still running. If the pool is exhausted during an exception storm, new telemetry is dropped instead of delaying application work.
 
 Graceful worker shutdown performs a bounded drain after the worker-exit coordinator is released, then closes the transport pool. Delivery during a worker exit is best effort because Swoole may terminate outstanding reactor work after its shutdown deadline.
 

@@ -6,7 +6,6 @@ namespace Hypervel\Sentry\Features\Concerns;
 
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Sentry\Integration;
 use Sentry\SentrySdk;
 use Sentry\State\Scope;
 use Sentry\Tracing\Span;
@@ -99,7 +98,6 @@ trait TracksPushedScopesAndSpans
             return;
         }
 
-        Integration::flushEvents();
         SentrySdk::getCurrentHub()->popScope();
 
         CoroutineContext::set($this->contextKey('scope_count'), $count - 1);

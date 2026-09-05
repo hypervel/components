@@ -57,7 +57,16 @@ class EventHandlerTest extends SentryTestCase
         });
         $client = m::mock(Client::class);
         $client->shouldReceive('getOptions')->once()->andReturn(new Options(['http_timeout' => 0.1]));
-        $client->shouldReceive('flush')->once()->with(1)->andReturn(new Result(ResultStatus::success()));
+        $client->shouldReceive('flush')
+            ->once()
+            ->withNoArgs()
+            ->ordered()
+            ->andReturn(new Result(ResultStatus::success()));
+        $client->shouldReceive('flush')
+            ->once()
+            ->with(1)
+            ->ordered()
+            ->andReturn(new Result(ResultStatus::success()));
         $client->shouldReceive('getTransport')->once()->andReturn($transport);
         $previousHub = SentrySdk::getCurrentHub();
         SentrySdk::setCurrentHub(new Hub($client));
@@ -94,7 +103,13 @@ class EventHandlerTest extends SentryTestCase
         $client->shouldReceive('getOptions')->once()->andReturn(new Options(['http_timeout' => 0.1]));
         $client->shouldReceive('flush')
             ->once()
+            ->withNoArgs()
+            ->ordered()
+            ->andReturn(new Result(ResultStatus::success()));
+        $client->shouldReceive('flush')
+            ->once()
             ->with(1)
+            ->ordered()
             ->andThrow($flushException);
         $client->shouldReceive('getTransport')
             ->once()

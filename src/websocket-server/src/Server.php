@@ -31,7 +31,9 @@ use Hypervel\Support\SafeCaller;
 use Hypervel\WebSocketServer\Collector\FdCollector;
 use Hypervel\WebSocketServer\Context as WebSocketContext;
 use Hypervel\WebSocketServer\Events\ConnectionClosed;
+use Hypervel\WebSocketServer\Events\ConnectionClosing;
 use Hypervel\WebSocketServer\Events\ConnectionOpened;
+use Hypervel\WebSocketServer\Events\ConnectionOpening;
 use Hypervel\WebSocketServer\Events\MessageHandled;
 use Hypervel\WebSocketServer\Events\MessageReceived;
 use Hypervel\WebSocketServer\Exceptions\Handler\WebSocketExceptionHandler;
@@ -115,6 +117,10 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
                 // RequestContext is needed for request() helper and container resolution.
                 $httpRequest = RequestBridge::createFromSwoole($request);
                 RequestContext::set($httpRequest);
+
+                if ($this->event?->hasListeners(ConnectionOpening::class)) {
+                    $this->event->dispatch(new ConnectionOpening($fd, $httpRequest, $this->serverName));
+                }
 
                 if ($this->event?->hasListeners(RequestReceived::class)) {
                     $this->event->dispatch(new RequestReceived(
@@ -314,6 +320,16 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
             $class = FdCollector::get($fd);
             if ($class === null) {
                 return;
+            }
+
+            try {
+                if ($this->event?->hasListeners(ConnectionClosing::class)) {
+                    $this->event->dispatch(new ConnectionClosing($fd, $reactorId, $this->serverName));
+                }
+            } catch (CanceledException) {
+                return;
+            } catch (Throwable $throwable) {
+                $this->reportCallbackFailure($throwable);
             }
 
             try {

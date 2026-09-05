@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Sentry;
 
 use Closure;
 use Hypervel\Container\Container;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
@@ -74,6 +75,27 @@ class HttpPoolTransportTest extends TestCase
         $this->assertSame(ResultStatus::success(), $result->getStatus());
         $this->assertSame($event, $result->getEvent());
         $this->assertSame(ResultStatus::success(), $transport->close()->getStatus());
+    }
+
+    public function testDeliveryMarkerIsAvailableToChildStartupHooks(): void
+    {
+        $marker = new Channel(1);
+        Coroutine::afterCreated(static function () use ($marker): void {
+            $marker->push(CoroutineContext::get(HttpPoolTransport::DELIVERY_CONTEXT_KEY));
+        });
+        $httpTransport = m::mock(HttpTransport::class);
+        $httpTransport->shouldReceive('send')
+            ->once()
+            ->andReturn(new Result(ResultStatus::success()));
+        $pool = m::mock(Pool::class);
+        $pool->shouldReceive('get')->once()->andReturn($httpTransport);
+        $pool->shouldReceive('release')->once()->with($httpTransport);
+        $transport = new HttpPoolTransport($pool);
+
+        $transport->send(Event::createEvent());
+
+        $this->assertTrue($marker->pop(1.0));
+        $this->assertSame(ResultStatus::success(), $transport->close(1)->getStatus());
     }
 
     public function testMultipleSendsThenCloseReleasesAllTransports(): void

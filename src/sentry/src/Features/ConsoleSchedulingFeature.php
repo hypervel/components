@@ -12,7 +12,6 @@ use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\Event as SchedulingEvent;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Sentry\Features\Concerns\TracksPushedScopesAndSpans;
-use Hypervel\Sentry\Integration;
 use Hypervel\Support\Str;
 use RuntimeException;
 use Sentry\CheckIn;
@@ -163,10 +162,7 @@ class ConsoleSchedulingFeature extends Feature
             ? SpanStatus::ok()
             : SpanStatus::internalError();
 
-        // Only the terminal event that owns the tracked span flushes buffered logs and trace metrics.
-        if ($this->maybeFinishSpan($status) !== null) {
-            Integration::flushEvents();
-        }
+        $this->maybeFinishSpan($status);
     }
 
     /**
@@ -174,9 +170,7 @@ class ConsoleSchedulingFeature extends Feature
      */
     public function handleScheduledTaskFailed(): void
     {
-        if ($this->maybeFinishSpan(SpanStatus::internalError()) !== null) {
-            Integration::flushEvents();
-        }
+        $this->maybeFinishSpan(SpanStatus::internalError());
     }
 
     private function startCheckIn(

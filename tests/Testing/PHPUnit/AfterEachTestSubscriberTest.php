@@ -53,6 +53,9 @@ use PDO;
 use ReflectionClass;
 use ReflectionProperty;
 use RuntimeException;
+use Sentry\SentrySdk;
+use Sentry\State\RuntimeContext;
+use Sentry\State\RuntimeContextStorageInterface;
 use Symfony\Component\VarDumper\VarDumper;
 
 class AfterEachTestSubscriberTest extends TestCase
@@ -398,6 +401,64 @@ class AfterEachTestSubscriberTest extends TestCase
             BootPlugins::flushState();
             SaloonRequest::flushState();
         }
+    }
+
+    public function testFrameworkCleanupFlushesSentrySdkState(): void
+    {
+        $storage = new class implements RuntimeContextStorageInterface {
+            public ?RuntimeContext $runtimeContext = null;
+
+            /**
+             * Return the stored runtime context.
+             */
+            public function get(): ?RuntimeContext
+            {
+                return $this->runtimeContext;
+            }
+
+            /**
+             * Store a runtime context.
+             */
+            public function set(RuntimeContext $runtimeContext): void
+            {
+                $this->runtimeContext = $runtimeContext;
+            }
+
+            /**
+             * Remove the stored runtime context.
+             */
+            public function remove(): ?RuntimeContext
+            {
+                $runtimeContext = $this->runtimeContext;
+                $this->runtimeContext = null;
+
+                return $runtimeContext;
+            }
+        };
+        SentrySdk::init();
+        SentrySdk::setRuntimeContextStorage($storage);
+        SentrySdk::startContext();
+        $previousHub = SentrySdk::getCurrentHub();
+
+        $subscriber = new class extends AfterEachTestSubscriber {
+            public function flushSentryStateForTest(): void
+            {
+                $this->flushSentryState();
+            }
+        };
+
+        $this->assertNotNull($storage->get());
+
+        $subscriber->flushSentryStateForTest();
+
+        $this->assertNull($storage->get());
+        $this->assertNotSame($previousHub, SentrySdk::getCurrentHub());
+
+        SentrySdk::startContext();
+
+        $this->assertNull($storage->get());
+
+        SentrySdk::endContext();
     }
 
     public function testTelescopeCleanupReleasesTheDumpHandler(): void

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry;
 
+use ArrayObject;
 use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -15,6 +17,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Console\AboutCommand;
 use Hypervel\Http\Request;
 use Hypervel\ObjectPool\PoolOptions;
+use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Routing\Contracts\CallableDispatcher;
 use Hypervel\Routing\Contracts\ControllerDispatcher;
 use Hypervel\Sentry\Aspects\GuzzleHttpClientAspect;
@@ -27,6 +30,8 @@ use Hypervel\Sentry\Http\HypervelRequestFetcher;
 use Hypervel\Sentry\Http\SetRequestIpMiddleware;
 use Hypervel\Sentry\Integration\ContextIntegration;
 use Hypervel\Sentry\Integration\ExceptionContextIntegration;
+use Hypervel\Sentry\State\CoroutineRuntimeContextStorage;
+use Hypervel\Sentry\State\RuntimeContextBoundary;
 use Hypervel\Sentry\Tracing\BacktraceHelper;
 use Hypervel\Sentry\Tracing\EventHandler as TracingEventHandler;
 use Hypervel\Sentry\Tracing\Middleware as TracingMiddleware;
@@ -38,6 +43,9 @@ use Hypervel\Sentry\Transport\Pool;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\View\Engines\EngineResolver;
 use Hypervel\View\Factory as ViewFactory;
+use Hypervel\WebSocketServer\Events\ConnectionClosing;
+use Hypervel\WebSocketServer\Events\ConnectionOpening;
+use Hypervel\WebSocketServer\Events\MessageReceived;
 use InvalidArgumentException;
 use LogicException;
 use Psr\Log\LoggerInterface;
@@ -45,11 +53,11 @@ use RuntimeException;
 use Sentry\ClientBuilder;
 use Sentry\Integration as SdkIntegration;
 use Sentry\Logger\DebugFileLogger;
-use Sentry\Logs\Logs;
 use Sentry\SentrySdk;
 use Sentry\Serializer\RepresentationSerializer;
 use Sentry\State\HubInterface;
 use Sentry\State\Layer;
+use Sentry\State\Scope;
 use Throwable;
 
 class SentryServiceProvider extends ServiceProvider
@@ -90,18 +98,35 @@ class SentryServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $active = $this->isActive();
+        $runtimeContextStorage = $active
+            ? $this->app->make(CoroutineRuntimeContextStorage::class)
+            : null;
+
+        SentrySdk::setRuntimeContextStorage($runtimeContextStorage);
+
         // Eagerly resolve the Hub so SentrySdk has it available globally
         $this->app->make(HubInterface::class);
 
-        $this->bootFeatures();
+        if ($runtimeContextStorage !== null) {
+            $this->registerRuntimeContextBoundaries();
+            $this->registerCoroutineContextPropagation($runtimeContextStorage);
+
+            $this->app->terminating(static function () use ($runtimeContextStorage): void {
+                if ($runtimeContextStorage->get() === null) {
+                    SentrySdk::flush();
+                }
+            });
+        }
+
+        $this->bootFeatures($active);
 
         // Only register event/middleware/tracing if a DSN is set or Spotlight is enabled.
         // No events can be sent without a DSN or Spotlight.
-        if ($this->isActive()) {
+        if ($active) {
             $this->bindEvents();
             $this->registerMiddleware();
             $this->bootTracing();
-            $this->registerCoroutineContextPropagation();
         }
 
         if ($this->app->runningInConsole()) {
@@ -267,7 +292,7 @@ class SentryServiceProvider extends ServiceProvider
                 return $integrations;
             });
 
-            $hub = new Hub($clientBuilder->getClient());
+            $hub = new Hub($clientBuilder->getClient(), $this->cloneCurrentHubScope());
 
             SentrySdk::setCurrentHub($hub);
 
@@ -283,6 +308,26 @@ class SentryServiceProvider extends ServiceProvider
 
             return new BacktraceHelper($options, new RepresentationSerializer($options));
         });
+    }
+
+    /**
+     * Clone the scope configured before the Sentry client was resolved.
+     */
+    private function cloneCurrentHubScope(): ?Scope
+    {
+        $currentHub = SentrySdk::getCurrentHub();
+
+        if ($currentHub->getClient() !== null) {
+            return null;
+        }
+
+        $clonedScope = null;
+
+        $currentHub->configureScope(static function (Scope $scope) use (&$clonedScope): void {
+            $clonedScope = clone $scope;
+        });
+
+        return $clonedScope;
     }
 
     /**
@@ -325,11 +370,31 @@ class SentryServiceProvider extends ServiceProvider
             if ($userConfig['send_default_pii'] === true) {
                 $handler->subscribeAuthEvents($dispatcher);
             }
+        } catch (BindingResolutionException) {
+            // If we cannot resolve the event dispatcher we also cannot listen to events
+        }
+    }
 
-            if ($userConfig['enable_logs'] === true) {
-                $this->app->terminating(static function () {
-                    Logs::getInstance()->flush();
-                });
+    /**
+     * Start runtime contexts before execution-specific Sentry listeners run.
+     */
+    protected function registerRuntimeContextBoundaries(): void
+    {
+        try {
+            /** @var Dispatcher $dispatcher */
+            $dispatcher = $this->app->make('events');
+            $listener = function (): void {
+                $this->app->make(RuntimeContextBoundary::class)->start();
+            };
+
+            foreach ([
+                JobProcessing::class,
+                ScheduledTaskStarting::class,
+                ConnectionOpening::class,
+                MessageReceived::class,
+                ConnectionClosing::class,
+            ] as $event) {
+                $dispatcher->listen($event, $listener);
             }
         } catch (BindingResolutionException) {
             // If we cannot resolve the event dispatcher we also cannot listen to events
@@ -347,7 +412,7 @@ class SentryServiceProvider extends ServiceProvider
 
         $httpKernel = $this->app->make(HttpKernelInterface::class);
 
-        // The second prepend makes Flush outermost, so its defer runs after tracing and feature finalizers.
+        // The second prepend makes the runtime context outermost, so it ends after tracing and feature finalizers.
         $httpKernel->prependMiddleware(TracingMiddleware::class);
         $httpKernel->prependMiddleware(FlushEventsMiddleware::class);
 
@@ -479,31 +544,48 @@ class SentryServiceProvider extends ServiceProvider
      *
      * Copy isolated Sentry scope and request values into child coroutines.
      */
-    protected function registerCoroutineContextPropagation(): void
-    {
-        Coroutine::afterCreated(function (): void {
-            $parentId = Coroutine::parentId();
-            $stack = CoroutineContext::get(Hub::CONTEXT_STACK_KEY)
-                ?? CoroutineContext::get(Hub::CONTEXT_STACK_KEY, null, $parentId);
+    protected function registerCoroutineContextPropagation(
+        CoroutineRuntimeContextStorage $runtimeContextStorage,
+    ): void {
+        Coroutine::afterCreated(static function () use ($runtimeContextStorage): void {
+            /** @var ArrayObject<string, mixed> $context */
+            $context = CoroutineContext::getContainer();
+
+            if (isset($context[HttpPoolTransport::DELIVERY_CONTEXT_KEY])) {
+                return;
+            }
+
+            /** @var null|ArrayObject<string, mixed> $parentContext */
+            $parentContext = CoroutineContext::getContainer(Coroutine::parentId());
+
+            /** @var null|list<Layer> $stack */
+            $stack = $context[Hub::CONTEXT_STACK_KEY]
+                ?? $parentContext[Hub::CONTEXT_STACK_KEY]
+                ?? null;
 
             if ($stack !== null) {
-                CoroutineContext::set(
-                    Hub::CONTEXT_STACK_KEY,
-                    array_map(
-                        static fn (Layer $layer): Layer => new Layer(
-                            $layer->getClient(),
-                            clone $layer->getScope(),
-                        ),
-                        $stack,
+                $context[Hub::CONTEXT_STACK_KEY] = array_map(
+                    static fn (Layer $layer): Layer => new Layer(
+                        $layer->getClient(),
+                        clone $layer->getScope(),
                     ),
+                    $stack,
                 );
             }
 
-            $request = CoroutineContext::get(Request::class)
-                ?? CoroutineContext::get(Request::class, null, $parentId);
+            /** @var ?Request $request */
+            $request = $context[Request::class]
+                ?? $parentContext[Request::class]
+                ?? null;
 
             if ($request !== null) {
-                CoroutineContext::set(Request::class, clone $request);
+                $context[Request::class] = clone $request;
+            }
+
+            if ($runtimeContextStorage->inheritFrom($context, $parentContext)) {
+                Coroutine::defer(static function (): void {
+                    SentrySdk::endContext();
+                });
             }
         });
     }
@@ -530,10 +612,8 @@ class SentryServiceProvider extends ServiceProvider
     /**
      * Boot all features.
      */
-    protected function bootFeatures(): void
+    protected function bootFeatures(bool $active): void
     {
-        $bootActive = $this->isActive();
-
         $features = $this->app->make('config')->array(static::$abstract . '.features');
 
         foreach ($features as $feature) {
@@ -541,13 +621,13 @@ class SentryServiceProvider extends ServiceProvider
                 /** @var Feature $featureInstance */
                 $featureInstance = $this->app->make($feature);
 
-                $bootActive
+                $active
                     ? $featureInstance->boot()
                     : $featureInstance->bootInactive();
             } catch (Throwable $exception) {
                 $this->reportFeatureFailure(
                     $feature,
-                    $bootActive ? 'boot' : 'bootInactive',
+                    $active ? 'boot' : 'bootInactive',
                     $exception,
                 );
             }
