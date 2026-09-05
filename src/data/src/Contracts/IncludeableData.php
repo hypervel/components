@@ -70,6 +70,11 @@ interface IncludeableData
     public function exceptWhen(string $except, bool|Closure $condition, bool $permanent = false): object;
 
     /**
+     * Determine whether this object has partial definitions.
+     */
+    public function hasPartialsDefinition(): bool;
+
+    /**
      * Get the current partial definitions.
      */
     public function getPartialsDefinition(): PartialsDefinition;

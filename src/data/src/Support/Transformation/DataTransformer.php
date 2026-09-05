@@ -31,6 +31,7 @@ use Hypervel\Data\Support\DataClassRepository;
 use Hypervel\Data\Support\DataConfig;
 use Hypervel\Data\Support\DataProperty;
 use Hypervel\Data\Support\Lazy\DefaultLazy;
+use Hypervel\Data\Support\Partials\PartialDefinition;
 use Hypervel\Data\Support\Types\Type;
 use Hypervel\Data\Support\Wrapping\WrapExecutionType;
 use Hypervel\Data\Transformers\Transformer;
@@ -78,7 +79,7 @@ class DataTransformer
      */
     public function defaultContext(object $data): TransformationContext
     {
-        if (! $data instanceof IncludeableData || $data->getPartialsDefinition()->isEmpty()) {
+        if (! $data instanceof IncludeableData || ! $data->hasPartialsDefinition()) {
             return $this->defaultContext;
         }
 
@@ -92,7 +93,7 @@ class DataTransformer
      */
     public function allContext(object $data): TransformationContext
     {
-        if (! $data instanceof IncludeableData || $data->getPartialsDefinition()->isEmpty()) {
+        if (! $data instanceof IncludeableData || ! $data->hasPartialsDefinition()) {
             return $this->allContext;
         }
 
@@ -191,7 +192,7 @@ class DataTransformer
         }
 
         // Raw storage keeps excluded property hooks from running as a side effect.
-        $values = get_mangled_object_vars($data);
+        $values = (array) $data;
         $transformed = [];
 
         foreach ($dataClass->properties as $property) {
@@ -268,6 +269,7 @@ class DataTransformer
         foreach ($rootItems ?? $this->collectableItems($data) as $key => $item) {
             if (! $context->transformValues) {
                 if ($context->hasPartials() && $item instanceof IncludeableData) {
+                    // Non-transforming root contexts compile their selections from these same definitions.
                     $item->getPartialsDefinition()->addResolved($context->partialDefinitions);
                 }
 
@@ -430,7 +432,7 @@ class DataTransformer
         array &$extensions,
     ): array {
         // Raw storage keeps uninitialized properties from invoking public access.
-        $values = get_mangled_object_vars($data);
+        $values = (array) $data;
         $transformed = [];
 
         foreach ($recipe->properties as $property) {
@@ -605,17 +607,14 @@ class DataTransformer
         BaseData|BaseDataCollectable $value,
         TransformationContext $context,
     ): TransformationContext {
-        if ($context->constructable || ! $value instanceof IncludeableData) {
+        if ($context->constructable
+            || ! $value instanceof IncludeableData
+            || ! $value->hasPartialsDefinition()
+        ) {
             return $context;
         }
 
-        $partialDefinitions = $value->getPartialsDefinition();
-
-        if ($partialDefinitions->isEmpty()) {
-            return $context;
-        }
-
-        return $context->withMergedPartials($partialDefinitions->resolve(
+        return $context->withMergedPartials($value->getPartialsDefinition()->resolve(
             $value,
             consumeTemporary: true,
         ));
@@ -834,9 +833,13 @@ class DataTransformer
             return;
         }
 
-        $value->getPartialsDefinition()->addResolved(
-            $context->partialsForNestedProperty($property),
-        );
+        $definitions = $context->partialsForNestedProperty($property);
+
+        if (! self::hasResolvedPartials($definitions)) {
+            return;
+        }
+
+        $value->getPartialsDefinition()->addResolved($definitions);
     }
 
     /**
@@ -853,11 +856,28 @@ class DataTransformer
 
         $definitions = $context->partialsForNestedProperty($property);
 
+        if (! self::hasResolvedPartials($definitions)) {
+            return;
+        }
+
         foreach ($items as $item) {
             if ($item instanceof IncludeableData) {
                 $item->getPartialsDefinition()->addResolved($definitions);
             }
         }
+    }
+
+    /**
+     * Determine whether a resolved partial set contains any definitions.
+     *
+     * @param array{include: list<PartialDefinition>, exclude: list<PartialDefinition>, only: list<PartialDefinition>, except: list<PartialDefinition>} $definitions
+     */
+    private static function hasResolvedPartials(array $definitions): bool
+    {
+        return $definitions['include'] !== []
+            || $definitions['exclude'] !== []
+            || $definitions['only'] !== []
+            || $definitions['except'] !== [];
     }
 
     /**
