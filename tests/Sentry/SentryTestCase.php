@@ -193,25 +193,32 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
         return self::$lastSentryEvents;
     }
 
+    /**
+     * Return captured Sentry events of the given type.
+     *
+     * @return list<array{0: Event, 1: null|EventHint}>
+     */
+    protected function getCapturedSentryEventsOfType(EventType $eventType): array
+    {
+        return array_values(array_filter(
+            self::$lastSentryEvents,
+            static fn (array $event): bool => $event[0]->getType() === $eventType,
+        ));
+    }
+
     protected function assertSentryEventCount(int $count): void
     {
-        $this->assertCount($count, array_filter(self::$lastSentryEvents, static function (array $event) {
-            return $event[0]->getType() === EventType::event();
-        }));
+        $this->assertCount($count, $this->getCapturedSentryEventsOfType(EventType::event()));
     }
 
     protected function assertSentryCheckInCount(int $count): void
     {
-        $this->assertCount($count, array_filter(self::$lastSentryEvents, static function (array $event) {
-            return $event[0]->getType() === EventType::checkIn();
-        }));
+        $this->assertCount($count, $this->getCapturedSentryEventsOfType(EventType::checkIn()));
     }
 
     protected function assertSentryTransactionCount(int $count): void
     {
-        $this->assertCount($count, array_filter(self::$lastSentryEvents, static function (array $event) {
-            return $event[0]->getType() === EventType::transaction();
-        }));
+        $this->assertCount($count, $this->getCapturedSentryEventsOfType(EventType::transaction()));
     }
 
     protected function startTransaction(): Transaction
