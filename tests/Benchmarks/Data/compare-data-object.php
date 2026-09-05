@@ -422,16 +422,21 @@ function measureCold(string $mode): array
 /**
  * Measure retained instance bytes over a large held set.
  *
- * @param Closure(int): object $factory
+ * @template TInstance of object
+ *
+ * @param Closure(int): TInstance $factory
+ * @param null|Closure(TInstance): void $prepare
  */
-function retainedInstanceBytes(Closure $factory): float
+function retainedInstanceBytes(Closure $factory, ?Closure $prepare = null): float
 {
     gc_collect_cycles();
     $baseline = memory_get_usage(false);
     $instances = [];
 
     for ($index = 1; $index <= 20_000; ++$index) {
-        $instances[] = $factory($index);
+        $instance = $factory($index);
+        $prepare?->__invoke($instance);
+        $instances[] = $instance;
     }
 
     $bytes = (memory_get_usage(false) - $baseline) / count($instances);
@@ -666,8 +671,31 @@ function execute(): void
             }
 
             printf("\nRetained instance bytes\n");
-            printf("%-38s %12.1f %12.1f\n", 'flat', retainedInstanceBytes(fn (int $id): OldFlat => OldFlat::from([...$flat, 'id' => $id])), retainedInstanceBytes(fn (int $id): NewFlat => NewFlat::from([...$flat, 'id' => $id])));
-            printf("%-38s %12.1f %12.1f\n", 'wide', retainedInstanceBytes(fn (int $id): OldWide => OldWide::from([...$wide, 'one' => $id])), retainedInstanceBytes(fn (int $id): NewWide => NewWide::from([...$wide, 'one' => $id])));
+            printf("%-38s %12s %12s\n", 'scenario', 'old', 'data');
+            printf("%-38s %12.1f %12.1f\n", 'flat, untransformed', retainedInstanceBytes(fn (int $id): OldFlat => OldFlat::from([...$flat, 'id' => $id])), retainedInstanceBytes(fn (int $id): NewFlat => NewFlat::from([...$flat, 'id' => $id])));
+            printf("%-38s %12.1f %12.1f\n", 'flat, transformed', retainedInstanceBytes(
+                fn (int $id): OldFlat => OldFlat::from([...$flat, 'id' => $id]),
+                static function (OldFlat $data): void {
+                    $data->toArray();
+                },
+            ), retainedInstanceBytes(
+                fn (int $id): NewFlat => NewFlat::from([...$flat, 'id' => $id]),
+                static function (NewFlat $data): void {
+                    $data->toArray();
+                },
+            ));
+            printf("%-38s %12.1f %12.1f\n", 'wide, untransformed', retainedInstanceBytes(fn (int $id): OldWide => OldWide::from([...$wide, 'one' => $id])), retainedInstanceBytes(fn (int $id): NewWide => NewWide::from([...$wide, 'one' => $id])));
+            printf("%-38s %12.1f %12.1f\n", 'wide, transformed', retainedInstanceBytes(
+                fn (int $id): OldWide => OldWide::from([...$wide, 'one' => $id]),
+                static function (OldWide $data): void {
+                    $data->toArray();
+                },
+            ), retainedInstanceBytes(
+                fn (int $id): NewWide => NewWide::from([...$wide, 'one' => $id]),
+                static function (NewWide $data): void {
+                    $data->toArray();
+                },
+            ));
 
             $repository = $application->make(DataClassRepository::class);
             $repository->get(NewWarm::class);
