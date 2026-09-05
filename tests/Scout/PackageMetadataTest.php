@@ -47,7 +47,7 @@ class PackageMetadataTest extends TestCase
             $this->assertNotSame('', trim($composer['require'][$dependency]));
         }
 
-        $this->assertSame('^7.15.1', $composer['require']['guzzlehttp/guzzle']);
+        $this->assertSame('^7.15.1 || ^8.0.2', $composer['require']['guzzlehttp/guzzle']);
         $this->assertSame('^2.0', $composer['require']['psr/http-message']);
 
         foreach ([

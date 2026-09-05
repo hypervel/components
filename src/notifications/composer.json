@@ -31,7 +31,7 @@
     "require": {
         "ext-mbstring": "*",
         "php": "^8.4",
-        "guzzlehttp/guzzle": "^7.15.1",
+        "guzzlehttp/guzzle": "^7.15.1 || ^8.0.2",
         "psr/http-message": "^2.0",
         "symfony/console": "^8.1",
         "symfony/mailer": "^8.1",

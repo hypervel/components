@@ -35,7 +35,7 @@
         "ext-pcntl": "*",
         "ext-posix": "*",
         "ext-swoole": "^6.2",
-        "guzzlehttp/guzzle": "^7.15.1",
+        "guzzlehttp/guzzle": "^7.15.1 || ^8.0.2",
         "nesbot/carbon": "^3.13.1",
         "nunomaduro/termwind": "^2.0",
         "psr/http-client": "^1.0",
