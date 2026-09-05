@@ -5,8 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use BadMethodCallException;
+use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Bus\Queueable;
+use Hypervel\Bus\UniqueLock;
+use Hypervel\Cache\Repository;
+use Hypervel\Cache\WorkerArrayStore;
+use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Foundation\Application;
 use Hypervel\Queue\CallQueuedClosure;
 use Hypervel\Queue\Jobs\InspectedJob;
@@ -429,6 +435,29 @@ class SupportTestingQueueFakeTest extends TestCase
             JobWithSerialization::class,
             fn ($job) => $job->value === 'hello-serialized-unserialized'
         );
+    }
+
+    public function testFakedUniqueJobAcceptsDispatchOwnershipUntilFakeCleanup(): void
+    {
+        $application = new Application;
+        $cache = new Repository(new WorkerArrayStore);
+        $application->instance(CacheContract::class, $cache);
+        $fake = new QueueFake($application);
+        $job = new QueueFakeUniqueJobStub;
+        $lock = new UniqueLock($cache);
+
+        $this->assertTrue($lock->acquireForDispatch($job));
+        $metadata = DispatchLockContext::peekPayloadMetadata($job);
+        $this->assertNotNull($metadata);
+
+        $fake->push($job);
+
+        $this->assertNull(DispatchLockContext::peekPayloadMetadata($job));
+        $this->assertFalse($lock->acquire(new QueueFakeUniqueJobStub));
+
+        $fake->releaseUniqueJobLocks();
+
+        $this->assertTrue($lock->acquire(new QueueFakeUniqueJobStub));
     }
 
     public function testItCanInvokeCallbacksBeforeAndAfterPushingFakedJobs(): void
@@ -997,4 +1026,9 @@ class JobWithSerialization
     {
         $this->value = $data['value'] . '-unserialized';
     }
+}
+
+class QueueFakeUniqueJobStub implements ShouldBeUnique
+{
+    use Queueable;
 }

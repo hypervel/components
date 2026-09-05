@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Data\Support;
 
 use Attribute;
+use DateTimeImmutable;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\ContextualAttribute;
@@ -18,10 +19,12 @@ use Hypervel\Data\Attributes\MapName;
 use Hypervel\Data\Attributes\MapOutputName;
 use Hypervel\Data\Attributes\MergeValidationRules;
 use Hypervel\Data\Attributes\WithCast;
+use Hypervel\Data\Attributes\WithTransformer;
 use Hypervel\Data\Casts\Cast;
 use Hypervel\Data\Contracts\PropertyMorphableData;
 use Hypervel\Data\Data;
 use Hypervel\Data\DataCollection;
+use Hypervel\Data\Enums\DataPropertyOperation;
 use Hypervel\Data\Exceptions\InvalidDataDeclaration;
 use Hypervel\Data\Lazy;
 use Hypervel\Data\Mappers\SnakeCaseMapper;
@@ -38,7 +41,9 @@ use Hypervel\Data\Support\Factories\DataParameterFactory;
 use Hypervel\Data\Support\Factories\DataPropertyFactory;
 use Hypervel\Data\Support\Factories\DataTypeFactory;
 use Hypervel\Data\Support\NameMapperResolver;
+use Hypervel\Data\Support\Transformation\TransformationContext;
 use Hypervel\Data\Support\Types\PhpDocTypeNameResolver;
+use Hypervel\Data\Transformers\Transformer;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Http\Attributes\ErrorBag;
@@ -55,6 +60,7 @@ use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use RuntimeException;
+use stdClass;
 
 class DataClassTest extends TestCase
 {
@@ -83,7 +89,9 @@ class DataClassTest extends TestCase
             'first_name' => 'firstName',
             'last_name' => 'lastName',
         ], $class->outputMappedProperties);
-        $this->assertFalse($class->plainTransform);
+        $this->assertFalse($class->bulkCopyTransformation);
+        $this->assertNotNull($class->transformationRecipe);
+        $this->assertNotNull($class->creationRecipe);
         $this->assertTrue($class->directConstructorInstantiation);
     }
 
@@ -103,7 +111,8 @@ class DataClassTest extends TestCase
         $this->assertTrue($class->properties['normalizedName']->hasDefaultValue);
         $this->assertFalse($class->properties['unbound']->isConstructorParameter);
         $this->assertTrue($class->properties['unbound']->hasDefaultValue);
-        $this->assertTrue($class->plainTransform);
+        $this->assertTrue($class->bulkCopyTransformation);
+        $this->assertNull($class->transformationRecipe);
     }
 
     /**
@@ -115,6 +124,71 @@ class DataClassTest extends TestCase
 
         $this->assertFalse($class->properties['name']->computed);
         $this->assertFalse($class->properties['name']->hasGetHook);
+    }
+
+    /**
+     * Test lean recipes retain ordered property operations and exact construction targets.
+     */
+    public function testLeanRecipesCompileOrderedPropertyMetadata(): void
+    {
+        $class = $this->factory()->build(new ReflectionClass(RecipeMetadataDataFixture::class));
+
+        $this->assertSame(
+            ['id', 'status', 'createdAt', 'child', 'displayName', 'secret'],
+            array_column($class->creationRecipe?->properties ?? [], 'name'),
+        );
+        $this->assertSame([
+            ['id', DataPropertyOperation::Builtin, 'int'],
+            ['status', DataPropertyOperation::Enum, RecipeMetadataStatus::class],
+            ['createdAt', DataPropertyOperation::Date, DateTimeImmutable::class],
+            ['child', DataPropertyOperation::Data, RecipeMetadataChildFixture::class],
+            ['displayName', DataPropertyOperation::Builtin, 'string'],
+            ['secret', DataPropertyOperation::Builtin, 'string'],
+        ], array_map(
+            static fn (DataProperty $property): array => [
+                $property->name,
+                $property->constructionOperation,
+                $property->constructionTarget,
+            ],
+            $class->creationRecipe?->properties ?? [],
+        ));
+
+        $this->assertSame(
+            ['id', 'status', 'createdAt', 'child', 'displayName'],
+            array_column($class->transformationRecipe?->properties ?? [], 'name'),
+        );
+        $this->assertSame([
+            DataPropertyOperation::Copy,
+            DataPropertyOperation::Enum,
+            DataPropertyOperation::Date,
+            DataPropertyOperation::Data,
+            DataPropertyOperation::Copy,
+        ], array_column($class->transformationRecipe?->properties ?? [], 'transformationOperation'));
+        $this->assertFalse($class->bulkCopyTransformation);
+
+        $arbitraryObject = $this->factory()->build(new ReflectionClass(ArbitraryObjectDataFixture::class));
+
+        $this->assertNotNull($arbitraryObject->creationRecipe);
+        $this->assertSame(DataPropertyOperation::Copy, $arbitraryObject->properties['value']->constructionOperation);
+        $this->assertFalse($arbitraryObject->bulkCopyTransformation);
+        $this->assertNull($arbitraryObject->transformationRecipe);
+    }
+
+    /**
+     * Test bulk-copy metadata depends on the complete transformation classifier.
+     */
+    public function testBulkCopyMetadataDistinguishesArrayAndExtensionShapes(): void
+    {
+        $plainArray = $this->factory()->build(new ReflectionClass(PlainArrayTransformationFixture::class));
+        $transformed = $this->factory()->build(new ReflectionClass(PropertyTransformerDataFixture::class));
+        $annotated = $this->factory()->build(new ReflectionClass(AnnotatedDataArrayFixture::class));
+
+        $this->assertTrue($plainArray->bulkCopyTransformation);
+        $this->assertNull($plainArray->transformationRecipe);
+        $this->assertFalse($transformed->bulkCopyTransformation);
+        $this->assertNull($transformed->transformationRecipe);
+        $this->assertFalse($annotated->bulkCopyTransformation);
+        $this->assertNull($annotated->transformationRecipe);
     }
 
     /**
@@ -146,26 +220,26 @@ class DataClassTest extends TestCase
         $this->assertFalse($promoted->properties['userId']->validate);
         $this->assertSame(ContextualValue::class, $promoted->constructorParameters[0]->contextualAttribute?->getName());
         $this->assertSame(['userId' => true], $promoted->contextualParameters);
-        $this->assertFalse($promoted->directArrayCreation);
+        $this->assertNull($promoted->creationRecipe);
         $this->assertFalse($promoted->directConstructorInstantiation);
         $this->assertFalse($constructorOnly->properties['name']->isConstructorParameter);
         $this->assertTrue($constructorOnly->properties['name']->validate);
         $this->assertSame('userId', $constructorOnly->constructorParameters[0]->name);
         $this->assertSame(['userId' => true], $constructorOnly->contextualParameters);
-        $this->assertFalse($constructorOnly->directArrayCreation);
+        $this->assertNull($constructorOnly->creationRecipe);
         $this->assertFalse($constructorOnly->directConstructorInstantiation);
         $this->assertSame(['userId' => true], $defaultedConstructorOnly->contextualParameters);
-        $this->assertFalse($defaultedConstructorOnly->directArrayCreation);
+        $this->assertNull($defaultedConstructorOnly->creationRecipe);
         $this->assertFalse($defaultedConstructorOnly->directConstructorInstantiation);
     }
 
     /**
      * Test direct array creation requires a fixed array-safe class shape.
      */
-    public function testDirectArrayCreationEligibilityUsesCompiledClassAndPropertyFacts(): void
+    public function testCreationRecipeEligibilityUsesCompiledClassAndPropertyFacts(): void
     {
-        $this->assertTrue(
-            $this->factory()->build(new ReflectionClass(DirectArrayCreationDataFixture::class))->directArrayCreation,
+        $this->assertNotNull(
+            $this->factory()->build(new ReflectionClass(DirectArrayCreationDataFixture::class))->creationRecipe,
         );
 
         foreach ([
@@ -179,8 +253,8 @@ class DataClassTest extends TestCase
             DataCollectableDirectArrayCreationDataFixture::class,
             TypedIterableDirectArrayCreationDataFixture::class,
         ] as $class) {
-            $this->assertFalse(
-                $this->factory()->build(new ReflectionClass($class))->directArrayCreation,
+            $this->assertNull(
+                $this->factory()->build(new ReflectionClass($class))->creationRecipe,
                 $class,
             );
         }
@@ -189,7 +263,7 @@ class DataClassTest extends TestCase
     /**
      * Test configured creation extensions disable the direct array path.
      */
-    public function testDirectArrayCreationEligibilityUsesBootConfiguration(): void
+    public function testCreationRecipeEligibilityUsesBootConfiguration(): void
     {
         $configuredCast = $this->factory([
             'casts' => ['string' => DirectArrayCreationCast::class],
@@ -198,8 +272,8 @@ class DataClassTest extends TestCase
             'normalizers' => [DirectArrayCreationNormalizer::class],
         ])->build(new ReflectionClass(DirectArrayCreationDataFixture::class));
 
-        $this->assertFalse($configuredCast->directArrayCreation);
-        $this->assertFalse($configuredNormalizer->directArrayCreation);
+        $this->assertNull($configuredCast->creationRecipe);
+        $this->assertNull($configuredNormalizer->creationRecipe);
     }
 
     /**
@@ -472,6 +546,80 @@ class DirectArrayCreationDataFixture extends Data
      */
     public function __construct(public string $value = 'default')
     {
+    }
+}
+
+enum RecipeMetadataStatus: string
+{
+    case Active = 'active';
+}
+
+class RecipeMetadataChildFixture extends Data
+{
+    /**
+     * Create a new recipe metadata child fixture.
+     */
+    public function __construct(public int $id)
+    {
+    }
+}
+
+class RecipeMetadataDataFixture extends Data
+{
+    /**
+     * Create a new recipe metadata fixture.
+     */
+    public function __construct(
+        public int $id,
+        public RecipeMetadataStatus $status,
+        public DateTimeImmutable $createdAt,
+        public RecipeMetadataChildFixture $child,
+        #[MapOutputName('display_name')]
+        public string $displayName,
+        #[Hidden]
+        public string $secret,
+    ) {
+    }
+}
+
+class ArbitraryObjectDataFixture extends Data
+{
+    /**
+     * Create a new arbitrary-object fixture.
+     */
+    public function __construct(public stdClass $value)
+    {
+    }
+}
+
+class PlainArrayTransformationFixture extends Data
+{
+    public array $values = [];
+}
+
+class PropertyTransformerDataFixture extends Data
+{
+    #[WithTransformer(DataClassTransformerFixture::class)]
+    public string $value = 'value';
+}
+
+class AnnotatedDataArrayFixture extends Data
+{
+    /** @var list<RecipeMetadataChildFixture> */
+    public array $values = [];
+}
+
+class DataClassTransformerFixture implements Transformer
+{
+    /**
+     * Transform the fixture value.
+     */
+    public function transform(
+        DataProperty $property,
+        mixed $value,
+        TransformationContext $context,
+    ): mixed {
+        return $value;
     }
 }
 

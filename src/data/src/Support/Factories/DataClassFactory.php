@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Data\Support\Factories;
 
+use BackedEnum;
+use DateTimeInterface;
 use Hypervel\Data\Attributes\AutoLazy;
 use Hypervel\Data\Attributes\MergeValidationRules;
 use Hypervel\Data\Contracts\AppendableData;
@@ -18,18 +20,23 @@ use Hypervel\Data\Contracts\WrappableData;
 use Hypervel\Data\Data;
 use Hypervel\Data\Dto;
 use Hypervel\Data\Enums\CustomCreationMethodType;
+use Hypervel\Data\Enums\DataPropertyOperation;
 use Hypervel\Data\Exceptions\InvalidDataDeclaration;
+use Hypervel\Data\Lazy;
 use Hypervel\Data\Mappers\NameMapper;
 use Hypervel\Data\Mappers\ProvidedNameMapper;
+use Hypervel\Data\Optional;
 use Hypervel\Data\Resource;
 use Hypervel\Data\Support\Annotations\DataIterableAnnotation;
 use Hypervel\Data\Support\Annotations\DataIterableAnnotationReader;
+use Hypervel\Data\Support\Creation\DataCreationRecipe;
 use Hypervel\Data\Support\DataClass;
 use Hypervel\Data\Support\DataConfig;
 use Hypervel\Data\Support\DataMethod;
 use Hypervel\Data\Support\DataParameter;
 use Hypervel\Data\Support\DataProperty;
 use Hypervel\Data\Support\NameMapperResolver;
+use Hypervel\Data\Support\Transformation\DataTransformationRecipe;
 use Hypervel\Foundation\Http\Attributes\ErrorBag;
 use Hypervel\Foundation\Http\Attributes\FailOnUnknownFields;
 use Hypervel\Foundation\Http\Attributes\RedirectTo;
@@ -37,8 +44,13 @@ use Hypervel\Foundation\Http\Attributes\RedirectToRoute;
 use Hypervel\Foundation\Http\Attributes\StopOnFirstFailure;
 use ReflectionAttribute;
 use ReflectionClass;
+use ReflectionIntersectionType;
 use ReflectionMethod;
+use ReflectionNamedType;
+use ReflectionParameter;
 use ReflectionProperty;
+use ReflectionType;
+use ReflectionUnionType;
 
 class DataClassFactory
 {
@@ -106,6 +118,9 @@ class DataClassFactory
         $redirectRoute = $attributes->first(RedirectToRoute::class)?->newInstance();
         $lifecycleMethods = $this->resolveLifecycleMethods($reflectionClass);
         $propertyMorphable = $reflectionClass->implementsInterface(PropertyMorphableData::class);
+        $transformationRecipe = $this->resolveTransformationRecipe($properties);
+        $bulkCopyTransformation = $transformationRecipe !== null
+            && $this->supportsBulkCopyTransformation($properties);
 
         return new DataClass(
             name: $name,
@@ -132,8 +147,9 @@ class DataClassFactory
             errorBag: $errorBag?->name,
             redirect: $redirect?->url,
             redirectRoute: $redirectRoute?->route,
-            plainTransform: $this->isPlainTransform($properties),
-            directArrayCreation: $this->supportsDirectArrayCreation(
+            bulkCopyTransformation: $bulkCopyTransformation,
+            transformationRecipe: $bulkCopyTransformation ? null : $transformationRecipe,
+            creationRecipe: $this->resolveCreationRecipe(
                 $reflectionClass,
                 $contextualParameters,
                 $properties,
@@ -260,9 +276,12 @@ class DataClassFactory
         ?ReflectionAttribute $classAutoLazy,
     ): array {
         $constructorAnnotations = $constructor === null
+            || ! $this->hasIterableAnnotationCandidate($constructor->getParameters())
             ? []
             : $this->iterableAnnotationReader->getForMethod($constructor);
-        $classAnnotations = $this->resolveClassAnnotations($reflectionClass);
+        $classAnnotations = $this->hasIterableAnnotationCandidate($reflectionProperties)
+            ? $this->resolveClassAnnotations($reflectionClass)
+            : [];
         $properties = [];
         $selectedAnnotations = [];
 
@@ -272,7 +291,9 @@ class DataClassFactory
                 && ($parameter->isPromoted || $parameter->contextualAttribute === null)
                     ? $parameter
                     : null;
-            $propertyAnnotations = $this->iterableAnnotationReader->getForProperty($reflectionProperty);
+            $propertyAnnotations = $this->typeCanUseIterableAnnotation($reflectionProperty->getType())
+                ? $this->iterableAnnotationReader->getForProperty($reflectionProperty)
+                : [];
             $annotations = $constructorParameter === null
                 ? []
                 : ($constructorAnnotations[$name] ?? []);
@@ -322,6 +343,58 @@ class DataClassFactory
         }
 
         return [$properties, $selectedAnnotations];
+    }
+
+    /**
+     * Determine if any declaration can use iterable item metadata.
+     *
+     * @param iterable<ReflectionParameter|ReflectionProperty> $declarations
+     */
+    protected function hasIterableAnnotationCandidate(iterable $declarations): bool
+    {
+        foreach ($declarations as $declaration) {
+            if ($this->typeCanUseIterableAnnotation($declaration->getType())) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Determine if a native type can use iterable item metadata.
+     */
+    protected function typeCanUseIterableAnnotation(?ReflectionType $type): bool
+    {
+        if ($type === null) {
+            return true;
+        }
+
+        if ($type instanceof ReflectionUnionType || $type instanceof ReflectionIntersectionType) {
+            foreach ($type->getTypes() as $namedType) {
+                if ($this->typeCanUseIterableAnnotation($namedType)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if (! $type instanceof ReflectionNamedType) {
+            return true;
+        }
+
+        $name = $type->getName();
+
+        if ($type->isBuiltin()) {
+            return in_array($name, ['array', 'iterable', 'mixed', 'object', 'callable'], true);
+        }
+
+        return ! is_a($name, BaseData::class, true)
+            && ! is_a($name, DateTimeInterface::class, true)
+            && ! is_a($name, BackedEnum::class, true)
+            && ! is_a($name, Optional::class, true)
+            && ! is_a($name, Lazy::class, true);
     }
 
     /**
@@ -477,29 +550,29 @@ class DataClassFactory
     }
 
     /**
-     * Determine if exact array values can bypass general construction.
+     * Resolve a fixed construction recipe for an eligible declaration.
      *
      * @param ReflectionClass<object> $reflectionClass
      * @param array<string, true> $contextualParameters
      * @param array<string, DataProperty> $properties
      * @param array<string, true> $lifecycleMethods
      */
-    protected function supportsDirectArrayCreation(
+    protected function resolveCreationRecipe(
         ReflectionClass $reflectionClass,
         array $contextualParameters,
         array $properties,
         array $lifecycleMethods,
         bool $propertyMorphable,
-    ): bool {
+    ): ?DataCreationRecipe {
         if ($reflectionClass->isAbstract()
             || $propertyMorphable
             || isset($lifecycleMethods['normalizers'])
             || $this->config->normalizers !== []) {
-            return false;
+            return null;
         }
 
         if ($contextualParameters !== []) {
-            return false;
+            return null;
         }
 
         foreach ($properties as $property) {
@@ -509,15 +582,15 @@ class DataClassFactory
                 || $property->configuredCasts !== []
                 || $property->type->getDataCollectableTypes() !== []
                 || $property->type->getIterableTypes() !== []) {
-                return false;
+                return null;
             }
         }
 
-        return true;
+        return new DataCreationRecipe(array_values($properties));
     }
 
     /**
-     * Determine if exact array values can be spread directly into the constructor.
+     * Determine if resolved recipe values can be spread directly into the constructor.
      *
      * @param ReflectionClass<object> $reflectionClass
      * @param array<string, true> $contextualParameters
@@ -545,30 +618,48 @@ class DataClassFactory
     }
 
     /**
-     * Determine if declared values can be copied directly during transformation.
+     * Resolve a fixed transformation recipe for an eligible declaration.
      *
      * @param array<string, DataProperty> $properties
      */
-    protected function isPlainTransform(array $properties): bool
+    protected function resolveTransformationRecipe(array $properties): ?DataTransformationRecipe
     {
+        $visibleProperties = [];
+
         foreach ($properties as $property) {
-            if ($property->hidden
-                || $property->outputMappedName !== null
+            if ($property->hidden) {
+                continue;
+            }
+
+            if ($property->transformationOperation === null
                 || $property->transformer !== null
                 || $property->configuredTransformers !== []
                 || $property->type->lazyType !== null
                 || $property->type->isOptional
-                || $property->type->isMixed) {
-                return false;
+                || $property->type->isMixed
+                || $property->type->getDataCollectableTypes() !== []
+                || $property->type->getIterableTypes() !== []) {
+                return null;
             }
 
-            foreach ($property->type->getNamedTypes() as $type) {
-                if (! $type->builtIn
-                    || $type->kind->isNonDataIterable()
-                    || $type->kind->isDataRelated()
-                    || $type->name === 'object') {
-                    return false;
-                }
+            $visibleProperties[] = $property;
+        }
+
+        return new DataTransformationRecipe(properties: $visibleProperties);
+    }
+
+    /**
+     * Determine if declared values can be copied directly during transformation.
+     *
+     * @param array<string, DataProperty> $properties
+     */
+    protected function supportsBulkCopyTransformation(array $properties): bool
+    {
+        foreach ($properties as $property) {
+            if ($property->hidden
+                || $property->outputMappedName !== null
+                || $property->transformationOperation !== DataPropertyOperation::Copy) {
+                return false;
             }
         }
 

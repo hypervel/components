@@ -26,6 +26,7 @@ use Hypervel\Data\Contracts\PropertyMorphableData;
 use Hypervel\Data\CursorPaginatedDataCollection;
 use Hypervel\Data\DataCollection;
 use Hypervel\Data\Enums\CustomCreationMethodType;
+use Hypervel\Data\Enums\DataPropertyOperation;
 use Hypervel\Data\Exceptions\CannotCreateAbstractClass;
 use Hypervel\Data\Exceptions\CannotCreateData;
 use Hypervel\Data\Exceptions\CannotCreateDataCollectable;
@@ -57,10 +58,14 @@ use Hypervel\Support\LazyCollection;
 use Traversable;
 
 use function data_set;
+use function Hypervel\Support\enum_try_from;
 
 /** @phpstan-type OperationMemo array<string, object|list<Normalizer>> */
 class DataCreator
 {
+    /** @var array<class-string<BaseData>, CreationContext> */
+    protected array $defaultContexts = [];
+
     /**
      * Create a data creator.
      */
@@ -84,7 +89,16 @@ class DataCreator
      */
     public function factory(string $class): CreationContextFactory
     {
-        return new CreationContextFactory($this, $this->config, $class);
+        $factory = new CreationContextFactory(
+            $this,
+            $this->config,
+            $class,
+            $this->defaultContexts[$class] ?? null,
+        );
+
+        $this->defaultContexts[$class] ??= $factory->get();
+
+        return $factory;
     }
 
     /**
@@ -159,9 +173,10 @@ class DataCreator
 
         if ($replay !== null && ! $property->isFinishedValue($value)) {
             $wireKey = $state->originalKey($propertyName);
+            $inputPath = $property->inputPath($wireKey);
             $this->fillResolvedProperty(
                 $property,
-                $property->inputPath($wireKey),
+                $inputPath,
                 $value,
                 $state,
                 $extensions,
@@ -169,6 +184,7 @@ class DataCreator
                 false,
                 $replay === AutoLazyReplayMode::Hook,
             );
+            $value = $state->getValue($inputPath);
         }
 
         return $this->castProperty($property, $value, $state, $extensions);
@@ -315,7 +331,7 @@ class DataCreator
                 return $this->createUnvalidatedNode(
                     $class,
                     $context,
-                    $item,
+                    [$item],
                     $extensions,
                 );
             },
@@ -328,23 +344,48 @@ class DataCreator
      * @template TData of BaseData
      *
      * @param class-string<TData> $class
+     * @param array<array-key, mixed> $payloads caller keys remain meaningful until named factory matching
      * @param OperationMemo $extensions
      * @return TData
      */
     protected function createUnvalidatedNode(
         string $class,
         CreationContext $context,
-        mixed $item,
+        array $payloads,
         array &$extensions,
     ): BaseData {
-        if ($item instanceof $class) {
-            return $item;
+        if (count($payloads) === 1) {
+            $key = array_key_first($payloads);
+
+            if ($payloads[$key] instanceof $class) {
+                return $payloads[$key];
+            }
+        }
+
+        $dataClass = $this->dataClasses->get($class);
+        $payloads = $this->resolveFactoryPayloads($dataClass, $context, $payloads);
+
+        if ($payloads instanceof BaseData) {
+            return $payloads;
+        }
+
+        $direct = $this->tryCreateDirectArrayNode(
+            $dataClass,
+            $payloads,
+            $context,
+            $extensions,
+            false,
+            false,
+        );
+
+        if ($direct !== null) {
+            return $direct;
         }
 
         $state = ConstructionState::create($context, $class);
-        $direct = $this->fillNode(
-            $class,
-            [$item],
+        $this->fillGeneralNode(
+            $dataClass,
+            $payloads,
             $state,
             $extensions,
             false,
@@ -353,7 +394,7 @@ class DataCreator
 
         // Named factories, morph selection, instantiation, and after-creation hooks all enforce this class.
         /** @var TData $data */
-        $data = $direct ?? $this->castAndInstantiateNode($state, $extensions);
+        $data = $this->castAndInstantiateNode($state, $extensions);
 
         return $data;
     }
@@ -593,12 +634,22 @@ class DataCreator
         $shouldValidate = $context->mode !== CreationMode::Rules
             && $this->validator->shouldValidate($context, $payloads);
         $compilesRules = $shouldValidate || $context->mode === CreationMode::Rules;
+
+        $extensions = [];
+
+        if ($context->mode === CreationMode::Create
+            && count($payloads) === 1
+            && ! $shouldValidate
+            && ! $compilesRules
+        ) {
+            return $this->createUnvalidatedNode($class, $context, $payloads, $extensions);
+        }
+
         $request = $shouldValidate
             ? $this->validator->authorize($class, $payloads)
             : null;
 
         $state = ConstructionState::create($context, $class);
-        $extensions = [];
         $direct = $this->fillNode(
             $class,
             $payloads,
@@ -669,26 +720,17 @@ class DataCreator
         bool $compilesRules,
     ): ?BaseData {
         $dataClass = $this->dataClasses->get($class);
-        $match = $this->matchNamedFactory($dataClass, $state->context, $payloads);
+        $payloads = $this->resolveFactoryPayloads($dataClass, $state->context, $payloads);
 
-        if ($match !== null) {
-            $result = $this->invokeNamedFactory($dataClass, ...$match);
-
-            if ($result instanceof $class) {
-                return $result;
-            }
-
-            $payloads = [$result];
-        }
-
-        if (! array_is_list($payloads)) {
-            $payloads = array_values($payloads);
+        if ($payloads instanceof BaseData) {
+            return $payloads;
         }
 
         $direct = $this->tryCreateDirectArrayNode(
             $dataClass,
             $payloads,
-            $state,
+            $state->context,
+            $extensions,
             $shouldValidate,
             $compilesRules,
         );
@@ -697,6 +739,33 @@ class DataCreator
             return $direct;
         }
 
+        $this->fillGeneralNode(
+            $dataClass,
+            $payloads,
+            $state,
+            $extensions,
+            $shouldValidate,
+            $compilesRules,
+        );
+
+        return null;
+    }
+
+    /**
+     * Fill one post-factory value through the general construction path.
+     *
+     * @param array<array-key, mixed> $payloads
+     * @param OperationMemo $extensions
+     */
+    protected function fillGeneralNode(
+        DataClass $dataClass,
+        array $payloads,
+        ConstructionState $state,
+        array &$extensions,
+        bool $shouldValidate,
+        bool $compilesRules,
+    ): void {
+        $class = $dataClass->name;
         $normalizers = $this->resolveNormalizers($dataClass, $state->context, $extensions);
         $payloads = $payloads === [] ? [[]] : $payloads;
         $sources = [];
@@ -750,30 +819,29 @@ class DataCreator
             $compilesRules,
             false,
         );
-
-        return null;
     }
 
     /**
-     * Create one exact array node without entering the general Fill path.
+     * Create one fixed array node without entering the general Fill path.
      *
-     * A miss remains in the current invocation so a named factory is never matched twice.
+     * The complete node is checked before conversion so a later miss cannot repeat a
+     * nested factory, hook, or constructor when the caller enters general Fill.
      *
      * @param array<array-key, mixed> $payloads
+     * @param OperationMemo $extensions
      */
     protected function tryCreateDirectArrayNode(
         DataClass $dataClass,
         array $payloads,
-        ConstructionState $state,
+        CreationContext $context,
+        array &$extensions,
         bool $shouldValidate,
         bool $compilesRules,
     ): ?BaseData {
-        $context = $state->context;
-
         if ($context->mode !== CreationMode::Create
             || $shouldValidate
             || $compilesRules
-            || ! $dataClass->directArrayCreation
+            || $dataClass->creationRecipe === null
             || count($payloads) !== 1
             || $context->normalizers !== []
             || $context->casts !== []
@@ -790,11 +858,26 @@ class DataCreator
         }
 
         $properties = [];
+        $conversions = [];
+        $requiresOrdinaryInstantiation = false;
 
-        foreach ($dataClass->properties as $property) {
+        foreach ($dataClass->creationRecipe->properties as $property) {
             $mappedKey = $this->propertyInputKey($property, $context);
-            $match = $this->matchPropertySource($payload, $property, $mappedKey);
-            $value = $match === null ? UnknownProperty::create() : $match[1];
+
+            // This recipe only accepts arrays, so one-segment paths do not need SourceReader's Normalized branch.
+            $value = $context->mapPropertyNames
+                && $property->inputMappedPath !== null
+                && count($property->inputMappedPath) > 1
+                    ? SourceReader::read($payload, $property->inputMappedPath, $property)
+                    : (array_key_exists($mappedKey, $payload)
+                        ? $payload[$mappedKey]
+                        : UnknownProperty::create());
+
+            if ($value instanceof UnknownProperty && $mappedKey !== $property->name) {
+                $value = array_key_exists($property->name, $payload)
+                    ? $payload[$property->name]
+                    : UnknownProperty::create();
+            }
 
             if ($value instanceof UnknownProperty) {
                 // Computed values are assigned by the class and never enter construction input.
@@ -818,11 +901,13 @@ class DataCreator
                     continue;
                 }
 
-                return null;
+                $requiresOrdinaryInstantiation = true;
+
+                continue;
             }
 
             if ($property->computed) {
-                return null;
+                throw CannotSetComputedValue::create($property);
             }
 
             if ($value === null || $value instanceof Optional) {
@@ -831,14 +916,39 @@ class DataCreator
                 continue;
             }
 
-            if (! $property->type->acceptsValue($value)) {
-                return null;
+            // Null and Optional values exited above, so DataType's wrapper checks are redundant here.
+            if (! $property->type->type->acceptsValue($value)) {
+                $operation = $property->constructionOperation;
+
+                if ($operation === DataPropertyOperation::Copy) {
+                    return null;
+                }
+
+                $conversions[] = [$property, $value, $operation];
+
+                continue;
             }
 
             $properties[$property->name] = $value;
         }
 
-        return $dataClass->directConstructorInstantiation
+        foreach ($conversions as [$property, $value, $operation]) {
+            // Targetless families compile to Copy and return before reaching conversion.
+            $target = $property->constructionTarget;
+            $properties[$property->name] = match ($operation) {
+                DataPropertyOperation::Builtin => ValueCaster::castBuiltin($target, $value),
+                DataPropertyOperation::Enum => ValueCaster::castEnum($target, $value, $property),
+                DataPropertyOperation::Date => ValueCaster::castDate($target, $value, $context),
+                DataPropertyOperation::Data => $this->createUnvalidatedNode(
+                    $target,
+                    $context,
+                    [$value],
+                    $extensions,
+                ),
+            };
+        }
+
+        return $dataClass->directConstructorInstantiation && ! $requiresOrdinaryInstantiation
             ? $this->instantiator->instantiateDirect($dataClass, $properties)
             : $this->instantiator->instantiate($dataClass, $properties);
     }
@@ -1818,7 +1928,7 @@ class DataCreator
             throw CannotCreateData::ambiguousDataCollectableUnion($property, $candidates);
         }
 
-        // The exact-array exit relies on accepted values passing before the fallback conversions below.
+        // The lean recipe relies on accepted values passing before the fallback conversions below.
         if ($property->type->acceptsValue($value)) {
             return $value;
         }
@@ -1935,7 +2045,7 @@ class DataCreator
                     return $this->createUnvalidatedNode(
                         $dataClass,
                         $state->context,
-                        $item,
+                        [$item],
                         $extensions,
                     );
                 },
@@ -1967,7 +2077,7 @@ class DataCreator
                         ? $this->createUnvalidatedNode(
                             $dataClass,
                             $state->context,
-                            $item,
+                            [$item],
                             $extensions,
                         )
                         : $this->castAndInstantiateNode($state, $extensions);
@@ -2501,6 +2611,35 @@ class DataCreator
     }
 
     /**
+     * Resolve a named factory and normalize its remaining payloads.
+     *
+     * Caller keys remain meaningful through factory matching and are discarded afterwards.
+     *
+     * @param array<array-key, mixed> $payloads
+     * @return BaseData|list<mixed>
+     */
+    protected function resolveFactoryPayloads(
+        DataClass $dataClass,
+        CreationContext $context,
+        array $payloads,
+    ): BaseData|array {
+        $class = $dataClass->name;
+        $match = $this->matchNamedFactory($dataClass, $context, $payloads);
+
+        if ($match !== null) {
+            $result = $this->invokeNamedFactory($dataClass, ...$match);
+
+            if ($result instanceof $class) {
+                return $result;
+            }
+
+            $payloads = [$result];
+        }
+
+        return array_is_list($payloads) ? $payloads : array_values($payloads);
+    }
+
+    /**
      * Find the first compatible named collection factory.
      */
     protected function matchNamedCollectionFactory(
@@ -2582,8 +2721,8 @@ class DataCreator
 
             $enum = $property->type->findAcceptedTypeForBaseType(BackedEnum::class);
 
-            if ($enum !== null && (is_int($value) || is_string($value))) {
-                $value = $enum::tryFrom($value) ?? $value;
+            if ($enum !== null) {
+                $value = enum_try_from($enum, $value) ?? $value;
             }
 
             $properties[$property->name] = $value;

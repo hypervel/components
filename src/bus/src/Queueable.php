@@ -52,6 +52,11 @@ trait Queueable
     public string $debounceOwner = '';
 
     /**
+     * The owner of the unique job lock.
+     */
+    public string $uniqueLockOwner = '';
+
+    /**
      * The number of seconds before the job should be made available.
      */
     public array|DateInterval|DateTimeInterface|int|null $delay = null;

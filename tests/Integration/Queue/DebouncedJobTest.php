@@ -19,6 +19,7 @@ use Hypervel\Queue\Attributes\DebounceFor;
 use Hypervel\Queue\Events\JobDebounced;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\Cache as CacheFacade;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Queue;
@@ -175,6 +176,23 @@ class DebouncedJobTest extends QueueTestCase
         Queue::assertPushed(DebouncedTestJob::class);
     }
 
+    public function testBusFakeRetainsDebounceMaximumWaitState(): void
+    {
+        Bus::fake();
+
+        $pending = dispatch(new DebouncedWithMaxWaitJob('entity-1'));
+        unset($pending);
+
+        $this->travelDebounceTo(CarbonImmutable::now()->addSeconds(61));
+
+        $job = new DebouncedWithMaxWaitJob('entity-1');
+        $pending = dispatch($job);
+        unset($pending);
+
+        $this->assertSame(0, $job->delay);
+        Bus::assertDispatchedTimes(DebouncedWithMaxWaitJob::class, 2);
+    }
+
     public function testJobExecutesWhenCacheTokenIsEvicted(): void
     {
         DebouncedTestJob::resetState();
@@ -265,6 +283,42 @@ class DebouncedJobTest extends QueueTestCase
 
         $this->travelDebounceTo(CarbonImmutable::now()->addSeconds(11));
         $job = new DebouncedWithMaxWaitJob('entity-1');
+        $pending = dispatch($job);
+        unset($pending);
+
+        $this->assertSame(0, $job->delay);
+    }
+
+    public function testMaxDebounceWaitStartsOverAfterTheDebouncedJobRuns(): void
+    {
+        DebouncedWithMaxWaitJob::resetState();
+
+        dispatch(new DebouncedWithMaxWaitJob('entity-1'));
+
+        $this->travelDebounceTo(CarbonImmutable::now()->addSeconds(31));
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->assertSame(1, DebouncedWithMaxWaitJob::$handleCount);
+
+        $this->travelDebounceTo(CarbonImmutable::now()->addSeconds(61));
+
+        $job = new DebouncedWithMaxWaitJob('entity-1');
+        $pending = dispatch($job);
+        unset($pending);
+
+        $this->assertSame(30, $job->delay);
+    }
+
+    public function testMaxDebounceWaitIsNotReleasedWhenMiddlewareReleasesTheJob(): void
+    {
+        dispatch(new DebouncedWithReleasingMiddlewareJob('entity-1'));
+
+        $this->travelDebounceTo(CarbonImmutable::now()->addSeconds(31));
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->travelDebounceTo(CarbonImmutable::now()->addSeconds(30));
+
+        $job = new DebouncedWithReleasingMiddlewareJob('entity-1');
         $pending = dispatch($job);
         unset($pending);
 
@@ -481,6 +535,40 @@ class DebouncedWithMaxWaitJob implements ShouldQueue
     public function handle(): void
     {
         ++static::$handleCount;
+    }
+}
+
+#[DebounceFor(30, maxWait: 60)]
+class DebouncedWithReleasingMiddlewareJob implements ShouldQueue
+{
+    use Dispatchable;
+    use InteractsWithQueue;
+    use Queueable;
+
+    public function __construct(public string $entityId)
+    {
+    }
+
+    public function debounceId(): string
+    {
+        return $this->entityId;
+    }
+
+    public function middleware(): array
+    {
+        return [new ReleaseDebouncedJobMiddleware];
+    }
+
+    public function handle(): void
+    {
+    }
+}
+
+class ReleaseDebouncedJobMiddleware
+{
+    public function handle(mixed $job, mixed $next): void
+    {
+        $job->release();
     }
 }
 

@@ -6,6 +6,8 @@ namespace Hypervel\Data\Support;
 
 use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\Support\Annotations\DataIterableAnnotation;
+use Hypervel\Data\Support\Creation\DataCreationRecipe;
+use Hypervel\Data\Support\Transformation\DataTransformationRecipe;
 use ReflectionMethod;
 
 /**
@@ -18,6 +20,8 @@ final readonly class DataClass
      *
      * Contextual parameter names include promoted and constructor-only forms.
      * Declaration validation prevents constructor-only names from colliding with data properties.
+     * Bulk-copy transformation and fixed transformation recipes are mutually exclusive;
+     * when both are absent, transformation uses the general property loop.
      *
      * @param class-string<BaseData> $name
      * @param array<string, DataProperty> $properties
@@ -53,8 +57,9 @@ final readonly class DataClass
         public ?string $errorBag,
         public ?string $redirect,
         public ?string $redirectRoute,
-        public bool $plainTransform,
-        public bool $directArrayCreation,
+        public bool $bulkCopyTransformation,
+        public ?DataTransformationRecipe $transformationRecipe,
+        public ?DataCreationRecipe $creationRecipe,
         public bool $directConstructorInstantiation,
         public DataAttributesCollection $attributes,
         public array $dataIterablePropertyAnnotations,

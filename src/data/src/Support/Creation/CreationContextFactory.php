@@ -81,6 +81,7 @@ class CreationContextFactory
         protected readonly DataCreator $creator,
         protected readonly DataConfig $config,
         public readonly string $dataClass,
+        protected ?CreationContext $createContext = null,
     ) {
         $this->validationStrategy = $this->config->validationStrategy;
     }
@@ -93,6 +94,7 @@ class CreationContextFactory
     public function validationStrategy(ValidationStrategy $validationStrategy): static
     {
         $this->validationStrategy = $validationStrategy;
+        $this->invalidateCreateContext();
 
         return $this;
     }
@@ -129,6 +131,7 @@ class CreationContextFactory
     public function withPropertyNameMapping(bool $withPropertyNameMapping = true): static
     {
         $this->mapPropertyNames = $withPropertyNameMapping;
+        $this->invalidateCreateContext();
 
         return $this;
     }
@@ -139,6 +142,7 @@ class CreationContextFactory
     public function withoutPropertyNameMapping(bool $withoutPropertyNameMapping = true): static
     {
         $this->mapPropertyNames = ! $withoutPropertyNameMapping;
+        $this->invalidateCreateContext();
 
         return $this;
     }
@@ -151,6 +155,7 @@ class CreationContextFactory
     public function withoutMagicalCreation(bool $withoutMagicalCreation = true): static
     {
         $this->disableMagicalCreation = $withoutMagicalCreation;
+        $this->invalidateCreateContext();
 
         return $this;
     }
@@ -161,6 +166,7 @@ class CreationContextFactory
     public function withMagicalCreation(bool $withMagicalCreation = true): static
     {
         $this->disableMagicalCreation = ! $withMagicalCreation;
+        $this->invalidateCreateContext();
 
         return $this;
     }
@@ -171,6 +177,7 @@ class CreationContextFactory
     public function ignoreMagicalMethod(string ...$methods): static
     {
         array_push($this->ignoredMagicalMethods, ...$methods);
+        $this->invalidateCreateContext();
 
         return $this;
     }
@@ -183,6 +190,7 @@ class CreationContextFactory
     public function withCast(string $castable, Cast|string $cast): static
     {
         $this->casts[$castable] = $cast;
+        $this->invalidateCreateContext();
 
         return $this;
     }
@@ -195,6 +203,7 @@ class CreationContextFactory
     public function withCastCollection(array $casts): static
     {
         $this->casts = array_replace($this->casts, $casts);
+        $this->invalidateCreateContext();
 
         return $this;
     }
@@ -207,6 +216,7 @@ class CreationContextFactory
     public function withNormalizers(Normalizer|string ...$normalizers): static
     {
         array_push($this->normalizers, ...$normalizers);
+        $this->invalidateCreateContext();
 
         return $this;
     }
@@ -217,6 +227,7 @@ class CreationContextFactory
     public function prepareData(Closure $hook): static
     {
         $this->prepareDataHooks[] = $hook;
+        $this->invalidateCreateContext();
 
         return $this;
     }
@@ -227,6 +238,7 @@ class CreationContextFactory
     public function beforeValidation(Closure $hook): static
     {
         $this->beforeValidationHooks[] = $hook;
+        $this->invalidateCreateContext();
 
         return $this;
     }
@@ -237,6 +249,7 @@ class CreationContextFactory
     public function beforeRules(Closure $hook): static
     {
         $this->beforeRulesHooks[] = $hook;
+        $this->invalidateCreateContext();
 
         return $this;
     }
@@ -247,6 +260,7 @@ class CreationContextFactory
     public function afterRules(Closure $hook): static
     {
         $this->afterRulesHooks[] = $hook;
+        $this->invalidateCreateContext();
 
         return $this;
     }
@@ -257,6 +271,7 @@ class CreationContextFactory
     public function withValidator(Closure $hook): static
     {
         $this->withValidatorHooks[] = $hook;
+        $this->invalidateCreateContext();
 
         return $this;
     }
@@ -267,6 +282,7 @@ class CreationContextFactory
     public function afterValidation(Closure $hook): static
     {
         $this->afterValidationHooks[] = $hook;
+        $this->invalidateCreateContext();
 
         return $this;
     }
@@ -277,6 +293,7 @@ class CreationContextFactory
     public function beforeCreation(Closure $hook): static
     {
         $this->beforeCreationHooks[] = $hook;
+        $this->invalidateCreateContext();
 
         return $this;
     }
@@ -287,6 +304,7 @@ class CreationContextFactory
     public function afterCreation(Closure $hook): static
     {
         $this->afterCreationHooks[] = $hook;
+        $this->invalidateCreateContext();
 
         return $this;
     }
@@ -298,7 +316,11 @@ class CreationContextFactory
      */
     public function get(CreationMode $mode = CreationMode::Create): CreationContext
     {
-        return new CreationContext(
+        if ($mode === CreationMode::Create && $this->createContext !== null) {
+            return $this->createContext;
+        }
+
+        $context = new CreationContext(
             dataClass: $this->dataClass,
             mode: $mode,
             validationStrategy: $mode === CreationMode::Create
@@ -322,6 +344,18 @@ class CreationContextFactory
             dateFormats: $this->config->dateFormats,
             dateTimezone: $this->config->dateTimezone,
         );
+
+        return $mode === CreationMode::Create
+            ? $this->createContext = $context
+            : $context;
+    }
+
+    /**
+     * Invalidate the immutable Create context after factory customization.
+     */
+    protected function invalidateCreateContext(): void
+    {
+        $this->createContext = null;
     }
 
     /**

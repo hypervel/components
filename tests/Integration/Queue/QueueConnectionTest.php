@@ -97,7 +97,7 @@ class QueueConnectionTest extends TestCase
             return $transactionManager;
         });
 
-        Bus::dispatch(new QueueConnectionTestUniqueJob);
+        QueueConnectionTestUniqueJob::dispatch();
     }
 
     public function testUniqueJobWillGetDispatchedInsideATransactionWhenExplicitlyIndicated()
@@ -111,7 +111,7 @@ class QueueConnectionTest extends TestCase
         });
 
         try {
-            Bus::dispatch((new QueueConnectionTestUniqueJob)->beforeCommit());
+            QueueConnectionTestUniqueJob::dispatch()->beforeCommit();
         } catch (Throwable) {
             // This job was dispatched
         }
@@ -133,7 +133,7 @@ class QueueConnectionTest extends TestCase
         });
 
         try {
-            Bus::dispatch((new QueueConnectionTestUniqueJob)->afterCommit());
+            QueueConnectionTestUniqueJob::dispatch()->afterCommit();
         } catch (SqsException) {
             // This job was dispatched
         }

@@ -283,6 +283,7 @@ class QueueInstrumentation extends AbstractInstrumentation
         try {
             if ($this->propagation) {
                 $payload ??= $event->payload();
+                $uuid ??= is_string($payload['uuid'] ?? null) ? $payload['uuid'] : null;
                 $this->propagator->inject($payload, ArrayAccessGetterSetter::getInstance(), $context);
                 $finalPayload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
             }
@@ -330,7 +331,7 @@ class QueueInstrumentation extends AbstractInstrumentation
         $store = QueueProducerStateStore::current();
         $state = $store->take($payload);
 
-        if ($state === null && $this->tracer !== null && ($uuid = $this->payloadUuid($payload)) !== null) {
+        if ($state === null && ($uuid = $this->payloadUuid($payload)) !== null) {
             $state = $store->takeUuid($uuid);
         }
 
