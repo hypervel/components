@@ -27,6 +27,7 @@ final readonly class TlsOptions
             'allow_self_signed' => 'ssl_allow_self_signed',
             'cafile' => 'ssl_client_cert_file',
             'ciphers' => 'ssl_ciphers',
+            // Server stream-context crypto methods are compatible allow-set bits; Guzzle's same-named option is a minimum.
             'crypto_method' => 'ssl_protocols',
         ];
 
