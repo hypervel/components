@@ -2,6 +2,7 @@
 
 - [Introduction](#introduction)
 - [Choosing a Base Class](#choosing-a-base-class)
+- [Lightweight Data Objects](#lightweight-data-objects)
 - [Creating Data Objects](#creating-data-objects)
     - [Creating Instances](#creating-instances)
     - [Associating a Data Class](#associating-a-data-class)
@@ -49,6 +50,65 @@ The package provides three base classes:
 - `Resource` supports creation, transformation, HTTP responses, collections, and Eloquent casting without the public validation methods.
 
 Choose the base class that provides the behavior your object needs. Since `Dto` does not transform values, nested or collected DTOs remain objects when a surrounding `Data` object is transformed. Use `Data` or `Resource` when nested values should also be transformed.
+
+For trusted internal values that only need typed construction and array or JSON output, consider a [lightweight data object](#lightweight-data-objects).
+
+<a name="lightweight-data-objects"></a>
+## Lightweight Data Objects
+
+The `Hypervel\Support\DataObject` class provides a small mapper for internal message envelopes, per-item value objects, and other trusted values used in performance-sensitive code. It does not provide validation, property mapping, lazy properties, partials, resources, or persistence. Use `Data`, `Dto`, or `Resource` when you need those features.
+
+To define a lightweight data object, extend `DataObject` and promote every constructor parameter as a public property:
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Messages;
+
+use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\DataObject;
+
+final class MessageEnvelope extends DataObject
+{
+    public function __construct(
+        public readonly string $id,
+        public readonly MessageType $type,
+        public readonly MessagePayload $payload,
+        public readonly CarbonImmutable $receivedAt,
+        public readonly ?string $traceId = null,
+    ) {
+    }
+}
+```
+
+Create the object using `from`:
+
+```php
+$message = MessageEnvelope::from([
+    'id' => 'msg_01',
+    'type' => 'created',
+    'payload' => ['name' => 'Taylor'],
+    'receivedAt' => '2026-09-05 12:34:56',
+]);
+```
+
+In this example, `MessageType` is a string-backed enum and `MessagePayload` is another lightweight data object.
+
+Constructor property names are the exact input and output keys. Unknown input keys are ignored, but names are not converted between camel case and snake case. Omitted parameters use their declared defaults, while omitted nullable parameters without a default receive `null`.
+
+Common integer, float, boolean, and string representations are converted strictly. Backed enums, dates, and properties typed as a concrete `DataObject` are also converted. Invalid scalar values throw an `InvalidArgumentException` instead of being silently coerced. Use an application named factory when an external payload needs different names or custom conversion.
+
+The `toArray` and `toJson` methods recursively normalize nested data objects, backed enums, dates, and `Arrayable` values. Public properties remain ordinary PHP properties and may be read or changed directly unless they are declared `readonly`.
+
+An `array` property retains its input items as-is during construction. Convert a one-off list explicitly:
+
+```php
+$items = array_map(ItemData::from(...), $payload['items']);
+```
+
+Use Hypervel Data and `DataCollection` when a reusable typed collection needs validation, mapping, transformation controls, or response behavior.
 
 <a name="creating-data-objects"></a>
 ## Creating Data Objects
