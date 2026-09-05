@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Http;
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Multiplexing;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\Promise;
 use GuzzleHttp\Promise\PromiseInterface;
@@ -12,6 +13,10 @@ use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\TransportSharing;
 use Hypervel\Http\Client\Factory;
 use Hypervel\Http\Client\PendingRequest;
+use Hypervel\Http\Client\TransportHandler;
+use Hypervel\ObjectPool\PoolManager;
+use Hypervel\ObjectPool\PoolOptions;
+use Hypervel\Support\Arr;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -193,10 +198,167 @@ class HttpConnectionTest extends TestCase
     public static function registeredReservedOptionsProvider(): array
     {
         return [
-            'pool' => ['pool', []],
             'handler' => ['handler', static fn () => null],
             'cookies' => ['cookies', true],
         ];
+    }
+
+    public function testRegisteredConnectionsAllowInfrastructureOptions(): void
+    {
+        $config = [
+            'transport' => 'auto',
+            'pool' => ['max_objects' => 10],
+            'transport_sharing' => TransportSharing::HANDLER_PREFER,
+            'multiplex' => Multiplexing::NONE,
+        ];
+
+        $factory = new RecordingHttpConnectionFactory;
+        $factory->registerConnection('api', $config);
+        $factory->getConnectionHandler('api');
+        $factory->registerConnection('capped', [
+            'max_host_connections' => 5,
+            'max_total_connections' => 20,
+        ]);
+        $factory->getConnectionHandler('capped');
+
+        $this->assertSame($config, $factory->getConnectionConfig('api'));
+        $this->assertSame(['multiplex' => Multiplexing::NONE], $factory->getConnectionOptions('api'));
+        $this->assertSame(
+            [
+                [
+                    'transport_sharing' => TransportSharing::HANDLER_PREFER,
+                    'multiplex' => Multiplexing::NONE,
+                ],
+                [
+                    'max_host_connections' => 5,
+                    'max_total_connections' => 20,
+                ],
+            ],
+            $factory->createdHandlerOptions,
+        );
+    }
+
+    #[DataProvider('contradictoryConnectionPolicyProvider')]
+    public function testRegisteredConnectionsRejectContradictoryTransportPolicy(
+        array $config,
+        string $message,
+    ): void {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($message);
+
+        (new Factory)->registerConnection('api', $config);
+    }
+
+    public static function contradictoryConnectionPolicyProvider(): array
+    {
+        return [
+            'curl with native pool' => [
+                ['transport' => 'curl', 'pool' => []],
+                'cannot combine the [curl] transport with native [pool] options',
+            ],
+            'pool with host cap' => [
+                ['pool' => [], 'max_host_connections' => 2],
+                'cannot combine [pool] with the Guzzle [max_host_connections] option',
+            ],
+            'pool with total cap' => [
+                ['pool' => [], 'max_total_connections' => 2],
+                'cannot combine [pool] with the Guzzle [max_total_connections] option',
+            ],
+            'pool with required sharing' => [
+                ['pool' => [], 'transport_sharing' => TransportSharing::HANDLER_REQUIRE],
+                'cannot combine [pool] with required Guzzle [transport_sharing]',
+            ],
+            'pool has wrong type' => [
+                ['pool' => true],
+                'connection [pool] option must be an array',
+            ],
+            'transport has wrong type' => [
+                ['transport' => true],
+                'connection [transport] option must be a string',
+            ],
+            'unknown transport' => [
+                ['transport' => 'native'],
+                'Unsupported HTTP transport [native]',
+            ],
+        ];
+    }
+
+    public function testDefaultTransportAndPoolPolicyAreNormalizedAndValidated(): void
+    {
+        $factory = new Factory;
+
+        $this->assertSame('curl', $factory->getDefaultTransport());
+        $this->assertSame([
+            'min_retained_objects' => 0,
+            'max_objects' => 10,
+            'wait_timeout' => 3.0,
+            'max_lifetime' => 60.0,
+            'max_idle_time' => 0.0,
+            'idle_ttl' => 300.0,
+        ], $factory->getDefaultPoolOptions());
+
+        $this->assertSame($factory, $factory->setDefaultTransport('auto'));
+        $this->assertSame($factory, $factory->setDefaultPoolOptions([
+            'max_objects' => 25,
+            'wait_timeout' => 0.5,
+        ]));
+
+        $this->assertSame('auto', $factory->getDefaultTransport());
+        $this->assertSame([
+            'min_retained_objects' => 0,
+            'max_objects' => 25,
+            'wait_timeout' => 0.5,
+            'max_lifetime' => 60.0,
+            'max_idle_time' => 0.0,
+            'idle_ttl' => 300.0,
+        ], $factory->getDefaultPoolOptions());
+    }
+
+    public function testPurgeClosesNamedOrAllHandlersAndAllowsFreshResolution(): void
+    {
+        $factory = new PurgeRecordingHttpConnectionFactory;
+        $factory->registerConnection('first');
+        $factory->registerConnection('second');
+
+        $default = $factory->getConnectionHandler();
+        $first = $factory->getConnectionHandler('first');
+        $second = $factory->getConnectionHandler('second');
+
+        $factory->purge('first');
+
+        $this->assertSame(1, $first->closeCalls);
+        $this->assertSame(0, $default->closeCalls);
+        $this->assertSame(0, $second->closeCalls);
+        $this->assertSame($default, $factory->getConnectionHandler());
+        $this->assertSame($second, $factory->getConnectionHandler('second'));
+
+        $newFirst = $factory->getConnectionHandler('first');
+        $this->assertNotSame($first, $newFirst);
+
+        $factory->purge();
+
+        $this->assertSame(1, $default->closeCalls);
+        $this->assertSame(1, $newFirst->closeCalls);
+        $this->assertSame(1, $second->closeCalls);
+        $this->assertNotSame($default, $factory->getConnectionHandler());
+        $this->assertNotSame($newFirst, $factory->getConnectionHandler('first'));
+        $this->assertNotSame($second, $factory->getConnectionHandler('second'));
+
+        $factory->purge();
+    }
+
+    public function testReconfiguringAConnectionPurgesItsResolvedHandler(): void
+    {
+        $factory = new PurgeRecordingHttpConnectionFactory;
+        $factory->registerConnection('api');
+        $oldHandler = $factory->getConnectionHandler('api');
+
+        $factory->setConnectionConfig('api', ['timeout' => 12]);
+
+        $this->assertSame(1, $oldHandler->closeCalls);
+        $this->assertNotSame($oldHandler, $factory->getConnectionHandler('api'));
+
+        $factory->purge();
     }
 
     #[DataProvider('universallyReservedOptionsProvider')]
@@ -251,28 +413,42 @@ class HttpConnectionTest extends TestCase
     public static function universallyReservedOptionsProvider(): array
     {
         return [
+            'transport' => ['transport', 'auto'],
             'pool' => ['pool', []],
             'handler' => ['handler', static fn () => null],
             'cookies' => ['cookies', true],
             'transport sharing' => ['transport_sharing', TransportSharing::HANDLER_PREFER],
+            'maximum host connections' => ['max_host_connections', 5],
+            'maximum total connections' => ['max_total_connections', 20],
         ];
     }
 
-    public function testTransportSharingOnlyConfiguresTheConnectionHandler(): void
+    public function testHandlerConstructionOptionsDoNotLeakIntoRequestOptions(): void
     {
         $factory = new RecordingHttpConnectionFactory;
         $factory->registerConnection('api', [
             'transport_sharing' => TransportSharing::HANDLER_PREFER,
+            'max_host_connections' => 5,
+            'max_total_connections' => 20,
+            'multiplex' => Multiplexing::NONE,
             'timeout' => 12,
         ]);
 
         $factory->connection('api')->get('https://example.com');
 
         $this->assertSame(
-            [['transport_sharing' => TransportSharing::HANDLER_PREFER]],
+            [[
+                'transport_sharing' => TransportSharing::HANDLER_PREFER,
+                'max_host_connections' => 5,
+                'max_total_connections' => 20,
+                'multiplex' => Multiplexing::NONE,
+            ]],
             $factory->createdHandlerOptions,
         );
         $this->assertArrayNotHasKey('transport_sharing', $factory->invocations[0]['options']);
+        $this->assertArrayNotHasKey('max_host_connections', $factory->invocations[0]['options']);
+        $this->assertArrayNotHasKey('max_total_connections', $factory->invocations[0]['options']);
+        $this->assertSame(Multiplexing::NONE, $factory->invocations[0]['options']['multiplex']);
         $this->assertSame(12, $factory->invocations[0]['options']['timeout']);
     }
 
@@ -346,8 +522,9 @@ class RecordingHttpConnectionFactory extends Factory
 
     public array $invocations = [];
 
-    protected function createConnectionHandler(array $options): callable
+    protected function createConnectionHandler(string $identity, array $config): callable
     {
+        $options = Arr::only($config, self::CONNECTION_HANDLER_OPTIONS);
         $this->createdHandlerOptions[] = $options;
         $number = count($this->createdHandlerOptions);
 
@@ -370,8 +547,9 @@ class DeferredHttpConnectionFactory extends Factory
 
     public array $createdHandlerOptions = [];
 
-    protected function createConnectionHandler(array $options): callable
+    protected function createConnectionHandler(string $identity, array $config): callable
     {
+        $options = Arr::only($config, self::CONNECTION_HANDLER_OPTIONS);
         $this->createdHandlerOptions[] = $options;
 
         return function (): PromiseInterface {
@@ -386,7 +564,7 @@ class RetryCookieHttpConnectionFactory extends Factory
 {
     public array $cookieHeaders = [];
 
-    protected function createConnectionHandler(array $options): callable
+    protected function createConnectionHandler(string $identity, array $config): callable
     {
         return function (RequestInterface $request): PromiseInterface {
             $this->cookieHeaders[] = $request->getHeaderLine('Cookie');
@@ -395,5 +573,38 @@ class RetryCookieHttpConnectionFactory extends Factory
                 ? Create::promiseFor(new Psr7Response(500, ['Set-Cookie' => 'session=retry; Path=/']))
                 : Create::promiseFor(new Psr7Response(200));
         };
+    }
+}
+
+class PurgeRecordingHttpConnectionFactory extends Factory
+{
+    /** @var PurgeRecordingTransportHandler[] */
+    public array $createdHandlers = [];
+
+    protected function createConnectionHandler(string $identity, array $config): callable
+    {
+        return $this->createdHandlers[] = new PurgeRecordingTransportHandler($identity);
+    }
+}
+
+class PurgeRecordingTransportHandler extends TransportHandler
+{
+    public int $closeCalls = 0;
+
+    public function __construct(string $identity)
+    {
+        parent::__construct(
+            poolFactory: new PoolManager,
+            logicalIdentity: $identity,
+            poolOptions: PoolOptions::fromArray(['min_retained_objects' => 0]),
+            fallbackHandler: static fn () => Create::promiseFor(new Psr7Response(200)),
+        );
+    }
+
+    public function close(): void
+    {
+        ++$this->closeCalls;
+
+        parent::close();
     }
 }

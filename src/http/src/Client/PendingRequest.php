@@ -44,6 +44,12 @@ class PendingRequest
     use Conditionable;
     use Macroable;
 
+    // @TODO: Remove Guzzle 7 compatibility when Hypervel requires Guzzle 8;
+    // import these exception types directly.
+    private const GUZZLE_NETWORK_EXCEPTION = 'GuzzleHttp\\Exception\\NetworkException';
+
+    private const GUZZLE_RESPONSE_TRANSFER_EXCEPTION = 'GuzzleHttp\\Exception\\ResponseTransferException';
+
     /**
      * The Guzzle client instance.
      */
@@ -178,12 +184,12 @@ class PendingRequest
     /**
      * The pending request promise.
      */
-    protected ?PromiseInterface $promise;
+    protected ?PromiseInterface $promise = null;
 
     /**
      * The sent request object, if a request has been made.
      */
-    protected ?Request $request;
+    protected ?Request $request = null;
 
     /**
      * The current connection name for the pending request.
@@ -194,6 +200,11 @@ class PendingRequest
      * The current connection configuration for the pending request.
      */
     protected ?array $connectionConfig = null;
+
+    /**
+     * The request-local outbound HTTP transport override.
+     */
+    protected ?string $transport = null;
 
     /**
      * The Guzzle request options that are mergeable via array_merge_recursive.
@@ -549,6 +560,34 @@ class PendingRequest
     }
 
     /**
+     * Select the outbound HTTP transport for this request.
+     */
+    public function transport(string $transport): static
+    {
+        if (! in_array($transport, TransportHandler::SUPPORTED_TRANSPORTS, true)) {
+            throw new InvalidArgumentException(
+                "Unsupported HTTP transport [{$transport}]. Supported transports are ["
+                . implode(', ', TransportHandler::SUPPORTED_TRANSPORTS)
+                . '].'
+            );
+        }
+
+        if ($this->client !== null || $this->handler !== null) {
+            throw new InvalidArgumentException(
+                'A request-local HTTP transport cannot be combined with a custom client or handler.'
+            );
+        }
+
+        if ($this->async && $transport === 'swoole') {
+            $this->throwUnsupportedAsyncTransport();
+        }
+
+        $this->transport = $transport;
+
+        return $this;
+    }
+
+    /**
      * Specify the number of times the request should be attempted.
      */
     public function retry(
@@ -860,13 +899,9 @@ class PendingRequest
 
                         $response = $this->runAfterResponseCallbacks($response);
 
-                        if (! $response->successful()) {
+                        if ($response->failed()) {
                             try {
-                                $shouldRetry = $this->retryWhenCallback ? call_user_func(
-                                    $this->retryWhenCallback,
-                                    $response->toException(),
-                                    $this
-                                ) : true;
+                                $shouldRetry = $this->shouldRetry($response->toException());
                             } catch (Exception $exception) {
                                 $shouldRetry = false;
 
@@ -894,26 +929,18 @@ class PendingRequest
                     }
                 );
             } catch (TransferException $e) {
-                if ($e instanceof ConnectException) {
+                if ($this->isConnectionFailure($e)) {
                     $this->marshalConnectionException($e);
                 }
 
-                if ($e instanceof RequestException && ! $e->hasResponse()) {
-                    $this->marshalRequestExceptionWithoutResponse($e);
-                }
-
-                if ($e instanceof RequestException && $e->hasResponse()) {
-                    $this->marshalRequestExceptionWithResponse($e);
+                if (($response = $this->responseFromException($e)) !== null) {
+                    $this->marshalRequestExceptionWithResponse($e, $response);
                 }
 
                 throw $e;
             }
         }, $this->retryDelay, function ($exception) use (&$shouldRetry) {
-            $result = $shouldRetry ?? ($this->retryWhenCallback ? call_user_func( // @phpstan-ignore nullCoalesce.variable ($shouldRetry is set by the retry callback closure via shared &$ref)
-                $this->retryWhenCallback,
-                $exception,
-                $this
-            ) : true);
+            $result = $shouldRetry ?? $this->shouldRetry($exception); // @phpstan-ignore nullCoalesce.variable ($shouldRetry is set by the retry callback closure via shared &$ref)
 
             $shouldRetry = null;
 
@@ -1001,20 +1028,25 @@ class PendingRequest
                     throw $e;
                 }
 
-                if ($e instanceof ConnectException || ($e instanceof RequestException && ! $e->hasResponse())) {
+                if ($e instanceof TransferException && $this->isConnectionFailure($e)) {
                     $exception = new ConnectionException($e->getMessage(), 0, $e);
 
-                    $this->dispatchConnectionFailedEvent(
-                        (new Request($e->getRequest()))->setRequestAttributes($this->attributes),
-                        $exception
-                    );
+                    if (($request = $this->requestFromException($e)) !== null) {
+                        $this->dispatchConnectionFailedEvent(
+                            (new Request($request))->setRequestAttributes($this->attributes),
+                            $exception
+                        );
+                    }
 
                     return $exception;
                 }
 
-                return $e instanceof RequestException && $e->hasResponse() ? $this->populateResponse(
-                    $this->newResponse($e->getResponse())
-                ) : $e;
+                if ($e instanceof TransferException
+                    && ($response = $this->responseFromException($e)) !== null) {
+                    return $this->populateResponse($this->newResponse($response));
+                }
+
+                return $e;
             })
             ->then(
                 function (Response|Throwable $response) use (
@@ -1040,25 +1072,17 @@ class PendingRequest
         array $options,
         int $attempt
     ): mixed {
-        if ($response instanceof Response && $response->successful()) {
+        if ($response instanceof Response && ! $response->failed()) {
             return $response;
         }
 
-        if ($response instanceof RequestException) {
-            $response = $this->populateResponse($this->newResponse($response->getResponse()));
-        }
+        $exception = $response instanceof Response ? $response->toException() : $response;
 
         try {
-            $shouldRetry = $this->retryWhenCallback ? call_user_func(
-                $this->retryWhenCallback,
-                $response instanceof Response ? $response->toException() : $response,
-                $this
-            ) : true;
-        } catch (Exception $exception) {
-            return $exception;
+            $shouldRetry = $this->shouldRetry($exception);
+        } catch (Exception $callbackException) {
+            return $callbackException;
         }
-
-        $exception = $response instanceof Response ? $response->toException() : $response;
 
         if ($attempt < $this->getMaximumAttempts() && $shouldRetry) {
             $options['delay'] = $this->retryDelayInMilliseconds($attempt, $exception);
@@ -1081,6 +1105,23 @@ class PendingRequest
         }
 
         return $response;
+    }
+
+    /**
+     * Determine if the request should be retried.
+     */
+    private function shouldRetry(Throwable $exception): bool
+    {
+        if ($this->retryWhenCallback) {
+            return (bool) call_user_func(
+                $this->retryWhenCallback,
+                $exception,
+                $this,
+                $this->request?->toPsrRequest()->getMethod()
+            );
+        }
+
+        return ! $exception instanceof InvalidArgumentException;
     }
 
     /**
@@ -1110,6 +1151,8 @@ class PendingRequest
      */
     protected function sendRequest(string $method, string $url, array $options = []): PromiseInterface|ResponseInterface
     {
+        $this->request = null;
+
         $clientMethod = $this->async ? 'requestAsync' : 'request';
 
         $data = $this->parseRequestData($method, $url, $options);
@@ -1378,23 +1421,17 @@ class PendingRequest
      */
     public function buildClient(): ClientInterface
     {
+        if ($this->transport !== null && ($this->client !== null || $this->handler !== null)) {
+            throw new InvalidArgumentException(
+                'A request-local HTTP transport cannot be combined with a custom client or handler.'
+            );
+        }
+
+        if ($this->async && $this->usesStrictSwooleTransport()) {
+            $this->throwUnsupportedAsyncTransport();
+        }
+
         return $this->client ?? $this->createClient($this->buildHandlerStack());
-    }
-
-    /**
-     * Determine if a reusable client is required.
-     */
-    protected function requestsReusableClient(): bool
-    {
-        return ! is_null($this->client) || $this->async;
-    }
-
-    /**
-     * Retrieve a reusable Guzzle client.
-     */
-    protected function getReusableClient(): ClientInterface
-    {
-        return $this->client ??= $this->createClient($this->buildHandlerStack());
     }
 
     /**
@@ -1415,8 +1452,27 @@ class PendingRequest
     {
         $handler = $this->handler;
 
-        if ($handler === null && $this->connection !== null && $this->factory !== null) {
+        if ($handler === null && $this->factory !== null) {
             $handler = $this->factory->getConnectionHandler($this->connection);
+
+            if ($this->transport !== null) {
+                if (! $handler instanceof TransportHandler) {
+                    throw new InvalidArgumentException(
+                        'The HTTP factory handler does not support request-local transport selection.'
+                    );
+                }
+
+                $transport = $this->transport;
+                $handler = static fn (RequestInterface $request, array $options): PromiseInterface => $handler->handleUsing(
+                    $transport,
+                    $request,
+                    $options,
+                );
+            }
+        } elseif ($this->transport !== null) {
+            throw new InvalidArgumentException(
+                'A PendingRequest must belong to an HTTP Factory to select a transport.'
+            );
         }
 
         return $this->pushHandlers(HandlerStack::create($handler));
@@ -1471,12 +1527,17 @@ class PendingRequest
                         return $response;
                     },
                     function ($reason) use ($request, $options) {
+                        $response = $reason instanceof TransferException
+                            && ! $this->isConnectionFailure($reason)
+                                ? $this->responseFromException($reason)
+                                : null;
+
                         $this->factory?->recordRequestResponsePair(
                             (new Request($request))
                                 ->withData($options['hypervel_data'] ?? [])
                                 ->setRequestAttributes($this->attributes),
-                            $reason instanceof RequestException && $reason->hasResponse()
-                                ? $this->newResponse($reason->getResponse())
+                            $response !== null
+                                ? $this->newResponse($response)
                                 : null,
                         );
 
@@ -1689,6 +1750,10 @@ class PendingRequest
      */
     public function async(bool $async = true): static
     {
+        if ($async && $this->usesStrictSwooleTransport()) {
+            $this->throwUnsupportedAsyncTransport();
+        }
+
         $this->async = $async;
 
         return $this;
@@ -1759,11 +1824,17 @@ class PendingRequest
      *
      * @throws ConnectionException
      */
-    protected function marshalConnectionException(ConnectException $e): void
+    protected function marshalConnectionException(TransferException $e): void
     {
         $exception = new ConnectionException($e->getMessage(), 0, $e);
 
-        $request = (new Request($e->getRequest()))->setRequestAttributes($this->attributes);
+        $request = $this->requestFromException($e);
+
+        if ($request === null) {
+            throw $e;
+        }
+
+        $request = (new Request($request))->setRequestAttributes($this->attributes);
 
         $this->dispatchConnectionFailedEvent($request, $exception);
 
@@ -1771,19 +1842,62 @@ class PendingRequest
     }
 
     /**
-     * Handle the given request exception with no response.
-     *
-     * @throws ConnectionException
+     * Get the request carried by a Guzzle transfer exception.
      */
-    protected function marshalRequestExceptionWithoutResponse(RequestException $e): void
+    protected function requestFromException(TransferException $exception): ?RequestInterface
     {
-        $exception = new ConnectionException($e->getMessage(), 0, $e);
+        // @TODO: Remove Guzzle 7 compatibility when Hypervel requires Guzzle 8;
+        // call TransferException::getRequest() directly.
+        if (! method_exists($exception, 'getRequest')) {
+            return null;
+        }
 
-        $request = (new Request($e->getRequest()))->setRequestAttributes($this->attributes);
+        $request = $exception->getRequest();
 
-        $this->dispatchConnectionFailedEvent($request, $exception);
+        return $request instanceof RequestInterface ? $request : null;
+    }
 
-        throw $exception;
+    /**
+     * Get the response carried by a Guzzle transfer exception.
+     */
+    protected function responseFromException(TransferException $exception): ?ResponseInterface
+    {
+        // @TODO: Remove Guzzle 7 compatibility when Hypervel requires Guzzle 8;
+        // use the ResponseException hierarchy directly.
+        if (! method_exists($exception, 'getResponse')) {
+            return null;
+        }
+
+        $response = $exception->getResponse();
+
+        return $response instanceof ResponseInterface ? $response : null;
+    }
+
+    /**
+     * Determine if a Guzzle transfer exception represents a connection failure.
+     */
+    protected function isConnectionFailure(TransferException $exception): bool
+    {
+        if ($exception instanceof ConnectException
+            || is_a($exception, self::GUZZLE_NETWORK_EXCEPTION)
+            || is_a($exception, self::GUZZLE_RESPONSE_TRANSFER_EXCEPTION)) {
+            return true;
+        }
+
+        if (! $exception instanceof RequestException) {
+            return false;
+        }
+
+        if ($this->responseFromException($exception) === null) {
+            return true;
+        }
+
+        // @TODO: Remove Guzzle 7 compatibility when Hypervel requires Guzzle 8;
+        // delete this legacy transfer shape.
+        // Guzzle 7 uses this exact shape for a post-header transport failure.
+        // Callback and redirect-rewind failures retain their cause as previous.
+        return $exception::class === RequestException::class
+            && $exception->getPrevious() === null;
     }
 
     /**
@@ -1792,11 +1906,14 @@ class PendingRequest
      * @throws ConnectionException
      * @throws \Hypervel\Http\Client\RequestException
      */
-    protected function marshalRequestExceptionWithResponse(RequestException $e): void
-    {
-        $response = $this->populateResponse($this->newResponse($e->getResponse()));
+    protected function marshalRequestExceptionWithResponse(
+        TransferException $exception,
+        ResponseInterface $response,
+    ): void {
+        $response = $this->populateResponse($this->newResponse($response));
 
-        throw $response->toException() ?? new ConnectionException($e->getMessage(), 0, $e);
+        throw $response->toException()
+            ?? new ConnectionException($exception->getMessage(), 0, $exception);
     }
 
     /**
@@ -1804,6 +1921,12 @@ class PendingRequest
      */
     public function setClient(ClientInterface $client): static
     {
+        if ($this->transport !== null) {
+            throw new InvalidArgumentException(
+                'A custom HTTP client cannot be combined with a request-local transport.'
+            );
+        }
+
         $this->client = $client;
 
         return $this;
@@ -1814,6 +1937,12 @@ class PendingRequest
      */
     public function setHandler(callable $handler): static
     {
+        if ($this->transport !== null) {
+            throw new InvalidArgumentException(
+                'A custom HTTP handler cannot be combined with a request-local transport.'
+            );
+        }
+
         $this->handler = $handler;
 
         return $this;
@@ -1842,6 +1971,10 @@ class PendingRequest
 
         if ($config !== null) {
             $this->validateRequestOptions($config, 'per-call HTTP connection options');
+        }
+
+        if ($this->async && $this->usesStrictSwooleTransport($connection)) {
+            $this->throwUnsupportedAsyncTransport();
         }
 
         $this->connection = $connection;
@@ -1880,6 +2013,49 @@ class PendingRequest
     }
 
     /**
+     * Determine the effective outbound HTTP transport.
+     */
+    protected function effectiveTransport(?string $connection = null): string
+    {
+        if ($this->transport !== null) {
+            return $this->transport;
+        }
+
+        $connection ??= $this->connection;
+
+        if ($connection !== null && $this->factory !== null) {
+            $config = $this->factory->getConnectionConfig($connection);
+
+            if (isset($config['transport'])) {
+                return $config['transport'];
+            }
+        }
+
+        return $this->factory?->getDefaultTransport() ?? 'curl';
+    }
+
+    /**
+     * Determine if this request uses strict Swoole transport policy.
+     */
+    protected function usesStrictSwooleTransport(?string $connection = null): bool
+    {
+        return $this->client === null
+            && $this->handler === null
+            && $this->effectiveTransport($connection) === 'swoole';
+    }
+
+    /**
+     * Reject async use of the strict Swoole transport.
+     */
+    protected function throwUnsupportedAsyncTransport(): never
+    {
+        throw new UnsupportedTransportException(
+            'The [swoole] HTTP transport does not support async requests. '
+            . 'Use parallel() with synchronous requests for native concurrency.'
+        );
+    }
+
+    /**
      * Merge HTTP option layers using the request-option merge rules.
      */
     protected function mergeOptionLayers(array ...$layers): array
@@ -1903,7 +2079,7 @@ class PendingRequest
      */
     protected function validateRequestOptions(array $options, string $source): void
     {
-        ReservedOptions::reject($options, false, $source);
+        ReservedOptions::reject($options, [], $source);
     }
 
     /**

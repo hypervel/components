@@ -15,8 +15,11 @@ use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\TransferStats;
-use GuzzleHttp\Utils;
+use GuzzleHttp\TransportSharing;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
+use Hypervel\ObjectPool\PoolManager;
+use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -36,6 +39,25 @@ class Factory
         __call as macroCall;
     }
 
+    protected const CONNECTION_HANDLER_OPTIONS = [
+        'transport_sharing',
+        'max_host_connections',
+        'max_total_connections',
+        'multiplex',
+    ];
+
+    protected const CONNECTION_POLICY_OPTIONS = [
+        'transport',
+        'pool',
+        'transport_sharing',
+        'max_host_connections',
+        'max_total_connections',
+    ];
+
+    protected const DEFAULT_TRANSPORT = 'curl';
+
+    protected const DEFAULT_TRANSPORT_IDENTITY = 'default';
+
     /**
      * The middleware to apply to every request.
      */
@@ -45,6 +67,16 @@ class Factory
      * The options to apply to every request.
      */
     protected array|Closure $globalOptions = [];
+
+    /**
+     * The default outbound HTTP transport.
+     */
+    protected string $defaultTransport = self::DEFAULT_TRANSPORT;
+
+    /**
+     * The normalized default HTTP pool options.
+     */
+    protected array $defaultPoolOptions;
 
     /**
      * The stub callables that will handle requests.
@@ -89,11 +121,27 @@ class Factory
     protected array $connectionHandlers = [];
 
     /**
+     * The resolved low-level transport handler for unnamed requests.
+     *
+     * @var null|callable
+     */
+    protected $defaultHandler = null;
+
+    /**
+     * The object pool factory used by native transports.
+     */
+    protected PoolFactory $poolFactory;
+
+    /**
      * Create a new factory instance.
      */
-    public function __construct(protected ?Dispatcher $dispatcher = null)
-    {
+    public function __construct(
+        protected ?Dispatcher $dispatcher = null,
+        ?PoolFactory $poolFactory = null,
+    ) {
         $this->stubCallbacks = new Collection;
+        $this->poolFactory = $poolFactory ?? new PoolManager;
+        $this->defaultPoolOptions = $this->normalizeDefaultPoolOptions([]);
     }
 
     /**
@@ -146,6 +194,62 @@ class Factory
         $this->globalOptions = $options;
 
         return $this;
+    }
+
+    /**
+     * Set the default outbound HTTP transport.
+     *
+     * Boot-only. Purges every cached transport handler; requests retaining an
+     * invalidated handler or waiting for its pool may fail.
+     */
+    public function setDefaultTransport(string $transport): static
+    {
+        $this->validateTransport($transport);
+
+        if ($transport === $this->defaultTransport) {
+            return $this;
+        }
+
+        $this->purge();
+        $this->defaultTransport = $transport;
+
+        return $this;
+    }
+
+    /**
+     * Get the default outbound HTTP transport.
+     */
+    public function getDefaultTransport(): string
+    {
+        return $this->defaultTransport;
+    }
+
+    /**
+     * Set the default native HTTP pool options.
+     *
+     * Boot-only. Purges every cached transport handler; requests retaining an
+     * invalidated handler or waiting for its pool may fail.
+     */
+    public function setDefaultPoolOptions(array $options): static
+    {
+        $options = $this->normalizeDefaultPoolOptions($options);
+
+        if ($options === $this->defaultPoolOptions) {
+            return $this;
+        }
+
+        $this->purge();
+        $this->defaultPoolOptions = $options;
+
+        return $this;
+    }
+
+    /**
+     * Get the normalized default native HTTP pool options.
+     */
+    public function getDefaultPoolOptions(): array
+    {
+        return $this->defaultPoolOptions;
     }
 
     /**
@@ -599,21 +703,40 @@ class Factory
     /**
      * Get the shared low-level transport handler for a connection.
      */
-    public function getConnectionHandler(string $name): callable
+    public function getConnectionHandler(?string $name = null): callable
     {
+        if ($name === null) {
+            return $this->defaultHandler ??= $this->createConnectionHandler(
+                self::DEFAULT_TRANSPORT_IDENTITY,
+                [],
+            );
+        }
+
         $this->ensureConnectionIsRegistered($name);
 
         return $this->connectionHandlers[$name] ??= $this->createConnectionHandler(
-            Arr::only($this->connectionConfigs[$name], ['transport_sharing'])
+            "connection:{$name}",
+            $this->connectionConfigs[$name],
         );
     }
 
     /**
      * Create a low-level transport handler for a connection.
      */
-    protected function createConnectionHandler(array $options): callable
+    protected function createConnectionHandler(string $identity, array $config): callable
     {
-        return Utils::chooseHandler($options);
+        $poolOptions = PoolOptions::fromArray(array_replace(
+            $this->defaultPoolOptions,
+            $config['pool'] ?? [],
+        ));
+
+        return new TransportHandler(
+            poolFactory: $this->poolFactory,
+            logicalIdentity: $identity,
+            poolOptions: $poolOptions,
+            transport: $config['transport'] ?? $this->defaultTransport,
+            handlerOptions: Arr::only($config, self::CONNECTION_HANDLER_OPTIONS),
+        );
     }
 
     /**
@@ -650,7 +773,7 @@ class Factory
     {
         $this->ensureConnectionIsRegistered($name);
 
-        return Arr::except($this->connectionConfigs[$name], ['transport_sharing']);
+        return Arr::except($this->connectionConfigs[$name], self::CONNECTION_POLICY_OPTIONS);
     }
 
     /**
@@ -663,10 +786,42 @@ class Factory
     {
         $this->validateConnectionConfig($config);
 
+        $this->purge($name);
         $this->connectionConfigs[$name] = $config;
-        unset($this->connectionHandlers[$name]);
 
         return $this;
+    }
+
+    /**
+     * Close and remove cached transport handlers.
+     *
+     * Boot or tests only. Purging may reject requests that retain an
+     * invalidated handler or are waiting for capacity in its closed pool.
+     */
+    public function purge(?string $name = null): void
+    {
+        if ($name === null) {
+            $handlers = $this->connectionHandlers;
+
+            if ($this->defaultHandler !== null) {
+                $handlers[] = $this->defaultHandler;
+            }
+
+            $this->connectionHandlers = [];
+            $this->defaultHandler = null;
+        } else {
+            $handlers = isset($this->connectionHandlers[$name])
+                ? [$this->connectionHandlers[$name]]
+                : [];
+
+            unset($this->connectionHandlers[$name]);
+        }
+
+        foreach ($handlers as $handler) {
+            if ($handler instanceof TransportHandler) {
+                $handler->close();
+            }
+        }
     }
 
     /**
@@ -684,7 +839,81 @@ class Factory
      */
     protected function validateConnectionConfig(array $config): void
     {
-        ReservedOptions::reject($config, true, 'registered connection configuration');
+        ReservedOptions::reject(
+            $config,
+            [...self::CONNECTION_POLICY_OPTIONS, 'multiplex'],
+            'registered connection configuration'
+        );
+
+        if (array_key_exists('transport', $config)) {
+            if (! is_string($config['transport'])) {
+                throw new InvalidArgumentException('The HTTP connection [transport] option must be a string.');
+            }
+
+            $this->validateTransport($config['transport']);
+        }
+
+        if (! array_key_exists('pool', $config)) {
+            return;
+        }
+
+        if (! is_array($config['pool'])) {
+            throw new InvalidArgumentException('The HTTP connection [pool] option must be an array.');
+        }
+
+        PoolOptions::fromArray(array_replace($this->defaultPoolOptions, $config['pool']));
+
+        if (($config['transport'] ?? null) === 'curl') {
+            throw new InvalidArgumentException(
+                'The HTTP connection cannot combine the [curl] transport with native [pool] options.'
+            );
+        }
+
+        foreach (['max_host_connections', 'max_total_connections'] as $option) {
+            if (array_key_exists($option, $config)) {
+                throw new InvalidArgumentException(
+                    "The HTTP connection cannot combine [pool] with the Guzzle [{$option}] option."
+                );
+            }
+        }
+
+        $requiredSharingModes = [TransportSharing::HANDLER_REQUIRE];
+
+        // @TODO: Remove Guzzle 7 compatibility when Hypervel requires Guzzle 8; reference PERSISTENT_REQUIRE directly.
+        if (defined(TransportSharing::class . '::PERSISTENT_REQUIRE')) {
+            $requiredSharingModes[] = constant(TransportSharing::class . '::PERSISTENT_REQUIRE');
+        }
+
+        if (in_array($config['transport_sharing'] ?? null, $requiredSharingModes, true)) {
+            throw new InvalidArgumentException(
+                'The HTTP connection cannot combine [pool] with required Guzzle [transport_sharing].'
+            );
+        }
+    }
+
+    /**
+     * Normalize an HTTP pool policy over the lazy-retention defaults.
+     */
+    protected function normalizeDefaultPoolOptions(array $options): array
+    {
+        return PoolOptions::fromArray(array_replace(
+            ['min_retained_objects' => 0],
+            $options,
+        ))->toArray();
+    }
+
+    /**
+     * Validate an outbound HTTP transport name.
+     */
+    protected function validateTransport(string $transport): void
+    {
+        if (! in_array($transport, TransportHandler::SUPPORTED_TRANSPORTS, true)) {
+            throw new InvalidArgumentException(
+                "Unsupported HTTP transport [{$transport}]. Supported transports are ["
+                . implode(', ', TransportHandler::SUPPORTED_TRANSPORTS)
+                . '].'
+            );
+        }
     }
 
     /**

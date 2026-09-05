@@ -2733,6 +2733,11 @@ class HttpClientTest extends TestCase
         $this->assertSame($promise, $request->getPromise());
     }
 
+    public function testUnsentRequestHasNoPromise(): void
+    {
+        $this->assertNull((new PendingRequest($this->factory))->getPromise());
+    }
+
     public function testFailedAsyncRequestsAreRecorded(): void
     {
         $this->factory->fake($this->factory->failedConnection('Fake'));
@@ -2791,6 +2796,209 @@ class HttpClientTest extends TestCase
         $this->assertTrue($response->failed());
 
         $this->factory->assertSentCount(2);
+    }
+
+    public function testInvalidArgumentsAreNotRetriedByDefault(): void
+    {
+        Sleep::fake();
+
+        $exception = null;
+
+        try {
+            $this->factory
+                ->retry(3, 100)
+                ->withHeaders(['X-Test' => new stdClass])
+                ->get('https://example.com');
+        } catch (InvalidArgumentException $caughtException) {
+            $exception = $caughtException;
+        }
+
+        $this->assertInstanceOf(InvalidArgumentException::class, $exception);
+        $this->assertSame(
+            'HTTP header values must be scalar, null, Hypervel Stringable, or arrays of scalar, null, or Hypervel Stringable values.',
+            $exception->getMessage()
+        );
+        Sleep::assertNeverSlept();
+    }
+
+    public function testAsyncHandlerInvalidArgumentsAreNotRetriedByDefault(): void
+    {
+        $attempts = 0;
+
+        $request = (new PendingRequest)->setHandler(function () use (&$attempts) {
+            ++$attempts;
+
+            throw new InvalidArgumentException('Invalid handler configuration.');
+        });
+
+        $result = $request
+            ->async()
+            ->retry(3, 100)
+            ->get('https://example.com')
+            ->wait();
+
+        $this->assertInstanceOf(InvalidArgumentException::class, $result);
+        $this->assertSame('Invalid handler configuration.', $result->getMessage());
+        $this->assertSame(1, $attempts);
+    }
+
+    public function testSyncRetryPredicateCanRetryInvalidArgumentAndReceivesMethod(): void
+    {
+        $attempts = 0;
+        $requestMethod = null;
+
+        $request = (new PendingRequest)->setHandler(function () use (&$attempts) {
+            if (++$attempts === 1) {
+                throw new InvalidArgumentException('Retry this request.');
+            }
+
+            return Factory::response('Retried');
+        });
+
+        $response = $request
+            ->retry(2, 0, function (Throwable $exception, PendingRequest $request, ?string $method) use (&$requestMethod) {
+                $this->assertInstanceOf(InvalidArgumentException::class, $exception);
+                $this->assertInstanceOf(PendingRequest::class, $request);
+                $requestMethod = $method;
+
+                return true;
+            })
+            ->get('https://example.com');
+
+        $this->assertSame('Retried', $response->body());
+        $this->assertSame(2, $attempts);
+        $this->assertSame('GET', $requestMethod);
+    }
+
+    public function testAsyncRetryPredicateCanRetryInvalidArgumentAndReceivesMethod(): void
+    {
+        $attempts = 0;
+        $requestMethod = null;
+
+        $request = (new PendingRequest)->setHandler(function () use (&$attempts) {
+            if (++$attempts === 1) {
+                throw new InvalidArgumentException('Retry this request.');
+            }
+
+            return Factory::response('Retried');
+        });
+
+        $response = $request
+            ->async()
+            ->retry(2, 0, function (Throwable $exception, PendingRequest $request, ?string $method) use (&$requestMethod) {
+                $this->assertInstanceOf(InvalidArgumentException::class, $exception);
+                $this->assertInstanceOf(PendingRequest::class, $request);
+                $requestMethod = $method;
+
+                return true;
+            })
+            ->get('https://example.com')
+            ->wait();
+
+        $this->assertInstanceOf(Response::class, $response);
+        $this->assertSame('Retried', $response->body());
+        $this->assertSame(2, $attempts);
+        $this->assertSame('GET', $requestMethod);
+    }
+
+    public function testRetryPredicateReceivesNullMethodBeforeRequestIsCreated(): void
+    {
+        $requestMethod = 'not-null';
+
+        $request = (new PendingRequest)->retry(
+            2,
+            0,
+            function (Throwable $exception, PendingRequest $request, ?string $method) use (&$requestMethod) {
+                $this->assertInstanceOf(InvalidArgumentException::class, $exception);
+                $this->assertInstanceOf(PendingRequest::class, $request);
+                $requestMethod = $method;
+
+                return false;
+            }
+        );
+
+        try {
+            $request
+                ->withHeaders(['X-Test' => new stdClass])
+                ->get('https://example.com');
+        } catch (InvalidArgumentException) {
+        }
+
+        $this->assertNull($requestMethod);
+    }
+
+    public function testReusedRequestDoesNotExposeStaleMethodToRetryPredicate(): void
+    {
+        $requestMethod = 'not-null';
+
+        $request = (new PendingRequest)
+            ->setHandler(fn () => Factory::response())
+            ->retry(
+                2,
+                0,
+                function (Throwable $exception, PendingRequest $request, ?string $method) use (&$requestMethod) {
+                    $this->assertInstanceOf(InvalidArgumentException::class, $exception);
+                    $this->assertInstanceOf(PendingRequest::class, $request);
+                    $requestMethod = $method;
+
+                    return false;
+                }
+            );
+
+        $request->get('https://example.com/first');
+
+        try {
+            $request
+                ->withHeaders(['X-Test' => new stdClass])
+                ->post('https://example.com/second');
+        } catch (InvalidArgumentException) {
+        }
+
+        $this->assertNull($requestMethod);
+    }
+
+    #[DataProvider('nonErrorResponseStatusProvider')]
+    public function testNonErrorResponsesAreNotRetried(int $status): void
+    {
+        Sleep::fake();
+
+        $predicateInvocations = 0;
+        $this->factory->fake([
+            '*' => $this->factory::response('', $status),
+        ]);
+
+        $syncResponse = $this->factory
+            ->retry(3, 100, function () use (&$predicateInvocations) {
+                ++$predicateInvocations;
+
+                return true;
+            })
+            ->get('https://example.com/sync');
+
+        $asyncResponse = $this->factory
+            ->async()
+            ->retry(3, 100, function () use (&$predicateInvocations) {
+                ++$predicateInvocations;
+
+                return true;
+            })
+            ->get('https://example.com/async')
+            ->wait();
+
+        $this->assertSame($status, $syncResponse->status());
+        $this->assertInstanceOf(Response::class, $asyncResponse);
+        $this->assertSame($status, $asyncResponse->status());
+        $this->assertSame(0, $predicateInvocations);
+        $this->factory->assertSentCount(2);
+        Sleep::assertNeverSlept();
+    }
+
+    public static function nonErrorResponseStatusProvider(): array
+    {
+        return [
+            'informational' => [101],
+            'redirect' => [302],
+        ];
     }
 
     public function testClientCanBeSet()
