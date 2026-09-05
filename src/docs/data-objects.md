@@ -100,6 +100,20 @@ Constructor property names are the exact input and output keys. Unknown input ke
 
 Common integer, float, boolean, and string representations are converted strictly. Backed enums, dates, and properties typed as a concrete `DataObject` are also converted. Invalid scalar values throw an `InvalidArgumentException` instead of being silently coerced. Use an application named factory when an external payload needs different names or custom conversion.
 
+When a form request owns validation, you may declare a lightweight data object directly in its `casts` method. Use a wildcard to convert each member of a validated list:
+
+```php
+protected function casts(): array
+{
+    return [
+        'contact' => Contact::class,
+        'contacts.*' => Contact::class,
+    ];
+}
+```
+
+The request returns a `Contact` from `validated('contact')` and an array of `Contact` objects from `validated('contacts')`. The DataObject does not run another validation step.
+
 The `toArray` and `toJson` methods recursively normalize nested data objects, backed enums, dates, and `Arrayable` values. Public properties remain ordinary PHP properties and may be read or changed directly unless they are declared `readonly`.
 
 An `array` property retains its input items as-is during construction. Convert a one-off list explicitly:
@@ -826,6 +840,8 @@ class StoreUserRequest extends FormRequest
 ```
 
 The object is built through its normal `from()` pipeline. A present `null` remains `null`, and a missing input is not added to the validated result. Direct `Data`, `Dto`, and `Resource` request casts do not accept cast arguments; Eloquent-only options such as `default` and `encrypted` do not apply here.
+
+A [lightweight data object](#lightweight-data-objects) may also be declared directly when the form request owns validation and you only need typed construction and array or JSON output.
 
 Use `AsDataCollection::of()` when the input contains several objects. It returns a `DataCollection` by default and accepts the same explicit targets as `collect()`, including `'array'` and `Hypervel\Support\Collection::class`:
 

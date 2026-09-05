@@ -836,6 +836,22 @@ protected function casts(): array
 
 Direct `Data`, `Dto`, and `Resource` request casts do not accept cast arguments. Eloquent-only options such as `default` and `encrypted` do not apply to validated request input.
 
+You may also declare a `Hypervel\Support\DataObject` subclass when the form request owns validation and you only need lightweight typed construction:
+
+```php
+use App\Values\Contact;
+
+protected function casts(): array
+{
+    return [
+        'contact' => Contact::class,
+        'contacts.*' => Contact::class,
+    ];
+}
+```
+
+The wildcard applies the cast to each validated list member, so `validated('contacts')` returns an array of `Contact` objects. Lightweight data objects do not accept cast arguments or run another validation step. See the [data object documentation](/docs/{{version}}/data-objects#lightweight-data-objects) for guidance on choosing between these objects and Hypervel Data.
+
 #### Custom Casts
 
 A custom request caster implements the `CastsRequestInput` contract. Its `cast` method receives the concrete input key, its validated value, and the complete original validated input array:
