@@ -569,7 +569,7 @@ Use `withValidator(Validator $validator)` and `after(): array` like a FormReques
 <a name="creation-factories"></a>
 ### Creation Factories
 
-The `factory` method returns a fluent factory for a single creation:
+The `factory` method returns a fluent factory for creating data objects:
 
 ```php
 $user = UserData::factory()
@@ -581,6 +581,19 @@ $user = UserData::factory()
     ->withValidator(fn (Validator $validator) => $validator->after($check))
     ->from($payload);
 ```
+
+Within one operation, you may reuse a factory to avoid repeating creation setup for every payload:
+
+```php
+$factory = UserData::factory();
+
+$users = array_map(
+    fn (array $payload): UserData => $factory->from($payload),
+    $payloads,
+);
+```
+
+Use `collect()` instead when the payloads form one collection. In addition to preserving supported collection shapes and keys, `collect()` allows collection validation rules and hooks to inspect the complete payload.
 
 Factories may change the validation strategy, enable or disable name mapping and named factories, ignore selected named methods, and add casts or normalizers. They also provide the following hooks, which run in this order:
 
@@ -595,7 +608,7 @@ Factories may change the validation strategy, enable or disable name mapping and
 
 The `prepareData`, `beforeCreation`, and `afterCreation` hooks run even when validation is skipped. The other hooks run while generating rules or validating, as appropriate. Call `alwaysValidate()` when validation hooks should also apply to an array, model, JSON value, or another non-request source.
 
-Each call to `factory()` returns a new factory. Configure and use the factory where it is created instead of storing one and reusing it across requests.
+Each call to `factory()` returns a new factory. Keep a reused factory scoped to the current operation instead of storing it across requests.
 
 <a name="transformation"></a>
 ## Transformation
