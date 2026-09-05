@@ -13,11 +13,13 @@ use DateTime;
 use DateTimeImmutable;
 use DateTimeInterface;
 use Hypervel\Contracts\Container\Transient;
+use Hypervel\Contracts\Http\RequestCastable;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\DataObject;
 use Hypervel\Support\DateFactory;
+use Hypervel\Support\Http\DataObjectRequestCast;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use JsonException;
@@ -110,6 +112,29 @@ class DataObjectTest extends TestCase
     public function testDataObjectsAreAlwaysTransient(): void
     {
         $this->assertInstanceOf(Transient::class, RequiredDataObject::from(['name' => 'Taylor']));
+    }
+
+    public function testDataObjectsProvideARequestCasterForTheirConcreteClass(): void
+    {
+        $caster = RequiredDataObject::castRequestUsing([]);
+
+        $this->assertInstanceOf(RequestCastable::class, RequiredDataObject::from(['name' => 'Taylor']));
+        $this->assertInstanceOf(DataObjectRequestCast::class, $caster);
+        $this->assertEquals(
+            RequiredDataObject::from(['name' => 'Taylor']),
+            $caster->cast('contact', ['name' => 'Taylor'], []),
+        );
+        $this->assertNull($caster->cast('contact', null, []));
+    }
+
+    public function testDataObjectRequestCastsRejectArguments(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Data object request cast [' . RequiredDataObject::class . '] does not accept arguments.',
+        );
+
+        RequiredDataObject::castRequestUsing(['unsupported']);
     }
 
     public function testDirectConstructionTransformsBeforeRecipeCompilation(): void

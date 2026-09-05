@@ -8,9 +8,12 @@ use BackedEnum;
 use Carbon\CarbonInterface;
 use DateTimeInterface;
 use Hypervel\Contracts\Container\Transient;
+use Hypervel\Contracts\Http\CastsRequestInput;
+use Hypervel\Contracts\Http\RequestCastable;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Http\DataObjectRequestCast;
 use InvalidArgumentException;
 use JsonException;
 use JsonSerializable;
@@ -31,7 +34,7 @@ use Stringable as BaseStringable;
  *
  * @implements Arrayable<string, mixed>
  */
-abstract class DataObject implements Arrayable, Jsonable, JsonSerializable, Transient
+abstract class DataObject implements Arrayable, Jsonable, JsonSerializable, RequestCastable, Transient
 {
     private const int KIND_PASSTHROUGH = 0;
 
@@ -99,6 +102,22 @@ abstract class DataObject implements Arrayable, Jsonable, JsonSerializable, Tran
         }
 
         return new static(...$arguments);
+    }
+
+    /**
+     * Get the caster to use for validated request input.
+     *
+     * @param string[] $arguments
+     */
+    public static function castRequestUsing(array $arguments): CastsRequestInput
+    {
+        if ($arguments !== []) {
+            throw new InvalidArgumentException(
+                'Data object request cast [' . static::class . '] does not accept arguments.',
+            );
+        }
+
+        return new DataObjectRequestCast(static::class);
     }
 
     /**
