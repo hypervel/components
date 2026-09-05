@@ -463,6 +463,8 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushSentryState(): void
     {
+        $this->callIfExists(\Sentry\SentrySdk::class, 'setRuntimeContextStorage', null);
+        $this->callIfExists(\Sentry\SentrySdk::class, 'init');
         $this->callIfExists(\Hypervel\Sentry\Http\HypervelRequestFetcher::class, 'flushState');
         $this->callIfExists(\Hypervel\Sentry\Tracing\Middleware::class, 'flushState');
     }
