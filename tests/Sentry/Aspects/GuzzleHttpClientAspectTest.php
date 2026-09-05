@@ -7,13 +7,21 @@ namespace Hypervel\Tests\Sentry\Aspects;
 use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Promise\Promise;
+use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\Promise\RejectedPromise;
+use GuzzleHttp\Promise\Utils;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\TransferStats;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAop;
 use Hypervel\Tests\Sentry\SentryTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\RequestInterface;
+use RuntimeException;
+use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanStatus;
+use Sentry\Tracing\Transaction;
 
 class GuzzleHttpClientAspectTest extends SentryTestCase
 {
@@ -23,7 +31,7 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
         'sentry.traces_sample_rate' => 1.0,
     ];
 
-    public function testBreadcrumbIsRecorded()
+    public function testBreadcrumbIsRecorded(): void
     {
         $client = $this->makeClient([
             new Response(200, [], 'OK'),
@@ -43,7 +51,7 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
         $this->assertEquals(200, $metadata['http.response.status_code']);
     }
 
-    public function testBreadcrumbIsNotRecordedWhenDisabled()
+    public function testBreadcrumbIsNotRecordedWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
             'sentry.breadcrumbs.http_client_requests' => false,
@@ -58,7 +66,7 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
         $this->assertEmpty($this->getCurrentSentryBreadcrumbs());
     }
 
-    public function testBreadcrumbLevelReflectsHttpStatus()
+    public function testBreadcrumbLevelReflectsHttpStatus(): void
     {
         $client = $this->makeClient([
             new Response(200, [], 'OK'),
@@ -76,7 +84,7 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
         $this->assertEquals('error', $this->getLastSentryBreadcrumb()->getLevel());
     }
 
-    public function testSpanIsRecorded()
+    public function testSpanIsRecorded(): void
     {
         $transaction = $this->startTransaction();
 
@@ -94,7 +102,7 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
         $this->assertEquals(SpanStatus::ok(), $span->getStatus());
     }
 
-    public function testSpanIsRecordedWithCorrectStatus()
+    public function testSpanIsRecordedWithCorrectStatus(): void
     {
         $transaction = $this->startTransaction();
 
@@ -112,7 +120,7 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
         $this->assertEquals(SpanStatus::internalError(), $span->getStatus());
     }
 
-    public function testSpanIsNotRecordedWhenDisabled()
+    public function testSpanIsNotRecordedWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
             'sentry.traces_sample_rate' => 1.0,
@@ -131,7 +139,7 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
         $this->assertNotEquals('http.client', $span->getOp());
     }
 
-    public function testTracingHeadersAreAttached()
+    public function testTracingHeadersAreAttached(): void
     {
         $this->resetApplicationWithConfig([
             'sentry.trace_propagation_targets' => ['example.com'],
@@ -143,12 +151,16 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
         ]);
         $client = new Client(['handler' => HandlerStack::create($mock)]);
 
-        $this->startTransaction();
+        $transaction = $this->startTransaction();
 
         $this->executeTransfer($client, new Request('GET', 'https://example.com'));
         $sentRequest = $mock->getLastRequest();
         $this->assertTrue($sentRequest->hasHeader('sentry-trace'));
         $this->assertTrue($sentRequest->hasHeader('baggage'));
+        $this->assertSame(
+            $this->lastRecordedSpan($transaction)->toTraceparent(),
+            $sentRequest->getHeaderLine('sentry-trace')
+        );
 
         $this->executeTransfer($client, new Request('GET', 'https://no-headers.example.com'));
         $sentRequest = $mock->getLastRequest();
@@ -156,7 +168,7 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
         $this->assertFalse($sentRequest->hasHeader('baggage'));
     }
 
-    public function testPerRequestOptOut()
+    public function testPerRequestOptOut(): void
     {
         $client = $this->makeClient([
             new Response(200, [], 'OK'),
@@ -167,7 +179,7 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
         $this->assertEmpty($this->getCurrentSentryBreadcrumbs());
     }
 
-    public function testPerClientOptOut()
+    public function testPerClientOptOut(): void
     {
         $mock = new MockHandler([new Response(200, [], 'OK')]);
         $client = new Client([
@@ -180,7 +192,7 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
         $this->assertEmpty($this->getCurrentSentryBreadcrumbs());
     }
 
-    public function testExistingOnStatsCallbackIsPreserved()
+    public function testExistingOnStatsCallbackIsPreserved(): void
     {
         $callbackFired = false;
 
@@ -189,13 +201,196 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
         ]);
 
         $this->executeTransfer($client, new Request('GET', 'https://example.com'), [
-            'on_stats' => function (TransferStats $stats) use (&$callbackFired) {
+            'on_stats' => function (TransferStats $stats) use (&$callbackFired): void {
                 $callbackFired = true;
             },
         ]);
 
         $this->assertTrue($callbackFired, 'Existing on_stats callback should be preserved');
         $this->assertCount(1, $this->getCurrentSentryBreadcrumbs());
+    }
+
+    public function testConcurrentAsyncRequestsRemainSiblingSpansWithStableParentContext(): void
+    {
+        $underlyingPromises = [new Promise, new Promise];
+        $requests = [];
+        $requestOptions = [];
+        $handler = function (RequestInterface $request, array $options) use ($underlyingPromises, &$requests, &$requestOptions): PromiseInterface {
+            $index = count($requests);
+            $requests[$index] = $request;
+            $requestOptions[$index] = $options;
+
+            return $underlyingPromises[$index];
+        };
+        $client = new Client(['handler' => $handler]);
+        $transaction = $this->startTransaction();
+
+        $firstPromise = $this->executeTransferAsync($client, new Request('GET', 'https://example.com/first'));
+        $firstSpan = $this->lastRecordedSpan($transaction);
+        $this->assertSame($transaction, $this->getSentryHubFromContainer()->getSpan());
+
+        $secondPromise = $this->executeTransferAsync($client, new Request('GET', 'https://example.com/second'));
+        $secondSpan = $this->lastRecordedSpan($transaction);
+
+        $this->assertSame((string) $transaction->getSpanId(), (string) $firstSpan->getParentSpanId());
+        $this->assertSame((string) $transaction->getSpanId(), (string) $secondSpan->getParentSpanId());
+        $this->assertSame($transaction, $this->getSentryHubFromContainer()->getSpan());
+
+        $response = new Response(200, [], 'OK');
+        ($requestOptions[1]['on_stats'])(new TransferStats($requests[1], $response, 0.01));
+        $underlyingPromises[1]->resolve($response);
+
+        $this->assertSame($response, $secondPromise->wait());
+        $this->assertNotNull($secondSpan->getEndTimestamp());
+        $this->assertNull($firstSpan->getEndTimestamp());
+        $this->assertSame($transaction, $this->getSentryHubFromContainer()->getSpan());
+
+        $firstPromise->cancel();
+        Utils::queue()->run();
+
+        $this->assertNotNull($firstSpan->getEndTimestamp());
+        $this->assertSame($transaction, $this->getSentryHubFromContainer()->getSpan());
+    }
+
+    #[DataProvider('cancellationPromiseProvider')]
+    public function testAsyncCancellationFinishesOnceAndPropagatesToTheUnderlyingPromise(bool $cancelDownstream): void
+    {
+        $cancelCount = 0;
+        $underlyingPromise = new Promise(null, function () use (&$cancelCount): void {
+            ++$cancelCount;
+        });
+        $client = new Client([
+            'handler' => static fn (): PromiseInterface => $underlyingPromise,
+        ]);
+        $transaction = $this->startTransaction();
+        $promise = $this->executeTransferAsync($client, new Request('GET', 'https://example.com/cancel'));
+        $span = $this->lastRecordedSpan($transaction);
+        $promiseToCancel = $cancelDownstream
+            ? $promise->then(static fn (mixed $value): mixed => $value)
+            : $promise;
+
+        $this->assertNull($span->getEndTimestamp());
+        $this->assertSame($transaction, $this->getSentryHubFromContainer()->getSpan());
+
+        $promiseToCancel->cancel();
+        $endTimestamp = $span->getEndTimestamp();
+
+        $this->assertSame(1, $cancelCount);
+        $this->assertNotNull($endTimestamp);
+        $this->assertEquals(SpanStatus::internalError(), $span->getStatus());
+        $this->assertSame($transaction, $this->getSentryHubFromContainer()->getSpan());
+
+        Utils::queue()->run();
+
+        $this->assertSame($endTimestamp, $span->getEndTimestamp());
+        $this->assertSame($transaction, $this->getSentryHubFromContainer()->getSpan());
+    }
+
+    public function testPendingRejectionWithoutStatsFinishesSpanAndPreservesReason(): void
+    {
+        $underlyingPromise = new Promise;
+        $client = new Client([
+            'handler' => static fn (): PromiseInterface => $underlyingPromise,
+        ]);
+        $transaction = $this->startTransaction();
+        $promise = $this->executeTransferAsync($client, new Request('GET', 'https://example.com/reject'));
+        $span = $this->lastRecordedSpan($transaction);
+        $reason = new RuntimeException('Rejected without transfer stats.');
+
+        $underlyingPromise->reject($reason);
+
+        try {
+            $promise->wait();
+            $this->fail('The rejected promise did not throw.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($reason, $exception);
+        }
+
+        $this->assertNotNull($span->getEndTimestamp());
+        $this->assertEquals(SpanStatus::internalError(), $span->getStatus());
+        $this->assertSame($transaction, $this->getSentryHubFromContainer()->getSpan());
+    }
+
+    public function testAlreadyRejectedPromiseRetainsItsCancellationSemantics(): void
+    {
+        $reason = new RuntimeException('Already rejected.');
+        $client = new Client([
+            'handler' => static fn (): PromiseInterface => new RejectedPromise($reason),
+        ]);
+        $transaction = $this->startTransaction();
+        $promise = $this->executeTransferAsync($client, new Request('GET', 'https://example.com/rejected'));
+        $span = $this->lastRecordedSpan($transaction);
+
+        $promise->cancel();
+
+        try {
+            $promise->wait();
+            $this->fail('The rejected promise did not throw.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($reason, $exception);
+        }
+
+        $this->assertNotNull($span->getEndTimestamp());
+        $this->assertEquals(SpanStatus::internalError(), $span->getStatus());
+        $this->assertSame($transaction, $this->getSentryHubFromContainer()->getSpan());
+    }
+
+    public function testStatsFinalizationIsNotRepeatedByLaterRejection(): void
+    {
+        $reason = new RuntimeException('Rejected after transfer stats.');
+        $client = new Client([
+            'handler' => static function (RequestInterface $request, array $options) use ($reason): PromiseInterface {
+                ($options['on_stats'])(new TransferStats($request, new Response(200), 0.01));
+
+                return new RejectedPromise($reason);
+            },
+        ]);
+        $transaction = $this->startTransaction();
+        $promise = $this->executeTransferAsync($client, new Request('GET', 'https://example.com/stats-reject'));
+        $span = $this->lastRecordedSpan($transaction);
+        $endTimestamp = $span->getEndTimestamp();
+
+        try {
+            $promise->wait();
+            $this->fail('The rejected promise did not throw.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($reason, $exception);
+        }
+
+        $this->assertNotNull($endTimestamp);
+        $this->assertSame($endTimestamp, $span->getEndTimestamp());
+        $this->assertSame($transaction, $this->getSentryHubFromContainer()->getSpan());
+    }
+
+    public function testStatsFinalizationIsNotRepeatedByLaterCancellation(): void
+    {
+        $underlyingPromise = new Promise;
+        $client = new Client([
+            'handler' => static function (RequestInterface $request, array $options) use ($underlyingPromise): PromiseInterface {
+                ($options['on_stats'])(new TransferStats($request, new Response(200), 0.01));
+
+                return $underlyingPromise;
+            },
+        ]);
+        $transaction = $this->startTransaction();
+        $promise = $this->executeTransferAsync($client, new Request('GET', 'https://example.com/stats-cancel'));
+        $span = $this->lastRecordedSpan($transaction);
+        $endTimestamp = $span->getEndTimestamp();
+
+        $promise->cancel();
+        Utils::queue()->run();
+
+        $this->assertNotNull($endTimestamp);
+        $this->assertSame($endTimestamp, $span->getEndTimestamp());
+        $this->assertSame($transaction, $this->getSentryHubFromContainer()->getSpan());
+    }
+
+    public static function cancellationPromiseProvider(): array
+    {
+        return [
+            'direct promise' => [false],
+            'downstream promise' => [true],
+        ];
     }
 
     /**
@@ -229,6 +424,29 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
             'request' => $preparedRequest,
             'options' => $preparedOptions,
         ])->wait();
+    }
+
+    private function executeTransferAsync(Client $client, RequestInterface $request, array $options = []): PromiseInterface
+    {
+        if ($this->isAopProxied($client)) {
+            return $client->sendAsync($request, $options);
+        }
+
+        ['request' => $preparedRequest, 'options' => $preparedOptions] = $this->prepareTransferArguments(
+            $client,
+            $request,
+            $options
+        );
+
+        return $this->callWithAspects($client, 'transfer', [
+            'request' => $preparedRequest,
+            'options' => $preparedOptions,
+        ]);
+    }
+
+    private function lastRecordedSpan(Transaction $transaction): Span
+    {
+        return last($transaction->getSpanRecorder()->getSpans());
     }
 
     /**

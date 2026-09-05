@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Aspects;
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Promise\Promise;
+use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\TransferStats;
 use Hypervel\Di\Aop\AbstractAspect;
 use Hypervel\Di\Aop\ProceedingJoinPoint;
@@ -21,17 +23,7 @@ use function Sentry\getBaggage;
 use function Sentry\getTraceparent;
 
 /**
- * AOP aspect that instruments all Guzzle HTTP client requests.
- *
- * Intercepts GuzzleHttp\Client::transfer() to provide:
- * - Trace header injection (sentry-trace, baggage)
- * - Span creation and finishing for tracing
- * - Breadcrumb recording via on_stats callback
- * - Preservation of any existing on_stats callback
- * - Per-request opt-out via the no_sentry_aspect option
- *
- * This catches ALL Guzzle usage: Http:: facade, direct new Client(),
- * and third-party packages using Guzzle internally.
+ * Instrument every Guzzle transfer with Sentry tracing and breadcrumbs.
  */
 class GuzzleHttpClientAspect extends AbstractAspect
 {
@@ -72,19 +64,12 @@ class GuzzleHttpClientAspect extends AbstractAspect
         /** @var RequestInterface $request */
         $request = $proceedingJoinPoint->arguments['keys']['request'];
 
-        // Inject trace headers before the request is sent
-        if ($this->tracingEnabled && $this->shouldAttachTracingHeaders($request)) {
-            $request = $request
-                ->withHeader('sentry-trace', getTraceparent())
-                ->withHeader('baggage', getBaggage());
-            $proceedingJoinPoint->arguments['keys']['request'] = $request;
-        }
-
-        // Start a child span for tracing (finished in the on_stats callback)
         $span = null;
         $parentSpan = null;
+        $hub = SentrySdk::getCurrentHub();
+
         if ($this->tracingEnabled) {
-            $parentSpan = SentrySdk::getCurrentHub()->getSpan();
+            $parentSpan = $hub->getSpan();
 
             if ($parentSpan !== null && $parentSpan->getSampled()) {
                 $method = $request->getMethod();
@@ -103,24 +88,19 @@ class GuzzleHttpClientAspect extends AbstractAspect
                         ->setOrigin('auto.http.guzzle')
                         ->setDescription($method . ' ' . $partialUri)
                 );
-
-                SentrySdk::getCurrentHub()->setSpan($span);
             }
         }
 
-        // Inject on_stats callback for breadcrumb recording and span finishing.
-        // on_stats fires when the transfer completes (sync or async), giving us
-        // the response data needed to finish the span with accurate status codes.
         $existingOnStats = $options['on_stats'] ?? null;
         $recordBreadcrumbs = $this->breadcrumbsEnabled;
 
-        $proceedingJoinPoint->arguments['keys']['options']['on_stats'] = static function (TransferStats $stats) use ($existingOnStats, $span, $parentSpan, $recordBreadcrumbs): void {
+        $proceedingJoinPoint->arguments['keys']['options']['on_stats'] = static function (TransferStats $stats) use ($existingOnStats, $span, $recordBreadcrumbs): void {
             if ($recordBreadcrumbs) {
                 self::recordBreadcrumb($stats);
             }
 
             if ($span !== null) {
-                self::finishSpan($span, $parentSpan, $stats);
+                self::finishSpan($span, $stats);
             }
 
             if (is_callable($existingOnStats)) {
@@ -128,29 +108,50 @@ class GuzzleHttpClientAspect extends AbstractAspect
             }
         };
 
-        try {
-            return $proceedingJoinPoint->process();
-        } catch (Throwable $exception) {
-            // on_stats may not fire on connection failure — ensure span is finished
-            if ($span !== null && $span->getEndTimestamp() === null) {
-                $span->setStatus(SpanStatus::internalError());
-                $span->finish();
+        if ($span !== null) {
+            $hub->setSpan($span);
+        }
 
-                if ($parentSpan !== null) {
-                    SentrySdk::getCurrentHub()->setSpan($parentSpan);
-                }
+        try {
+            if ($this->tracingEnabled && $this->shouldAttachTracingHeaders($request)) {
+                $request = $request
+                    ->withHeader('sentry-trace', getTraceparent())
+                    ->withHeader('baggage', getBaggage());
+                $proceedingJoinPoint->arguments['keys']['request'] = $request;
+            }
+
+            /** @var PromiseInterface $promise */
+            $promise = $proceedingJoinPoint->process();
+        } catch (Throwable $exception) {
+            if ($span !== null) {
+                self::finishSpan($span);
             }
 
             throw $exception;
+        } finally {
+            if ($span !== null) {
+                // An outstanding promise must never own the current span in Hypervel's coroutine-scoped Hub.
+                $hub->setSpan($parentSpan);
+            }
         }
+
+        if ($span === null || $span->getEndTimestamp() !== null) {
+            return $promise;
+        }
+
+        return self::finalizePromiseFailure($promise, $span);
     }
 
     /**
-     * Finish the span with response data from the transfer stats.
+     * Finish the span with any available transfer data.
      */
-    private static function finishSpan(Span $span, ?Span $parentSpan, TransferStats $stats): void
+    private static function finishSpan(Span $span, ?TransferStats $stats = null): void
     {
-        $response = $stats->getResponse();
+        if ($span->getEndTimestamp() !== null) {
+            return;
+        }
+
+        $response = $stats?->getResponse();
 
         if ($response !== null) {
             $span->setData(array_merge($span->getData(), [
@@ -163,10 +164,54 @@ class GuzzleHttpClientAspect extends AbstractAspect
         }
 
         $span->finish();
+    }
 
-        if ($parentSpan !== null) {
-            SentrySdk::getCurrentHub()->setSpan($parentSpan);
+    /**
+     * Finalize a span when an asynchronous transfer fails or is cancelled.
+     */
+    private static function finalizePromiseFailure(PromiseInterface $promise, Span $span): PromiseInterface
+    {
+        $state = $promise->getState();
+
+        if ($state === PromiseInterface::REJECTED) {
+            self::finishSpan($span);
+
+            return $promise;
         }
+
+        if ($state !== PromiseInterface::PENDING) {
+            return $promise;
+        }
+
+        $forwardingPromise = new Promise(
+            static function (bool $unwrap) use ($promise): void {
+                $promise->wait(false);
+            },
+            static function () use ($promise, $span): void {
+                try {
+                    $promise->cancel();
+                } finally {
+                    self::finishSpan($span);
+                }
+            }
+        );
+
+        $promise->then(
+            static function (mixed $value) use ($forwardingPromise): void {
+                if ($forwardingPromise->getState() === PromiseInterface::PENDING) {
+                    $forwardingPromise->resolve($value);
+                }
+            },
+            static function (mixed $reason) use ($forwardingPromise, $span): void {
+                // Guzzle uses the same guard because cancellation can settle a child before queued handlers run.
+                if ($forwardingPromise->getState() === PromiseInterface::PENDING) {
+                    self::finishSpan($span);
+                    $forwardingPromise->reject($reason);
+                }
+            }
+        );
+
+        return $forwardingPromise;
     }
 
     /**
