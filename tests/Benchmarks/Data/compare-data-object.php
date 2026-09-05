@@ -3,6 +3,7 @@
 
 declare(strict_types=1);
 
+use Hypervel\Data\Attributes\DataCollectionOf;
 use Hypervel\Data\Attributes\MapInputName;
 use Hypervel\Data\Attributes\MapOutputName;
 use Hypervel\Data\Data;
@@ -14,9 +15,9 @@ use Hypervel\Data\Support\DataConfig;
 use Hypervel\Data\Support\Factories\DataClassFactory;
 use Hypervel\Data\Support\Transformation\DataTransformer;
 use Hypervel\Data\Support\Validation\DataValidator;
+use Hypervel\Support\DataObject as SupportDataObject;
 use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Foundation\Application as TestbenchApplication;
-use Hypervel\Tests\Benchmarks\Data\Fixtures\DataObject;
 
 use function Hypervel\Coroutine\run;
 
@@ -25,7 +26,6 @@ const WARMUP = 2_000;
 const OPERATIONS = 30_000;
 
 require dirname(__DIR__, 3) . '/tests/bootstrap.php';
-require __DIR__ . '/Fixtures/DataObject.php';
 
 Bootstrapper::bootstrap();
 
@@ -35,7 +35,7 @@ enum BenchStatus: string
     case Pending = 'pending';
 }
 
-class OldFlat extends DataObject
+class DataFlat extends Data
 {
     public function __construct(
         public int $id,
@@ -47,19 +47,7 @@ class OldFlat extends DataObject
     }
 }
 
-class NewFlat extends Data
-{
-    public function __construct(
-        public int $id,
-        public string $name,
-        public string $email,
-        public bool $active,
-        public float $score,
-    ) {
-    }
-}
-
-class OldDefaults extends DataObject
+class DataDefaults extends Data
 {
     public function __construct(
         public int $id,
@@ -71,19 +59,7 @@ class OldDefaults extends DataObject
     }
 }
 
-class NewDefaults extends Data
-{
-    public function __construct(
-        public int $id,
-        public string $name = 'default',
-        public bool $active = true,
-        public float $score = 1.5,
-        public ?string $note = null,
-    ) {
-    }
-}
-
-class OldWide extends DataObject
+class DataWide extends Data
 {
     public function __construct(
         public int $one,
@@ -110,34 +86,7 @@ class OldWide extends DataObject
     }
 }
 
-class NewWide extends Data
-{
-    public function __construct(
-        public int $one,
-        public int $two,
-        public int $three,
-        public int $four,
-        public int $five,
-        public int $six,
-        public int $seven,
-        public int $eight,
-        public int $nine,
-        public int $ten,
-        public int $eleven,
-        public int $twelve,
-        public int $thirteen,
-        public int $fourteen,
-        public int $fifteen,
-        public int $sixteen,
-        public int $seventeen,
-        public int $eighteen,
-        public int $nineteen,
-        public int $twenty,
-    ) {
-    }
-}
-
-class OldLeaf extends DataObject
+class DataLeaf extends Data
 {
     public function __construct(
         public int $id,
@@ -148,21 +97,10 @@ class OldLeaf extends DataObject
     }
 }
 
-class NewLeaf extends Data
+class DataNested extends Data
 {
     public function __construct(
-        public int $id,
-        public string $code,
-        public bool $enabled,
-        public float $score,
-    ) {
-    }
-}
-
-class OldNested extends DataObject
-{
-    public function __construct(
-        public OldLeaf $child,
+        public DataLeaf $child,
         public int $id,
         public string $name,
         public bool $active,
@@ -171,59 +109,27 @@ class OldNested extends DataObject
     }
 }
 
-class NewNested extends Data
+class DataMiddle extends Data
 {
     public function __construct(
-        public NewLeaf $child,
-        public int $id,
-        public string $name,
-        public bool $active,
-        public ?string $note,
-    ) {
-    }
-}
-
-class OldMiddle extends DataObject
-{
-    public function __construct(
-        public OldLeaf $child,
+        public DataLeaf $child,
         public int $id,
         public string $name,
     ) {
     }
 }
 
-class NewMiddle extends Data
+class DataDeep extends Data
 {
     public function __construct(
-        public NewLeaf $child,
+        public DataMiddle $child,
         public int $id,
         public string $name,
     ) {
     }
 }
 
-class OldDeep extends DataObject
-{
-    public function __construct(
-        public OldMiddle $child,
-        public int $id,
-        public string $name,
-    ) {
-    }
-}
-
-class NewDeep extends Data
-{
-    public function __construct(
-        public NewMiddle $child,
-        public int $id,
-        public string $name,
-    ) {
-    }
-}
-
-class OldEnum extends DataObject
+class DataEnum extends Data
 {
     public function __construct(
         public int $id,
@@ -232,25 +138,7 @@ class OldEnum extends DataObject
     }
 }
 
-class NewEnum extends Data
-{
-    public function __construct(
-        public int $id,
-        public BenchStatus $status,
-    ) {
-    }
-}
-
-class OldDate extends DataObject
-{
-    public function __construct(
-        public int $id,
-        public DateTimeImmutable $createdAt,
-    ) {
-    }
-}
-
-class NewDate extends Data
+class DataDate extends Data
 {
     public function __construct(
         public int $id,
@@ -260,19 +148,7 @@ class NewDate extends Data
     }
 }
 
-class OldMixed extends DataObject
-{
-    public function __construct(
-        public int $externalId,
-        public string $displayName,
-        public BenchStatus $status,
-        public DateTimeImmutable $createdAt,
-        public OldLeaf $child,
-    ) {
-    }
-}
-
-class NewMixed extends Data
+class DataMixed extends Data
 {
     public function __construct(
         #[MapInputName('external_id')]
@@ -285,28 +161,167 @@ class NewMixed extends Data
         #[MapInputName('created_at')]
         #[MapOutputName('created_at')]
         public DateTimeImmutable $createdAt,
-        public NewLeaf $child,
+        public DataLeaf $child,
     ) {
     }
 }
 
-class OldCold extends DataObject
+class DataCold extends Data
 {
     public function __construct(public int $id, public string $name, public bool $active)
     {
     }
 }
 
-class NewCold extends Data
-{
-    public function __construct(public int $id, public string $name, public bool $active)
-    {
-    }
-}
-
-class NewWarm extends Data
+class DataWarm extends Data
 {
     public function __construct(public int $id)
+    {
+    }
+}
+
+class LightweightFlat extends SupportDataObject
+{
+    public function __construct(
+        public int $id,
+        public string $name,
+        public string $email,
+        public bool $active,
+        public float $score,
+    ) {
+    }
+}
+
+class LightweightDefaults extends SupportDataObject
+{
+    public function __construct(
+        public int $id,
+        public string $name = 'default',
+        public bool $active = true,
+        public float $score = 1.5,
+        public ?string $note = null,
+    ) {
+    }
+}
+
+class LightweightWide extends SupportDataObject
+{
+    public function __construct(
+        public int $one,
+        public int $two,
+        public int $three,
+        public int $four,
+        public int $five,
+        public int $six,
+        public int $seven,
+        public int $eight,
+        public int $nine,
+        public int $ten,
+        public int $eleven,
+        public int $twelve,
+        public int $thirteen,
+        public int $fourteen,
+        public int $fifteen,
+        public int $sixteen,
+        public int $seventeen,
+        public int $eighteen,
+        public int $nineteen,
+        public int $twenty,
+    ) {
+    }
+}
+
+class LightweightLeaf extends SupportDataObject
+{
+    public function __construct(
+        public int $id,
+        public string $code,
+        public bool $enabled,
+        public float $score,
+    ) {
+    }
+}
+
+class LightweightNested extends SupportDataObject
+{
+    public function __construct(
+        public LightweightLeaf $child,
+        public int $id,
+        public string $name,
+        public bool $active,
+        public ?string $note,
+    ) {
+    }
+}
+
+class LightweightMiddle extends SupportDataObject
+{
+    public function __construct(
+        public LightweightLeaf $child,
+        public int $id,
+        public string $name,
+    ) {
+    }
+}
+
+class LightweightDeep extends SupportDataObject
+{
+    public function __construct(
+        public LightweightMiddle $child,
+        public int $id,
+        public string $name,
+    ) {
+    }
+}
+
+class LightweightEnum extends SupportDataObject
+{
+    public function __construct(
+        public int $id,
+        public BenchStatus $status,
+    ) {
+    }
+}
+
+class LightweightDate extends SupportDataObject
+{
+    public function __construct(
+        public int $id,
+        public DateTimeImmutable $createdAt,
+    ) {
+    }
+}
+
+class LightweightMixed extends SupportDataObject
+{
+    public function __construct(
+        public int $externalId,
+        public string $displayName,
+        public BenchStatus $status,
+        public DateTimeImmutable $createdAt,
+        public LightweightLeaf $child,
+    ) {
+    }
+}
+
+class LightweightCold extends SupportDataObject
+{
+    public function __construct(public int $id, public string $name, public bool $active)
+    {
+    }
+}
+
+class LightweightItemList extends SupportDataObject
+{
+    public function __construct(public array $items)
+    {
+    }
+}
+
+// Data needs explicit item metadata to produce the same nested-array output as DataObject.
+class DataItemList extends Data
+{
+    public function __construct(#[DataCollectionOf(DataLeaf::class)] public array $items)
     {
     }
 }
@@ -359,7 +374,7 @@ function coldMeasurement(string $mode): int
 
     try {
         if ($mode === 'data-class') {
-            run(static fn (): NewWarm => NewWarm::from(['id' => 1]));
+            run(static fn (): DataWarm => DataWarm::from(['id' => 1]));
         }
 
         $elapsed = 0;
@@ -367,8 +382,8 @@ function coldMeasurement(string $mode): int
             $startedAt = hrtime(true);
 
             match ($mode) {
-                'old' => OldCold::from(['id' => 1, 'name' => 'cold', 'active' => true]),
-                'data-first', 'data-class' => NewCold::from(['id' => 1, 'name' => 'cold', 'active' => true]),
+                'data-object' => LightweightCold::from(['id' => 1, 'name' => 'cold', 'active' => true]),
+                'data-first', 'data-class' => DataCold::from(['id' => 1, 'name' => 'cold', 'active' => true]),
                 'data-config' => $application->make(DataConfig::class),
                 'annotation-reader' => $application->make(DataIterableAnnotationReader::class),
                 'class-factory' => $application->make(DataClassFactory::class),
@@ -449,16 +464,16 @@ function retainedInstanceBytes(Closure $factory, ?Closure $prepare = null): floa
 /**
  * Print one benchmark row.
  */
-function printRow(string $scenario, array $old, array $new): void
+function printRow(string $scenario, array $dataObject, array $data): void
 {
     printf(
         "%-38s %12.1f %12.1f %8.2fx %12.1f %12.1f\n",
         $scenario,
-        $old['p50'],
-        $new['p50'],
-        $new['p50'] / $old['p50'],
-        $old['p95'],
-        $new['p95'],
+        $dataObject['p50'],
+        $data['p50'],
+        $data['p50'] / $dataObject['p50'],
+        $dataObject['p95'],
+        $data['p95'],
     );
 }
 
@@ -469,6 +484,7 @@ function execute(): void
 {
     $application = TestbenchApplication::create(options: ['load_environment_variables' => false]);
     $application->register(DataServiceProvider::class);
+    $reverseOrder = getenv('BENCHMARK_REVERSE') === '1';
 
     $flat = ['id' => 1, 'name' => 'Taylor', 'email' => 'taylor@example.com', 'active' => true, 'score' => 9.5];
     $coerced = ['id' => '1', 'name' => 123, 'email' => 456, 'active' => 1, 'score' => '9.5'];
@@ -477,24 +493,28 @@ function execute(): void
         ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'],
         range(1, 20),
     );
-    $oldLeaf = ['id' => 1, 'code' => 'leaf', 'enabled' => true, 'score' => 9.5];
-    $newLeaf = $oldLeaf;
-    $oldNested = ['child' => $oldLeaf, 'id' => 2, 'name' => 'nested', 'active' => true, 'note' => null];
-    $newNested = ['child' => $newLeaf, 'id' => 2, 'name' => 'nested', 'active' => true, 'note' => null];
-    $oldDeep = ['child' => ['child' => $oldLeaf, 'id' => 2, 'name' => 'middle'], 'id' => 3, 'name' => 'deep'];
-    $newDeep = ['child' => ['child' => $newLeaf, 'id' => 2, 'name' => 'middle'], 'id' => 3, 'name' => 'deep'];
+    $leaf = ['id' => 1, 'code' => 'leaf', 'enabled' => true, 'score' => 9.5];
+    $nested = ['child' => $leaf, 'id' => 2, 'name' => 'nested', 'active' => true, 'note' => null];
+    $deep = ['child' => ['child' => $leaf, 'id' => 2, 'name' => 'middle'], 'id' => 3, 'name' => 'deep'];
     $enum = ['id' => 1, 'status' => 'active'];
-    $oldDate = ['id' => 1, 'created_at' => '2026-09-04 12:34:56'];
-    $newDate = ['id' => 1, 'created_at' => '2026-09-04T12:34:56+00:00'];
-    $oldMixed = [
+    $dataObjectDate = ['id' => 1, 'createdAt' => '2026-09-04 12:34:56'];
+    $dataDate = ['id' => 1, 'created_at' => '2026-09-04T12:34:56+00:00'];
+    $dataObjectMixed = [
+        'externalId' => '9',
+        'displayName' => 123,
+        'status' => 'active',
+        'createdAt' => '2026-09-04 12:34:56',
+        'child' => ['id' => '1', 'code' => 456, 'enabled' => 1, 'score' => '9.5'],
+    ];
+    $dataMixed = [
         'external_id' => '9',
         'display_name' => 123,
         'status' => 'active',
-        'created_at' => '2026-09-04 12:34:56',
+        'created_at' => '2026-09-04T12:34:56+00:00',
         'child' => ['id' => '1', 'code' => 456, 'enabled' => 1, 'score' => '9.5'],
     ];
-    $newMixed = [...$oldMixed, 'created_at' => '2026-09-04T12:34:56+00:00'];
     $rows = array_fill(0, 1_000, $flat);
+    $itemRows = array_fill(0, 25, $leaf);
 
     try {
         run(function () use (
@@ -503,69 +523,81 @@ function execute(): void
             $defaults,
             $enum,
             $flat,
-            $newDate,
-            $newDeep,
-            $newMixed,
-            $newNested,
-            $oldDeep,
-            $oldDate,
-            $oldMixed,
-            $oldNested,
+            $itemRows,
+            $dataDate,
+            $dataMixed,
+            $nested,
+            $deep,
+            $dataObjectDate,
+            $dataObjectMixed,
+            $reverseOrder,
             $rows,
             $wide,
         ): void {
-            NewFlat::from($flat);
-            OldFlat::from($flat);
+            DataFlat::from($flat);
+            LightweightFlat::from($flat);
 
             $construction = [
                 'flat-5-scalars' => [
-                    fn (): int => OldFlat::from($flat)->id,
-                    fn (): int => NewFlat::from($flat)->id,
+                    fn (): int => LightweightFlat::from($flat)->id,
+                    fn (): int => DataFlat::from($flat)->id,
                 ],
                 'with-defaults' => [
-                    fn (): int => OldDefaults::from($defaults)->id,
-                    fn (): int => NewDefaults::from($defaults)->id,
+                    fn (): int => LightweightDefaults::from($defaults)->id,
+                    fn (): int => DataDefaults::from($defaults)->id,
                 ],
                 'wide-20-scalars' => [
-                    fn (): int => OldWide::from($wide)->twenty,
-                    fn (): int => NewWide::from($wide)->twenty,
+                    fn (): int => LightweightWide::from($wide)->twenty,
+                    fn (): int => DataWide::from($wide)->twenty,
                 ],
                 'flat-requiring-coercion' => [
-                    fn (): int => OldFlat::from($coerced)->id,
-                    fn (): int => NewFlat::from($coerced)->id,
+                    fn (): int => LightweightFlat::from($coerced)->id,
+                    fn (): int => DataFlat::from($coerced)->id,
                 ],
                 'nested-1-level' => [
-                    fn (): int => OldNested::from($oldNested, true)->child->id,
-                    fn (): int => NewNested::from($newNested)->child->id,
+                    fn (): int => LightweightNested::from($nested)->child->id,
+                    fn (): int => DataNested::from($nested)->child->id,
                 ],
                 'deep-3-levels' => [
-                    fn (): int => OldDeep::from($oldDeep, true)->child->child->id,
-                    fn (): int => NewDeep::from($newDeep)->child->child->id,
+                    fn (): int => LightweightDeep::from($deep)->child->child->id,
+                    fn (): int => DataDeep::from($deep)->child->child->id,
                 ],
                 'backed-enum' => [
-                    fn (): int => OldEnum::from($enum, true)->status === BenchStatus::Active ? 1 : 0,
-                    fn (): int => NewEnum::from($enum)->status === BenchStatus::Active ? 1 : 0,
+                    fn (): int => LightweightEnum::from($enum)->status === BenchStatus::Active ? 1 : 0,
+                    fn (): int => DataEnum::from($enum)->status === BenchStatus::Active ? 1 : 0,
                 ],
                 'date-time' => [
-                    fn (): int => OldDate::from($oldDate, true)->id,
-                    fn (): int => NewDate::from($newDate)->id,
+                    fn (): int => LightweightDate::from($dataObjectDate)->id,
+                    fn (): int => DataDate::from($dataDate)->id,
                 ],
                 'mixed-api-payload' => [
-                    fn (): int => OldMixed::from($oldMixed, true)->child->id,
-                    fn (): int => NewMixed::from($newMixed)->child->id,
+                    fn (): int => LightweightMixed::from($dataObjectMixed)->child->id,
+                    fn (): int => DataMixed::from($dataMixed)->child->id,
+                ],
+                'array-of-25-data-objects' => [
+                    function () use ($itemRows): int {
+                        $items = array_map(LightweightLeaf::from(...), $itemRows);
+
+                        return LightweightItemList::from(['items' => $items])->items[0]->id;
+                    },
+                    function () use ($itemRows): int {
+                        $items = array_map(DataLeaf::from(...), $itemRows);
+
+                        return DataItemList::from(['items' => $items])->items[0]->id;
+                    },
                 ],
                 '1000-item-from-loop' => [
                     function () use ($rows): int {
                         $checksum = 0;
                         foreach ($rows as $row) {
-                            $checksum += OldFlat::from($row)->id;
+                            $checksum += LightweightFlat::from($row)->id;
                         }
                         return $checksum;
                     },
                     function () use ($rows): int {
                         $checksum = 0;
                         foreach ($rows as $row) {
-                            $checksum += NewFlat::from($row)->id;
+                            $checksum += DataFlat::from($row)->id;
                         }
                         return $checksum;
                     },
@@ -573,147 +605,157 @@ function execute(): void
             ];
 
             printf("Construction (nanoseconds per operation)\n");
-            printf("%-38s %12s %12s %9s %12s %12s\n", 'scenario', 'old p50', 'data p50', 'ratio', 'old p95', 'data p95');
+            printf("%-38s %12s %12s %9s %12s %12s\n", 'scenario', 'object p50', 'data p50', 'ratio', 'object p95', 'data p95');
 
-            foreach ($construction as $name => [$old, $new]) {
+            foreach ($construction as $name => [$dataObject, $data]) {
                 $divisor = $name === '1000-item-from-loop' ? 1_000 : 1;
-                $operations = $divisor === 1 ? OPERATIONS : 60;
+                $operations = $divisor === 1
+                    ? ($name === 'array-of-25-data-objects' ? 2_000 : OPERATIONS)
+                    : 60;
                 $warmup = $divisor === 1 ? WARMUP : 10;
-                $oldResult = measure($old, $operations, $warmup);
-                $newResult = measure($new, $operations, $warmup);
-                $oldResult = ['p50' => $oldResult['p50'] / $divisor, 'p95' => $oldResult['p95'] / $divisor];
-                $newResult = ['p50' => $newResult['p50'] / $divisor, 'p95' => $newResult['p95'] / $divisor];
-                printRow($name, $oldResult, $newResult);
+                if ($reverseOrder) {
+                    $dataResult = measure($data, $operations, $warmup);
+                    $dataObjectResult = measure($dataObject, $operations, $warmup);
+                } else {
+                    $dataObjectResult = measure($dataObject, $operations, $warmup);
+                    $dataResult = measure($data, $operations, $warmup);
+                }
+                $dataObjectResult = ['p50' => $dataObjectResult['p50'] / $divisor, 'p95' => $dataObjectResult['p95'] / $divisor];
+                $dataResult = ['p50' => $dataResult['p50'] / $divisor, 'p95' => $dataResult['p95'] / $divisor];
+                printRow($name, $dataObjectResult, $dataResult);
             }
 
-            $oldFlatObject = OldFlat::from($flat);
-            $newFlatObject = NewFlat::from($flat);
-            $oldWideObject = OldWide::from($wide);
-            $newWideObject = NewWide::from($wide);
-            $oldNestedObject = OldNested::from($oldNested, true);
-            $newNestedObject = NewNested::from($newNested);
-            $oldDeepObject = OldDeep::from($oldDeep, true);
-            $newDeepObject = NewDeep::from($newDeep);
-            $oldObjects = array_fill(0, 1_000, null);
-            $newObjects = array_fill(0, 1_000, null);
+            $dataObjectFlatObject = LightweightFlat::from($flat);
+            $dataFlatObject = DataFlat::from($flat);
+            $dataObjectWideObject = LightweightWide::from($wide);
+            $dataWideObject = DataWide::from($wide);
+            $dataObjectNestedObject = LightweightNested::from($nested);
+            $dataNestedObject = DataNested::from($nested);
+            $dataObjectDeepObject = LightweightDeep::from($deep);
+            $dataDeepObject = DataDeep::from($deep);
+            $dataObjectObjects = array_fill(0, 1_000, null);
+            $dataObjects = array_fill(0, 1_000, null);
 
-            foreach (array_keys($oldObjects) as $index) {
-                $oldObjects[$index] = OldFlat::from($flat);
-                $newObjects[$index] = NewFlat::from($flat);
+            foreach (array_keys($dataObjectObjects) as $index) {
+                $dataObjectObjects[$index] = LightweightFlat::from($flat);
+                $dataObjects[$index] = DataFlat::from($flat);
             }
+
+            $dataObjectItemList = LightweightItemList::from(['items' => array_map(LightweightLeaf::from(...), $itemRows)]);
+            $dataItemList = DataItemList::from(['items' => array_map(DataLeaf::from(...), $itemRows)]);
 
             $transformation = [
                 'flat-uncached' => [
-                    fn (): int => $oldFlatObject->refresh()->toArray()['id'],
-                    fn (): int => $newFlatObject->toArray()['id'],
+                    fn (): int => $dataObjectFlatObject->toArray()['id'],
+                    fn (): int => $dataFlatObject->toArray()['id'],
                 ],
                 'wide-uncached' => [
-                    fn (): int => $oldWideObject->refresh()->toArray()['twenty'],
-                    fn (): int => $newWideObject->toArray()['twenty'],
+                    fn (): int => $dataObjectWideObject->toArray()['twenty'],
+                    fn (): int => $dataWideObject->toArray()['twenty'],
                 ],
                 'nested-whole-tree' => [
-                    function () use ($oldNestedObject): int {
-                        $oldNestedObject->child->refresh();
-                        return $oldNestedObject->refresh()->toArray()['child']['id'];
-                    },
-                    fn (): int => $newNestedObject->toArray()['child']['id'],
+                    fn (): int => $dataObjectNestedObject->toArray()['child']['id'],
+                    fn (): int => $dataNestedObject->toArray()['child']['id'],
                 ],
                 'deep-whole-tree' => [
-                    function () use ($oldDeepObject): int {
-                        $oldDeepObject->child->child->refresh();
-                        $oldDeepObject->child->refresh();
-                        return $oldDeepObject->refresh()->toArray()['child']['child']['id'];
-                    },
-                    fn (): int => $newDeepObject->toArray()['child']['child']['id'],
+                    fn (): int => $dataObjectDeepObject->toArray()['child']['child']['id'],
+                    fn (): int => $dataDeepObject->toArray()['child']['child']['id'],
                 ],
                 'json-encode-nested' => [
-                    function () use ($oldNestedObject): int {
-                        $oldNestedObject->child->refresh();
-                        $oldNestedObject->refresh();
-                        return strlen((string) json_encode($oldNestedObject, JSON_THROW_ON_ERROR));
-                    },
-                    fn (): int => strlen((string) json_encode($newNestedObject, JSON_THROW_ON_ERROR)),
+                    fn (): int => strlen((string) json_encode($dataObjectNestedObject, JSON_THROW_ON_ERROR)),
+                    fn (): int => strlen((string) json_encode($dataNestedObject, JSON_THROW_ON_ERROR)),
+                ],
+                'array-of-25-data-objects' => [
+                    fn (): int => $dataObjectItemList->toArray()['items'][0]['id'],
+                    fn (): int => $dataItemList->toArray()['items'][0]['id'],
                 ],
                 '1000-object-transform' => [
-                    function () use ($oldObjects): int {
+                    function () use ($dataObjectObjects): int {
                         $checksum = 0;
-                        foreach ($oldObjects as $object) {
-                            $checksum += $object->refresh()->toArray()['id'];
+                        foreach ($dataObjectObjects as $object) {
+                            $checksum += $object->toArray()['id'];
                         }
                         return $checksum;
                     },
-                    function () use ($newObjects): int {
+                    function () use ($dataObjects): int {
                         $checksum = 0;
-                        foreach ($newObjects as $object) {
+                        foreach ($dataObjects as $object) {
                             $checksum += $object->toArray()['id'];
                         }
                         return $checksum;
                     },
                 ],
                 'property-read' => [
-                    fn (): int => $oldFlatObject->id,
-                    fn (): int => $newFlatObject->id,
+                    fn (): int => $dataObjectFlatObject->id,
+                    fn (): int => $dataFlatObject->id,
                 ],
             ];
 
             printf("\nTransformation (nanoseconds per operation)\n");
-            printf("%-38s %12s %12s %9s %12s %12s\n", 'scenario', 'old p50', 'data p50', 'ratio', 'old p95', 'data p95');
+            printf("%-38s %12s %12s %9s %12s %12s\n", 'scenario', 'object p50', 'data p50', 'ratio', 'object p95', 'data p95');
 
-            foreach ($transformation as $name => [$old, $new]) {
+            foreach ($transformation as $name => [$dataObject, $data]) {
                 $divisor = $name === '1000-object-transform' ? 1_000 : 1;
-                $operations = $divisor === 1 ? OPERATIONS : 80;
+                $operations = $divisor === 1
+                    ? ($name === 'array-of-25-data-objects' ? 3_000 : OPERATIONS)
+                    : 80;
                 $warmup = $divisor === 1 ? WARMUP : 10;
-                $oldResult = measure($old, $operations, $warmup);
-                $newResult = measure($new, $operations, $warmup);
-                $oldResult = ['p50' => $oldResult['p50'] / $divisor, 'p95' => $oldResult['p95'] / $divisor];
-                $newResult = ['p50' => $newResult['p50'] / $divisor, 'p95' => $newResult['p95'] / $divisor];
-                printRow($name, $oldResult, $newResult);
+                if ($reverseOrder) {
+                    $dataResult = measure($data, $operations, $warmup);
+                    $dataObjectResult = measure($dataObject, $operations, $warmup);
+                } else {
+                    $dataObjectResult = measure($dataObject, $operations, $warmup);
+                    $dataResult = measure($data, $operations, $warmup);
+                }
+                $dataObjectResult = ['p50' => $dataObjectResult['p50'] / $divisor, 'p95' => $dataObjectResult['p95'] / $divisor];
+                $dataResult = ['p50' => $dataResult['p50'] / $divisor, 'p95' => $dataResult['p95'] / $divisor];
+                printRow($name, $dataObjectResult, $dataResult);
             }
 
             printf("\nRetained instance bytes\n");
-            printf("%-38s %12s %12s\n", 'scenario', 'old', 'data');
-            printf("%-38s %12.1f %12.1f\n", 'flat, untransformed', retainedInstanceBytes(fn (int $id): OldFlat => OldFlat::from([...$flat, 'id' => $id])), retainedInstanceBytes(fn (int $id): NewFlat => NewFlat::from([...$flat, 'id' => $id])));
+            printf("%-38s %12s %12s\n", 'scenario', 'data object', 'data');
+            printf("%-38s %12.1f %12.1f\n", 'flat, untransformed', retainedInstanceBytes(fn (int $id): LightweightFlat => LightweightFlat::from([...$flat, 'id' => $id])), retainedInstanceBytes(fn (int $id): DataFlat => DataFlat::from([...$flat, 'id' => $id])));
             printf("%-38s %12.1f %12.1f\n", 'flat, transformed', retainedInstanceBytes(
-                fn (int $id): OldFlat => OldFlat::from([...$flat, 'id' => $id]),
-                static function (OldFlat $data): void {
+                fn (int $id): LightweightFlat => LightweightFlat::from([...$flat, 'id' => $id]),
+                static function (LightweightFlat $data): void {
                     $data->toArray();
                 },
             ), retainedInstanceBytes(
-                fn (int $id): NewFlat => NewFlat::from([...$flat, 'id' => $id]),
-                static function (NewFlat $data): void {
+                fn (int $id): DataFlat => DataFlat::from([...$flat, 'id' => $id]),
+                static function (DataFlat $data): void {
                     $data->toArray();
                 },
             ));
-            printf("%-38s %12.1f %12.1f\n", 'wide, untransformed', retainedInstanceBytes(fn (int $id): OldWide => OldWide::from([...$wide, 'one' => $id])), retainedInstanceBytes(fn (int $id): NewWide => NewWide::from([...$wide, 'one' => $id])));
+            printf("%-38s %12.1f %12.1f\n", 'wide, untransformed', retainedInstanceBytes(fn (int $id): LightweightWide => LightweightWide::from([...$wide, 'one' => $id])), retainedInstanceBytes(fn (int $id): DataWide => DataWide::from([...$wide, 'one' => $id])));
             printf("%-38s %12.1f %12.1f\n", 'wide, transformed', retainedInstanceBytes(
-                fn (int $id): OldWide => OldWide::from([...$wide, 'one' => $id]),
-                static function (OldWide $data): void {
+                fn (int $id): LightweightWide => LightweightWide::from([...$wide, 'one' => $id]),
+                static function (LightweightWide $data): void {
                     $data->toArray();
                 },
             ), retainedInstanceBytes(
-                fn (int $id): NewWide => NewWide::from([...$wide, 'one' => $id]),
-                static function (NewWide $data): void {
+                fn (int $id): DataWide => DataWide::from([...$wide, 'one' => $id]),
+                static function (DataWide $data): void {
                     $data->toArray();
                 },
             ));
 
             $repository = $application->make(DataClassRepository::class);
-            $repository->get(NewWarm::class);
+            $repository->get(DataWarm::class);
             gc_collect_cycles();
             $before = memory_get_usage(false);
-            $repository->get(NewCold::class);
-            $newMetadata = memory_get_usage(false) - $before;
+            $repository->get(DataCold::class);
+            $dataMetadata = memory_get_usage(false) - $before;
 
-            DataObject::flushState();
+            SupportDataObject::flushState();
             gc_collect_cycles();
             $before = memory_get_usage(false);
-            $oldObject = OldCold::from(['id' => 1, 'name' => 'cold', 'active' => true]);
-            unset($oldObject);
+            $object = LightweightCold::from(['id' => 1, 'name' => 'cold', 'active' => true]);
+            unset($object);
             gc_collect_cycles();
-            $oldMetadata = memory_get_usage(false) - $before;
+            $dataObjectMetadata = memory_get_usage(false) - $before;
 
             printf("\nRetained metadata bytes (one small class, warm services)\n");
-            printf("%-38s %12d %12d\n", 'metadata', $oldMetadata, $newMetadata);
+            printf("%-38s %12d %12d\n", 'metadata', $dataObjectMetadata, $dataMetadata);
         });
     } finally {
         $application->terminate();
@@ -721,7 +763,7 @@ function execute(): void
 
     printf("\nFresh-process first-use (nanoseconds)\n");
     printf("%-38s %12s %12s\n", 'scenario', 'p50', 'p95');
-    foreach (['old', 'data-first', 'data-class'] as $mode) {
+    foreach (['data-object', 'data-first', 'data-class'] as $mode) {
         $result = measureCold($mode);
         printf("%-38s %12.1f %12.1f\n", $mode, $result['p50'], $result['p95']);
     }
@@ -738,18 +780,18 @@ function profileDefaultCreation(): void
 
     try {
         run(function () use ($application, $flat): void {
-            NewFlat::from($flat);
-            $factory = NewFlat::factory();
+            DataFlat::from($flat);
+            $factory = DataFlat::factory();
             $context = $factory->get();
             $creator = $application->make(DataCreator::class);
 
             $operations = [
-                'native-constructor' => fn (): int => (new NewFlat(1, 'Taylor', 'taylor@example.com', true, 9.5))->id,
-                'base-data-from' => fn (): int => NewFlat::from($flat)->id,
+                'native-constructor' => fn (): int => (new DataFlat(1, 'Taylor', 'taylor@example.com', true, 9.5))->id,
+                'base-data-from' => fn (): int => DataFlat::from($flat)->id,
                 'prepared-factory-from' => fn (): int => $factory->from($flat)->id,
-                'creator-with-context' => fn (): int => $creator->create(NewFlat::class, $context, $flat)->id,
+                'creator-with-context' => fn (): int => $creator->create(DataFlat::class, $context, $flat)->id,
                 'factory-get-context' => fn (): int => $factory->get()->mapPropertyNames ? 1 : 0,
-                'base-data-factory' => fn (): int => NewFlat::factory()->dataClass === NewFlat::class ? 1 : 0,
+                'base-data-factory' => fn (): int => DataFlat::factory()->dataClass === DataFlat::class ? 1 : 0,
             ];
 
             printf("%-38s %12s %12s\n", 'layer', 'p50', 'p95');
@@ -795,8 +837,8 @@ function profileTransformation(): void
 
     try {
         run(function () use ($application, $flatPayload, $nestedPayload): void {
-            $flat = NewFlat::from($flatPayload);
-            $nested = NewNested::from($nestedPayload);
+            $flat = DataFlat::from($flatPayload);
+            $nested = DataNested::from($nestedPayload);
             $transformer = $application->make(DataTransformer::class);
             $flatContext = $transformer->defaultContext($flat);
             $nestedContext = $transformer->defaultContext($nested);

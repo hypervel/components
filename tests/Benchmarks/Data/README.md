@@ -8,13 +8,17 @@ Run it from the components repository root:
 php tests/Benchmarks/Data/benchmark.php
 ```
 
-To compare supported construction and transformation shapes with the removed `DataObject` implementation, run the historical comparison harness:
+To compare the lightweight Support `DataObject` with full Hypervel Data across supported construction, transformation, memory, and first-use shapes, run:
 
 ```shell
 php tests/Benchmarks/Data/compare-data-object.php
 ```
 
-The comparison fixture is kept under `Fixtures/` and loaded only by this command.
+Set `BENCHMARK_REVERSE=1` to measure Data before `DataObject` when checking for ordering bias:
+
+```shell
+BENCHMARK_REVERSE=1 php tests/Benchmarks/Data/compare-data-object.php
+```
 
 The harness warms each scenario, records repeated samples, and reports operations per second, median and p95 nanoseconds per operation, database queries per operation, and peak allocated memory. Its heading records the commit, PHP version, operating system, loaded extensions, OPcache/JIT state, and workload size. Expensive 1,000- and 5,000-item scenarios scale their operation counts from the requested baseline.
 
