@@ -131,13 +131,22 @@ class ClientRequestWatcher extends Watcher
      */
     protected function buildRequestData(RequestInterface $request, TransferStats $stats, array $options): array
     {
-        return [
+        $data = [
             'method' => $request->getMethod(),
             'uri' => (string) $request->getUri(),
             'headers' => $this->headers($request->getHeaders()),
             'payload' => $this->buildPayload($request, $options),
-            'duration' => floor($stats->getTransferTime() * 1000),
         ];
+
+        if (($transferTime = $stats->getTransferTime()) !== null) {
+            $data['duration'] = floor($transferTime * 1000);
+        }
+
+        if (is_string($transport = $stats->getHandlerStat('transport'))) {
+            $data['transport'] = $transport;
+        }
+
+        return $data;
     }
 
     /**

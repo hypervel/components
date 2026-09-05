@@ -8,6 +8,9 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\Promise\RejectedPromise;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\TransferStats;
@@ -15,11 +18,13 @@ use Hypervel\Contracts\Telescope\TelescopeTag;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAop;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Http;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\ClientRequestWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\RequestInterface;
 
 enum ClientRequestWatcherTestIntTag: int
@@ -34,7 +39,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
 {
     use InteractsWithAop;
 
-    public function testClientRequestWatcherRegistersSuccessfulClientRequestAndResponse()
+    public function testClientRequestWatcherRegistersSuccessfulClientRequestAndResponse(): void
     {
         $client = $this->makeClient([
             new Response(201, ['Content-Type' => 'application/json', 'Cache-Control' => 'no-cache,private'], json_encode(['foo' => 'bar'])),
@@ -57,9 +62,86 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame(201, $entry->content['response_status']);
         $this->assertSame(['content-type' => 'application/json', 'cache-control' => 'no-cache,private'], $entry->content['response_headers']);
         $this->assertSame(['foo' => 'bar'], $entry->content['response']);
+        $this->assertArrayNotHasKey('transport', $entry->content);
     }
 
-    public function testClientRequestWatcherRegistersRedirectResponse()
+    public function testFakedClientRequestOmitsUnavailableTransferEvidence(): void
+    {
+        Http::fake([
+            '*' => Http::response(['ok' => true]),
+        ]);
+
+        Http::get('https://hypervel.org/fake');
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertNotNull($entry);
+        $this->assertArrayNotHasKey('duration', $entry->content);
+        $this->assertArrayNotHasKey('transport', $entry->content);
+    }
+
+    #[DataProvider('transportStatsProvider')]
+    public function testClientRequestWatcherRecordsTruthfulTransportStats(string $transport, bool $async): void
+    {
+        $handler = static function (RequestInterface $request, array $options) use ($transport): PromiseInterface {
+            $response = new Response(200, ['Content-Type' => 'application/json'], json_encode(['ok' => true]));
+            ($options['on_stats'])(new TransferStats($request, $response, 0.01, null, [
+                'transport' => $transport,
+            ]));
+
+            return Create::promiseFor($response);
+        };
+        $client = new Client(['handler' => $handler]);
+        $request = new Request('GET', 'https://hypervel.org/transport');
+
+        if ($async) {
+            $this->executeTransferAsync($client, $request)->wait();
+        } else {
+            $this->executeTransfer($client, $request);
+        }
+
+        $entries = $this->loadTelescopeEntries();
+
+        $this->assertCount(1, $entries);
+        $this->assertSame($transport, $entries->first()->content['transport']);
+    }
+
+    public function testAsyncRejectionWithoutStatsIsRecordedOnce(): void
+    {
+        $request = new Request('GET', 'https://unreachable.example.com/async');
+        $exception = new ConnectException('Connection refused', $request);
+        $client = new Client([
+            'handler' => static fn (): PromiseInterface => new RejectedPromise($exception),
+        ]);
+        $promise = $this->executeTransferAsync($client, $request);
+
+        for ($attempt = 0; $attempt < 2; ++$attempt) {
+            try {
+                $promise->wait();
+                $this->fail('The rejected promise did not throw.');
+            } catch (ConnectException $thrownException) {
+                $this->assertSame($exception, $thrownException);
+            }
+        }
+
+        $entries = $this->loadTelescopeEntries();
+
+        $this->assertCount(1, $entries);
+        $this->assertArrayNotHasKey('response_status', $entries->first()->content);
+        $this->assertArrayNotHasKey('transport', $entries->first()->content);
+    }
+
+    public static function transportStatsProvider(): array
+    {
+        return [
+            'Swoole synchronous' => ['swoole', false],
+            'Swoole asynchronous observation' => ['swoole', true],
+            'Guzzle synchronous' => ['guzzle', false],
+            'Guzzle asynchronous' => ['guzzle', true],
+        ];
+    }
+
+    public function testClientRequestWatcherRegistersRedirectResponse(): void
     {
         $client = $this->makeClient([
             new Response(301, ['Location' => 'https://foo.bar']),
@@ -77,7 +159,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertEquals('Redirected to https://foo.bar', $entry->content['response']);
     }
 
-    public function testClientRequestWatcherPlainTextResponse()
+    public function testClientRequestWatcherPlainTextResponse(): void
     {
         $client = $this->makeClient([
             new Response(200, ['Content-Type' => 'text/plain'], 'plain telescope response'),
@@ -93,7 +175,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame('plain telescope response', $entry->content['response']);
     }
 
-    public function testClientRequestWatcherRegistersServerErrorResponse()
+    public function testClientRequestWatcherRegistersServerErrorResponse(): void
     {
         $client = $this->makeClient([
             new Response(500, [], json_encode(['error' => 'Something went wrong!'])),
@@ -107,7 +189,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertEquals(['error' => 'Something went wrong!'], $entry->content['response']);
     }
 
-    public function testClientRequestWatcherHidesPassword()
+    public function testClientRequestWatcherHidesPassword(): void
     {
         $client = $this->makeClient([new Response(204)]);
 
@@ -128,7 +210,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame('********', $entry->content['payload']['password_confirmation']);
     }
 
-    public function testClientRequestWatcherHidesAuthorization()
+    public function testClientRequestWatcherHidesAuthorization(): void
     {
         $client = $this->makeClient([new Response(204)]);
 
@@ -148,7 +230,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame('********', $entry->content['headers']['authorization']);
     }
 
-    public function testClientRequestWatcherHidesPhpAuthPw()
+    public function testClientRequestWatcherHidesPhpAuthPw(): void
     {
         $client = $this->makeClient([new Response(204)]);
 
@@ -164,7 +246,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame('********', $entry->content['headers']['php-auth-pw']);
     }
 
-    public function testClientRequestWatcherHandlesFormRequest()
+    public function testClientRequestWatcherHandlesFormRequest(): void
     {
         $client = $this->makeClient([new Response(204)]);
         $payload = ['firstname' => 'Taylor', 'lastname' => 'Otwell'];
@@ -182,7 +264,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame(['firstname' => 'Taylor', 'lastname' => 'Otwell'], $entry->content['payload']);
     }
 
-    public function testClientRequestWatcherHandlesMultipartRequest()
+    public function testClientRequestWatcherHandlesMultipartRequest(): void
     {
         $client = $this->makeClient([new Response(204)]);
         $payload = ['firstname' => 'Taylor', 'lastname' => 'Otwell'];
@@ -200,7 +282,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame(['firstname' => 'Taylor', 'lastname' => 'Otwell'], $entry->content['payload']);
     }
 
-    public function testClientRequestWatcherHandlesFileContentsUpload()
+    public function testClientRequestWatcherHandlesFileContentsUpload(): void
     {
         $client = $this->makeClient([new Response(204)]);
         $image = UploadedFile::fake()->image('avatar.jpg');
@@ -223,7 +305,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame(['foo' => 'bar'], $entry->content['payload']['image']['headers']);
     }
 
-    public function testClientRequestWatcherHandlesFileContentsUploadWithoutExplicitFilenameOrHeaders()
+    public function testClientRequestWatcherHandlesFileContentsUploadWithoutExplicitFilenameOrHeaders(): void
     {
         $client = $this->makeClient([new Response(204)]);
         $image = UploadedFile::fake()->image('avatar.jpg');
@@ -246,7 +328,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame([], $entry->content['payload']['image']['headers']);
     }
 
-    public function testClientRequestWatcherHandlesResourceFileUpload()
+    public function testClientRequestWatcherHandlesResourceFileUpload(): void
     {
         $client = $this->makeClient([new Response(204)]);
         $image = UploadedFile::fake()->image('avatar.jpg');
@@ -268,7 +350,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame([], $entry->content['payload']['image']['headers']);
     }
 
-    public function testClientRequestWatcherHandlesResourceFileUploadWithFilenameAndHeaders()
+    public function testClientRequestWatcherHandlesResourceFileUploadWithFilenameAndHeaders(): void
     {
         $client = $this->makeClient([new Response(204)]);
         $image = UploadedFile::fake()->image('avatar.jpg');
@@ -290,7 +372,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame(['foo' => 'bar'], $entry->content['payload']['image']['headers']);
     }
 
-    public function testItStoresAndDisplaysArrayOfRequestHeaders()
+    public function testItStoresAndDisplaysArrayOfRequestHeaders(): void
     {
         $client = $this->makeClient([new Response(200)]);
 
@@ -305,7 +387,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame('single', $entry->content['headers']['x-bar']);
     }
 
-    public function testClientRequestWatcherRespectsWithoutTelescope()
+    public function testClientRequestWatcherRespectsWithoutTelescope(): void
     {
         $client = $this->makeClient([
             new Response(200, [], json_encode(['ok' => true])),
@@ -321,7 +403,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame('https://hypervel.org/api/data', $entries->first()->content['uri']);
     }
 
-    public function testClientRequestWatcherRecordsEmptyResponse()
+    public function testClientRequestWatcherRecordsEmptyResponse(): void
     {
         $client = $this->makeClient([new Response(204, [], '')]);
 
@@ -335,7 +417,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame('Empty Response', $entry->content['response']);
     }
 
-    public function testClientRequestWatcherRecordsConnectionFailed()
+    public function testClientRequestWatcherRecordsConnectionFailed(): void
     {
         $client = $this->makeClient([
             new ConnectException('Connection refused', new Request('GET', 'https://unreachable.example.com/api')),
@@ -352,7 +434,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertArrayNotHasKey('response_status', $entry->content);
     }
 
-    public function testClientRequestWatcherRespectsWithoutTelescopeOnConnectionFailed()
+    public function testClientRequestWatcherRespectsWithoutTelescopeOnConnectionFailed(): void
     {
         $client = $this->makeClient([
             new ConnectException('Connection refused', new Request('GET', 'https://unreachable.example.com/api')),
@@ -371,7 +453,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
             'ignore_hosts' => ['ignored.example.com'],
         ],
     ])]
-    public function testClientRequestWatcherIgnoresHostsInIgnoreList()
+    public function testClientRequestWatcherIgnoresHostsInIgnoreList(): void
     {
         $client = $this->makeClient([
             new Response(200, [], json_encode(['ok' => true])),
@@ -395,7 +477,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
             'truncate_oversized' => true,
         ],
     ])]
-    public function testClientRequestWatcherPurgesLargeResponses()
+    public function testClientRequestWatcherPurgesLargeResponses(): void
     {
         $largeBody = json_encode(['data' => str_repeat('x', 2000)]);
 
@@ -418,7 +500,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
             'truncate_oversized' => true,
         ],
     ])]
-    public function testClientRequestWatcherPurgesLargeRequestPayloads()
+    public function testClientRequestWatcherPurgesLargeRequestPayloads(): void
     {
         $client = $this->makeClient([new Response(204)]);
         $payload = ['data' => str_repeat('x', 2000)];
@@ -442,7 +524,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
             'truncate_oversized' => true,
         ],
     ])]
-    public function testOversizedRequestPayloadMasksSensitiveFieldsBeforeTruncating()
+    public function testOversizedRequestPayloadMasksSensitiveFieldsBeforeTruncating(): void
     {
         $client = $this->makeClient([new Response(204)]);
         $payload = ['password' => 'secret', 'data' => str_repeat('x', 2000)];
@@ -468,7 +550,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
             'truncate_oversized' => true,
         ],
     ])]
-    public function testOversizedRawGuzzleRequestPayloadMasksSensitiveFieldsBeforeTruncating()
+    public function testOversizedRawGuzzleRequestPayloadMasksSensitiveFieldsBeforeTruncating(): void
     {
         $payload = ['password' => 'secret', 'data' => str_repeat('x', 2000)];
 
@@ -494,7 +576,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
             'truncate_oversized' => true,
         ],
     ])]
-    public function testOversizedResponseMasksSensitiveFieldsBeforeTruncating()
+    public function testOversizedResponseMasksSensitiveFieldsBeforeTruncating(): void
     {
         Telescope::hideResponseParameters(['password']);
 
@@ -520,7 +602,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
             'response_size_limit' => 1,
         ],
     ])]
-    public function testOversizedRequestPayloadIsPurgedByDefault()
+    public function testOversizedRequestPayloadIsPurgedByDefault(): void
     {
         $client = $this->makeClient([new Response(204)]);
         $payload = ['password' => 'secret', 'data' => str_repeat('x', 2000)];
@@ -543,7 +625,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
             'response_size_limit' => 1,
         ],
     ])]
-    public function testOversizedResponseIsPurgedByDefault()
+    public function testOversizedResponseIsPurgedByDefault(): void
     {
         $responseBody = json_encode(['password' => 'secret', 'data' => str_repeat('x', 2000)]);
 
@@ -564,7 +646,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
             'response_size_limit' => 1,
         ],
     ])]
-    public function testOversizedRedirectResponseIsNotPurged()
+    public function testOversizedRedirectResponseIsNotPurged(): void
     {
         $client = $this->makeClient([
             new Response(301, ['Location' => 'https://foo.bar'], str_repeat('x', 2000)),
@@ -587,7 +669,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
             'response_size_limit' => 1,
         ],
     ])]
-    public function testOversizedHtmlResponseIsNotPurged()
+    public function testOversizedHtmlResponseIsNotPurged(): void
     {
         $client = $this->makeClient([
             new Response(200, ['Content-Type' => 'text/html'], str_repeat('<p>content</p>', 200)),
@@ -600,7 +682,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame('HTML Response', $entry->content['response']);
     }
 
-    public function testDirectGuzzleClientRequestIsCaptured()
+    public function testDirectGuzzleClientRequestIsCaptured(): void
     {
         $client = $this->makeClient([
             new Response(200, ['Content-Type' => 'application/json'], json_encode(['captured' => true])),
@@ -624,7 +706,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
             'truncate_oversized' => true,
         ],
     ])]
-    public function testDirectGuzzleLargeRequestPayloadIsTruncated()
+    public function testDirectGuzzleLargeRequestPayloadIsTruncated(): void
     {
         $largeBody = json_encode(['data' => str_repeat('x', 2000)]);
 
@@ -641,7 +723,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertStringEndsWith('(truncated...)', $entry->content['payload']);
     }
 
-    public function testTelescopeEnabledFalsePerRequestOptOut()
+    public function testTelescopeEnabledFalsePerRequestOptOut(): void
     {
         $client = $this->makeClient([new Response(200, [], 'OK')]);
 
@@ -652,7 +734,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertCount(0, $entries);
     }
 
-    public function testTelescopeEnabledFalsePerClientOptOut()
+    public function testTelescopeEnabledFalsePerClientOptOut(): void
     {
         $client = $this->makeClient([new Response(200, [], 'OK')], ['telescope_enabled' => false]);
 
@@ -663,7 +745,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertCount(0, $entries);
     }
 
-    public function testTelescopeTagsViaGuzzleOption()
+    public function testTelescopeTagsViaGuzzleOption(): void
     {
         $client = $this->makeClient([new Response(200, [], 'OK')]);
 
@@ -685,7 +767,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertContains('example.com', $tags);
     }
 
-    public function testWithTelescopeTagsViaHttpClient()
+    public function testWithTelescopeTagsViaHttpClient(): void
     {
         $client = $this->makeClient([new Response(200, [], json_encode(['ok' => true]))]);
 
@@ -706,7 +788,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertContains('invoice', $tags);
     }
 
-    public function testTelescopeTagsViaGuzzleConstructorConfig()
+    public function testTelescopeTagsViaGuzzleConstructorConfig(): void
     {
         // Regression guard: the framework relies on Guzzle's prepareDefaults()
         // merging client constructor config into per-request options before
@@ -730,7 +812,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertContains('algolia', $tags);
     }
 
-    public function testBackedEnumTelescopeTagsAreNormalizedToStrings()
+    public function testBackedEnumTelescopeTagsAreNormalizedToStrings(): void
     {
         // The aspect's array_map normalizes enum cases via enum_value() so
         // tags reach storage as strings. Uses the real TelescopeTag enum —
@@ -774,7 +856,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertContains('0', $tags);
     }
 
-    public function testExistingOnStatsCallbackIsPreserved()
+    public function testExistingOnStatsCallbackIsPreserved(): void
     {
         $callbackFired = false;
 
@@ -783,7 +865,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->executeTransfer(
             $client,
             new Request('GET', 'https://example.com'),
-            ['on_stats' => function (TransferStats $stats) use (&$callbackFired) {
+            ['on_stats' => function (TransferStats $stats) use (&$callbackFired): void {
                 $callbackFired = true;
             }]
         );
@@ -795,7 +877,7 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame(EntryType::CLIENT_REQUEST, $entry->type);
     }
 
-    public function testDirectGuzzleFailedConnectionIsCaptured()
+    public function testDirectGuzzleFailedConnectionIsCaptured(): void
     {
         $client = $this->makeClient([
             new ConnectException('Connection refused', new Request('GET', 'https://unreachable.example.com')),
@@ -848,6 +930,27 @@ class ClientRequestWatcherTest extends FeatureTestCase
         } catch (ConnectException) {
             // Expected for failed connection tests.
         }
+    }
+
+    private function executeTransferAsync(
+        Client $client,
+        RequestInterface $request,
+        array $options = [],
+    ): PromiseInterface {
+        if ($this->isAopProxied($client)) {
+            return $client->sendAsync($request, $options);
+        }
+
+        ['request' => $preparedRequest, 'options' => $preparedOptions] = $this->prepareTransferArguments(
+            $client,
+            $request,
+            $options
+        );
+
+        return $this->callWithAspects($client, 'transfer', [
+            'request' => $preparedRequest,
+            'options' => $preparedOptions,
+        ]);
     }
 
     /**
