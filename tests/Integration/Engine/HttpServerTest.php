@@ -19,7 +19,7 @@ class HttpServerTest extends EngineIntegrationTestCase
      */
     protected int $serverPort = 19505;
 
-    public function testHttpServerHelloWorld()
+    public function testHttpServerHelloWorld(): void
     {
         $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('GET', '/');
@@ -27,7 +27,7 @@ class HttpServerTest extends EngineIntegrationTestCase
         $this->assertSame('Hello World.', $response->body);
     }
 
-    public function testHttpServerReceived()
+    public function testHttpServerReceived(): void
     {
         $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('POST', '/', contents: 'Hypervel');
@@ -35,31 +35,24 @@ class HttpServerTest extends EngineIntegrationTestCase
         $this->assertSame('Received: Hypervel', $response->body);
     }
 
-    public function testHttpServerCookies()
+    public function testHttpServerCookies(): void
     {
         $client = new Client($this->getServerHost(), $this->getServerPort());
 
-        $client->setCookies(['key' => 'value']);
-
-        $response = $client->request('POST', '/set-cookies', ['user_id' => uniqid()], Json::encode(['id' => $id = uniqid()]));
+        $response = $client->request('POST', '/set-cookies', [
+            'Cookie' => 'key=value',
+            'user_id' => uniqid(),
+        ], Json::encode(['id' => $id = uniqid()]));
         $this->assertSame(200, $response->statusCode);
-        $this->assertSame(1, count($response->getHeaders()['set-cookie']));
-        $this->assertStringStartsWith('id=' . $id, $response->getHeaders()['set-cookie'][0]);
+        $this->assertCount(1, $response->getHeaders()['Set-Cookie']);
+        $this->assertStringStartsWith('id=' . $id, $response->getHeaders()['Set-Cookie'][0]);
         $json = Json::decode((string) $response->getBody());
         $this->assertSame(['key' => 'value'], $json);
 
         $response = $client->request('POST', '/set-cookies', [], Json::encode(['id2' => $id2 = uniqid()]));
         $this->assertSame(200, $response->statusCode);
-        $this->assertSame(1, count($response->getHeaders()['set-cookie']));
-        $this->assertStringStartsWith('id2=' . $id2, $response->getHeaders()['set-cookie'][0]);
-        $json = Json::decode((string) $response->getBody());
-        $this->assertSame(['key' => 'value', 'id' => $id], $json);
-
-        $client->setCookies([]);
-        $response = $client->request('POST', '/set-cookies', [], Json::encode(['id2' => $id2 = uniqid()]));
-        $this->assertSame(200, $response->statusCode);
-        $this->assertSame(1, count($response->getHeaders()['set-cookie']));
-        $this->assertStringStartsWith('id2=' . $id2, $response->getHeaders()['set-cookie'][0]);
+        $this->assertCount(1, $response->getHeaders()['Set-Cookie']);
+        $this->assertStringStartsWith('id2=' . $id2, $response->getHeaders()['Set-Cookie'][0]);
         $json = Json::decode((string) $response->getBody());
         $this->assertSame([], $json);
     }

@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Engine;
 
 use GuzzleHttp;
-use Hypervel\Engine\Exceptions\HttpClientException;
+use Hypervel\Engine\Exceptions\SocketConnectException;
+use Hypervel\Engine\Exceptions\SocketTimeoutException;
 use Hypervel\Engine\Http\Client;
-use Throwable;
 
 /**
  * Integration tests for the HTTP Client.
@@ -16,30 +16,29 @@ use Throwable;
  */
 class ClientTest extends EngineIntegrationTestCase
 {
-    public function testClientRequest()
+    public function testClientRequest(): void
     {
         $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('GET', '/');
         $this->assertSame(200, $response->statusCode);
-        $this->assertSame(['Hypervel'], $response->headers['server']);
+        $this->assertSame(['Hypervel'], $response->headers['Server']);
         $this->assertSame('Hello World.', $response->body);
     }
 
-    public function testClientSocketConnectionRefused()
+    public function testClientSocketConnectionRefused(): void
     {
         try {
             // Use a port that definitely has no server running
             $client = new Client('127.0.0.1', 29501);
             $client->request('GET', '/timeout?time=1');
-            $this->fail('Expected HttpClientException to be thrown');
-        } catch (Throwable $exception) {
-            $this->assertInstanceOf(HttpClientException::class, $exception);
+            $this->fail('Expected SocketConnectException to be thrown');
+        } catch (SocketConnectException $exception) {
             $this->assertSame(SOCKET_ECONNREFUSED, $exception->getCode());
             $this->assertSame('Connection refused', $exception->getMessage());
         }
     }
 
-    public function testClientJsonRequest()
+    public function testClientJsonRequest(): void
     {
         $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request(
@@ -49,37 +48,36 @@ class ClientTest extends EngineIntegrationTestCase
             json_encode(['name' => 'Hypervel'], JSON_UNESCAPED_UNICODE)
         );
         $this->assertSame(200, $response->statusCode);
-        $this->assertSame(['Hypervel'], $response->headers['server']);
+        $this->assertSame(['Hypervel'], $response->headers['Server']);
         $this->assertSame('Hello World.', $response->body);
     }
 
-    public function testClientSocketConnectionTimeout()
+    public function testClientSocketConnectionTimeout(): void
     {
         try {
             $client = new Client($this->getServerHost(), $this->getServerPort());
             $client->set(['timeout' => 0.1]);
             $client->request('GET', '/timeout?time=1');
-            $this->fail('Expected HttpClientException to be thrown');
-        } catch (Throwable $exception) {
-            $this->assertInstanceOf(HttpClientException::class, $exception);
+            $this->fail('Expected SocketTimeoutException to be thrown');
+        } catch (SocketTimeoutException $exception) {
             $this->assertSame(SOCKET_ETIMEDOUT, $exception->getCode());
             $this->assertStringContainsString('timed out', $exception->getMessage());
         }
     }
 
-    public function testClientCookies()
+    public function testClientCookies(): void
     {
         $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('GET', '/cookies');
         $this->assertSame(200, $response->statusCode);
-        $this->assertSame(['Hypervel'], $response->headers['server']);
+        $this->assertSame(['Hypervel'], $response->headers['Server']);
         $this->assertSame([
             'X-Server-Id=' . $response->body,
             'X-Server-Name=Hypervel',
-        ], $response->headers['set-cookie']);
+        ], $response->headers['Set-Cookie']);
     }
 
-    public function testGuzzleClientWithCookies()
+    public function testGuzzleClientWithCookies(): void
     {
         $client = new GuzzleHttp\Client([
             'base_uri' => sprintf('http://%s:%d/', $this->getServerHost(), $this->getServerPort()),
@@ -94,41 +92,28 @@ class ClientTest extends EngineIntegrationTestCase
         $this->assertSame('Hypervel', $cookies->toArray()[1]['Value']);
     }
 
-    public function testServerHeaders()
+    public function testServerHeaders(): void
     {
         $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('GET', '/header');
-        if (SWOOLE_VERSION_ID >= 60000) {
-            $this->assertSame($response->body, $response->headers['x-id'][1]);
-        } else {
-            // Co Client won't support getting multi response headers.
-            $this->assertSame($response->body, implode(',', $response->headers['x-id']));
-        }
+        $this->assertSame($response->body, $response->headers['X-Id'][1]);
 
         $client = new GuzzleHttp\Client([
             'base_uri' => sprintf('http://%s:%d/', $this->getServerHost(), $this->getServerPort()),
         ]);
 
         $response = $client->get('/header');
-        if (SWOOLE_VERSION_ID >= 60000) {
-            $this->assertSame((string) $response->getBody(), $response->getHeader('x-id')[1]);
-        } else {
-            // Co Client Won't support to get multi response headers.
-            $this->assertSame((string) $response->getBody(), $response->getHeaderLine('x-id'));
-        }
+        $this->assertSame((string) $response->getBody(), $response->getHeader('x-id')[1]);
 
-        // When Swoole version > 4.5, The native curl support to get multi response headers.
-        if (SWOOLE_VERSION_ID >= 40600) {
-            $client = new GuzzleHttp\Client([
-                'base_uri' => sprintf('http://%s:%d/', $this->getServerHost(), $this->getServerPort()),
-            ]);
-            $response = $client->get('/header');
-            $this->assertSame(2, count($response->getHeader('x-id')));
-            $this->assertSame((string) $response->getBody(), $response->getHeader('x-id')[1]);
-        }
+        $client = new GuzzleHttp\Client([
+            'base_uri' => sprintf('http://%s:%d/', $this->getServerHost(), $this->getServerPort()),
+        ]);
+        $response = $client->get('/header');
+        $this->assertCount(2, $response->getHeader('x-id'));
+        $this->assertSame((string) $response->getBody(), $response->getHeader('x-id')[1]);
     }
 
-    public function testClientNotFound()
+    public function testClientNotFound(): void
     {
         $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('GET', '/not_found');
