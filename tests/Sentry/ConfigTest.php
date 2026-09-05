@@ -106,13 +106,13 @@ class ConfigTest extends SentryTestCase
         $this->assertTrue($config['tracing']['storage']);
     }
 
-    public function testTraceMetricsAreDisabledByDefault(): void
+    public function testTraceMetricsAreEnabledByDefault(): void
     {
         $config = $this->withEnvironmentValues([
             'SENTRY_ENABLE_METRICS' => null,
         ], fn (): array => $this->sentryConfig());
 
-        $this->assertFalse($config['enable_metrics']);
+        $this->assertTrue($config['enable_metrics']);
     }
 
     public function testBooleanEnvironmentValuesAreNormalized(): void
