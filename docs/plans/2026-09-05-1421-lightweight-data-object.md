@@ -220,6 +220,8 @@ For a concrete backed-enum declaration:
 - let its `ValueError` propagate for an invalid backing value;
 - preserve valid numeric-string support for integer-backed enums.
 
+The shared `enum_try_from()` helper must reject fractional values for integer-backed enums instead of silently truncating them. Its float branch accepts a value only when it is finite, within the platform integer range, and equal to its floored value. This keeps lossless integral forms such as `1.0`, `"1.0"`, and `"1e0"` while rejecting `1.5` and `"1.5"` consistently in DataObject, Validation, FormRequest casts, Eloquent casts, Data casts, collections, and typed Support accessors. Keep this rule at the shared helper rather than adding a DataObject-only check.
+
 Unit enums and enum interfaces have no scalar construction rule. They use pass-through behavior and PHP enforces their declared type.
 
 ### Nested DataObjects
@@ -293,6 +295,7 @@ Update `src/docs/data-objects.md` in Laravel prose:
 - explain that exact constructor names are keys, common PHP scalar/enum/date conversions and properties typed as a DataObject subclass are automatic, invalid scalar forms throw, and `toArray()`/JSON recursively normalize supported values;
 - state that an `array` property does not infer or hydrate an item type, and show a named factory using `array_map(Item::from(...), $data['items'])` when an envelope needs a one-off list conversion; direct reusable typed collections to Data;
 - direct object-owned validation, reusable mapping, custom casts, partials, resources, collection abstractions, and persistence to `Data`, `Dto`, or `Resource` as appropriate;
+- document the shared integer-backed enum rule in the existing Data and validation enum sections;
 - do not document recipe caching, integer kind tags, reflection layout, rejected APIs, benchmarks, or implementation history.
 
 Do not add a Support README difference or porting-guide entry. This is an additive Hypervel API with canonical user documentation, not an existing Laravel API that porters must adapt.
@@ -332,7 +335,7 @@ Assert failure messages identify the class, property, expected type, and supplie
 
 ### Object types
 
-- string- and integer-backed enums accept cases and valid backing values, including numeric strings; invalid values preserve `ValueError`.
+- string- and integer-backed enums accept cases and valid backing values, including integral numeric strings; fractional integer-enum values are rejected without truncation and invalid values preserve `ValueError`.
 - nested values accept arrays and existing instances.
 - a nullable recursive node hydrates at least four repeated levels, proving no global visited suppression.
 - an inherited constructor keeps a `self`-typed nested property bound to the class that declared the constructor.
@@ -377,7 +380,7 @@ Extend `tests/Foundation/Http/FormRequestCastingTest.php` with public-behavior c
 Use the frozen legacy fixture only during acceptance:
 
 1. Extend `tests/Benchmarks/Data/compare-data-object.php` temporarily to report three columns: removed mapper, rebuilt Support DataObject, and current Data.
-2. Compare equivalent exact-key input and supported behavior. Do not credit the old implementation for stale cached output or permissive invalid conversion.
+2. Compare equivalent exact-key input and supported behavior. Use the same ISO timestamp value for both supported APIs so date parsing rows isolate framework cost. Do not credit the old implementation for stale cached output or permissive invalid conversion.
 3. Measure all existing construction and correct uncached transformation shapes, 1,000-item loops, direct property reads, retained instances before and after transformation, retained metadata for one small class, and fresh-process first use.
 4. Use the existing coercion and deep-nesting rows for strict scalar conversion and nested resolution, and add one construction and transformation row for arrays of DataObjects because that is the motivating per-item list shape. Defaults and application date subclasses remain correctness tests rather than benchmark scenarios.
 5. Run at least three complete alternating samples while the machine is idle. Record median p50 and p95 results in the implementation summary and PR; describe the PHP, OPcache, and JIT conditions.
@@ -410,22 +413,25 @@ Do not add benchmark thresholds to PHPUnit.
 
 | File | Change |
 | --- | --- |
+| `src/collections/src/functions.php` | Reject fractional values before converting an integer-backed enum while retaining integral numeric forms. |
 | `src/support/src/DataObject.php` | Add the complete lightweight mapper, conversion, transformation, recipe compilation, and cache reset. |
 | `src/support/src/Http/DataObjectRequestCast.php` | Adapt one already-validated array to a configured lightweight DataObject class. |
 | `tests/Support/DataObjectTest.php` | Add supported behavior, failure, declaration, recursion, date, and serialization coverage. |
+| `tests/Support/SupportEnumFunctionsTest.php` | Pin lossless integer-backed enum conversion at the shared helper. |
 | `tests/Foundation/Http/FormRequestCastingTest.php` | Cover direct and wildcard lightweight DataObject request casts. |
-| `src/docs/data-objects.md` | Document the lightweight choice and its boundary from Hypervel Data. |
-| `src/docs/validation.md` | Document lightweight DataObject declarations in FormRequest casts. |
+| `tests/Validation/ValidationEnumRuleTest.php` | Reject fractional integer-backed enum values during validation. |
+| `src/docs/data-objects.md` | Document the lightweight choice, its boundary from Hypervel Data, and integral integer-backed enum conversion. |
+| `src/docs/validation.md` | Document lightweight DataObject declarations in FormRequest casts and integral integer-backed enum validation. |
 | `docs/todo.md` | Record the coherent typed-input accessor audit and conditional future scalar extraction. |
 | `tests/Benchmarks/Data/compare-data-object.php` | Measure the new supported mapper against Data after the temporary legacy acceptance comparison. |
 | `tests/Benchmarks/Data/README.md` | Describe the supported benchmark. |
 | `tests/Benchmarks/Data/Fixtures/DataObject.php` | Delete after the legacy acceptance measurements are recorded. |
 
-No Composer, provider, alias, facade, contract, Foundation source, Database, Saloon, Data package, or test-subscriber change is required.
+No Composer, provider, alias, facade, contract, Foundation source, Database source, Saloon, Data source, or test-subscriber change is required. The only shared production correction is in the Collections-owned enum helper.
 
 ## Verification
 
-1. Run `./vendor/bin/phpunit --no-progress tests/Support/DataObjectTest.php` after every coherent Support test/source change, and run `./vendor/bin/phpunit --no-progress tests/Foundation/Http/FormRequestCastingTest.php` immediately after changing that test.
+1. Run each changed test file immediately. Then run the existing enum consumer tests in Support, Collections, Validation, Foundation, Database, and Data together so the shared behavior change is checked at every direct framework boundary without duplicating the same regression assertion in each suite.
 2. Run `composer lint` to check formatting while iterating, and `composer lint:fix` when changed files need formatting.
 3. Run targeted PHPStan for source investigation only if needed; tests are excluded from PHPStan.
 4. Run the three-column acceptance benchmarks as specified, remove the legacy fixture, then rerun the final two-column harness.
