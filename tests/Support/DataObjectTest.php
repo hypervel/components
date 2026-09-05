@@ -337,6 +337,23 @@ class DataObjectTest extends TestCase
         $this->assertSame(DataObjectIntegerStatus::Ready, $converted->integerStatus);
     }
 
+    #[DataProvider('fractionalIntegerBackedEnumProvider')]
+    public function testIntegerBackedEnumsRejectFractionalValues(mixed $value): void
+    {
+        $this->expectException(ValueError::class);
+
+        EnumDataObject::from([
+            'stringStatus' => 'ready',
+            'integerStatus' => $value,
+        ]);
+    }
+
+    public static function fractionalIntegerBackedEnumProvider(): iterable
+    {
+        yield 'float' => [1.5];
+        yield 'numeric string' => ['1.5'];
+    }
+
     public function testInvalidBackedEnumValuePreservesValueError(): void
     {
         $this->expectException(ValueError::class);
