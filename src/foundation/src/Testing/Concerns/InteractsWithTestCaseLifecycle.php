@@ -19,6 +19,7 @@ use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Foundation\Testing\WithFaker;
 use Hypervel\Foundation\Testing\WithoutEvents;
 use Hypervel\Foundation\Testing\WithoutMiddleware;
+use Hypervel\ObjectPool\PoolManager as ObjectPoolManager;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Facades\ParallelTesting;
 use PHPUnit\Metadata\Annotation\Parser\Registry as PHPUnitRegistry;
@@ -134,6 +135,19 @@ trait InteractsWithTestCaseLifecycle
                 if ($app->resolved(PoolFactory::class)) {
                     $this->runInCoroutine(
                         fn () => $app->make(PoolFactory::class)->flushAll()
+                    );
+                }
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+
+            try {
+                // Destruction callbacks may release their final leases as their
+                // coroutine ends, so generic pools are flushed afterwards in a
+                // separate coroutine while the application is still available.
+                if ($app->resolved(ObjectPoolManager::class)) {
+                    $this->runInCoroutine(
+                        fn () => $app->make(ObjectPoolManager::class)->flush()
                     );
                 }
             } catch (Throwable $throwable) {

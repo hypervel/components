@@ -11,6 +11,7 @@ use Hypervel\Database\Pool\PoolFactory;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Foundation\Testing\LazilyRefreshDatabase;
 use Hypervel\Foundation\Testing\TestCase as FoundationTestCase;
+use Hypervel\ObjectPool\PoolManager as ObjectPoolManager;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\ParallelTesting;
 use Hypervel\Testbench\Attributes\Define;
@@ -149,7 +150,8 @@ class InteractsWithTestCaseTest extends TestCase
         $steps = [];
         $callbackException = new RuntimeException('callback failed');
         $databaseException = new RuntimeException('database cleanup failed');
-        $poolException = new RuntimeException('pool cleanup failed');
+        $databasePoolException = new RuntimeException('database pool cleanup failed');
+        $objectPoolException = new RuntimeException('object pool cleanup failed');
         $parallelException = new RuntimeException('parallel cleanup failed');
         $applicationException = new RuntimeException('application cleanup failed');
 
@@ -177,16 +179,27 @@ class InteractsWithTestCaseTest extends TestCase
 
             $poolFactory = m::mock(PoolFactory::class);
             $poolFactory->shouldReceive('flushAll')->once()->andReturnUsing(
-                function () use (&$steps, $poolException): never {
-                    $steps[] = 'pool';
+                function () use (&$steps, $databasePoolException): never {
+                    $steps[] = 'database-pool';
 
-                    throw $poolException;
+                    throw $databasePoolException;
+                }
+            );
+
+            $objectPoolManager = m::mock(ObjectPoolManager::class);
+            $objectPoolManager->shouldReceive('flush')->once()->andReturnUsing(
+                function () use (&$steps, $objectPoolException): never {
+                    $steps[] = 'object-pool';
+
+                    throw $objectPoolException;
                 }
             );
 
             $app = m::mock(ApplicationContract::class);
             $app->shouldReceive('resolved')->once()->with(PoolFactory::class)->andReturnTrue();
             $app->shouldReceive('make')->once()->with(PoolFactory::class)->andReturn($poolFactory);
+            $app->shouldReceive('resolved')->once()->with(ObjectPoolManager::class)->andReturnTrue();
+            $app->shouldReceive('make')->once()->with(ObjectPoolManager::class)->andReturn($objectPoolManager);
             $app->shouldReceive('flush')->once()->andReturnUsing(
                 function () use (&$steps, $applicationException): never {
                     $steps[] = 'application';
@@ -232,7 +245,8 @@ class InteractsWithTestCaseTest extends TestCase
                 'callback:first',
                 'callback:second',
                 'database',
-                'pool',
+                'database-pool',
+                'object-pool',
                 'parallel',
                 'application',
             ], $steps);
@@ -249,6 +263,31 @@ class InteractsWithTestCaseTest extends TestCase
             foreach ($staticProperties as $property => $value) {
                 (new ReflectionProperty(DatabaseConnectionResolver::class, $property))->setValue(null, $value);
             }
+        }
+    }
+
+    public function testFoundationTeardownDoesNotResolveUnusedPools(): void
+    {
+        $parallelTesting = $this->app->make(ParallelTestingService::class);
+
+        try {
+            $app = m::mock(ApplicationContract::class);
+            $app->shouldReceive('resolved')->once()->with(PoolFactory::class)->andReturnFalse();
+            $app->shouldReceive('resolved')->once()->with(ObjectPoolManager::class)->andReturnFalse();
+            $app->shouldReceive('flush')->once();
+
+            $parallelTestingMock = m::mock(ParallelTestingService::class);
+            $parallelTestingMock->shouldReceive('callTearDownTestCaseCallbacks')->once();
+            ParallelTesting::swap($parallelTestingMock);
+
+            $testCase = new FoundationLifecycleTestCaseFixture('testPlaceholder');
+            $testCase->useApplication($app);
+            $testCase->markSetupAsRun();
+            $testCase->tearDownEnvironment();
+
+            $this->assertNull($testCase->lifecycleState()['app']);
+        } finally {
+            ParallelTesting::swap($parallelTesting);
         }
     }
 }
