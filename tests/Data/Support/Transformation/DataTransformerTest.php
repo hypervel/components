@@ -426,6 +426,22 @@ class DataTransformerTest extends TestCase
     }
 
     /**
+     * Test disabled class-owned defaults retain the empty sentinel.
+     */
+    public function testDisabledClassOwnedPartialDefaultsRemainEmpty(): void
+    {
+        $data = new DisabledDefaultPartialsData('first', 'second');
+
+        $this->assertFalse($data->hasPartialsDefinition());
+        $this->assertFalse($this->partialDefinitionsState($data));
+        $this->assertSame([
+            'first' => 'first',
+            'second' => 'second',
+        ], $data->toArray());
+        $this->assertFalse($this->partialDefinitionsState($data));
+    }
+
+    /**
      * Test plain collections and their items do not retain empty partial stores.
      */
     public function testPlainCollectionsDoNotRetainEmptyPartials(): void
@@ -1096,6 +1112,23 @@ class DefaultPartialsData extends Data
     protected function onlyProperties(): array
     {
         return ['first'];
+    }
+}
+
+class DisabledDefaultPartialsData extends Data
+{
+    public function __construct(
+        public string $first,
+        public string $second,
+    ) {
+    }
+
+    /**
+     * Disable the conditional default selection.
+     */
+    protected function onlyProperties(): array
+    {
+        return ['first' => false];
     }
 }
 

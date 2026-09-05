@@ -42,11 +42,19 @@ trait IncludeableData
             return false;
         }
 
-        $this->partialDefinitions = new PartialsDefinition;
-        $this->partialDefinitions->addDefaults('include', $includes);
-        $this->partialDefinitions->addDefaults('exclude', $excludes);
-        $this->partialDefinitions->addDefaults('only', $only);
-        $this->partialDefinitions->addDefaults('except', $except);
+        $partialDefinitions = new PartialsDefinition;
+        $partialDefinitions->addDefaults('include', $includes);
+        $partialDefinitions->addDefaults('exclude', $excludes);
+        $partialDefinitions->addDefaults('only', $only);
+        $partialDefinitions->addDefaults('except', $except);
+
+        if ($partialDefinitions->isEmpty()) {
+            $this->partialDefinitions = false;
+
+            return false;
+        }
+
+        $this->partialDefinitions = $partialDefinitions;
 
         return true;
     }
