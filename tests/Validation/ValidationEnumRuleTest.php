@@ -222,6 +222,29 @@ class ValidationEnumRuleTest extends TestCase
         $this->assertFalse($v->fails());
     }
 
+    #[DataProvider('numericIntegerEnumProvider')]
+    public function testValidationOnlyAcceptsIntegralNumericValuesForIntegerBackedEnums(
+        mixed $value,
+        bool $expected
+    ): void {
+        $validator = new Validator(
+            $this->app->make('translator'),
+            ['status' => $value],
+            ['status' => new Enum(IntegerStatus::class)],
+        );
+
+        $this->assertSame($expected, $validator->passes());
+    }
+
+    public static function numericIntegerEnumProvider(): iterable
+    {
+        yield 'integral float' => [1.0, true];
+        yield 'integral decimal string' => ['1.0', true];
+        yield 'integral exponent string' => ['1e0', true];
+        yield 'fractional float' => [1.5, false];
+        yield 'fractional numeric string' => ['1.5', false];
+    }
+
     public function testValidationFailsWhenProvidingNull(): void
     {
         $v = new Validator(

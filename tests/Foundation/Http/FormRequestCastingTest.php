@@ -16,6 +16,7 @@ use Hypervel\Routing\Redirector;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
+use Hypervel\Support\DataObject;
 use Hypervel\Support\Exceptions\MathException;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Json;
@@ -650,6 +651,48 @@ class FormRequestCastingTest extends TestCase
     }
 
     /**
+     * Test lightweight data objects cast exact and wildcard validated input.
+     */
+    public function testCastsValidatedInputToLightweightDataObjects(): void
+    {
+        $request = $this->validateRequest(DataObjectRequest::class, [
+            'contact' => ['name' => 'Taylor', 'age' => '37'],
+            'contacts' => [
+                2 => ['name' => 'Abigail', 'age' => 31],
+                5 => ['name' => 'Dayle', 'age' => '29'],
+            ],
+            'nullable_contact' => null,
+        ]);
+        $validated = $request->validated();
+
+        $this->assertEquals(new ContactDataObject('Taylor', 37), $validated['contact']);
+        $this->assertSame([2, 5], array_keys($validated['contacts']));
+        $this->assertEquals(new ContactDataObject('Abigail', 31), $validated['contacts'][2]);
+        $this->assertEquals(new ContactDataObject('Dayle', 29), $validated['contacts'][5]);
+        $this->assertNull($validated['nullable_contact']);
+        $this->assertEquals(new ContactDataObject('Taylor', 37), $request->safe()->input('contact'));
+        $this->assertIsArray($request->input('contact'));
+    }
+
+    /**
+     * Test lightweight data object casts require array input.
+     */
+    public function testDataObjectCastsRejectNonArrayInput(): void
+    {
+        $request = $this->validateRequest(InvalidDataObjectRequest::class, [
+            'contact' => 'Taylor',
+        ]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Cannot cast request input [contact] to data object [' . ContactDataObject::class
+            . ']: expected array, received string.',
+        );
+
+        $request->validated();
+    }
+
+    /**
      * Test missing custom inputs do not resolve their caster.
      */
     public function testMissingInputDoesNotResolveCustomCaster(): void
@@ -1144,6 +1187,41 @@ class MissingInputRequest extends FormRequest
     }
 }
 
+class DataObjectRequest extends FormRequest
+{
+    protected function casts(): array
+    {
+        return [
+            'contact' => ContactDataObject::class,
+            'contacts.*' => ContactDataObject::class,
+            'nullable_contact' => ContactDataObject::class,
+        ];
+    }
+
+    public function rules(): array
+    {
+        return [
+            'contact' => ['required', 'array'],
+            'contacts' => ['required', 'array'],
+            'contacts.*' => ['required', 'array'],
+            'nullable_contact' => ['nullable', 'array'],
+        ];
+    }
+}
+
+class InvalidDataObjectRequest extends FormRequest
+{
+    protected function casts(): array
+    {
+        return ['contact' => ContactDataObject::class];
+    }
+
+    public function rules(): array
+    {
+        return ['contact' => ['required', 'string']];
+    }
+}
+
 class CountingRequest extends FormRequest
 {
     protected function casts(): array
@@ -1238,6 +1316,15 @@ class Money
         public readonly int $amount,
         public readonly string $currency,
         public readonly string $input,
+    ) {
+    }
+}
+
+class ContactDataObject extends DataObject
+{
+    public function __construct(
+        public string $name,
+        public int $age,
     ) {
     }
 }

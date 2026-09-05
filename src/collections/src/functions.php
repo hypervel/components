@@ -53,9 +53,10 @@ function enum_try_from(string $enum, mixed $value): ?BackedEnum
             return $enum::tryFrom($value);
         }
 
-        // PHP's own coercion accepts the negative boundary because -2^63 is exactly
-        // representable as a float, and rejects the positive one and non-finite floats.
+        // PHP_INT_MIN is exactly representable as a float, while PHP_INT_MAX rounds up.
+        // Reject non-finite, fractional, and positive-boundary values before casting.
         return is_float($value) && is_finite($value)
+            && $value === floor($value)
             && $value >= (float) PHP_INT_MIN && $value < (float) PHP_INT_MAX
                 ? $enum::tryFrom((int) $value)
                 : null;

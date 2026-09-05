@@ -109,11 +109,9 @@ Anything found follows When to Stop and Report — "the task didn't ask me to fi
 
 During implementation, run new or changed test files immediately. After completing a coherent implementation slice, run the affected package or focused test suite.
 
-At a meaningful checkpoint—such as before code review or after completing a substantial slice—run `composer fix` once. It runs `lint:fix`, both PHPStan configurations, the full parallel suite, the Testbench suite, and dogfood tests, so do not run those full checks separately at the same checkpoint.
+Use checks that match the change. For isolated changes, run `composer lint:fix`, `composer analyse`, and the affected tests. Run a single affected test file with PHPUnit. Use ParaTest when the affected tests span multiple files. Only run `composer fix` when changes could affect code beyond the affected tests; it already runs formatting, analysis, and all test suites, so do not run those checks separately first.
 
-After review fixes, run the relevant targeted tests. Repeat `composer fix` only when the changes warrant another full-repository check.
-
-If `composer fix` fails, use targeted checks while correcting the issue. Afterwards, inspect the `fix` script in `composer.json` and run the failed check plus each remaining entry. Rerun an earlier check only if the correction could affect it.
+If a check fails, use targeted checks while correcting the issue, then run the failed check and each remaining check. Rerun an earlier check only if the correction could affect it.
 
 ## Development Conventions
 
@@ -735,7 +733,7 @@ See the existing entries for database, Redis, Meilisearch, and Typesense as exam
 
 The `tests/` directory is excluded from phpstan. Do not run phpstan on tests.
 
-Full PHPStan runs through `composer fix` at checkpoints. During implementation, use targeted PHPStan only when investigating or validating a specific type issue.
+Run full PHPStan checks with `composer analyse`. During implementation, use targeted PHPStan only when investigating or validating a specific type issue.
 
 `phpstan.types.neon.dist` validates only the committed `types/` fixtures. Never pass source or test paths to it.
 
