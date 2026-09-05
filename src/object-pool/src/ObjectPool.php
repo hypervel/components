@@ -6,6 +6,7 @@ namespace Hypervel\ObjectPool;
 
 use Closure;
 use Hypervel\ObjectPool\Contracts\ObjectPool as ObjectPoolContract;
+use Hypervel\ObjectPool\Exceptions\PoolExhaustedException;
 use RuntimeException;
 use Throwable;
 
@@ -378,7 +379,9 @@ abstract class ObjectPool implements ObjectPoolContract
             }
 
             if ($timedOut) {
-                throw new RuntimeException('Object pool exhausted. Cannot create new object before wait_timeout.');
+                throw new PoolExhaustedException(
+                    'Object pool exhausted. Cannot create new object before wait_timeout.'
+                );
             }
 
             $timedOut = ! $this->waitForStateChange($deadline);

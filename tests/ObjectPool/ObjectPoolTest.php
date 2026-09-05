@@ -9,6 +9,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\ObjectPool\Channel as ObjectPoolChannel;
+use Hypervel\ObjectPool\Exceptions\PoolExhaustedException;
 use Hypervel\ObjectPool\ObjectPool;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Tests\TestCase;
@@ -353,7 +354,7 @@ class ObjectPoolTest extends TestCase
         $pool = $this->pool(['max_objects' => 1, 'wait_timeout' => 0.001]);
         $pool->get();
 
-        $this->expectException(RuntimeException::class);
+        $this->expectException(PoolExhaustedException::class);
         $this->expectExceptionMessage('Object pool exhausted. Cannot create new object before wait_timeout.');
 
         $pool->get();
