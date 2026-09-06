@@ -606,6 +606,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
      *
      * @throws CanceledException
      * @throws QueryException
+     * @throws StreamClosedException
      */
     protected function runStreaming(string $query, array $bindings, Closure $callback): Generator
     {
@@ -631,7 +632,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
                         $this->latestReadWriteTypeRetrieved = $readWriteType;
                     }
                 }
-            } catch (CanceledException $exception) {
+            } catch (CanceledException|StreamClosedException $exception) {
                 throw $exception;
             } catch (Exception $exception) {
                 ++$this->errorCount;
@@ -650,7 +651,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
                 yield from $this->handleQueryException($exception, $query, $bindings, $execute);
             }
-        } catch (CanceledException $exception) {
+        } catch (CanceledException|StreamClosedException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
             $events = $this->events;

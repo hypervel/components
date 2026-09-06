@@ -32,6 +32,7 @@ use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Database\Schema\Grammars\Grammar as SchemaGrammar;
 use Hypervel\Database\SQLiteConnection;
+use Hypervel\Database\StreamClosedException;
 use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
@@ -1192,6 +1193,58 @@ class DatabaseConnectionTest extends TestCase
         $this->assertTrue($cleaned);
         $this->assertSame(0, $connection->getErrorCount());
         $this->assertSame([], $connection->getQueryLog());
+    }
+
+    #[DataProvider('closedStreamProvider')]
+    public function testClosedStreamingCleansUpWithoutWrappingOrEvents(bool $yieldFirst): void
+    {
+        $connection = new NeutralConnectionForTest;
+        $connection->enableQueryLog();
+        $connection->setReconnector(static fn (): never => throw new LogicException('Unexpected retry.'));
+        $events = m::mock(Dispatcher::class);
+        $events->shouldNotReceive('hasListeners');
+        $events->shouldNotReceive('dispatch');
+        $connection->setEventDispatcher($events);
+        $closed = new StreamClosedException('The stream is closed.');
+        $cleaned = false;
+        $thrown = null;
+        $values = [];
+
+        try {
+            foreach ($this->runStreamingQuery($connection, static function () use ($yieldFirst, $closed, &$cleaned): Generator {
+                try {
+                    if ($yieldFirst) {
+                        yield 1;
+                    }
+
+                    throw $closed;
+                } finally {
+                    $cleaned = true;
+                }
+            }) as $value) {
+                $values[] = $value;
+            }
+        } catch (StreamClosedException $exception) {
+            $thrown = $exception;
+        }
+
+        $this->assertSame($closed, $thrown);
+        $this->assertSame($yieldFirst ? [1] : [], $values);
+        $this->assertTrue($cleaned);
+        $this->assertSame(0, $connection->getErrorCount());
+        $this->assertSame([], $connection->getQueryLog());
+        $this->assertSame(0.0, $connection->totalQueryDuration());
+    }
+
+    /**
+     * Provide closure before and after the first streamed value.
+     */
+    public static function closedStreamProvider(): array
+    {
+        return [
+            'before first value' => [false],
+            'after first value' => [true],
+        ];
     }
 
     public function testStreamingUsesTheDriverRetryPolicyBeforeAnyValue(): void
