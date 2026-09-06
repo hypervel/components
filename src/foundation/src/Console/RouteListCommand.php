@@ -71,18 +71,18 @@ class RouteListCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): void
     {
-        if (! $this->output->isVeryVerbose()) {
-            $this->router->flushMiddlewareGroups();
-        }
-
         if (! $this->router->getRoutes()->count()) {
-            return $this->components->error("Your application doesn't have any routes."); // @phpstan-ignore method.void
+            $this->components->error("Your application doesn't have any routes.");
+
+            return;
         }
 
         if (empty($routes = $this->getRoutes())) {
-            return $this->components->error("Your application doesn't have any routes matching the given criteria."); // @phpstan-ignore method.void
+            $this->components->error("Your application doesn't have any routes matching the given criteria.");
+
+            return;
         }
 
         $this->displayRoutes($routes);
@@ -187,7 +187,13 @@ class RouteListCommand extends Command
      */
     protected function getMiddleware(Route $route): string
     {
-        return (new Collection($this->router->gatherRouteMiddleware($route)))
+        // Collapsed output must preserve the worker's middleware groups and must
+        // not replace the route's cached executable middleware with group names.
+        $middleware = $this->output->isVeryVerbose()
+            ? $this->router->gatherRouteMiddleware($route)
+            : $this->router->resolveMiddlewareWithoutGroups($route->gatherMiddleware(), $route->excludedMiddleware());
+
+        return (new Collection($middleware))
             ->map(fn ($middleware) => $middleware instanceof Closure ? 'Closure' : $middleware)
             ->implode("\n");
     }
