@@ -1050,6 +1050,15 @@ $messages = [
 ];
 ```
 
+You may capitalize `:attribute` and supported rule placeholders to control the casing of their replacements:
+
+```php
+$messages = [
+    'same' => 'The :Attribute and :Other must match.',
+    'in' => 'The :attribute must be one of the following: :VALUES',
+];
+```
+
 <a name="specifying-a-custom-message-for-a-given-attribute"></a>
 #### Specifying a Custom Message for a Given Attribute
 

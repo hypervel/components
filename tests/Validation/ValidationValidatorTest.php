@@ -943,6 +943,72 @@ class ValidationValidatorTest extends TestCase
         $this->assertSame('The url must start with one of the following values hTtp, hTtps', $v->messages()->first('url'));
     }
 
+    #[TestWith(['declined_if', ['foo' => 'yes', 'bar' => 'aAa']])]
+    #[TestWith(['missing_if', ['foo' => 'yes', 'bar' => 'aAa']])]
+    #[TestWith(['present_if', ['bar' => 'aAa']])]
+    #[TestWith(['required_if', ['bar' => 'aAa']])]
+    public function testConditionalRulePlaceholdersPreserveCasingVariants(string $rule, array $data): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            $data,
+            ['foo' => $rule . ':bar,aAa'],
+            [$rule => ':other|:OTHER|:Other|:value|:VALUE|:Value'],
+            ['bar' => 'otherField'],
+        );
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame('otherField|OTHERFIELD|OtherField|aAa|AAA|AAa', $validator->errors()->first('foo'));
+    }
+
+    public function testRequiredIfDeclinedPlaceholdersPreserveCasingVariants(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['bar' => 'no'],
+            ['foo' => 'required_if_declined:bar'],
+            ['required_if_declined' => ':other|:OTHER|:Other'],
+            ['bar' => 'otherField'],
+        );
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame('otherField|OTHERFIELD|OtherField', $validator->errors()->first('foo'));
+    }
+
+    public function testProhibitedUnlessPlaceholdersPreserveCasingVariants(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['foo' => 'yes', 'bar' => 'aAa'],
+            ['foo' => 'prohibited_unless:bar,tAylor,sVen'],
+            ['prohibited_unless' => ':other|:OTHER|:Other|:values|:VALUES|:Values'],
+            ['bar' => 'otherField'],
+        );
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame(
+            'otherField|OTHERFIELD|OtherField|tAylor, sVen|TAYLOR, SVEN|TAylor, SVen',
+            $validator->errors()->first('foo'),
+        );
+    }
+
+    #[TestWith(['required_array_keys', []])]
+    #[TestWith(['ends_with', 'other'])]
+    #[TestWith(['doesnt_end_with', 'tAylor'])]
+    #[TestWith(['doesnt_start_with', 'sVen'])]
+    public function testValueListRulePlaceholdersPreserveCasingVariants(string $rule, array|string $value): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['foo' => $value],
+            ['foo' => $rule . ':tAylor,sVen'],
+            [$rule => ':values|:VALUES|:Values'],
+        );
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame('tAylor, sVen|TAYLOR, SVEN|TAylor, SVen', $validator->errors()->first('foo'));
+    }
+
     public function testDisplayableAttributesAreReplacedInCustomReplacers()
     {
         $trans = $this->getArrayTranslator();
