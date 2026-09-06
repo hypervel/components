@@ -943,9 +943,10 @@ The generated class will extend `Hypervel\Http\Resources\JsonApi\JsonApiResource
 ```php
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Resources;
 
-use Hypervel\Http\Request;
 use Hypervel\Http\Resources\JsonApi\JsonApiResource;
 
 class PostResource extends JsonApiResource
@@ -953,14 +954,14 @@ class PostResource extends JsonApiResource
     /**
      * The resource's attributes.
      */
-    public $attributes = [
+    public array $attributes = [
         // ...
     ];
 
     /**
      * The resource's relationships.
      */
-    public $relationships = [
+    public array $relationships = [
         // ...
     ];
 }
@@ -1040,7 +1041,7 @@ There are two ways to define which attributes are included in your JSON:API reso
 The simplest approach is to define an `$attributes` property on your resource. You may list attribute names as values, which will be read directly from the underlying model:
 
 ```php
-public $attributes = [
+public array $attributes = [
     'title',
     'body',
     'created_at',
@@ -1079,7 +1080,7 @@ JSON:API resources support defining relationships that follow the JSON:API speci
 You may define your resource's includable relationships via the `$relationships` property on your resource:
 
 ```php
-public $relationships = [
+public array $relationships = [
     'author',
     'comments',
 ];
@@ -1090,7 +1091,7 @@ When listing a relationship name as a value, Hypervel will resolve the correspon
 ```php
 use App\Http\Resources\UserResource;
 
-public $relationships = [
+public array $relationships = [
     'author' => UserResource::class,
     'comments',
 ];
