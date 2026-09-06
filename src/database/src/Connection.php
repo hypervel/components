@@ -596,6 +596,83 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     }
 
     /**
+     * Run a streaming SQL statement and log only its complete execution.
+     *
+     * @template TKey of array-key
+     * @template TValue
+     *
+     * @param Closure(string, array): iterable<TKey, TValue> $callback
+     * @return Generator<TKey, TValue>
+     *
+     * @throws CanceledException
+     * @throws QueryException
+     */
+    protected function runStreaming(string $query, array $bindings, Closure $callback): Generator
+    {
+        foreach ($this->beforeExecutingCallbacks as $beforeExecutingCallback) {
+            $beforeExecutingCallback($query, $bindings, $this);
+        }
+
+        $this->reconnectIfMissingConnection();
+
+        $start = hrtime(true) / 1e9;
+        $hasYielded = false;
+
+        $execute = function (string $query, array $bindings) use ($callback, &$hasYielded): Generator {
+            try {
+                foreach ($callback($query, $bindings) as $key => $value) {
+                    $readWriteType = $this->latestReadWriteTypeRetrieved;
+                    $hasYielded = true;
+
+                    try {
+                        yield $key => $value;
+                    } finally {
+                        // A consumer may run another query while this operation is suspended.
+                        $this->latestReadWriteTypeRetrieved = $readWriteType;
+                    }
+                }
+            } catch (CanceledException $exception) {
+                throw $exception;
+            } catch (Exception $exception) {
+                ++$this->errorCount;
+
+                throw $this->newQueryException($query, $bindings, $exception);
+            }
+        };
+
+        try {
+            try {
+                yield from $execute($query, $bindings);
+            } catch (QueryException $exception) {
+                if ($hasYielded) {
+                    throw $exception;
+                }
+
+                yield from $this->handleQueryException($exception, $query, $bindings, $execute);
+            }
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            $events = $this->events;
+
+            if ($events?->hasListeners(QueryFailed::class)) {
+                $events->dispatch(new QueryFailed(
+                    $query,
+                    $bindings,
+                    $this->getElapsedTime($start),
+                    $this,
+                    $exception,
+                    $this->latestReadWriteTypeUsed(),
+                ));
+            }
+
+            throw $exception;
+        }
+
+        $this->logQuery($query, $bindings, $this->getElapsedTime($start));
+    }
+
+    /**
      * Run a SQL statement.
      *
      * @throws CanceledException
@@ -618,27 +695,35 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         } catch (Exception $e) {
             ++$this->errorCount;
 
-            $exceptionType = ($isUniqueConstraintError = $this->isUniqueConstraintError($e))
-                ? UniqueConstraintViolationException::class
-                : QueryException::class;
-
-            $queryException = new $exceptionType(
-                $this->getName(),
-                $query,
-                $this->prepareBindings($bindings),
-                $e,
-                $this->getConnectionDetails(),
-                $this->latestReadWriteTypeUsed(),
-            );
-
-            if ($isUniqueConstraintError && $queryException instanceof UniqueConstraintViolationException) {
-                ['index' => $index, 'columns' => $columns] = $this->parseUniqueConstraintViolation($e);
-
-                $queryException->setIndex($index)->setColumns($columns);
-            }
-
-            throw $queryException;
+            throw $this->newQueryException($query, $bindings, $e);
         }
+    }
+
+    /**
+     * Create an exception containing the query and connection context.
+     */
+    protected function newQueryException(string $query, array $bindings, Exception $previous): QueryException
+    {
+        $exceptionType = ($isUniqueConstraintError = $this->isUniqueConstraintError($previous))
+            ? UniqueConstraintViolationException::class
+            : QueryException::class;
+
+        $queryException = new $exceptionType(
+            $this->getName(),
+            $query,
+            $this->prepareBindings($bindings),
+            $previous,
+            $this->getConnectionDetails(),
+            $this->latestReadWriteTypeUsed(),
+        );
+
+        if ($isUniqueConstraintError && $queryException instanceof UniqueConstraintViolationException) {
+            ['index' => $index, 'columns' => $columns] = $this->parseUniqueConstraintViolation($previous);
+
+            $queryException->setIndex($index)->setColumns($columns);
+        }
+
+        return $queryException;
     }
 
     /**
@@ -1182,6 +1267,23 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         $this->readOnWriteConnection = $value;
 
         return $this;
+    }
+
+    /**
+     * Resolve and record the connection role for an operation.
+     *
+     * @return 'read'|'write'
+     */
+    protected function resolveReadWriteType(bool $read = true): string
+    {
+        if ($read
+            && $this->transactions === 0
+            && ! $this->readOnWriteConnection
+            && ! ($this->recordsModified && $this->getConfig('sticky'))) {
+            return $this->latestReadWriteTypeRetrieved = 'read';
+        }
+
+        return $this->latestReadWriteTypeRetrieved = 'write';
     }
 
     /**
