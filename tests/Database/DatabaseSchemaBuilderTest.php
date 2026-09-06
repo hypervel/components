@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Connection;
 use Hypervel\Database\PdoConnection;
+use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Builder;
@@ -39,6 +40,27 @@ class DatabaseSchemaBuilderTest extends TestCase
         $builder = new Builder($connection);
 
         $this->assertTrue($builder->dropDatabaseIfExists('foo'));
+    }
+
+    public function testTruncateTablesChecksWriteRowsAndSkipsEmptyTables(): void
+    {
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(m::mock(Grammar::class));
+
+        foreach (['public.populated' => true, 'public.empty' => false] as $name => $hasRows) {
+            $query = m::mock(QueryBuilder::class);
+            $connection->shouldReceive('table')->once()->with($name)->andReturn($query);
+            $query->shouldReceive('useWritePdo')->once()->andReturnSelf();
+            $query->shouldReceive('exists')->once()->andReturn($hasRows);
+
+            if ($hasRows) {
+                $query->shouldReceive('truncate')->once();
+            } else {
+                $query->shouldNotReceive('truncate');
+            }
+        }
+
+        (new Builder($connection))->truncateTables(['public.populated', 'public.empty']);
     }
 
     public function testExecuteBlueprintCompilesOnceAndExecutesStatementsInOrder(): void

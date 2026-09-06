@@ -242,10 +242,13 @@ trait RefreshDatabase
             $dispatcher = $connection->getEventDispatcher();
 
             $connection->unsetEventDispatcher();
-            $connection->beginTransaction();
 
-            if ($dispatcher) {
-                $connection->setEventDispatcher($dispatcher);
+            try {
+                $connection->beginTransaction();
+            } finally {
+                if ($dispatcher !== null) {
+                    $connection->setEventDispatcher($dispatcher);
+                }
             }
         }
     }
@@ -263,18 +266,20 @@ trait RefreshDatabase
 
             $connection->unsetEventDispatcher();
 
-            if (! $connection->inTransaction()) {
-                RefreshDatabaseState::$migrated = false;
-            }
+            try {
+                if (! $connection->inTransaction()) {
+                    RefreshDatabaseState::$migrated = false;
+                }
 
-            if ($connection instanceof DatabaseConnection) {
-                $connection->forgetRecordModificationState();
-            }
+                if ($connection instanceof DatabaseConnection) {
+                    $connection->forgetRecordModificationState();
+                }
 
-            $connection->rollBack();
-
-            if ($dispatcher) {
-                $connection->setEventDispatcher($dispatcher);
+                $connection->rollBack();
+            } finally {
+                if ($dispatcher !== null) {
+                    $connection->setEventDispatcher($dispatcher);
+                }
             }
         }
     }

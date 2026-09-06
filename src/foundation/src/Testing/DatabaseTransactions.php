@@ -82,10 +82,13 @@ trait DatabaseTransactions
             $dispatcher = $connection->getEventDispatcher();
 
             $connection->unsetEventDispatcher();
-            $connection->beginTransaction();
 
-            if ($dispatcher !== null) {
-                $connection->setEventDispatcher($dispatcher);
+            try {
+                $connection->beginTransaction();
+            } finally {
+                if ($dispatcher !== null) {
+                    $connection->setEventDispatcher($dispatcher);
+                }
             }
         }
     }
@@ -103,14 +106,16 @@ trait DatabaseTransactions
 
             $connection->unsetEventDispatcher();
 
-            if ($connection instanceof DatabaseConnection) {
-                $connection->forgetRecordModificationState();
-            }
+            try {
+                if ($connection instanceof DatabaseConnection) {
+                    $connection->forgetRecordModificationState();
+                }
 
-            $connection->rollBack();
-
-            if ($dispatcher !== null) {
-                $connection->setEventDispatcher($dispatcher);
+                $connection->rollBack();
+            } finally {
+                if ($dispatcher !== null) {
+                    $connection->setEventDispatcher($dispatcher);
+                }
             }
         }
     }

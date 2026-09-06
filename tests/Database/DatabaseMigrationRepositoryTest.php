@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
-use Closure;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Migrations\DatabaseMigrationRepository;
@@ -13,6 +12,7 @@ use Hypervel\Database\Schema\Builder as SchemaBuilder;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseMigrationRepositoryTest extends TestCase
 {
@@ -87,27 +87,40 @@ class DatabaseMigrationRepositoryTest extends TestCase
         $this->assertEquals(2, $repo->getNextBatchNumber());
     }
 
-    public function testGetLastBatchNumberReturnsMaxBatch()
+    #[DataProvider('batchNumberProvider')]
+    public function testGetLastBatchNumberReturnsMaxBatch(int|string|null $value, int $expected): void
     {
         $repo = $this->getRepository();
         $query = m::mock(QueryBuilder::class);
         $connectionMock = m::mock(Connection::class);
         $repo->getConnectionResolver()->shouldReceive('connection')->with(null)->andReturn($connectionMock);
         $repo->getConnection()->shouldReceive('table')->once()->with('migrations')->andReturn($query);
-        $query->shouldReceive('max')->once()->andReturn(1);
+        $query->shouldReceive('max')->once()->with('batch')->andReturn($value);
         $query->shouldReceive('useWritePdo')->once()->andReturn($query);
 
-        $this->assertEquals(1, $repo->getLastBatchNumber());
+        $this->assertSame($expected, $repo->getLastBatchNumber());
     }
 
-    public function testCreateRepositoryCreatesProperDatabaseTable()
+    /**
+     * Provide native and string-valued migration batches.
+     */
+    public static function batchNumberProvider(): array
+    {
+        return [
+            'native integer' => [1, 1],
+            'numeric string' => ['42', 42],
+            'empty repository' => [null, 0],
+        ];
+    }
+
+    public function testCreateRepositoryDelegatesItsTableDefinitionToTheSchemaBuilder(): void
     {
         $repo = $this->getRepository();
         $schema = m::mock(SchemaBuilder::class);
         $connectionMock = m::mock(Connection::class);
         $repo->getConnectionResolver()->shouldReceive('connection')->with(null)->andReturn($connectionMock);
         $repo->getConnection()->shouldReceive('getSchemaBuilder')->once()->andReturn($schema);
-        $schema->shouldReceive('create')->once()->with('migrations', m::type(Closure::class));
+        $schema->shouldReceive('createMigrationRepositoryTable')->once()->with('migrations');
 
         $repo->createRepository();
     }

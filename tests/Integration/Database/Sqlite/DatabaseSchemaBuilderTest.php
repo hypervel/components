@@ -7,8 +7,10 @@ namespace Hypervel\Tests\Integration\Database\Sqlite;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
+use PDO;
 
 class DatabaseSchemaBuilderTest extends SqliteTestCase
 {
@@ -64,6 +66,70 @@ class DatabaseSchemaBuilderTest extends SqliteTestCase
 
         // Restore migrations table for teardown's migrate:rollback
         $this->artisan('migrate:install');
+    }
+
+    public function testCreateMigrationRepositoryTablePreservesTheRelationalSchemaAndPrefix(): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:', 'audit_');
+        $builder = $connection->getSchemaBuilder();
+
+        $builder->createMigrationRepositoryTable('migrations');
+
+        $columns = $builder->getColumns('migrations');
+
+        $this->assertSame(['id', 'migration', 'batch'], array_column($columns, 'name'));
+        $this->assertTrue($columns[0]['auto_increment']);
+        $this->assertSame(['integer', 'varchar', 'integer'], array_column($columns, 'type_name'));
+        $this->assertSame([false, false, false], array_column($columns, 'nullable'));
+        $this->assertSame(['audit_migrations'], $builder->getTableListing(schemaQualified: false));
+
+        $connection->table('migrations')->insert(['migration' => 'create_users', 'batch' => 1]);
+
+        $this->assertSame(1, $connection->table('migrations')->value('id'));
+    }
+
+    public function testTruncateTablesClearsWriteRowsWhenTheReadDatabaseIsEmpty(): void
+    {
+        $write = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:', '', ['sticky' => false]);
+        $read = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
+
+        foreach ([$write, $read] as $connection) {
+            $connection->getSchemaBuilder()->create('widgets', function (Blueprint $table): void {
+                $table->id();
+            });
+        }
+
+        $write->table('widgets')->insert(['id' => 1]);
+        $write->setReadPdo($read->getPdo());
+
+        $this->assertFalse($write->table('widgets')->exists());
+        $this->assertTrue($write->table('widgets')->useWritePdo()->exists());
+
+        $write->getSchemaBuilder()->truncateTables(['main.widgets']);
+
+        $this->assertSame(0, $write->table('widgets')->useWritePdo()->count());
+    }
+
+    public function testTruncateTablesPreservesThePrefixAndSkipsEmptyTables(): void
+    {
+        $connection = DB::connection('sqlite-with-indexed-prefix');
+        $schema = $connection->getSchemaBuilder();
+
+        foreach (['populated', 'empty'] as $table) {
+            $schema->create($table, function (Blueprint $blueprint): void {
+                $blueprint->id();
+            });
+            $connection->table($table)->insert(['id' => 1]);
+        }
+
+        $connection->table('empty')->delete();
+
+        $schema->truncateTables(['populated', 'empty']);
+
+        $this->assertSame(0, $connection->table('populated')->count());
+        $this->assertSame(0, $connection->table('empty')->count());
+        $this->assertSame(1, $connection->table('populated')->insertGetId(['id' => null]));
+        $this->assertSame(2, $connection->table('empty')->insertGetId(['id' => null]));
     }
 
     public function testHasColumnAndIndexWithPrefixIndexDisabled(): void
