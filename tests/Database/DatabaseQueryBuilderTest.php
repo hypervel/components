@@ -11,6 +11,7 @@ use DatePeriod;
 use DateTime;
 use Hypervel\Contracts\Database\Query\ConditionExpression;
 use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\HasMany;
@@ -5846,6 +5847,38 @@ SQL;
         $this->assertEquals(['foo', 'bar', 'baz'], $builder->getBindings());
     }
 
+    public function testCustomBindingSlotsSurviveFactoriesAndPaginationCloning(): void
+    {
+        $connection = $this->getConnection();
+        $builder = new DatabaseQueryBuilderWithCustomBindings($connection, new Grammar($connection), new Processor);
+        $builder->from('users')->where('active', true)->orderByRaw('priority = ?', [10])->limit(5)->offset(2);
+        $builder->addBinding('tenant', 'expressions');
+
+        $fresh = $builder->newQuery();
+        $this->assertInstanceOf(DatabaseQueryBuilderWithCustomBindings::class, $fresh);
+        $this->assertSame([], $fresh->getRawBindings()['expressions']);
+        $this->assertSame(['fresh'], $fresh->addBinding('fresh', 'expressions')->getBindings());
+
+        $nested = $builder->forNestedWhere();
+        $this->assertInstanceOf(DatabaseQueryBuilderWithCustomBindings::class, $nested);
+        $this->assertSame('users', $nested->from);
+        $this->assertSame([], $nested->getRawBindings()['expressions']);
+        $this->assertSame(['nested'], $nested->setBindings(['nested'], 'expressions')->getBindings());
+
+        $clone = (new ReflectionMethod($builder, 'cloneForPaginationCount'))->invoke($builder);
+        $this->assertInstanceOf(DatabaseQueryBuilderWithCustomBindings::class, $clone);
+        $this->assertSame(['tenant', true], $clone->getBindings());
+        $this->assertSame([], $clone->orders);
+        $this->assertNull($clone->limit);
+        $this->assertNull($clone->offset);
+
+        $clone->addBinding('count', 'expressions');
+        $this->assertSame(['tenant', 'count'], $clone->getRawBindings()['expressions']);
+        $this->assertSame(['tenant', true, 10], $builder->getBindings());
+        $this->assertSame(5, $builder->limit);
+        $this->assertSame(2, $builder->offset);
+    }
+
     public function testAddBindingWithArrayMergesBindingsInCorrectOrder()
     {
         $builder = $this->getBuilder();
@@ -6431,11 +6464,8 @@ SQL;
         $columns = ['test'];
         $cursorName = 'cursor-name';
         $cursor = new Cursor(['test' => 'bar']);
-        $builder = $this->getMockQueryBuilder();
+        $builder = $this->getMockQueryBuilder(['get']);
         $builder->from('foobar')->orderBy('test');
-        $builder->shouldReceive('newQuery')->andReturnUsing(function () use ($builder) {
-            return new Builder($builder->connection, $builder->grammar, $builder->processor);
-        });
 
         $path = 'http://foo.bar?cursor=' . $cursor->encode();
 
@@ -6470,11 +6500,8 @@ SQL;
         $columns = ['test', 'another'];
         $cursorName = 'cursor-name';
         $cursor = new Cursor(['test' => 'bar', 'another' => 'foo']);
-        $builder = $this->getMockQueryBuilder();
+        $builder = $this->getMockQueryBuilder(['get']);
         $builder->from('foobar')->orderBy('test')->orderBy('another');
-        $builder->shouldReceive('newQuery')->andReturnUsing(function () use ($builder) {
-            return new Builder($builder->connection, $builder->grammar, $builder->processor);
-        });
 
         $path = 'http://foo.bar?cursor=' . $cursor->encode();
 
@@ -6508,11 +6535,8 @@ SQL;
         $perPage = 15;
         $cursorName = 'cursor';
         $cursor = new Cursor(['test' => 'bar']);
-        $builder = $this->getMockQueryBuilder();
+        $builder = $this->getMockQueryBuilder(['get']);
         $builder->from('foobar')->orderBy('test');
-        $builder->shouldReceive('newQuery')->andReturnUsing(function () use ($builder) {
-            return new Builder($builder->connection, $builder->grammar, $builder->processor);
-        });
 
         $path = 'http://foo.bar?cursor=' . $cursor->encode();
 
@@ -6579,11 +6603,8 @@ SQL;
         $columns = ['id', 'name'];
         $cursorName = 'cursor-name';
         $cursor = new Cursor(['id' => 2]);
-        $builder = $this->getMockQueryBuilder();
+        $builder = $this->getMockQueryBuilder(['get']);
         $builder->from('foobar')->orderBy('id');
-        $builder->shouldReceive('newQuery')->andReturnUsing(function () use ($builder) {
-            return new Builder($builder->connection, $builder->grammar, $builder->processor);
-        });
 
         $path = 'http://foo.bar?cursor=3';
 
@@ -6618,11 +6639,8 @@ SQL;
         $columns = ['foo', 'bar', 'baz'];
         $cursorName = 'cursor-name';
         $cursor = new Cursor(['foo' => 1, 'bar' => 2, 'baz' => 3]);
-        $builder = $this->getMockQueryBuilder();
+        $builder = $this->getMockQueryBuilder(['get']);
         $builder->from('foobar')->orderBy('foo')->orderByDesc('bar')->orderBy('baz');
-        $builder->shouldReceive('newQuery')->andReturnUsing(function () use ($builder) {
-            return new Builder($builder->connection, $builder->grammar, $builder->processor);
-        });
 
         $path = 'http://foo.bar?cursor=' . $cursor->encode();
 
@@ -6656,11 +6674,8 @@ SQL;
         $perPage = 15;
         $cursorName = 'cursor';
         $cursor = new Cursor(['test' => 'bar']);
-        $builder = $this->getMockQueryBuilder();
+        $builder = $this->getMockQueryBuilder(['get']);
         $builder->from('foobar')->select('*')->selectRaw('(CONCAT(firstname, \' \', lastname)) as test')->orderBy('test');
-        $builder->shouldReceive('newQuery')->andReturnUsing(function () use ($builder) {
-            return new Builder($builder->connection, $builder->grammar, $builder->processor);
-        });
 
         $path = 'http://foo.bar?cursor=' . $cursor->encode();
 
@@ -6698,11 +6713,8 @@ SQL;
         $perPage = 15;
         $cursorName = 'cursor';
         $cursor = new Cursor(['test' => 'bar']);
-        $builder = $this->getMockQueryBuilder();
+        $builder = $this->getMockQueryBuilder(['get']);
         $builder->from('foobar')->select('*')->selectRaw('(CAST(CONCAT(firstname, \' \', lastname) as VARCHAR)) as test')->orderBy('test');
-        $builder->shouldReceive('newQuery')->andReturnUsing(function () use ($builder) {
-            return new Builder($builder->connection, $builder->grammar, $builder->processor);
-        });
 
         $path = 'http://foo.bar?cursor=' . $cursor->encode();
 
@@ -6740,11 +6752,8 @@ SQL;
         $perPage = 15;
         $cursorName = 'cursor';
         $cursor = new Cursor(['test' => 'bar']);
-        $builder = $this->getMockQueryBuilder();
+        $builder = $this->getMockQueryBuilder(['get']);
         $builder->from('foobar')->select('*')->selectSub('CONCAT(firstname, \' \', lastname)', 'test')->orderBy('test');
-        $builder->shouldReceive('newQuery')->andReturnUsing(function () use ($builder) {
-            return new Builder($builder->connection, $builder->grammar, $builder->processor);
-        });
 
         $path = 'http://foo.bar?cursor=' . $cursor->encode();
 
@@ -6785,14 +6794,10 @@ SQL;
         $columns = ['test'];
         $cursorName = 'cursor-name';
         $cursor = new Cursor(['created_at' => $ts]);
-        $builder = $this->getMockQueryBuilder();
+        $builder = $this->getMockQueryBuilder(['get']);
         $builder->select('id', 'start_time as created_at')->selectRaw("'video' as type")->from('videos');
         $builder->union($this->getBuilder()->select('id', 'created_at')->selectRaw("'news' as type")->from('news'));
         $builder->orderBy('created_at');
-
-        $builder->shouldReceive('newQuery')->andReturnUsing(function () use ($builder) {
-            return new Builder($builder->connection, $builder->grammar, $builder->processor);
-        });
 
         $path = 'http://foo.bar?cursor=' . $cursor->encode();
 
@@ -6833,15 +6838,11 @@ SQL;
         $columns = ['test'];
         $cursorName = 'cursor-name';
         $cursor = new Cursor(['created_at' => $ts]);
-        $builder = $this->getMockQueryBuilder();
+        $builder = $this->getMockQueryBuilder(['get']);
         $builder->select('id', 'start_time as created_at')->selectRaw("'video' as type")->from('videos');
         $builder->union($this->getBuilder()->select('id', 'created_at')->selectRaw("'news' as type")->from('news')->where('extra', 'first'));
         $builder->union($this->getBuilder()->select('id', 'created_at')->selectRaw("'podcast' as type")->from('podcasts')->where('extra', 'second'));
         $builder->orderBy('created_at');
-
-        $builder->shouldReceive('newQuery')->andReturnUsing(function () use ($builder) {
-            return new Builder($builder->connection, $builder->grammar, $builder->processor);
-        });
 
         $path = 'http://foo.bar?cursor=' . $cursor->encode();
 
@@ -6883,15 +6884,11 @@ SQL;
         $columns = ['id', 'created_at', 'type'];
         $cursorName = 'cursor-name';
         $cursor = new Cursor(['id' => 1, 'created_at' => $ts, 'type' => 'news']);
-        $builder = $this->getMockQueryBuilder();
+        $builder = $this->getMockQueryBuilder(['get']);
         $builder->select('id', 'start_time as created_at', 'type')->from('videos')->where('extra', 'first');
         $builder->union($this->getBuilder()->select('id', 'created_at', 'type')->from('news')->where('extra', 'second'));
         $builder->union($this->getBuilder()->select('id', 'created_at', 'type')->from('podcasts')->where('extra', 'third'));
         $builder->orderBy('id')->orderByDesc('created_at')->orderBy('type');
-
-        $builder->shouldReceive('newQuery')->andReturnUsing(function () use ($builder) {
-            return new Builder($builder->connection, $builder->grammar, $builder->processor);
-        });
 
         $path = 'http://foo.bar?cursor=' . $cursor->encode();
 
@@ -6934,14 +6931,10 @@ SQL;
         $columns = ['test'];
         $cursorName = 'cursor-name';
         $cursor = new Cursor(['created_at' => $ts]);
-        $builder = $this->getMockQueryBuilder();
+        $builder = $this->getMockQueryBuilder(['get']);
         $builder->select('id', 'is_published', 'start_time as created_at')->selectRaw("'video' as type")->where('is_published', true)->from('videos');
         $builder->union($this->getBuilder()->select('id', 'is_published', 'created_at')->selectRaw("'news' as type")->where('is_published', true)->from('news'));
         $builder->orderByRaw('case when (id = 3 and type="news" then 0 else 1 end)')->orderBy('created_at');
-
-        $builder->shouldReceive('newQuery')->andReturnUsing(function () use ($builder) {
-            return new Builder($builder->connection, $builder->grammar, $builder->processor);
-        });
 
         $path = 'http://foo.bar?cursor=' . $cursor->encode();
 
@@ -6982,14 +6975,10 @@ SQL;
         $columns = ['test'];
         $cursorName = 'cursor-name';
         $cursor = new Cursor(['created_at' => $ts], false);
-        $builder = $this->getMockQueryBuilder();
+        $builder = $this->getMockQueryBuilder(['get']);
         $builder->select('id', 'start_time as created_at')->selectRaw("'video' as type")->from('videos');
         $builder->union($this->getBuilder()->select('id', 'created_at')->selectRaw("'news' as type")->from('news'));
         $builder->orderBy('created_at');
-
-        $builder->shouldReceive('newQuery')->andReturnUsing(function () use ($builder) {
-            return new Builder($builder->connection, $builder->grammar, $builder->processor);
-        });
 
         $path = 'http://foo.bar?cursor=' . $cursor->encode();
 
@@ -7030,14 +7019,10 @@ SQL;
         $columns = ['test'];
         $cursorName = 'cursor-name';
         $cursor = new Cursor(['created_at' => $ts, 'id' => 1]);
-        $builder = $this->getMockQueryBuilder();
+        $builder = $this->getMockQueryBuilder(['get']);
         $builder->select('id', 'start_time as created_at')->selectRaw("'video' as type")->from('videos');
         $builder->union($this->getBuilder()->select('id', 'created_at')->selectRaw("'news' as type")->from('news'));
         $builder->orderByDesc('created_at')->orderBy('id');
-
-        $builder->shouldReceive('newQuery')->andReturnUsing(function () use ($builder) {
-            return new Builder($builder->connection, $builder->grammar, $builder->processor);
-        });
 
         $path = 'http://foo.bar?cursor=' . $cursor->encode();
 
@@ -7078,15 +7063,11 @@ SQL;
         $columns = ['test'];
         $cursorName = 'cursor-name';
         $cursor = new Cursor(['created_at' => $ts]);
-        $builder = $this->getMockQueryBuilder();
+        $builder = $this->getMockQueryBuilder(['get']);
         $builder->select('id', 'start_time as created_at')->selectRaw("'video' as type")->from('videos');
         $builder->union($this->getBuilder()->select('id', 'created_at')->selectRaw("'news' as type")->from('news'));
         $builder->union($this->getBuilder()->select('id', 'init_at as created_at')->selectRaw("'podcast' as type")->from('podcasts'));
         $builder->orderBy('created_at');
-
-        $builder->shouldReceive('newQuery')->andReturnUsing(function () use ($builder) {
-            return new Builder($builder->connection, $builder->grammar, $builder->processor);
-        });
 
         $path = 'http://foo.bar?cursor=' . $cursor->encode();
 
@@ -7810,15 +7791,30 @@ SQL;
     }
 
     /**
-     * @return \Illuminate\Database\Query\Builder|\Mockery\MockInterface
+     * Create a partially mocked query builder.
+     *
+     * @param list<string> $methods
      */
-    protected function getMockQueryBuilder()
+    protected function getMockQueryBuilder(array $methods = []): Builder&m\MockInterface
     {
-        return m::mock(Builder::class, [
+        return m::mock(Builder::class . ($methods ? '[' . implode(',', $methods) . ']' : ''), [
             $connection = $this->getConnection(),
             new Grammar($connection),
             m::mock(Processor::class),
         ])->makePartial();
+    }
+}
+
+class DatabaseQueryBuilderWithCustomBindings extends Builder
+{
+    /**
+     * Create a query builder with an additional binding slot.
+     */
+    public function __construct(ConnectionInterface $connection, ?Grammar $grammar = null, ?Processor $processor = null)
+    {
+        parent::__construct($connection, $grammar, $processor);
+
+        $this->bindings = ['expressions' => []] + $this->bindings;
     }
 }
 

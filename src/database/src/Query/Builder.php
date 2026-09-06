@@ -45,6 +45,7 @@ use function Hypervel\Support\enum_value;
 /**
  * @template TKey of array-key = int
  * @template TValue = \stdClass
+ * @template TBindingType of string = 'select'|'from'|'join'|'where'|'groupBy'|'having'|'order'|'union'|'unionOrder'
  */
 class Builder implements BuilderContract
 {
@@ -71,17 +72,7 @@ class Builder implements BuilderContract
     /**
      * The current query value bindings.
      *
-     * @var array{
-     *     select: list<mixed>,
-     *     from: list<mixed>,
-     *     join: list<mixed>,
-     *     where: list<mixed>,
-     *     groupBy: list<mixed>,
-     *     having: list<mixed>,
-     *     order: list<mixed>,
-     *     union: list<mixed>,
-     *     unionOrder: list<mixed>,
-     * }
+     * @var array<TBindingType, list<mixed>>
      */
     public array $bindings = [
         'select' => [],
@@ -1697,7 +1688,7 @@ class Builder implements BuilderContract
     /**
      * Create a new query instance for nested where condition.
      */
-    public function forNestedWhere(): self
+    public function forNestedWhere(): static
     {
         $query = $this->newQuery();
 
@@ -3180,7 +3171,7 @@ class Builder implements BuilderContract
     /**
      * Clone the existing query instance for usage in a pagination subquery.
      */
-    protected function cloneForPaginationCount(): self
+    protected function cloneForPaginationCount(): static
     {
         return $this->cloneWithout(['orders', 'limit', 'offset'])
             ->cloneWithoutBindings(['order']);
@@ -3938,13 +3929,16 @@ class Builder implements BuilderContract
     /**
      * Get a new instance of the query builder.
      */
-    public function newQuery(): self
+    public function newQuery(): static
     {
+        // @phpstan-ignore return.type (Constructor arguments do not carry the template types bound by the subclass.)
         return new static($this->connection, $this->grammar, $this->processor);
     }
 
     /**
      * Create a new query instance for a sub-query.
+     *
+     * @return self<TKey, TValue, TBindingType>
      */
     protected function forSubQuery(): self
     {
@@ -4014,17 +4008,7 @@ class Builder implements BuilderContract
     /**
      * Get the raw array of bindings.
      *
-     * @return array{
-     *      select: list<mixed>,
-     *      from: list<mixed>,
-     *      join: list<mixed>,
-     *      where: list<mixed>,
-     *      groupBy: list<mixed>,
-     *      having: list<mixed>,
-     *      order: list<mixed>,
-     *      union: list<mixed>,
-     *      unionOrder: list<mixed>,
-     * }
+     * @return array<TBindingType, list<mixed>>
      */
     public function getRawBindings(): array
     {
@@ -4035,7 +4019,7 @@ class Builder implements BuilderContract
      * Set the bindings on the query builder.
      *
      * @param list<mixed> $bindings
-     * @param "from"|"groupBy"|"having"|"join"|"order"|"select"|"union"|"unionOrder"|"where" $type
+     * @param TBindingType $type
      *
      * @throws InvalidArgumentException
      */
@@ -4053,7 +4037,7 @@ class Builder implements BuilderContract
     /**
      * Add a binding to the query.
      *
-     * @param "from"|"groupBy"|"having"|"join"|"order"|"select"|"union"|"unionOrder"|"where" $type
+     * @param TBindingType $type
      *
      * @throws InvalidArgumentException
      */
@@ -4181,7 +4165,7 @@ class Builder implements BuilderContract
      *
      * @return $this
      *
-     * @phpstan-this-out self<array-key, mixed>
+     * @phpstan-this-out self<array-key, mixed, TBindingType>
      */
     public function fetchUsing(mixed ...$fetchUsing): static
     {
@@ -4237,6 +4221,8 @@ class Builder implements BuilderContract
 
     /**
      * Clone the query without the given bindings.
+     *
+     * @param list<TBindingType> $except
      */
     public function cloneWithoutBindings(array $except): static
     {

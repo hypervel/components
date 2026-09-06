@@ -8,6 +8,8 @@ use Closure;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Builder;
+use Hypervel\Database\Schema\ColumnDefinition;
+use Hypervel\Database\Schema\ForeignIdColumnDefinition;
 use Hypervel\Database\Schema\ForeignKeyDefinition;
 use Hypervel\Database\Schema\Grammars\MySqlGrammar;
 use Hypervel\Database\Schema\IndexDefinition;
@@ -39,6 +41,50 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $builder->shouldReceive('executeBlueprint')->once()->with($blueprint);
 
         $blueprint->build();
+    }
+
+    public function testInheritedColumnHelpersUseTheCustomDefinitionFactory(): void
+    {
+        $blueprint = new DatabaseSchemaCustomColumnBlueprint($this->getConnection(), 'users');
+
+        $name = $blueprint->string('name')->nullable();
+        $count = $blueprint->unsignedBigInteger('count');
+        $deletedAt = $blueprint->softDeletes(precision: 6);
+        $timestamps = $blueprint->timestamps(6);
+        $columns = [$name, $count, $deletedAt, ...$timestamps];
+
+        $this->assertSame($columns, $blueprint->getColumns());
+
+        foreach ($columns as $column) {
+            $this->assertInstanceOf(DatabaseSchemaCustomColumnDefinition::class, $column);
+        }
+
+        $this->assertSame('string', $name->get('type'));
+        $this->assertSame(Builder::$defaultStringLength, $name->get('length'));
+        $this->assertTrue($name->get('nullable'));
+        $this->assertTrue($count->get('unsigned'));
+        $this->assertSame(6, $deletedAt->get('precision'));
+        $this->assertTrue($deletedAt->get('nullable'));
+        $this->assertSame(['created_at', 'updated_at'], $timestamps->pluck('name')->all());
+        $this->assertSame(ColumnDefinition::class, $this->getBlueprint()->string('name')::class);
+    }
+
+    public function testCustomColumnDefinitionsCoexistWithForeignIdDefinitions(): void
+    {
+        $blueprint = new DatabaseSchemaCustomColumnBlueprint($this->getConnection(), 'posts');
+        $title = $blueprint->string('title')->change();
+        $authorId = $blueprint->foreignId('author_id');
+        $authorId->constrained();
+
+        $this->assertInstanceOf(DatabaseSchemaCustomColumnDefinition::class, $title);
+        $this->assertSame(ForeignIdColumnDefinition::class, $authorId::class);
+        $this->assertSame([$title, $authorId], $blueprint->getColumns());
+        $this->assertSame([1 => $authorId], $blueprint->getAddedColumns());
+        $this->assertSame([
+            'alter table `posts` modify `title` varchar(255) not null',
+            'alter table `posts` add `author_id` bigint unsigned not null',
+            'alter table `posts` add constraint `posts_author_id_foreign` foreign key (`author_id`) references `authors` (`id`)',
+        ], $blueprint->toSql());
     }
 
     public function testIndexDefaultNames()
@@ -961,6 +1007,24 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $connection = $this->getConnection($grammar, $prefix);
 
         return new Blueprint($connection, $table, $callback);
+    }
+}
+
+class DatabaseSchemaCustomColumnDefinition extends ColumnDefinition
+{
+}
+
+/**
+ * @extends Blueprint<DatabaseSchemaCustomColumnDefinition>
+ */
+class DatabaseSchemaCustomColumnBlueprint extends Blueprint
+{
+    /**
+     * Create a new column definition.
+     */
+    protected function newColumnDefinition(array $attributes): DatabaseSchemaCustomColumnDefinition
+    {
+        return new DatabaseSchemaCustomColumnDefinition($attributes);
     }
 }
 
