@@ -1657,7 +1657,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
                 return true;
             }
 
-            $query->insert($attributes);
+            // Keep array-valued attributes inside the model's single row.
+            $query->insert([$attributes]);
         }
 
         // We will go ahead and set the exists property to true, so that it is set when

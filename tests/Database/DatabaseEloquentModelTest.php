@@ -1100,7 +1100,7 @@ class DatabaseEloquentModelTest extends TestCase
 
         $model = $this->getMockBuilder(ModelStub::class)->onlyMethods(['newModelQuery', 'updateTimestamps', 'refresh'])->getMock();
         $query = m::mock(Builder::class);
-        $query->shouldReceive('insert')->once()->with(['name' => 'taylor']);
+        $query->shouldReceive('insert')->once()->with([['name' => 'taylor']]);
         $query->shouldReceive('getConnection')->once()->andReturn(m::mock(ConnectionInterface::class, ['getName' => 'default']));
         $model->expects($this->once())->method('newModelQuery')->willReturn($query);
         $model->expects($this->once())->method('updateTimestamps');
@@ -1117,6 +1117,54 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertTrue($model->save());
         $this->assertNull($model->id);
         $this->assertTrue($model->exists);
+    }
+
+    #[TestWith([['tags' => ['api'], 'tenant_id' => 42], 'insert into "stub" ("tags", "tenant_id") values (?, ?)', [['api'], 42]])]
+    #[TestWith([['labels' => ['region' => 'eu']], 'insert into "stub" ("labels") values (?)', [['region' => 'eu']]])]
+    #[TestWith([['tags' => [], 'labels' => ['region' => 'eu']], 'insert into "stub" ("labels", "tags") values (?, ?)', [['region' => 'eu'], []]])]
+    #[TestWith([['name' => 'taylor'], 'insert into "stub" ("name") values (?)', ['taylor']])]
+    public function testNonIncrementingModelInsertsOneRow(array $attributes, string $sql, array $bindings): void
+    {
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getTablePrefix')->andReturn('');
+        $connection->shouldReceive('getName')->andReturn('testing');
+        $grammar = new Grammar($connection);
+        $processor = new Processor;
+        $connection->shouldReceive('query')->andReturnUsing(
+            fn () => new BaseBuilder($connection, $grammar, $processor)
+        );
+        $connection->shouldReceive('insert')->once()->with($sql, $bindings)->andReturnTrue();
+
+        Model::setConnectionResolver($resolver = m::mock(ConnectionResolverInterface::class));
+        $resolver->shouldReceive('connection')->andReturn($connection);
+
+        $model = new class extends ModelStub {
+            public bool $incrementing = false;
+
+            public bool $timestamps = false;
+        };
+
+        $created = $model->newQuery()->create($attributes);
+
+        $this->assertSame($attributes, $created->getAttributes());
+        $this->assertTrue($created->exists);
+        $this->assertTrue($created->wasRecentlyCreated);
+        $this->assertFalse($created->isDirty());
+    }
+
+    public function testNonIncrementingModelWithoutAttributesDoesNotInsert(): void
+    {
+        $model = $this->getMockBuilder(ModelStub::class)->onlyMethods(['newModelQuery'])->getMock();
+        $model->setConnection('testing');
+        $model->setIncrementing(false);
+        $model->timestamps = false;
+        $query = m::mock(Builder::class);
+        $query->shouldNotReceive('insert');
+        $model->expects($this->once())->method('newModelQuery')->willReturn($query);
+
+        $this->assertTrue($model->save());
+        $this->assertFalse($model->exists);
+        $this->assertFalse($model->wasRecentlyCreated);
     }
 
     public function testInsertIsCanceledIfCreatingEventReturnsFalse()
