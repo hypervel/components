@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Console;
 
 use Closure;
+use Hypervel\Contracts\Http\Kernel;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Facades\Artisan;
@@ -17,6 +18,7 @@ class RouteListCommandMiddlewareTest extends TestCase
     #[DataProvider('middlewareCacheStates')]
     public function testListingPreservesMiddlewareForSubsequentRequests(bool $warm): void
     {
+        $this->app->make(Kernel::class);
         $router = $this->app->make(Router::class);
         $router->middlewareGroup('inspection', [RouteListCommandInspectionMiddleware::class]);
         $route = $router->get('/middleware-inspection', static fn (): string => 'OK')
@@ -55,6 +57,37 @@ class RouteListCommandMiddlewareTest extends TestCase
             'cold' => [false],
             'warm' => [true],
         ];
+    }
+
+    public function testListingInitializesConfiguredMiddlewareBeforeTheFirstRequest(): void
+    {
+        $this->app->afterResolving(Kernel::class, static function (Kernel $kernel): void {
+            $kernel->setMiddlewareAliases([
+                ...$kernel->getMiddlewareAliases(),
+                'inspection.alias' => RouteListCommandInspectionMiddleware::class,
+            ]);
+            $kernel->setMiddlewareGroups([
+                ...$kernel->getMiddlewareGroups(),
+                'inspection' => ['inspection.alias'],
+            ]);
+        });
+
+        $this->app->make(Router::class)->get('/configured-middleware', static fn (): string => 'OK')
+            ->middleware('inspection');
+
+        $this->assertFalse($this->app->resolved(Kernel::class));
+
+        Artisan::call('route:list', [
+            '--json' => true,
+            '-vv' => true,
+            '--middleware' => RouteListCommandInspectionMiddleware::class,
+        ]);
+        $routes = json_decode(Artisan::output(), true);
+
+        $this->assertCount(1, $routes);
+        $this->assertSame('configured-middleware', $routes[0]['uri']);
+        $this->assertSame([RouteListCommandInspectionMiddleware::class], $routes[0]['middleware']);
+        $this->get('/configured-middleware')->assertOk()->assertHeader('X-Route-Middleware', 'applied');
     }
 }
 

@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Console;
 
 use Closure;
 use Hypervel\Console\Command;
+use Hypervel\Contracts\Http\Kernel as HttpKernel;
 use Hypervel\Contracts\Routing\UrlGenerator;
 use Hypervel\Routing\Route;
 use Hypervel\Routing\Router;
@@ -73,6 +74,10 @@ class RouteListCommand extends Command
      */
     public function handle(): void
     {
+        // Console bootstrap leaves the HTTP kernel unresolved. Resolving it installs
+        // the application's middleware groups, aliases, and priority on the router.
+        $this->hypervel->make(HttpKernel::class);
+
         if (! $this->router->getRoutes()->count()) {
             $this->components->error("Your application doesn't have any routes.");
 
