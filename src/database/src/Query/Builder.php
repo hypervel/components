@@ -572,7 +572,7 @@ class Builder implements BuilderContract
     /**
      * Add a "join where" clause to the query.
      */
-    public function joinWhere(ExpressionContract|string $table, Closure|ExpressionContract|string $first, string $operator, ExpressionContract|string $second, string $type = 'inner'): static
+    public function joinWhere(ExpressionContract|string $table, Closure|ExpressionContract|string $first, string $operator, mixed $second, string $type = 'inner'): static
     {
         return $this->join($table, $first, $operator, $second, $type, true);
     }
@@ -634,7 +634,7 @@ class Builder implements BuilderContract
     /**
      * Add a "join where" clause to the query.
      */
-    public function leftJoinWhere(ExpressionContract|string $table, Closure|ExpressionContract|string $first, string $operator, ExpressionContract|string|null $second): static
+    public function leftJoinWhere(ExpressionContract|string $table, Closure|ExpressionContract|string $first, string $operator, mixed $second): static
     {
         return $this->joinWhere($table, $first, $operator, $second, 'left');
     }
@@ -660,7 +660,7 @@ class Builder implements BuilderContract
     /**
      * Add a "right join where" clause to the query.
      */
-    public function rightJoinWhere(ExpressionContract|string $table, Closure|ExpressionContract|string $first, string $operator, ExpressionContract|string $second): static
+    public function rightJoinWhere(ExpressionContract|string $table, Closure|ExpressionContract|string $first, string $operator, mixed $second): static
     {
         return $this->joinWhere($table, $first, $operator, $second, 'right');
     }
@@ -716,7 +716,7 @@ class Builder implements BuilderContract
     /**
      * Add a straight join where clause to the query.
      */
-    public function straightJoinWhere(ExpressionContract|string $table, Closure|ExpressionContract|string $first, string $operator, ExpressionContract|string $second): static
+    public function straightJoinWhere(ExpressionContract|string $table, Closure|ExpressionContract|string $first, string $operator, mixed $second): static
     {
         return $this->joinWhere($table, $first, $operator, $second, 'straight_join');
     }
