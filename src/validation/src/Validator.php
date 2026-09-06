@@ -381,8 +381,6 @@ class Validator implements ValidatorContract
      */
     protected function replaceDotPlaceholderInParameters(array $parameters): array
     {
-        // Inline date-comparison failures bypass validateAttribute(), so their raw
-        // scalar parameters need the same string normalization as delegated rules.
         return array_map(
             static fn (mixed $field): string => ValidationData::replacePlaceholderInString((string) $field),
             $parameters,
@@ -1307,6 +1305,8 @@ class Validator implements ValidatorContract
      */
     protected function validateUsingCustomRule(string $attribute, mixed $value, Rule $rule): void
     {
+        $attributeWithPlaceholders = $attribute;
+
         $originalAttribute = $this->replacePlaceholderInString($attribute);
 
         $attribute = match (true) {
@@ -1339,7 +1339,7 @@ class Validator implements ValidatorContract
 
             $this->failedRules[$originalAttribute][$ruleClass] = [];
 
-            $messages = $this->getFromLocalArray($originalAttribute, $ruleClass) ?? $rule->message();
+            $messages = $this->getFromLocalArray($attributeWithPlaceholders, $ruleClass) ?? $rule->message();
 
             $messages = $messages ? (array) $messages : [$ruleClass];
 
@@ -1348,7 +1348,7 @@ class Validator implements ValidatorContract
 
                 $this->messages->add($key, $this->makeReplacements(
                     $message,
-                    $key,
+                    $key === $originalAttribute ? $attributeWithPlaceholders : $key,
                     $ruleClass,
                     []
                 ));
@@ -1401,17 +1401,21 @@ class Validator implements ValidatorContract
         }
 
         if ($this->dependsOnOtherFields($rule)) {
-            $parameters = $this->replaceDotPlaceholderInParameters($parameters);
+            // Inline checks may supply scalar parameters; retain their encoded field paths.
+            $parameters = array_map(strval(...), $parameters);
         }
 
+        // Message lookups must distinguish literal dots and asterisks from path syntax.
         $this->messages->add($attribute, $this->makeReplacements(
             $this->getMessage($attributeWithPlaceholders, $rule),
-            $attribute,
+            $attributeWithPlaceholders,
             $rule,
             $parameters
         ));
 
-        $this->failedRules[$attribute][$rule] = $parameters;
+        $this->failedRules[$attribute][$rule] = $this->dependsOnOtherFields($rule)
+            ? $this->replaceDotPlaceholderInParameters($parameters)
+            : $parameters;
     }
 
     /**

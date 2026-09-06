@@ -20,10 +20,6 @@ trait FormatsMessages
      */
     protected function getMessage(string $attribute, string $rule): string
     {
-        $attributeWithPlaceholders = $attribute;
-
-        $attribute = $this->replacePlaceholderInString($attribute);
-
         $inlineMessage = $this->getInlineMessage($attribute, $rule);
 
         // First we will retrieve the custom message for the validation rule if one
@@ -35,7 +31,7 @@ trait FormatsMessages
 
         $lowerRule = Str::snake($rule);
 
-        $customKey = "validation.custom.{$attribute}.{$lowerRule}";
+        $customKey = 'validation.custom.' . $this->replacePlaceholderInString($attribute) . ".{$lowerRule}";
 
         $customMessage = $this->getCustomMessageFromTranslator(
             in_array($rule, $this->sizeRules, true)
@@ -54,7 +50,7 @@ trait FormatsMessages
         // specific error message for the type of attribute being validated such
         // as a number, file or string which all have different message types.
         if (in_array($rule, $this->sizeRules, true)) {
-            return $this->getSizeMessage($attributeWithPlaceholders, $rule);
+            return $this->getSizeMessage($attribute, $rule);
         }
 
         // Finally, if no developer specified messages have been set, and no other
@@ -98,10 +94,12 @@ trait FormatsMessages
     {
         $source = $source ?: $this->customMessages;
 
-        $keys = ["{$attribute}.{$lowerRule}", $lowerRule, $attribute];
+        $displayAttribute = $this->replacePlaceholderInString($attribute);
+
+        $keys = ["{$displayAttribute}.{$lowerRule}", $lowerRule, $displayAttribute];
 
         if ($this->getAttributeType($attribute) !== 'file') {
-            $shortRule = "{$attribute}." . Str::snake(class_basename($lowerRule));
+            $shortRule = "{$displayAttribute}." . Str::snake(class_basename($lowerRule));
 
             if (! in_array($shortRule, $keys)) {
                 $keys[] = $shortRule;
@@ -132,7 +130,7 @@ trait FormatsMessages
                 if (Str::is($sourceKey, $key)) {
                     $message = $source[$sourceKey];
 
-                    if ($sourceKey === $attribute && is_array($message)) {
+                    if ($sourceKey === $displayAttribute && is_array($message)) {
                         return $message[$lowerRule] ?? null;
                     }
 
@@ -223,6 +221,9 @@ trait FormatsMessages
 
     /**
      * Replace all error message place-holders with actual values.
+     *
+     * Attribute paths and dependent field parameters retain their encoded literal
+     * dots and asterisks until display or delivery to a registered custom replacer.
      */
     public function makeReplacements(string $message, string $attribute, string $rule, array $parameters): string
     {
@@ -237,7 +238,13 @@ trait FormatsMessages
         $message = $this->replaceOrdinalPositionPlaceholder($message, $attribute);
 
         if (isset($this->replacers[Str::snake($rule)])) {
-            return $this->callReplacer($message, $attribute, Str::snake($rule), $parameters, $this);
+            return $this->callReplacer(
+                $message,
+                $this->replacePlaceholderInString($attribute),
+                Str::snake($rule),
+                $this->dependsOnOtherFields($rule) ? $this->replaceDotPlaceholderInParameters($parameters) : $parameters,
+                $this
+            );
         }
         if (method_exists($this, $replacer = "replace{$rule}")) {
             return $this->{$replacer}($message, $attribute, $rule, $parameters);
@@ -253,9 +260,12 @@ trait FormatsMessages
     {
         $primaryAttribute = $this->getPrimaryAttribute($attribute);
 
+        // Resolve wildcard metadata before decoding a literal dot into a path separator.
         $expectedAttributes = $attribute !== $primaryAttribute
-            ? [$attribute, $primaryAttribute]
-            : [$attribute];
+            ? [$this->replacePlaceholderInString($attribute), $this->replacePlaceholderInString($primaryAttribute)]
+            : [$this->replacePlaceholderInString($attribute)];
+
+        $attribute = $expectedAttributes[0];
 
         foreach ($expectedAttributes as $name) {
             // The developer may dynamically specify the array of custom attributes on this
@@ -453,6 +463,8 @@ trait FormatsMessages
      */
     public function getDisplayableValue(string $attribute, mixed $value): string
     {
+        $attribute = $this->replacePlaceholderInString($attribute);
+
         if (isset($this->customValues[$attribute][$value])) {
             return $this->customValues[$attribute][$value];
         }

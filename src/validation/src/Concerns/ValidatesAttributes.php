@@ -415,7 +415,37 @@ trait ValidatesAttributes
             return true;
         }
 
-        return empty(array_diff_key($value, array_fill_keys($parameters, '')));
+        return empty(array_diff_key($value, $this->acceptedArrayKeys($parameters)));
+    }
+
+    /**
+     * Get the accepted literal and encoded array keys.
+     *
+     * @param array<int, int|string> $parameters
+     * @return array<int|string, string>
+     */
+    protected function acceptedArrayKeys(array $parameters): array
+    {
+        // Validator data has encoded keys, while direct validation calls may supply literal keys.
+        $keys = array_fill_keys($parameters, '');
+
+        return $keys + ValidationData::encodeKeys($keys);
+    }
+
+    /**
+     * Validate that an array does not contain any keys other than the given keys.
+     *
+     * @param array<int, int|string> $parameters
+     */
+    public function validateArrayKeys(string $attribute, mixed $value, array $parameters): bool
+    {
+        $this->requireParameterCount(1, $parameters, 'array_keys');
+
+        if (! is_array($value)) {
+            return false;
+        }
+
+        return empty(array_diff_key($value, $this->acceptedArrayKeys($parameters)));
     }
 
     /**
@@ -437,8 +467,8 @@ trait ValidatesAttributes
             return false;
         }
 
-        foreach ($parameters as $param) {
-            if (! Arr::exists($value, $param)) {
+        foreach ($parameters as $parameter) {
+            if (! Arr::exists($value, $parameter) && ! Arr::exists($value, ValidationData::encodeKey((string) $parameter))) {
                 return false;
             }
         }
@@ -1495,8 +1525,8 @@ trait ValidatesAttributes
             return false;
         }
 
-        foreach ($parameters as $param) {
-            if (Arr::exists($value, $param)) {
+        foreach ($parameters as $parameter) {
+            if (Arr::exists($value, $parameter) || Arr::exists($value, ValidationData::encodeKey((string) $parameter))) {
                 return true;
             }
         }

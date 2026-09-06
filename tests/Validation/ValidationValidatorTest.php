@@ -1472,6 +1472,30 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
+    #[TestWith(['array', 'a.b'])]
+    #[TestWith(['array', 'a*b'])]
+    #[TestWith(['required_array_keys', 'a.b'])]
+    #[TestWith(['required_array_keys', 'a*b'])]
+    #[TestWith(['in_array_keys', 'a.b'])]
+    #[TestWith(['in_array_keys', 'a*b'])]
+    public function testArrayRulesAcceptLiteralKeys(string $rule, string $key): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['options' => [$key => 'value']],
+            ['options' => $rule . ':' . $key],
+        );
+
+        $this->assertTrue($validator->passes());
+    }
+
+    public function testArrayValidationAcceptsLiteralKeysWhenCalledDirectly(): void
+    {
+        $validator = new Validator($this->getArrayTranslator(), [], []);
+
+        $this->assertTrue($validator->validateArray('options', ['a.b' => 1, 'a*b' => 2], ['a.b', 'a*b']));
+    }
+
     public function testValidateCurrentPassword(): void
     {
         // Fails when user is not logged in.
@@ -7903,6 +7927,167 @@ class ValidationValidatorTest extends TestCase
 
         $this->assertTrue($validator->fails());
         $this->assertSame('The name field is required when user.role* is not present.', $validator->messages()->first());
+    }
+
+    #[TestWith(['settings.version', 'settings\.version'])]
+    #[TestWith(['settings*version', 'settings\*version'])]
+    public function testLiteralFieldMessagesUseTheCorrectInput(string $attribute, string $ruleAttribute): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            [$attribute => 'invalid', 'settings' => ['version' => 'nested']],
+            [$ruleAttribute => 'integer'],
+            ['integer' => ':attribute: :input'],
+            [$attribute => 'Version'],
+        );
+        $validator->addCustomValues([$attribute => ['invalid' => 'Invalid version']]);
+
+        $this->assertSame('Version: Invalid version', $validator->errors()->first($attribute));
+    }
+
+    public function testLiteralWildcardSegmentsPreserveLabelsAndPositions(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['versions' => ['1.2' => [3 => 'invalid']]],
+            ['versions.*.*' => 'integer'],
+            ['integer' => ':attribute: :index / :position / :second-index'],
+            ['versions.*.*' => 'Version'],
+        );
+
+        $this->assertSame('Version: 3 / 4 / :second-index', $validator->errors()->first());
+
+        $validator->setAttributeNames([]);
+        $validator->setImplicitAttributesFormatter(static fn (string $attribute): string => "Field {$attribute}");
+        $validator->passes();
+
+        $this->assertSame('Field versions.1.2.3: 3 / 4 / :second-index', $validator->errors()->first());
+    }
+
+    #[TestWith(['settings.version', 'settings\.version'])]
+    #[TestWith(['settings*version', 'settings\*version'])]
+    public function testDependentRuleMessagesReadLiteralFieldValues(string $attribute, string $ruleAttribute): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            [$attribute => 'yes', 'settings' => ['version' => 'no']],
+            ['name' => 'required_if:' . $ruleAttribute . ',yes'],
+            ['required_if' => ':other: :value'],
+            [$attribute => 'Version'],
+        );
+        $validator->addCustomValues([$attribute => ['yes' => 'Enabled']]);
+
+        $this->assertSame('Version: Enabled', $validator->errors()->first('name'));
+        $this->assertSame(['RequiredIf' => [$attribute, 'yes']], $validator->failed()['name']);
+    }
+
+    public function testComparisonMessagesPreserveBothLiteralFieldPaths(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['current.value' => 1, 'other.value' => 50, 'other' => ['value' => 100]],
+            ['current\.value' => 'numeric|gt:other\.value'],
+            ['gt' => ':attribute must exceed :value.'],
+        );
+
+        $this->assertSame('current.value must exceed 50.', $validator->errors()->first());
+    }
+
+    #[TestWith(['inline'])]
+    #[TestWith(['translation'])]
+    public function testLiteralFieldMessagesRetainTheirNumericType(string $source): void
+    {
+        $translator = $this->getArrayTranslator();
+        $messages = ['value.amount.min' => ['numeric' => 'Numeric minimum.', 'string' => 'String minimum.']];
+
+        if ($source === 'translation') {
+            $translator->addLines(['validation.custom.value.amount.min.numeric' => 'Numeric minimum.'], 'en');
+        }
+
+        $validator = new Validator(
+            $translator,
+            ['value.amount' => 1],
+            ['value\.amount' => 'numeric|min:5'],
+            $source === 'inline' ? $messages : [],
+        );
+
+        $this->assertSame('Numeric minimum.', $validator->errors()->first());
+    }
+
+    public function testLiteralFieldMessagesUseFallbackMessageKeys(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['value.amount' => 'invalid'],
+            ['value\.amount' => 'integer'],
+        );
+        $validator->setFallbackMessages(['value.amount.integer' => 'Integer required.']);
+
+        $this->assertSame('Integer required.', $validator->errors()->first());
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCustomReplacersReceiveDecodedFieldPaths(bool $classBased): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['settings.version' => 'invalid', 'other.value' => 'yes'],
+            ['settings\.version' => 'accepted_if:other\.value,yes'],
+            ['accepted_if' => ':input'],
+        );
+
+        $callback = function (string $message, string $attribute, string $rule, array $parameters, Validator $instance) use ($validator): string {
+            $this->assertSame('invalid', $message);
+            $this->assertSame('settings.version', $attribute);
+            $this->assertSame('accepted_if', $rule);
+            $this->assertSame(['other.value', 'yes'], $parameters);
+            $this->assertSame($validator, $instance);
+
+            return 'Custom message.';
+        };
+
+        if ($classBased) {
+            $validator->setContainer($container = m::mock(ContainerContract::class));
+            $container->shouldReceive('make')->once()->with('LiteralFieldReplacer')->andReturn($replacer = m::mock(stdClass::class));
+            $replacer->shouldReceive('replace')->once()->andReturnUsing($callback);
+            $validator->addReplacer('accepted_if', 'LiteralFieldReplacer');
+        } else {
+            $validator->addReplacer('accepted_if', $callback);
+        }
+
+        $this->assertSame('Custom message.', $validator->errors()->first('settings.version'));
+    }
+
+    public function testCustomRuleMessagesPreserveLiteralFieldIdentity(): void
+    {
+        $rule = new class implements Rule {
+            /**
+             * Determine if the validation rule passes.
+             */
+            public function passes(string $attribute, mixed $value): bool
+            {
+                return $attribute !== 'settings.version' || $value !== 'invalid';
+            }
+
+            /**
+             * Get the validation error messages.
+             */
+            public function message(): array
+            {
+                return [':attribute: :input', 'other' => ':attribute: :input'];
+            }
+        };
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['settings.version' => 'invalid', 'settings' => ['version' => 'nested'], 'other' => 'other input'],
+            ['settings\.version' => $rule],
+        );
+
+        $this->assertSame([
+            'settings.version' => ['settings.version: invalid'],
+            'other' => ['other: other input'],
+        ], $validator->errors()->getMessages());
     }
 
     public function testCoveringEmptyKeys()
