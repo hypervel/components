@@ -76,6 +76,16 @@ php artisan schema:dump --database=testing --prune
 
 You should commit your database schema file to source control so that other new developers on your team may quickly create your application's initial database structure.
 
+To prevent schema dumps in production, call `DumpCommand::prohibit` from the `boot` method of your application's `AppServiceProvider`:
+
+```php
+use Hypervel\Database\Console\DumpCommand;
+
+DumpCommand::prohibit($this->app->isProduction());
+```
+
+When prohibited, `schema:dump` exits without dumping the schema or pruning migrations.
+
 > [!WARNING]
 > Migration squashing is only available for the MariaDB, MySQL, PostgreSQL, and SQLite databases and utilizes the database's command-line client.
 

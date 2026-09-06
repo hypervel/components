@@ -8,6 +8,7 @@ use Hypervel\Console\Command;
 use Hypervel\Contracts\Console\PromptsForMissingInput;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\TextPrompt;
+use Hypervel\Support\Json;
 use Symfony\Component\Console\Input\InputInterface;
 
 class FakeCommandWithInputPrompting extends Command implements PromptsForMissingInput
@@ -16,6 +17,9 @@ class FakeCommandWithInputPrompting extends Command implements PromptsForMissing
 
     public bool $prompted = false;
 
+    /**
+     * Configure the prompt fallback for missing input.
+     */
     protected function configurePrompts(InputInterface $input): void
     {
         Prompt::interactive(true);
@@ -28,9 +32,12 @@ class FakeCommandWithInputPrompting extends Command implements PromptsForMissing
         });
     }
 
+    /**
+     * Report the prompt result from the executed command instance.
+     */
     public function handle(): int
     {
-        $this->line((string) $this->argument('name'));
+        $this->line(Json::encode(['prompted' => $this->prompted, 'name' => $this->argument('name')]));
 
         return self::SUCCESS;
     }
