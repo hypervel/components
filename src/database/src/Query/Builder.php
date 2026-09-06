@@ -1312,6 +1312,8 @@ class Builder implements BuilderContract
             $values = $this->resolveDatePeriodBounds($values);
         }
 
+        $values = is_array($values) ? $values : iterator_to_array($values, false);
+
         $this->wheres[] = compact('type', 'column', 'values', 'boolean', 'not');
 
         $this->addBinding(array_slice($this->cleanBindings(Arr::flatten($values)), 0, 2), 'where');
@@ -1402,10 +1404,13 @@ class Builder implements BuilderContract
     public function whereValueBetween(mixed $value, array $columns, string $boolean = 'and', bool $not = false): static
     {
         $type = 'valueBetween';
+        $value = $this->flattenValue($value);
 
         $this->wheres[] = compact('type', 'value', 'columns', 'boolean', 'not');
 
-        $this->addBinding($value, 'where');
+        if (! $value instanceof ExpressionContract) {
+            $this->addBinding($value, 'where');
+        }
 
         return $this;
     }
@@ -1554,7 +1559,8 @@ class Builder implements BuilderContract
             $value = $value->format('d');
         }
 
-        if (! $value instanceof ExpressionContract) {
+        // Leave expression and driver-owned value objects to their binding/grammar paths.
+        if (! is_object($value)) {
             $value = sprintf('%02d', $value);
         }
 
@@ -1599,7 +1605,8 @@ class Builder implements BuilderContract
             $value = $value->format('m');
         }
 
-        if (! $value instanceof ExpressionContract) {
+        // Leave expression and driver-owned value objects to their binding/grammar paths.
+        if (! is_object($value)) {
             $value = sprintf('%02d', $value);
         }
 
@@ -2209,8 +2216,8 @@ class Builder implements BuilderContract
      */
     public function having(
         ExpressionContract|Closure|string $column,
-        DateTimeInterface|string|int|float|null $operator = null,
-        ExpressionContract|DateTimeInterface|string|int|float|null $value = null,
+        mixed $operator = null,
+        mixed $value = null,
         string $boolean = 'and',
     ): static {
         $type = 'Basic';
@@ -2261,8 +2268,8 @@ class Builder implements BuilderContract
      */
     public function orHaving(
         ExpressionContract|Closure|string $column,
-        DateTimeInterface|string|int|float|null $operator = null,
-        ExpressionContract|DateTimeInterface|string|int|float|null $value = null,
+        mixed $operator = null,
+        mixed $value = null,
     ): static {
         [$value, $operator] = $this->prepareValueAndOperator(
             $value,
@@ -2347,6 +2354,8 @@ class Builder implements BuilderContract
         if ($values instanceof DatePeriod) {
             $values = $this->resolveDatePeriodBounds($values);
         }
+
+        $values = is_array($values) ? $values : iterator_to_array($values, false);
 
         $this->havings[] = compact('type', 'column', 'values', 'boolean', 'not');
 
