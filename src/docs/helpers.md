@@ -3461,6 +3461,12 @@ return now()->minus(hours: 8);
 return now()->minus(weeks: 4);
 ```
 
+When adding or subtracting months or years, you may pass `overflow: false` to keep the resulting date within the target month:
+
+```php
+CarbonImmutable::parse('2026-01-31')->plus(months: 1, overflow: false); // 2026-02-28
+```
+
 Since the default date is immutable, assign the result of a modifier when you want to retain the changed value:
 
 ```php
@@ -3482,7 +3488,7 @@ For a thorough discussion of Carbon and its features, please consult the [offici
 <a name="interval-functions"></a>
 #### Interval Functions
 
-Hypervel also offers `milliseconds`, `seconds`, `minutes`, `hours`, `days`, `weeks`, `months`, and `years` functions that return `CarbonInterval` instances, which extend PHP's [DateInterval](https://www.php.net/manual/en/class.dateinterval.php) class. These functions may be used anywhere that Hypervel accepts a `DateInterval` instance:
+Hypervel also offers `microseconds`, `milliseconds`, `seconds`, `minutes`, `hours`, `days`, `weeks`, `months`, and `years` functions that return `CarbonInterval` instances, which extend PHP's [DateInterval](https://www.php.net/manual/en/class.dateinterval.php) class. These functions may be used anywhere that Hypervel accepts a `DateInterval` instance:
 
 ```php
 use Hypervel\Support\Facades\Cache;
@@ -3491,6 +3497,8 @@ use function Hypervel\Support\{minutes};
 
 Cache::put('metrics', $metrics, minutes(10));
 ```
+
+The functions from `microseconds` through `days` also accept fractional amounts, such as `seconds(1.5)`.
 
 <a name="deferred-functions"></a>
 ### Deferred Functions
