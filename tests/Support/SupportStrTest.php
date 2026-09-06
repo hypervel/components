@@ -319,6 +319,15 @@ class SupportStrTest extends TestCase
         $this->assertTrue(Str::endsWith(0.27, '0.27'));
         $this->assertFalse(Str::endsWith(0.27, '8'));
         $this->assertFalse(Str::endsWith(null, 'Marc'));
+        $this->assertTrue(Str::endsWith('foobar', new class {
+            /**
+             * Return the suffix.
+             */
+            public function __toString(): string
+            {
+                return 'bar';
+            }
+        }));
         // Test for multibyte string support
         $this->assertTrue(Str::endsWith('Jönköping', 'öping'));
         $this->assertTrue(Str::endsWith('Malmö', 'mö'));
@@ -352,6 +361,15 @@ class SupportStrTest extends TestCase
         $this->assertFalse(Str::doesntEndWith(0.27, '0.27'));
         $this->assertTrue(Str::doesntEndWith(0.27, '8'));
         $this->assertTrue(Str::doesntEndWith(null, 'Marc'));
+        $this->assertFalse(Str::doesntEndWith('foobar', new class {
+            /**
+             * Return the suffix.
+             */
+            public function __toString(): string
+            {
+                return 'bar';
+            }
+        }));
         // Test for multibyte string support
         $this->assertFalse(Str::doesntEndWith('Jönköping', 'öping'));
         $this->assertFalse(Str::doesntEndWith('Malmö', 'mö'));
@@ -547,6 +565,9 @@ class SupportStrTest extends TestCase
         $this->assertEquals($expected, Str::containsAll($haystack, $needles, $ignoreCase));
     }
 
+    /**
+     * Provide strings and needles for complete substring matching.
+     */
     public static function strContainsAllProvider(): array
     {
         return [
@@ -556,6 +577,7 @@ class SupportStrTest extends TestCase
             ['Taylor Otwell', ['taylor'], true, true],
             ['Taylor Otwell', ['taylor', 'xxx'], false, false],
             ['Taylor Otwell', ['taylor', 'xxx'], false, true],
+            ['Taylor Otwell', [], false, false],
         ];
     }
 
@@ -1552,6 +1574,9 @@ class SupportStrTest extends TestCase
         $this->assertFalse(Str::position('Hello, World!', 'X', 0, 'UTF-8'));
         $this->assertFalse(Str::position('', 'test'));
         $this->assertFalse(Str::position('Hello, World!', 'X'));
+        $this->assertSame(0, Str::position('Taylor', ''));
+        $this->assertSame(3, Str::position('Taylor', '', 3));
+        $this->assertSame(0, Str::position('', ''));
     }
 
     public function testSubstrReplace(): void
