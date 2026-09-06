@@ -3171,9 +3171,14 @@ class Builder implements BuilderContract
                 $clone->select($this->from . '.*');
             }
 
+            $sql = $clone->toSql();
+
+            // Compilation runs before-query callbacks, which may force the write connection.
+            $countQuery->useWritePdo = $clone->useWritePdo;
+
+            // Inner bindings belong to the derived table, not outer clauses that aggregation may clear.
             return $countQuery
-                ->from(new Expression('(' . $clone->toSql() . ') as ' . $this->grammar->wrap('aggregate_table')))
-                ->mergeBindings($clone)
+                ->fromRaw('(' . $sql . ') as ' . $this->grammar->wrap('aggregate_table'), $clone->getBindings())
                 ->setAggregate('count', $this->withoutSelectAliases($columns))
                 ->get()->all();
         }
