@@ -302,6 +302,22 @@ class PoolFactoryTest extends TestCase
         $this->assertTrue($factory->hasPool('default::read'));
     }
 
+    public function testReadConnectionUsesSeparatePoolWhenReadConfigComesFromUrl(): void
+    {
+        $container = $this->mockContainerWithPools([
+            'default' => $this->connectionConfig([
+                'url' => 'mysql://root:@null/db?read[host][]=replica.test&write[host][]=primary.test',
+            ]),
+        ]);
+        $factory = new PoolFactory($container);
+        $pool = $factory->getPool('default::read');
+
+        $this->assertSame('default::read', $pool->getName());
+        $this->assertNotSame($factory->getPool('default'), $pool);
+        $this->assertInstanceOf(PoolFactoryTestPool::class, $pool);
+        $this->assertSame(['replica.test'], $pool->configForTest()['host']);
+    }
+
     public function testReadConnectionUsesBasePoolWhenReadConfigIsMissingOrNull(): void
     {
         $container = $this->mockContainerWithPools([

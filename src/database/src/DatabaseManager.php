@@ -193,7 +193,9 @@ class DatabaseManager implements ConnectionResolverInterface
 
         $config = $this->factory->parseConfig($config, $connectionName->base);
 
-        if ($connectionName->isRead() && $this->factory->hasReadConfig($config)) {
+        if ($connectionName->isRead()
+            && $this->factory->hasReadConfig($config)
+            && $this->factory->getExtension($config, $connectionName->base) === null) {
             return $this->factory->configForRead($config);
         }
 

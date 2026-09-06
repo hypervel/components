@@ -80,6 +80,8 @@ class PoolFactory
 
         /** @var ConnectionFactory $factory */
         $factory = $this->container->make('db.factory');
+        // Read records may be supplied entirely by the connection URL.
+        $config = $factory->parseConfig($config, $connectionName->base);
 
         return $factory->hasReadConfig($config)
             ? $connectionName->requested

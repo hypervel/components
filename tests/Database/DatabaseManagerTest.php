@@ -17,6 +17,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use Mockery as m;
 use PDO;
 
 class DatabaseManagerTest extends TestCase
@@ -420,6 +421,43 @@ class DatabaseManagerTest extends TestCase
         $this->assertSame('split', $connection->getName());
         $this->assertSame('read', $connection->getConfig(Connection::READ_WRITE_TYPE_CONFIG_KEY));
         $this->assertNotNull($connection->getPdo());
+    }
+
+    public function testNonPooledReadExtensionRetainsCompleteConfigurationThroughReconnect(): void
+    {
+        $config = [
+            'driver' => 'http',
+            'database' => 'analytics',
+            'host' => 'base.test',
+            'read' => [
+                ['host' => 'read-one.test', 'username' => 'reader-one'],
+                ['host' => 'read-two.test', 'username' => 'reader-two'],
+            ],
+            'write' => ['host' => 'write.test'],
+        ];
+        $this->db->addConnection($config, 'read-extension');
+        $manager = $this->db->getDatabaseManager();
+        $receivedConfigurations = [];
+        $manager->extend('http', static function (array $config) use (&$receivedConfigurations): Connection {
+            $receivedConfigurations[] = $config;
+
+            return m::mock(Connection::class . '[replaceDriverResources]', [$config['database'], $config['prefix'], $config])
+                ->shouldAllowMockingProtectedMethods();
+        });
+        $expected = $config + [
+            'prefix' => '',
+            'name' => 'read-extension',
+            Connection::READ_WRITE_TYPE_CONFIG_KEY => 'read',
+        ];
+
+        $connection = $manager->connection('read-extension::read');
+
+        $this->assertSame([$expected], $receivedConfigurations);
+        $this->assertSame($expected, $connection->getConfig());
+        $connection->shouldReceive('replaceDriverResources')->once()->with(m::type(Connection::class));
+
+        $this->assertSame($connection, $manager->reconnect('read-extension::read'));
+        $this->assertSame([$expected, $expected], $receivedConfigurations);
     }
 
     public function testNonPooledReadConnectionReconnectsUsingReadSuffix(): void
