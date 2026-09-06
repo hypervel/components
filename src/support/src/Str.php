@@ -1094,7 +1094,58 @@ class Str
 
         return $caseSensitive
             ? str_replace($search, $replace, $subject)
-            : str_ireplace($search, $replace, $subject);
+            : static::replaceWhileIgnoringCase($search, $replace, $subject);
+    }
+
+    /**
+     * Replace the given value in the given string regardless of case.
+     *
+     * @param string|string[] $search
+     * @param string|string[] $replace
+     * @param string|string[] $subject
+     * @return ($subject is string ? string : string[])
+     */
+    protected static function replaceWhileIgnoringCase(string|array $search, string|array $replace, string|array $subject): string|array
+    {
+        if (! is_array($search) && is_array($replace)) {
+            return str_ireplace($search, $replace, $subject);
+        }
+
+        if (is_string($search) ? static::isAscii($search) : array_all($search, static::isAscii(...))) {
+            return str_ireplace($search, $replace, $subject);
+        }
+
+        $searches = is_array($search) ? array_values($search) : [$search];
+
+        $replacements = is_array($replace)
+            ? array_values($replace)
+            : array_fill(0, count($searches), $replace);
+
+        // Validate every input first: replacement bytes can invalidate later UTF-8 matching.
+        foreach ([$searches, $replacements, (array) $subject] as $values) {
+            foreach ($values as $value) {
+                if (! preg_match('//u', (string) $value)) {
+                    return str_ireplace($search, $replace, $subject);
+                }
+            }
+        }
+
+        foreach ($searches as $index => $term) {
+            $term = (string) $term;
+
+            if ($term === '') {
+                continue;
+            }
+
+            $replacement = (string) ($replacements[$index] ?? '');
+
+            // ASCII terms retain native case folding even alongside Unicode terms.
+            $subject = static::isAscii($term)
+                ? str_ireplace($term, $replacement, $subject)
+                : preg_replace_callback('/' . preg_quote($term, '/') . '/iu', fn (): string => $replacement, $subject);
+        }
+
+        return $subject;
     }
 
     /**
@@ -1201,7 +1252,7 @@ class Str
 
         return $caseSensitive
             ? str_replace($search, '', $subject)
-            : str_ireplace($search, '', $subject);
+            : static::replaceWhileIgnoringCase($search, '', $subject);
     }
 
     /**
