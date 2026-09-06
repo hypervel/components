@@ -20,6 +20,7 @@ use Pheanstalk\Contract\PheanstalkPublisherInterface;
 use Pheanstalk\Contract\PheanstalkSubscriberInterface;
 use Pheanstalk\Pheanstalk;
 use Pheanstalk\Values\Job;
+use Pheanstalk\Values\ServerStats;
 use Pheanstalk\Values\TubeList;
 use Pheanstalk\Values\TubeName;
 use Pheanstalk\Values\TubeStats;
@@ -71,6 +72,74 @@ class QueueBeanstalkdQueueTest extends TestCase
             ));
 
         $this->assertSame(12, $this->queue->size('stack'));
+    }
+
+    public function testTotalSizesUseOneServerStatsRequestPerCount(): void
+    {
+        $this->setQueue('default', 60);
+
+        $this->queue->getPheanstalk()
+            ->shouldReceive('stats')
+            ->times(4)
+            ->withNoArgs()
+            ->andReturn(new ServerStats(
+                currentJobsUrgent: 1,
+                currentJobsReady: 3,
+                currentJobsReserved: 5,
+                currentJobsDelayed: 4,
+                currentJobsBuried: 6,
+                cmdPut: 0,
+                cmdPeek: 0,
+                cmdPeekReady: 0,
+                cmdPeekDelayed: 0,
+                cmdReserveWithTimeout: 0,
+                cmdPeekBuried: 0,
+                cmdReserve: 0,
+                cmdUse: 0,
+                cmdWatch: 0,
+                cmdIgnore: 0,
+                cmdDelete: 0,
+                cmdRelease: 0,
+                cmdBury: 0,
+                cmdKick: 0,
+                cmdStats: 0,
+                cmdStatsJob: 0,
+                cmdStatsTube: 0,
+                cmdListTubes: 0,
+                cmdListTubeUsed: 0,
+                cmdListTubesWatched: 0,
+                cmdPauseTube: 0,
+                jobTimeouts: 0,
+                totalJobs: 18,
+                maxJobSize: 65535,
+                currentTubes: 2,
+                currentConnections: 1,
+                currentProducers: 0,
+                currentWorkers: 0,
+                currentWaiting: 0,
+                totalConnections: 1,
+                pid: 1,
+                version: '1.13',
+                rusageUtime: 0.0,
+                rusageStime: 0.0,
+                binlogOldestIndex: 0,
+                binlogCurrentIndex: 0,
+                binlogMaxSize: 0,
+                binlogRecordsWritten: 0,
+                draining: false,
+                id: 'test-server',
+                hostname: 'localhost',
+                os: 'Linux',
+                platform: 'x86_64',
+                cmdTouch: 0,
+                uptime: 0,
+                binlogRecordsMigrated: 0,
+            ));
+
+        $this->assertSame(12, $this->queue->totalSize());
+        $this->assertSame(3, $this->queue->totalPendingSize());
+        $this->assertSame(4, $this->queue->totalDelayedSize());
+        $this->assertSame(5, $this->queue->totalReservedSize());
     }
 
     public function testInspectionReturnsEmptyCollections(): void

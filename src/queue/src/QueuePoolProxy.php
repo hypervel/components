@@ -85,6 +85,38 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
     }
 
     /**
+     * Get the number of jobs across every queue.
+     */
+    public function totalSize(): int
+    {
+        return $this->invoke(__FUNCTION__, func_get_args());
+    }
+
+    /**
+     * Get the number of pending jobs across every queue.
+     */
+    public function totalPendingSize(): int
+    {
+        return $this->invoke(__FUNCTION__, func_get_args());
+    }
+
+    /**
+     * Get the number of delayed jobs across every queue.
+     */
+    public function totalDelayedSize(): int
+    {
+        return $this->invoke(__FUNCTION__, func_get_args());
+    }
+
+    /**
+     * Get the number of reserved jobs across every queue.
+     */
+    public function totalReservedSize(): int
+    {
+        return $this->invoke(__FUNCTION__, func_get_args());
+    }
+
+    /**
      * Get the pending jobs for the given queue.
      */
     public function pendingJobs(?string $queue = null): Collection

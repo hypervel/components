@@ -8,6 +8,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
+use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Events\JobPayloadFinalizing;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
@@ -26,6 +27,7 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
+use Redis as PhpRedis;
 use RedisCluster;
 use ReflectionMethod;
 
@@ -670,6 +672,8 @@ class RedisQueueTest extends TestCase
             $this->usingRedisCluster() ? 'orders' : '{orders}',
             0,
         );
+        $this->assertSame(1, $this->queue->totalSize());
+        $this->assertSame(1, $this->queue->totalPendingSize());
     }
 
     public function testAllDelayedJobs(): void
@@ -700,6 +704,178 @@ class RedisQueueTest extends TestCase
         $this->assertCount(2, $jobs);
         $this->assertSame([$default, 'emails'], $jobs->pluck('queue')->sort()->values()->all());
         $jobs->each(fn (InspectedJob $job) => $this->assertInspectedJob($job, $job->queue, 1));
+    }
+
+    public function testTotalSize(): void
+    {
+        $this->setQueue($this->defaultQueueName());
+
+        $this->queue->push(new RedisQueueIntegrationTestJob(1));
+        $this->queue->pushOn('emails', new RedisQueueIntegrationTestJob(2));
+        $this->queue->later(60, new RedisQueueIntegrationTestJob(3));
+
+        $this->assertSame(3, $this->queue->totalSize());
+    }
+
+    public function testTotalPendingSize(): void
+    {
+        $this->setQueue($this->defaultQueueName());
+
+        $this->queue->push(new RedisQueueIntegrationTestJob(1));
+        $this->queue->pushOn('emails', new RedisQueueIntegrationTestJob(2));
+
+        $this->assertSame(2, $this->queue->totalPendingSize());
+    }
+
+    public function testTotalDelayedSize(): void
+    {
+        $this->setQueue($this->defaultQueueName());
+
+        $this->queue->later(60, new RedisQueueIntegrationTestJob(1));
+        $this->queue->laterOn('emails', 60, new RedisQueueIntegrationTestJob(2));
+
+        $this->assertSame(2, $this->queue->totalDelayedSize());
+    }
+
+    public function testTotalReservedSize(): void
+    {
+        $this->setQueue($this->defaultQueueName());
+
+        $this->queue->push(new RedisQueueIntegrationTestJob(1));
+        $this->queue->pushOn('emails', new RedisQueueIntegrationTestJob(2));
+        $this->queue->pop();
+        $this->queue->pop('emails');
+
+        $this->assertSame(2, $this->queue->totalReservedSize());
+    }
+
+    public function testBulkPushesAllJobsOntoQueue(): void
+    {
+        $this->setQueue('default');
+
+        $this->queue->bulk([
+            new RedisQueueIntegrationTestJob(1),
+            new RedisQueueIntegrationTestJob(2),
+            new RedisQueueIntegrationTestJob(3),
+        ], '', 'bulk-test');
+
+        $this->assertSame(3, $this->queue->size('bulk-test'));
+
+        $seen = [];
+
+        for ($i = 0; $i < 3; ++$i) {
+            $seen[] = unserialize(json_decode($this->queue->pop('bulk-test')->getRawBody())->data->command)->i;
+        }
+
+        sort($seen);
+
+        $this->assertSame([1, 2, 3], $seen);
+        $this->assertNull($this->queue->pop('bulk-test'));
+    }
+
+    public function testBulkPushesDelayedJobsOntoDelayedQueue(): void
+    {
+        $this->setQueue('default');
+
+        $this->queue->bulk([
+            new RedisQueueIntegrationTestJob(1),
+            new RedisQueueIntegrationTestDelayedJob(2),
+        ], '', 'bulk-delay');
+
+        $redisKey = $this->getQueueRedisKey('bulk-delay');
+
+        $this->assertSame(1, $this->redisConnection()->llen($redisKey));
+        $this->assertSame(1, $this->redisConnection()->zcard("{$redisKey}:delayed"));
+    }
+
+    public function testBulkPushesManyJobsOntoQueue(): void
+    {
+        $this->setQueue('default');
+
+        $jobs = [];
+
+        for ($i = 0; $i < 1050; ++$i) {
+            $jobs[] = new RedisQueueIntegrationTestJob($i);
+        }
+
+        $this->queue->bulk($jobs, '', 'bulk-many');
+
+        $redisKey = $this->getQueueRedisKey('bulk-many');
+
+        $this->assertSame(1050, $this->queue->size('bulk-many'));
+        $this->assertSame(1050, $this->redisConnection()->llen("{$redisKey}:notify"));
+    }
+
+    public function testAllQueueNamesReturnsQueuesAcrossMultipleQueues(): void
+    {
+        $default = $this->defaultQueueName();
+        $this->setQueue($default);
+
+        $this->queue->push(new RedisQueueIntegrationTestJob(1));
+        $this->queue->pushOn('emails', new RedisQueueIntegrationTestJob(2));
+        $this->queue->pushOn('notifications', new RedisQueueIntegrationTestJob(3));
+
+        $names = (new ReflectionMethod($this->queue, 'allQueueNames'))
+            ->invoke($this->queue)
+            ->sort()
+            ->values()
+            ->all();
+
+        $this->assertSame([$default, 'emails', 'notifications'], $names);
+    }
+
+    #[DataProvider('scanRetryOptions')]
+    public function testScanningQueueNamesDoesNotDoublePrefixTheMatchPattern(bool $retryScan): void
+    {
+        $connectionName = $this->createRedisConnectionWithOptions('queue-scan-prefix', [
+            'prefix' => 'test_',
+            'scan' => PhpRedis::SCAN_PREFIX,
+        ]);
+        $this->setQueue('default', $connectionName);
+        $redis = Redis::connection($connectionName);
+
+        $redis->withPinnedConnection(function () use ($redis, $retryScan): void {
+            if ($retryScan) {
+                $redis->withConnection(function (RedisConnection $connection): void {
+                    $connection->setOption(PhpRedis::OPT_SCAN, PhpRedis::SCAN_RETRY);
+                });
+            }
+
+            $this->queue->push(new RedisQueueIntegrationTestJob(1));
+
+            $this->assertSame(
+                ['default'],
+                (new ReflectionMethod($this->queue, 'allQueueNames'))->invoke($this->queue)->all(),
+            );
+        });
+    }
+
+    /**
+     * Provide the retry settings used alongside scan prefixing.
+     */
+    public static function scanRetryOptions(): array
+    {
+        return [
+            'prefix only' => [false],
+            'prefix and retry' => [true],
+        ];
+    }
+
+    public function testTotalSizesPreserveQueueNamesAcrossEveryState(): void
+    {
+        $this->setQueue();
+
+        foreach (['reports:high', '0'] as $name) {
+            $this->queue->pushOn($name, new RedisQueueIntegrationTestJob(1));
+            $this->queue->pop($name);
+            $this->queue->pushOn($name, new RedisQueueIntegrationTestJob(2));
+            $this->queue->laterOn($name, 60, new RedisQueueIntegrationTestJob(3));
+        }
+
+        $this->assertSame(6, $this->queue->totalSize());
+        $this->assertSame(2, $this->queue->totalPendingSize());
+        $this->assertSame(2, $this->queue->totalDelayedSize());
+        $this->assertSame(2, $this->queue->totalReservedSize());
     }
 
     public function testInvalidInspectedPayloadRetainsItsRedisRemovalMember(): void
@@ -767,6 +943,25 @@ class RedisQueueIntegrationTestJob
     ) {
     }
 
+    public function handle(): void
+    {
+    }
+}
+
+#[Delay(60)]
+class RedisQueueIntegrationTestDelayedJob
+{
+    /**
+     * Create a delayed test job.
+     */
+    public function __construct(
+        public int $i,
+    ) {
+    }
+
+    /**
+     * Handle the job.
+     */
     public function handle(): void
     {
     }

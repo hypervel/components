@@ -3156,7 +3156,7 @@ Validator::validate($input, [
 <a name="validating-files-image-dimensions"></a>
 #### Validating Image Dimensions
 
-You may also validate the dimensions of an image. For example, to validate that an uploaded image is at least 1000 pixels wide and 500 pixels tall, you may use the `dimensions` rule:
+You may also validate the dimensions of an image. For example, to validate that an uploaded image is at most 1000 pixels wide and 500 pixels tall, you may use the `dimensions` rule:
 
 ```php
 use Hypervel\Validation\Rule;

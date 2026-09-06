@@ -24,14 +24,65 @@ use Hypervel\Queue\Queue;
 use Hypervel\Queue\RedisQueue;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Symfony\Component\Uid\Uuid;
 
 class QueueRedisQueueTest extends TestCase
 {
+    #[DataProvider('totalSizeMethods')]
+    public function testTotalsUseQueueSizeOverridesInsidePinnedConnection(string $totalMethod, string $sizeMethod): void
+    {
+        $pinned = false;
+        $connection = m::mock(RedisProxy::class);
+        $connection->expects('withPinnedConnection')->andReturnUsing(function (callable $callback) use (&$pinned): int {
+            $pinned = true;
+
+            try {
+                return $callback();
+            } finally {
+                $pinned = false;
+            }
+        });
+        $redis = m::mock(Redis::class);
+        $redis->expects('connection')->with(null)->andReturn($connection);
+        $queue = m::mock(RedisQueue::class, [$redis, 'default'])
+            ->makePartial()
+            ->shouldAllowMockingProtectedMethods();
+        $queue->expects('allQueueNames')->andReturnUsing(function () use (&$pinned): Collection {
+            $this->assertTrue($pinned);
+
+            return new Collection(['emails', 'reports:high']);
+        });
+        $queue->shouldReceive($sizeMethod)->twice()->andReturnUsing(function (string $name) use (&$pinned): int {
+            $this->assertTrue($pinned);
+
+            return match ($name) {
+                'emails' => 5,
+                'reports:high' => 7,
+            };
+        });
+
+        $this->assertSame(12, $queue->{$totalMethod}());
+    }
+
+    /**
+     * Provide aggregate methods and their per-queue extension points.
+     */
+    public static function totalSizeMethods(): array
+    {
+        return [
+            'all jobs' => ['totalSize', 'size'],
+            'pending jobs' => ['totalPendingSize', 'pendingSize'],
+            'delayed jobs' => ['totalDelayedSize', 'delayedSize'],
+            'reserved jobs' => ['totalReservedSize', 'reservedSize'],
+        ];
+    }
+
     public function testBulkUsesOneLuaCallAndHonorsJobDelays(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));

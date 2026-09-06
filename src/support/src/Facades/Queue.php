@@ -96,6 +96,10 @@ use Hypervel\Support\Testing\Fakes\QueueFake;
  * @method static \Hypervel\Support\Collection reservedJobs(\UnitEnum|string|null $queue = null)
  * @method static \Hypervel\Support\Testing\Fakes\QueueFake serializeAndRestore(bool $serializeAndRestore = true)
  * @method static bool shouldFakeJob(object|string $job)
+ * @method static int totalDelayedSize()
+ * @method static int totalPendingSize()
+ * @method static int totalReservedSize()
+ * @method static int totalSize()
  *
  * @see \Hypervel\Queue\QueueManager
  * @see \Hypervel\Queue\Queue

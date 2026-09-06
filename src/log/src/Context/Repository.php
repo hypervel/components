@@ -546,7 +546,7 @@ class Repository implements ReplicableContext
     // --- Transport hooks ---
 
     /**
-     * Register a callback to execute before context is dehydrated for a job.
+     * Register a callback to execute before context is dehydrated.
      *
      * Boot-only. Registers a listener on the worker-global event dispatcher;
      * per-request registration persists and affects subsequent requests.
@@ -562,7 +562,7 @@ class Repository implements ReplicableContext
     }
 
     /**
-     * Register a callback to execute after context has been hydrated from a job.
+     * Register a callback to execute after context has been hydrated.
      *
      * Boot-only. Registers a listener on the worker-global event dispatcher;
      * per-request registration persists and affects subsequent requests.
@@ -603,7 +603,7 @@ class Repository implements ReplicableContext
         static::flushMacros();
     }
 
-    // --- Internal transport (called by queue infrastructure) ---
+    // --- Internal transport ---
 
     /**
      * Dehydrate the context into a serializable payload.

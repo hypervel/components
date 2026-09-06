@@ -6,6 +6,8 @@ namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hypervel\Cache\TagMode;
 use Hypervel\Support\Facades\Cache;
+use Hypervel\Testbench\Attributes\WithConfig;
+use Redis;
 use Throwable;
 
 /**
@@ -248,6 +250,8 @@ class FlushOperationsIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertSame('value', Cache::get('item'));
     }
 
+    #[WithConfig('database.redis.options.prefix', 'scan-prefix:')]
+    #[WithConfig('database.redis.options.scan', Redis::SCAN_PREFIX)]
     public function testFlushLargeTagSetInAllMode(): void
     {
         $this->setTagMode(TagMode::All);
@@ -271,25 +275,29 @@ class FlushOperationsIntegrationTest extends RedisCacheIntegrationTestCase
         }
     }
 
+    #[WithConfig('database.redis.options.prefix', 'scan-prefix:')]
+    #[WithConfig('database.redis.options.scan', Redis::SCAN_PREFIX)]
     public function testFlushLargeTagSetInAnyMode(): void
     {
         $this->setTagMode(TagMode::Any);
 
-        // Create many items with the same tag
-        for ($i = 0; $i < 100; ++$i) {
-            Cache::tags(['bulk'])->put("item.{$i}", "value.{$i}", 60);
+        // Exceed the HSCAN threshold to exercise paged tag enumeration.
+        $values = [];
+        for ($i = 0; $i < 1001; ++$i) {
+            $values["item.{$i}"] = "value.{$i}";
         }
+        Cache::tags(['bulk'])->putMany($values, 60);
 
         // Verify some items exist
         $this->assertSame('value.0', Cache::get('item.0'));
         $this->assertSame('value.50', Cache::get('item.50'));
-        $this->assertSame('value.99', Cache::get('item.99'));
+        $this->assertSame('value.1000', Cache::get('item.1000'));
 
         // Flush all at once
         Cache::tags(['bulk'])->flush();
 
         // Verify all items are gone
-        for ($i = 0; $i < 100; ++$i) {
+        for ($i = 0; $i < 1001; ++$i) {
             $this->assertNull(Cache::get("item.{$i}"));
         }
     }

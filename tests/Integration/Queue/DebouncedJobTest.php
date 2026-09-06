@@ -32,17 +32,22 @@ use LogicException;
 #[WithMigration('queue')]
 class DebouncedJobTest extends QueueTestCase
 {
+    /**
+     * Define the test environment.
+     */
     protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
 
         $config = $app->make('config');
         $config->set('cache.default', 'database');
-        $config->set('queue.default', 'database');
+        $config->set('queue.default', env('QUEUE_CONNECTION', 'database'));
     }
 
     public function testDebouncedJobDispatchesAndExecutes(): void
     {
+        $this->markTestSkippedWhenUsingQueueDrivers(['beanstalkd']);
+
         DebouncedTestJob::resetState();
 
         dispatch(new DebouncedTestJob('entity-1'));
@@ -54,6 +59,8 @@ class DebouncedJobTest extends QueueTestCase
 
     public function testSupersededDebouncedJobIsSkipped(): void
     {
+        $this->markTestSkippedWhenUsingQueueDrivers(['sync', 'beanstalkd']);
+
         DebouncedTestJob::resetState();
 
         dispatch(new DebouncedTestJob('entity-1'));
@@ -67,6 +74,8 @@ class DebouncedJobTest extends QueueTestCase
 
     public function testTokenPersistsAfterSuccessfulExecution(): void
     {
+        $this->markTestSkippedWhenUsingQueueDrivers(['beanstalkd']);
+
         DebouncedTestJob::resetState();
 
         dispatch($job = new DebouncedTestJob('entity-1'));
@@ -92,6 +101,8 @@ class DebouncedJobTest extends QueueTestCase
 
     public function testJobDebouncedEventFiresForSupersededJob(): void
     {
+        $this->markTestSkippedWhenUsingQueueDrivers(['sync', 'beanstalkd']);
+
         $firedCount = 0;
 
         Event::listen(JobDebounced::class, function () use (&$firedCount): void {
@@ -148,6 +159,8 @@ class DebouncedJobTest extends QueueTestCase
 
     public function testDifferentDebounceIdsDoNotInterfere(): void
     {
+        $this->markTestSkippedWhenUsingQueueDrivers(['sync', 'beanstalkd']);
+
         DebouncedTestJob::resetState();
 
         dispatch(new DebouncedTestJob('entity-1'));
@@ -195,6 +208,8 @@ class DebouncedJobTest extends QueueTestCase
 
     public function testJobExecutesWhenCacheTokenIsEvicted(): void
     {
+        $this->markTestSkippedWhenUsingQueueDrivers(['beanstalkd']);
+
         DebouncedTestJob::resetState();
 
         dispatch($job = new DebouncedTestJob('entity-1'));
@@ -246,6 +261,8 @@ class DebouncedJobTest extends QueueTestCase
 
     public function testSupersededDebouncedJobDoesNotDispatchChain(): void
     {
+        $this->markTestSkippedWhenUsingQueueDrivers(['sync', 'beanstalkd']);
+
         DebouncedTestJob::resetState();
         ChainReceiverJob::resetState();
 
@@ -257,11 +274,13 @@ class DebouncedJobTest extends QueueTestCase
 
         $this->assertSame(1, DebouncedTestJob::$handleCount);
         $this->assertFalse(ChainReceiverJob::$handled);
-        $this->assertDatabaseCount('jobs', 0);
+        $this->assertSame(0, Queue::size());
     }
 
     public function testDebounceViaUsesCustomCacheStore(): void
     {
+        $this->markTestSkippedWhenUsingQueueDrivers(['beanstalkd']);
+
         DebouncedWithCustomCacheJob::resetState();
 
         dispatch(new DebouncedWithCustomCacheJob('entity-1'));
@@ -274,6 +293,8 @@ class DebouncedJobTest extends QueueTestCase
 
     public function testMaxDebounceWaitForcesImmediateExecution(): void
     {
+        $this->markTestSkippedWhenUsingQueueDrivers(['sync', 'beanstalkd']);
+
         DebouncedWithMaxWaitJob::resetState();
 
         dispatch(new DebouncedWithMaxWaitJob('entity-1'));
@@ -291,6 +312,8 @@ class DebouncedJobTest extends QueueTestCase
 
     public function testMaxDebounceWaitStartsOverAfterTheDebouncedJobRuns(): void
     {
+        $this->markTestSkippedWhenUsingQueueDrivers(['beanstalkd']);
+
         DebouncedWithMaxWaitJob::resetState();
 
         dispatch(new DebouncedWithMaxWaitJob('entity-1'));
@@ -311,6 +334,8 @@ class DebouncedJobTest extends QueueTestCase
 
     public function testMaxDebounceWaitIsNotReleasedWhenMiddlewareReleasesTheJob(): void
     {
+        $this->markTestSkippedWhenUsingQueueDrivers(['sync', 'beanstalkd']);
+
         dispatch(new DebouncedWithReleasingMiddlewareJob('entity-1'));
 
         $this->travelDebounceTo(CarbonImmutable::now()->addSeconds(31));
@@ -327,6 +352,8 @@ class DebouncedJobTest extends QueueTestCase
 
     public function testDebounceWithoutMaxWaitAllowsIndefiniteDelay(): void
     {
+        $this->markTestSkippedWhenUsingQueueDrivers(['beanstalkd']);
+
         $job1 = new DebouncedTestJob('entity-1');
         $pending = dispatch($job1);
         unset($pending);
@@ -350,6 +377,8 @@ class DebouncedJobTest extends QueueTestCase
 
     public function testChildDebouncedJobInheritsFromParent(): void
     {
+        $this->markTestSkippedWhenUsingQueueDrivers(['sync', 'beanstalkd']);
+
         ChildOfDebouncedTestJob::resetState();
 
         dispatch(new ChildOfDebouncedTestJob('entity-1'));

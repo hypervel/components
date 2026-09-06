@@ -1453,6 +1453,12 @@ To instruct the `random` method to return to generating random strings normally,
 Str::createRandomStringsNormally();
 ```
 
+You may reset the random string, UUID, and ULID factories together using the `resetFactoryState` method:
+
+```php
+Str::resetFactoryState();
+```
+
 <a name="method-str-remove"></a>
 #### `Str::remove()` {.collection-method}
 
@@ -1943,6 +1949,14 @@ $string = Str::ucwords('hypervel framework');
 // Hypervel Framework
 ```
 
+You may pass custom word separators as the second argument:
+
+```php
+$string = Str::ucwords('hypervel-framework', '-');
+
+// Hypervel-Framework
+```
+
 <a name="method-str-upper"></a>
 #### `Str::upper()` {.collection-method}
 
@@ -2110,7 +2124,7 @@ The `Str::wordWrap` method wraps a string to a given number of characters:
 ```php
 use Hypervel\Support\Str;
 
-$text = "The quick brown fox jumped over the lazy dog."
+$text = "The quick brown fox jumped over the lazy dog.";
 
 Str::wordWrap($text, characters: 20, break: "<br />\n");
 
@@ -4085,6 +4099,14 @@ use Hypervel\Support\Str;
 $string = Str::of('hypervel framework')->ucwords();
 
 // Hypervel Framework
+```
+
+You may pass custom word separators to the method:
+
+```php
+$string = Str::of('hypervel-framework')->ucwords('-');
+
+// Hypervel-Framework
 ```
 
 <a name="method-fluent-str-unwrap"></a>

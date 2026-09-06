@@ -19,7 +19,7 @@ use RedisException;
  * Pattern-based key deletion is needed for cleanup operations (tests, benchmarks,
  * cache invalidation by prefix). However, phpredis OPT_PREFIX makes this tricky:
  *
- * - SCAN doesn't auto-add OPT_PREFIX to patterns
+ * - SCAN adds OPT_PREFIX to patterns only when SCAN_PREFIX is enabled
  * - SCAN returns keys WITH the full prefix as stored
  * - DEL auto-adds OPT_PREFIX to key names
  *
@@ -68,8 +68,8 @@ final class FlushByPattern
     /**
      * Execute the pattern flush operation.
      *
-     * @param string $pattern The pattern to match (e.g., "cache:test:*").
-     *                        Should NOT include OPT_PREFIX - it's handled automatically.
+     * @param string $pattern The logical key pattern (e.g., "cache:test:*"). OPT_PREFIX is added automatically;
+     *                        the pattern is preserved even when it starts with the same bytes as OPT_PREFIX.
      * @return int Number of keys deleted
      *
      * @throws RedisException

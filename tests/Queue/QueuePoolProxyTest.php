@@ -59,6 +59,10 @@ class QueuePoolProxyTest extends TestCase
         $queue->shouldReceive('pendingSize')->once()->with('queue')->andReturn(2);
         $queue->shouldReceive('delayedSize')->once()->with('queue')->andReturn(3);
         $queue->shouldReceive('reservedSize')->once()->with('queue')->andReturn(4);
+        $queue->shouldReceive('totalSize')->once()->withNoArgs()->andReturn(18);
+        $queue->shouldReceive('totalPendingSize')->once()->withNoArgs()->andReturn(5);
+        $queue->shouldReceive('totalDelayedSize')->once()->withNoArgs()->andReturn(6);
+        $queue->shouldReceive('totalReservedSize')->once()->withNoArgs()->andReturn(7);
         $queue->shouldReceive('pendingJobs')->once()->with('queue')->andReturn($pending = new Collection(['pending']));
         $queue->shouldReceive('delayedJobs')->once()->with('queue')->andReturn($delayed = new Collection(['delayed']));
         $queue->shouldReceive('reservedJobs')->once()->with('queue')->andReturn($reserved = new Collection(['reserved']));
@@ -78,6 +82,10 @@ class QueuePoolProxyTest extends TestCase
         $this->assertSame(2, $proxy->pendingSize('queue'));
         $this->assertSame(3, $proxy->delayedSize('queue'));
         $this->assertSame(4, $proxy->reservedSize('queue'));
+        $this->assertSame(18, $proxy->totalSize());
+        $this->assertSame(5, $proxy->totalPendingSize());
+        $this->assertSame(6, $proxy->totalDelayedSize());
+        $this->assertSame(7, $proxy->totalReservedSize());
         $this->assertSame($pending, $proxy->pendingJobs('queue'));
         $this->assertSame($delayed, $proxy->delayedJobs('queue'));
         $this->assertSame($reserved, $proxy->reservedJobs('queue'));

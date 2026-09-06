@@ -201,6 +201,9 @@ class Exceptions
     /**
      * Indicate that the given exception class should not be ignored.
      *
+     * Boot-only. The exception lists persist on the shared handler and affect
+     * exception reporting for every subsequent request and job in the worker.
+     *
      * @param array<int, class-string<Throwable>>|class-string<Throwable> $class
      */
     public function stopIgnoring(array|string $class): static

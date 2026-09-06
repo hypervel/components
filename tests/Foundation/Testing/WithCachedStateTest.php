@@ -115,6 +115,7 @@ PHP);
             $second->runSetUp();
 
             $this->assertTrue($second->configLoadedFromCache());
+            $this->assertTrue($second->application()->configurationIsCached());
             $this->assertTrue($second->application()->routesAreCached());
             $this->assertInstanceOf(CompiledRouteCollection::class, $second->routeCollection());
             $this->assertNotNull($second->routeCollection()->getByName('cached-state'));

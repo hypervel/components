@@ -641,18 +641,21 @@ class Handler implements ExceptionHandlerContract
 
     /**
      * Remove the given exception class from the list of exceptions that should be ignored.
+     *
+     * Boot-only. The exception lists persist on the shared handler and affect
+     * exception reporting for every subsequent request and job in the worker.
      */
     public function stopIgnoring(array|string $exceptions): static
     {
         $exceptions = Arr::wrap($exceptions);
 
         $this->dontReport = (new Collection($this->dontReport))
-            ->reject(fn ($ignored) => in_array($ignored, $exceptions))
+            ->diff($exceptions)
             ->values()
             ->all();
 
         $this->internalDontReport = (new Collection($this->internalDontReport))
-            ->reject(fn ($ignored) => in_array($ignored, $exceptions))
+            ->diff($exceptions)
             ->values()
             ->all();
 

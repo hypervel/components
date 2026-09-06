@@ -676,7 +676,7 @@ If a test fails with a type error, the source code type may be wrong — not the
 
 ### Integration tests
 
-Tests that require external services (databases, Redis, HTTP servers, search engines) that can't run in every environment go in `tests/Integration/{PackageName}/`. The exception is tests that call freely-available external APIs (e.g., the Guzzle tests hitting the public Pokemon API) — those can stay in regular `tests/` since they need no local service configuration.
+Tests requiring separately configured services or public APIs go in `tests/Integration/{PackageName}/`. Self-contained loopback server fixtures may stay in `tests/{PackageName}/` if they need no external setup and use automatically assigned ports, bounded waits, unconditional cleanup, and parallel isolation.
 
 **Optimize integration tests for parallel testing** — ParaTest runs tests concurrently. Use `RefreshDatabase` by default and `DatabaseTruncation` when transaction depth zero is required; reserve `DatabaseMigrations` for migration behavior or a genuinely fresh migrated schema/baseline. Set up only the tables and services each test needs. Keep database cases in one data-provider test when splitting them would make schema setup compete. Load the full schema only when testing migrations or schema parity; do not hide avoidable slowness with longer timeouts.
 

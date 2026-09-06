@@ -37,6 +37,9 @@ redis.call('rpush', KEYS[2], 1)
 LUA;
     }
 
+    // REMOVED: Laravel's bulkPush(). bulk() stores immediate and delayed jobs
+    // together and returns the count required for dispatch confirmation.
+
     /**
      * Get the Lua script for pushing delayed jobs onto the queue.
      *
