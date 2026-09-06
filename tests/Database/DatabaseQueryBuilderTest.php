@@ -933,10 +933,28 @@ class DatabaseQueryBuilderTest extends TestCase
     public function testWhereNullSafeEquals(): void
     {
         $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->whereNullSafeEquals('foo', 'bar');
+        $this->assertSame('select * from "users" where "foo" is not distinct from ?', $builder->toSql());
+        $this->assertSame(['bar'], $builder->getBindings());
+
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->whereNullSafeEquals('foo', 'bar')->whereNullSafeEquals('baz', 'qux');
+        $this->assertSame('select * from "users" where "foo" is not distinct from ? and "baz" is not distinct from ?', $builder->toSql());
+        $this->assertSame(['bar', 'qux'], $builder->getBindings());
+
+        $builder = $this->getBuilder();
         $builder->select('*')->from('users')->whereNullSafeEquals('foo', 'bar')->whereNullSafeEquals('baz', null);
 
         $this->assertSame('select * from "users" where "foo" is not distinct from ? and "baz" is not distinct from ?', $builder->toSql());
         $this->assertSame(['bar', null], $builder->getBindings());
+    }
+
+    public function testOrWhereNullSafeEquals(): void
+    {
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->where('foo', 'bar')->orWhereNullSafeEquals('baz', 'qux');
+        $this->assertSame('select * from "users" where "foo" = ? or "baz" is not distinct from ?', $builder->toSql());
+        $this->assertSame(['bar', 'qux'], $builder->getBindings());
 
         $builder = $this->getBuilder();
         $builder->select('*')->from('users')->where('foo', 'bar')->orWhereNullSafeEquals('baz', new Raw('qux'));
@@ -945,19 +963,126 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame(['bar'], $builder->getBindings());
     }
 
-    public function testWhereNullSafeEqualsUsesSupportedDriverSyntax(): void
+    public function testWhereNullSafeEqualsViaNullSafeOperator(): void
+    {
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->where('foo', '<=>', 'bar');
+        $this->assertSame('select * from "users" where "foo" is not distinct from ?', $builder->toSql());
+        $this->assertSame(['bar'], $builder->getBindings());
+    }
+
+    public function testWhereNullSafeEqualsWithNullViaOperator(): void
+    {
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->where('foo', '<=>', null);
+        $this->assertSame('select * from "users" where "foo" is null', $builder->toSql());
+    }
+
+    public function testWhereNullSafeEqualsMySql(): void
     {
         $builder = $this->getMySqlBuilder();
         $builder->select('*')->from('users')->whereNullSafeEquals('foo', 'bar');
         $this->assertSame('select * from `users` where `foo` <=> ?', $builder->toSql());
+        $this->assertSame(['bar'], $builder->getBindings());
 
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('users')->where('foo', '<=>', 'bar');
+        $this->assertSame('select * from `users` where `foo` <=> ?', $builder->toSql());
+        $this->assertSame(['bar'], $builder->getBindings());
+    }
+
+    public function testWhereNullSafeEqualsSQLite(): void
+    {
         $builder = $this->getSQLiteBuilder();
         $builder->select('*')->from('users')->whereNullSafeEquals('foo', 'bar');
         $this->assertSame('select * from "users" where "foo" is ?', $builder->toSql());
+        $this->assertSame(['bar'], $builder->getBindings());
 
+        $builder = $this->getSQLiteBuilder();
+        $builder->select('*')->from('users')->where('foo', '<=>', 'bar');
+        $this->assertSame('select * from "users" where "foo" is ?', $builder->toSql());
+        $this->assertSame(['bar'], $builder->getBindings());
+    }
+
+    public function testWhereNullSafeEqualsPostgres(): void
+    {
         $builder = $this->getPostgresBuilder();
         $builder->select('*')->from('users')->whereNullSafeEquals('foo', 'bar');
         $this->assertSame('select * from "users" where "foo" is not distinct from ?', $builder->toSql());
+        $this->assertSame(['bar'], $builder->getBindings());
+
+        $builder = $this->getPostgresBuilder();
+        $builder->select('*')->from('users')->where('foo', '<=>', 'bar');
+        $this->assertSame('select * from "users" where "foo" is not distinct from ?', $builder->toSql());
+        $this->assertSame(['bar'], $builder->getBindings());
+    }
+
+    // REMOVED: SQL Server null-safe equality tests; SQL Server is not supported.
+
+    public function testWhereNullSafeEqualsWithJsonBooleansMySql(): void
+    {
+        $builder = $this->getMySqlBuilder();
+        $builder->from('users')->where('id', 1)->whereNullSafeEquals('options->enabled', true)->orWhereNullSafeEquals('options->archived', false);
+        $this->assertSame('select * from `users` where `id` = ? and json_extract(`options`, \'$."enabled"\') <=> true or json_extract(`options`, \'$."archived"\') <=> false', $builder->toSql());
+        $this->assertSame([1], $builder->getBindings());
+
+        $builder = $this->getMySqlBuilder();
+        $builder->from('users')->where('id', 1)->where('options->enabled', '<=>', true)->orWhere('options->archived', '<=>', false);
+        $this->assertSame('select * from `users` where `id` = ? and json_extract(`options`, \'$."enabled"\') <=> true or json_extract(`options`, \'$."archived"\') <=> false', $builder->toSql());
+        $this->assertSame([1], $builder->getBindings());
+    }
+
+    public function testWhereNullSafeEqualsWithJsonBooleansSQLite(): void
+    {
+        $builder = $this->getSQLiteBuilder();
+        $builder->from('users')->where('id', 1)->whereNullSafeEquals('options->enabled', true)->orWhereNullSafeEquals('options->archived', false);
+        $this->assertSame('select * from "users" where "id" = ? and json_extract("options", \'$."enabled"\') is 1 or json_extract("options", \'$."archived"\') is 0', $builder->toSql());
+        $this->assertSame([1], $builder->getBindings());
+
+        $builder = $this->getSQLiteBuilder();
+        $builder->from('users')->where('id', 1)->where('options->enabled', '<=>', true)->orWhere('options->archived', '<=>', false);
+        $this->assertSame('select * from "users" where "id" = ? and json_extract("options", \'$."enabled"\') is 1 or json_extract("options", \'$."archived"\') is 0', $builder->toSql());
+        $this->assertSame([1], $builder->getBindings());
+    }
+
+    public function testWhereNullSafeEqualsWithJsonBooleansPostgres(): void
+    {
+        $builder = $this->getPostgresBuilder();
+        $builder->from('users')->where('id', 1)->whereNullSafeEquals('options->enabled', true)->orWhereNullSafeEquals('options->archived', false);
+        $this->assertSame('select * from "users" where "id" = ? and ("options"->\'enabled\')::jsonb is not distinct from \'true\'::jsonb or ("options"->\'archived\')::jsonb is not distinct from \'false\'::jsonb', $builder->toSql());
+        $this->assertSame([1], $builder->getBindings());
+
+        $builder = $this->getPostgresBuilder();
+        $builder->from('users')->where('id', 1)->where('options->enabled', '<=>', true)->orWhere('options->archived', '<=>', false);
+        $this->assertSame('select * from "users" where "id" = ? and ("options"->\'enabled\')::jsonb is not distinct from \'true\'::jsonb or ("options"->\'archived\')::jsonb is not distinct from \'false\'::jsonb', $builder->toSql());
+        $this->assertSame([1], $builder->getBindings());
+    }
+
+    public function testWhereNullSafeEqualsWithSubqueryMySql(): void
+    {
+        $builder = $this->getMySqlBuilder();
+        $builder->from('users')->where('id', 1)->orWhere('foo', '<=>', fn (Builder $query) => $query->selectRaw('?', ['bar']));
+
+        $this->assertSame('select * from `users` where `id` = ? or `foo` <=> (select ?)', $builder->toSql());
+        $this->assertSame([1, 'bar'], $builder->getBindings());
+    }
+
+    public function testWhereNullSafeEqualsWithSubquerySQLite(): void
+    {
+        $builder = $this->getSQLiteBuilder();
+        $builder->from('users')->where('id', 1)->orWhere('foo', '<=>', fn (Builder $query) => $query->selectRaw('?', ['bar']));
+
+        $this->assertSame('select * from "users" where "id" = ? or "foo" is (select ?)', $builder->toSql());
+        $this->assertSame([1, 'bar'], $builder->getBindings());
+    }
+
+    public function testWhereNullSafeEqualsWithSubqueryPostgres(): void
+    {
+        $builder = $this->getPostgresBuilder();
+        $builder->from('users')->where('id', 1)->orWhere('foo', '<=>', fn (Builder $query) => $query->selectRaw('?', ['bar']));
+
+        $this->assertSame('select * from "users" where "id" = ? or "foo" is not distinct from (select ?)', $builder->toSql());
+        $this->assertSame([1, 'bar'], $builder->getBindings());
     }
 
     public function testWhereBetweens()

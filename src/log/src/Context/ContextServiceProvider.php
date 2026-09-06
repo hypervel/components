@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Log\Context;
 
 use Hypervel\Contracts\Log\ContextLogProcessor as ContextLogProcessorContract;
+use Hypervel\Log\Context\Events\ContextDehydrating;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Queue;
 use Hypervel\Support\Facades\Context;
@@ -25,8 +26,10 @@ class ContextServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Queue::createPayloadUsing(function (string $connection, ?string $queue, array $payload): array {
-            if (! Repository::hasInstance()) {
+        $events = $this->app->make('events');
+
+        Queue::createPayloadUsing(function (string $connection, ?string $queue, array $payload) use ($events): array {
+            if (! Repository::hasInstance() && ! $events->hasListeners(ContextDehydrating::class)) {
                 return [];
             }
 
@@ -40,7 +43,7 @@ class ContextServiceProvider extends ServiceProvider
         });
 
         // IMPORTANT: Uses Laravel's payload key for cross-framework queue interoperability.
-        $this->app->make('events')->listen(JobProcessing::class, function (JobProcessing $event): void {
+        $events->listen(JobProcessing::class, function (JobProcessing $event): void {
             $context = $event->job->payload()['illuminate:log:context'] ?? null;
 
             if ($context !== null || Repository::hasInstance()) {

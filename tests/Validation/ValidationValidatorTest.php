@@ -41,10 +41,13 @@ use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
 use RuntimeException;
 use SplFileInfo;
 use stdClass;
+use Symfony\Component\HttpFoundation\File\File;
+use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyUploadedFile;
 use UnitEnum;
 
 class ValidationValidatorTest extends TestCase
@@ -1104,7 +1107,7 @@ class ValidationValidatorTest extends TestCase
         $this->assertSame('really required!', $v->messages()->first('name'));
     }
 
-    public function testCustomValidationLinesForSizeRules()
+    public function testCustomValidationLinesForSizeRules(): void
     {
         $trans = $this->getArrayTranslator();
         $trans->getLoader()->addMessages('en', 'validation', [
@@ -1123,10 +1126,15 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
         $this->assertSame('Custom message for image filenames.', $v->messages()->first('image'));
 
-        $file = new UploadedFile(__FILE__, '');
-        $v = new Validator($trans, ['image' => $file], ['image' => 'gte:50']);
-        $this->assertFalse($v->passes());
-        $this->assertSame('Custom message for image files.', $v->messages()->first('image'));
+        foreach ([
+            new UploadedFile(__FILE__, '', test: true),
+            new SymfonyUploadedFile(__FILE__, '', test: true),
+            new File(__FILE__),
+        ] as $file) {
+            $v = new Validator($trans, ['image' => $file], ['image' => 'gte:50']);
+            $this->assertFalse($v->passes());
+            $this->assertSame('Custom message for image files.', $v->messages()->first('image'));
+        }
     }
 
     public function testCustomValidationLinesAreRespectedWithAsterisks()
@@ -1204,7 +1212,7 @@ class ValidationValidatorTest extends TestCase
         $this->assertSame('should be integer!', $v->messages()->first('validation.custom.1'));
     }
 
-    public function testInlineValidationMessagesAreRespected()
+    public function testInlineValidationMessagesAreRespected(): void
     {
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['name' => ''], ['name' => 'Required'], ['name.required' => 'require it please!']);
@@ -1223,6 +1231,21 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
         $v->messages()->setFormat(':message');
         $this->assertSame('name should be of length 9', $v->messages()->first('name'));
+
+        foreach ([
+            $this->uploadedFile(__FILE__, '', isValid: true, size: 4072),
+            new SymfonyUploadedFile(__FILE__, '', test: true),
+            new File(__FILE__),
+        ] as $file) {
+            $v = new Validator($trans, ['photo' => $file], ['photo' => 'Max:3'], [
+                'max' => [
+                    'file' => ':attribute must not exceed :max kilobytes.',
+                    'string' => ':attribute must not exceed :max characters.',
+                ],
+            ]);
+            $this->assertFalse($v->passes());
+            $this->assertSame('photo must not exceed 3 kilobytes.', $v->messages()->first('photo'));
+        }
     }
 
     #[DataProvider('integerMessageParameterCases')]
@@ -1338,25 +1361,25 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->hasRule('bar', 'Required'));
     }
 
-    public function testValidateArray()
+    public function testValidateArray(): void
     {
         $trans = $this->getArrayTranslator();
 
         $v = new Validator($trans, ['foo' => [1, 2, 3]], ['foo' => 'Array']);
         $this->assertTrue($v->passes());
 
-        $v = new Validator($trans, ['foo' => new SplFileInfo('/tmp/foo')], ['foo' => 'Array']);
+        $v = new Validator($trans, ['foo' => new File('/tmp/foo', false)], ['foo' => 'Array']);
         $this->assertFalse($v->passes());
     }
 
-    public function testValidateList()
+    public function testValidateList(): void
     {
         $trans = $this->getArrayTranslator();
 
         $v = new Validator($trans, ['foo' => [1, 2, 3]], ['foo' => 'list']);
         $this->assertTrue($v->passes());
 
-        $v = new Validator($trans, ['foo' => new SplFileInfo('/tmp/foo')], ['foo' => 'list']);
+        $v = new Validator($trans, ['foo' => new File('/tmp/foo', false)], ['foo' => 'list']);
         $this->assertFalse($v->passes());
 
         $v = new Validator($trans, ['foo' => [1 => 1, 2 => 2]], ['foo' => 'list']);
@@ -1675,7 +1698,7 @@ class ValidationValidatorTest extends TestCase
         $this->assertSame('The foo field must be present when bar / baz are present.', $v->errors()->first('foo'));
     }
 
-    public function testValidateRequired()
+    public function testValidateRequired(): void
     {
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, [], ['name' => 'Required']);
@@ -1687,16 +1710,16 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['name' => 'foo'], ['name' => 'Required']);
         $this->assertTrue($v->passes());
 
-        $file = new SplFileInfo('');
+        $file = new File('', false);
         $v = new Validator($trans, ['name' => $file], ['name' => 'Required']);
         $this->assertFalse($v->passes());
 
-        $file = new SplFileInfo(__FILE__);
+        $file = new File(__FILE__, false);
         $v = new Validator($trans, ['name' => $file], ['name' => 'Required']);
         $this->assertTrue($v->passes());
 
-        $file = new SplFileInfo(__FILE__);
-        $file2 = new SplFileInfo(__FILE__);
+        $file = new File(__FILE__, false);
+        $file2 = new File(__FILE__, false);
         $v = new Validator($trans, ['files' => [$file, $file2]], ['files.0' => 'Required', 'files.1' => 'Required']);
         $this->assertTrue($v->passes());
 
@@ -1704,7 +1727,7 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testValidateRequiredWith()
+    public function testValidateRequiredWith(): void
     {
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['first' => 'Taylor'], ['last' => 'required_with:first']);
@@ -1722,17 +1745,17 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['first' => 'Taylor', 'last' => 'Otwell'], ['last' => 'required_with:first']);
         $this->assertTrue($v->passes());
 
-        $file = new SplFileInfo('');
+        $file = new File('', false);
         $v = new Validator($trans, ['file' => $file, 'foo' => ''], ['foo' => 'required_with:file']);
         $this->assertTrue($v->passes());
 
-        $file = new SplFileInfo(__FILE__);
-        $foo = new SplFileInfo(__FILE__);
+        $file = new File(__FILE__, false);
+        $foo = new File(__FILE__, false);
         $v = new Validator($trans, ['file' => $file, 'foo' => $foo], ['foo' => 'required_with:file']);
         $this->assertTrue($v->passes());
 
-        $file = new SplFileInfo(__FILE__);
-        $foo = new SplFileInfo('');
+        $file = new File(__FILE__, false);
+        $foo = new File('', false);
         $v = new Validator($trans, ['file' => $file, 'foo' => $foo], ['foo' => 'required_with:file']);
         $this->assertFalse($v->passes());
     }
@@ -1747,7 +1770,7 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
-    public function testValidateRequiredWithout()
+    public function testValidateRequiredWithout(): void
     {
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['first' => 'Taylor'], ['last' => 'required_without:first']);
@@ -1768,35 +1791,35 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['last' => 'Otwell'], ['last' => 'required_without:first']);
         $this->assertTrue($v->passes());
 
-        $file = new SplFileInfo('');
+        $file = new File('', false);
         $v = new Validator($trans, ['file' => $file], ['foo' => 'required_without:file']);
         $this->assertFalse($v->passes());
 
-        $foo = new SplFileInfo('');
+        $foo = new File('', false);
         $v = new Validator($trans, ['foo' => $foo], ['foo' => 'required_without:file']);
         $this->assertFalse($v->passes());
 
-        $foo = new SplFileInfo(__FILE__);
+        $foo = new File(__FILE__, false);
         $v = new Validator($trans, ['foo' => $foo], ['foo' => 'required_without:file']);
         $this->assertTrue($v->passes());
 
-        $file = new SplFileInfo(__FILE__);
-        $foo = new SplFileInfo(__FILE__);
+        $file = new File(__FILE__, false);
+        $foo = new File(__FILE__, false);
         $v = new Validator($trans, ['file' => $file, 'foo' => $foo], ['foo' => 'required_without:file']);
         $this->assertTrue($v->passes());
 
-        $file = new SplFileInfo(__FILE__);
-        $foo = new SplFileInfo('');
+        $file = new File(__FILE__, false);
+        $foo = new File('', false);
         $v = new Validator($trans, ['file' => $file, 'foo' => $foo], ['foo' => 'required_without:file']);
         $this->assertTrue($v->passes());
 
-        $file = new SplFileInfo('');
-        $foo = new SplFileInfo(__FILE__);
+        $file = new File('', false);
+        $foo = new File(__FILE__, false);
         $v = new Validator($trans, ['file' => $file, 'foo' => $foo], ['foo' => 'required_without:file']);
         $this->assertTrue($v->passes());
 
-        $file = new SplFileInfo('');
-        $foo = new SplFileInfo('');
+        $file = new File('', false);
+        $foo = new File('', false);
         $v = new Validator($trans, ['file' => $file, 'foo' => $foo], ['foo' => 'required_without:file']);
         $this->assertFalse($v->passes());
     }
@@ -2072,7 +2095,7 @@ class ValidationValidatorTest extends TestCase
         $this->assertSame('The last field is required unless first is in taylor, sven.', $v->messages()->first('last'));
     }
 
-    public function testProhibited()
+    public function testProhibited(): void
     {
         $trans = $this->getArrayTranslator();
 
@@ -2085,16 +2108,16 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['name' => 'foo'], ['name' => 'prohibited']);
         $this->assertTrue($v->fails());
 
-        $file = new SplFileInfo('');
+        $file = new File('', false);
         $v = new Validator($trans, ['name' => $file], ['name' => 'prohibited']);
         $this->assertTrue($v->passes());
 
-        $file = new SplFileInfo(__FILE__);
+        $file = new File(__FILE__, false);
         $v = new Validator($trans, ['name' => $file], ['name' => 'prohibited']);
         $this->assertTrue($v->fails());
 
-        $file = new SplFileInfo(__FILE__);
-        $file2 = new SplFileInfo(__FILE__);
+        $file = new File(__FILE__, false);
+        $file2 = new File(__FILE__, false);
         $v = new Validator($trans, ['files' => [$file, $file2]], ['files.0' => 'prohibited', 'files.1' => 'prohibited']);
         $this->assertTrue($v->fails());
 
@@ -2368,21 +2391,23 @@ class ValidationValidatorTest extends TestCase
         ];
     }
 
-    public function testFailedFileUploads()
+    #[TestWith([UploadedFile::class])]
+    #[TestWith([SymfonyUploadedFile::class])]
+    public function testFailedFileUploads(string $fileClass): void
     {
         $trans = $this->getArrayTranslator();
 
         // If file is not successfully uploaded validation should fail with a
         // 'uploaded' error message instead of the original rule.
-        $file = m::mock(UploadedFile::class);
-        $file->shouldReceive('isValid')->andReturn(false);
+        $file = m::mock($fileClass);
+        $file->shouldReceive('isValid')->once()->andReturn(false);
         $file->shouldNotReceive('getSize');
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'Max:10']);
         $this->assertTrue($v->fails());
         $this->assertEquals(['validation.uploaded'], $v->errors()->get('photo'));
 
         // Even "required" will not run if the file failed to upload.
-        $file = m::mock(UploadedFile::class);
+        $file = m::mock($fileClass);
         $file->shouldReceive('isValid')->once()->andReturn(false);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'required']);
         $this->assertTrue($v->fails());
@@ -2390,18 +2415,31 @@ class ValidationValidatorTest extends TestCase
 
         // It should only fail with that rule if a validation rule implies it's
         // a file. Otherwise it should fail with the regular rule.
-        $file = m::mock(UploadedFile::class);
-        $file->shouldReceive('isValid')->andReturn(false);
+        $file = m::mock($fileClass);
+        $file->shouldReceive('isValid')->once()->andReturn(false);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'string']);
         $this->assertTrue($v->fails());
         $this->assertEquals(['validation.string'], $v->errors()->get('photo'));
 
         // Validation shouldn't continue if a file failed to upload.
-        $file = m::mock(UploadedFile::class);
+        $file = m::mock($fileClass);
         $file->shouldReceive('isValid')->once()->andReturn(false);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'file|mimes:pdf|min:10']);
         $this->assertTrue($v->fails());
         $this->assertEquals(['validation.uploaded'], $v->errors()->get('photo'));
+    }
+
+    #[TestWith([UploadedFile::class])]
+    #[TestWith([SymfonyUploadedFile::class])]
+    public function testDirectFileRulesRejectFailedUploads(string $fileClass): void
+    {
+        $file = m::mock($fileClass);
+        $file->shouldReceive('isValid')->twice()->andReturn(false);
+        $file->shouldNotReceive('getSize');
+        $validator = new Validator($this->getArrayTranslator(), [], []);
+
+        $this->assertFalse($validator->isValidFileInstance($file));
+        $this->assertFalse($validator->validateMax('photo', $file, [10]));
     }
 
     public function testValidateInArray()
@@ -4153,7 +4191,7 @@ class ValidationValidatorTest extends TestCase
         ];
     }
 
-    public function testProperMessagesAreReturnedForSizes()
+    public function testProperMessagesAreReturnedForSizes(): void
     {
         $trans = $this->getArrayTranslator();
         $trans->addLines(['validation.min.numeric' => 'numeric', 'validation.size.string' => 'string', 'validation.max.file' => 'file'], 'en');
@@ -4167,11 +4205,16 @@ class ValidationValidatorTest extends TestCase
         $v->messages()->setFormat(':message');
         $this->assertSame('string', $v->messages()->first('name'));
 
-        $file = $this->uploadedFile(__FILE__, '', isValid: true, size: 4072);
-        $v = new Validator($trans, ['photo' => $file], ['photo' => 'Max:3']);
-        $this->assertFalse($v->passes());
-        $v->messages()->setFormat(':message');
-        $this->assertSame('file', $v->messages()->first('photo'));
+        foreach ([
+            $this->uploadedFile(__FILE__, '', isValid: true, size: 4072),
+            new SymfonyUploadedFile(__FILE__, '', test: true),
+            new File(__FILE__),
+        ] as $file) {
+            $v = new Validator($trans, ['photo' => $file], ['photo' => 'Max:3']);
+            $this->assertFalse($v->passes());
+            $v->messages()->setFormat(':message');
+            $this->assertSame('file', $v->messages()->first('photo'));
+        }
     }
 
     public function testValidateGtPlaceHolderIsReplacedProperly()
@@ -5570,20 +5613,21 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['x' => $svgXmlUploadedFile], ['x' => 'dimensions:max_width=1,max_height=1']);
         $this->assertTrue($v->passes());
 
-        $svgXmlFile = new UploadedFile(__DIR__ . '/Fixtures/image.svg', '', 'image/svg+xml', null, true);
+        $svgXmlFile = new File(__DIR__ . '/Fixtures/image.svg');
         $trans = $this->getArrayTranslator();
 
         $v = new Validator($trans, ['x' => $svgXmlFile], ['x' => 'dimensions:max_width=1,max_height=1']);
         $this->assertTrue($v->passes());
 
         // Ensure svg images always pass as size is irrelevant (image/svg)
-        $svgUploadedFile = new UploadedFile(__DIR__ . '/Fixtures/image2.svg', '', 'image/svg', null, true);
+        $svgUploadedFile = $this->uploadedFile(__DIR__ . '/Fixtures/image2.svg', '', mimeType: 'image/svg');
         $trans = $this->getArrayTranslator();
 
         $v = new Validator($trans, ['x' => $svgUploadedFile], ['x' => 'dimensions:max_width=1,max_height=1']);
         $this->assertTrue($v->passes());
 
-        $svgFile = new UploadedFile(__DIR__ . '/Fixtures/image2.svg', '', 'image/svg', null, true);
+        $svgFile = m::mock(File::class, [__DIR__ . '/Fixtures/image2.svg'])->makePartial();
+        $svgFile->shouldReceive('getMimeType')->once()->andReturn('image/svg');
         $trans = $this->getArrayTranslator();
 
         $v = new Validator($trans, ['x' => $svgFile], ['x' => 'dimensions:max_width=1,max_height=1']);
@@ -5674,7 +5718,7 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
-    public function testValidateMimeEnforcesPhpCheck()
+    public function testValidateMimeEnforcesPhpCheck(): void
     {
         $trans = $this->getArrayTranslator();
         $file = $this->uploadedFile(__FILE__, '', guessedExtension: 'pdf', clientOriginalExtension: 'php');
@@ -5684,10 +5728,20 @@ class ValidationValidatorTest extends TestCase
         $file2 = $this->uploadedFile(__FILE__, '', guessedExtension: 'php', clientOriginalExtension: 'php');
         $v = new Validator($trans, ['x' => $file2], ['x' => 'mimes:pdf,php']);
         $this->assertTrue($v->passes());
+
+        $file = new SymfonyUploadedFile(__DIR__ . '/Fixtures/image.png', 'image.php', test: true);
+        $v = new Validator($trans, ['x' => $file], ['x' => 'mimes:png']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['x' => $file], ['x' => 'mimetypes:image/png']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['x' => $file], ['x' => 'mimes:png,php']);
+        $this->assertTrue($v->passes());
     }
 
     #[RequiresPhpExtension('fileinfo')]
-    public function testValidateFile()
+    public function testValidateFile(): void
     {
         $trans = $this->getArrayTranslator();
         $file = new UploadedFile(__FILE__, '', null, null, true);
@@ -5697,6 +5751,15 @@ class ValidationValidatorTest extends TestCase
 
         $v = new Validator($trans, ['x' => $file], ['x' => 'file']);
         $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['x' => new SymfonyUploadedFile(__FILE__, '', test: true)], ['x' => 'file']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['x' => new File(__FILE__)], ['x' => 'file']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['x' => new SplFileInfo(__FILE__)], ['x' => 'file']);
+        $this->assertTrue($v->fails());
     }
 
     public function testEmptyRulesSkipped()
@@ -8685,19 +8748,19 @@ class ValidationValidatorTest extends TestCase
         );
     }
 
-    public function testMultipleFileUploads()
+    public function testMultipleFileUploads(): void
     {
         $trans = $this->getArrayTranslator();
-        $file = new SplFileInfo(__FILE__);
-        $file2 = new SplFileInfo(__FILE__);
+        $file = new File(__FILE__, false);
+        $file2 = new File(__FILE__, false);
         $v = new Validator($trans, ['file' => [$file, $file2]], ['file.*' => 'Required|mimes:xls']);
         $this->assertFalse($v->passes());
     }
 
-    public function testFileUploads()
+    public function testFileUploads(): void
     {
         $trans = $this->getArrayTranslator();
-        $file = new SplFileInfo(__FILE__);
+        $file = new File(__FILE__, false);
         $v = new Validator($trans, ['file' => $file], ['file' => 'Required|mimes:xls']);
         $this->assertFalse($v->passes());
     }
@@ -10504,9 +10567,12 @@ class ValidationValidatorTest extends TestCase
         $this->assertSame('whenNotPasses', $result);
     }
 
-    protected function fileInfoWithSize(int $size): SplFileInfo
+    /**
+     * Create a file with the given size.
+     */
+    protected function fileInfoWithSize(int $size): File
     {
-        return new SizedSplFileInfo(__FILE__, $size);
+        return new SizedFile(__FILE__, $size);
     }
 
     protected function uploadedFile(
@@ -10594,13 +10660,19 @@ class NonEloquentModel
 {
 }
 
-class SizedSplFileInfo extends SplFileInfo
+class SizedFile extends File
 {
+    /**
+     * Create a file with the given size.
+     */
     public function __construct(string $filename, private readonly int $size)
     {
         parent::__construct($filename);
     }
 
+    /**
+     * Get the file size.
+     */
     public function getSize(): int
     {
         return $this->size;

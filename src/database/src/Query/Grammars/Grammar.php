@@ -9,6 +9,7 @@ use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Concerns\CompilesJsonPaths;
 use Hypervel\Database\Grammar as BaseGrammar;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Database\Query\Expression as QueryExpression;
 use Hypervel\Database\Query\JoinClause;
 use Hypervel\Database\Query\JoinLateralClause;
 use Hypervel\Support\Arr;
@@ -512,6 +513,12 @@ class Grammar extends BaseGrammar
         $subquery = $where['query'];
         $select = $subquery->getGrammar()->compileSelectQuery($subquery);
 
+        if ($where['operator'] === '<=>') {
+            $where['value'] = new QueryExpression("({$select})");
+
+            return $this->whereNullSafeEquals($query, $where);
+        }
+
         return $this->wrap($where['column']) . ' ' . $where['operator'] . " ({$select})";
     }
 
@@ -557,6 +564,13 @@ class Grammar extends BaseGrammar
         $value = $this->wrapJsonBooleanValue(
             $this->parameter($where['value'])
         );
+
+        if ($where['operator'] === '<=>') {
+            $where['column'] = new QueryExpression($column);
+            $where['value'] = new QueryExpression($value);
+
+            return $this->whereNullSafeEquals($query, $where);
+        }
 
         return $column . ' ' . $where['operator'] . ' ' . $value;
     }

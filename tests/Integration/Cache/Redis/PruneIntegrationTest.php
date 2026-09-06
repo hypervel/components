@@ -6,6 +6,8 @@ namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hypervel\Cache\TagMode;
 use Hypervel\Support\Facades\Cache;
+use Hypervel\Testbench\Attributes\WithConfig;
+use Redis;
 
 /**
  * Integration tests for prune (cleanup) operations.
@@ -80,6 +82,8 @@ class PruneIntegrationTest extends RedisCacheIntegrationTestCase
     // ANY MODE - PRUNE COMMAND
     // =========================================================================
 
+    #[WithConfig('database.redis.options.prefix', 'scan-prefix:')]
+    #[WithConfig('database.redis.options.scan', Redis::SCAN_PREFIX)]
     public function testAnyModePruneRemovesOrphanedFields(): void
     {
         $this->setTagMode(TagMode::Any);
@@ -287,6 +291,8 @@ class PruneIntegrationTest extends RedisCacheIntegrationTestCase
     // ALL MODE - PRUNE COMMAND
     // =========================================================================
 
+    #[WithConfig('database.redis.options.prefix', 'scan-prefix:')]
+    #[WithConfig('database.redis.options.scan', Redis::SCAN_PREFIX)]
     public function testAllModePruneRemovesOrphanedEntries(): void
     {
         $this->setTagMode(TagMode::All);

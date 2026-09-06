@@ -78,6 +78,39 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
     }
 
     /**
+     * Get the number of jobs across every queue.
+     */
+    public function totalSize(): int
+    {
+        // Aggregate counts are an optional driver capability outside the core Queue contract.
+        return $this->manager->connection($this->connections[0])->totalSize(); // @phpstan-ignore method.notFound
+    }
+
+    /**
+     * Get the number of pending jobs across every queue.
+     */
+    public function totalPendingSize(): int
+    {
+        return $this->manager->connection($this->connections[0])->totalPendingSize(); // @phpstan-ignore method.notFound
+    }
+
+    /**
+     * Get the number of delayed jobs across every queue.
+     */
+    public function totalDelayedSize(): int
+    {
+        return $this->manager->connection($this->connections[0])->totalDelayedSize(); // @phpstan-ignore method.notFound
+    }
+
+    /**
+     * Get the number of reserved jobs across every queue.
+     */
+    public function totalReservedSize(): int
+    {
+        return $this->manager->connection($this->connections[0])->totalReservedSize(); // @phpstan-ignore method.notFound
+    }
+
+    /**
      * Get the pending jobs for the given queue.
      */
     public function pendingJobs(?string $queue = null): Collection

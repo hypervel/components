@@ -6,6 +6,7 @@
     - [Generating Facade Docblocks](#generating-facade-docblocks)
 - [Package Discovery](#package-discovery)
     - [Test State Cleanup](#test-state-cleanup)
+- [Package Uninstallation](#package-uninstallation)
 - [Inspecting Installed Packages](#inspecting-installed-packages)
 - [Service Providers](#service-providers)
     - [Provider Priority](#provider-priority)
@@ -178,6 +179,38 @@ class TestState
 Use your Composer package name as the callback name. Registrar classes are discovered during PHPUnit extension bootstrap, so package cleanup runs even in workers that only execute unit tests and never boot a Hypervel application.
 
 Test-state callbacks run after the test application has been destroyed. Use them for process-local state that can be reset directly, not cleanup that resolves container services. Use the appropriate testing trait to clean up external resources.
+
+<a name="package-uninstallation"></a>
+## Package Uninstallation
+
+Packages may listen for an event before Composer removes them. To enable these events, add the following script to your application's `composer.json` file:
+
+```json
+"scripts": {
+    "pre-package-uninstall": [
+        "Hypervel\\Foundation\\ComposerScripts::prePackageUninstall"
+    ]
+}
+```
+
+Register a listener in your package's service provider using the event name `composer_package.vendor/package:pre_uninstall`, replacing `vendor/package` with your Composer package name. For example, you may remove a manually registered provider from the application's `bootstrap/providers.php` file:
+
+```php
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Support\ServiceProvider;
+
+/**
+ * Bootstrap any package services.
+ */
+public function boot(Dispatcher $events): void
+{
+    $events->listen('composer_package.vendor/courier:pre_uninstall', static function (): void {
+        ServiceProvider::removeProviderFromBootstrapFile(CourierServiceProvider::class);
+    });
+}
+```
+
+These events do not run when Composer's `--no-dev` option is used. If an event cannot be dispatched or a listener fails, Hypervel displays a warning and allows the package removal to continue. Run Composer with `--verbose` to see the exception message.
 
 <a name="inspecting-installed-packages"></a>
 ## Inspecting Installed Packages

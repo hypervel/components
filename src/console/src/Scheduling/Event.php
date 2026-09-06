@@ -20,6 +20,7 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Mail\Mailer;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Log\Context\Repository;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Stringable;
@@ -265,10 +266,13 @@ class Event
      */
     protected function runProcess(Container $container): int
     {
+        $context = base64_encode(serialize(Repository::getInstance()->dehydrate()));
+
         /** @var \Hypervel\Contracts\Foundation\Application $container */
         $process = Process::fromShellCommandline(
             $this->command,
-            $container->basePath()
+            $container->basePath(),
+            ['__HYPERVEL_CONTEXT' => $context]
         );
 
         CoroutineContext::set($this->processContextKey(), $process);

@@ -2355,6 +2355,63 @@ class RedisConnectionTest extends TestCase
         $this->assertFalse($connection->compressed());
     }
 
+    #[DataProvider('scanPrefixOptions')]
+    public function testWithoutScanPrefixPreservesOtherOptionsAndRestores(bool $retry, bool $prefix): void
+    {
+        $redis = new Redis;
+        $redis->setOption(Redis::OPT_PREFIX, 'app:');
+        $redis->setOption(Redis::OPT_SCAN, $retry ? Redis::SCAN_RETRY : Redis::SCAN_NORETRY);
+        $redis->setOption(Redis::OPT_SCAN, $prefix ? Redis::SCAN_PREFIX : Redis::SCAN_NOPREFIX);
+        $originalOptions = $redis->getOption(Redis::OPT_SCAN);
+        $connection = (new PhpRedisConnectionStub)->setActiveConnection($redis);
+
+        $result = $connection->withoutScanPrefix(function () use ($redis, $retry): string {
+            $this->assertSame($retry ? Redis::SCAN_RETRY : Redis::SCAN_NORETRY, $redis->getOption(Redis::OPT_SCAN));
+            $this->assertSame('app:', $redis->getOption(Redis::OPT_PREFIX));
+
+            return 'callback-result';
+        });
+
+        $this->assertSame('callback-result', $result);
+        $this->assertSame($originalOptions, $redis->getOption(Redis::OPT_SCAN));
+    }
+
+    /**
+     * Provide independent retry and prefix settings.
+     */
+    public static function scanPrefixOptions(): array
+    {
+        return [
+            'neither' => [false, false],
+            'retry' => [true, false],
+            'prefix' => [false, true],
+            'retry and prefix' => [true, true],
+        ];
+    }
+
+    public function testWithoutScanPrefixRestoresOptionsWhenCallbackThrows(): void
+    {
+        $redis = new Redis;
+        $redis->setOption(Redis::OPT_SCAN, Redis::SCAN_RETRY);
+        $redis->setOption(Redis::OPT_SCAN, Redis::SCAN_PREFIX);
+        $originalOptions = $redis->getOption(Redis::OPT_SCAN);
+        $connection = (new PhpRedisConnectionStub)->setActiveConnection($redis);
+        $failure = new RuntimeException('Callback failed');
+
+        try {
+            $connection->withoutScanPrefix(function () use ($redis, $failure): never {
+                $this->assertSame(Redis::SCAN_RETRY, $redis->getOption(Redis::OPT_SCAN));
+
+                throw $failure;
+            });
+            $this->fail('Expected the callback exception.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertSame($originalOptions, $redis->getOption(Redis::OPT_SCAN));
+    }
+
     public function testWithoutSerializationOrCompressionDisablesSerializerAndRestores(): void
     {
         $connection = $this->mockRedisConnection();

@@ -17,6 +17,8 @@ use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Events\CallQueuedListener;
+use Hypervel\Queue\Attributes\Delay;
+use Hypervel\Queue\Attributes\ReadsQueueAttributes;
 use Hypervel\Queue\CallQueuedClosure;
 use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Queue\QueueManager;
@@ -34,6 +36,7 @@ use function Hypervel\Support\enum_value;
  */
 class QueueFake extends QueueManager implements Fake, Queue
 {
+    use ReadsQueueAttributes;
     use ReflectsClosures;
 
     /**
@@ -415,6 +418,40 @@ class QueueFake extends QueueManager implements Fake, Queue
     }
 
     /**
+     * Get the number of jobs across every queue.
+     */
+    public function totalSize(): int
+    {
+        return $this->totalPendingSize()
+            + $this->totalDelayedSize()
+            + $this->totalReservedSize();
+    }
+
+    /**
+     * Get the number of pending jobs across every queue.
+     */
+    public function totalPendingSize(): int
+    {
+        return $this->allPendingJobs()->count();
+    }
+
+    /**
+     * Get the number of delayed jobs across every queue.
+     */
+    public function totalDelayedSize(): int
+    {
+        return $this->allDelayedJobs()->count();
+    }
+
+    /**
+     * Get the number of reserved jobs across every queue.
+     */
+    public function totalReservedSize(): int
+    {
+        return $this->allReservedJobs()->count();
+    }
+
+    /**
      * Get the pending jobs for the given queue.
      */
     public function pendingJobs(UnitEnum|string|null $queue = null): Collection
@@ -685,9 +722,13 @@ class QueueFake extends QueueManager implements Fake, Queue
     public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
         foreach ($jobs as $job) {
-            is_object($job) && isset($job->delay)
-                ? $this->later($job->delay, $job, $data, $queue)
-                : $this->push($job, $data, $queue);
+            $delay = is_object($job) ? $this->getAttributeValue($job, Delay::class, 'delay') : null;
+
+            if ($delay !== null) {
+                $this->later($delay, $job, $data, $queue);
+            } else {
+                $this->push($job, $data, $queue);
+            }
         }
 
         return null;

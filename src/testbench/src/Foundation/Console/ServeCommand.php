@@ -22,13 +22,13 @@ use function Hypervel\Testbench\package_path;
 #[AsCommand(name: 'serve', description: 'Start Hypervel servers.')]
 class ServeCommand extends Command
 {
+    /**
+     * Execute the console command.
+     */
     #[Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        if (
-            class_exists(ComposerConfig::class, false)
-            && method_exists(ComposerConfig::class, 'disableProcessTimeout') // @phpstan-ignore function.impossibleType
-        ) {
+        if (class_exists(ComposerConfig::class, false)) {
             ComposerConfig::disableProcessTimeout();
         }
 

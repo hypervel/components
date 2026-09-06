@@ -177,7 +177,13 @@ if (! function_exists('app_path')) {
      */
     function app_path(string $path = ''): string
     {
-        return join_paths(base_path('app'), $path);
+        if (! Container::getInstance()->has(Application::class)) {
+            return defined('BASE_PATH')
+                ? join_paths(BASE_PATH, 'app', $path)
+                : throw new RuntimeException('BASE_PATH constant is not defined.');
+        }
+
+        return app()->path($path);
     }
 }
 

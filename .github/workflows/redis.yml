@@ -69,13 +69,11 @@ jobs:
         run: |
           vendor/bin/paratest --max-processes=15 tests/Integration/Auth/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Broadcasting/Redis
-          vendor/bin/paratest --max-processes=15 tests/Integration/Cache/Redis
+          CACHE_STORE=redis vendor/bin/paratest --max-processes=15 tests/Integration/Cache
           vendor/bin/paratest --max-processes=15 tests/Integration/Horizon
           vendor/bin/paratest --max-processes=15 tests/Integration/Http/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/OpenTelemetry/Redis
-          vendor/bin/paratest --max-processes=15 tests/Integration/Queue/Redis
-          QUEUE_CONNECTION=redis vendor/bin/phpunit --no-progress tests/Integration/Queue/JobChainingTest.php
-          QUEUE_CONNECTION=redis vendor/bin/phpunit --no-progress tests/Integration/Queue/JobDispatchingTest.php
+          QUEUE_CONNECTION=redis vendor/bin/paratest --max-processes=15 tests/Integration/Queue
           vendor/bin/paratest --max-processes=15 tests/Integration/RateLimiter/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Session/Redis
@@ -225,13 +223,11 @@ jobs:
         run: |
           vendor/bin/phpunit --no-progress tests/Integration/Auth/Redis
           vendor/bin/phpunit --no-progress tests/Integration/Broadcasting/Redis
-          vendor/bin/phpunit --no-progress tests/Integration/Cache/Redis
+          CACHE_STORE=redis vendor/bin/phpunit --no-progress tests/Integration/Cache
           vendor/bin/phpunit --no-progress tests/Integration/Horizon
           vendor/bin/phpunit --no-progress tests/Integration/Http/Redis
           vendor/bin/phpunit --no-progress tests/Integration/OpenTelemetry/Redis
-          vendor/bin/phpunit --no-progress tests/Integration/Queue/Redis
-          QUEUE_CONNECTION=redis vendor/bin/phpunit --no-progress tests/Integration/Queue/JobChainingTest.php
-          QUEUE_CONNECTION=redis vendor/bin/phpunit --no-progress tests/Integration/Queue/JobDispatchingTest.php
+          QUEUE_CONNECTION=redis vendor/bin/phpunit --no-progress tests/Integration/Queue
           vendor/bin/phpunit --no-progress tests/Integration/RateLimiter/Redis
           vendor/bin/phpunit --no-progress tests/Integration/Session/Redis
           # This explicit list contains the topology-neutral Redis tests; the remaining files require standalone-only behavior.
@@ -306,13 +302,11 @@ jobs:
         run: |
           vendor/bin/paratest --max-processes=15 tests/Integration/Auth/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Broadcasting/Redis
-          vendor/bin/paratest --max-processes=15 tests/Integration/Cache/Redis
+          CACHE_STORE=redis vendor/bin/paratest --max-processes=15 tests/Integration/Cache
           vendor/bin/paratest --max-processes=15 tests/Integration/Horizon
           vendor/bin/paratest --max-processes=15 tests/Integration/Http/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/OpenTelemetry/Redis
-          vendor/bin/paratest --max-processes=15 tests/Integration/Queue/Redis
-          QUEUE_CONNECTION=redis vendor/bin/phpunit --no-progress tests/Integration/Queue/JobChainingTest.php
-          QUEUE_CONNECTION=redis vendor/bin/phpunit --no-progress tests/Integration/Queue/JobDispatchingTest.php
+          QUEUE_CONNECTION=redis vendor/bin/paratest --max-processes=15 tests/Integration/Queue
           vendor/bin/paratest --max-processes=15 tests/Integration/RateLimiter/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Redis
           vendor/bin/phpunit --no-progress tests/Integration/Reverb/ClearStateCommandTest.php

@@ -31,7 +31,7 @@
 
 ## Testing
 
-- Replace PHPUnit 13's deprecated `expectExceptionMessage()` calls across the test suite. Use `expectExceptionMessageIs()` for complete messages and `expectExceptionMessageIsOrContains()` for fragments, auditing each assertion's intent and running its owning test file as it is changed.
+- Replace PHPUnit 13's [soft-deprecated `expectExceptionMessage()`](https://github.com/sebastianbergmann/phpunit/issues/6560) calls across the test suite. Preserve intended matching semantics: use `expectExceptionObject()` for combined class/message/code expectations, `expectExceptionMessageIs()` for exact messages, and `expectExceptionMessageIsOrContains()` for substring matching. Audit each assertion's intent and run its owning test file as it is changed.
 
 ## HTTP Server
 

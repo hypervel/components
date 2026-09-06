@@ -29,13 +29,16 @@ use Hypervel\Tests\Integration\Queue\QueueTestCase;
 #[WithMigration('queue')]
 class UniqueJobTest extends QueueTestCase
 {
+    /**
+     * Define the test environment.
+     */
     protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
 
         $config = $app->make('config');
         $config->set('cache.default', 'database');
-        $config->set('queue.default', 'database');
+        $config->set('queue.default', env('QUEUE_CONNECTION', 'database'));
     }
 
     public function testUniqueJobsAreNotDispatched()

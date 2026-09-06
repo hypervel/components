@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Grpc;
 
-use Hypervel\Filesystem\Filesystem;
 use Hypervel\Grpc\GrpcServiceProvider;
 use Hypervel\Grpc\Health\HealthStatusProvider;
 use Hypervel\Grpc\Health\ServingHealthStatusProvider;
@@ -23,7 +22,6 @@ use Hypervel\Server\ServerConfig;
 use Hypervel\Server\ServerInterface;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Testing\ParallelTesting;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -206,36 +204,31 @@ class GrpcServiceProviderTest extends TestCase
 
     public function testLoadsIsolatedRoutesDuringServerBootstrapEvenWhenApplicationRoutesAreCached(): void
     {
-        $cacheDirectory = ParallelTesting::tempDir('GrpcServiceProviderTest-route-cache');
-        $cachePath = $cacheDirectory . '/routes.php';
-        $files = new Filesystem;
-        $files->deleteDirectory($cacheDirectory);
-        $files->ensureDirectoryExists($cacheDirectory);
-        $files->put($cachePath, '<?php return [];');
-        $_SERVER['APP_ROUTES_CACHE'] = $cachePath;
+        $this->defineCacheRoutes(<<<'PHP'
+<?php
+use Hypervel\Support\Facades\Route;
+Route::get('/cached-http', fn () => 'cached HTTP');
+PHP);
 
-        try {
-            $provider = $this->registerEnabledProvider();
+        $provider = $this->registerEnabledProvider();
 
-            $this->assertTrue($this->app->routesAreCached());
+        $this->assertTrue($this->app->routesAreCached());
 
-            $provider->boot();
+        $provider->boot();
 
-            $this->assertCount(0, $this->app->make(GrpcRouter::class)->getRoutes()->getRoutes());
+        $this->assertCount(0, $this->app->make(GrpcRouter::class)->getRoutes()->getRoutes());
 
-            $this->app->make(Server::class)->bootstrapForServer('grpc');
+        $this->app->make(Server::class)->bootstrapForServer('grpc');
 
-            $routes = $this->app->make(GrpcRouter::class)->getRoutes()->getRoutes();
-            $this->assertCount(3, $routes);
-            $this->assertSame([
-                'grpc.health.v1.Health/Check',
-                'grpc.health.v1.Health/List',
-                'grpc.health.v1.Health/Watch',
-            ], array_map(static fn ($route): string => $route->uri(), $routes));
-        } finally {
-            unset($_SERVER['APP_ROUTES_CACHE']);
-            $files->deleteDirectory($cacheDirectory);
-        }
+        $routes = $this->app->make(GrpcRouter::class)->getRoutes()->getRoutes();
+        $this->assertCount(3, $routes);
+        $this->assertSame([
+            'grpc.health.v1.Health/Check',
+            'grpc.health.v1.Health/List',
+            'grpc.health.v1.Health/Watch',
+        ], array_map(static fn ($route): string => $route->uri(), $routes));
+
+        $this->get('/cached-http')->assertOk()->assertContent('cached HTTP');
     }
 
     public function testFinalServerConfigurationRejectsAListenerNameAddedByAnotherProvider(): void

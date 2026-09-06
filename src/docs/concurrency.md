@@ -110,6 +110,8 @@ The `coroutine` driver is the correct choice for almost all application code. It
 
 The `process` driver should be reserved for tasks that need OS-level process isolation. This includes work that must run outside the current framework lifecycle, work that should not share long-lived worker memory, or work that calls extensions Swoole cannot hook. Since process tasks are serialized before being sent to the child process, the closure and any captured values must be serializable.
 
+When using the `process` driver, each task receives the visible and hidden [context](/docs/{{version}}/context) captured when the process is started. This applies to both `run` and `defer`.
+
 The `sync` driver executes tasks one after another. This is useful in tests and simple scripts where you want deterministic execution without concurrency.
 
 <a name="deferring-concurrent-tasks"></a>

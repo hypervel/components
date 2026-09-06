@@ -6,14 +6,14 @@ namespace Hypervel\Validation;
 
 use Brick\Math\BigNumber;
 use Brick\Math\Exception\MathException as BrickMathException;
-use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Exceptions\MathException;
 use Hypervel\Support\Str;
 use Hypervel\Validation\Enums\CheckType;
 use InvalidArgumentException;
-use SplFileInfo;
 use Stringable;
+use Symfony\Component\HttpFoundation\File\File;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 /**
  * Execute compiled AttributePlans against validation data.
@@ -433,7 +433,7 @@ trait PlanExecutor
      */
     private function usesNativeSizeComparison(mixed $value, bool $numeric): bool
     {
-        return ! ($numeric && is_numeric($value)) && ! $value instanceof SplFileInfo;
+        return ! ($numeric && is_numeric($value)) && ! $value instanceof File;
     }
 
     /**

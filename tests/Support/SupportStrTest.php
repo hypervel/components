@@ -113,6 +113,8 @@ class SupportStrTest extends TestCase
         $this->assertSame('Orwell 1984', Str::headline('-orwell-1984 -'));
         $this->assertSame('Orwell 1984', Str::headline(' orwell_- 1984 '));
 
+        $this->assertSame('❤ Multi Byte ☆', Str::headline('❤_multiByte-☆'));
+
         $nbsp = chr(0xC2) . chr(0xA0);
         $this->assertSame('Hypervel Rocks!', Str::headline('hypervel' . $nbsp . 'rocks!'));
 
@@ -161,6 +163,10 @@ class SupportStrTest extends TestCase
         $this->assertSame('Self-Report', Str::apa('self-report'));
         $this->assertSame('Self-Report', Str::apa('Self-report'));
         $this->assertSame('Self-Report', Str::apa('SELF-REPORT'));
+
+        $this->assertSame('On-Call Work', Str::apa('on-call work'));
+        $this->assertSame('A Guide: On-Call Work', Str::apa('a guide: on-call work'));
+        $this->assertSame('A Guide to on-Call Work', Str::apa('a guide to on-call work'));
 
         $this->assertSame('As the World Turns, So Are the Days of Our Lives', Str::apa('as the world turns, so are the days of our lives'));
         $this->assertSame('As the World Turns, So Are the Days of Our Lives', Str::apa('AS THE WORLD TURNS, SO ARE THE DAYS OF OUR LIVES'));
@@ -899,6 +905,17 @@ class SupportStrTest extends TestCase
         ];
     }
 
+    public function testIsUlid(): void
+    {
+        $this->assertTrue(Str::isUlid((string) Str::ulid()));
+        $this->assertTrue(Str::isUlid('01ARZ3NDEKTSV4RRFFQ69G5FAV'));
+
+        $this->assertFalse(Str::isUlid('not-a-ulid'));
+        $this->assertFalse(Str::isUlid('01ARZ3NDEKTSV4RRFFQ69G5FA'));
+        $this->assertFalse(Str::isUlid(null));
+        $this->assertFalse(Str::isUlid(['not', 'a', 'ulid']));
+    }
+
     public function testIsJson(): void
     {
         $this->assertTrue(Str::isJson('1'));
@@ -1381,6 +1398,8 @@ class SupportStrTest extends TestCase
 
         $this->assertSame('ÖffentlicheÜberraschungen', Str::studly('öffentliche-überraschungen'));
 
+        $this->assertSame('❤MultiByte☆', Str::studly('❤ multi-byte☆'));
+
         $nbsp = chr(0xC2) . chr(0xA0);
         $this->assertSame('HypervelRocks!', Str::studly('hypervel' . $nbsp . 'rocks!'));
 
@@ -1633,6 +1652,8 @@ class SupportStrTest extends TestCase
         $this->assertSame('Hypervel framework', Str::ucfirst('hypervel framework'));
         $this->assertSame('Мама', Str::ucfirst('мама'));
         $this->assertSame('Мама мыла раму', Str::ucfirst('мама мыла раму'));
+        $this->assertSame('ǅungla', Str::ucfirst('ǆungla'));
+        $this->assertSame('Sseta', Str::ucfirst('ßeta'));
     }
 
     public function testUcwords(): void
@@ -1643,6 +1664,8 @@ class SupportStrTest extends TestCase
         $this->assertSame('Мама', Str::ucwords('мама'));
         $this->assertSame('Мама Мыла Раму', Str::ucwords('мама мыла раму'));
         $this->assertSame('JJ Watt', Str::ucwords('JJ watt'));
+        $this->assertSame('Мама мыла раму', Str::ucwords('мама мыла раму', ''));
+        $this->assertSame('', Str::ucwords('', ''));
     }
 
     public function testUcsplit(): void
@@ -1759,10 +1782,22 @@ class SupportStrTest extends TestCase
 
     public function testWordWrap(): void
     {
-        $this->assertEquals('Hello<br />World', Str::wordWrap('Hello World', 3, '<br />'));
-        $this->assertEquals('Hel<br />lo<br />Wor<br />ld', Str::wordWrap('Hello World', 3, '<br />', true));
+        $this->assertSame('Hello<br />World', Str::wordWrap('Hello World', 3, '<br />'));
+        $this->assertSame('Hel<br />lo<br />Wor<br />ld', Str::wordWrap('Hello World', 3, '<br />', true));
 
-        $this->assertEquals('❤Multi<br />Byte☆❤☆❤☆❤', Str::wordWrap('❤Multi Byte☆❤☆❤☆❤', 3, '<br />'));
+        $this->assertSame('❤Multi<br />Byte☆❤☆❤☆❤', Str::wordWrap('❤Multi Byte☆❤☆❤☆❤', 3, '<br />'));
+
+        $this->assertSame('žltý kôň', Str::wordWrap('žltý kôň', 8, "\n"));
+        $this->assertSame("žltý\nkôň", Str::wordWrap('žltý kôň', 4, "\n", true));
+        $this->assertSame("žl\ntý", Str::wordWrap('žltý', 2, "\n", true));
+        $this->assertSame("😀😀\n😀😀", Str::wordWrap('😀😀😀😀', 2, "\n", true));
+        $this->assertSame("éA\x1ABé", Str::wordWrap('é é', 1, "A\x1AB"));
+        $this->assertSame('❤Mu<br />lti<br />Byt<br />e☆❤<br />☆❤☆<br />❤', Str::wordWrap('❤Multi Byte☆❤☆❤☆❤', 3, '<br />', true));
+
+        $this->assertSame("éé\néé éé", Str::wordWrap("éé\néé éé", 5, "\n"));
+        $this->assertSame('éé<br />éé éé', Str::wordWrap('éé<br />éé éé', 5, '<br />', true));
+        $this->assertSame('éé☆éé éé', Str::wordWrap('éé☆éé éé', 5, '☆'));
+        $this->assertSame("é\0\n\x1Aé", Str::wordWrap("é\0\x1Aé", 2, "\n", true));
     }
 
     public function testMarkdown(): void
@@ -2088,6 +2123,28 @@ class SupportStrTest extends TestCase
         ThrowingSequenceStr::createUlidsNormally();
     }
 
+    public function testResetFactoryState(): void
+    {
+        $uuid = Uuid::fromString('00000000-0000-0000-0000-000000000000');
+        $ulid = new Ulid('01ARZ3NDEKTSV4RRFFQ69G5FAV');
+
+        Str::macro('factoryResetMacro', fn (): bool => true);
+        Str::createRandomStringsUsing(fn (int $length): string => 'random:' . $length);
+        Str::createUuidsUsing(fn (): Uuid => $uuid);
+        Str::createUlidsUsing(fn (): Ulid => $ulid);
+
+        $this->assertSame('random:7', Str::random(7));
+        $this->assertSame((string) $uuid, (string) Str::uuid());
+        $this->assertSame((string) $ulid, (string) Str::ulid());
+
+        Str::resetFactoryState();
+
+        $this->assertNotSame('random:7', Str::random(7));
+        $this->assertNotSame((string) $uuid, (string) Str::uuid());
+        $this->assertNotSame((string) $ulid, (string) Str::ulid());
+        $this->assertTrue(Str::hasMacro('factoryResetMacro'));
+    }
+
     public function testPasswordCreation(): void
     {
         $this->assertTrue(strlen(Str::password()) === 32);
@@ -2262,6 +2319,21 @@ class SupportStrTest extends TestCase
         };
 
         $this->assertSame('UserGroups', Str::pluralPascal('UserGroup', $countable));
+    }
+
+    public function testPluralStudly(): void
+    {
+        $this->assertSame('VerifiedHumans', Str::pluralStudly('VerifiedHuman'));
+        $this->assertSame('UserFeedback', Str::pluralStudly('UserFeedback'));
+        $this->assertSame('VerifiedHuman', Str::pluralStudly('VerifiedHuman', 1));
+        $this->assertSame('VerifiedHumans', Str::pluralStudly('VerifiedHuman', 2));
+    }
+
+    public function testSingular(): void
+    {
+        $this->assertSame('child', Str::singular('children'));
+        $this->assertSame('mouse', Str::singular('mice'));
+        $this->assertSame('Laracon', Str::singular('Laracons'));
     }
 }
 

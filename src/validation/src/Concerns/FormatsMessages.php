@@ -6,10 +6,10 @@ namespace Hypervel\Validation\Concerns;
 
 use Closure;
 use Hypervel\Contracts\Validation\Validator;
-use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Number;
 use Hypervel\Support\Str;
+use Symfony\Component\HttpFoundation\File\File;
 
 trait FormatsMessages
 {
@@ -212,13 +212,11 @@ trait FormatsMessages
      */
     protected function getAttributeType(string $attribute): string
     {
-        // We assume that the attributes present in the file array are files so that
-        // means that if the attribute does not have a numeric rule and the files
-        // list doesn't have it we'll just consider it a string by elimination.
+        // Keep file-message selection consistent with sizeOf().
         return match (true) {
             $this->hasRule($attribute, $this->numericRules) => 'numeric',
             $this->hasRule($attribute, ['Array', 'List']) => 'array',
-            $this->getValue($attribute) instanceof UploadedFile => 'file',
+            $this->getValue($attribute) instanceof File => 'file',
             default => 'string',
         };
     }

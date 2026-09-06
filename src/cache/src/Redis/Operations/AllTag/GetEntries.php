@@ -38,8 +38,10 @@ class GetEntries
 
                 do {
                     $entries = $context->withConnection(
-                        function (RedisConnection $connection) use ($prefix, $tagId, &$cursor) {
-                            return $connection->zscan($prefix . $tagId, $cursor, '*', 1000);
+                        function (RedisConnection $connection) use ($prefix, $tagId, &$cursor): mixed {
+                            return $connection->withoutScanPrefix(function () use ($connection, $prefix, $tagId, &$cursor): mixed {
+                                return $connection->zscan($prefix . $tagId, $cursor, '*', 1000);
+                            });
                         }
                     );
 

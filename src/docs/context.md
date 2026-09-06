@@ -109,7 +109,7 @@ The resulting log entry would contain the information that was added to the cont
 Processing podcast. {"podcast_id":95} {"url":"https://example.com/login","trace_id":"e04e1a11-e75c-4db3-b5b5-cfef4ef56697"}
 ```
 
-Although we have focused on the built-in logging related features of Hypervel's context, the following documentation will illustrate how context allows you to share information across the HTTP request / queued job boundary and even how to add [hidden context data](#hidden-context) that is not written with log entries.
+In addition to its logging features, context allows you to share information with queued jobs, [concurrent processes](/docs/{{version}}/concurrency), and [scheduled commands](/docs/{{version}}/scheduling). You may also add [hidden context data](#hidden-context) that is not written with log entries.
 
 <a name="capturing-context"></a>
 ## Capturing Context
