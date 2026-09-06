@@ -707,7 +707,11 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function eventsAreCached(): bool
     {
-        return is_file($this->getCachedEventsPath());
+        if ($this->bound('events.cached')) {
+            return (bool) $this->make('events.cached');
+        }
+
+        return $this->instance('events.cached', is_file($this->getCachedEventsPath()));
     }
 
     /**
@@ -1357,6 +1361,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Auth\Passwords\PasswordBroker::class,
                 \Hypervel\Contracts\Auth\PasswordBroker::class,
             ],
+            'blade.compiler' => [\Hypervel\View\Compilers\BladeCompiler::class],
             'cache' => [
                 \Hypervel\Cache\CacheManager::class,
                 \Hypervel\Contracts\Cache\Factory::class,
@@ -1366,6 +1371,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Contracts\Cache\Repository::class,
                 \Psr\SimpleCache\CacheInterface::class,
             ],
+            'composer' => [\Hypervel\Support\Composer::class],
             'config' => [
                 \Hypervel\Config\Repository::class,
                 \Hypervel\Contracts\Config\Repository::class,
@@ -1375,7 +1381,6 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Contracts\Cookie\Factory::class,
                 \Hypervel\Contracts\Cookie\QueueingFactory::class,
             ],
-            'composer' => [\Hypervel\Support\Composer::class],
             'db' => [
                 \Hypervel\Database\DatabaseManager::class,
                 \Hypervel\Database\ConnectionResolverInterface::class,
@@ -1437,6 +1442,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
             'queue.failer' => [\Hypervel\Queue\Failed\FailedJobProviderInterface::class],
             'queue.listener' => [\Hypervel\Queue\Listener::class],
             'queue.worker' => [\Hypervel\Queue\Worker::class],
+            'redirect' => [
+                \Hypervel\Routing\Redirector::class,
+            ],
             'redis' => [
                 \Hypervel\Redis\RedisManager::class,
                 \Hypervel\Contracts\Redis\Factory::class,
@@ -1456,38 +1464,34 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Contracts\Routing\Registrar::class,
                 \Hypervel\Contracts\Routing\BindingRegistrar::class,
             ],
-            'redirect' => [
-                \Hypervel\Routing\Redirector::class,
+            'session' => [\Hypervel\Session\SessionManager::class],
+            'session.store' => [
+                \Hypervel\Session\Store::class,
+                \Hypervel\Contracts\Session\Session::class,
+            ],
+            'translation.loader' => [
+                \Hypervel\Translation\FileLoader::class,
+                \Hypervel\Contracts\Translation\Loader::class,
+            ],
+            'translator' => [
+                \Hypervel\Translation\Translator::class,
+                \Hypervel\Contracts\Translation\Translator::class,
             ],
             'url' => [
                 \Hypervel\Routing\UrlGenerator::class,
                 \Hypervel\Contracts\Routing\UrlGenerator::class,
             ],
+            'validation.presence' => [\Hypervel\Validation\DatabasePresenceVerifierInterface::class],
             'validator' => [
                 \Hypervel\Validation\Factory::class,
                 \Hypervel\Contracts\Validation\Factory::class,
             ],
-            'validation.presence' => [\Hypervel\Validation\DatabasePresenceVerifierInterface::class],
             'view' => [
                 \Hypervel\View\Factory::class,
                 \Hypervel\Contracts\View\Factory::class,
             ],
             'view.engine.resolver' => [\Hypervel\View\Engines\EngineResolver::class],
             'view.finder' => [\Hypervel\View\ViewFinderInterface::class],
-            'blade.compiler' => [\Hypervel\View\Compilers\BladeCompiler::class],
-            'session' => [\Hypervel\Session\SessionManager::class],
-            'session.store' => [
-                \Hypervel\Session\Store::class,
-                \Hypervel\Contracts\Session\Session::class,
-            ],
-            'translator' => [
-                \Hypervel\Translation\Translator::class,
-                \Hypervel\Contracts\Translation\Translator::class,
-            ],
-            'translation.loader' => [
-                \Hypervel\Translation\FileLoader::class,
-                \Hypervel\Contracts\Translation\Loader::class,
-            ],
         ] as $key => $aliases) {
             foreach ($aliases as $alias) {
                 $this->alias($key, $alias);
