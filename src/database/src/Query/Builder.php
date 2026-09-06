@@ -3134,9 +3134,17 @@ class Builder implements BuilderContract
      */
     public function getCountForPagination(array $columns = ['*']): int
     {
-        $results = $this->withoutFetchUsing(
-            fn () => $this->runPaginationCountQuery($columns)
-        );
+        $results = $this->withoutFetchUsing(function () use ($columns) {
+            $query = $this;
+
+            // Count preparation needs the completed clauses without consuming the page's callbacks.
+            if ($this->beforeQueryCallbacks !== []) {
+                $query = $this->clone();
+                $query->applyBeforeQueryCallbacks();
+            }
+
+            return $query->runPaginationCountQuery($columns);
+        });
 
         // Once we have run the pagination count query, we will get the resulting count and
         // take into account what type of query it was. When there is a group by we will
@@ -3165,6 +3173,7 @@ class Builder implements BuilderContract
 
             // The clone becomes an inner derived table, so its timeout belongs on the executed count statement.
             $countQuery->timeout = $clone->timeout;
+            $countQuery->useWritePdo = $clone->useWritePdo;
             $clone->timeout = null;
 
             if (is_null($clone->columns) && ! empty($this->joins)) {
@@ -3172,9 +3181,6 @@ class Builder implements BuilderContract
             }
 
             $sql = $clone->toSql();
-
-            // Compilation runs before-query callbacks, which may force the write connection.
-            $countQuery->useWritePdo = $clone->useWritePdo;
 
             // Inner bindings belong to the derived table, not outer clauses that aggregation may clear.
             return $countQuery

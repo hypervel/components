@@ -7,12 +7,14 @@ namespace Hypervel\Tests\Database;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\Grammars\Grammar;
+use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 
 class DatabaseQueryBuilderPaginationTest extends TestCase
 {
@@ -50,6 +52,103 @@ class DatabaseQueryBuilderPaginationTest extends TestCase
     {
         yield 'reader' => [false, 1];
         yield 'writer' => [true, 2];
+    }
+
+    public function testCallbackGroupingIsAppliedBeforeChoosingTheCountQuery(): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
+        $connection->unprepared('create table events (tenant_id integer)');
+        $connection->unprepared('insert into events values (1), (2), (2)');
+        $callbackCalls = 0;
+        $query = $connection->table('events')->select('tenant_id')->fetchUsing(PDO::FETCH_ASSOC)
+            ->beforeQuery(function (Builder $query) use (&$callbackCalls): void {
+                ++$callbackCalls;
+                $query->groupBy('tenant_id')->orderBy('tenant_id')->fetchUsing(PDO::FETCH_COLUMN);
+            });
+
+        $this->assertSame(2, $query->getCountForPagination());
+        $this->assertSame(1, $callbackCalls);
+        $this->assertNull($query->groups);
+        $this->assertNull($query->orders);
+        $this->assertSame([PDO::FETCH_ASSOC], $query->fetchUsing);
+        $this->assertCount(1, $query->beforeQueryCallbacks);
+        $this->assertSame([1, 2], $query->get()->all());
+        $this->assertSame(2, $callbackCalls);
+        $this->assertSame([], $query->beforeQueryCallbacks);
+    }
+
+    public function testPlainCountRemovesCallbackSuppliedProjectionOrderingAndPagination(): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
+        $connection->unprepared('create table events (tenant_id integer)');
+        $connection->unprepared('insert into events values (1), (2), (2)');
+        $connection->enableQueryLog();
+        $query = $connection->table('events')->where('tenant_id', '>', 0)
+            ->beforeQuery(function (Builder $query): void {
+                $query->selectRaw('tenant_id + ? as bucket', [10])
+                    ->orderByRaw('tenant_id + ?', [20])->limit(1)->offset(1);
+            });
+
+        $this->assertSame(3, $query->getCountForPagination());
+        $this->assertSame('select count(*) as "aggregate" from "events" where "tenant_id" > ?', $connection->getQueryLog()[0]['query']);
+        $this->assertSame([0], $connection->getQueryLog()[0]['bindings']);
+        $this->assertNull($query->columns);
+        $this->assertNull($query->orders);
+        $this->assertNull($query->limit);
+        $this->assertNull($query->offset);
+        $this->assertSame([0], $query->getBindings());
+        $this->assertCount(1, $query->beforeQueryCallbacks);
+    }
+
+    public function testGroupedCountTransfersCallbackTimeoutAndRoutingToTheOuterStatement(): void
+    {
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getTablePrefix')->andReturn('');
+        $query = new Builder($connection, new MySqlGrammar($connection), new Processor);
+        $query->from('events')->groupBy('tenant_id')->beforeQuery(function (Builder $query): void {
+            $query->timeout(5)->useWritePdo();
+        });
+        $connection->shouldReceive('select')->once()->with(
+            'select /*+ MAX_EXECUTION_TIME(5000) */ count(*) as `aggregate` from (select * from `events` group by `tenant_id`) as `aggregate_table`',
+            [],
+            false,
+            [],
+        )->andReturn([['aggregate' => 2]]);
+
+        $this->assertSame(2, $query->getCountForPagination());
+        $this->assertNull($query->timeout);
+        $this->assertFalse($query->useWritePdo);
+        $this->assertCount(1, $query->beforeQueryCallbacks);
+    }
+
+    public function testCallbackFailurePreservesIdentityAndRestoresTheOriginalFetchMode(): void
+    {
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getTablePrefix')->andReturn('');
+        $query = new Builder($connection, new Grammar($connection), new Processor);
+        $exception = new RuntimeException('Cannot prepare the query.');
+        $query->from('events')->select('tenant_id')->fetchUsing(PDO::FETCH_COLUMN)
+            ->beforeQuery(static function () use ($exception): never {
+                throw $exception;
+            });
+
+        try {
+            $query->getCountForPagination();
+            $this->fail('The before-query exception was not thrown.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertCount(1, $query->beforeQueryCallbacks);
+        $this->assertSame([PDO::FETCH_COLUMN], $query->fetchUsing);
+        $query->beforeQueryCallbacks = [];
+        $connection->shouldReceive('select')->once()->with(
+            'select "tenant_id" from "events"',
+            [],
+            true,
+            [PDO::FETCH_COLUMN],
+        )->andReturn([1, 2]);
+        $this->assertSame([1, 2], $query->get()->all());
     }
 
     #[DataProvider('tablePrefixes')]
