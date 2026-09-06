@@ -396,6 +396,7 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
             $name = strtolower($name);
             $result = $this->executeCommand($name, $arguments);
         } catch (RedisException|RedisClusterException $exception) {
+            // REMOVED: Laravel's command retry loop can replay writes Redis already committed.
             if ($this->shouldInvalidateAfter($exception)) {
                 $this->markInvalid();
             }
@@ -969,12 +970,9 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
             return true;
         }
 
-        if (! ($this->config['sentinel']['enabled'] ?? false)) {
-            return false;
-        }
-
         $errorCode = explode(' ', $exception->getMessage(), 2)[0];
 
+        // Managed primary endpoints can fail over without Sentinel; reopen to resolve the current primary.
         return in_array($errorCode, ['READONLY', 'MASTERDOWN'], true);
     }
 
