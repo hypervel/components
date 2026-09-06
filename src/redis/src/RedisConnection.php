@@ -1832,8 +1832,8 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
      * The connection must be held with transform disabled so SCAN retains its
      * native phpredis cursor and result shape.
      *
-     * @param string $pattern The pattern to match (e.g., "cache:users:*").
-     *                        Should NOT include OPT_PREFIX - it's handled automatically.
+     * @param string $pattern The logical key pattern (e.g., "cache:users:*"). OPT_PREFIX is added automatically;
+     *                        the pattern is preserved even when it starts with the same bytes as OPT_PREFIX.
      * @param int $count The COUNT hint for SCAN (not a limit, just a hint to Redis)
      * @return Generator<string> Yields keys with OPT_PREFIX stripped
      */
@@ -1857,8 +1857,8 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
      * Uses SCAN to iterate keys efficiently and deletes them in batches.
      * Correctly handles OPT_PREFIX to avoid the double-prefixing bug.
      *
-     * @param string $pattern The pattern to match (e.g., "cache:test:*").
-     *                        Should NOT include OPT_PREFIX - it's handled automatically.
+     * @param string $pattern The logical key pattern (e.g., "cache:test:*"). OPT_PREFIX is added automatically;
+     *                        the pattern is preserved even when it starts with the same bytes as OPT_PREFIX.
      * @return int Number of keys deleted
      *
      * @throws RedisException
