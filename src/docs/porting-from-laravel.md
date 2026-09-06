@@ -13,7 +13,6 @@
 - [Service Providers](#service-providers)
     - [Registering Bindings](#registering-bindings)
     - [Bootstrapping Services](#bootstrapping-services)
-    - [Conditional Providers](#conditional-providers)
     - [Deferred Providers](#deferred-providers)
 - [Coroutine Safety](#coroutine-safety)
     - [Request-Specific State](#request-specific-state)
@@ -308,23 +307,6 @@ public function boot(): void
 
 Do not store request-specific state on service provider properties. When serving HTTP requests, the application registers and boots its providers once before the server workers are forked, not once per request.
 
-<a name="conditional-providers"></a>
-### Conditional Providers
-
-Hypervel service providers may override the `isEnabled` method to opt out of registration based on configuration, environment, or feature flags. When this method returns `false`, the provider's `register` and `boot` methods will not be called:
-
-```php
-/**
- * Determine whether this provider should be registered and booted.
- */
-public function isEnabled(): bool
-{
-    return config()->boolean('courier.enabled', false);
-}
-```
-
-Hypervel calls `isEnabled` before the provider's `register` method. Configuration merged by that provider is not available yet, so this method may only read configuration already loaded by the application or framework. The fallback above is intentional because an unpublished package option may be absent.
-
 <a name="deferred-providers"></a>
 ### Deferred Providers
 
@@ -564,6 +546,8 @@ When a package constructs `DatabaseStore`, `DatabaseSessionHandler`, `DatabaseQu
 
 Laravel's base `Connection` class exposes PDO methods. Hypervel's base `Connection` is driver-neutral, while its built-in SQL connections extend `PdoConnection`. Ported code that calls `getPdo`, `getReadPdo`, or another PDO-specific method should accept or narrow to `PdoConnection`. See [extending database connections](/docs/{{version}}/database#extending-database-connections) when porting a custom driver.
 
+Custom query builders overriding `newQuery`, `forNestedWhere`, or `cloneForPaginationCount` must declare `static` returns and preserve the concrete builder class. Keep `forSubQuery` separate: join subqueries return the parent query builder. See the [database extension guide](/docs/{{version}}/database#extending-database-connections) for these return contracts.
+
 Laravel's nested `direct` connection endpoint and `::direct` suffix are not available. Configure the direct endpoint as a normal named connection and point the pooled connection's `migrations_connection` option at it.
 
 Model casts are not applied to direct query builder operations or Eloquent key helpers. When ported code passes already-encoded binary strings to query builder `where`, bulk `update`, or `upsert` calls, or to Eloquent `find`, `whereKey`, or `whereKeyNot`, wrap them in `Hypervel\Database\BinaryParameter`. See [binding binary values](/docs/{{version}}/database#binding-binary-values) and [binary casting](/docs/{{version}}/eloquent-mutators#binary-casting).
@@ -584,7 +568,7 @@ Hypervel provides Redis, database, file, filesystem storage, Swoole table, sessi
 
 For local in-memory caching, use the [Swoole table cache](/docs/{{version}}/cache#swoole-table-cache). A Swoole table is shared by the workers on one application node. For applications running across several nodes, the [stack cache](/docs/{{version}}/cache#building-cache-stacks) may combine a short-lived Swoole L1 cache with a shared Redis L2 cache. `Cache::memo()` may also wrap a store with per-coroutine memoization at runtime.
 
-The Redis cache store supports two tag modes. The default `all` mode follows Laravel's classic tagged-cache behavior. In `any` mode, tags are invalidation indexes: retrieve values by their plain keys, and flushing any one assigned tag removes the value. Review the [Redis tag mode documentation](/docs/{{version}}/cache#redis-tag-modes) before changing `REDIS_CACHE_TAG_MODE`.
+If your application uses Redis cache tags, review [Redis Tag Modes](/docs/{{version}}/cache#redis-tag-modes) before porting. Hypervel's tagged-cache storage is not interchangeable with Laravel's.
 
 Custom cache tag sets must declare `TagSet::reset(): bool` and `TagSet::flush(): bool`. Hypervel uses these results to report a rejected tagged flush instead of returning unconditional success. Custom `VersionedTagSet` subclasses should override `writeTagId()` for bulk reset persistence; `resetTag()` keeps returning the generated identifier.
 
