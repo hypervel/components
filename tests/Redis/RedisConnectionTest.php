@@ -183,6 +183,24 @@ class RedisConnectionTest extends TestCase
         $connection->release();
     }
 
+    public function testReleaseDiscardsAnInvalidatedTransactionWithoutReportingAbandonment(): void
+    {
+        $logger = m::mock(StdoutLoggerInterface::class);
+        $logger->shouldNotReceive('log');
+        $container = $this->getContainer();
+        $container->instance(StdoutLoggerInterface::class, $logger);
+        $pool = $this->getMockedPool();
+        $pool->expects('discard')->with(m::type(RedisConnection::class));
+        $pool->shouldNotReceive('release');
+        $redis = m::mock(Redis::class);
+        $redis->expects('getMode')->andReturn(Redis::MULTI);
+        $connection = $this->mockRedisConnection(container: $container, pool: $pool);
+        $connection->setActiveConnection($redis);
+        $connection->invalidate();
+
+        $connection->release();
+    }
+
     public function testReleaseDiscardsAConnectionInPipelineMode(): void
     {
         $pool = $this->getMockedPool();

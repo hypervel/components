@@ -795,18 +795,21 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
         }
 
         if ($queueing || $this->watching) {
-            try {
-                $this->log(
-                    $queueing
-                        ? 'Discarding Redis connection left in MULTI or PIPELINE mode.'
-                        : 'Discarding Redis connection left in WATCH state.',
-                    LogLevel::CRITICAL
-                );
-            } catch (CanceledException $cancellation) {
-                // Native close must not start while cancellation is unwinding.
-                $this->releaseAfterCancellation($cancellation);
-            } catch (Throwable) {
-                // Reporting must not prevent terminal ownership cleanup.
+            // An invalidated operation is undergoing failure cleanup, not silently abandoning its state.
+            if (! $this->invalid) {
+                try {
+                    $this->log(
+                        $queueing
+                            ? 'Discarding Redis connection left in MULTI or PIPELINE mode.'
+                            : 'Discarding Redis connection left in WATCH state.',
+                        LogLevel::CRITICAL
+                    );
+                } catch (CanceledException $cancellation) {
+                    // Native close must not start while cancellation is unwinding.
+                    $this->releaseAfterCancellation($cancellation);
+                } catch (Throwable) {
+                    // Reporting must not prevent terminal ownership cleanup.
+                }
             }
 
             $this->resetReleaseState(false);

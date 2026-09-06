@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Redis;
 
+use Exception;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
@@ -1093,6 +1094,148 @@ class RedisProxyIntegrationTest extends TestCase
             $redis->del("concurrent_transaction_test_{$i}");
             $redis->del("concurrent_transaction_test_{$i}_counter");
         }
+    }
+
+    public function testItKeepsTheConnectionUsableWhenATransactionFails(): void
+    {
+        foreach ($this->connections() as $redis) {
+            $redis->set('name', 'taylor');
+            $exception = new Exception('Something went wrong.');
+
+            try {
+                $redis->transaction(function (PhpRedis $transaction) use ($exception): never {
+                    $transaction->set('name', 'mohamed');
+
+                    throw $exception;
+                });
+                $this->fail('Expected the transaction callback exception to propagate.');
+            } catch (Exception $caught) {
+                $this->assertSame($exception, $caught);
+            }
+
+            $this->assertSame('taylor', $redis->get('name'));
+        }
+    }
+
+    public function testItKeepsTheConnectionUsableWhenAPipelineFails(): void
+    {
+        foreach ($this->connections() as $redis) {
+            $redis->set('name', 'taylor');
+            $exception = new Exception('Something went wrong.');
+
+            try {
+                $redis->pipeline(function (PhpRedis $pipeline) use ($exception): never {
+                    $pipeline->set('name', 'mohamed');
+
+                    throw $exception;
+                });
+                $this->fail('Expected the pipeline callback exception to propagate.');
+            } catch (Exception $caught) {
+                $this->assertSame($exception, $caught);
+            }
+
+            $this->assertSame('taylor', $redis->get('name'));
+        }
+    }
+
+    /**
+     * Get the configured PhpRedis connection variants.
+     *
+     * @return array<string, RedisProxy>
+     */
+    public function connections(): array
+    {
+        $connections = ['phpredis' => Redis::connection()];
+        $default = config('database.redis.default');
+        $configurations = [
+            'url' => [
+                'url' => "redis://{$default['host']}:{$default['port']}",
+                'host' => 'overwrittenByUrl',
+                'port' => 'overwrittenByUrl',
+                'options' => ['prefix' => 'hypervel:'],
+            ],
+            // The connection pool owns persistence instead of native pconnect().
+            'pooled' => [
+                'options' => ['prefix' => 'hypervel:'],
+            ],
+            'serializer_json' => [
+                'options' => ['serializer' => PhpRedis::SERIALIZER_JSON],
+            ],
+            'scan_retry' => [
+                'options' => ['scan' => PhpRedis::SCAN_RETRY],
+            ],
+        ];
+
+        if (defined('Redis::COMPRESSION_LZF')) {
+            $configurations['compression_lzf'] = [
+                'name' => 'compression_lzf',
+                'options' => ['compression' => PhpRedis::COMPRESSION_LZF],
+            ];
+        }
+
+        if (defined('Redis::COMPRESSION_ZSTD')) {
+            $configurations['compression_zstd'] = [
+                'name' => 'compression_zstd',
+                'options' => ['compression' => PhpRedis::COMPRESSION_ZSTD],
+            ];
+            $configurations['compression_zstd_default'] = [
+                'name' => 'compression_zstd_default',
+                'options' => [
+                    'compression' => PhpRedis::COMPRESSION_ZSTD,
+                    'compression_level' => PhpRedis::COMPRESSION_ZSTD_DEFAULT,
+                ],
+            ];
+            $configurations['compression_zstd_max'] = [
+                'name' => 'compression_zstd_max',
+                'options' => [
+                    'compression' => PhpRedis::COMPRESSION_ZSTD,
+                    'compression_level' => PhpRedis::COMPRESSION_ZSTD_MAX,
+                ],
+            ];
+        }
+
+        if (defined('Redis::COMPRESSION_LZ4')) {
+            $configurations['compression_lz4'] = [
+                'name' => 'compression_lz4',
+                'options' => ['compression' => PhpRedis::COMPRESSION_LZ4],
+            ];
+            $configurations['compression_lz4_default'] = [
+                'name' => 'compression_lz4_default',
+                'options' => [
+                    'compression' => PhpRedis::COMPRESSION_LZ4,
+                    'compression_level' => 0,
+                ],
+            ];
+            $configurations['compression_lz4_min'] = [
+                'name' => 'compression_lz4_min',
+                'options' => [
+                    'compression' => PhpRedis::COMPRESSION_LZ4,
+                    'compression_level' => 1,
+                ],
+            ];
+            $configurations['compression_lz4_max'] = [
+                'name' => 'compression_lz4_max',
+                'options' => [
+                    'compression' => PhpRedis::COMPRESSION_LZ4,
+                    'compression_level' => 12,
+                ],
+            ];
+        }
+
+        foreach ($configurations as $name => $configuration) {
+            $connectionName = $this->createRedisConnectionWithOptions('test_' . $name, $configuration['options']);
+            config([
+                "database.redis.{$connectionName}" => array_replace(
+                    config("database.redis.{$connectionName}"),
+                    $configuration,
+                    ['timeout' => 0.5],
+                ),
+            ]);
+
+            $connections[$name] = Redis::connection($connectionName);
+        }
+
+        return $connections;
     }
 
     /**
