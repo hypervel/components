@@ -4,26 +4,27 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Auth;
 
-use Hypervel\Auth\Events\PasswordResetLinkSent;
 use Hypervel\Auth\Notifications\ResetPassword;
-use Hypervel\Contracts\Auth\PasswordBroker as PasswordBrokerContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Routing\Router;
-use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Notification;
 use Hypervel\Support\Facades\Password;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Integration\Auth\Fixtures\AuthTestUser;
 use Override;
+use Symfony\Component\Routing\Exception\RouteNotFoundException;
 
 #[WithMigration]
-class ForgotPasswordTest extends TestCase
+class ForgotPasswordWithoutDefaultRoutesTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * Define the password broker test environment.
+     */
     #[Override]
     protected function defineEnvironment(ApplicationContract $app): void
     {
@@ -38,21 +39,19 @@ class ForgotPasswordTest extends TestCase
     }
 
     /**
-     * Define the password reset routes.
+     * Define the custom password reset route.
      */
     protected function defineRoutes(Router $router): void
     {
-        $router->get('password/reset/{token}', function (string $token): string {
-            return 'Reset password!';
-        })->name('password.reset');
-
         $router->get('custom/password/reset/{token}', function (string $token): string {
             return 'Custom reset password!';
         })->name('custom.password.reset');
     }
 
-    public function testItCanSendForgotPasswordEmail(): void
+    public function testItCannotSendForgotPasswordEmail(): void
     {
+        $this->expectExceptionObject(new RouteNotFoundException('Route [password.reset] not defined.'));
+
         Notification::fake();
 
         $user = $this->createUser();
@@ -67,26 +66,9 @@ class ForgotPasswordTest extends TestCase
                 $message = $notification->toMail($user);
 
                 return $notification->token !== ''
-                    && $message->actionUrl === route('password.reset', ['token' => $notification->token, 'email' => $user->email]);
+                    && $message->actionUrl === route('custom.password.reset', ['token' => $notification->token, 'email' => $user->email]);
             }
         );
-    }
-
-    public function testItCanTriggerPasswordResetSentEvent(): void
-    {
-        Event::fake([PasswordResetLinkSent::class]);
-
-        $user = $this->createUser();
-
-        Password::broker()->sendResetLink([
-            'email' => $user->email,
-        ]);
-
-        Event::assertDispatched(PasswordResetLinkSent::class, function (PasswordResetLinkSent $event) use ($user): bool {
-            $this->assertSame($user->getAuthIdentifier(), $event->user->getAuthIdentifier());
-
-            return true;
-        });
     }
 
     public function testItCanSendForgotPasswordEmailViaCreateUrlUsing(): void
@@ -141,52 +123,6 @@ class ForgotPasswordTest extends TestCase
                     && $message->actionUrl === route('custom.password.reset', ['token' => $notification->token]);
             }
         );
-    }
-
-    public function testResolvedBrokerFollowsEventFakesAndTheirRestoration(): void
-    {
-        Notification::fake();
-
-        $user = $this->createUser();
-        $broker = Password::broker();
-        $receivedUserIds = [];
-
-        Event::listen(PasswordResetLinkSent::class, function (PasswordResetLinkSent $event) use (&$receivedUserIds): void {
-            $receivedUserIds[] = $event->user->getAuthIdentifier();
-        });
-
-        Event::fakeFor(function () use ($broker, $user): void {
-            $this->assertSame(
-                PasswordBrokerContract::RESET_LINK_SENT,
-                $broker->sendResetLink(['email' => $user->email]),
-            );
-
-            Event::assertDispatched(PasswordResetLinkSent::class);
-        }, [PasswordResetLinkSent::class]);
-
-        $this->assertSame([], $receivedUserIds);
-        $this->assertSame(
-            PasswordBrokerContract::RESET_LINK_SENT,
-            $broker->sendResetLink(['email' => $user->email]),
-        );
-        $this->assertSame([$user->getAuthIdentifier()], $receivedUserIds);
-
-        Notification::assertSentTo(
-            $user,
-            ResetPassword::class,
-            fn (ResetPassword $notification): bool => $notification->token !== '',
-        );
-    }
-
-    public function testEventSwapDoesNotResolveAnUnusedPasswordManagerOrBroker(): void
-    {
-        $this->assertFalse($this->app->resolved('auth.password'));
-        $this->assertFalse($this->app->resolved('auth.password.broker'));
-
-        Event::fake();
-
-        $this->assertFalse($this->app->resolved('auth.password'));
-        $this->assertFalse($this->app->resolved('auth.password.broker'));
     }
 
     /**
