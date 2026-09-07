@@ -849,7 +849,7 @@ class Validator implements ValidatorContract
                 [$idColumn, $ignore] = $this->getUniqueIds($modelIdColumn, $parameters);
 
                 if ($ignore !== null) {
-                    $ignore = stripslashes((string) $ignore);
+                    $ignore = (string) $ignore;
                 }
             }
             if (isset($parameters[4])) {

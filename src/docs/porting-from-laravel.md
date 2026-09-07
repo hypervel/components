@@ -25,6 +25,7 @@
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
     - [Scout](#scout)
     - [JSON Schema](#json-schema)
+    - [Validation](#validation)
     - [Data Objects](#data-objects)
     - [Rate Limiting](#rate-limiting)
     - [Pagination](#pagination)
@@ -499,6 +500,11 @@ Hypervel compiles integer and float values passed to Scout's Algolia `where`, `w
 ### JSON Schema
 
 When porting schemas that place sibling assertions beside a local `$ref` or use nullable composition, make overlapping assertions identical. Hypervel rejects conflicts instead of silently replacing referenced constraints. See the [JSON Schema documentation](/docs/{{version}}/json-schema#reconstructing-schemas).
+
+<a name="validation"></a>
+### Validation
+
+Handwritten validation parameters use standard CSV quoting. Replace backslash-escaped quotes inside quoted parameters with doubled quotes; backslashes are literal. Fluent rule builders handle quoting for you. See [rule parameters](/docs/{{version}}/validation#rule-parameters).
 
 <a name="data-objects"></a>
 ### Data Objects

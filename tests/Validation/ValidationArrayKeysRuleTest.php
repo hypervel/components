@@ -20,27 +20,27 @@ class ValidationArrayKeysRuleTest extends TestCase
     {
         $rule = Rule::arrayKeys('key_1', 'key_2', 'key_3');
 
-        $this->assertSame('array_keys:key_1,key_2,key_3', (string) $rule);
+        $this->assertSame('array_keys:"key_1","key_2","key_3"', (string) $rule);
 
         $rule = Rule::arrayKeys(['key_1', 'key_2', 'key_3']);
 
-        $this->assertSame('array_keys:key_1,key_2,key_3', (string) $rule);
+        $this->assertSame('array_keys:"key_1","key_2","key_3"', (string) $rule);
 
         $rule = Rule::arrayKeys(collect(['key_1', 'key_2', 'key_3']));
 
-        $this->assertSame('array_keys:key_1,key_2,key_3', (string) $rule);
+        $this->assertSame('array_keys:"key_1","key_2","key_3"', (string) $rule);
 
         $rule = Rule::arrayKeys([ArrayKeys::key_1, ArrayKeys::key_2, ArrayKeys::key_3]);
 
-        $this->assertSame('array_keys:key_1,key_2,key_3', (string) $rule);
+        $this->assertSame('array_keys:"key_1","key_2","key_3"', (string) $rule);
 
         $rule = Rule::arrayKeys([ArrayKeysBacked::Key1, ArrayKeysBacked::Key2, ArrayKeysBacked::Key3]);
 
-        $this->assertSame('array_keys:key_1,key_2,key_3', (string) $rule);
+        $this->assertSame('array_keys:"key_1","key_2","key_3"', (string) $rule);
 
         $rule = Rule::arrayKeys([1, 2, 3]);
 
-        $this->assertSame('array_keys:1,2,3', (string) $rule);
+        $this->assertSame('array_keys:"1","2","3"', (string) $rule);
     }
 
     public function testArrayKeysValidation(): void
@@ -155,6 +155,10 @@ class ValidationArrayKeysRuleTest extends TestCase
 
     #[TestWith(['a.b'])]
     #[TestWith(['a*b'])]
+    #[TestWith(['a,b'])]
+    #[TestWith(['a"b'])]
+    #[TestWith(['a\\'])]
+    #[TestWith(['a\"b'])]
     public function testArrayKeysAcceptsLiteralKeys(string $key): void
     {
         $validator = new Validator(
@@ -164,6 +168,17 @@ class ValidationArrayKeysRuleTest extends TestCase
         );
 
         $this->assertTrue($validator->passes());
+    }
+
+    public function testArrayKeysDoesNotAcceptPartsOfCommaSeparatedLiteralKeys(): void
+    {
+        $validator = new Validator(
+            new Translator(new ArrayLoader, 'en'),
+            ['options' => ['a' => 1, 'b' => 2]],
+            ['options' => Rule::arrayKeys('a,b')],
+        );
+
+        $this->assertTrue($validator->fails());
     }
 
     #[TestWith(['options', 'options'])]

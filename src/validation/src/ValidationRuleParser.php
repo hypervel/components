@@ -89,7 +89,8 @@ class ValidationRuleParser
 
         if (is_object($rule)) {
             if ($rule instanceof Date || $rule instanceof Numeric || $rule instanceof StringRule) {
-                return explode('|', (string) $rule);
+                // Composite rules already separate constraints; literal parameters may contain pipes.
+                return $rule->toArray();
             }
 
             return Arr::wrap($this->prepareRule($rule, $attribute));
@@ -99,7 +100,7 @@ class ValidationRuleParser
 
         foreach ($rule as $value) {
             if ($value instanceof Date || $value instanceof Numeric || $value instanceof StringRule) {
-                $rules = array_merge($rules, explode('|', (string) $value));
+                $rules = array_merge($rules, $value->toArray());
             } else {
                 $rules[] = $this->prepareRule($value, $attribute);
             }
@@ -421,7 +422,8 @@ class ValidationRuleParser
      */
     protected static function parseParameters(string $rule, string $parameter): array
     {
-        return static::ruleIsRegex($rule) ? [$parameter] : str_getcsv($parameter, escape: '\\');
+        // Builders use doubled quotes; a backslash escape corrupts trailing backslashes.
+        return static::ruleIsRegex($rule) ? [$parameter] : str_getcsv($parameter, escape: '');
     }
 
     /**

@@ -35,7 +35,7 @@ class ArrayKeys implements Stringable
     public function __toString(): string
     {
         $keys = array_map(
-            static fn ($key) => enum_value($key),
+            static fn ($key): string => '"' . str_replace('"', '""', (string) enum_value($key)) . '"',
             $this->keys,
         );
 

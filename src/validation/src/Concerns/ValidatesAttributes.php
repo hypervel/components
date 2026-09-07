@@ -1066,7 +1066,7 @@ trait ValidatesAttributes
             [$idColumn, $id] = $this->getUniqueIds($idColumn, $parameters);
 
             if (! is_null($id)) {
-                $id = stripslashes((string) $id);
+                $id = (string) $id;
             }
         }
 

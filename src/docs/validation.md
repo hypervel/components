@@ -147,6 +147,22 @@ $validatedData = $request->validateWithBag('post', [
 ]);
 ```
 
+<a name="rule-parameters"></a>
+#### Rule Parameters
+
+Fluent rule builders quote parameter values for you. When writing a rule string yourself, enclose values containing commas or quotes in double quotes and double any quotes within the value. Backslashes are preserved literally:
+
+```php
+use Hypervel\Validation\Rule;
+
+$request->validate([
+    'name' => [Rule::in(['Taylor, "Otwell"'])],
+    'alias' => ['in:"Taylor, ""Otwell"""'],
+]);
+```
+
+If a parameter contains `|`, use a rule object or an array of individual rules instead of joining the rules into a single string. Regular expression parameters retain their regular expression syntax.
+
 <a name="stopping-on-first-validation-failure"></a>
 #### Stopping on First Validation Failure
 
