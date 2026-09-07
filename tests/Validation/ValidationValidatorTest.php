@@ -5880,6 +5880,32 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
+    public function testNumericKeysUseCustomMessageArrays(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['Taylor', ''],
+            ['*' => 'required'],
+            ['1' => ['required' => 'Second item required.']],
+        );
+
+        $this->assertSame('Second item required.', $validator->errors()->first('1'));
+    }
+
+    public function testNumericKeysUseExactAndWildcardAttributeNames(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['', ''],
+            ['*' => 'required'],
+            ['required' => 'Required :attribute.'],
+            ['0' => 'First item', '*' => 'Other item'],
+        );
+
+        $this->assertSame('Required First item.', $validator->errors()->first('0'));
+        $this->assertSame('Required Other item.', $validator->errors()->first('1'));
+    }
+
     public function testMergeRules()
     {
         $trans = $this->getArrayTranslator();
@@ -7949,13 +7975,111 @@ class ValidationValidatorTest extends TestCase
         $this->assertSame('Version: Invalid version', $validator->errors()->first($attribute));
     }
 
+    #[TestWith(['inline'])]
+    #[TestWith(['fallback'])]
+    #[TestWith(['translation'])]
+    #[TestWith(['flat_translation'])]
+    public function testWildcardMessagesDoNotSplitLiteralKeys(string $source): void
+    {
+        $translator = new Translator(new ArrayLoader, 'en');
+        $messages = ['foo.*.required' => 'Nested message.', 'required' => 'Default message.'];
+
+        if ($source !== 'fallback') {
+            $translator->addLines(['validation.required' => 'Default message.'], 'en');
+        }
+
+        if ($source === 'translation') {
+            $translator->addLines(['validation.custom.foo.*.required' => 'Nested message.'], 'en');
+        } elseif ($source === 'flat_translation') {
+            $translator->addLines(['validation.custom' => ['foo.*.required' => 'Nested message.']], 'en');
+        }
+
+        foreach ([true, false] as $literal) {
+            $validator = new Validator(
+                $translator,
+                $literal ? ['foo.bar' => ''] : ['foo' => ['bar' => '']],
+                [$literal ? 'foo\.bar' : 'foo.bar' => 'required'],
+                $source === 'inline' ? $messages : [],
+            );
+
+            if ($source === 'fallback') {
+                $validator->setFallbackMessages($messages);
+            }
+
+            $this->assertSame(
+                $literal ? 'Default message.' : 'Nested message.',
+                $validator->errors()->first(),
+            );
+        }
+    }
+
+    #[TestWith(['inline'])]
+    #[TestWith(['translation'])]
+    public function testWildcardAttributesDoNotSplitLiteralKeys(string $source): void
+    {
+        $translator = new Translator(new ArrayLoader, 'en');
+        $translator->addLines(['validation.required' => 'Required :attribute.'], 'en');
+
+        if ($source === 'translation') {
+            $translator->addLines(['validation.attributes.foo.*' => 'Nested label'], 'en');
+        }
+
+        foreach ([true, false] as $literal) {
+            $validator = new Validator(
+                $translator,
+                $literal ? ['foo.bar' => ''] : ['foo' => ['bar' => '']],
+                [$literal ? 'foo\.bar' : 'foo.bar' => 'required'],
+                attributes: $source === 'inline' ? ['foo.*' => 'Nested label'] : [],
+            );
+
+            $this->assertSame(
+                $literal ? 'Required foo.bar.' : 'Required Nested label.',
+                $validator->errors()->first(),
+            );
+        }
+    }
+
+    #[TestWith(['items.list.*', ['items.list' => ['']], 'items\.list.*'])]
+    #[TestWith(['items.list.*', ['items' => ['list' => ['']]], 'items.list.*'])]
+    #[TestWith(['*', ['foo.bar' => ''], 'foo\.bar'])]
+    #[TestWith(['foo*bar', ['foo.bar' => ''], 'foo\.bar'])]
+    #[TestWith(['user*', ['username' => ''], 'username'])]
+    #[TestWith(['*name', ['username' => ''], 'username'])]
+    #[TestWith(['user*.email', ['user1' => ['email' => '']], 'user1.email'])]
+    #[TestWith(['settings*version', ['settings*version' => ''], 'settings\*version'])]
+    public function testWildcardMessagesAndLabelsPreserveLiteralSegments(string $pattern, array $data, string $attribute): void
+    {
+        $validator = new Validator(
+            new Translator(new ArrayLoader, 'en'),
+            $data,
+            [$attribute => 'required'],
+            [$pattern . '.required' => 'Required :attribute.'],
+            [$pattern => 'Custom label'],
+        );
+
+        $this->assertSame('Required Custom label.', $validator->errors()->first());
+    }
+
+    #[TestWith(['items.list.*.required', ['items.list' => ['']], 'items\.list.*'])]
+    #[TestWith(['a.*.required', ['a' => ['b' => ['c' => '']]], 'a.b.c'])]
+    #[TestWith(['a.*.required', ['a' => ["line\nbreak" => '']], "a.line\nbreak"])]
+    public function testTranslatedWildcardMessagesPreserveLiteralAndNestedSegments(string $pattern, array $data, string $attribute): void
+    {
+        $translator = new Translator(new ArrayLoader, 'en');
+        $translator->addLines(['validation.custom' => [$pattern => 'Custom message.']], 'en');
+
+        $validator = new Validator($translator, $data, [$attribute => 'required']);
+
+        $this->assertSame('Custom message.', $validator->errors()->first());
+    }
+
     public function testLiteralWildcardSegmentsPreserveLabelsAndPositions(): void
     {
         $validator = new Validator(
             $this->getArrayTranslator(),
             ['versions' => ['1.2' => [3 => 'invalid']]],
             ['versions.*.*' => 'integer'],
-            ['integer' => ':attribute: :index / :position / :second-index'],
+            ['versions.*.*.integer' => ':attribute: :index / :position / :second-index'],
             ['versions.*.*' => 'Version'],
         );
 
@@ -7999,6 +8123,7 @@ class ValidationValidatorTest extends TestCase
 
     #[TestWith(['inline'])]
     #[TestWith(['translation'])]
+    #[TestWith(['flat_translation'])]
     public function testLiteralFieldMessagesRetainTheirNumericType(string $source): void
     {
         $translator = $this->getArrayTranslator();
@@ -8006,6 +8131,8 @@ class ValidationValidatorTest extends TestCase
 
         if ($source === 'translation') {
             $translator->addLines(['validation.custom.value.amount.min.numeric' => 'Numeric minimum.'], 'en');
+        } elseif ($source === 'flat_translation') {
+            $translator->addLines(['validation.custom' => ['value.amount.min.numeric' => 'Numeric minimum.']], 'en');
         }
 
         $validator = new Validator(

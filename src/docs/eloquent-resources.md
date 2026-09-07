@@ -1053,6 +1053,8 @@ If an attribute is expensive to calculate, you may return it from `toAttributes`
 Or, for full control over the resource's attributes, you may override the `toAttributes` method on the resource:
 
 ```php
+use Hypervel\Http\Request;
+
 /**
  * Get the resource's attributes.
  *
@@ -1100,6 +1102,8 @@ public array $relationships = [
 Alternatively, you may override the `toRelationships` method on the resource:
 
 ```php
+use Hypervel\Http\Request;
+
 /**
  * Get the resource's relationships.
  */
@@ -1200,6 +1204,8 @@ By default, the resource's `type` is derived from the resource class name. For e
 If you need to customize these values, you may override the `toType` and `toId` methods on your resource:
 
 ```php
+use Hypervel\Http\Request;
+
 /**
  * Get the resource's type.
  */
@@ -1257,6 +1263,8 @@ return $post->load('author', 'comments')
 You may add links and meta information to your JSON:API resource objects by overriding the `toLinks` and `toMeta` methods on the resource:
 
 ```php
+use Hypervel\Http\Request;
+
 /**
  * Get the resource's links.
  */

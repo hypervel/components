@@ -31,7 +31,7 @@ trait FormatsMessages
 
         $lowerRule = Str::snake($rule);
 
-        $customKey = 'validation.custom.' . $this->replacePlaceholderInString($attribute) . ".{$lowerRule}";
+        $customKey = "validation.custom.{$attribute}.{$lowerRule}";
 
         $customMessage = $this->getCustomMessageFromTranslator(
             in_array($rule, $this->sizeRules, true)
@@ -96,10 +96,10 @@ trait FormatsMessages
 
         $displayAttribute = $this->replacePlaceholderInString($attribute);
 
-        $keys = ["{$displayAttribute}.{$lowerRule}", $lowerRule, $displayAttribute];
+        $keys = ["{$attribute}.{$lowerRule}", $lowerRule, $attribute];
 
         if ($this->getAttributeType($attribute) !== 'file') {
-            $shortRule = "{$displayAttribute}." . Str::snake(class_basename($lowerRule));
+            $shortRule = "{$attribute}." . Str::snake(class_basename($lowerRule));
 
             if (! in_array($shortRule, $keys)) {
                 $keys[] = $shortRule;
@@ -110,11 +110,13 @@ trait FormatsMessages
         // message for the fields, then we will check for a general custom line
         // that is not attribute specific. If we find either we'll return it.
         foreach ($keys as $key) {
-            foreach (array_keys($source) as $sourceKey) {
-                if (str_contains($sourceKey, '*')) {
-                    $pattern = str_replace('\*', '([^.]*)', preg_quote($sourceKey, '#'));
+            $displayKey = $this->replacePlaceholderInString($key);
 
-                    if (preg_match('#^' . $pattern . '\z#u', $key) === 1) {
+            foreach (array_keys($source) as $sourceKey) {
+                $sourceKey = (string) $sourceKey;
+
+                if (str_contains($sourceKey, '*')) {
+                    if (preg_match($this->getWildcardMessagePattern($sourceKey), $key) === 1) {
                         $message = $source[$sourceKey];
 
                         if (is_array($message) && isset($message[$lowerRule])) {
@@ -127,7 +129,7 @@ trait FormatsMessages
                     continue;
                 }
 
-                if (Str::is($sourceKey, $key)) {
+                if ($sourceKey === $displayKey) {
                     $message = $source[$sourceKey];
 
                     if ($sourceKey === $displayAttribute && is_array($message)) {
@@ -148,7 +150,9 @@ trait FormatsMessages
     protected function getCustomMessageFromTranslator(array|string $keys): string
     {
         foreach (Arr::wrap($keys) as $key) {
-            if (($message = $this->translator->string($key)) !== $key) {
+            $displayKey = $this->replacePlaceholderInString($key);
+
+            if (($message = $this->translator->string($displayKey)) !== $displayKey) {
                 return $message;
             }
 
@@ -178,14 +182,38 @@ trait FormatsMessages
      */
     protected function getWildcardCustomMessages(array $messages, string $search, string $default): string
     {
+        $displaySearch = $this->replacePlaceholderInString($search);
+
         foreach ($messages as $key => $message) {
             $key = (string) $key;
-            if ($search === $key || (Str::contains($key, ['*']) && Str::is($key, $search))) {
+            if ($displaySearch === $key || (str_contains($key, '*')
+                && preg_match($this->getWildcardMessagePattern($key, multipleSegments: true), $search) === 1)) {
                 return $message;
             }
         }
 
         return $default;
+    }
+
+    /**
+     * Build a wildcard message pattern that preserves literal path segments.
+     */
+    protected function getWildcardMessagePattern(string $key, bool $multipleSegments = false): string
+    {
+        $segments = [];
+
+        foreach (explode('.', $key) as $segment) {
+            $pattern = str_replace('\*', $multipleSegments ? '.*' : '[^.]*', preg_quote($segment, '#'));
+
+            // Fixed dots may name literal keys, but a wildcard segment must not split one.
+            $segments[] = str_contains($segment, '*')
+                ? '(?<![^.])' . $pattern . '(?![^.])'
+                : $pattern;
+        }
+
+        $dot = '(?:\.|' . preg_quote(static::encodeAttributeWithPlaceholder('\.'), '#') . ')';
+
+        return '#^' . implode($dot, $segments) . '\z#su';
     }
 
     /**
@@ -262,10 +290,8 @@ trait FormatsMessages
 
         // Resolve wildcard metadata before decoding a literal dot into a path separator.
         $expectedAttributes = $attribute !== $primaryAttribute
-            ? [$this->replacePlaceholderInString($attribute), $this->replacePlaceholderInString($primaryAttribute)]
-            : [$this->replacePlaceholderInString($attribute)];
-
-        $attribute = $expectedAttributes[0];
+            ? [$attribute, $primaryAttribute]
+            : [$attribute];
 
         foreach ($expectedAttributes as $name) {
             // The developer may dynamically specify the array of custom attributes on this
@@ -282,6 +308,8 @@ trait FormatsMessages
                 return $translatedAttribute;
             }
         }
+
+        $attribute = $this->replacePlaceholderInString($attribute);
 
         // When no language line has been specified for the attribute and it is also
         // an implicit attribute we will display the raw attribute's name and not
@@ -314,15 +342,17 @@ trait FormatsMessages
     {
         $source = $source ?: $this->customAttributes;
 
-        if (isset($source[$attribute])) {
-            return $source[$attribute];
+        $displayAttribute = $this->replacePlaceholderInString($attribute);
+
+        if (isset($source[$displayAttribute])) {
+            return $source[$displayAttribute];
         }
 
         foreach (array_keys($source) as $sourceKey) {
-            if (str_contains($sourceKey, '*')) {
-                $pattern = str_replace('\*', '([^.]*)', preg_quote($sourceKey, '#'));
+            $sourceKey = (string) $sourceKey;
 
-                if (preg_match('#^' . $pattern . '\z#u', $attribute) === 1) {
+            if (str_contains($sourceKey, '*')) {
+                if (preg_match($this->getWildcardMessagePattern($sourceKey), $attribute) === 1) {
                     return $source[$sourceKey];
                 }
             }
