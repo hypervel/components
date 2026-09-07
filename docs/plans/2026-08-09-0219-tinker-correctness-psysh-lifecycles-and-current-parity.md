@@ -2,7 +2,7 @@
 
 ## Status
 
-Independent Hypervel implementation and focused validation are complete. Merged PsySH PR [#951](https://github.com/bobthecow/psysh/pull/951) contains the include-failure correction; merged PsySH PR [#954](https://github.com/bobthecow/psysh/pull/954) makes outermost direct execution honor configured includes without exposing the loader. PsySH PRs [#952](https://github.com/bobthecow/psysh/pull/952) and [#953](https://github.com/bobthecow/psysh/pull/953) propose the non-gating execution-lifecycle corrections. Tinker is complete only after a stable release containing #951 and #954 is consumed, the direct include integration is implemented, and the full validation and review workflow passes.
+The implementation and focused validation are complete against the branch's original base. Merge current `0.4`, preserve its newer Tinker behavior, consume PsySH `dev-main`, remove the obsolete local shell subclass, and repeat the full validation and review workflow. Replace `dev-main` with the first compatible stable PsySH release containing the required behavior before Hypervel 0.4 is released.
 
 ## Scope
 
@@ -10,11 +10,9 @@ Correct the verified Tinker findings without turning this targeted maintenance u
 
 References checked:
 
-- Hypervel Components `59442418c2e7cdf7dac9f532f34bf170580ae2d2`, including all Tinker source/tests and connected Console behavior;
-- Laravel Tinker `a1fd59c74a05f93a8343d1ff002972aebc6aaa5e` (`3.x`);
-- Laravel documentation `9c5a062c14069bab9054b558829e282f9593a065`;
-- installed PsySH 0.12.24 (`ca0fdcf8a7617afa3adfdf1b5fef573dffb69ca1`);
-- PsySH main `cd98f04e0e8d8611e4c619334e85e74f3096b24e`.
+- current Hypervel Components `0.4`, including all Tinker source/tests and connected Console behavior;
+- current Laravel Tinker `3.x` and Laravel documentation;
+- current PsySH `main`.
 
 This plan is the post-compaction implementation reference. It reproduces the core plan's "What this audit is not" section and principles 7–10 verbatim below.
 
@@ -73,6 +71,7 @@ Record low-confidence concerns under rejected or unresolved analysis. Do not imp
 
 - Keep `--execute`, positional `include`, `commands`, `alias`, `dont_alias`, `casters`, and `trust_project` Laravel-shaped.
 - Keep PsySH process forking disabled before shell construction. Local `.psysh.php` configuration cannot re-enable `ProcessForker`: listeners are constructed before local config is loaded and are never rebuilt.
+- Use PsySH's normal `Shell`; current `dev-main` owns include loading and direct-execution signal cleanup without a Hypervel subclass.
 - Interactive Tinker retains Ctrl-C handling. One-shot execution must not leave process-global signal or error-handler state behind.
 - User casters keep overriding defaults. Database model and Process result casters remain optional; Foundation Application is a hard package dependency.
 - No HTTP/request path changes. All added comparisons, filtering, and loading occur only while starting or running the developer command. There is no lock, yield, retry, cache, static registry, coroutine context, retained worker allocation, or repeated filesystem I/O beyond includes explicitly requested by the caller.
@@ -81,34 +80,31 @@ Record low-confidence concerns under rejected or unresolved analysis. Do not imp
 
 | ID | Defect | Final treatment |
 |---|---|---|
-| `tinker-01` | Direct execution invokes PsySH's `SignalHandler::onExecute()` without its balancing loop lifecycle, replacing process-global SIGINT state in surviving programmatic/ParaTest processes. | Use an execute-only shell without that listener unless a released PsySH source fully fixes direct execution settlement. |
+| `tinker-01` | Direct execution invoked PsySH's `SignalHandler::onExecute()` without matching cleanup, replacing process-global SIGINT state in surviving programmatic/ParaTest processes. | Use PsySH's paired execution cleanup through its normal `Shell`; do not retain a local listener filter. |
 | `tinker-02` | Truthy option checks send valid `--execute=0` and `--execute=''` values to the REPL branch. | Treat every non-null `--execute` value as direct execution. |
-| `tinker-03` | `setIncludes()` configures files, but direct `Shell::execute()` never loads them. | Make PsySH load configured includes at the outermost `run()` or `execute()` boundary, consume its first stable release, and keep the loader private. |
-| `tinker-04` | PsySH catches only `Exception` while loading includes and restores its error handler only normally, so `ParseError` aborts later includes and leaves PsySH's process-global handler installed. | Restore the handler in the installing method's `finally` and contain `Throwable` per include. |
+| `tinker-03` | `setIncludes()` configured files, but direct `Shell::execute()` did not load them. | Depend temporarily on PsySH `dev-main`, which loads configured includes at the outermost `run()` or `execute()` boundary while keeping the loader private. |
+| `tinker-04` | PsySH caught only `Exception` while loading includes and restored its error handler only normally, so `ParseError` aborted later includes and left PsySH's process-global handler installed. | Use the corrected `dev-main` include lifecycle, which restores the handler in `finally` and contains each `Throwable`. |
 | `tinker-05` | `execute($code, true)` rethrows `BreakException`; Tinker's broad catch renders `exit(3)` as an error and returns 1. | Return the embedded exit code without error rendering. |
 | `tinker-06` | Raw prefixes make `App\Nova` also match `App\NovaThing` and make `/app/vendor-local/...` look like `/app/vendor/...`. | Match normalized aliases and vendor directories on semantic boundaries. |
 | `tinker-07` | One Application presentation getter throwing `Error` or `TypeError` escapes the per-property `Exception` boundary and aborts the dump. | Contain `Throwable` from each getter. |
 | `tinker-08` | Symfony returns `null` for a disabled configured command, which PsySH forwards to its `callable|Command` parameter and rejects with `TypeError`. | Omit disabled command results. |
 | `tinker-09` | Split metadata declares unused Contracts, lacks durable dependency coverage, and omits upstream provenance. | Correct dependencies/provenance and add focused metadata coverage. |
-| `tinker-10` | Public guidance omits execute/alias/caster/trust behavior and incorrectly says all PCNTL support is disabled. | Complete the concise Boost guide in Laravel-docs prose. |
+| `tinker-10` | Public guidance omits execute/alias/caster/trust behavior and incorrectly says all PCNTL support is disabled. | Complete the concise Tinker guide in Laravel-docs prose. |
 | `tinker-11` | Tinker redundantly writes the Kernel-cached Console application's exception policy and can leave a caller's explicit setting changed. | Remove the mutation. |
-| `psysh-01` | Public execution calls listener `onExecute()` hooks without a matching execution-completion hook; using `afterLoop()` for cleanup creates unpaired callbacks and misses nested command execution boundaries. | Add a paired `afterExecute()` lifecycle, keep loop cleanup on `afterLoop()`, record the upstream reference, and consume it opportunistically when its released source is complete. |
 
 ## Implementation
 
-### 1. Fix and release PsySH include ownership
+### 1. Merge current `0.4` and consume PsySH `dev-main`
 
-PsySH PR [#951](https://github.com/bobthecow/psysh/pull/951) preserves the private include lifecycle while containing each `Throwable` and making the error-handler installer own restoration. PsySH PR [#954](https://github.com/bobthecow/psysh/pull/954) keeps that loader private and makes configured includes part of every outermost shell execution.
+Merge current `0.4` into this branch before further source changes. Resolve overlaps by preserving all newer Tinker behavior from `0.4`, including lazy command resolution, optional command and alias lists, the configured caster map, model appends through `getAppends()`, and documentation at `src/docs/artisan.md`. Combine those changes with the audit fixes; do not restore the old Boost documentation path, eager command resolution, direct model-property access, or narrower caster failure boundary.
 
-```php
-private int $executionDepth = 0;
-```
+Use Composer to change the root `psy/psysh` requirement to `dev-main`, set the split package requirement in `src/tinker/composer.json` to the same constraint, and update the installed dependency. Current PsySH `main` provides all behavior Hypervel needs:
 
-`doRun()` increments this counter around its existing mode dispatch and decrements it in `finally`. The interactive and non-interactive branches keep their current `beforeRun()` → `loadIncludes()` ordering but call the loader only at depth one. `execute()` boots first, increments the same counter, loads includes at depth one before `setCode()`, and decrements in `finally`. Loading before `setCode()` is required because reporting an include failure clears pending code. Nested calls from `timeit`, reflection/config commands, another `execute()`, or a re-entered `run()` do not reload includes.
+- configured includes load once at the outermost `run()` or `execute()` boundary;
+- each include `Throwable` is reported without stopping later includes, and the caller's error handler is restored;
+- execution callbacks are paired, and `SignalHandler` restores the exact SIGINT handler and async-signal setting it replaced.
 
-The `Throwable` change restores the original intent lost when PsySH commit `6d3d2177` removed the separate `Error` catch without widening the remaining `Exception` catch. #951 tests parse-error containment, continued loading, scope precedence, and caller-owned error-handler restoration. #954 covers direct loading plus nested direct execution, a command executing inside `run()`, and `run()` re-entry. Keep the output precondition documented; do not add a default output, public/protected loader, empty-includes fast path, helper abstraction, or command-specific branches.
-
-Wait for a stable PsySH release containing both #951 and #954. Then update `psy/psysh` in both root `composer.json` and `src/tinker/composer.json` to that first release and run Composer update. If upstream stalls or rejects the execution contract, stop and return the decision to the owner; do not add reflection, generated includes, copied dependency code, or a compatibility branch.
+Replace `dev-main` with the first compatible stable release containing these behaviors before Hypervel 0.4 is released. Do not copy or reflect into PsySH internals, expose its include loader, add a version branch, or keep a local shell subclass.
 
 ### 2. Make one-shot execution exact
 
@@ -122,29 +118,10 @@ if ($code !== null) {
     $config->setRawOutput(true);
 }
 
-$shell = $code !== null
-    ? new ExecuteShell($config)
-    : new Shell($config);
+$shell = new Shell($config);
 ```
 
-`ExecuteShell` has no constructor or state. Its only job is to filter `SignalHandler` from the parent's default listeners:
-
-```php
-class ExecuteShell extends Shell
-{
-    protected function getDefaultLoopListeners(): array
-    {
-        return array_filter(
-            parent::getDefaultLoopListeners(),
-            static fn (object $listener): bool => ! $listener instanceof SignalHandler,
-        );
-    }
-}
-```
-
-Do not filter `ProcessForker`: `setUsePcntl(false)` has already made it impossible at listener construction, including after local config loads.
-
-Before adding `ExecuteShell`, inspect the released PsySH source. Omit the class and use `Shell` when—and only when—the release contains all three direct-execution corrections: paired `onExecute()`/`afterExecute()` callbacks, both terminal-signal mutations gated by an active run, and exact prior SIGINT/async-mode restoration. A partial fix does not supersede the filter. Never retain both a redundant filter and the complete upstream lifecycle.
+Delete `ExecuteShell` and use the same PsySH `Shell` for direct and interactive execution. Current PsySH `main` owns direct-execution signal cleanup. Keep `setUsePcntl(false)` before shell construction because `ProcessForker` remains incompatible with Swoole; do not add another listener filter.
 
 The direct branch becomes:
 
@@ -257,12 +234,12 @@ In `src/tinker/composer.json`:
 
 - remove unused `hypervel/contracts`;
 - keep root-consistent `symfony/console:^8.1` and `symfony/var-dumper:^8.1`;
-- apply the released PsySH floor from section 1;
+- require PsySH `dev-main` as described in section 1;
 - retain only the Database suggestion. Do not add a Process suggestion solely for symmetry.
 
 Add `tests/Tinker/PackageMetadataTest.php` to pin direct dependency/root-constraint agreement, the absent Contracts dependency, the Database suggestion, and provider discovery. Add `Ported from: https://github.com/laravel/tinker` to the README.
 
-Update only the Tinker section of `src/boost/docs/artisan.md`, following the surrounding Laravel-docs prose. Document:
+Update only the Tinker section of `src/docs/artisan.md`, following the surrounding Laravel-docs prose. Document:
 
 - `--execute` and its zero/non-zero exit-status behavior, including that a reported include failure does not alter the status produced by the executed code;
 - positional includes before direct execution;
@@ -273,24 +250,9 @@ Update only the Tinker section of `src/boost/docs/artisan.md`, following the sur
 
 Keep the guide concise: no exhaustive config reference, internal listener discussion, or default-caster listing.
 
-### 6. Track the separate PsySH execution-settlement correction
+### 6. Update durable records
 
-This upstream defect does not gate Tinker completion because every Hypervel path where it both installs and survives is closed either by `ExecuteShell` or the complete released upstream correction; the piped CLI path exits immediately, and programmatic Tinker cannot obtain piped code from Symfony input. PsySH PR [#952](https://github.com/bobthecow/psysh/pull/952) contains the signal/listener correction, and stacked PR [#953](https://github.com/bobthecow/psysh/pull/953) contains the full-run and ProcessForker settlement correction.
-
-The upstream design is:
-
-1. Add `afterExecute(Shell $shell)` directly to PsySH's listener contract and no-op base listener. `Shell::afterExecute()` reverse-dispatches it once for every `onExecute()` call; it does not own loop output tracking or Shell terminal-mode cleanup.
-2. Call `afterExecute()` from `ExecutionClosure` in its existing outer `finally`, after output-buffer cleanup and scope persistence. In `ExecutionLoopClosure`, keep `getInput()` outside the execution span and call `afterExecute()` after result rendering so Ctrl-C remains handled during long dumps. `afterLoop()` returns to its original loop-only contract and call sites.
-3. Give `SignalHandler` an execution-depth counter. The outer `onExecute()` snapshots the prior SIGINT handler and async-signal mode and installs PsySH's handler; nested calls share that state. Each matching `afterExecute()` decrements the counter, and only the outer completion restores the prior process and terminal state.
-4. Replace Shell's boolean run-active flag with a nesting counter around `doRun()`. `isRunActive()` and Shell's interactive signal-character gate read `runDepth > 0`, so re-entered runs cannot clear the outer run's ownership.
-5. Keep the private execution-depth counter from #954 solely for outermost include loading. Do not use it to suppress listener callbacks; that would leave nested `onExecute()` calls unpaired.
-6. Cover direct success/failure with zero loop callbacks, nested direct and `timeit` execution with one completion per execution callback, nested run ownership, piped noninteractive settlement, and unchanged interactive loop cleanup.
-
-ProcessForker's matching execution-cleanup gap remains owned by #953, together with its full-run and `throw-up` lifecycle corrections. If the complete SignalHandler fix reaches the PsySH release consumed by Tinker, remove `ExecuteShell` as described in section 2. Doing so changes long-running `--execute` Ctrl-C from the ordinary one-shot default exit (130) to PsySH's rendered interruption/failure (1); either is valid, and the complete upstream lifecycle makes the filter otherwise needless.
-
-### 7. Update durable records
-
-Add one compact Tinker ledger section covering `tinker-01` through `tinker-11`, the PsySH include release/constraint, `psysh-01` and its upstream reference, Console revalidation, final API/performance result, and rejected designs. Route the core Tinker line to this work unit. Check the core package checklist only after the blocking PsySH include release is consumed and implementation, validation, self-review, and code review are complete.
+Add one compact Tinker ledger section covering `tinker-01` through `tinker-11`, the temporary PsySH `dev-main` constraint, Console revalidation, final API/performance result, and rejected designs. Route the core Tinker line to this work unit. Preserve every newer `0.4` record while resolving the audit-plan and ledger conflicts. Check the core package checklist only after current `0.4` is merged, `dev-main` is installed, and implementation, validation, self-review, and code review are complete.
 
 ## Tests and validation
 
@@ -310,16 +272,16 @@ Required Hypervel regressions:
 Validation order:
 
 1. Run each changed Tinker test file, then the complete `tests/Tinker` group.
-2. Validate both Composer manifests and the installed PsySH floor.
+2. Validate both Composer manifests and confirm the installed PsySH source is current `dev-main`.
 3. Run `composer fix` once after implementation.
 4. Perform a fresh caller/callee, process-global state, terminal/signal, public API, cold-path performance, retained-memory, stale-code, and overengineering review.
 5. Apply review corrections, rerun affected focused tests, and repeat the complete gate when changes warrant it.
 
 ## Rejected designs and non-findings
 
-- No public/protected include loader, nested include reloading, generated `require_once` source, private-method reflection, copied include loop, switch to PsySH's noninteractive runner, or temporary compatibility API.
+- No local shell subclass, listener filter, public/protected include loader, nested include reloading, generated `require_once` source, private-method reflection, copied include loop, switch to PsySH's noninteractive runner, or version-specific compatibility path.
 - No signal/error-handler snapshot around yielding Hypervel code, process isolation, lock, listener registry, mode router, or coroutine context.
-- No removal of interactive signal handling and no `ProcessForker` filter beyond the existing `setUsePcntl(false)` invariant.
+- No removal of interactive signal handling. Keep the existing `setUsePcntl(false)` invariant; do not add a `ProcessForker` listener filter.
 - No class-alias registry, unalias attempt, path canonicalization, classmap cache, or concurrency machinery. PHP has no coroutine-local class table, and concurrent REPLs in one worker are unsupported.
 - Keep `ClassAliasAutoloader::__destruct()`: while registered, the autoload callback retains the object; normal `finally` cleanup unregisters it first, and destruction remains an idempotent fallback.
 - Keep configured commands on the invocation-local shell and existing caster precedence. No mutable worker state is introduced.
