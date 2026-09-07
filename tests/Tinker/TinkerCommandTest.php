@@ -20,6 +20,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use Psy\Configuration;
 use Psy\VarDumper\Presenter;
+use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\InputStream;
 use Symfony\Component\Process\Process;
@@ -100,6 +101,14 @@ class TinkerCommandTest extends TestCase
             ->assertExitCode(0);
     }
 
+    public function testNullProjectTrustIsAccepted(): void
+    {
+        config()->set('tinker.trust_project', null);
+
+        $this->artisan('tinker', ['--execute' => 'echo "hello";'])
+            ->assertExitCode(0);
+    }
+
     public function testExecuteFailure(): void
     {
         $this->artisan('tinker', ['--execute' => 'throw new \Exception("fail");'])
@@ -111,6 +120,82 @@ class TinkerCommandTest extends TestCase
         $this->artisan('tinker', ['--execute' => 'exit(3);'])
             ->doesntExpectOutput()
             ->assertExitCode(3);
+    }
+
+    public function testExecuteLoadsPositionalAndProjectIncludes(): void
+    {
+        $workingDirectory = getcwd();
+        $positionalInclude = $this->temporaryDirectory . '/scope-positional.php';
+        $projectInclude = $this->temporaryDirectory . '/scope-project.php';
+        $result = $this->temporaryDirectory . '/scope-result.txt';
+
+        file_put_contents($positionalInclude, '<?php $positionalValue = "positional";');
+        file_put_contents($projectInclude, '<?php $projectValue = "project";');
+        file_put_contents(
+            $this->temporaryDirectory . '/.psysh.php',
+            '<?php return ["defaultIncludes" => [' . var_export($projectInclude, true) . ']];',
+        );
+
+        $this->assertTrue(chdir($this->temporaryDirectory));
+
+        try {
+            $this->artisan('tinker', [
+                'include' => [$positionalInclude],
+                '--execute' => sprintf(
+                    "file_put_contents('%s', \$positionalValue . ':' . \$projectValue);",
+                    addslashes($result),
+                ),
+            ])->assertExitCode(0);
+        } finally {
+            chdir($workingDirectory);
+        }
+
+        $this->assertSame('positional:project', file_get_contents($result));
+    }
+
+    public function testExecuteContinuesAfterMalformedIncludeAndRestoresErrorHandler(): void
+    {
+        $invalidInclude = $this->temporaryDirectory . '/failure-invalid.php';
+        $validInclude = $this->temporaryDirectory . '/failure-valid.php';
+        $result = $this->temporaryDirectory . '/failure-result.txt';
+
+        file_put_contents($invalidInclude, '<?php this is not valid PHP;');
+        file_put_contents($validInclude, '<?php $includedValue = "included";');
+
+        $handler = static function (): bool {
+            return true;
+        };
+        set_error_handler($handler);
+
+        try {
+            $this->withoutMockingConsoleOutput();
+
+            $exitCode = $this->artisan('tinker', [
+                'include' => [$invalidInclude, $validInclude],
+                '--execute' => sprintf(
+                    "file_put_contents('%s', \$includedValue);",
+                    addslashes($result),
+                ),
+            ]);
+        } finally {
+            $observedHandler = set_error_handler(static function (): bool {
+                return true;
+            });
+            restore_error_handler();
+
+            if ($observedHandler !== $handler) {
+                restore_error_handler();
+            }
+
+            restore_error_handler();
+        }
+
+        $output = $this->app->make(KernelContract::class)->output();
+
+        $this->assertSame(0, $exitCode);
+        $this->assertStringContainsString('ParseError', $output);
+        $this->assertSame('included', file_get_contents($result));
+        $this->assertSame($handler, $observedHandler);
     }
 
     #[DataProvider('falseyExecuteCodeProvider')]
@@ -153,6 +238,14 @@ class TinkerCommandTest extends TestCase
         $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput());
     }
 
+    public static function falseyExecuteCodeProvider(): array
+    {
+        return [
+            ['0'],
+            [''],
+        ];
+    }
+
     #[DataProvider('directExecutionOutcomeProvider')]
     #[RequiresPhpExtension('pcntl')]
     #[RequiresPhpExtension('posix')]
@@ -174,6 +267,14 @@ class TinkerCommandTest extends TestCase
         }
     }
 
+    public static function directExecutionOutcomeProvider(): array
+    {
+        return [
+            ['echo "hello";', 0],
+            ['throw new \Exception("fail");', 1],
+        ];
+    }
+
     public function testExecuteDoesNotChangeTheConsoleExceptionPolicy(): void
     {
         $application = $this->app->make(KernelContract::class)->getArtisan();
@@ -188,12 +289,27 @@ class TinkerCommandTest extends TestCase
         $this->assertTrue($application->areExceptionsCaught());
     }
 
-    public function testDisabledConfiguredCommandsAreIgnored(): void
+    public function testConfiguredCommandsIncludeEnabledCommandsInOrderAndIgnoreDisabledCommands(): void
     {
-        config()->set('tinker.commands', [DisabledTinkerCommand::class]);
+        config()->set('tinker.commands', [
+            EnabledTinkerCommand::class,
+            DisabledTinkerCommand::class,
+        ]);
 
-        $this->artisan('tinker', ['--execute' => 'echo "hello";'])
-            ->assertExitCode(0);
+        /** @var TinkerCommand $command */
+        $command = $this->app->make(TinkerCommand::class);
+        $command->setHypervel($this->app);
+        $command->setApplication($this->app->make(KernelContract::class)->getArtisan());
+
+        $commands = (new ClassInvoker($command))->getCommands();
+        $names = array_map(
+            static fn (SymfonyCommand $command): ?string => $command->getName(),
+            $commands,
+        );
+
+        $this->assertContains('env', $names);
+        $this->assertSame('tinker:enabled', $names[array_key_last($names)]);
+        $this->assertNotContains('tinker:disabled', $names);
     }
 
     public function testExecuteRunsInsideCoroutine(): void
@@ -233,22 +349,6 @@ class TinkerCommandTest extends TestCase
 
         $this->assertStringContainsString('configured caster', $output);
     }
-
-    public static function falseyExecuteCodeProvider(): array
-    {
-        return [
-            ['0'],
-            [''],
-        ];
-    }
-
-    public static function directExecutionOutcomeProvider(): array
-    {
-        return [
-            ['echo "hello";', 0],
-            ['throw new \Exception("fail");', 1],
-        ];
-    }
 }
 
 class DisabledTinkerCommand extends Command
@@ -262,6 +362,11 @@ class DisabledTinkerCommand extends Command
     {
         return false;
     }
+}
+
+class EnabledTinkerCommand extends Command
+{
+    protected ?string $name = 'tinker:enabled';
 }
 
 class TinkerCommandTestValue

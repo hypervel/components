@@ -45,9 +45,7 @@ class PackageMetadataTest extends TestCase
         }
 
         $this->assertArrayNotHasKey('hypervel/contracts', $composer['require']);
-        $this->assertSame([
-            'hypervel/database' => 'Required for Eloquent model casting in Tinker (^0.4).',
-        ], $composer['suggest']);
+        $this->assertArrayNotHasKey('suggest', $composer);
         $this->assertSame([
             TinkerServiceProvider::class,
         ], $composer['extra']['hypervel']['providers']);

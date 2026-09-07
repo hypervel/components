@@ -198,7 +198,7 @@
         "psr/http-message": "^2.0",
         "psr/log": "^3.0",
         "psr/simple-cache": "^3.0",
-        "psy/psysh": "^0.12.22",
+        "psy/psysh": "dev-main",
         "sentry/sentry": "dev-master",
         "spomky-labs/otphp": "^11.0",
         "symfony/console": "^8.1",

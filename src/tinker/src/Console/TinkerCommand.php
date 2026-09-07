@@ -7,7 +7,6 @@ namespace Hypervel\Tinker\Console;
 use Hypervel\Console\Command;
 use Hypervel\Support\Env;
 use Hypervel\Tinker\ClassAliasAutoloader;
-use Hypervel\Tinker\ExecuteShell;
 use Psy\Configuration;
 use Psy\Exception\BreakException;
 use Psy\Shell;
@@ -64,9 +63,7 @@ class TinkerCommand extends Command
             $config->setRawOutput(true);
         }
 
-        $shell = $code !== null
-            ? new ExecuteShell($config)
-            : new Shell($config);
+        $shell = new Shell($config);
 
         $shell->addCommands($this->getCommands());
         $shell->setIncludes($this->argument('include'));
@@ -85,7 +82,6 @@ class TinkerCommand extends Command
         if ($code !== null) {
             try {
                 $shell->setOutput($this->output);
-                $shell->boot();
                 $shell->execute($code, true);
             } catch (BreakException $e) {
                 return $e->getCode();
@@ -142,17 +138,10 @@ class TinkerCommand extends Command
             'Hypervel\Support\Collection' => 'Hypervel\Tinker\TinkerCaster::castCollection',
             'Hypervel\Support\HtmlString' => 'Hypervel\Tinker\TinkerCaster::castHtmlString',
             'Hypervel\Support\Stringable' => 'Hypervel\Tinker\TinkerCaster::castStringable',
+            'Hypervel\Database\Eloquent\Model' => 'Hypervel\Tinker\TinkerCaster::castModel',
+            'Hypervel\Process\ProcessResult' => 'Hypervel\Tinker\TinkerCaster::castProcessResult',
+            'Hypervel\Foundation\Application' => 'Hypervel\Tinker\TinkerCaster::castApplication',
         ];
-
-        if (class_exists('Hypervel\Database\Eloquent\Model')) {
-            $casters['Hypervel\Database\Eloquent\Model'] = 'Hypervel\Tinker\TinkerCaster::castModel';
-        }
-
-        if (class_exists('Hypervel\Process\ProcessResult')) {
-            $casters['Hypervel\Process\ProcessResult'] = 'Hypervel\Tinker\TinkerCaster::castProcessResult';
-        }
-
-        $casters['Hypervel\Foundation\Application'] = 'Hypervel\Tinker\TinkerCaster::castApplication';
 
         $config = $this->getHypervel()->make('config');
 
