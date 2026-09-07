@@ -10,6 +10,7 @@ use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\Rules\StringRule;
 use Hypervel\Validation\Validator;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class ValidationStringRuleTest extends TestCase
 {
@@ -94,37 +95,37 @@ class ValidationStringRuleTest extends TestCase
     public function testStartsWithRule(): void
     {
         $rule = Rule::string()->startsWith('foo');
-        $this->assertSame('string|starts_with:foo', (string) $rule);
+        $this->assertSame('string|starts_with:"foo"', (string) $rule);
 
         $rule = Rule::string()->startsWith('foo', 'bar');
-        $this->assertSame('string|starts_with:foo,bar', (string) $rule);
+        $this->assertSame('string|starts_with:"foo","bar"', (string) $rule);
     }
 
     public function testEndsWithRule(): void
     {
         $rule = Rule::string()->endsWith('.com');
-        $this->assertSame('string|ends_with:.com', (string) $rule);
+        $this->assertSame('string|ends_with:".com"', (string) $rule);
 
         $rule = Rule::string()->endsWith('.com', '.org');
-        $this->assertSame('string|ends_with:.com,.org', (string) $rule);
+        $this->assertSame('string|ends_with:".com",".org"', (string) $rule);
     }
 
     public function testDoesntStartWithRule(): void
     {
         $rule = Rule::string()->doesntStartWith('foo');
-        $this->assertSame('string|doesnt_start_with:foo', (string) $rule);
+        $this->assertSame('string|doesnt_start_with:"foo"', (string) $rule);
 
         $rule = Rule::string()->doesntStartWith('foo', 'bar');
-        $this->assertSame('string|doesnt_start_with:foo,bar', (string) $rule);
+        $this->assertSame('string|doesnt_start_with:"foo","bar"', (string) $rule);
     }
 
     public function testDoesntEndWithRule(): void
     {
         $rule = Rule::string()->doesntEndWith('.exe');
-        $this->assertSame('string|doesnt_end_with:.exe', (string) $rule);
+        $this->assertSame('string|doesnt_end_with:".exe"', (string) $rule);
 
         $rule = Rule::string()->doesntEndWith('.exe', '.bat');
-        $this->assertSame('string|doesnt_end_with:.exe,.bat', (string) $rule);
+        $this->assertSame('string|doesnt_end_with:".exe",".bat"', (string) $rule);
     }
 
     public function testChainedRules(): void
@@ -144,7 +145,28 @@ class ValidationStringRuleTest extends TestCase
             ->unless(true, function ($rule) {
                 $rule->endsWith('suffix');
             });
-        $this->assertSame('string|between:1,100|starts_with:prefix', (string) $rule);
+        $this->assertSame('string|between:1,100|starts_with:"prefix"', (string) $rule);
+    }
+
+    #[TestWith(['startsWith', 'a,b', 'a,b rest', 'a rest'])]
+    #[TestWith(['endsWith', 'a,b', 'rest a,b', 'rest b'])]
+    #[TestWith(['doesntStartWith', 'a,b', 'a rest', 'a,b rest'])]
+    #[TestWith(['doesntEndWith', 'a,b', 'rest b', 'rest a,b'])]
+    #[TestWith(['startsWith', 'INFO|', 'INFO|record', 'INFOrecord'])]
+    #[TestWith(['startsWith', 'a\"b\\', 'a\"b\rest', 'a rest'])]
+    public function testLiteralPrefixesAndSuffixes(string $method, string $parameter, string $valid, string $invalid): void
+    {
+        $validator = new Validator(
+            new Translator(new ArrayLoader, 'en'),
+            ['field' => $valid],
+            ['field' => [Rule::string()->{$method}($parameter)]],
+        );
+
+        $this->assertTrue($validator->passes());
+
+        $validator->setData(['field' => $invalid]);
+
+        $this->assertTrue($validator->fails());
     }
 
     public function testStringValidation(): void

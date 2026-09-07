@@ -62,7 +62,7 @@ class StringRule implements Stringable
      */
     public function doesntEndWith(string ...$values): static
     {
-        return $this->addRule('doesnt_end_with:' . implode(',', $values));
+        return $this->addRule('doesnt_end_with:' . $this->formatValues($values));
     }
 
     /**
@@ -70,7 +70,7 @@ class StringRule implements Stringable
      */
     public function doesntStartWith(string ...$values): static
     {
-        return $this->addRule('doesnt_start_with:' . implode(',', $values));
+        return $this->addRule('doesnt_start_with:' . $this->formatValues($values));
     }
 
     /**
@@ -78,7 +78,7 @@ class StringRule implements Stringable
      */
     public function endsWith(string ...$values): static
     {
-        return $this->addRule('ends_with:' . implode(',', $values));
+        return $this->addRule('ends_with:' . $this->formatValues($values));
     }
 
     /**
@@ -118,7 +118,7 @@ class StringRule implements Stringable
      */
     public function startsWith(string ...$values): static
     {
-        return $this->addRule('starts_with:' . implode(',', $values));
+        return $this->addRule('starts_with:' . $this->formatValues($values));
     }
 
     /**
@@ -134,7 +134,30 @@ class StringRule implements Stringable
      */
     public function __toString(): string
     {
-        return implode('|', array_unique($this->constraints));
+        return implode('|', $this->toArray());
+    }
+
+    /**
+     * Convert the rule to an array of validation rules.
+     *
+     * @return list<string>
+     */
+    public function toArray(): array
+    {
+        return array_values(array_unique($this->constraints));
+    }
+
+    /**
+     * Format literal values as CSV parameters.
+     *
+     * @param list<string> $values
+     */
+    protected function formatValues(array $values): string
+    {
+        return implode(',', array_map(
+            static fn (string $value): string => '"' . str_replace('"', '""', $value) . '"',
+            $values,
+        ));
     }
 
     /**

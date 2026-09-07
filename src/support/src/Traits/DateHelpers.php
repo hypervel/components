@@ -33,7 +33,7 @@ trait DateHelpers
     }
 
     /**
-     * Get the current date / time plus a given amount of time.
+     * Get the date / time plus a given amount of time.
      */
     public function plus(
         int $years = 0,
@@ -43,16 +43,28 @@ trait DateHelpers
         int $hours = 0,
         int $minutes = 0,
         int $seconds = 0,
-        int $microseconds = 0
+        int $microseconds = 0,
+        ?bool $overflow = null
     ): static {
-        return $this->add("
-            {$years} years {$months} months {$weeks} weeks {$days} days
+        $date = $this;
+
+        // Zero-unit operations also clone immutable dates.
+        if ($years !== 0) {
+            $date = $date->add('years', $years, $overflow);
+        }
+
+        if ($months !== 0) {
+            $date = $date->add('months', $months, $overflow);
+        }
+
+        return $date->add("
+            {$weeks} weeks {$days} days
             {$hours} hours {$minutes} minutes {$seconds} seconds {$microseconds} microseconds
         ");
     }
 
     /**
-     * Get the current date / time minus a given amount of time.
+     * Get the date / time minus a given amount of time.
      */
     public function minus(
         int $years = 0,
@@ -62,10 +74,21 @@ trait DateHelpers
         int $hours = 0,
         int $minutes = 0,
         int $seconds = 0,
-        int $microseconds = 0
+        int $microseconds = 0,
+        ?bool $overflow = null
     ): static {
-        return $this->sub("
-            {$years} years {$months} months {$weeks} weeks {$days} days
+        $date = $this;
+
+        if ($years !== 0) {
+            $date = $date->sub('years', $years, $overflow);
+        }
+
+        if ($months !== 0) {
+            $date = $date->sub('months', $months, $overflow);
+        }
+
+        return $date->sub("
+            {$weeks} weeks {$days} days
             {$hours} hours {$minutes} minutes {$seconds} seconds {$microseconds} microseconds
         ");
     }

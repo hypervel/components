@@ -124,6 +124,8 @@ use Hypervel\Data\Support\Validation\RuleDenormalizer;
 use Hypervel\Data\Support\Validation\ValidationPath;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
+use Hypervel\Translation\ArrayLoader;
+use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rules\AnyOf as AnyOfRule;
 use Hypervel\Validation\Rules\Can as CanRule;
 use Hypervel\Validation\Rules\Dimensions as DimensionsRule;
@@ -132,6 +134,7 @@ use Hypervel\Validation\Rules\ExcludeIf as ExcludeIfRule;
 use Hypervel\Validation\Rules\ProhibitedIf as ProhibitedIfRule;
 use Hypervel\Validation\Rules\RequiredIf as RequiredIfRule;
 use Hypervel\Validation\ValidationRuleParser;
+use Hypervel\Validation\Validator;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use ReflectionProperty;
@@ -146,17 +149,14 @@ class ValidationAttributeTest extends TestCase
         $this->assertSame('string', (string) new StringType);
     }
 
-    /**
-     * Test rule parameters normalize to Validator string values.
-     */
     #[DataProvider('normalizedValues')]
-    public function testNormalizesValues(mixed $input, string $output): void
+    public function testNormalizesValues(mixed $input, string $output, ?string $key = null): void
     {
-        $attribute = new class([$input]) extends StringValidationAttribute {
+        $attribute = new class($key === null ? [$input] : [$key => $input]) extends StringValidationAttribute {
             /**
              * Create a test validation attribute.
              *
-             * @param list<mixed> $parameters
+             * @param array<array-key, mixed> $parameters
              */
             public function __construct(protected array $parameters)
             {
@@ -202,6 +202,12 @@ class ValidationAttributeTest extends TestCase
         yield [false, 'false'];
         yield [['a', 'b', 'c'], 'a,b,c'];
         yield [[null], 'null'];
+        yield ['last,first', '"last,first"'];
+        yield ['a"b', '"a""b"'];
+        yield ['path\\', 'path\\'];
+        yield [[['a,b'], 'c'], '"a,b",c'];
+        yield [new ValidationAttributeExternalReference(['a,b', 'c']), '"a,b",c'];
+        yield ['a,b', '"name=a,b"', 'name'];
         yield [
             CarbonImmutable::create(
                 2020,
@@ -219,6 +225,32 @@ class ValidationAttributeTest extends TestCase
             [ValidationAttributeBackedEnum::Foo, ValidationAttributeBackedEnum::Boo],
             'foo,boo',
         ];
+    }
+
+    #[DataProvider('literalParameterRules')]
+    public function testValidatesLiteralAttributeParameters(
+        StringValidationAttribute $attribute,
+        array $data,
+        bool $passes,
+    ): void {
+        $rules = (new RuleDenormalizer)->execute($attribute, ValidationPath::create());
+        $validator = new Validator(new Translator(new ArrayLoader, 'en'), $data, ['value' => $rules]);
+
+        $this->assertSame($passes, $validator->passes());
+    }
+
+    /**
+     * Provide attributes whose literal parameters contain rule delimiters.
+     */
+    public static function literalParameterRules(): iterable
+    {
+        yield 'RFC2822 date' => [new DateFormat(DATE_RFC2822), ['value' => 'Tue, 02 Jan 2024 12:00:00 +0000'], true];
+        yield 'literal array key' => [new ArrayType('last,first'), ['value' => ['last,first' => 'Taylor']], true];
+        yield 'split array key' => [new ArrayType('last,first'), ['value' => ['last' => 'Taylor']], false];
+        yield 'matching dependent value' => [new RequiredIf('status', 'a,b'), ['status' => 'a,b'], false];
+        yield 'partial dependent value' => [new RequiredIf('status', 'a,b'), ['status' => 'a'], true];
+        yield 'raw regex' => [new Regex('/^a,"b"\|c$/'), ['value' => 'a,"b"|c'], true];
+        yield 'raw negative regex' => [new NotRegex('/^a,"b"\|c$/'), ['value' => 'a,"b"|c'], false];
     }
 
     /**

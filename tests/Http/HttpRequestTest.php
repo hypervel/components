@@ -791,6 +791,8 @@ class HttpRequestTest extends TestCase
         $this->assertSame(['name' => 'Michael', 'role' => 'admin'], $request->fluent('user')->toArray());
         $this->assertSame([], $request->fluent('users')->toArray());
         $this->assertSame([], $request->fluent('not_found')->toArray());
+        $this->assertSame(['name' => 'Guest'], $request->fluent('users', ['name' => 'Guest'])->toArray());
+        $this->assertSame(['name' => 'Guest'], $request->fluent('not_found', ['name' => 'Guest'])->toArray());
     }
 
     public function testStringMethod(): void

@@ -396,6 +396,7 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
             $name = strtolower($name);
             $result = $this->executeCommand($name, $arguments);
         } catch (RedisException|RedisClusterException $exception) {
+            // REMOVED: Laravel's command retry loop can replay writes Redis already committed.
             if ($this->shouldInvalidateAfter($exception)) {
                 $this->markInvalid();
             }
@@ -639,6 +640,8 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
 
     /**
      * Parse a friendly phpredis backoff algorithm name.
+     *
+     * @throws InvalidRedisOptionException
      */
     protected function parseBackoffAlgorithm(mixed $algorithm): int
     {
@@ -794,18 +797,21 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
         }
 
         if ($queueing || $this->watching) {
-            try {
-                $this->log(
-                    $queueing
-                        ? 'Discarding Redis connection left in MULTI or PIPELINE mode.'
-                        : 'Discarding Redis connection left in WATCH state.',
-                    LogLevel::CRITICAL
-                );
-            } catch (CanceledException $cancellation) {
-                // Native close must not start while cancellation is unwinding.
-                $this->releaseAfterCancellation($cancellation);
-            } catch (Throwable) {
-                // Reporting must not prevent terminal ownership cleanup.
+            // An invalidated operation is undergoing failure cleanup, not silently abandoning its state.
+            if (! $this->invalid) {
+                try {
+                    $this->log(
+                        $queueing
+                            ? 'Discarding Redis connection left in MULTI or PIPELINE mode.'
+                            : 'Discarding Redis connection left in WATCH state.',
+                        LogLevel::CRITICAL
+                    );
+                } catch (CanceledException $cancellation) {
+                    // Native close must not start while cancellation is unwinding.
+                    $this->releaseAfterCancellation($cancellation);
+                } catch (Throwable) {
+                    // Reporting must not prevent terminal ownership cleanup.
+                }
             }
 
             $this->resetReleaseState(false);
@@ -969,12 +975,9 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
             return true;
         }
 
-        if (! ($this->config['sentinel']['enabled'] ?? false)) {
-            return false;
-        }
-
         $errorCode = explode(' ', $exception->getMessage(), 2)[0];
 
+        // Managed primary endpoints can fail over without Sentinel; reopen to resolve the current primary.
         return in_array($errorCode, ['READONLY', 'MASTERDOWN'], true);
     }
 

@@ -13,9 +13,12 @@ use Hypervel\Events\Dispatcher;
 use Hypervel\Queue\Console\Concerns\ParsesQueue;
 use Hypervel\Queue\Events\QueuePaused;
 use Hypervel\Queue\Events\QueueResumed;
+use Hypervel\Queue\Events\QueuesPaused;
+use Hypervel\Queue\Events\QueuesResumed;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
+use RuntimeException;
 
 class QueuePauseResumeTest extends TestCase
 {
@@ -25,12 +28,24 @@ class QueuePauseResumeTest extends TestCase
 
     protected Dispatcher $events;
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
 
-        $container = new Container;
         $this->cache = new CacheRepository(new ArrayStore);
+
+        $this->manager = $this->createManager($this->cache);
+    }
+
+    /**
+     * Create a queue manager using the given cache repository.
+     */
+    protected function createManager(CacheRepository $cache): QueueManager
+    {
+        $container = new Container;
         $this->events = new Dispatcher($container);
 
         $container->instance('config', new ConfigRepository([
@@ -42,12 +57,18 @@ class QueuePauseResumeTest extends TestCase
                 ],
             ],
         ]));
-        $container->instance('cache', new class($this->cache) {
+        $container->instance('cache', new class($cache) {
+            /**
+             * Create a cache manager fixture.
+             */
             public function __construct(
                 private readonly CacheRepository $repository,
             ) {
             }
 
+            /**
+             * Get the cache repository.
+             */
             public function store(?string $name = null): CacheRepository
             {
                 return $this->repository;
@@ -56,7 +77,7 @@ class QueuePauseResumeTest extends TestCase
         $container->instance('events', $this->events);
         $container->instance(DispatcherContract::class, $this->events);
 
-        $this->manager = new QueueManager($container);
+        return new QueueManager($container);
     }
 
     public function testPauseQueueWithConnection()
@@ -177,7 +198,7 @@ class QueuePauseResumeTest extends TestCase
     {
         $observed = [];
         $this->events->observe(
-            [QueuePaused::class, QueueResumed::class],
+            [QueuePaused::class, QueueResumed::class, QueuesPaused::class, QueuesResumed::class],
             static function (string $event) use (&$observed): void {
                 $observed[] = $event;
             },
@@ -186,6 +207,9 @@ class QueuePauseResumeTest extends TestCase
         $this->manager->pause('redis', 'default');
         $this->manager->pauseFor('redis', 'emails', 60);
         $this->manager->resume('redis', 'default');
+
+        $this->manager->pauseAll();
+        $this->manager->resumeAll();
 
         $this->assertSame([], $observed);
     }
@@ -201,6 +225,87 @@ class QueuePauseResumeTest extends TestCase
             ['emails', 'notifications'],
             $this->manager->getPausedQueues('redis', ['default', 'emails', 'notifications']),
         );
+    }
+
+    public function testPauseAllPausesEveryQueueAndResumeAllResumesThem(): void
+    {
+        $this->manager->pauseAll();
+
+        $this->assertTrue($this->manager->isPaused('redis', 'default'));
+        $this->assertTrue($this->manager->isPaused('database', 'emails'));
+        $this->assertSame(
+            ['default', 'emails'],
+            $this->manager->getPausedQueues('redis', ['default', 'emails'])
+        );
+
+        $this->manager->resumeAll();
+
+        $this->assertFalse($this->manager->isPaused('redis', 'default'));
+        $this->assertSame([], $this->manager->getPausedQueues('redis', ['default', 'emails']));
+    }
+
+    public function testResumeAllPreservesIndividuallyPausedQueues(): void
+    {
+        $this->manager->pause('redis', 'emails');
+        $this->manager->pauseAll();
+        $this->manager->resumeAll();
+
+        $this->assertTrue($this->manager->isPaused('redis', 'emails'));
+        $this->assertFalse($this->manager->isPaused('database', 'emails'));
+        $this->assertSame(['emails'], $this->manager->getPausedQueues('redis', ['default', 'emails']));
+    }
+
+    public function testPauseChecksDoNotBatchTheGlobalKeyWithQueueKeys(): void
+    {
+        $store = new class extends ArrayStore {
+            /**
+             * Retrieve multiple keys without crossing the global pause key's slot.
+             */
+            public function many(array $keys): array
+            {
+                if (count($keys) > 1 && in_array('illuminate:queues:paused', $keys, true)) {
+                    throw new RuntimeException("CROSSSLOT Keys in request don't hash to the same slot");
+                }
+
+                return parent::many($keys);
+            }
+        };
+
+        $manager = $this->createManager(new CacheRepository($store));
+
+        $this->assertFalse($manager->isPaused('redis', 'default'));
+        $this->assertSame([], $manager->getPausedQueues('redis', ['default']));
+
+        $manager->pauseAll();
+
+        $this->assertTrue($manager->isPaused('redis', 'default'));
+        $this->assertSame(['default'], $manager->getPausedQueues('redis', ['default']));
+    }
+
+    public function testPauseAllDispatchesQueuesPausedEvent(): void
+    {
+        $dispatchedEvent = null;
+
+        $this->events->listen(QueuesPaused::class, function (QueuesPaused $event) use (&$dispatchedEvent): void {
+            $dispatchedEvent = $event;
+        });
+
+        $this->manager->pauseAll();
+
+        $this->assertInstanceOf(QueuesPaused::class, $dispatchedEvent);
+    }
+
+    public function testResumeAllDispatchesQueuesResumedEvent(): void
+    {
+        $dispatchedEvent = null;
+
+        $this->events->listen(QueuesResumed::class, function (QueuesResumed $event) use (&$dispatchedEvent): void {
+            $dispatchedEvent = $event;
+        });
+
+        $this->manager->resumeAll();
+
+        $this->assertInstanceOf(QueuesResumed::class, $dispatchedEvent);
     }
 
     public function testParsingQueueString()

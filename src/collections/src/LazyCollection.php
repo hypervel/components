@@ -1116,6 +1116,8 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
     /**
      * Create chunks representing a "sliding window" view of the items in the collection.
      *
+     * @param positive-int $size
+     * @param positive-int $step
      * @return static<int, static>
      *
      * @throws InvalidArgumentException
@@ -1137,7 +1139,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
             while ($iterator->valid()) {
                 $chunk[$iterator->key()] = $iterator->current();
 
-                if (count($chunk) == $size) {
+                if (count($chunk) === $size) {
                     yield $this->newInstance($chunk)->tap(function () use (&$chunk, $step) {
                         $chunk = array_slice($chunk, $step, null, true);
                     });

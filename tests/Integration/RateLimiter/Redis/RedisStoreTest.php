@@ -424,7 +424,12 @@ class RedisStoreTest extends TestCase
             resetAfter: 5,
         )->by('encoded-backoff');
 
+        // Vary cost rather than the limit so both admission checks inspect the same stored counter.
+        $this->assertFalse($limiter->inspect($fixed->cost(2))->denied());
         $this->assertSame(1, $limiter->consume($fixed)->remaining());
+        $this->assertTrue($limiter->inspect($fixed->cost(2))->denied());
+        $this->assertFalse($limiter->inspect($fixed)->denied());
+
         $this->assertSame(1, $limiter->consume($sliding)->remaining());
         $this->assertTrue($limiter->consume($leaky)->allowed());
         $this->assertTrue($limiter->consume($leaky)->denied());

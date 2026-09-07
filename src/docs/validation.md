@@ -147,6 +147,22 @@ $validatedData = $request->validateWithBag('post', [
 ]);
 ```
 
+<a name="rule-parameters"></a>
+#### Rule Parameters
+
+Fluent rule builders quote parameter values for you. When writing a rule string yourself, enclose values containing commas or quotes in double quotes and double any quotes within the value. Backslashes are preserved literally:
+
+```php
+use Hypervel\Validation\Rule;
+
+$request->validate([
+    'name' => [Rule::in(['Taylor, "Otwell"'])],
+    'alias' => ['in:"Taylor, ""Otwell"""'],
+]);
+```
+
+If a parameter contains `|`, use a rule object or an array of individual rules instead of joining the rules into a single string. Regular expression parameters retain their regular expression syntax.
+
 <a name="stopping-on-first-validation-failure"></a>
 #### Stopping on First Validation Failure
 
@@ -1050,6 +1066,15 @@ $messages = [
 ];
 ```
 
+You may capitalize `:attribute` and supported rule placeholders to control the casing of their replacements:
+
+```php
+$messages = [
+    'same' => 'The :Attribute and :Other must match.',
+    'in' => 'The :attribute must be one of the following: :VALUES',
+];
+```
+
 <a name="specifying-a-custom-message-for-a-given-attribute"></a>
 #### Specifying a Custom Message for a Given Attribute
 
@@ -1400,6 +1425,7 @@ Below is a list of all available validation rules and their function:
 <div class="collection-method-list" markdown="1">
 
 [Array](#rule-array)
+[Array Keys](#rule-array-keys)
 [Between](#rule-between)
 [Contains](#rule-contains)
 [Doesnt Contain](#rule-doesnt-contain)
@@ -1649,6 +1675,21 @@ Validator::make($input, [
 ```
 
 In general, you should always specify the array keys that are allowed to be present within your array.
+
+<a name="rule-array-keys"></a>
+#### array_keys:_foo_,_bar_,...
+
+The field under validation must be a PHP `array` whose keys are all included in the given list. At least one key must be provided:
+
+```php
+'user' => ['array_keys:name,username'],
+```
+
+For convenience, you may use the `Rule::arrayKeys` method:
+
+```php
+'user' => [Rule::arrayKeys('name', 'username')],
+```
 
 <a name="rule-ascii"></a>
 #### ascii

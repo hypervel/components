@@ -44,7 +44,7 @@ class Numeric implements Stringable
      */
     public function different(string $field): static
     {
-        return $this->addRule('different:' . $field);
+        return $this->addRule('different:"' . str_replace('"', '""', $field) . '"');
     }
 
     /**
@@ -68,7 +68,7 @@ class Numeric implements Stringable
      */
     public function greaterThan(string $field): static
     {
-        return $this->addRule('gt:' . $field);
+        return $this->addRule('gt:"' . str_replace('"', '""', $field) . '"');
     }
 
     /**
@@ -76,7 +76,7 @@ class Numeric implements Stringable
      */
     public function greaterThanOrEqualTo(string $field): static
     {
-        return $this->addRule('gte:' . $field);
+        return $this->addRule('gte:"' . str_replace('"', '""', $field) . '"');
     }
 
     /**
@@ -92,7 +92,7 @@ class Numeric implements Stringable
      */
     public function lessThan(string $field): static
     {
-        return $this->addRule('lt:' . $field);
+        return $this->addRule('lt:"' . str_replace('"', '""', $field) . '"');
     }
 
     /**
@@ -100,7 +100,7 @@ class Numeric implements Stringable
      */
     public function lessThanOrEqualTo(string $field): static
     {
-        return $this->addRule('lte:' . $field);
+        return $this->addRule('lte:"' . str_replace('"', '""', $field) . '"');
     }
 
     /**
@@ -148,7 +148,7 @@ class Numeric implements Stringable
      */
     public function same(string $field): static
     {
-        return $this->addRule('same:' . $field);
+        return $this->addRule('same:"' . str_replace('"', '""', $field) . '"');
     }
 
     /**
@@ -164,7 +164,17 @@ class Numeric implements Stringable
      */
     public function __toString(): string
     {
-        return implode('|', array_unique($this->constraints));
+        return implode('|', $this->toArray());
+    }
+
+    /**
+     * Convert the rule to an array of validation rules.
+     *
+     * @return list<string>
+     */
+    public function toArray(): array
+    {
+        return array_values(array_unique($this->constraints));
     }
 
     /**

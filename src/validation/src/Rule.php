@@ -13,6 +13,7 @@ use Hypervel\Contracts\Validation\ValidationRule;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Validation\Rules\AnyOf;
+use Hypervel\Validation\Rules\ArrayKeys;
 use Hypervel\Validation\Rules\ArrayRule;
 use Hypervel\Validation\Rules\Can;
 use Hypervel\Validation\Rules\Contains;
@@ -86,6 +87,14 @@ class Rule
     public static function array(mixed $keys = null): ArrayRule
     {
         return new ArrayRule(...func_get_args());
+    }
+
+    /**
+     * Get an array keys rule builder instance.
+     */
+    public static function arrayKeys(array|Arrayable|UnitEnum|int|string $keys): ArrayKeys
+    {
+        return new ArrayKeys(...func_get_args());
     }
 
     /**

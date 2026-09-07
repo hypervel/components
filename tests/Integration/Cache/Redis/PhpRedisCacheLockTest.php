@@ -7,20 +7,13 @@ namespace Hypervel\Tests\Integration\Cache\Redis;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 use Redis;
 
 /**
- * Tests that Redis locks work correctly under various phpredis serializer
- * and compression configurations.
- *
- * Validates the pack() + withConnection() fix on RedisLock::release() and
- * refresh() — Lua ARGV values must be pre-packed when a serializer is
- * configured, because phpredis does NOT auto-serialize eval() ARGV.
- *
- * Unlike Laravel (which sets serializer options on a live client instance),
- * Hypervel uses connection pooling — serializer/compression options must be
- * configured at the connection config level so the pool creates connections
- * with the correct settings.
+ * Configure serialization and compression on the pool so every connection
+ * uses the same options. Lock release and refresh must pack the owner for
+ * Lua with those options, since phpredis does not serialize eval() ARGV.
  */
 class PhpRedisCacheLockTest extends TestCase
 {
@@ -93,7 +86,9 @@ class PhpRedisCacheLockTest extends TestCase
         $this->assertLockCanBeAcquiredAndReleased();
     }
 
-    public function testRedisLockCanBeAcquiredAndReleasedWithZstdCompression(): void
+    #[TestWith(['COMPRESSION_ZSTD_DEFAULT'])]
+    #[TestWith(['COMPRESSION_ZSTD_MAX'])]
+    public function testRedisLockCanBeAcquiredAndReleasedWithZstdCompression(string $compressionLevel): void
     {
         if (! defined('Redis::COMPRESSION_ZSTD')) {
             $this->markTestSkipped('Redis extension is not configured to support the zstd compression.');
@@ -102,13 +97,16 @@ class PhpRedisCacheLockTest extends TestCase
         $this->configureLockConnection([
             'serializer' => Redis::SERIALIZER_NONE,
             'compression' => Redis::COMPRESSION_ZSTD,
-            'compression_level' => Redis::COMPRESSION_ZSTD_DEFAULT,
+            'compression_level' => constant(Redis::class . '::' . $compressionLevel),
         ]);
 
         $this->assertLockCanBeAcquiredAndReleased();
     }
 
-    public function testRedisLockCanBeAcquiredAndReleasedWithLz4Compression(): void
+    #[TestWith([1])]
+    #[TestWith([3])]
+    #[TestWith([12])]
+    public function testRedisLockCanBeAcquiredAndReleasedWithLz4Compression(int $compressionLevel): void
     {
         if (! defined('Redis::COMPRESSION_LZ4')) {
             $this->markTestSkipped('Redis extension is not configured to support the lz4 compression.');
@@ -117,7 +115,7 @@ class PhpRedisCacheLockTest extends TestCase
         $this->configureLockConnection([
             'serializer' => Redis::SERIALIZER_NONE,
             'compression' => Redis::COMPRESSION_LZ4,
-            'compression_level' => 1,
+            'compression_level' => $compressionLevel,
         ]);
 
         $this->assertLockCanBeAcquiredAndReleased();
@@ -140,21 +138,13 @@ class PhpRedisCacheLockTest extends TestCase
     /**
      * Configure a dedicated Redis connection for lock testing with the given options.
      *
-     * Creates a 'lock-test' Redis connection with the specified serializer/compression
-     * options, points the cache store's lock_connection to it, and purges the cache
-     * store so it picks up the new configuration.
+     * @param array<string, mixed> $options
      */
     protected function configureLockConnection(array $options): void
     {
         $config = $this->app->make('config');
-        $baseConfig = $config->array('database.redis.default');
-
-        $config->set('database.redis.lock-test', array_merge($baseConfig, [
-            'options' => $options,
-        ]));
-
         $config->set('cache.stores.redis.connection', 'default');
-        $config->set('cache.stores.redis.lock_connection', 'lock-test');
+        $config->set('cache.stores.redis.lock_connection', $this->createRedisConnectionWithOptions('lock-test', $options));
 
         Cache::forgetDriver('redis');
     }
@@ -168,6 +158,8 @@ class PhpRedisCacheLockTest extends TestCase
         $store = Cache::store('redis');
 
         $store->lock('foo')->forceRelease();
+        $this->assertNull($store->lockConnection()->get($store->getPrefix() . 'foo'));
+
         $lock = $store->lock('foo', 3);
         $this->assertTrue($lock->get());
         $this->assertFalse($store->lock('foo', 3)->get());
@@ -184,8 +176,8 @@ class PhpRedisCacheLockTest extends TestCase
         $this->assertGreaterThan($decayedLifetime, $refreshedLifetime);
 
         $lock->release();
+        $this->assertNull($store->lockConnection()->get($store->getPrefix() . 'foo'));
 
-        // After release, lock should be acquirable again
         $lock = $store->lock('foo', 10);
         $this->assertTrue($lock->get());
         $lock->forceRelease();

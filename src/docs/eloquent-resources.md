@@ -943,9 +943,10 @@ The generated class will extend `Hypervel\Http\Resources\JsonApi\JsonApiResource
 ```php
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Resources;
 
-use Hypervel\Http\Request;
 use Hypervel\Http\Resources\JsonApi\JsonApiResource;
 
 class PostResource extends JsonApiResource
@@ -953,14 +954,14 @@ class PostResource extends JsonApiResource
     /**
      * The resource's attributes.
      */
-    public $attributes = [
+    public array $attributes = [
         // ...
     ];
 
     /**
      * The resource's relationships.
      */
-    public $relationships = [
+    public array $relationships = [
         // ...
     ];
 }
@@ -1040,7 +1041,7 @@ There are two ways to define which attributes are included in your JSON:API reso
 The simplest approach is to define an `$attributes` property on your resource. You may list attribute names as values, which will be read directly from the underlying model:
 
 ```php
-public $attributes = [
+public array $attributes = [
     'title',
     'body',
     'created_at',
@@ -1052,6 +1053,8 @@ If an attribute is expensive to calculate, you may return it from `toAttributes`
 Or, for full control over the resource's attributes, you may override the `toAttributes` method on the resource:
 
 ```php
+use Hypervel\Http\Request;
+
 /**
  * Get the resource's attributes.
  *
@@ -1079,7 +1082,7 @@ JSON:API resources support defining relationships that follow the JSON:API speci
 You may define your resource's includable relationships via the `$relationships` property on your resource:
 
 ```php
-public $relationships = [
+public array $relationships = [
     'author',
     'comments',
 ];
@@ -1090,7 +1093,7 @@ When listing a relationship name as a value, Hypervel will resolve the correspon
 ```php
 use App\Http\Resources\UserResource;
 
-public $relationships = [
+public array $relationships = [
     'author' => UserResource::class,
     'comments',
 ];
@@ -1099,6 +1102,8 @@ public $relationships = [
 Alternatively, you may override the `toRelationships` method on the resource:
 
 ```php
+use Hypervel\Http\Request;
+
 /**
  * Get the resource's relationships.
  */
@@ -1199,6 +1204,8 @@ By default, the resource's `type` is derived from the resource class name. For e
 If you need to customize these values, you may override the `toType` and `toId` methods on your resource:
 
 ```php
+use Hypervel\Http\Request;
+
 /**
  * Get the resource's type.
  */
@@ -1256,6 +1263,8 @@ return $post->load('author', 'comments')
 You may add links and meta information to your JSON:API resource objects by overriding the `toLinks` and `toMeta` methods on the resource:
 
 ```php
+use Hypervel\Http\Request;
+
 /**
  * Get the resource's links.
  */

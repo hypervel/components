@@ -9,6 +9,8 @@ use Hypervel\Mail\Mailables\Address;
 use Hypervel\Mail\Mailables\Content;
 use Hypervel\Mail\Mailables\Envelope;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 
 class MailableAlternativeSyntaxTest extends TestCase
@@ -40,6 +42,15 @@ class MailableAlternativeSyntaxTest extends TestCase
         $this->assertEquals(2, count($mailable->to));
         $this->assertEquals(1, count($mailable->cc));
         $this->assertEquals(1, count($mailable->bcc));
+    }
+
+    #[TestWith(["person@example.test\r"])]
+    #[TestWith(["person@example.test\n"])]
+    public function testAddressRejectsLineBreaks(string $address): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException('Email addresses may not contain line break characters.'));
+
+        new Address($address);
     }
 
     public function testEnvelopesCanReceiveAdditionalRecipients(): void
