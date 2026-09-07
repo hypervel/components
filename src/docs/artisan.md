@@ -73,6 +73,14 @@ php artisan tinker --execute='echo App\Models\User::count();'
 
 The command returns an exit status of zero when the code completes successfully. If the code calls `exit`, Artisan returns the requested exit status. Uncaught exceptions return an exit status of one.
 
+You may pass one or more PHP files to load before Tinker executes your code:
+
+```shell
+php artisan tinker bootstrap.php --execute='echo $message;'
+```
+
+If an included file cannot be loaded, Tinker reports the error and continues. The command's exit status still reflects the executed code.
+
 You can publish Tinker's configuration file using the `vendor:publish` command and Tinker's publish tag:
 
 ```shell
