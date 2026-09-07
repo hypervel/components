@@ -46,6 +46,7 @@ use ReflectionProperty;
 use RuntimeException;
 use SplFileInfo;
 use stdClass;
+use Stringable as StringableInterface;
 use Symfony\Component\HttpFoundation\File\File;
 use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyUploadedFile;
 use UnitEnum;
@@ -5025,7 +5026,7 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testValidateEmail()
+    public function testValidateEmail(): void
     {
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['x' => 'aslsdlks'], ['x' => 'Email']);
@@ -5035,8 +5036,8 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
 
         $v = new Validator($trans, [
-            'x' => new class implements \Stringable {
-                public function __toString()
+            'x' => new class implements StringableInterface {
+                public function __toString(): string
                 {
                     return 'aslsdlks';
                 }
@@ -5045,8 +5046,8 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
 
         $v = new Validator($trans, [
-            'x' => new class implements \Stringable {
-                public function __toString()
+            'x' => new class implements StringableInterface {
+                public function __toString(): string
                 {
                     return 'foo@gmail.com';
                 }
@@ -5056,6 +5057,9 @@ class ValidationValidatorTest extends TestCase
 
         $v = new Validator($trans, ['x' => 'foo@gmail.com'], ['x' => 'Email']);
         $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['x' => "\"foo\r\nBcc: victim@example.com\"@example.com"], ['x' => 'Email']);
+        $this->assertFalse($v->passes());
     }
 
     public function testValidateEmailWithInternationalCharacters()
